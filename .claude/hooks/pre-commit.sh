@@ -127,7 +127,7 @@ check_secrets() {
         'BEGIN PGP PRIVATE KEY'
     )
 
-    for file in $staged_files; do
+    while IFS= read -r file; do
         # Skip binary files, lock files, and config templates
         if [[ "$file" =~ \.(lock|png|jpg|jpeg|gif|ico|woff|woff2|ttf|eot|pdf)$ ]]; then
             continue
@@ -143,7 +143,7 @@ check_secrets() {
                 has_secrets=1
             fi
         done
-    done
+    done <<< "$staged_files"
 
     if [ $has_secrets -ne 0 ]; then
         echo ""
@@ -162,7 +162,7 @@ check_secrets() {
 # ---------------------------------------------------------------------------
 run_build() {
     local build_cmd
-    build_cmd=$(get_project_config "build_cmd")
+    build_cmd=$(get_project_config "build_cmd" || echo "")
 
     if [ -z "$build_cmd" ]; then
         log "INFO" "No build_cmd configured, skipping build step"

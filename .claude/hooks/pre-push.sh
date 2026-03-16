@@ -84,7 +84,7 @@ check_uncommitted() {
 # ---------------------------------------------------------------------------
 run_tests() {
     local test_cmd
-    test_cmd=$(get_project_config "test_cmd")
+    test_cmd=$(get_project_config "test_cmd" || echo "")
 
     if [ -z "$test_cmd" ]; then
         log "INFO" "No test_cmd configured, skipping tests"
@@ -115,7 +115,7 @@ run_tests() {
 # ---------------------------------------------------------------------------
 run_lint() {
     local lint_cmd
-    lint_cmd=$(get_project_config "lint_cmd")
+    lint_cmd=$(get_project_config "lint_cmd" || echo "")
 
     if [ -z "$lint_cmd" ]; then
         log "INFO" "No lint_cmd configured, skipping lint"
@@ -146,7 +146,7 @@ run_lint() {
 # ---------------------------------------------------------------------------
 run_build() {
     local build_cmd
-    build_cmd=$(get_project_config "build_cmd")
+    build_cmd=$(get_project_config "build_cmd" || echo "")
 
     if [ -z "$build_cmd" ]; then
         log "INFO" "No build_cmd configured, skipping build"

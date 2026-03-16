@@ -41,11 +41,12 @@ class TestInstallScript:
 
     def test_agents_installed(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            subprocess.run(
+            result = subprocess.run(
                 ['bash', INSTALL_SCRIPT, tmpdir, '--minimal', '--force'],
                 capture_output=True, text=True,
                 timeout=60
             )
+            assert result.returncode == 0, f"Install failed: {result.stderr}"
             agents_dir = os.path.join(tmpdir, '.claude', 'agents')
             expected_agents = [
                 'coordinator.md', 'planner.md', 'reviewer.md',
@@ -57,11 +58,12 @@ class TestInstallScript:
 
     def test_commands_installed(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            subprocess.run(
+            result = subprocess.run(
                 ['bash', INSTALL_SCRIPT, tmpdir, '--minimal', '--force'],
                 capture_output=True, text=True,
                 timeout=60
             )
+            assert result.returncode == 0, f"Install failed: {result.stderr}"
             cmds_dir = os.path.join(tmpdir, '.claude', 'commands')
             expected_cmds = [
                 'plan.md', 'review.md', 'implement.md', 'verify.md',
@@ -72,11 +74,12 @@ class TestInstallScript:
 
     def test_operations_scripts_installed(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            subprocess.run(
+            result = subprocess.run(
                 ['bash', INSTALL_SCRIPT, tmpdir, '--minimal', '--force'],
                 capture_output=True, text=True,
                 timeout=60
             )
+            assert result.returncode == 0, f"Install failed: {result.stderr}"
             scripts_dir = os.path.join(tmpdir, '.claude', 'operations', 'scripts')
             expected_scripts = [
                 'validate-config-json.py', 'execute-json-ops.py',
@@ -112,11 +115,12 @@ class TestInstallScript:
 
     def test_gitignore_created(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            subprocess.run(
+            result = subprocess.run(
                 ['bash', INSTALL_SCRIPT, tmpdir, '--minimal', '--force'],
                 capture_output=True, text=True,
                 timeout=60
             )
+            assert result.returncode == 0, f"Install failed: {result.stderr}"
             gitignore = os.path.join(tmpdir, '.gitignore')
             assert os.path.exists(gitignore)
             with open(gitignore) as f:

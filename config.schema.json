@@ -1,0 +1,95 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/OmarMokhtar-Saad/claudekit/config.schema.json",
+  "title": "ClaudeKit Configuration",
+  "description": "Configuration schema for .claude/hooks/config.json",
+  "type": "object",
+  "properties": {
+    "hooks": {
+      "type": "object",
+      "properties": {
+        "pre-commit": {
+          "type": "object",
+          "properties": {
+            "command": { "type": "string" },
+            "enabled": { "type": "boolean", "default": true },
+            "timeout": { "type": "integer", "minimum": 1000, "maximum": 600000, "default": 30000 },
+            "blocking": { "type": "boolean", "default": true }
+          }
+        },
+        "post-implement": {
+          "type": "object",
+          "properties": {
+            "command": { "type": "string" },
+            "enabled": { "type": "boolean", "default": true },
+            "timeout": { "type": "integer", "minimum": 1000, "maximum": 600000, "default": 120000 },
+            "blocking": { "type": "boolean", "default": false }
+          }
+        },
+        "pre-plan": {
+          "type": "object",
+          "properties": {
+            "command": { "type": "string" },
+            "enabled": { "type": "boolean", "default": true },
+            "timeout": { "type": "integer", "minimum": 1000, "maximum": 600000, "default": 5000 },
+            "blocking": { "type": "boolean", "default": false }
+          }
+        },
+        "pre-push": {
+          "type": "object",
+          "properties": {
+            "command": { "type": "string" },
+            "enabled": { "type": "boolean", "default": true },
+            "timeout": { "type": "integer", "minimum": 1000, "maximum": 600000, "default": 300000 },
+            "blocking": { "type": "boolean", "default": true }
+          }
+        },
+        "post-tool-use": {
+          "type": "object",
+          "properties": {
+            "command": { "type": "string" },
+            "enabled": { "type": "boolean", "default": true },
+            "timeout": { "type": "integer", "minimum": 1000, "maximum": 600000, "default": 5000 },
+            "blocking": { "type": "boolean", "default": false }
+          }
+        }
+      }
+    },
+    "global": {
+      "type": "object",
+      "properties": {
+        "disabled": { "type": "boolean", "default": false },
+        "logLevel": { "type": "string", "enum": ["debug", "info", "warn", "error"], "default": "info" },
+        "logFile": { "type": "string", "default": ".claude/hooks/hooks.log" },
+        "maxConcurrentHooks": { "type": "integer", "minimum": 1, "maximum": 10, "default": 3 }
+      }
+    },
+    "project": {
+      "type": "object",
+      "properties": {
+        "build_cmd": { "type": "string", "description": "Build command (e.g., npm run build)" },
+        "test_cmd": { "type": "string", "description": "Test command (e.g., pytest)" },
+        "lint_cmd": { "type": "string", "description": "Lint command (e.g., eslint .)" },
+        "coverage_cmd": { "type": "string", "description": "Coverage command (e.g., pytest --cov)" }
+      }
+    },
+    "security": {
+      "type": "object",
+      "properties": {
+        "safeMode": { "type": "boolean", "default": true, "description": "Restrict hook commands to allowlist" },
+        "allowedCommands": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Additional allowed commands beyond defaults"
+        },
+        "blockedCommands": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Additional blocked commands"
+        },
+        "timeout": { "type": "integer", "minimum": 1000, "maximum": 600000, "default": 30000 }
+      }
+    }
+  },
+  "additionalProperties": false
+}

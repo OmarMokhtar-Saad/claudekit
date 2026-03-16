@@ -61,7 +61,12 @@ while [[ $# -gt 0 ]]; do
         --force)    FORCE=true; shift ;;
         --help)     usage; exit 0 ;;
         -*)         print_err "Unknown option: $1"; usage; exit 1 ;;
-        *)          TARGET_DIR="$1"; shift ;;
+        *)
+            if [[ -n "$TARGET_DIR" ]]; then
+                print_err "Unexpected argument: $1 (target directory already set to $TARGET_DIR)"
+                exit 1
+            fi
+            TARGET_DIR="$1"; shift ;;
     esac
 done
 
@@ -79,6 +84,15 @@ if [[ ! -d "$TARGET_DIR" ]]; then
 fi
 
 DEST="$TARGET_DIR/.claude"
+
+# Cleanup on failure - remove partial installation
+_cleanup_on_failure() {
+    if [[ -d "$DEST" ]]; then
+        print_err "Installation failed. Cleaning up partial installation..."
+        rm -rf "$DEST"
+    fi
+}
+trap '_cleanup_on_failure' ERR
 
 # Check for existing installation
 if [[ -d "$DEST" ]] && [[ "$FORCE" != true ]]; then
@@ -289,6 +303,9 @@ else
     printf '%s\n' "${ENTRIES[@]}" > "$GITIGNORE"
 fi
 print_ok ".gitignore updated"
+
+# Disable cleanup trap on success
+trap - ERR
 
 # Summary
 echo ""
