@@ -32,7 +32,7 @@ get_project_config() {
 # ---------------------------------------------------------------------------
 run_build() {
     local build_cmd
-    build_cmd=$(get_project_config "build_cmd")
+    build_cmd=$(get_project_config "build_cmd" || echo "")
 
     if [ -z "$build_cmd" ]; then
         log "INFO" "No build_cmd configured, skipping build"
@@ -61,7 +61,7 @@ run_build() {
 # ---------------------------------------------------------------------------
 run_tests() {
     local test_cmd
-    test_cmd=$(get_project_config "test_cmd")
+    test_cmd=$(get_project_config "test_cmd" || echo "")
 
     if [ -z "$test_cmd" ]; then
         log "INFO" "No test_cmd configured, skipping tests"
@@ -91,7 +91,7 @@ run_tests() {
 # ---------------------------------------------------------------------------
 run_coverage() {
     local coverage_cmd
-    coverage_cmd=$(get_project_config "coverage_cmd")
+    coverage_cmd=$(get_project_config "coverage_cmd" || echo "")
 
     if [ -z "$coverage_cmd" ]; then
         log "INFO" "No coverage_cmd configured, skipping coverage"

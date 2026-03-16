@@ -1,0 +1,45 @@
+name: Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 6 * * 1'
+
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install bandit safety
+
+      - name: Run Bandit security scan
+        run: bandit -r .claude/operations/scripts/ src/ -f json -o bandit-report.json || true
+
+      - name: Check for known vulnerabilities
+        run: safety check --json --output safety-report.json 2>/dev/null || true
+
+      - name: Upload security reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            bandit-report.json
+            safety-report.json
+
+      - name: Validate shell scripts
+        run: |
+          sudo apt-get install -y shellcheck
+          shellcheck install.sh
+          for f in .claude/hooks/*.sh; do
+            shellcheck "$f"
+          done

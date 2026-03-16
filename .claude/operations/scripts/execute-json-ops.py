@@ -157,7 +157,7 @@ class OperationTransaction:
             bp = self.backup_dir / rel
             if bp.exists():
                 try:
-                    shutil.copy(str(bp), fp)
+                    shutil.copy2(str(bp), fp)
                     print(f"  Restored: {fp}")
                 except Exception as e:
                     print(f"  Warning: Failed to restore {fp}: {e}")
@@ -332,7 +332,7 @@ def execute_file_delete(operation: dict, backup_dir: Path, dry_run: bool) -> Tup
         rel_path = Path(os.path.relpath(file_path))
         backup_path = backup_dir / rel_path
         backup_path.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy(str(file_path), str(backup_path))
+        shutil.copy2(str(file_path), str(backup_path))
         print(f"  Backed up to: {backup_path}")
     except Exception as e:
         print(f"  Error backing up file before deletion: {e}")
@@ -379,7 +379,7 @@ def execute_code_edit(operation: dict, backup_dir: Path, dry_run: bool) -> Tuple
             rel_path = Path(os.path.relpath(file_path))
             backup_path = backup_dir / rel_path
             backup_path.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy(str(file_path), str(backup_path))
+            shutil.copy2(str(file_path), str(backup_path))
             print(f"  Backed up to: {backup_path}")
         except Exception as e:
             print(f"  Error backing up file: {e}")
@@ -547,65 +547,68 @@ def _execute_operations(config: dict, operations: list, plan_name: str,
     # Execute operations with transaction tracking
     global _active_txn
     txn = OperationTransaction(backup_dir)
-    _active_txn = txn
+    if not dry_run:
+        _active_txn = txn
     success_count = 0
     error_count = 0
     stats = {'file_create': 0, 'file_delete': 0, 'code_edit': 0}
 
-    for i, operation in enumerate(operations, 1):
-        op_type = operation.get('type', 'unknown')
-        file_path = operation.get('path', 'unknown')
+    try:
+        for i, operation in enumerate(operations, 1):
+            op_type = operation.get('type', 'unknown')
+            file_path = operation.get('path', 'unknown')
 
-        print(f"[{i}/{len(operations)}] {op_type.upper()}: {file_path}")
+            print(f"[{i}/{len(operations)}] {op_type.upper()}: {file_path}")
 
-        if op_type == 'file_create':
-            success, status = execute_file_create(operation, backup_dir, dry_run)
-            if success:
-                stats['file_create'] += 1
-                if status == "created":
-                    txn.record_created(str(file_path))
-        elif op_type == 'file_delete':
-            success, status = execute_file_delete(operation, backup_dir, dry_run)
-            if success:
-                stats['file_delete'] += 1
-                if status == "deleted":
+            if op_type == 'file_create':
+                success, status = execute_file_create(operation, backup_dir, dry_run)
+                if success:
+                    stats['file_create'] += 1
+                    if status == "created":
+                        txn.record_created(str(file_path))
+            elif op_type == 'file_delete':
+                success, status = execute_file_delete(operation, backup_dir, dry_run)
+                if success:
+                    stats['file_delete'] += 1
+                    if status == "deleted":
+                        txn.record_modified(str(file_path))
+            elif op_type == 'code_edit':
+                success, status = execute_code_edit(operation, backup_dir, dry_run)
+                if status in ("edited", "partial-edits"):
                     txn.record_modified(str(file_path))
-        elif op_type == 'code_edit':
-            success, status = execute_code_edit(operation, backup_dir, dry_run)
-            if status in ("edited", "partial-edits"):
-                txn.record_modified(str(file_path))
+                if success:
+                    stats['code_edit'] += 1
+            else:
+                print(f"  Unknown operation type: {op_type}")
+                success = False
+
             if success:
-                stats['code_edit'] += 1
-        else:
-            print(f"  Unknown operation type: {op_type}")
-            success = False
+                success_count += 1
+            else:
+                error_count += 1
+                if not dry_run:
+                    txn.rollback()
+                break
 
-        if success:
-            success_count += 1
-        else:
-            error_count += 1
-            if not dry_run:
-                txn.rollback()
-            break
+            print()
 
+        # Summary
         print()
+        print("-" * 50)
+        print(f"{'DRY RUN COMPLETE' if dry_run else 'EXECUTION COMPLETE'}")
+        print(f"Operations: {len(operations)} total")
+        print(f"  file_create: {stats['file_create']}")
+        print(f"  file_delete: {stats['file_delete']}")
+        print(f"  code_edit:   {stats['code_edit']}")
+        if not dry_run:
+            print(f"Successful: {success_count}")
+            print(f"Errors:     {error_count}")
+            print(f"Backups:    {backup_dir}")
+        print("-" * 50)
 
-    # Summary
-    print()
-    print("-" * 50)
-    print(f"{'DRY RUN COMPLETE' if dry_run else 'EXECUTION COMPLETE'}")
-    print(f"Operations: {len(operations)} total")
-    print(f"  file_create: {stats['file_create']}")
-    print(f"  file_delete: {stats['file_delete']}")
-    print(f"  code_edit:   {stats['code_edit']}")
-    if not dry_run:
-        print(f"Successful: {success_count}")
-        print(f"Errors:     {error_count}")
-        print(f"Backups:    {backup_dir}")
-    print("-" * 50)
-
-    _active_txn = None  # noqa: F841 — clear global ref
-    return error_count == 0
+        return error_count == 0
+    finally:
+        _active_txn = None
 
 
 def main():

@@ -73,6 +73,13 @@ def validate_file_operations(operations: List[dict]) -> Tuple[bool, List[str]]:
                 errors.append(f"Operation {i} (file_delete): Path contains null bytes")
                 continue
 
+            # Path traversal check
+            if file_path:
+                rel = os.path.relpath(file_path)
+                if rel.startswith('..'):
+                    errors.append(f"Operation {i} (file_delete): Path traversal detected: {file_path}")
+                    continue
+
             # GUARD 12: File exists before deletion
             if file_path and not os.path.exists(file_path):
                 errors.append(f"Operation {i} (file_delete): Cannot delete non-existent file: {file_path}")
@@ -103,6 +110,13 @@ def validate_file_operations(operations: List[dict]) -> Tuple[bool, List[str]]:
             if file_path and '\x00' in file_path:
                 errors.append(f"Operation {i} (file_create): Path contains null bytes")
                 continue
+
+            # Path traversal check
+            if file_path:
+                rel = os.path.relpath(file_path)
+                if rel.startswith('..'):
+                    errors.append(f"Operation {i} (file_create): Path traversal detected: {file_path}")
+                    continue
 
             # GUARD 26: Null byte check on content
             if content and '\x00' in content:

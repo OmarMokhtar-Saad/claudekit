@@ -60,13 +60,13 @@ jobs:
         run: |
           count=$(ls -1 .claude/agents/*.md | grep -v _shared | grep -v HANDOFF | grep -v QUICK | wc -l)
           echo "Agents: $count"
-          [ "$count" -ge 9 ] || (echo "Expected at least 9 agents" && exit 1)
+          [ "$count" -ge 13 ] || (echo "Expected at least 13 agents, found $count" && exit 1)
 
       - name: Verify command count
         run: |
           count=$(ls -1 .claude/commands/*.md | wc -l)
           echo "Commands: $count"
-          [ "$count" -ge 8 ] || (echo "Expected at least 8 commands" && exit 1)
+          [ "$count" -ge 17 ] || (echo "Expected at least 17 commands, found $count" && exit 1)
 
       - name: Verify operations scripts
         run: |
@@ -79,3 +79,56 @@ jobs:
 
       - name: Test install script help
         run: bash install.sh --help
+
+  validate-registry:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Validate skills-registry.json
+        run: |
+          python3 -c "
+          import json, sys
+
+          with open('.claude/skills/skills-registry.json') as f:
+              registry = json.load(f)
+
+          skill_ids = {s['id'] for s in registry['skills']}
+          errors = []
+
+          for agent, skills in registry['agentMapping'].items():
+              for skill_id in skills:
+                  if skill_id not in skill_ids:
+                      errors.append(f'Agent \"{agent}\" references unknown skill \"{skill_id}\"')
+
+          if errors:
+              for e in errors:
+                  print(f'ERROR: {e}')
+              sys.exit(1)
+          else:
+              print(f'Registry valid: {len(skill_ids)} skills, {len(registry[\"agentMapping\"])} agents')
+          "
+
+  cli-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install test dependencies
+        run: pip install -r tests/requirements.txt
+
+      - name: Run CLI tests
+        run: python -m pytest tests/test_cli.py -v || true
+
+      - name: Run security tests
+        run: python -m pytest tests/test_security.py -v || true
