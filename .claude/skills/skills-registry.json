@@ -1,0 +1,382 @@
+{
+  "version": "1.1",
+  "lastUpdated": "2026-03-16",
+  "description": "ClaudeKit skills registry — maps skills to agents",
+  "skills": [
+    {
+      "id": "using-superpowers",
+      "name": "Using Superpowers",
+      "path": "skills/using-superpowers/SKILL.md",
+      "mandatory": true,
+      "usedBy": ["all"],
+      "description": "Skill discovery protocol"
+    },
+    {
+      "id": "golden-rule",
+      "name": "Golden Rule",
+      "path": "skills/golden-rule/SKILL.md",
+      "mandatory": true,
+      "usedBy": ["all"],
+      "description": "No code changes without approval"
+    },
+    {
+      "id": "context-first-workflow",
+      "name": "Context-First Workflow",
+      "path": "skills/context-first-workflow/SKILL.md",
+      "mandatory": false,
+      "usedBy": ["planner", "implementer"],
+      "description": "Explore before modifying"
+    },
+    {
+      "id": "writing-plans",
+      "name": "Writing Plans",
+      "path": "skills/writing-plans/SKILL.md",
+      "mandatory": false,
+      "usedBy": ["planner"],
+      "description": "Plan structure and ops.json"
+    },
+    {
+      "id": "executing-plans",
+      "name": "Executing Plans",
+      "path": "skills/executing-plans/SKILL.md",
+      "mandatory": false,
+      "usedBy": ["implementer"],
+      "description": "Batch execution with checkpoints"
+    },
+    {
+      "id": "brainstorming",
+      "name": "Brainstorming",
+      "path": "skills/brainstorming/SKILL.md",
+      "mandatory": false,
+      "usedBy": ["planner"],
+      "description": "Creative design exploration"
+    },
+    {
+      "id": "generate-operations-config",
+      "name": "Generate Operations Config",
+      "path": "skills/generate-operations-config/SKILL.md",
+      "mandatory": false,
+      "usedBy": ["planner", "implementer"],
+      "description": "Create ops.json for code changes"
+    },
+    {
+      "id": "validate-operations-config",
+      "name": "Validate Operations Config",
+      "path": "skills/validate-operations-config/SKILL.md",
+      "mandatory": false,
+      "usedBy": ["reviewer"],
+      "description": "Validate ops.json with 29 guards"
+    },
+    {
+      "id": "execute-operations-config",
+      "name": "Execute Operations Config",
+      "path": "skills/execute-operations-config/SKILL.md",
+      "mandatory": false,
+      "usedBy": ["implementer"],
+      "description": "Execute ops.json with backup"
+    },
+    {
+      "id": "verification-before-completion",
+      "name": "Verification Before Completion",
+      "path": "skills/verification-before-completion/SKILL.md",
+      "mandatory": false,
+      "usedBy": ["verifier", "implementer", "tester"],
+      "description": "Evidence before success claims"
+    },
+    {
+      "id": "test-driven-development",
+      "name": "Test-Driven Development",
+      "path": "skills/test-driven-development/SKILL.md",
+      "mandatory": false,
+      "usedBy": ["implementer", "verifier", "tester"],
+      "description": "RED/GREEN/REFACTOR workflow"
+    },
+    {
+      "id": "clean-architecture",
+      "name": "Clean Architecture",
+      "path": "skills/clean-architecture/SKILL.md",
+      "mandatory": false,
+      "usedBy": ["reviewer", "planner", "implementer", "database-architect"],
+      "description": "Layer boundaries and dependency rules"
+    },
+    {
+      "id": "security-checklist",
+      "name": "Security Checklist",
+      "path": "skills/security-checklist/SKILL.md",
+      "mandatory": false,
+      "usedBy": ["reviewer", "gitOps", "security-scanner", "devops"],
+      "description": "OWASP Top 10 validation"
+    },
+    {
+      "id": "performance-guidelines",
+      "name": "Performance Guidelines",
+      "path": "skills/performance-guidelines/SKILL.md",
+      "mandatory": false,
+      "usedBy": ["verifier", "implementer", "database-architect"],
+      "description": "Response times and resource management"
+    },
+    {
+      "id": "systematic-debugging",
+      "name": "Systematic Debugging",
+      "path": "skills/systematic-debugging/SKILL.md",
+      "mandatory": false,
+      "usedBy": ["debugger"],
+      "description": "4-phase root cause investigation"
+    },
+    {
+      "id": "clarify",
+      "name": "Clarify",
+      "path": "skills/clarify/SKILL.md",
+      "mandatory": false,
+      "usedBy": ["all"],
+      "description": "Reverse-question protocol for ambiguity"
+    },
+    {
+      "id": "requesting-code-review",
+      "name": "Requesting Code Review",
+      "path": "skills/requesting-code-review/SKILL.md",
+      "mandatory": false,
+      "usedBy": ["gitOps"],
+      "description": "Dispatch code reviewer subagent"
+    },
+    {
+      "id": "receiving-code-review",
+      "name": "Receiving Code Review",
+      "path": "skills/receiving-code-review/SKILL.md",
+      "mandatory": false,
+      "usedBy": ["implementer"],
+      "description": "Technical evaluation of feedback"
+    },
+    {
+      "id": "refactoring-patterns",
+      "name": "Refactoring Patterns",
+      "path": "skills/refactoring-patterns/SKILL.md",
+      "mandatory": false,
+      "usedBy": ["planner"],
+      "description": "Proven refactoring catalog"
+    },
+    {
+      "id": "error-handling",
+      "name": "Error Handling",
+      "path": "skills/error-handling/SKILL.md",
+      "mandatory": false,
+      "usedBy": ["implementer"],
+      "description": "Exceptions, logging, recovery"
+    },
+    {
+      "id": "documentation-standards",
+      "name": "Documentation Standards",
+      "path": "skills/documentation-standards/SKILL.md",
+      "mandatory": false,
+      "usedBy": ["documenter"],
+      "description": "Doc formatting and knowledge base"
+    },
+    {
+      "id": "git-workflow",
+      "name": "Git Workflow",
+      "path": "skills/git-workflow/SKILL.md",
+      "mandatory": false,
+      "usedBy": ["gitOps"],
+      "description": "Branching, commits, PRs"
+    },
+    {
+      "id": "using-git-worktrees",
+      "name": "Using Git Worktrees",
+      "path": "skills/using-git-worktrees/SKILL.md",
+      "mandatory": false,
+      "usedBy": ["gitOps"],
+      "description": "Isolated workspace patterns"
+    },
+    {
+      "id": "finishing-a-development-branch",
+      "name": "Finishing a Development Branch",
+      "path": "skills/finishing-a-development-branch/SKILL.md",
+      "mandatory": false,
+      "usedBy": ["gitOps"],
+      "description": "Branch completion and cleanup"
+    },
+    {
+      "id": "multi-agent-coordination",
+      "name": "Multi-Agent Coordination",
+      "path": "skills/multi-agent-coordination/SKILL.md",
+      "mandatory": false,
+      "usedBy": ["coordinator"],
+      "description": "Safe parallel execution patterns"
+    },
+    {
+      "id": "dispatching-parallel-agents",
+      "name": "Dispatching Parallel Agents",
+      "path": "skills/dispatching-parallel-agents/SKILL.md",
+      "mandatory": false,
+      "usedBy": ["coordinator"],
+      "description": "Parallel task investigation"
+    },
+    {
+      "id": "subagent-driven-development",
+      "name": "Subagent-Driven Development",
+      "path": "skills/subagent-driven-development/SKILL.md",
+      "mandatory": false,
+      "usedBy": ["coordinator"],
+      "description": "Fresh subagent per task"
+    },
+    {
+      "id": "writing-skills",
+      "name": "Writing Skills",
+      "path": "skills/writing-skills/SKILL.md",
+      "mandatory": false,
+      "usedBy": ["all"],
+      "description": "TDD approach to skill creation"
+    },
+    {
+      "id": "constitution",
+      "name": "Constitution",
+      "path": "skills/constitution/SKILL.md",
+      "mandatory": false,
+      "usedBy": ["all"],
+      "description": "Project governance creation"
+    },
+    {
+      "id": "api-design-patterns",
+      "name": "API Design Patterns",
+      "path": "skills/api-design-patterns/SKILL.md",
+      "mandatory": false,
+      "usedBy": ["planner", "reviewer"],
+      "description": "REST, GraphQL, gRPC design guidance, versioning, pagination, error responses"
+    },
+    {
+      "id": "database-migration-patterns",
+      "name": "Database Migration Patterns",
+      "path": "skills/database-migration-patterns/SKILL.md",
+      "mandatory": false,
+      "usedBy": ["planner", "reviewer", "database-architect"],
+      "description": "Zero-downtime migrations, expand-contract pattern, rollback strategies"
+    },
+    {
+      "id": "dependency-audit",
+      "name": "Dependency Audit",
+      "path": "skills/dependency-audit/SKILL.md",
+      "mandatory": false,
+      "usedBy": ["verifier", "reviewer", "security-scanner"],
+      "description": "CVE assessment, semver compatibility, safe incremental upgrades"
+    },
+    {
+      "id": "accessibility-standards",
+      "name": "Accessibility Standards",
+      "path": "skills/accessibility-standards/SKILL.md",
+      "mandatory": false,
+      "usedBy": ["reviewer", "verifier"],
+      "description": "WCAG 2.1 AA compliance, ARIA patterns, keyboard navigation"
+    },
+    {
+      "id": "i18n-patterns",
+      "name": "Internationalization Patterns",
+      "path": "skills/i18n-patterns/SKILL.md",
+      "mandatory": false,
+      "usedBy": ["planner", "implementer"],
+      "description": "Locale-aware formatting, translation keys, RTL layout, pluralization"
+    },
+    {
+      "id": "incident-response",
+      "name": "Incident Response",
+      "path": "skills/incident-response/SKILL.md",
+      "mandatory": false,
+      "usedBy": ["debugger", "coordinator"],
+      "description": "Triage, war room coordination, post-mortem writing, runbook patterns"
+    },
+    {
+      "id": "ci-cd-pipeline",
+      "name": "CI/CD Pipeline",
+      "path": "skills/ci-cd-pipeline/SKILL.md",
+      "mandatory": false,
+      "usedBy": ["planner", "gitOps", "devops"],
+      "description": "Pipeline stage design, artifact promotion, environment gating"
+    },
+    {
+      "id": "monitoring-observability",
+      "name": "Monitoring & Observability",
+      "path": "skills/monitoring-observability/SKILL.md",
+      "mandatory": false,
+      "usedBy": ["planner", "debugger", "devops"],
+      "description": "Structured logging, distributed tracing, metric naming, SLO/SLA"
+    },
+    {
+      "id": "supply-chain-audit",
+      "name": "Supply Chain Audit",
+      "path": "skills/supply-chain-audit/SKILL.md",
+      "mandatory": false,
+      "usedBy": ["reviewer", "verifier", "security-scanner"],
+      "description": "Dependency tree threat analysis, typosquatting detection, CVE cross-referencing"
+    },
+    {
+      "id": "differential-security-review",
+      "name": "Differential Security Review",
+      "path": "skills/differential-security-review/SKILL.md",
+      "mandatory": false,
+      "usedBy": ["reviewer", "gitOps", "security-scanner"],
+      "description": "Security-focused diff analysis, removed controls detection, regression patterns"
+    },
+    {
+      "id": "insecure-defaults",
+      "name": "Insecure Defaults",
+      "path": "skills/insecure-defaults/SKILL.md",
+      "mandatory": false,
+      "usedBy": ["reviewer", "verifier", "security-scanner"],
+      "description": "Hardcoded credentials, fail-open patterns, dangerous default configurations"
+    },
+    {
+      "id": "static-analysis-integration",
+      "name": "Static Analysis Integration",
+      "path": "skills/static-analysis-integration/SKILL.md",
+      "mandatory": false,
+      "usedBy": ["verifier", "reviewer", "security-scanner"],
+      "description": "Semgrep, Bandit, ESLint security, SARIF parsing, severity classification"
+    },
+    {
+      "id": "property-based-testing",
+      "name": "Property-Based Testing",
+      "path": "skills/property-based-testing/SKILL.md",
+      "mandatory": false,
+      "usedBy": ["tester", "implementer"],
+      "description": "Hypothesis, fast-check, proptest, QuickCheck - property-driven test generation"
+    },
+    {
+      "id": "spec-driven-development",
+      "name": "Spec-Driven Development",
+      "path": "skills/spec-driven-development/SKILL.md",
+      "mandatory": false,
+      "usedBy": ["planner", "implementer"],
+      "description": "Specification-first workflow where specs are the single source of truth"
+    },
+    {
+      "id": "containerization-patterns",
+      "name": "Containerization Patterns",
+      "path": "skills/containerization-patterns/SKILL.md",
+      "mandatory": false,
+      "usedBy": ["devops"],
+      "description": "Docker multi-stage builds, security hardening, compose and K8s patterns"
+    },
+    {
+      "id": "code-explanation",
+      "name": "Code Explanation",
+      "path": "skills/code-explanation/SKILL.md",
+      "mandatory": false,
+      "usedBy": ["explore", "debugger"],
+      "description": "Analogy-first code explanation with visual diagrams and gotcha highlights"
+    }
+  ],
+  "agentMapping": {
+    "coordinator": ["using-superpowers", "golden-rule", "multi-agent-coordination", "dispatching-parallel-agents", "subagent-driven-development"],
+    "planner": ["using-superpowers", "golden-rule", "context-first-workflow", "writing-plans", "brainstorming", "generate-operations-config", "clean-architecture", "refactoring-patterns"],
+    "reviewer": ["using-superpowers", "golden-rule", "validate-operations-config", "clean-architecture", "security-checklist", "supply-chain-audit", "differential-security-review", "insecure-defaults", "static-analysis-integration"],
+    "implementer": ["using-superpowers", "golden-rule", "context-first-workflow", "execute-operations-config", "executing-plans", "clean-architecture", "verification-before-completion", "test-driven-development", "error-handling", "receiving-code-review", "property-based-testing"],
+    "verifier": ["using-superpowers", "golden-rule", "verification-before-completion", "test-driven-development", "performance-guidelines", "supply-chain-audit", "insecure-defaults", "static-analysis-integration"],
+    "debugger": ["using-superpowers", "golden-rule", "systematic-debugging"],
+    "documenter": ["using-superpowers", "golden-rule", "documentation-standards"],
+    "gitOps": ["using-superpowers", "golden-rule", "git-workflow", "using-git-worktrees", "finishing-a-development-branch", "security-checklist", "differential-security-review", "requesting-code-review"],
+    "explore": ["using-superpowers", "golden-rule"],
+    "tester": ["using-superpowers", "golden-rule", "test-driven-development", "verification-before-completion", "property-based-testing"],
+    "security-scanner": ["using-superpowers", "golden-rule", "security-checklist", "dependency-audit", "supply-chain-audit", "insecure-defaults", "differential-security-review", "static-analysis-integration"],
+    "devops": ["using-superpowers", "golden-rule", "ci-cd-pipeline", "containerization-patterns", "monitoring-observability", "security-checklist"],
+    "database-architect": ["using-superpowers", "golden-rule", "database-migration-patterns", "performance-guidelines", "clean-architecture"]
+  }
+}

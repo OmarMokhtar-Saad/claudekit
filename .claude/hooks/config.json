@@ -1,0 +1,53 @@
+{
+  "_note": "DEPRECATED: This config is superseded by .claude/settings.json which uses the official Claude Code hooks format. This file is retained for backward compatibility with scripts that read project commands from the 'project' section. Hook definitions here are no longer used by Claude Code directly.",
+  "hooks": {
+    "pre-commit": {
+      "command": "./.claude/hooks/pre-commit.sh",
+      "enabled": true,
+      "description": "Validates operations configs and checks for secrets",
+      "timeout": 30000,
+      "blocking": true
+    },
+    "post-implement": {
+      "command": "./.claude/hooks/post-implement.sh",
+      "enabled": true,
+      "description": "Runs tests and verification after implementation",
+      "timeout": 120000,
+      "blocking": false
+    },
+    "pre-plan": {
+      "command": "./.claude/hooks/pre-plan.sh \"${PLAN_NAME}\"",
+      "enabled": true,
+      "description": "Checks for duplicate plans",
+      "timeout": 5000,
+      "blocking": false
+    },
+    "pre-push": {
+      "command": "./.claude/hooks/pre-push.sh",
+      "enabled": true,
+      "description": "Full validation before pushing to remote",
+      "timeout": 300000,
+      "blocking": true
+    },
+    "post-tool-use": {
+      "command": "./.claude/hooks/post-tool-use.sh \"${TOOL_NAME}\" \"${TOOL_RESULT}\" \"${TOOL_ARGS}\"",
+      "enabled": true,
+      "description": "Tracks and validates tool usage",
+      "timeout": 5000,
+      "blocking": false,
+      "tools": ["Edit", "Write", "NotebookEdit", "Bash"]
+    }
+  },
+  "global": {
+    "disabled": false,
+    "logLevel": "info",
+    "logFile": ".claude/hooks/hooks.log",
+    "maxConcurrentHooks": 3
+  },
+  "project": {
+    "build_cmd": "",
+    "test_cmd": "",
+    "lint_cmd": "",
+    "coverage_cmd": ""
+  }
+}
