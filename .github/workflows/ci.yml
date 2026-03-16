@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.8', '3.10', '3.12']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install test dependencies
+        run: pip install -r tests/requirements.txt
+
+      - name: Run structure tests
+        run: python -m pytest tests/test_structure.py -v
+
+      - name: Run validator tests
+        run: python -m pytest tests/test_validator.py -v
+
+      - name: Run install tests
+        run: python -m pytest tests/test_install.py -v
+
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: sudo apt-get install -y shellcheck
+
+      - name: Check install script
+        run: shellcheck install.sh
+
+      - name: Check hook scripts
+        run: |
+          for f in .claude/hooks/*.sh; do
+            echo "Checking $f..."
+            shellcheck "$f"
+          done
+
+  structure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify agent count
+        run: |
+          count=$(ls -1 .claude/agents/*.md | grep -v _shared | grep -v HANDOFF | grep -v QUICK | wc -l)
+          echo "Agents: $count"
+          [ "$count" -ge 9 ] || (echo "Expected at least 9 agents" && exit 1)
+
+      - name: Verify command count
+        run: |
+          count=$(ls -1 .claude/commands/*.md | wc -l)
+          echo "Commands: $count"
+          [ "$count" -ge 8 ] || (echo "Expected at least 8 commands" && exit 1)
+
+      - name: Verify operations scripts
+        run: |
+          test -f .claude/operations/scripts/validate-config-json.py
+          test -f .claude/operations/scripts/execute-json-ops.py
+          test -f .claude/operations/scripts/restore-backup.py
+          test -f .claude/operations/scripts/shared.py
+          test -f .claude/operations/scripts/operations-schema.json
+          echo "All operations scripts present"
+
+      - name: Test install script help
+        run: bash install.sh --help
