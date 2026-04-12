@@ -1,5 +1,6 @@
 ---
 description: "Explore codebase patterns and architecture via explore agent"
+argument-hint: "[area or question to explore]"
 model: sonnet
 ---
 

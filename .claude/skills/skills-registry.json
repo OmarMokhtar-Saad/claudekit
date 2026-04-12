@@ -1,14 +1,16 @@
 {
-  "version": "1.1",
-  "lastUpdated": "2026-03-16",
-  "description": "ClaudeKit skills registry — maps skills to agents",
+  "version": "2.0",
+  "lastUpdated": "2026-04-11",
+  "description": "ClaudeKit skills registry \u2014 maps skills to agents",
   "skills": [
     {
       "id": "using-superpowers",
       "name": "Using Superpowers",
       "path": "skills/using-superpowers/SKILL.md",
       "mandatory": true,
-      "usedBy": ["all"],
+      "usedBy": [
+        "all"
+      ],
       "description": "Skill discovery protocol"
     },
     {
@@ -16,7 +18,9 @@
       "name": "Golden Rule",
       "path": "skills/golden-rule/SKILL.md",
       "mandatory": true,
-      "usedBy": ["all"],
+      "usedBy": [
+        "all"
+      ],
       "description": "No code changes without approval"
     },
     {
@@ -24,7 +28,10 @@
       "name": "Context-First Workflow",
       "path": "skills/context-first-workflow/SKILL.md",
       "mandatory": false,
-      "usedBy": ["planner", "implementer"],
+      "usedBy": [
+        "planner",
+        "implementer"
+      ],
       "description": "Explore before modifying"
     },
     {
@@ -32,7 +39,9 @@
       "name": "Writing Plans",
       "path": "skills/writing-plans/SKILL.md",
       "mandatory": false,
-      "usedBy": ["planner"],
+      "usedBy": [
+        "planner"
+      ],
       "description": "Plan structure and ops.json"
     },
     {
@@ -40,7 +49,9 @@
       "name": "Executing Plans",
       "path": "skills/executing-plans/SKILL.md",
       "mandatory": false,
-      "usedBy": ["implementer"],
+      "usedBy": [
+        "implementer"
+      ],
       "description": "Batch execution with checkpoints"
     },
     {
@@ -48,7 +59,9 @@
       "name": "Brainstorming",
       "path": "skills/brainstorming/SKILL.md",
       "mandatory": false,
-      "usedBy": ["planner"],
+      "usedBy": [
+        "planner"
+      ],
       "description": "Creative design exploration"
     },
     {
@@ -56,7 +69,10 @@
       "name": "Generate Operations Config",
       "path": "skills/generate-operations-config/SKILL.md",
       "mandatory": false,
-      "usedBy": ["planner", "implementer"],
+      "usedBy": [
+        "planner",
+        "implementer"
+      ],
       "description": "Create ops.json for code changes"
     },
     {
@@ -64,7 +80,9 @@
       "name": "Validate Operations Config",
       "path": "skills/validate-operations-config/SKILL.md",
       "mandatory": false,
-      "usedBy": ["reviewer"],
+      "usedBy": [
+        "reviewer"
+      ],
       "description": "Validate ops.json with 29 guards"
     },
     {
@@ -72,7 +90,9 @@
       "name": "Execute Operations Config",
       "path": "skills/execute-operations-config/SKILL.md",
       "mandatory": false,
-      "usedBy": ["implementer"],
+      "usedBy": [
+        "implementer"
+      ],
       "description": "Execute ops.json with backup"
     },
     {
@@ -80,7 +100,11 @@
       "name": "Verification Before Completion",
       "path": "skills/verification-before-completion/SKILL.md",
       "mandatory": false,
-      "usedBy": ["verifier", "implementer", "tester"],
+      "usedBy": [
+        "verifier",
+        "implementer",
+        "tester"
+      ],
       "description": "Evidence before success claims"
     },
     {
@@ -88,7 +112,11 @@
       "name": "Test-Driven Development",
       "path": "skills/test-driven-development/SKILL.md",
       "mandatory": false,
-      "usedBy": ["implementer", "verifier", "tester"],
+      "usedBy": [
+        "implementer",
+        "verifier",
+        "tester"
+      ],
       "description": "RED/GREEN/REFACTOR workflow"
     },
     {
@@ -96,7 +124,12 @@
       "name": "Clean Architecture",
       "path": "skills/clean-architecture/SKILL.md",
       "mandatory": false,
-      "usedBy": ["reviewer", "planner", "implementer", "database-architect"],
+      "usedBy": [
+        "reviewer",
+        "planner",
+        "implementer",
+        "database-architect"
+      ],
       "description": "Layer boundaries and dependency rules"
     },
     {
@@ -104,7 +137,12 @@
       "name": "Security Checklist",
       "path": "skills/security-checklist/SKILL.md",
       "mandatory": false,
-      "usedBy": ["reviewer", "gitOps", "security-scanner", "devops"],
+      "usedBy": [
+        "reviewer",
+        "gitOps",
+        "security-scanner",
+        "devops"
+      ],
       "description": "OWASP Top 10 validation"
     },
     {
@@ -112,7 +150,11 @@
       "name": "Performance Guidelines",
       "path": "skills/performance-guidelines/SKILL.md",
       "mandatory": false,
-      "usedBy": ["verifier", "implementer", "database-architect"],
+      "usedBy": [
+        "verifier",
+        "implementer",
+        "database-architect"
+      ],
       "description": "Response times and resource management"
     },
     {
@@ -120,7 +162,9 @@
       "name": "Systematic Debugging",
       "path": "skills/systematic-debugging/SKILL.md",
       "mandatory": false,
-      "usedBy": ["debugger"],
+      "usedBy": [
+        "debugger"
+      ],
       "description": "4-phase root cause investigation"
     },
     {
@@ -128,7 +172,9 @@
       "name": "Clarify",
       "path": "skills/clarify/SKILL.md",
       "mandatory": false,
-      "usedBy": ["all"],
+      "usedBy": [
+        "all"
+      ],
       "description": "Reverse-question protocol for ambiguity"
     },
     {
@@ -136,7 +182,9 @@
       "name": "Requesting Code Review",
       "path": "skills/requesting-code-review/SKILL.md",
       "mandatory": false,
-      "usedBy": ["gitOps"],
+      "usedBy": [
+        "gitOps"
+      ],
       "description": "Dispatch code reviewer subagent"
     },
     {
@@ -144,7 +192,9 @@
       "name": "Receiving Code Review",
       "path": "skills/receiving-code-review/SKILL.md",
       "mandatory": false,
-      "usedBy": ["implementer"],
+      "usedBy": [
+        "implementer"
+      ],
       "description": "Technical evaluation of feedback"
     },
     {
@@ -152,7 +202,9 @@
       "name": "Refactoring Patterns",
       "path": "skills/refactoring-patterns/SKILL.md",
       "mandatory": false,
-      "usedBy": ["planner"],
+      "usedBy": [
+        "planner"
+      ],
       "description": "Proven refactoring catalog"
     },
     {
@@ -160,7 +212,9 @@
       "name": "Error Handling",
       "path": "skills/error-handling/SKILL.md",
       "mandatory": false,
-      "usedBy": ["implementer"],
+      "usedBy": [
+        "implementer"
+      ],
       "description": "Exceptions, logging, recovery"
     },
     {
@@ -168,7 +222,9 @@
       "name": "Documentation Standards",
       "path": "skills/documentation-standards/SKILL.md",
       "mandatory": false,
-      "usedBy": ["documenter"],
+      "usedBy": [
+        "documenter"
+      ],
       "description": "Doc formatting and knowledge base"
     },
     {
@@ -176,7 +232,9 @@
       "name": "Git Workflow",
       "path": "skills/git-workflow/SKILL.md",
       "mandatory": false,
-      "usedBy": ["gitOps"],
+      "usedBy": [
+        "gitOps"
+      ],
       "description": "Branching, commits, PRs"
     },
     {
@@ -184,7 +242,9 @@
       "name": "Using Git Worktrees",
       "path": "skills/using-git-worktrees/SKILL.md",
       "mandatory": false,
-      "usedBy": ["gitOps"],
+      "usedBy": [
+        "gitOps"
+      ],
       "description": "Isolated workspace patterns"
     },
     {
@@ -192,7 +252,9 @@
       "name": "Finishing a Development Branch",
       "path": "skills/finishing-a-development-branch/SKILL.md",
       "mandatory": false,
-      "usedBy": ["gitOps"],
+      "usedBy": [
+        "gitOps"
+      ],
       "description": "Branch completion and cleanup"
     },
     {
@@ -200,7 +262,9 @@
       "name": "Multi-Agent Coordination",
       "path": "skills/multi-agent-coordination/SKILL.md",
       "mandatory": false,
-      "usedBy": ["coordinator"],
+      "usedBy": [
+        "coordinator"
+      ],
       "description": "Safe parallel execution patterns"
     },
     {
@@ -208,7 +272,9 @@
       "name": "Dispatching Parallel Agents",
       "path": "skills/dispatching-parallel-agents/SKILL.md",
       "mandatory": false,
-      "usedBy": ["coordinator"],
+      "usedBy": [
+        "coordinator"
+      ],
       "description": "Parallel task investigation"
     },
     {
@@ -216,7 +282,9 @@
       "name": "Subagent-Driven Development",
       "path": "skills/subagent-driven-development/SKILL.md",
       "mandatory": false,
-      "usedBy": ["coordinator"],
+      "usedBy": [
+        "coordinator"
+      ],
       "description": "Fresh subagent per task"
     },
     {
@@ -224,7 +292,9 @@
       "name": "Writing Skills",
       "path": "skills/writing-skills/SKILL.md",
       "mandatory": false,
-      "usedBy": ["all"],
+      "usedBy": [
+        "all"
+      ],
       "description": "TDD approach to skill creation"
     },
     {
@@ -232,7 +302,9 @@
       "name": "Constitution",
       "path": "skills/constitution/SKILL.md",
       "mandatory": false,
-      "usedBy": ["all"],
+      "usedBy": [
+        "all"
+      ],
       "description": "Project governance creation"
     },
     {
@@ -240,7 +312,10 @@
       "name": "API Design Patterns",
       "path": "skills/api-design-patterns/SKILL.md",
       "mandatory": false,
-      "usedBy": ["planner", "reviewer"],
+      "usedBy": [
+        "planner",
+        "reviewer"
+      ],
       "description": "REST, GraphQL, gRPC design guidance, versioning, pagination, error responses"
     },
     {
@@ -248,7 +323,11 @@
       "name": "Database Migration Patterns",
       "path": "skills/database-migration-patterns/SKILL.md",
       "mandatory": false,
-      "usedBy": ["planner", "reviewer", "database-architect"],
+      "usedBy": [
+        "planner",
+        "reviewer",
+        "database-architect"
+      ],
       "description": "Zero-downtime migrations, expand-contract pattern, rollback strategies"
     },
     {
@@ -256,7 +335,11 @@
       "name": "Dependency Audit",
       "path": "skills/dependency-audit/SKILL.md",
       "mandatory": false,
-      "usedBy": ["verifier", "reviewer", "security-scanner"],
+      "usedBy": [
+        "verifier",
+        "reviewer",
+        "security-scanner"
+      ],
       "description": "CVE assessment, semver compatibility, safe incremental upgrades"
     },
     {
@@ -264,7 +347,10 @@
       "name": "Accessibility Standards",
       "path": "skills/accessibility-standards/SKILL.md",
       "mandatory": false,
-      "usedBy": ["reviewer", "verifier"],
+      "usedBy": [
+        "reviewer",
+        "verifier"
+      ],
       "description": "WCAG 2.1 AA compliance, ARIA patterns, keyboard navigation"
     },
     {
@@ -272,7 +358,10 @@
       "name": "Internationalization Patterns",
       "path": "skills/i18n-patterns/SKILL.md",
       "mandatory": false,
-      "usedBy": ["planner", "implementer"],
+      "usedBy": [
+        "planner",
+        "implementer"
+      ],
       "description": "Locale-aware formatting, translation keys, RTL layout, pluralization"
     },
     {
@@ -280,7 +369,10 @@
       "name": "Incident Response",
       "path": "skills/incident-response/SKILL.md",
       "mandatory": false,
-      "usedBy": ["debugger", "coordinator"],
+      "usedBy": [
+        "debugger",
+        "coordinator"
+      ],
       "description": "Triage, war room coordination, post-mortem writing, runbook patterns"
     },
     {
@@ -288,7 +380,11 @@
       "name": "CI/CD Pipeline",
       "path": "skills/ci-cd-pipeline/SKILL.md",
       "mandatory": false,
-      "usedBy": ["planner", "gitOps", "devops"],
+      "usedBy": [
+        "planner",
+        "gitOps",
+        "devops"
+      ],
       "description": "Pipeline stage design, artifact promotion, environment gating"
     },
     {
@@ -296,7 +392,11 @@
       "name": "Monitoring & Observability",
       "path": "skills/monitoring-observability/SKILL.md",
       "mandatory": false,
-      "usedBy": ["planner", "debugger", "devops"],
+      "usedBy": [
+        "planner",
+        "debugger",
+        "devops"
+      ],
       "description": "Structured logging, distributed tracing, metric naming, SLO/SLA"
     },
     {
@@ -304,7 +404,11 @@
       "name": "Supply Chain Audit",
       "path": "skills/supply-chain-audit/SKILL.md",
       "mandatory": false,
-      "usedBy": ["reviewer", "verifier", "security-scanner"],
+      "usedBy": [
+        "reviewer",
+        "verifier",
+        "security-scanner"
+      ],
       "description": "Dependency tree threat analysis, typosquatting detection, CVE cross-referencing"
     },
     {
@@ -312,7 +416,11 @@
       "name": "Differential Security Review",
       "path": "skills/differential-security-review/SKILL.md",
       "mandatory": false,
-      "usedBy": ["reviewer", "gitOps", "security-scanner"],
+      "usedBy": [
+        "reviewer",
+        "gitOps",
+        "security-scanner"
+      ],
       "description": "Security-focused diff analysis, removed controls detection, regression patterns"
     },
     {
@@ -320,7 +428,11 @@
       "name": "Insecure Defaults",
       "path": "skills/insecure-defaults/SKILL.md",
       "mandatory": false,
-      "usedBy": ["reviewer", "verifier", "security-scanner"],
+      "usedBy": [
+        "reviewer",
+        "verifier",
+        "security-scanner"
+      ],
       "description": "Hardcoded credentials, fail-open patterns, dangerous default configurations"
     },
     {
@@ -328,7 +440,11 @@
       "name": "Static Analysis Integration",
       "path": "skills/static-analysis-integration/SKILL.md",
       "mandatory": false,
-      "usedBy": ["verifier", "reviewer", "security-scanner"],
+      "usedBy": [
+        "verifier",
+        "reviewer",
+        "security-scanner"
+      ],
       "description": "Semgrep, Bandit, ESLint security, SARIF parsing, severity classification"
     },
     {
@@ -336,7 +452,10 @@
       "name": "Property-Based Testing",
       "path": "skills/property-based-testing/SKILL.md",
       "mandatory": false,
-      "usedBy": ["tester", "implementer"],
+      "usedBy": [
+        "tester",
+        "implementer"
+      ],
       "description": "Hypothesis, fast-check, proptest, QuickCheck - property-driven test generation"
     },
     {
@@ -344,7 +463,10 @@
       "name": "Spec-Driven Development",
       "path": "skills/spec-driven-development/SKILL.md",
       "mandatory": false,
-      "usedBy": ["planner", "implementer"],
+      "usedBy": [
+        "planner",
+        "implementer"
+      ],
       "description": "Specification-first workflow where specs are the single source of truth"
     },
     {
@@ -352,7 +474,9 @@
       "name": "Containerization Patterns",
       "path": "skills/containerization-patterns/SKILL.md",
       "mandatory": false,
-      "usedBy": ["devops"],
+      "usedBy": [
+        "devops"
+      ],
       "description": "Docker multi-stage builds, security hardening, compose and K8s patterns"
     },
     {
@@ -360,23 +484,547 @@
       "name": "Code Explanation",
       "path": "skills/code-explanation/SKILL.md",
       "mandatory": false,
-      "usedBy": ["explore", "debugger"],
+      "usedBy": [
+        "explore",
+        "debugger"
+      ],
       "description": "Analogy-first code explanation with visual diagrams and gotcha highlights"
+    },
+    {
+      "id": "command-flags",
+      "name": "Command Flags",
+      "path": "skills/command-flags/SKILL.md",
+      "mandatory": false,
+      "usedBy": [
+        "all"
+      ],
+      "description": "Universal flag system for all slash commands (--mode, --depth, --format, --persona)"
+    },
+    {
+      "id": "mcp-integration",
+      "name": "MCP Integration",
+      "path": "skills/mcp-integration/SKILL.md",
+      "mandatory": false,
+      "usedBy": [
+        "coordinator",
+        "planner",
+        "implementer"
+      ],
+      "description": "Guidelines for leveraging Context7, Sequential Thinking, Playwright, Memory, Filesystem MCP servers"
+    },
+    {
+      "id": "token-optimization",
+      "name": "Token Optimization",
+      "path": "skills/token-optimization/SKILL.md",
+      "mandatory": false,
+      "usedBy": [
+        "all"
+      ],
+      "description": "40-70% token reduction techniques with three compression levels"
+    },
+    {
+      "id": "codebase-mapping",
+      "name": "Codebase Mapping",
+      "path": "skills/codebase-mapping/SKILL.md",
+      "mandatory": false,
+      "usedBy": [
+        "explore",
+        "planner",
+        "coordinator"
+      ],
+      "description": "Auto-generate project structure maps with dependency visualization"
+    },
+    {
+      "id": "session-continuity",
+      "name": "Session Continuity",
+      "path": "skills/session-continuity/SKILL.md",
+      "mandatory": false,
+      "usedBy": [
+        "coordinator"
+      ],
+      "description": "Maintain context across sessions via session-state.json"
+    },
+    {
+      "id": "autonomous-loop",
+      "name": "Autonomous Loop",
+      "path": "skills/autonomous-loop/SKILL.md",
+      "mandatory": false,
+      "usedBy": [
+        "coordinator",
+        "implementer"
+      ],
+      "description": "Autonomous development loop with exit conditions and safety controls"
+    },
+    {
+      "id": "context-priming",
+      "name": "Context Priming",
+      "path": "skills/context-priming/SKILL.md",
+      "mandatory": false,
+      "usedBy": [
+        "coordinator",
+        "explore"
+      ],
+      "description": "Systematic project context injection for optimal assistance"
+    },
+    {
+      "id": "hook-profiling",
+      "name": "Hook Profiling",
+      "path": "skills/hook-profiling/SKILL.md",
+      "mandatory": false,
+      "usedBy": [
+        "devops",
+        "coordinator"
+      ],
+      "description": "Profile hook execution time, output size, and failure rates"
+    },
+    {
+      "id": "safe-command-approval",
+      "name": "Safe Command Approval",
+      "path": "skills/safe-command-approval/SKILL.md",
+      "mandatory": false,
+      "usedBy": [
+        "all"
+      ],
+      "description": "Auto-approve safe bash commands with allowlist/blocklist and AST analysis"
+    },
+    {
+      "id": "usage-monitoring",
+      "name": "Usage Monitoring",
+      "path": "skills/usage-monitoring/SKILL.md",
+      "mandatory": false,
+      "usedBy": [
+        "coordinator"
+      ],
+      "description": "Track token usage, costs, burn rate, and efficiency metrics"
+    },
+    {
+      "id": "prompt-injection-defense",
+      "name": "Prompt Injection Defense",
+      "path": "skills/prompt-injection-defense/SKILL.md",
+      "mandatory": false,
+      "usedBy": [
+        "coordinator",
+        "security-scanner"
+      ],
+      "description": "27+ detection patterns, severity classification, input sanitization, output validation"
+    },
+    {
+      "id": "continuous-learning",
+      "name": "Continuous Learning",
+      "path": "skills/continuous-learning/SKILL.md",
+      "mandatory": false,
+      "usedBy": [
+        "coordinator",
+        "all"
+      ],
+      "description": "Auto-extract reusable patterns from sessions and save as skills at session end"
+    },
+    {
+      "id": "context-budget",
+      "name": "Context Budget",
+      "path": "skills/context-budget/SKILL.md",
+      "mandatory": false,
+      "usedBy": [
+        "coordinator",
+        "harness-optimizer"
+      ],
+      "description": "Audit token consumption across agents, skills, MCP servers \u2014 find bloat and optimize"
+    },
+    {
+      "id": "token-budget-advisor",
+      "name": "Token Budget Advisor",
+      "path": "skills/token-budget-advisor/SKILL.md",
+      "mandatory": false,
+      "usedBy": [
+        "all"
+      ],
+      "description": "Let users choose response depth (25/50/75/100%) before Claude answers"
+    },
+    {
+      "id": "eval-harness",
+      "name": "Evaluation Harness",
+      "path": "skills/eval-harness/SKILL.md",
+      "mandatory": false,
+      "usedBy": [
+        "verifier",
+        "tester",
+        "coordinator"
+      ],
+      "description": "Evaluation-driven development: define criteria before coding, run evaluations continuously"
+    },
+    {
+      "id": "search-first",
+      "name": "Search First",
+      "path": "skills/search-first/SKILL.md",
+      "mandatory": false,
+      "usedBy": [
+        "planner",
+        "implementer"
+      ],
+      "description": "Research-first approach \u2014 search npm/PyPI/MCP/GitHub before writing custom code"
+    },
+    {
+      "id": "verification-loop",
+      "name": "Verification Loop",
+      "path": "skills/verification-loop/SKILL.md",
+      "mandatory": false,
+      "usedBy": [
+        "verifier",
+        "implementer"
+      ],
+      "description": "Six-phase QA: build, types, lint, tests, security scan, diff review"
+    },
+    {
+      "id": "autonomous-loops",
+      "name": "Autonomous Loops",
+      "path": "skills/autonomous-loops/SKILL.md",
+      "mandatory": false,
+      "usedBy": [
+        "coordinator",
+        "implementer"
+      ],
+      "description": "Iterative agent loops with convergence criteria, safety guards, and progress tracking"
+    },
+    {
+      "id": "codebase-onboarding",
+      "name": "Codebase Onboarding",
+      "path": "skills/codebase-onboarding/SKILL.md",
+      "mandatory": false,
+      "usedBy": [
+        "explore",
+        "coordinator"
+      ],
+      "description": "Analyze unfamiliar codebase in 4 phases \u2014 generates onboarding guide and starter CLAUDE.md"
+    },
+    {
+      "id": "blueprint",
+      "name": "Blueprint",
+      "path": "skills/blueprint/SKILL.md",
+      "mandatory": false,
+      "usedBy": [
+        "coordinator",
+        "planner"
+      ],
+      "description": "Turn EPIC objectives into sequenced multi-PR construction plans with adversarial review"
+    },
+    {
+      "id": "council",
+      "name": "Council",
+      "path": "skills/council/SKILL.md",
+      "mandatory": false,
+      "usedBy": [
+        "coordinator",
+        "planner"
+      ],
+      "description": "4-role adversarial decision making (Architect/Skeptic/Pragmatist/Critic) via parallel subagents"
+    },
+    {
+      "id": "deep-research",
+      "name": "Deep Research",
+      "path": "skills/deep-research/SKILL.md",
+      "mandatory": false,
+      "usedBy": [
+        "explore",
+        "coordinator"
+      ],
+      "description": "Multi-source research with parallel subagents, cross-referencing, and confidence-rated reports"
+    },
+    {
+      "id": "santa-method",
+      "name": "Santa Method",
+      "path": "skills/santa-method/SKILL.md",
+      "mandatory": false,
+      "usedBy": [
+        "reviewer",
+        "coordinator"
+      ],
+      "description": "Adversarial dual-review: two independent reviewers (Opus+Sonnet) with no shared context, both must approve"
+    },
+    {
+      "id": "hookify",
+      "name": "Hookify",
+      "path": "skills/hookify/SKILL.md",
+      "mandatory": false,
+      "usedBy": [
+        "coordinator"
+      ],
+      "description": "Convert bad agent behavior descriptions into prevention hooks automatically"
+    },
+    {
+      "id": "context-keeper",
+      "name": "Context Keeper",
+      "path": "skills/context-keeper/SKILL.md",
+      "mandatory": false,
+      "usedBy": [
+        "coordinator",
+        "planner"
+      ],
+      "description": "Structured session save/resume \u2014 serialize task state, decisions, next steps across sessions"
+    },
+    {
+      "id": "prp-plan",
+      "name": "PRP Plan",
+      "path": "skills/prp-plan/SKILL.md",
+      "mandatory": false,
+      "usedBy": [
+        "planner",
+        "coordinator"
+      ],
+      "description": "Product Requirements Process plan phase \u2014 deep codebase analysis before writing a single line of implementation"
+    },
+    {
+      "id": "gan-harness",
+      "name": "GAN Harness",
+      "path": "skills/gan-harness/SKILL.md",
+      "mandatory": false,
+      "usedBy": [
+        "coordinator",
+        "gan-build"
+      ],
+      "description": "GAN-style generate-evaluate-iterate loop with anti-anchoring Evaluator"
+    },
+    {
+      "id": "opensource-pipeline",
+      "name": "Open-Source Pipeline",
+      "path": "skills/opensource-pipeline/SKILL.md",
+      "mandatory": false,
+      "usedBy": [
+        "opensource-sanitizer",
+        "opensource-packager"
+      ],
+      "description": "3-stage hard-gated pipeline for safely open-sourcing private code"
     }
   ],
   "agentMapping": {
-    "coordinator": ["using-superpowers", "golden-rule", "multi-agent-coordination", "dispatching-parallel-agents", "subagent-driven-development"],
-    "planner": ["using-superpowers", "golden-rule", "context-first-workflow", "writing-plans", "brainstorming", "generate-operations-config", "clean-architecture", "refactoring-patterns"],
-    "reviewer": ["using-superpowers", "golden-rule", "validate-operations-config", "clean-architecture", "security-checklist", "supply-chain-audit", "differential-security-review", "insecure-defaults", "static-analysis-integration"],
-    "implementer": ["using-superpowers", "golden-rule", "context-first-workflow", "execute-operations-config", "executing-plans", "clean-architecture", "verification-before-completion", "test-driven-development", "error-handling", "receiving-code-review", "property-based-testing"],
-    "verifier": ["using-superpowers", "golden-rule", "verification-before-completion", "test-driven-development", "performance-guidelines", "supply-chain-audit", "insecure-defaults", "static-analysis-integration"],
-    "debugger": ["using-superpowers", "golden-rule", "systematic-debugging"],
-    "documenter": ["using-superpowers", "golden-rule", "documentation-standards"],
-    "gitOps": ["using-superpowers", "golden-rule", "git-workflow", "using-git-worktrees", "finishing-a-development-branch", "security-checklist", "differential-security-review", "requesting-code-review"],
-    "explore": ["using-superpowers", "golden-rule"],
-    "tester": ["using-superpowers", "golden-rule", "test-driven-development", "verification-before-completion", "property-based-testing"],
-    "security-scanner": ["using-superpowers", "golden-rule", "security-checklist", "dependency-audit", "supply-chain-audit", "insecure-defaults", "differential-security-review", "static-analysis-integration"],
-    "devops": ["using-superpowers", "golden-rule", "ci-cd-pipeline", "containerization-patterns", "monitoring-observability", "security-checklist"],
-    "database-architect": ["using-superpowers", "golden-rule", "database-migration-patterns", "performance-guidelines", "clean-architecture"]
+    "coordinator": [
+      "using-superpowers",
+      "golden-rule",
+      "multi-agent-coordination",
+      "dispatching-parallel-agents",
+      "subagent-driven-development",
+      "session-continuity",
+      "autonomous-loop",
+      "context-priming",
+      "usage-monitoring",
+      "prompt-injection-defense",
+      "hook-profiling",
+      "autonomous-loops",
+      "context-first-workflow",
+      "verification-before-completion",
+      "search-first",
+      "verification-loop"
+    ],
+    "planner": [
+      "using-superpowers",
+      "golden-rule",
+      "context-first-workflow",
+      "writing-plans",
+      "brainstorming",
+      "generate-operations-config",
+      "clean-architecture",
+      "refactoring-patterns",
+      "mcp-integration",
+      "codebase-mapping",
+      "spec-driven-development",
+      "search-first"
+    ],
+    "reviewer": [
+      "using-superpowers",
+      "golden-rule",
+      "validate-operations-config",
+      "clean-architecture",
+      "security-checklist",
+      "supply-chain-audit",
+      "differential-security-review",
+      "insecure-defaults",
+      "static-analysis-integration"
+    ],
+    "implementer": [
+      "using-superpowers",
+      "golden-rule",
+      "context-first-workflow",
+      "execute-operations-config",
+      "executing-plans",
+      "clean-architecture",
+      "verification-before-completion",
+      "test-driven-development",
+      "error-handling",
+      "receiving-code-review",
+      "property-based-testing",
+      "mcp-integration",
+      "autonomous-loop",
+      "verification-loop",
+      "search-first"
+    ],
+    "verifier": [
+      "using-superpowers",
+      "golden-rule",
+      "verification-before-completion",
+      "test-driven-development",
+      "performance-guidelines",
+      "supply-chain-audit",
+      "insecure-defaults",
+      "static-analysis-integration",
+      "verification-loop",
+      "eval-harness"
+    ],
+    "debugger": [
+      "using-superpowers",
+      "golden-rule",
+      "systematic-debugging",
+      "incident-response"
+    ],
+    "documenter": [
+      "using-superpowers",
+      "golden-rule",
+      "documentation-standards",
+      "i18n-workflow"
+    ],
+    "gitOps": [
+      "using-superpowers",
+      "golden-rule",
+      "git-workflow",
+      "using-git-worktrees",
+      "finishing-a-development-branch",
+      "security-checklist",
+      "differential-security-review",
+      "requesting-code-review"
+    ],
+    "explore": [
+      "using-superpowers",
+      "golden-rule",
+      "codebase-mapping",
+      "context-priming"
+    ],
+    "tester": [
+      "using-superpowers",
+      "golden-rule",
+      "test-driven-development",
+      "verification-before-completion",
+      "property-based-testing",
+      "eval-harness"
+    ],
+    "security-scanner": [
+      "using-superpowers",
+      "golden-rule",
+      "security-checklist",
+      "dependency-audit",
+      "supply-chain-audit",
+      "insecure-defaults",
+      "differential-security-review",
+      "static-analysis-integration",
+      "prompt-injection-defense"
+    ],
+    "devops": [
+      "using-superpowers",
+      "golden-rule",
+      "ci-cd-pipeline",
+      "containerization-patterns",
+      "monitoring-observability",
+      "security-checklist",
+      "hook-profiling"
+    ],
+    "database-architect": [
+      "using-superpowers",
+      "golden-rule",
+      "database-migration-patterns",
+      "performance-guidelines",
+      "clean-architecture"
+    ],
+    "silent-failure-hunter": [
+      "using-superpowers",
+      "golden-rule",
+      "error-handling",
+      "systematic-debugging"
+    ],
+    "harness-optimizer": [
+      "using-superpowers",
+      "golden-rule",
+      "context-budget",
+      "hook-profiling"
+    ],
+    "performance-optimizer": [
+      "using-superpowers",
+      "golden-rule",
+      "performance-guidelines",
+      "monitoring-observability"
+    ],
+    "code-simplifier": [
+      "using-superpowers",
+      "golden-rule",
+      "refactoring-patterns",
+      "clean-architecture"
+    ],
+    "typescript-reviewer": [
+      "using-superpowers",
+      "golden-rule",
+      "security-checklist",
+      "static-analysis-integration"
+    ],
+    "python-reviewer": [
+      "using-superpowers",
+      "golden-rule",
+      "security-checklist",
+      "static-analysis-integration"
+    ],
+    "tdd-guide": [
+      "using-superpowers",
+      "golden-rule",
+      "test-driven-development",
+      "verification-before-completion",
+      "property-based-testing",
+      "eval-harness"
+    ],
+    "refactor-cleaner": [
+      "using-superpowers",
+      "golden-rule",
+      "refactoring-patterns",
+      "verification-before-completion"
+    ],
+    "doc-updater": [
+      "using-superpowers",
+      "golden-rule",
+      "documentation-standards",
+      "codebase-onboarding"
+    ],
+    "code-reviewer": [
+      "using-superpowers",
+      "golden-rule",
+      "security-checklist",
+      "differential-security-review"
+    ],
+    "build-error-resolver": [
+      "using-superpowers",
+      "systematic-debugging"
+    ],
+    "loop-operator": [
+      "using-superpowers",
+      "autonomous-loop"
+    ],
+    "opensource-sanitizer": [
+      "using-superpowers",
+      "security-checklist",
+      "supply-chain-audit"
+    ],
+    "opensource-packager": [
+      "using-superpowers",
+      "documentation-standards"
+    ],
+    "model-router": [
+      "using-superpowers",
+      "context-budget"
+    ],
+    "opensource": [
+      "using-superpowers",
+      "opensource-pipeline",
+      "security-checklist",
+      "differential-security-review"
+    ],
+    "loop-start": [
+      "using-superpowers",
+      "autonomous-loop",
+      "verification-loop",
+      "verification-before-completion"
+    ]
   }
 }

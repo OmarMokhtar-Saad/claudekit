@@ -190,14 +190,84 @@ Coordinator → Verifier
 Coordinator → GitOps
 ```
 
-### Docs Pipeline
+### Docs Pipeline (New Documentation)
 ```
 Coordinator → Documenter
+```
+
+### Docs Pipeline (Update Existing Documentation)
+```
+Coordinator → DocUpdater
 ```
 
 ### Explore Pipeline
 ```
 Coordinator → Explore
+```
+
+### TDD Pipeline
+```
+Coordinator → TDDGuide → Verifier → GitOps
+```
+
+### Dead Code Pipeline
+```
+Coordinator → RefactorCleaner → Verifier → GitOps
+```
+
+### Performance Pipeline
+```
+Coordinator → [Explore + PerformanceOptimizer] (parallel analysis) → Planner → Implementer → Verifier
+```
+
+### Security Audit Pipeline
+```
+Coordinator → [SilentFailureHunter + SecurityScanner] (parallel, read-only) → Planner → Implementer → Verifier
+```
+
+### Code Quality Audit Pipeline
+```
+Coordinator → [TypeScriptReviewer | PythonReviewer] → Implementer (if fixes needed) → Verifier
+```
+
+### EPIC / Blueprint Pipeline
+```
+Coordinator → Blueprint skill → Plan review → per-step execution pipelines
+```
+
+### TDDGuide to Implementer (Tests Written)
+```
+HANDOFF TO: implementer
+---
+Status: TESTS WRITTEN — RED PHASE COMPLETE
+Test Files: <list of test files>
+Failing Tests: <count>
+Test Scope: <what is being tested>
+Next Step: Write ONLY the minimum code to make these tests pass
+Constraint: Do NOT modify test files
+```
+
+### SilentFailureHunter + SecurityScanner to Planner (Audit Complete)
+```
+HANDOFF TO: planner
+---
+Status: AUDIT COMPLETE
+Critical Issues: <count>
+High Issues: <count>
+Report: .claude/reports/audit-<timestamp>.md
+Next Step: Create remediation plan for Critical + High issues only
+Constraint: Do not redesign; fix the specific issues identified
+```
+
+### RefactorCleaner to Verifier (Batch Removed)
+```
+HANDOFF TO: verifier
+---
+Status: DEAD CODE BATCH REMOVED
+Batch: <category> (e.g., unused imports, dead exports)
+Files Modified: <list>
+Detection Tool: <knip|depcheck|ts-prune|eslint>
+Tests Must Pass: Yes — any failures mean rollback this batch
 ```
 
 ---

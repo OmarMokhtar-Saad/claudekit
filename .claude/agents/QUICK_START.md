@@ -6,6 +6,8 @@ Fast reference for using the multi-agent workflow system.
 
 ## Agents at a Glance
 
+### Core Pipeline Agents
+
 | Agent | Role | Permissions | Model |
 |-------|------|-------------|-------|
 | **Coordinator** | Routes tasks, manages pipelines | Read, Spawn | Sonnet |
@@ -14,9 +16,33 @@ Fast reference for using the multi-agent workflow system.
 | **Implementer** | Executes approved plans | Read, Write, Execute | Sonnet |
 | **Verifier** | Quality gate (80/100 threshold) | Read, Execute | Haiku |
 | **Debugger** | Root cause analysis | Read | Opus |
-| **Documenter** | Writes documentation | Read, Write (docs) | Haiku |
+| **Documenter** | Creates new documentation | Read, Write (docs) | Haiku |
+| **DocUpdater** | Updates existing documentation | Read, Write (docs) | Haiku |
 | **GitOps** | Git operations | Read, Write, Execute (git) | Haiku |
 | **Explore** | Codebase search | Read | Sonnet |
+
+### Specialist Agents
+
+| Agent | Role | Permissions | Model |
+|-------|------|-------------|-------|
+| **Tester** | Writes and runs tests | Read, Write, Execute | Sonnet |
+| **SecurityScanner** | OWASP Top 10 security audit | Read | Sonnet |
+| **DevOps** | CI/CD, Docker, K8s configs | Read, Write | Sonnet |
+| **DatabaseArchitect** | Schema design, migrations | Read, Write | Sonnet |
+| **TDDGuide** | Test-first RED→GREEN→REFACTOR | Read, Write, Execute | Sonnet |
+| **RefactorCleaner** | Removes dead code safely | Read, Write, Execute | Sonnet |
+| **SilentFailureHunter** | Finds swallowed errors | Read | Sonnet |
+| **HarnessOptimizer** | Reduces .claude/ token bloat | Read, Write | Sonnet |
+| **PerformanceOptimizer** | N+1, async anti-patterns | Read | Sonnet |
+| **CodeSimplifier** | Removes over-engineering | Read, Write | Sonnet |
+| **TypeScriptReviewer** | TS-specific code review | Read | Sonnet |
+| **PythonReviewer** | Python-specific code review | Read | Sonnet |
+| **CodeReviewer** | Reviews actual code diffs and PRs | Read | Opus |
+| **BuildErrorResolver** | Fixes build/type errors, minimum diff only | Read, Edit | Sonnet |
+| **LoopOperator** | Monitors autonomous loops, intervenes on stagnation | Read | Sonnet |
+| **OpenSourceSanitizer** | Scans for secrets before open-sourcing | Read | Sonnet |
+| **OpenSourcePackager** | Generates CLAUDE.md, setup.sh, README, LICENSE | Read, Write | Haiku |
+| **ModelRouter** | Routes tasks to optimal model (haiku/sonnet/opus) | Read | Haiku |
 
 ---
 
@@ -48,9 +74,39 @@ Triggers: "commit", "push", "branch", "PR"
 
 ### "Write docs"
 ```
-You → Coordinator → Documenter
+You → Coordinator → Documenter (new docs) | DocUpdater (existing docs)
 ```
-Triggers: "document", "README", "API docs"
+Triggers: "document", "README", "API docs", "update docs"
+
+### "Test-driven development"
+```
+You → Coordinator → TDDGuide → Verifier → GitOps
+```
+Triggers: "write tests first", "TDD", "test-driven"
+
+### "Clean dead code"
+```
+You → Coordinator → RefactorCleaner → Verifier → GitOps
+```
+Triggers: "dead code", "unused", "remove unused"
+
+### "Security + error audit"
+```
+You → Coordinator → [SilentFailureHunter + SecurityScanner] (parallel) → report
+```
+Triggers: "audit", "security scan", "silent failures", "swallowed errors"
+
+### "Code review (language-specific)"
+```
+You → Coordinator → TypeScriptReviewer | PythonReviewer
+```
+Triggers: "review this TypeScript/Python", "check code quality"
+
+### "EPIC / multi-PR planning"
+```
+You → Coordinator → Blueprint skill → per-step pipelines
+```
+Triggers: "multi-session", "roadmap", "multiple PRs", "blueprint"
 
 ### "Find / explore"
 ```
@@ -96,17 +152,36 @@ Triggers: "find", "search", "where is", "how does"
 .claude/
   agents/
     _shared/              → Shared protocols and templates
-    coordinator.md        → Orchestration agent
-    planner.md            → Planning agent
-    reviewer.md           → Review agent
-    implementer.md        → Implementation agent
-    verifier.md           → Quality gate agent
-    debugger.md           → Bug diagnosis agent
-    documenter.md         → Documentation agent
-    gitOps.md             → Git operations agent
-    explore.md            → Codebase exploration agent
-    HANDOFF_PROTOCOL.md   → Agent-to-agent handoff format
-    QUICK_START.md        → This file
+    coordinator.md           → Orchestration agent
+    planner.md               → Planning agent
+    reviewer.md              → Review agent
+    implementer.md           → Implementation agent
+    verifier.md              → Quality gate agent
+    debugger.md              → Bug diagnosis agent
+    documenter.md            → Creates new documentation
+    doc-updater.md           → Updates existing documentation
+    gitOps.md                → Git operations agent
+    explore.md               → Codebase exploration agent
+    tester.md                → Test writing agent
+    security-scanner.md      → Security audit agent
+    devops.md                → CI/CD and infrastructure agent
+    database-architect.md    → Database design agent
+    tdd-guide.md             → Test-first development agent
+    refactor-cleaner.md      → Dead code removal agent
+    silent-failure-hunter.md → Error handling audit agent
+    harness-optimizer.md     → .claude/ token optimization agent
+    performance-optimizer.md → Performance bottleneck agent
+    code-simplifier.md       → Code complexity reduction agent
+    typescript-reviewer.md   → TypeScript review specialist
+    python-reviewer.md       → Python review specialist
+    code-reviewer.md         → Actual code diff/PR review (not plan review)
+    build-error-resolver.md  → Fixes build/type errors with minimum diff
+    loop-operator.md         → Monitors and intervenes in autonomous loops
+    opensource-sanitizer.md  → Stage 1: scans for secrets before open-sourcing
+    opensource-packager.md   → Stage 3: generates release packaging
+    model-router.md          → Routes tasks to optimal model by complexity
+    HANDOFF_PROTOCOL.md      → Agent-to-agent handoff format
+    QUICK_START.md           → This file
   hooks/
     config.json           → Hook configuration + project commands
     pre-commit.sh         → Validates configs, checks secrets

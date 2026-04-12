@@ -1,6 +1,6 @@
 ---
 name: containerization-patterns
-description: Docker and container best practices. Multi-stage builds, layer optimization, security hardening, health checks, compose patterns, and Kubernetes manifest generation.
+description: Use when containerizing applications — covers Docker multi-stage builds, layer optimization, security hardening, health checks, compose patterns, and Kubernetes manifests.
 user-invocable: false
 ---
 

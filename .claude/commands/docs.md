@@ -1,5 +1,6 @@
 ---
 description: "Generate documentation via documenter agent"
+argument-hint: "[target file, module, or scope]"
 model: haiku
 ---
 

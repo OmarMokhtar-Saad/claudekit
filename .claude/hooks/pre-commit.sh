@@ -28,7 +28,7 @@ get_project_config() {
 }
 
 # ---------------------------------------------------------------------------
-# Step 1: Validate ops.json files in operations/
+# Step 1: Validate ops.json files in .claude/plans/
 # ---------------------------------------------------------------------------
 validate_ops_configs() {
     log "INFO" "Validating operations configs..."
@@ -87,7 +87,7 @@ except Exception as e:
         else
             log "INFO" "Valid: $ops_file"
         fi
-    done < <(find operations/ -name "ops.json" 2>/dev/null)
+    done < <(find .claude/plans/ -name "ops-*.json" 2>/dev/null)
 
     return $has_errors
 }
@@ -108,18 +108,18 @@ check_secrets() {
         return 0
     fi
 
-    # Patterns that indicate potential secrets
+    # Patterns that indicate potential secrets.
+    # Deliberately exclude bare `token\s*:` and `password\s*:` (TypeScript type annotations).
+    # Require an actual value after the separator: a quote, digit, or env var reference.
     local patterns=(
-        'api_key\s*[:=]'
-        'apikey\s*[:=]'
-        'api_secret\s*[:=]'
-        'password\s*[:=]'
-        'passwd\s*[:=]'
-        'secret\s*[:=]'
-        'secret_key\s*[:=]'
-        'token\s*[:=]'
-        'access_token\s*[:=]'
-        'private_key'
+        'api_key\s*[:=]\s*["\x27][^"\x27]{8}'
+        'apikey\s*[:=]\s*["\x27][^"\x27]{8}'
+        'api_secret\s*[:=]\s*["\x27][^"\x27]{8}'
+        'password\s*=\s*["\x27][^"\x27]{4}'
+        'passwd\s*=\s*["\x27][^"\x27]{4}'
+        'secret_key\s*[:=]\s*["\x27][^"\x27]{8}'
+        'access_token\s*[:=]\s*["\x27][^"\x27]{8}'
+        'private_key\s*[:=]\s*["\x27]'
         'BEGIN RSA PRIVATE KEY'
         'BEGIN OPENSSH PRIVATE KEY'
         'BEGIN EC PRIVATE KEY'

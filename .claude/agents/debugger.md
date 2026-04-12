@@ -172,6 +172,40 @@ Patterns to search:
 Keywords: timeout, setTimeout, sleep, wait, retry, delay, interval, Promise.all, barrier
 ```
 
+### Async / Promise Errors (JavaScript/TypeScript)
+```
+Symptoms:
+  - UnhandledPromiseRejectionWarning
+  - Silent failures in async code paths
+  - "Cannot read property of undefined" inside .then() chains
+  - Event loop starvation / blocked UI
+  - Streams that never resolve or reject
+
+Patterns to search:
+  - Floating promises (async calls without await and without .catch())
+    Grep: `^\s+[a-zA-Z]+\(.*\);$` in async functions — no await, no assignment
+  - Promise.all failing loudly when Promise.allSettled is appropriate
+    (use allSettled when partial failures are acceptable)
+  - try/catch wrapping async code incorrectly:
+    ```
+    // WRONG — does NOT catch async errors:
+    try { asyncFn() } catch(e) { ... }
+    // RIGHT:
+    try { await asyncFn() } catch(e) { ... }
+    ```
+  - Async generators not cleaned up (no return/finally in generator)
+  - AbortController signals not wired to fetch/axios requests
+  - Streaming response not consuming all chunks (stream never ends)
+  - Microtask queue starvation: synchronous loop blocking between
+    microtask checkpoints (causes observable UI freeze even though
+    code is "async")
+  - Promise chaining with unhandled rejection at tail:
+    `fetch(url).then(fn)` — no .catch() at end of chain
+
+Keywords: Promise, async, await, reject, unhandled, allSettled, AbortController,
+          signal, stream, generator, yield, microtask, queueMicrotask, nextTick
+```
+
 ---
 
 ## Workflow

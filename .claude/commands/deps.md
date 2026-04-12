@@ -1,6 +1,7 @@
 ---
 name: deps
 description: "Audit and manage project dependencies for vulnerabilities and updates"
+argument-hint: "[scope: all|outdated|security|unused]"
 model: sonnet
 ---
 

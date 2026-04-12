@@ -1,6 +1,6 @@
 ---
 name: code-explanation
-description: Explains code with visual diagrams and analogies. Use when explaining how code works, teaching about a codebase, or when someone asks how something works.
+description: Use when explaining how code works — provides visual diagrams, analogies, and gotcha highlights for teaching about a codebase.
 user-invocable: false
 ---
 

@@ -2,9 +2,9 @@
 set -euo pipefail
 
 # ClaudeKit Installer
-# Usage: ./install.sh [TARGET_DIR] [--full|--minimal] [--language LANG]
+# Usage: ./install.sh [TARGET_DIR] [--full|--minimal] [--language LANG] [--with-mcp] [--with-i18n]
 
-VERSION="1.0.0"
+VERSION="2.0.0"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_SRC="$SCRIPT_DIR/.claude"
 
@@ -35,6 +35,8 @@ TARGET_DIR=""
 MODE="full"
 LANGUAGE=""
 FORCE=false
+WITH_MCP=false
+WITH_I18N=false
 
 usage() {
     echo "Usage: $0 [TARGET_DIR] [OPTIONS]"
@@ -43,6 +45,8 @@ usage() {
     echo "  --full          Install all components (default)"
     echo "  --minimal       Install agents, commands, and operations only"
     echo "  --language LANG Pre-configure for language (python|typescript|java|go|kotlin|swift|rust|csharp|ruby|php)"
+    echo "  --with-mcp      Install MCP server configurations"
+    echo "  --with-i18n     Install internationalization files"
     echo "  --force         Overwrite existing .claude directory"
     echo "  --help          Show this help"
     echo ""
@@ -58,6 +62,8 @@ while [[ $# -gt 0 ]]; do
         --full)     MODE="full"; shift ;;
         --minimal)  MODE="minimal"; shift ;;
         --language) LANGUAGE="$2"; shift 2 ;;
+        --with-mcp) WITH_MCP=true; shift ;;
+        --with-i18n) WITH_I18N=true; shift ;;
         --force)    FORCE=true; shift ;;
         --help)     usage; exit 0 ;;
         -*)         print_err "Unknown option: $1"; usage; exit 1 ;;
@@ -146,18 +152,23 @@ echo ""
 
 # Create directory structure
 print_step "Creating directory structure..."
-mkdir -p "$DEST"/{agents/_shared,commands,skills,hooks,operations/scripts,local}
+mkdir -p "$DEST"/{agents/_shared,commands,skills,hooks,operations/scripts,local,modes}
 
 # Copy agents
-print_step "Installing agents (13)..."
+AGENT_COUNT=$(ls -1 "$CLAUDE_SRC"/agents/*.md 2>/dev/null | grep -v -E '(QUICK_START|HANDOFF_PROTOCOL)' | wc -l | tr -d ' ')
+print_step "Installing agents (${AGENT_COUNT})..."
 cp "$CLAUDE_SRC"/agents/*.md "$DEST/agents/"
 cp "$CLAUDE_SRC"/agents/_shared/*.md "$DEST/agents/_shared/"
 print_ok "Agents installed"
 
-# Copy commands
-print_step "Installing commands (17)..."
+# Copy commands (core + templates)
+print_step "Installing commands..."
 cp "$CLAUDE_SRC"/commands/*.md "$DEST/commands/"
-print_ok "Commands installed"
+if [[ -d "$SCRIPT_DIR/templates/commands" ]]; then
+    cp "$SCRIPT_DIR"/templates/commands/*.md "$DEST/commands/" 2>/dev/null || true
+fi
+CMD_COUNT=$(ls -1 "$DEST/commands/"*.md 2>/dev/null | wc -l | tr -d ' ')
+print_ok "$CMD_COUNT commands installed"
 
 # Copy operations scripts
 print_step "Installing operations scripts..."
@@ -167,8 +178,8 @@ print_ok "Operations scripts installed"
 
 # Full mode: copy skills and hooks
 if [[ "$MODE" == "full" ]]; then
-    print_step "Installing skills (~45)..."
-    # Copy skill directories
+    print_step "Installing skills..."
+    # Copy skill directories from .claude/skills/
     for skill_dir in "$CLAUDE_SRC"/skills/*/; do
         if [[ -d "$skill_dir" ]]; then
             skill_name=$(basename "$skill_dir")
@@ -176,18 +187,86 @@ if [[ "$MODE" == "full" ]]; then
             cp "$skill_dir"*.md "$DEST/skills/$skill_name/" 2>/dev/null || true
         fi
     done
+    # Copy skill directories from templates/skills/
+    if [[ -d "$SCRIPT_DIR/templates/skills" ]]; then
+        for skill_dir in "$SCRIPT_DIR"/templates/skills/*/; do
+            if [[ -d "$skill_dir" ]]; then
+                skill_name=$(basename "$skill_dir")
+                mkdir -p "$DEST/skills/$skill_name"
+                cp "$skill_dir"*.md "$DEST/skills/$skill_name/" 2>/dev/null || true
+            fi
+        done
+    fi
     # Copy skills registry
     if [[ -f "$CLAUDE_SRC/skills/skills-registry.json" ]]; then
         cp "$CLAUDE_SRC/skills/skills-registry.json" "$DEST/skills/"
     fi
-    print_ok "Skills installed"
+    SKILL_COUNT=$(find "$DEST/skills" -name "SKILL.md" 2>/dev/null | wc -l | tr -d ' ')
+    print_ok "$SKILL_COUNT skills installed"
 
     print_step "Installing hooks..."
     cp "$CLAUDE_SRC"/hooks/*.sh "$DEST/hooks/" 2>/dev/null || true
     cp "$CLAUDE_SRC"/hooks/*.json "$DEST/hooks/" 2>/dev/null || true
     cp "$CLAUDE_SRC"/hooks/*.md "$DEST/hooks/" 2>/dev/null || true
+    # Copy template hooks
+    if [[ -d "$SCRIPT_DIR/templates/hooks" ]]; then
+        cp "$SCRIPT_DIR"/templates/hooks/*.sh "$DEST/hooks/" 2>/dev/null || true
+    fi
     chmod +x "$DEST"/hooks/*.sh 2>/dev/null || true
-    print_ok "Hooks installed"
+    HOOK_COUNT=$(ls -1 "$DEST/hooks/"*.sh 2>/dev/null | wc -l | tr -d ' ')
+    print_ok "$HOOK_COUNT hooks installed"
+fi
+
+# Copy modes from templates
+print_step "Installing behavioral modes..."
+if [[ -d "$SCRIPT_DIR/templates/modes" ]]; then
+    cp "$SCRIPT_DIR"/templates/modes/*.md "$DEST/modes/" 2>/dev/null || true
+    MODE_COUNT=$(ls -1 "$DEST/modes/"*.md 2>/dev/null | wc -l | tr -d ' ')
+    print_ok "$MODE_COUNT modes installed"
+elif [[ -d "$CLAUDE_SRC/modes" ]]; then
+    cp "$CLAUDE_SRC"/modes/*.md "$DEST/modes/" 2>/dev/null || true
+    MODE_COUNT=$(ls -1 "$DEST/modes/"*.md 2>/dev/null | wc -l | tr -d ' ')
+    print_ok "$MODE_COUNT modes installed"
+else
+    print_warn "Modes directory not found, skipping"
+fi
+
+# Copy .agentignore template
+if [[ -f "$SCRIPT_DIR/templates/.agentignore" ]]; then
+    print_step "Installing .agentignore template..."
+    cp "$SCRIPT_DIR/templates/.agentignore" "$TARGET_DIR/.agentignore"
+    print_ok ".agentignore installed"
+elif [[ -f "$SCRIPT_DIR/.agentignore" ]]; then
+    cp "$SCRIPT_DIR/.agentignore" "$TARGET_DIR/.agentignore"
+    print_ok ".agentignore installed"
+fi
+
+# Optionally copy MCP configurations
+if [[ "$WITH_MCP" == true ]]; then
+    print_step "Installing MCP server configurations..."
+    if [[ -d "$SCRIPT_DIR/templates/mcp" ]]; then
+        mkdir -p "$DEST/mcp"
+        cp -r "$SCRIPT_DIR"/templates/mcp/* "$DEST/mcp/" 2>/dev/null || true
+        print_ok "MCP configurations installed"
+    elif [[ -d "$CLAUDE_SRC/mcp" ]]; then
+        mkdir -p "$DEST/mcp"
+        cp -r "$CLAUDE_SRC"/mcp/* "$DEST/mcp/" 2>/dev/null || true
+        print_ok "MCP configurations installed"
+    else
+        print_warn "MCP directory not found, skipping"
+    fi
+fi
+
+# Optionally copy i18n files
+if [[ "$WITH_I18N" == true ]]; then
+    print_step "Installing i18n files..."
+    if [[ -d "$SCRIPT_DIR/i18n" ]]; then
+        mkdir -p "$TARGET_DIR/i18n"
+        cp -r "$SCRIPT_DIR"/i18n/* "$TARGET_DIR/i18n/" 2>/dev/null || true
+        print_ok "i18n files installed"
+    else
+        print_warn "i18n directory not found, skipping"
+    fi
 fi
 
 # Apply language template
@@ -318,13 +397,20 @@ echo "  Mode:     $MODE"
 echo "  Language: $LANGUAGE"
 echo ""
 echo "  Installed:"
-echo "    - 13 agents (coordinator, planner, reviewer, implementer, verifier, debugger, documenter, gitOps, explore, tester, security-scanner, devops, database-architect)"
-echo "    - 17 commands (/plan, /review, /implement, /verify, /debug, /docs, /git, /coordinator, /explore, /security, /deps, /rollback, /test, /deploy, /performance, /migrate, /batch)"
+echo "    - ${AGENT_COUNT} agents (coordinator, planner, reviewer, implementer, verifier, debugger, documenter, gitOps, explore, tester, security-scanner, devops, database-architect, silent-failure-hunter, harness-optimizer, performance-optimizer, code-simplifier, typescript-reviewer, python-reviewer, tdd-guide, refactor-cleaner, doc-updater, code-reviewer, build-error-resolver, loop-operator, opensource-sanitizer, opensource-packager, model-router)"
+echo "    - 37 commands (/plan, /review, /implement, /verify, /debug, /docs, /git, /coordinator, /explore, /security, /deps, /rollback, /test, /deploy, /performance, /migrate, /batch, /santa, /hookify, /save-session, /resume-session, /model-route, /prp-plan, /prp-implement, /prp-commit, /prp-pr, /build-fix, /code-review, /gan-build, /opensource, /loop-start, /context-budget, /audit, /eval, /onboard, /blueprint)"
+echo "    - 7 behavioral modes (default, brainstorm, token-efficient, deep-research, implementation, review, orchestration)"
 if [[ "$MODE" == "full" ]]; then
-    echo "    - ~45 skills"
-    echo "    - 5 hooks"
+    echo "    - ${SKILL_COUNT} skills"
+    echo "    - 15 hooks (including config-protection, commit-quality, security-reminder, format-typecheck, session-start)"
 fi
 echo "    - Operations scripts (validate, execute, restore)"
+if [[ "$WITH_MCP" == true ]]; then
+    echo "    - 5 MCP server configurations"
+fi
+if [[ "$WITH_I18N" == true ]]; then
+    echo "    - i18n files (6 languages)"
+fi
 echo ""
 echo "  Next steps:"
 echo "    1. Review .claude/local/CLAUDE.project.md and customize"
