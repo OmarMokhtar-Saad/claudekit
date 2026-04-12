@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://img.shields.io/badge/ClaudeKit-v1.0.0-blue?style=for-the-badge" alt="Version">
+  <img src="https://img.shields.io/badge/ClaudeKit-v2.0.0-blue?style=for-the-badge" alt="Version">
   <img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" alt="License">
   <img src="https://img.shields.io/badge/python-3.8%2B-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python">
   <img src="https://img.shields.io/badge/bash-4.0%2B-4EAA25?style=for-the-badge&logo=gnubash&logoColor=white" alt="Bash">

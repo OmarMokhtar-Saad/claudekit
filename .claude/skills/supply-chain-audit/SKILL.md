@@ -1,6 +1,6 @@
 ---
 name: supply-chain-audit
-description: Audit supply-chain threat landscape of project dependencies. Detect typosquatting, abandoned packages, excessive permissions, and known CVEs in the dependency tree.
+description: Use when auditing supply-chain threats in project dependencies — detects typosquatting, abandoned packages, excessive permissions, and known CVEs in the dependency tree.
 user-invocable: false
 allowed-tools: Read, Bash, Grep, Glob
 ---

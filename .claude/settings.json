@@ -2,6 +2,24 @@
   "hooks": {
     "PreToolUse": [
       {
+        "matcher": "str_replace_based_edit_tool|write_file|Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/config-protection.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "str_replace_based_edit_tool|write_file|Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/security-reminder.sh"
+          }
+        ]
+      },
+      {
         "matcher": "Bash",
         "hooks": [
           {
@@ -15,7 +33,34 @@
         "hooks": [
           {
             "type": "command",
+            "command": "bash .claude/hooks/commit-quality.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
             "command": "bash -c 'TOOL_INPUT=$(cat); CMD=$(echo \"$TOOL_INPUT\" | python3 -c \"import sys,json; print(json.load(sys.stdin).get(\\\"command\\\",\\\"\\\"))\" 2>/dev/null); if echo \"$CMD\" | grep -qE \"^\\s*git\\s+push\"; then ./.claude/hooks/pre-push.sh; fi'"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/block-no-verify.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'bash .claude/hooks/suggest-compact.sh &'"
           }
         ]
       }
@@ -27,6 +72,15 @@
           {
             "type": "command",
             "command": "./.claude/hooks/post-tool-use.sh \"$CLAUDE_TOOL_NAME\" \"$CLAUDE_TOOL_RESULT\" \"$CLAUDE_TOOL_ARGS\""
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'bash .claude/hooks/command-log-audit.sh &'"
           }
         ]
       }
@@ -48,7 +102,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'LOG=\".claude/hooks/hooks.log\"; echo \"[$(date \"+%Y-%m-%d %H:%M:%S\")] [session-start] [INFO] Session started | pwd=$(pwd) | user=$(whoami) | shell=$SHELL\" >> \"$LOG\" 2>/dev/null; if [ -f .claude/hooks/config.json ]; then echo \"[$(date \"+%Y-%m-%d %H:%M:%S\")] [session-start] [INFO] ClaudeKit hooks config loaded\" >> \"$LOG\" 2>/dev/null; fi'"
+            "command": "bash .claude/hooks/session-start.sh"
           }
         ]
       }
@@ -59,7 +113,34 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'LOG=\".claude/hooks/hooks.log\"; echo \"[$(date \"+%Y-%m-%d %H:%M:%S\")] [stop] [INFO] Session stopping - running final checks\" >> \"$LOG\" 2>/dev/null; ISSUES=0; if [ -n \"$(git status --porcelain 2>/dev/null)\" ]; then echo \"[$(date \"+%Y-%m-%d %H:%M:%S\")] [stop] [WARN] Uncommitted changes remain in working tree\" >> \"$LOG\" 2>/dev/null; echo \"WARNING: Uncommitted changes remain. Review with git status.\"; ISSUES=1; fi; if [ -d operations ] && find operations -name \"ops.json\" -print -quit 2>/dev/null | grep -q .; then for f in $(find operations -name \"ops.json\" 2>/dev/null); do if ! python3 -c \"import json,sys; json.load(open(sys.argv[1]))\" \"$f\" 2>/dev/null; then echo \"[$(date \"+%Y-%m-%d %H:%M:%S\")] [stop] [WARN] Invalid ops.json: $f\" >> \"$LOG\" 2>/dev/null; ISSUES=1; fi; done; fi; echo \"[$(date \"+%Y-%m-%d %H:%M:%S\")] [stop] [INFO] Session ended (issues=$ISSUES)\" >> \"$LOG\" 2>/dev/null; exit 0'"
+            "command": "bash -c 'LOG=\".claude/hooks/hooks.log\"; echo \"[$(date \"+%Y-%m-%d %H:%M:%S\")] [stop] [INFO] Session stopping - running final checks\" >> \"$LOG\" 2>/dev/null; ISSUES=0; if [ -n \"$(git status --porcelain 2>/dev/null)\" ]; then echo \"[$(date \"+%Y-%m-%d %H:%M:%S\")] [stop] [WARN] Uncommitted changes remain in working tree\" >> \"$LOG\" 2>/dev/null; echo \"WARNING: Uncommitted changes remain. Review with git status.\"; ISSUES=1; fi; if find .claude/plans -name \"ops-*.json\" -print -quit 2>/dev/null | grep -q .; then for f in $(find .claude/plans -name \"ops-*.json\" 2>/dev/null); do if ! python3 -c \"import json,sys; json.load(open(sys.argv[1]))\" \"$f\" 2>/dev/null; then echo \"[$(date \"+%Y-%m-%d %H:%M:%S\")] [stop] [WARN] Invalid ops.json: $f\" >> \"$LOG\" 2>/dev/null; ISSUES=1; fi; done; fi; echo \"[$(date \"+%Y-%m-%d %H:%M:%S\")] [stop] [INFO] Session ended (issues=$ISSUES)\" >> \"$LOG\" 2>/dev/null; exit 0'"
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'bash .claude/hooks/cost-tracker.sh &'"
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'bash .claude/hooks/desktop-notify.sh &'"
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'bash .claude/hooks/format-typecheck.sh &'"
           }
         ]
       }

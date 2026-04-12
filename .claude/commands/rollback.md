@@ -1,6 +1,7 @@
 ---
 name: rollback
 description: "Rollback the last applied operations config from backup"
+argument-hint: "[backup-name or latest]"
 model: haiku
 ---
 

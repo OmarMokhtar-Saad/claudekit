@@ -4,7 +4,7 @@ build-backend = "setuptools.backends._legacy:_Backend"
 
 [project]
 name = "claudekit"
-version = "1.1.0"
+version = "2.0.0"
 description = "Production-grade multi-agent orchestration system for Claude Code"
 readme = "README.md"
 license = {text = "MIT"}

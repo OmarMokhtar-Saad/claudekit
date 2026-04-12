@@ -1,5 +1,6 @@
 ---
 description: "Orchestrate complex workflows via coordinator agent"
+argument-hint: "[task or workflow description]"
 model: sonnet
 ---
 

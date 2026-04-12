@@ -1,5 +1,6 @@
 ---
 description: "Git operations via gitOps agent"
+argument-hint: "[operation: commit|branch|pr|status]"
 model: haiku
 ---
 

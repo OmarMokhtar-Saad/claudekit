@@ -52,6 +52,50 @@
             "timeout": { "type": "integer", "minimum": 1000, "maximum": 600000, "default": 5000 },
             "blocking": { "type": "boolean", "default": false }
           }
+        },
+        "file-guard": {
+          "type": "object",
+          "description": "Blocks access to sensitive files matching 195+ patterns (secrets, credentials, keys, certificates)",
+          "properties": {
+            "command": { "type": "string", "description": "Command to run for file-guard check" },
+            "enabled": { "type": "boolean", "default": true },
+            "timeout": { "type": "integer", "minimum": 1000, "maximum": 600000, "default": 5000 },
+            "blocking": { "type": "boolean", "default": true },
+            "description": { "type": "string", "default": "Blocks access to sensitive files matching 195+ patterns" }
+          }
+        },
+        "check-comment-replacement": {
+          "type": "object",
+          "description": "Detects when code comments are replaced with implementation stubs or placeholders",
+          "properties": {
+            "command": { "type": "string", "description": "Command to run for comment replacement check" },
+            "enabled": { "type": "boolean", "default": true },
+            "timeout": { "type": "integer", "minimum": 1000, "maximum": 600000, "default": 10000 },
+            "blocking": { "type": "boolean", "default": true },
+            "description": { "type": "string", "default": "Detects when code comments are replaced with implementation stubs" }
+          }
+        },
+        "prompt-injection-scanner": {
+          "type": "object",
+          "description": "Scans for prompt injection patterns in files and inputs",
+          "properties": {
+            "command": { "type": "string", "description": "Command to run for prompt injection scanning" },
+            "enabled": { "type": "boolean", "default": true },
+            "timeout": { "type": "integer", "minimum": 1000, "maximum": 600000, "default": 10000 },
+            "blocking": { "type": "boolean", "default": true },
+            "description": { "type": "string", "default": "Scans for prompt injection patterns in files and inputs" }
+          }
+        },
+        "auto-checkpoint": {
+          "type": "object",
+          "description": "Automatically creates checkpoints before significant operations",
+          "properties": {
+            "command": { "type": "string", "description": "Command to run for auto-checkpoint" },
+            "enabled": { "type": "boolean", "default": true },
+            "timeout": { "type": "integer", "minimum": 1000, "maximum": 600000, "default": 15000 },
+            "blocking": { "type": "boolean", "default": false },
+            "description": { "type": "string", "default": "Automatically creates checkpoints before significant operations" }
+          }
         }
       }
     },

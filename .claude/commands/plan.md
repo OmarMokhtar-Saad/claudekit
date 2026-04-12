@@ -1,5 +1,6 @@
 ---
 description: "Create implementation plan via planner agent"
+argument-hint: "[task description]"
 model: sonnet
 ---
 
