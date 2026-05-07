@@ -579,7 +579,9 @@ def _execute_operations(config: dict, operations: list, plan_name: str,
                 if success:
                     stats['code_edit'] += 1
             else:
-                print(f"  Unknown operation type: {op_type}")
+                print(f"  ERROR: Unknown operation type: {op_type!r}")
+                print(f"  Valid types: file_create, file_delete, code_edit")
+                print(f"  Hint: regenerate ops.json using the generate-operations-config skill")
                 success = False
 
             if success:

@@ -32,6 +32,16 @@ Before scoring, verify these prerequisites:
 2. An ops.json file is present and parseable
 3. The plan has a clear goal statement
 4. The plan includes at least one verification step
+5. **Run the Python validator** — this is MANDATORY, not optional:
+   ```bash
+   python3 .claude/operations/scripts/validate-config-json.py <path-to-ops.json>
+   ```
+   If the script exits non-zero OR prints `FAIL`, treat this as "ops.json is invalid" → automatic score 0 and REJECT. Do NOT proceed to scoring.
+6. **Run the dry-run executor** — also MANDATORY:
+   ```bash
+   python3 .claude/operations/scripts/execute-json-ops.py <path-to-ops.json> --dry-run
+   ```
+   If the script exits non-zero, treat this as a blocking validation failure → REJECT.
 
 If ANY prerequisite is missing, REJECT immediately with a clear explanation of what is missing.
 
