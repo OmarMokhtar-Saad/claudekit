@@ -1,11 +1,12 @@
 #!/bin/bash
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # =============================================================================
 # Cost Tracker Hook
 # Tracks session activity and estimates costs at session end.
 # Runs as a Stop hook.
 # =============================================================================
 
-LOG_FILE=".claude/hooks/hooks.log"
+LOG_FILE="$SCRIPT_DIR/hooks.log"
 COST_LOG=".claude/hooks/cost-tracker.log"
 SESSION_LOG=".claude/hooks/session.log"
 HOOK_NAME="cost-tracker"

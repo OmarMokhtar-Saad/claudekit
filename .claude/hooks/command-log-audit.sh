@@ -1,11 +1,12 @@
 #!/bin/bash
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # =============================================================================
 # Command Log Audit Hook
 # Logs all Bash tool commands to a persistent audit log.
 # Runs as a PostToolUse hook on Bash tool calls.
 # =============================================================================
 
-LOG_FILE=".claude/hooks/hooks.log"
+LOG_FILE="$SCRIPT_DIR/hooks.log"
 AUDIT_LOG=".claude/hooks/bash-commands.log"
 HOOK_NAME="command-log-audit"
 
