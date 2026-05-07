@@ -1,4 +1,5 @@
 #!/bin/bash
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # =============================================================================
 # Block --no-verify Hook
 # Prevents bypassing git hooks via the --no-verify flag.
@@ -7,7 +8,7 @@
 
 set -e
 
-LOG_FILE=".claude/hooks/hooks.log"
+LOG_FILE="$SCRIPT_DIR/hooks.log"
 HOOK_NAME="block-no-verify"
 
 log() {

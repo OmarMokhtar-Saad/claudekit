@@ -1,11 +1,12 @@
 #!/bin/bash
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # =============================================================================
 # Desktop Notify Hook
 # Sends a macOS/Linux desktop notification when a session ends.
 # Runs as a Stop hook.
 # =============================================================================
 
-LOG_FILE=".claude/hooks/hooks.log"
+LOG_FILE="$SCRIPT_DIR/hooks.log"
 HOOK_NAME="desktop-notify"
 
 log() {
