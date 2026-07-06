@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-set -euo pipefail
+# -E (errtrace): the ERR trap is inherited by shell functions, so a failure
+# inside a helper like render_template still triggers staging cleanup.
+set -Eeuo pipefail
 
 # ClaudeKit Installer
 # Usage: ./install.sh [TARGET_DIR] [--full|--minimal] [--language LANG] [--with-mcp] [--with-i18n]
@@ -151,7 +153,9 @@ detect_language() {
         echo "swift"
     elif [[ -f "$TARGET_DIR/Cargo.toml" ]]; then
         echo "rust"
-    elif ls "$TARGET_DIR"/*.csproj 1>/dev/null 2>&1 || ls "$TARGET_DIR"/*.sln 1>/dev/null 2>&1; then
+    elif find "$TARGET_DIR" -maxdepth 3 \( -name '*.csproj' -o -name '*.sln' \) -print -quit 2>/dev/null | grep -q .; then
+        # .csproj/.sln commonly live in subdirs (src/App/App.csproj), so search a
+        # few levels, not just the top of the project.
         echo "csharp"
     elif [[ -f "$TARGET_DIR/Gemfile" ]]; then
         echo "ruby"
@@ -333,41 +337,56 @@ LINT_CMD="${LINT_CMD:-echo 'No lint command configured'}"
 COVERAGE_CMD="${COVERAGE_CMD:-echo 'No coverage command configured'}"
 PROJECT_NAME="${PROJECT_NAME:-$(basename "$TARGET_DIR")}"
 
+# Render a {{PLACEHOLDER}} template with LITERAL substitution. Using Python's
+# str.replace (not sed) so values containing sed-special chars (& | \ / newline)
+# — e.g. a BUILD_CMD like `npm run build && npm test` — can't corrupt the output
+# or inject sed commands. Substitutions are passed as CK_VAR_<NAME> env vars.
+render_template() {
+    local tpl="$1" out="$2"
+    CK_TPL_IN="$tpl" CK_TPL_OUT="$out" python3 -c '
+import os
+with open(os.environ["CK_TPL_IN"]) as f:
+    text = f.read()
+for key, val in os.environ.items():
+    if key.startswith("CK_VAR_"):
+        text = text.replace("{{%s}}" % key[len("CK_VAR_"):], val)
+with open(os.environ["CK_TPL_OUT"], "w") as f:
+    f.write(text)
+'
+}
+
 # Generate CLAUDE.md from template
 print_step "Generating CLAUDE.md..."
 if [[ -f "$TEMPLATE_DIR/CLAUDE.md" ]]; then
-    sed \
-        -e "s|{{PROJECT_NAME}}|${PROJECT_NAME}|g" \
-        -e "s|{{LANGUAGE}}|${LANGUAGE}|g" \
-        "$TEMPLATE_DIR/CLAUDE.md" > "$DEST/local/CLAUDE.project.md"
+    CK_VAR_PROJECT_NAME="$PROJECT_NAME" \
+    CK_VAR_LANGUAGE="$LANGUAGE" \
+        render_template "$TEMPLATE_DIR/CLAUDE.md" "$DEST/local/CLAUDE.project.md"
 else
-    sed \
-        -e "s|{{PROJECT_NAME}}|$PROJECT_NAME|g" \
-        -e "s|{{PROJECT_DESCRIPTION}}|A $LANGUAGE project using ClaudeKit|g" \
-        -e "s|{{LANGUAGE}}|$LANGUAGE|g" \
-        -e "s|{{FRAMEWORK}}|${FRAMEWORK:-N/A}|g" \
-        -e "s|{{BUILD_SYSTEM}}|${BUILD_SYSTEM:-N/A}|g" \
-        -e "s|{{TEST_FRAMEWORK}}|${TEST_FRAMEWORK:-N/A}|g" \
-        -e "s|{{BUILD_CMD}}|$BUILD_CMD|g" \
-        -e "s|{{TEST_CMD}}|$TEST_CMD|g" \
-        -e "s|{{LINT_CMD}}|$LINT_CMD|g" \
-        -e "s|{{COVERAGE_CMD}}|$COVERAGE_CMD|g" \
-        -e "s|{{EXAMPLE_FILE_PATH}}|${EXAMPLE_FILE:-src/main.py}|g" \
-        "$CLAUDE_SRC/local/CLAUDE.template.md" > "$DEST/local/CLAUDE.project.md"
+    CK_VAR_PROJECT_NAME="$PROJECT_NAME" \
+    CK_VAR_PROJECT_DESCRIPTION="A $LANGUAGE project using ClaudeKit" \
+    CK_VAR_LANGUAGE="$LANGUAGE" \
+    CK_VAR_FRAMEWORK="${FRAMEWORK:-N/A}" \
+    CK_VAR_BUILD_SYSTEM="${BUILD_SYSTEM:-N/A}" \
+    CK_VAR_TEST_FRAMEWORK="${TEST_FRAMEWORK:-N/A}" \
+    CK_VAR_BUILD_CMD="$BUILD_CMD" \
+    CK_VAR_TEST_CMD="$TEST_CMD" \
+    CK_VAR_LINT_CMD="$LINT_CMD" \
+    CK_VAR_COVERAGE_CMD="$COVERAGE_CMD" \
+    CK_VAR_EXAMPLE_FILE_PATH="${EXAMPLE_FILE:-src/main.py}" \
+        render_template "$CLAUDE_SRC/local/CLAUDE.template.md" "$DEST/local/CLAUDE.project.md"
 fi
 print_ok "CLAUDE.md generated"
 
 # Generate CONSTITUTION.md from template
 print_step "Generating CONSTITUTION.md..."
-sed \
-    -e "s|{{PROJECT_NAME}}|$PROJECT_NAME|g" \
-    -e "s|{{DATE}}|$(date +%Y-%m-%d)|g" \
-    -e "s|{{LANGUAGE}}|$LANGUAGE|g" \
-    -e "s|{{LINT_CMD}}|$LINT_CMD|g" \
-    -e "s|{{TEST_CMD}}|$TEST_CMD|g" \
-    -e "s|{{COVERAGE_CMD}}|$COVERAGE_CMD|g" \
-    -e "s|{{BUILD_TIME_TARGET}}|< 60 seconds|g" \
-    "$CLAUDE_SRC/local/CONSTITUTION.template.md" > "$DEST/local/CONSTITUTION.md"
+CK_VAR_PROJECT_NAME="$PROJECT_NAME" \
+CK_VAR_DATE="$(date +%Y-%m-%d)" \
+CK_VAR_LANGUAGE="$LANGUAGE" \
+CK_VAR_LINT_CMD="$LINT_CMD" \
+CK_VAR_TEST_CMD="$TEST_CMD" \
+CK_VAR_COVERAGE_CMD="$COVERAGE_CMD" \
+CK_VAR_BUILD_TIME_TARGET="< 60 seconds" \
+    render_template "$CLAUDE_SRC/local/CONSTITUTION.template.md" "$DEST/local/CONSTITUTION.md"
 print_ok "CONSTITUTION.md generated"
 
 # Update hooks config with project commands
