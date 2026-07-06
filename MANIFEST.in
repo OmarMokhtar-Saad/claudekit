@@ -1,0 +1,22 @@
+# Ship the runtime asset tree in the sdist so `pip install` from a source
+# distribution (or `pip install git+...`) carries everything `ck init` needs.
+# NOTE: these land in the sdist, not the wheel. For a pure `pip install claudekit`
+# (wheel) standalone `ck init`, point CLAUDEKIT_HOME at a checkout, or bundle the
+# assets into the wheel (tracked as a Phase-2 packaging task).
+include install.sh
+include config.schema.json
+include README.md
+include LICENSE
+include CHANGELOG.md
+include CONTRIBUTING.md
+include SECURITY.md
+include tests/requirements.txt
+recursive-include .claude *
+recursive-include templates *
+recursive-include docs *
+recursive-include scripts *.py
+recursive-include examples *
+recursive-include i18n *
+global-exclude *.pyc
+global-exclude __pycache__
+global-exclude *.log
