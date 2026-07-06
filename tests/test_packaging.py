@@ -52,3 +52,38 @@ def test_single_version_source_of_truth():
         assert '"1.1.0"' not in text, f"stale version literal in {py}"
         assert '"3.1.0"' not in text, f"stale version literal in {py}"
     assert re.match(r"\d+\.\d+\.\d+", version)
+
+
+def test_setup_bundles_runtime_assets():
+    """setup.py must collect the asset tree so `pip install` is self-contained.
+
+    Guards the wheel-bundling contract without a full build: the computed
+    data_files must include .claude/agents, a hook, and install.sh, and must
+    exclude local/runtime cruft.
+    """
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("_ck_setup", REPO / "setup.py")
+    mod = importlib.util.module_from_spec(spec)
+    # setup.py calls setup() at import; stub it so import is a no-op.
+    import setuptools
+    orig = setuptools.setup
+    setuptools.setup = lambda *a, **k: None
+    try:
+        import os
+        cwd = os.getcwd()
+        os.chdir(REPO)
+        try:
+            spec.loader.exec_module(mod)
+            data = mod._asset_data_files()
+        finally:
+            os.chdir(cwd)
+    finally:
+        setuptools.setup = orig
+
+    flat = [f for _dest, files in data for f in files]
+    assert any(f.endswith("install.sh") for f in flat)
+    assert any(os.path.join(".claude", "agents") in f for f in flat)
+    assert any(f.endswith(".sh") and "hooks" in f for f in flat)
+    # No local overrides / logs bundled.
+    assert not any("settings.local.json" in f for f in flat)
+    assert not any(f.endswith(".log") for f in flat)

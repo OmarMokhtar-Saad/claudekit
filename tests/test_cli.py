@@ -138,3 +138,72 @@ class TestFindRoot:
             capture_output=True, text=True, timeout=10,
         )
         assert allow.returncode == 0
+
+
+class TestLifecycleCommands:
+    """diff / uninstall / update over a manifest-tracked install."""
+
+    def _import_main(self):
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+        from claudekit.cli import main as m
+        return m
+
+    def _fake_install(self, tmp_path, m):
+        base = tmp_path / ".claude"
+        (base / "agents").mkdir(parents=True)
+        (base / "settings.json").write_text('{"hooks": {}}')
+        (base / "agents" / "planner.md").write_text("# planner\n")
+        files = {
+            "settings.json": m._sha256(base / "settings.json"),
+            "agents/planner.md": m._sha256(base / "agents" / "planner.md"),
+        }
+        (base / m.MANIFEST_NAME).write_text(json.dumps(
+            {"version": "2.1.0", "mode": "full", "language": "python", "files": files}))
+        return base
+
+    def _ns(self, **kw):
+        import argparse
+        return argparse.Namespace(**kw)
+
+    def test_diff_clean(self, tmp_path, capsys):
+        m = self._import_main()
+        self._fake_install(tmp_path, m)
+        rc = m.cmd_diff(self._ns(target=str(tmp_path)))
+        assert rc == 0
+        assert "match the manifest" in capsys.readouterr().out
+
+    def test_diff_detects_modification(self, tmp_path):
+        m = self._import_main()
+        base = self._fake_install(tmp_path, m)
+        (base / "settings.json").write_text('{"hooks": {"changed": true}}')
+        manifest = m._load_manifest(tmp_path)
+        modified, missing, unchanged = m._classify_manifest(tmp_path, manifest)
+        assert "settings.json" in modified
+        assert "agents/planner.md" in unchanged
+
+    def test_diff_no_manifest_errors(self, tmp_path):
+        m = self._import_main()
+        assert m.cmd_diff(self._ns(target=str(tmp_path))) == 1
+
+    def test_uninstall_dry_run_keeps_files(self, tmp_path):
+        m = self._import_main()
+        base = self._fake_install(tmp_path, m)
+        rc = m.cmd_uninstall(self._ns(target=str(tmp_path), yes=True,
+                                      dry_run=True, stamp="T"))
+        assert rc == 0
+        assert (base / "settings.json").exists()  # dry-run removed nothing
+
+    def test_uninstall_removes_and_backs_up(self, tmp_path):
+        m = self._import_main()
+        base = self._fake_install(tmp_path, m)
+        rc = m.cmd_uninstall(self._ns(target=str(tmp_path), yes=True,
+                                      dry_run=False, stamp="T"))
+        assert rc == 0
+        assert not (base / "settings.json").exists()
+        assert not (base / m.MANIFEST_NAME).exists()
+        # backed up, recoverable
+        assert (tmp_path / "backups" / "uninstall-T" / "settings.json").exists()
+
+    def test_update_no_manifest_errors(self, tmp_path):
+        m = self._import_main()
+        assert m.cmd_update(self._ns(target=str(tmp_path), yes=True)) == 1
