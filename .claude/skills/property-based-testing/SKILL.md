@@ -1,6 +1,6 @@
 ---
 name: property-based-testing
-description: Property-based testing patterns using Hypothesis (Python), fast-check (TypeScript), QuickCheck (Haskell/Go), and proptest (Rust). Generate tests from properties rather than examples.
+description: Use when writing property-based tests — covers Hypothesis (Python), fast-check (TypeScript), QuickCheck (Haskell/Go), and proptest (Rust) for generating tests from properties.
 user-invocable: false
 ---
 

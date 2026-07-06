@@ -1,4 +1,5 @@
 #!/bin/bash
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 set -e
 
 # =============================================================================
@@ -11,7 +12,7 @@ set -e
 # =============================================================================
 
 HOOK_NAME="pre-push"
-LOG_FILE=".claude/hooks/hooks.log"
+LOG_FILE="$SCRIPT_DIR/hooks.log"
 
 log() {
     local level="$1"
@@ -24,7 +25,7 @@ log() {
 
 get_project_config() {
     local key="$1"
-    local config=".claude/hooks/config.json"
+    local config="$SCRIPT_DIR/config.json"
     if [ -f "$config" ] && command -v python3 &>/dev/null; then
         python3 -c "import json, sys; c=json.load(open(sys.argv[1])); print(c.get('project',{}).get(sys.argv[2],''))" "$config" "$key" 2>/dev/null
     fi

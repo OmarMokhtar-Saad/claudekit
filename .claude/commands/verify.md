@@ -1,5 +1,6 @@
 ---
 description: "Run unified quality and test validation via verifier agent"
+argument-hint: "[scope: all|tests|lint|coverage]"
 model: haiku
 ---
 

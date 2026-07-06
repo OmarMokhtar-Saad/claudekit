@@ -134,3 +134,85 @@ class TestInstallScript:
             capture_output=True, text=True
         )
         assert result.returncode != 0
+
+
+class TestInstallSafety:
+    """Task 005 — data-loss protection, settings.json, manifest, non-interactive."""
+
+    def _install(self, tmpdir, *args):
+        return subprocess.run(
+            ['bash', INSTALL_SCRIPT, tmpdir, *args],
+            capture_output=True, text=True, timeout=90, stdin=subprocess.DEVNULL,
+        )
+
+    def test_full_install_ships_settings_json(self):
+        # Without settings.json the hooks are dead on arrival — this was omitted for years.
+        with tempfile.TemporaryDirectory() as tmpdir:
+            open(os.path.join(tmpdir, 'pyproject.toml'), 'w').close()
+            r = self._install(tmpdir, '--full', '--yes')
+            assert r.returncode == 0, r.stderr
+            assert os.path.isfile(os.path.join(tmpdir, '.claude', 'settings.json'))
+
+    def test_reinstall_preserves_settings_local(self):
+        # settings.local.json is the user's local override surface (never shipped).
+        # A reinstall must carry it forward, not leave it behind in the backup.
+        with tempfile.TemporaryDirectory() as tmpdir:
+            open(os.path.join(tmpdir, 'pyproject.toml'), 'w').close()
+            assert self._install(tmpdir, '--full', '--yes').returncode == 0
+            local = os.path.join(tmpdir, '.claude', 'settings.local.json')
+            with open(local, 'w') as f:
+                f.write('{"env": {"ECC_HOOK_PROFILE": "strict"}}')
+            assert self._install(tmpdir, '--full', '--yes', '--force').returncode == 0
+            assert os.path.isfile(local), "settings.local.json lost on reinstall"
+            assert 'strict' in open(local).read()
+
+    def test_install_writes_manifest(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            open(os.path.join(tmpdir, 'go.mod'), 'w').close()
+            r = self._install(tmpdir, '--full', '--yes')
+            assert r.returncode == 0, r.stderr
+            manifest = os.path.join(tmpdir, '.claude', '.claudekit-manifest.json')
+            assert os.path.isfile(manifest)
+            import json
+            data = json.load(open(manifest))
+            assert data['version'] and isinstance(data['files'], dict) and data['files']
+
+    def test_yes_flag_non_interactive(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            r = self._install(tmpdir, '--minimal', '--yes')
+            assert r.returncode == 0, r.stderr
+            assert os.path.isdir(os.path.join(tmpdir, '.claude'))
+
+    def test_reinstall_backs_up_existing(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            r1 = self._install(tmpdir, '--minimal', '--yes')
+            assert r1.returncode == 0, r1.stderr
+            r2 = self._install(tmpdir, '--minimal', '--yes', '--force')
+            assert r2.returncode == 0, r2.stderr
+            backups = [d for d in os.listdir(tmpdir) if d.startswith('.claude.bak-')]
+            assert backups, "reinstall did not create a backup"
+
+    def test_mid_failure_preserves_existing_claude(self):
+        # The core data-loss guarantee: a mid-install failure must NOT delete the
+        # user's existing .claude (the old ERR trap did `rm -rf $DEST`).
+        import shutil
+        repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        template = os.path.join(repo, '.claude', 'local', 'CONSTITUTION.template.md')
+        with tempfile.TemporaryDirectory() as tmpdir:
+            claude = os.path.join(tmpdir, '.claude', 'local')
+            os.makedirs(claude)
+            sentinel = os.path.join(claude, 'CONSTITUTION.md')
+            with open(sentinel, 'w') as f:
+                f.write('USER CUSTOM CONTENT')
+            moved = template + '.hidden'
+            shutil.move(template, moved)
+            try:
+                r = self._install(tmpdir, '--full', '--yes', '--force')
+            finally:
+                shutil.move(moved, template)
+            assert r.returncode != 0, "expected install to fail with the template hidden"
+            # The user's file must still be there, unchanged.
+            assert os.path.isfile(sentinel)
+            assert open(sentinel).read() == 'USER CUSTOM CONTENT'
+            staging = [d for d in os.listdir(tmpdir) if d.startswith('.claude.staging.')]
+            assert not staging, "staging dir leaked after failure"

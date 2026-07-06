@@ -1,6 +1,6 @@
 ---
 name: static-analysis-integration
-description: Static analysis toolkit integration with Semgrep, ESLint security plugins, Bandit, and SARIF report parsing. Run and interpret security-focused static analysis tools.
+description: Use when integrating static analysis tools — covers Semgrep, ESLint security plugins, Bandit, and SARIF report parsing for security-focused analysis.
 disable-model-invocation: true
 allowed-tools: Read, Bash, Grep, Glob
 ---

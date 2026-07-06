@@ -1,6 +1,7 @@
 ---
 name: security
 description: "Run security analysis on codebase or specific files"
+argument-hint: "[file, directory, or scope]"
 model: opus
 ---
 

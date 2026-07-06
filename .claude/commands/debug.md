@@ -1,5 +1,6 @@
 ---
 description: "Diagnose bug via debugger agent (read-only)"
+argument-hint: "[error description or file path]"
 model: opus
 ---
 

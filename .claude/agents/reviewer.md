@@ -37,6 +37,22 @@ If any skill fails to load, report the failure and continue with remaining skill
 
 ---
 
+## Dual Review Mode (--dual flag)
+
+When invoked with `--dual` (for high-stakes plans), activate the Santa Method:
+
+1. Load **santa-method** skill
+2. Spawn two independent sub-reviewers in parallel:
+   - **Reviewer A (Skeptic/Opus):** threshold 95/100 — assume the plan is wrong
+   - **Reviewer B (Pragmatist/Sonnet):** threshold 90/100 — assess real-world risk
+3. Neither reviewer sees the other's output (anti-anchoring)
+4. APPROVE only if BOTH reviewers approve
+5. If one rejects → revision required; if both reject → escalate to human
+
+Use `--dual` for: security-sensitive plans, DB migrations, public API changes, auth changes.
+
+---
+
 ## Pre-Validation Check
 
 Before scoring anything, verify these prerequisites:
