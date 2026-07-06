@@ -22,7 +22,9 @@ if __package__ in (None, ""):
 def _resolve_version() -> str:
     """Single source of truth: installed package metadata, with a source-checkout fallback."""
     try:
-        return metadata.version("claudekit")
+        # Distribution name is "claude-kit" (the "claudekit" PyPI name was taken);
+        # the import package and console scripts remain "claudekit"/"ck".
+        return metadata.version("claude-kit")
     except metadata.PackageNotFoundError:
         return "2.1.0"
 
