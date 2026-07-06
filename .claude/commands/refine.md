@@ -14,6 +14,7 @@ Runs the plan-review refinement loop: the planner produces a plan, the reviewer 
 prompt of a fresh, isolated Claude process. The Agent tool's `subagent_type` parameter does
 NOT resolve local agent names — it falls back to built-in types (`feature-dev:code-architect`,
 `feature-dev:code-reviewer`) regardless of what name is specified.
+Canonical spawn contract: see `.claude/agents/_shared/INVOCATION.md` (single source of truth).
 
 ## Mandatory Skills
 
