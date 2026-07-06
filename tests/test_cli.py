@@ -106,6 +106,27 @@ class TestFindRoot:
         monkeypatch.setenv("CLAUDEKIT_HOME", str(tmp_path))
         assert m.find_claudekit_root() != tmp_path
 
+    def test_find_root_locates_repo_from_source(self, monkeypatch):
+        # With no override, the walk-up must find the repo root (regression for
+        # the src-layout depth bug where it resolved to src/ and returned None).
+        m = self._import_main()
+        monkeypatch.delenv("CLAUDEKIT_HOME", raising=False)
+        root = m.find_claudekit_root()
+        assert root is not None
+        assert (root / ".claude" / "agents").is_dir()
+        assert (root / "install.sh").exists()
+
+    def test_init_parser_accepts_full_minimal_yes(self):
+        # Regression: `ck init --full --yes` previously errored (only --mode existed).
+        m = self._import_main()
+        for extra in (["--full", "--yes"], ["--minimal", "--non-interactive"]):
+            result = subprocess.run(
+                [sys.executable, CLI_PATH, "init", "--help"],
+                capture_output=True, text=True, timeout=10,
+            )
+            assert result.returncode == 0
+            assert "--full" in result.stdout and "--yes" in result.stdout
+
     def test_check_command_subcommand_exit_codes(self):
         block = subprocess.run(
             [sys.executable, CLI_PATH, "check-command", "rm -rf /"],

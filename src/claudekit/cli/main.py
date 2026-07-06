@@ -57,10 +57,11 @@ def find_claudekit_root():
         p = Path(env_home).expanduser()
         if (p / ".claude" / "agents").exists():
             return p
-    # Check if we're inside the claudekit repo
-    here = Path(__file__).resolve().parent.parent.parent
-    if (here / ".claude" / "agents").exists():
-        return here
+    # Walk up from this file looking for the repo/install root. Robust to the
+    # src-layout nesting depth (src/claudekit/cli/main.py -> repo root).
+    for parent in Path(__file__).resolve().parents:
+        if (parent / ".claude" / "agents").exists():
+            return parent
     # Check common locations
     for path in [Path.home() / "claudekit", Path.home() / ".claudekit"]:
         if (path / ".claude" / "agents").exists():
@@ -92,6 +93,8 @@ def cmd_init(args):
         cmd.extend(["--language", args.language])
     if args.force:
         cmd.append("--force")
+    if getattr(args, "yes", False):
+        cmd.append("--yes")
 
     result = subprocess.run(cmd)
     return result.returncode
@@ -381,8 +384,14 @@ def main():
     p = sub.add_parser("init", help="Install ClaudeKit into a project")
     p.add_argument("target", nargs="?", default=".", help="Target directory (default: .)")
     p.add_argument("--mode", choices=["full", "minimal"], default="full")
+    p.add_argument("--full", dest="mode", action="store_const", const="full",
+                   help="Full install (default)")
+    p.add_argument("--minimal", dest="mode", action="store_const", const="minimal",
+                   help="Minimal install (agents + commands + operations)")
     p.add_argument("--language", help="Pre-configure language")
     p.add_argument("--force", action="store_true", help="Overwrite existing installation")
+    p.add_argument("--yes", "--non-interactive", dest="yes", action="store_true",
+                   help="Assume yes to prompts (non-interactive)")
 
     # doctor
     p = sub.add_parser("doctor", help="Run health checks on installation")
