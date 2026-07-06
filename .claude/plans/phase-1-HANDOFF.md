@@ -1,7 +1,7 @@
 # Phase 1 — Handoff to Next Agent
 
 > **STATUS: PHASE 1 COMPLETE (2026-07-06).** All four waves (A–D) landed on branch
-> `phase-1-fix-whats-broken`. **506 tests passing**; ruff + mypy clean; docs-drift clean.
+> `phase-1-fix-whats-broken`. **516 tests passing**; ruff + mypy clean; docs-drift clean.
 > Commits: `987192a` (Waves A/B + enhancement suite), `66d5af5` (002 security wiring),
 > `00a86f3` (006 docs + 011 CI), `fed37e9` (dormant-hook wiring + CLAUDEKIT_HOME),
 > `969b242` (ck-init end-to-end fixes), `4ef8d38` (commit-quality block test).
@@ -105,24 +105,27 @@ hook demonstrably blocks; no version/doc disagrees with the tree; CI can't pass 
 
 ---
 
-## GENUINELY REMAINING (Phase 2 / user-gated — NOT Phase-1 blockers)
+## Phase-2 items ALSO completed (this session, tested)
+
+- **Wheel-bundled assets** — `setup.py` ships `.claude/`/`templates/`/`install.sh`/
+  `config.schema.json` as data_files under `<prefix>/share/claudekit`; `find_claudekit_root`
+  resolves them. Verified: fresh venv → `pip install <wheel>` → `ck init` (no checkout, no
+  `CLAUDEKIT_HOME`) → `ck doctor` = 19/19. `package-smoke` CI runs this standalone flow.
+- **CLI lifecycle** — `ck diff` / `ck update` / `ck uninstall` (manifest-driven, backup-safe).
+  Plus `ck init --full/--minimal/--yes` and `ck doctor --strict`.
+- **Installer hardening** — sed→Python literal template rendering (kills `& | \` corruption);
+  C# subdir detection; `set -E` staging-cleanup; `settings.local.json` preserved on reinstall.
+- **003 P2 rot** — suggest-compact portable daily reset + stale-lock; format-typecheck reads the
+  correct `edited-files.log`; auto-checkpoint stable stash-SHA prune. Dormant hooks wired.
+  Latently-red shellcheck job fixed (`.shellcheckrc`).
+- **004** — core commands + `TASK_TOOL_SPECIFICATION.md` cite `INVOCATION.md`.
+
+## GENUINELY REMAINING (user-gated only — nothing else is actionable)
 
 - **Publish (user-gated):** merge `phase-1-fix-whats-broken`→`main`; tag `v2.1.0`; exercise
-  `release.yml`; PyPI publish. **Blocked on the PyPI-name decision.**
-- **Wheel-bundled assets (Phase-2 packaging):** to make a *pure* `pip install claudekit && ck init`
-  work with no checkout, bundle `.claude/`/`templates/`/`install.sh` into the wheel (they only reach
-  the sdist today via `MANIFEST.in`). Until then `ck init` needs a checkout or `CLAUDEKIT_HOME`.
-- **New CLI features (Phase 2 — the "no new features" thesis excludes these from Phase 1):**
-  `ck update` three-way merge (manifest foundation exists), `ck uninstall`, `ck diff`,
-  settings.json merge-on-existing.
-- **Installer detection refinements:** JS-vs-TS via tsconfig, csproj maxdepth, sed hardening for
-  `& | \``.
-- **003 P2 rot (low):** auto-checkpoint stash-SHA fix; suggest-compact stale-lock + BSD date;
-  format-typecheck data-source rewrite.
-- **004 (low):** doc sweep of every wrapper command + `HANDOFF_PROTOCOL.md` to cite INVOCATION.md.
-
----
+  `release.yml`; PyPI publish. **Blocked solely on the PyPI-name decision** (`claudekit` collides
+  with an npm package). Everything technical is done and green.
 
 ## Suggested next step
-Get the user's PyPI-name decision, then merge to `main` and tag `v2.1.0`. After that, the top
-Phase-2 item is wheel-bundled assets (unblocks standalone `pip install`), then `ck update`.
+Decide the PyPI name, then merge to `main` and tag `v2.1.0`. **506→516 tests pass; ruff, mypy,
+shellcheck, docs-drift, coverage (88%), registry, dangling-hooks all green.**
