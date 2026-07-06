@@ -99,9 +99,18 @@ for cp in pruned:
     if ref:
         print(ref)
 " "$REGISTRY_FILE" "$MAX_CHECKPOINTS" 2>/dev/null | while IFS= read -r stash_ref; do
-        # Attempt to drop the stash (may fail if stash was already cleared)
-        git stash drop "$stash_ref" 2>/dev/null || true
-        log "INFO" "Pruned old checkpoint stash: $stash_ref"
+        [ -z "$stash_ref" ] && continue
+        # stash_ref is a stable commit SHA. Resolve it to its CURRENT positional
+        # ref (stash@{n}) by matching SHAs, then drop that — dropping by SHA or a
+        # stale position would hit the wrong stash.
+        pos=$(git stash list --format='%gd %H' 2>/dev/null \
+              | awk -v s="$stash_ref" '$2==s || index($2,s)==1 {print $1; exit}')
+        if [ -n "$pos" ]; then
+            git stash drop "$pos" 2>/dev/null || true
+            log "INFO" "Pruned old checkpoint stash: $pos ($stash_ref)"
+        else
+            log "INFO" "Checkpoint stash already gone: $stash_ref"
+        fi
     done
 }
 
@@ -146,11 +155,17 @@ create_checkpoint() {
         return 1
     fi
 
+    # Capture the stash's commit SHA NOW — it is stable, unlike the positional
+    # `stash@{0}` ref, which shifts every time a newer stash is pushed (so a
+    # later prune-by-position would drop the WRONG stash).
+    local stash_sha
+    stash_sha=$(git rev-parse "stash@{0}" 2>/dev/null || echo "")
+
     # Immediately restore working state (checkpoint is non-destructive)
     git stash apply 2>/dev/null || true
 
-    # Get the stash ref (should be stash@{0} since we just created it)
-    local stash_ref="stash@{0}"
+    # Record the stable SHA as the ref; prune resolves it back to a position.
+    local stash_ref="$stash_sha"
 
     # Record in registry
     python3 -c "
