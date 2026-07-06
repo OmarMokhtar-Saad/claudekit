@@ -9,6 +9,7 @@ from pathlib import Path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 from claudekit.security.command_validator import CommandValidator
 from claudekit.security.path_guard import PathGuard
+from claudekit.security import cli as security_cli
 
 
 class TestCommandValidator:
@@ -194,3 +195,39 @@ class TestPathGuard:
     def teardown_method(self):
         import shutil
         shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+
+class TestSecurityCLI:
+    """Exercise the check-command / check-path CLI entry points (exit codes)."""
+
+    def test_check_command_allow(self):
+        assert security_cli.check_command("git status") == 0
+
+    def test_check_command_block(self, capsys):
+        assert security_cli.check_command("rm -rf /") == 2
+        assert capsys.readouterr().err.strip() != ""
+
+    def test_check_path_allow(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        assert security_cli.check_path(str(tmp_path / "src" / "main.py")) == 0
+
+    def test_check_path_block(self):
+        assert security_cli.check_path("/etc/passwd") == 2
+
+    def test_main_dispatch(self, capsys):
+        assert security_cli.main(["check-command", "rm -rf /"]) == 2
+        assert security_cli.main(["check-command", "git status"]) == 0
+        assert security_cli.main(["check-path", "/etc/passwd"]) == 2
+
+    def test_main_no_args_and_unknown(self):
+        assert security_cli.main([]) == 2
+        assert security_cli.main(["bogus", "x"]) == 2
+
+    def test_from_config_honored_by_cli(self, tmp_path, monkeypatch):
+        # A project config.json under .claude/hooks is picked up by the CLI.
+        cfg_dir = tmp_path / ".claude" / "hooks"
+        cfg_dir.mkdir(parents=True)
+        (cfg_dir / "config.json").write_text('{"security": {"safeMode": false}}')
+        monkeypatch.chdir(tmp_path)
+        # With safeMode off, an unlisted-but-not-blocklisted command is allowed.
+        assert security_cli.check_command("some_unlisted_tool --x") == 0

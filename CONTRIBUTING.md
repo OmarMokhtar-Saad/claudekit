@@ -6,7 +6,7 @@ Thank you for your interest in contributing to ClaudeKit! This guide will help y
 
 ### Reporting Issues
 
-- Use [GitHub Issues](https://github.com/omarmokhtar/claudekit/issues) to report bugs or request features
+- Use [GitHub Issues](https://github.com/OmarMokhtar-Saad/claudekit/issues) to report bugs or request features
 - Check existing issues first to avoid duplicates
 - Use the provided issue templates
 

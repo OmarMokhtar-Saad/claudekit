@@ -12,15 +12,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- **Wired the security layer (was dead code).** `CommandValidator`/`PathGuard` are now
+  reachable in production via a `PreToolUse` Bash guard (`.claude/hooks/command-guard.sh`)
+  and the `claudekit check-command` / `check-path` CLI. Framed honestly as a **denylist
+  speed bump, not a sandbox**.
+  - `CommandValidator.from_config` now reads the `security` section (was `hooks` — user
+    `safeMode`/`allowedCommands` were silently ignored).
+  - Inspects every segment of a chained command (`; && || |`) plus `$(...)`/backtick
+    substitution payloads, not just `argv[0]`. `bash`/`sh`/`env`/`xargs` removed from the
+    allowlist (payload smuggling). Added `find -delete/-exec`, `${IFS}` evasion, and Python
+    `os.system`/`subprocess`/`__import__` interpreter-smuggling detection.
+  - `PathGuard`: relative symlinks resolved against the link's directory; protected patterns
+    (`.env`, `.git/config`, …) matched per path component (`my.envelope.txt` no longer blocked).
+  - Guard rollout gated by `ECC_HOOK_PROFILE`: `strict` blocks (fail-closed), `standard`
+    warns (default), `minimal` off.
+
 ### Changed
 - Packaging: fixed the `pyproject.toml` build backend; moved to true `src/claudekit/`
   src-layout; single version source via `importlib.metadata`.
 - Prompt layer: planner ops.json schema now references the canonical
   `generate-operations-config` schema; `execute-operations-config` drives all changes through
   `execute-json-ops.py` (no manual Edit/Write).
+- Docs: rewrote `docs/HOOKS.md` around `settings.json` + `ECC_HOOK_PROFILE` (the real model);
+  corrected the canonical repo slug to `OmarMokhtar-Saad/claudekit` everywhere;
+  `docs/ARCHITECTURE.md`/`SECURITY.md` now describe what actually runs.
 
 ### Added
 - `MAX_DELETIONS` guard (max 3 `file_delete` operations per plan) in the ops validator.
+- `scripts/gen-docs.py` — generates component counts from the filesystem and, with `--check`,
+  fails CI when any doc hard-codes a stale count (the new `docs-drift` gate).
+- CI: whole-suite test job, macOS matrix, `install.sh → doctor` integration job, coverage
+  gate, `ruff`/`mypy` lint, dangling-hook-path check, and SHA-pinned actions + Dependabot.
 
 ## [2.1.0] — 2026-04-11
 
@@ -74,7 +97,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - `pre-commit.sh` path: `find operations/ -name "ops.json"` → `find .claude/plans/ -name "ops-*.json"` (planner writes to `.claude/plans/`)
 - `skills-registry.json` `agentMapping` structure: confirmed as dict (agent_name → list of skill IDs), not a list
-- Install counts updated from 22 agents/27 commands/55 skills/9 hooks to accurate 30/37/74/15
+- Documented component counts corrected to match the filesystem: 28 agents / 39 commands / 73 skills / 17 hooks, now generated and CI-enforced by `scripts/gen-docs.py`
 
 ## [2.0.0] — 2026-03-17
 

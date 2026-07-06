@@ -27,7 +27,7 @@ classifiers = [
 
 [project.optional-dependencies]
 validation = ["jsonschema>=4"]
-dev = ["pytest", "pytest-timeout", "coverage"]
+dev = ["pytest", "pytest-timeout", "pytest-cov", "coverage", "ruff", "mypy", "jsonschema>=4"]
 
 [project.scripts]
 claudekit = "claudekit.cli.main:main"
@@ -41,3 +41,17 @@ Issues = "https://github.com/OmarMokhtar-Saad/claudekit/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+extend-exclude = [".claude", "templates", "examples", "i18n"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]  # line length handled leniently; docs/tables run long
+
+[tool.mypy]
+python_version = "3.9"
+ignore_missing_imports = true
+files = ["src/claudekit"]
