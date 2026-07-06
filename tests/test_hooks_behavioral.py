@@ -127,6 +127,61 @@ def _env(profile):
     return dict(os.environ, ECC_HOOK_PROFILE=profile)
 
 
+def _run_hook_in(cwd, name, payload, profile="standard"):
+    """Run a hook with a specific working directory (for git-aware hooks)."""
+    if isinstance(payload, (dict, list)):
+        payload = json.dumps(payload)
+    env = dict(os.environ, ECC_HOOK_PROFILE=profile)
+    return subprocess.run(
+        ["bash", str(HOOKS / name)], input=payload, capture_output=True,
+        text=True, cwd=str(cwd), env=env, timeout=30,
+    )
+
+
+class TestCommitQuality:
+    """commit-quality.sh blocks a commit that stages a secret file."""
+
+    def _git_repo(self, tmp_path):
+        import subprocess as sp
+        sp.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+        sp.run(["git", "config", "user.email", "t@t.t"], cwd=tmp_path, check=True)
+        sp.run(["git", "config", "user.name", "t"], cwd=tmp_path, check=True)
+        return tmp_path
+
+    def test_blocks_staged_secret(self, tmp_path):
+        import subprocess as sp
+        repo = self._git_repo(tmp_path)
+        (repo / ".env").write_text("SECRET_KEY=hunter2\n")
+        sp.run(["git", "add", ".env"], cwd=repo, check=True)
+        p = _run_hook_in(repo, "commit-quality.sh",
+                         {"command": "git commit -m 'add config'"})
+        assert p.returncode == 2, p.stderr
+        assert "BLOCKED" in p.stderr
+
+    def test_allows_clean_commit(self, tmp_path):
+        import subprocess as sp
+        repo = self._git_repo(tmp_path)
+        (repo / "main.py").write_text("print('hi')\n")
+        sp.run(["git", "add", "main.py"], cwd=repo, check=True)
+        p = _run_hook_in(repo, "commit-quality.sh",
+                         {"command": "git commit -m 'add a real entry point'"})
+        assert p.returncode == 0, p.stderr
+
+    def test_malformed_json_fails_closed(self, tmp_path):
+        repo = self._git_repo(tmp_path)
+        p = _run_hook_in(repo, "commit-quality.sh", "not json {")
+        assert p.returncode == 2, p.stderr
+
+    def test_minimal_profile_is_off(self, tmp_path):
+        import subprocess as sp
+        repo = self._git_repo(tmp_path)
+        (repo / ".env").write_text("SECRET=x\n")
+        sp.run(["git", "add", ".env"], cwd=repo, check=True)
+        p = _run_hook_in(repo, "commit-quality.sh",
+                         {"command": "git commit -m 'x'"}, profile="minimal")
+        assert p.returncode == 0
+
+
 class TestCommandGuard:
     """The fail-closed Bash command guard (task 002)."""
 
