@@ -13,10 +13,10 @@
 > bundled into the wheel (Phase-2 packaging) + the name decision. `ck init` works today from
 > a checkout or with `CLAUDEKIT_HOME`.
 
-**Repo:** claudekit · **Branch:** `phase-1-fix-whats-broken` (6 commits; not yet merged to main)
+**Repo:** claudekit · **Branch:** `phase-1-fix-whats-broken` (14 commits; not yet merged to main)
 **Plan of record:** `.claude/plans/phase-1-fix-whats-broken.md`
 **Source audit/tasks:** `review/roadmap.md §1`, `review/tasks/00{1..6}.md`, `review/tasks/011-*.md`
-**Test command:** `python3 -m pytest tests/ -q` → **506 passing, 0 failing**
+**Test command:** `python3 -m pytest tests/ -q` → **516 passing, 0 failing**
 
 Phase 1 = v2.1 "Fix What's Broken". Every item is a defect in something already advertised.
 Exit criteria: `pip install claudekit && ck init && ck doctor` works clean; every enforcement
@@ -33,7 +33,7 @@ hook demonstrably blocks; no version/doc disagrees with the tree; CI can't pass 
    via Bash heredocs. See CONTRIBUTING.md "Working on ClaudeKit itself".
 2. **Hooks now really enforce.** The blocking hooks were fixed to `exit 2` + stderr this phase, so
    they are live. Tests that assert blocking force `ECC_HOOK_PROFILE=standard` per-subprocess.
-3. **Nothing is committed.** The user deferred committing. When you commit, branch off main first.
+3. **All work is committed** on `phase-1-fix-whats-broken` (14 commits, not merged to main).
    End commit messages with the Co-Authored-By line for Claude Opus 4.8 (1M context).
 4. **Two open decisions (need the user):**
    - **PyPI name**: `claudekit` collides with an npm package in the same niche. Decide before publish.
