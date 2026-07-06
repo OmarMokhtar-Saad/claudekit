@@ -1,2 +1,5 @@
 pytest>=7.0
 jsonschema>=4.0
+# Python 3.12+ venvs no longer bundle setuptools; test_packaging execs setup.py
+# (the wheel-bundling shim), which imports it.
+setuptools>=64

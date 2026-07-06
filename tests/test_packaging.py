@@ -62,10 +62,12 @@ def test_setup_bundles_runtime_assets():
     exclude local/runtime cruft.
     """
     import importlib.util
+    import pytest
+    # setup.py imports setuptools; Python 3.12+ venvs don't bundle it.
+    setuptools = pytest.importorskip("setuptools")
     spec = importlib.util.spec_from_file_location("_ck_setup", REPO / "setup.py")
     mod = importlib.util.module_from_spec(spec)
     # setup.py calls setup() at import; stub it so import is a no-op.
-    import setuptools
     orig = setuptools.setup
     setuptools.setup = lambda *a, **k: None
     try:
