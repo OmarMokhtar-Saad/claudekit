@@ -4,10 +4,8 @@
 import argparse
 import json
 import os
-import shutil
 import subprocess
 import sys
-import time
 from importlib import metadata
 from pathlib import Path
 
@@ -227,6 +225,9 @@ def cmd_doctor(args):
         err("Some checks failed. Fix the issues above.")
         return 1
     elif checks_warned:
+        if getattr(args, "strict", False):
+            err("Warnings present and --strict is set.")
+            return 1
         warn("All checks passed with warnings.")
         return 0
     else:
@@ -295,7 +296,6 @@ def cmd_agents(args):
         text = f.read_text()
         name = f.stem
         model = "unknown"
-        color = ""
         desc = ""
         if text.startswith("---"):
             try:
@@ -306,8 +306,6 @@ def cmd_agents(args):
                         name = line.split(":", 1)[1].strip()
                     elif line.startswith("model:"):
                         model = line.split(":", 1)[1].strip()
-                    elif line.startswith("color:"):
-                        color = line.split(":", 1)[1].strip()
                     elif line.startswith("description:"):
                         desc = line.split(":", 1)[1].strip()[:80]
             except ValueError:
@@ -368,7 +366,9 @@ def main():
     p.add_argument("--force", action="store_true", help="Overwrite existing installation")
 
     # doctor
-    sub.add_parser("doctor", help="Run health checks on installation")
+    p = sub.add_parser("doctor", help="Run health checks on installation")
+    p.add_argument("--strict", action="store_true",
+                   help="Treat warnings as failures (exit 1)")
 
     # validate
     p = sub.add_parser("validate", help="Validate an ops.json config")

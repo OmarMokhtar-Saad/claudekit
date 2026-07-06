@@ -51,7 +51,7 @@ Sans ClaudeKit, un assistant IA effectue des modifications directement -- sans p
 ### Installation
 
 ```bash
-git clone https://github.com/omarmokhtar/claudekit.git
+git clone https://github.com/OmarMokhtar-Saad/claudekit.git
 ./claudekit/install.sh /path/to/your-project --full
 ```
 
