@@ -74,7 +74,7 @@ fi
 # ---------------------------------------------------------------------------
 echo ""
 echo "ClaudeKit session started | $(date '+%Y-%m-%d %H:%M')"
-echo "  Project: $(basename $(pwd))"
+echo "  Project: $(basename "$(pwd)")"
 [ "$PM" != "unknown" ] && echo "  Package manager: $PM"
 [ -n "$BUILD_CMD" ] && echo "  Build: $BUILD_CMD"
 [ -n "$TEST_CMD"  ] && echo "  Test:  $TEST_CMD"
