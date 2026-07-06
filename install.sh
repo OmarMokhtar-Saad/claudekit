@@ -412,6 +412,15 @@ with open(config_path, 'w') as f:
 " 2>/dev/null && print_ok "Hooks configured" || print_warn "Could not auto-configure hooks (update .claude/hooks/config.json manually)"
 fi
 
+# Preserve the user's local override across a reinstall. settings.local.json is
+# never shipped and is the intended customization surface (Claude Code merges it
+# over settings.json), so carry it into the new install instead of leaving it
+# behind in the backup.
+if [[ -f "$FINAL_DEST/settings.local.json" ]]; then
+    cp "$FINAL_DEST/settings.local.json" "$STAGING/settings.local.json" 2>/dev/null \
+        && print_ok "Preserved settings.local.json"
+fi
+
 # ---- Atomic swap: back up any existing .claude, move staging into place ----
 if [[ -d "$FINAL_DEST" ]]; then
     BACKUP="$TARGET_DIR/.claude.bak-$(date +%Y%m%d-%H%M%S)"
