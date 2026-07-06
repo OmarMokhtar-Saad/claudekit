@@ -39,6 +39,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `docs/ARCHITECTURE.md`/`SECURITY.md` now describe what actually runs.
 
 ### Added
+- CLI install-lifecycle commands built on the install manifest (`.claudekit-manifest.json`):
+  `claudekit diff` (show locally-modified managed files), `claudekit update` (re-install over an
+  existing project, warning before overwriting local edits; installer backs up first), and
+  `claudekit uninstall` (remove managed files to a recoverable backup). Plus `ck init
+  --full/--minimal/--yes` and `ck doctor --strict`.
 - `MAX_DELETIONS` guard (max 3 `file_delete` operations per plan) in the ops validator.
 - `scripts/gen-docs.py` — generates component counts from the filesystem and, with `--check`,
   fails CI when any doc hard-codes a stale count (the new `docs-drift` gate).

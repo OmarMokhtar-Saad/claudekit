@@ -33,10 +33,51 @@ claudekit init . --force                  # Overwrite existing installation
 Run health checks on the current ClaudeKit installation.
 
 ```bash
-claudekit doctor
+claudekit doctor            # exit 0 on pass/warn, 1 on failure
+claudekit doctor --strict   # treat warnings as failures (exit 1)
 ```
 
 Checks: Python version, Bash, Git, agents, commands, skills, hooks, registry integrity, config validity.
+
+### `claudekit diff [target]`
+
+Show which ClaudeKit-managed files you've locally modified, using the install
+manifest (`.claude/.claudekit-manifest.json`, per-file sha256).
+
+```bash
+claudekit diff              # report modified/missing/unchanged managed files
+```
+
+### `claudekit update [target]`
+
+Re-install ClaudeKit over an existing project. Detects locally-modified managed
+files and warns before overwriting; the installer stages + backs up the previous
+`.claude/` first (recoverable). Reuses the mode/language from the manifest.
+
+```bash
+claudekit update            # prompts if local edits would be overwritten
+claudekit update --yes      # non-interactive
+```
+
+### `claudekit uninstall [target]`
+
+Remove ClaudeKit-managed files (per the manifest), moving them to a timestamped
+`backups/uninstall-<stamp>/` first so the removal is recoverable.
+
+```bash
+claudekit uninstall --dry-run   # list what would be removed
+claudekit uninstall --yes       # remove (non-interactive)
+```
+
+### `claudekit check-command "<cmd>"` / `claudekit check-path <path>`
+
+Validate a shell command or file path against the security layer (a denylist
+speed bump — see `docs/HOOKS.md` and `SECURITY.md`). Exit 0 = allow, 2 = block.
+
+```bash
+claudekit check-command "rm -rf /"       # exit 2, reason on stderr
+claudekit check-path /etc/passwd         # exit 2
+```
 
 ### `claudekit validate <ops.json>`
 

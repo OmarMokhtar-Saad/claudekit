@@ -62,6 +62,11 @@ def find_claudekit_root():
     for parent in Path(__file__).resolve().parents:
         if (parent / ".claude" / "agents").exists():
             return parent
+    # Assets bundled into the wheel land under <prefix>/share/claudekit.
+    for base in {sys.prefix, getattr(sys, "base_prefix", sys.prefix)}:
+        cand = Path(base) / "share" / "claudekit"
+        if (cand / ".claude" / "agents").exists():
+            return cand
     # Check common locations
     for path in [Path.home() / "claudekit", Path.home() / ".claudekit"]:
         if (path / ".claude" / "agents").exists():
@@ -337,6 +342,176 @@ def cmd_agents(args):
     return 0
 
 
+MANIFEST_NAME = ".claudekit-manifest.json"
+
+
+def _sha256(path):
+    import hashlib
+    try:
+        with open(path, "rb") as fh:
+            return hashlib.sha256(fh.read()).hexdigest()
+    except OSError:
+        return None
+
+
+def _manifest_base(target):
+    """The install writes the manifest into <target>/.claude/ with file paths
+    relative to that directory."""
+    return Path(target) / ".claude"
+
+
+def _load_manifest(target):
+    """Load a target project's install manifest, or return None."""
+    mpath = _manifest_base(target) / MANIFEST_NAME
+    if not mpath.exists():
+        return None
+    try:
+        return json.loads(mpath.read_text())
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
+def _classify_manifest(target, manifest):
+    """Compare installed files against the manifest.
+
+    Returns (modified, missing, unchanged) lists of paths relative to .claude/.
+    """
+    base = _manifest_base(target)
+    modified, missing, unchanged = [], [], []
+    for rel, expected in sorted(manifest.get("files", {}).items()):
+        path = base / rel
+        if not path.exists():
+            missing.append(rel)
+            continue
+        actual = _sha256(path)
+        if actual == expected:
+            unchanged.append(rel)
+        else:
+            modified.append(rel)
+    return modified, missing, unchanged
+
+
+def cmd_diff(args):
+    """Show local modifications to ClaudeKit-managed files (vs. the manifest)."""
+    target = Path(args.target or ".").resolve()
+    manifest = _load_manifest(target)
+    if manifest is None:
+        err(f"No {MANIFEST_NAME} found in {target}. Not a ClaudeKit install "
+            "(or installed before manifests existed). Run: claudekit init")
+        return 1
+
+    modified, missing, unchanged = _classify_manifest(target, manifest)
+    print(f"\n{C.CYAN}ClaudeKit diff{C.NC} — installed v{manifest.get('version', '?')} "
+          f"({manifest.get('mode', '?')} mode)\n")
+    for rel in modified:
+        warn(f"modified: {rel}")
+    for rel in missing:
+        err(f"missing:  {rel}")
+    if not modified and not missing:
+        ok(f"All {len(unchanged)} managed files match the manifest.")
+    else:
+        print(f"\n  {len(modified)} modified, {len(missing)} missing, "
+              f"{len(unchanged)} unchanged.")
+    return 0
+
+
+def cmd_uninstall(args):
+    """Remove ClaudeKit-managed files (per the manifest), backing them up first."""
+    import datetime
+    target = Path(args.target or ".").resolve()
+    manifest = _load_manifest(target)
+    if manifest is None:
+        err(f"No {MANIFEST_NAME} found in {target}. Nothing to uninstall.")
+        return 1
+
+    files = sorted(manifest.get("files", {}).keys())
+    if not files:
+        warn("Manifest lists no files.")
+        return 0
+
+    if args.dry_run:
+        info(f"[dry-run] Would remove {len(files)} managed files from {target}:")
+        for rel in files:
+            print(f"    {rel}")
+        return 0
+
+    if not args.yes:
+        resp = input(f"Remove {len(files)} ClaudeKit files from {target}? [y/N] ")
+        if resp.strip().lower() not in ("y", "yes"):
+            info("Aborted.")
+            return 0
+
+    # Back up managed files before removing (recoverable).
+    base = _manifest_base(target)
+    stamp = args.stamp or datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    backup = target / "backups" / f"uninstall-{stamp}"
+    removed = 0
+    for rel in files:
+        path = base / rel
+        if not path.exists():
+            continue
+        dest = backup / rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            path.replace(dest)
+            removed += 1
+        except OSError as e:
+            warn(f"could not remove {rel}: {e}")
+
+    # Remove the manifest and any now-empty managed directories.
+    (base / MANIFEST_NAME).unlink(missing_ok=True)
+    if base.exists():
+        for root, _dirs, _files in os.walk(base, topdown=False):
+            try:
+                if not os.listdir(root):
+                    os.rmdir(root)
+            except OSError:
+                pass
+
+    ok(f"Removed {removed} files. Backup at {backup}")
+    return 0
+
+
+def cmd_update(args):
+    """Re-install ClaudeKit over an existing project, preserving local edits via backup."""
+    target = Path(args.target or ".").resolve()
+    manifest = _load_manifest(target)
+    if manifest is None:
+        err(f"No {MANIFEST_NAME} found in {target}. Use `claudekit init` for a fresh install.")
+        return 1
+
+    root = find_claudekit_root()
+    if root is None:
+        err("Cannot find ClaudeKit source. Set CLAUDEKIT_HOME or run from the repo.")
+        return 1
+    install_script = root / "install.sh"
+    if not install_script.exists():
+        err(f"install.sh not found at {install_script}")
+        return 1
+
+    modified, missing, _ = _classify_manifest(target, manifest)
+    if modified:
+        warn(f"{len(modified)} locally-modified managed files will be overwritten "
+             "(the installer backs up the previous .claude/ first):")
+        for rel in modified:
+            print(f"    {rel}")
+        if not args.yes:
+            resp = input("Continue with update? [y/N] ")
+            if resp.strip().lower() not in ("y", "yes"):
+                info("Aborted.")
+                return 0
+
+    mode = manifest.get("mode") or "full"
+    cmd = ["bash", str(install_script), str(target), f"--{mode}", "--force", "--yes"]
+    lang = manifest.get("language")
+    if lang and lang != "auto":
+        cmd.extend(["--language", lang])
+    result = subprocess.run(cmd)
+    if result.returncode == 0:
+        ok(f"Updated {target} to v{__version__} ({mode} mode).")
+    return result.returncode
+
+
 def cmd_check_command(args):
     """Validate a shell command against the security denylist (speed bump)."""
     from claudekit.security.cli import check_command
@@ -419,6 +594,24 @@ def main():
     # agents
     sub.add_parser("agents", help="List installed agents")
 
+    # diff
+    p = sub.add_parser("diff", help="Show local edits to managed files (vs. manifest)")
+    p.add_argument("target", nargs="?", default=".", help="Project directory (default: .)")
+
+    # update
+    p = sub.add_parser("update", help="Re-install over an existing project (backs up first)")
+    p.add_argument("target", nargs="?", default=".", help="Project directory (default: .)")
+    p.add_argument("--yes", "--non-interactive", dest="yes", action="store_true",
+                   help="Assume yes to prompts")
+
+    # uninstall
+    p = sub.add_parser("uninstall", help="Remove managed files (backs them up first)")
+    p.add_argument("target", nargs="?", default=".", help="Project directory (default: .)")
+    p.add_argument("--yes", "--non-interactive", dest="yes", action="store_true",
+                   help="Assume yes to prompts")
+    p.add_argument("--dry-run", action="store_true", help="List files without removing")
+    p.add_argument("--stamp", help=argparse.SUPPRESS)  # deterministic backup name (tests)
+
     # check-command
     p = sub.add_parser("check-command",
                        help="Validate a shell command (exit 0 allow / 2 block)")
@@ -446,6 +639,9 @@ def main():
         "execute": cmd_execute,
         "rollback": cmd_rollback,
         "agents": cmd_agents,
+        "diff": cmd_diff,
+        "update": cmd_update,
+        "uninstall": cmd_uninstall,
         "check-command": cmd_check_command,
         "check-path": cmd_check_path,
         "config": cmd_config,

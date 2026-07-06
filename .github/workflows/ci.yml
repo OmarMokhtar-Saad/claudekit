@@ -40,6 +40,7 @@ jobs:
           python-version: '3.12'
       - name: Install package + test deps
         run: |
+          python -m pip install --upgrade pip
           pip install -e .
           pip install -r tests/requirements.txt pytest-cov
       - name: Enforce security-module coverage
@@ -189,9 +190,19 @@ jobs:
       - name: Install wheel in a clean venv and run console scripts
         run: |
           python -m venv /tmp/ck-smoke
+          /tmp/ck-smoke/bin/pip install --upgrade pip
           /tmp/ck-smoke/bin/pip install dist/*.whl
           /tmp/ck-smoke/bin/claudekit --version
           /tmp/ck-smoke/bin/ck --help
+      - name: Standalone init+doctor from the wheel (no checkout, no CLAUDEKIT_HOME)
+        run: |
+          target="$(mktemp -d)"
+          # Run from an unrelated dir so only the wheel-bundled assets are found.
+          cd /tmp
+          env -u CLAUDEKIT_HOME /tmp/ck-smoke/bin/claudekit init "$target" --full --yes
+          cd "$target"
+          /tmp/ck-smoke/bin/claudekit doctor
+          /tmp/ck-smoke/bin/claudekit diff
 
   install-integration:
     runs-on: ubuntu-latest
@@ -201,7 +212,9 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install the CLI
-        run: pip install -e .
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
       - name: install.sh into a fresh project, then run doctor
         run: |
           target="$(mktemp -d)"
