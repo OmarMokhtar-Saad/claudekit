@@ -1,62 +1,49 @@
-#!/bin/bash
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+#!/usr/bin/env bash
 # =============================================================================
-# Block --no-verify Hook
+# Block --no-verify Hook (PreToolUse — Bash)
 # Prevents bypassing git hooks via the --no-verify flag.
-# Runs as a PreToolUse hook on Bash tool calls.
+# Blocks with exit 2 + stderr (the only contract Claude Code honors).
 # =============================================================================
-
-set -e
-
-LOG_FILE="$SCRIPT_DIR/hooks.log"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HOOK_NAME="block-no-verify"
+LOG_FILE="$SCRIPT_DIR/hooks.log"
+[ -f "$SCRIPT_DIR/lib.sh" ] && . "$SCRIPT_DIR/lib.sh"
 
-log() {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$HOOK_NAME] [$1] $2" >> "$LOG_FILE" 2>/dev/null
-}
+[ "${ECC_HOOK_PROFILE:-standard}" = "minimal" ] && exit 0
 
-# Read tool input from stdin
 TOOL_INPUT=$(cat)
 
-# Extract the command
-CMD=$(echo "$TOOL_INPUT" | python3 -c "
-import sys, json
-try:
-    data = json.load(sys.stdin)
-    print(data.get('command', ''))
-except:
-    print('')
-" 2>/dev/null)
+# Fail closed: an unparseable payload to a blocking guard is blocked, not allowed.
+CMD=$(extract_json_field "$TOOL_INPUT" command) || deny \
+    "BLOCKED: could not parse the tool payload; refusing to run an unverified command."
 
-# Check if the command uses --no-verify
-if echo "$CMD" | grep -qE '\-\-no-verify'; then
-    log "BLOCK" "Attempt to use --no-verify detected: $CMD"
-    echo "BLOCKED: The --no-verify flag bypasses git hooks and is not allowed."
-    echo ""
-    echo "Blocked command: $CMD"
-    echo ""
-    echo "Why this is blocked:"
-    echo "  --no-verify skips pre-commit and commit-msg hooks, which enforce code"
-    echo "  quality, prevent secrets from being committed, and validate commit messages."
-    echo ""
-    echo "Alternatives:"
-    echo "  1. Fix the issue that the hook is catching"
-    echo "  2. If the hook is incorrectly blocking valid work, fix the hook instead"
-    echo "  3. If you need to bypass for a legitimate reason, ask the user explicitly"
-    exit 1
+# Nothing to check if there is no command.
+[ -z "$CMD" ] && exit 0
+
+# Strip quoted substrings so a commit *message* that merely mentions the flag
+# (e.g. git commit -m "wip --no-verify") is not mistaken for an actual bypass.
+CMD_NOQUOTES=$(printf '%s' "$CMD" | sed "s/'[^']*'//g; s/\"[^\"]*\"//g")
+
+# Block only when --no-verify appears as a flag inside a real git invocation.
+if printf '%s' "$CMD_NOQUOTES" | grep -qE '(^|[;&|]|[[:space:]])git[[:space:]][^;&|]*--no-verify'; then
+    deny "BLOCKED: The --no-verify flag bypasses git hooks and is not allowed.
+
+Blocked command: $CMD
+
+Why: --no-verify skips pre-commit and commit-msg hooks, which enforce code
+quality, prevent secrets from being committed, and validate commit messages.
+
+Alternatives:
+  1. Fix the issue the hook is catching.
+  2. If the hook is wrong, fix the hook.
+  3. If a bypass is genuinely required, ask the user explicitly."
 fi
 
-# Also block --force-with-lease bypass patterns on push
-if echo "$CMD" | grep -qE 'git\s+push.*--force\b' && ! echo "$CMD" | grep -qE '--force-with-lease'; then
-    log "WARN" "git push --force (without --force-with-lease) detected: $CMD"
-    echo "WARNING: git push --force can overwrite remote history."
-    echo "Consider using --force-with-lease instead, which fails safely if the remote has changed."
-    echo ""
-    echo "Command: $CMD"
-    echo ""
-    echo "To proceed anyway, re-run the command with user approval explicitly granted."
-    echo "Exiting with warning — the push has NOT been executed."
-    exit 1
+# Warn (do NOT block) on git push --force without --force-with-lease.
+if printf '%s' "$CMD_NOQUOTES" | grep -qE 'git[[:space:]].*--force\b' && \
+   ! printf '%s' "$CMD_NOQUOTES" | grep -qE '--force-with-lease'; then
+    hlog "WARN" "git push --force without --force-with-lease: $CMD"
+    echo "WARNING: git push --force can overwrite remote history. Prefer --force-with-lease."
 fi
 
 exit 0

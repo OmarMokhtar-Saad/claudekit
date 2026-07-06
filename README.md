@@ -212,14 +212,14 @@ ops.json  →  validate-config-json.py  →  execute-json-ops.py  →  backups/
 }
 ```
 
-### Safety Guards (29 Total)
+### Safety Guards (26 Total)
 
 | Category | Guards | Examples |
 |----------|--------|----------|
 | **Code Editing** | 11 | Pattern exists in file, no ambiguous matches, action type validation |
-| **File Operations** | 7 | Protected file check, deletion reason required, max 3 deletes per config |
+| **File Operations** | 6 | Protected file check, deletion reason required, file existence check |
 | **Backup/Restore** | 6 | Path format consistency, backup directory writable, collision detection |
-| **Security** | 5 | Null byte rejection, file size limits (2 MB), operation type validation |
+| **Security** | 3 | Null byte rejection, operation type validation |
 
 ### Protected Files
 

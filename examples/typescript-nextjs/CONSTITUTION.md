@@ -30,7 +30,6 @@ Components → Domain → Data. No direct UI→Data imports. Server components b
 ## Article V: Operations
 
 - All plans require ops.json
-- Max 5 operations per config
 - Protected files: package.json, tsconfig.json, *.md
 
 ## Article VI: Review

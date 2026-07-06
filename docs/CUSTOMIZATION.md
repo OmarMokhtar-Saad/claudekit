@@ -126,11 +126,9 @@ PROTECTED_PATTERNS = [
 ]
 ```
 
-### Changing Operation Limits
+### Operation Limits
 
-Edit `.claude/operations/scripts/operations-schema.json`:
-- `maxItems`: Change max operations per config (default: 5)
-- Deletion limit: Enforced in validator (default: 3)
+There are no count or size limits on operations. The validator enforces structural correctness (valid types, existing paths, non-empty content) but not quantity. Split ops.json into sequenced files only when it aids review clarity.
 
 ## Customizing Hooks
 

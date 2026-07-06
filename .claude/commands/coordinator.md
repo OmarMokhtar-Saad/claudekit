@@ -45,17 +45,17 @@ Use this table to determine which agent(s) to invoke:
 
 | User Intent                        | Primary Agent  | Follow-up Agent(s)         |
 |------------------------------------|----------------|----------------------------|
-| "Build feature X"                  | planner        | reviewer -> implementer -> verifier |
-| "Fix bug Y"                        | debugger       | planner -> reviewer -> implementer |
-| "Refactor module Z"               | planner        | reviewer -> implementer -> verifier |
-| "Why is X broken?"                | debugger       | (optional) planner         |
-| "Add tests for X"                 | planner        | implementer -> verifier    |
-| "Refactor X"                      | planner        | reviewer -> implementer -> verifier |
+| "Build feature X"                  | refine         | implementer -> verifier    |
+| "Fix bug Y"                        | debugger       | refine -> implementer      |
+| "Refactor module Z"               | refine         | implementer -> verifier    |
+| "Why is X broken?"                | debugger       | (optional) refine          |
+| "Add tests for X"                 | refine         | implementer -> verifier    |
+| "Refactor X"                      | refine         | implementer -> verifier    |
 | "Document X"                      | documenter     | (none)                     |
 | "Deploy / release"                | gitOps         | verifier -> gitOps         |
 | "Review my changes"               | verifier       | (optional) reviewer        |
 | "Create PR"                       | gitOps         | (none)                     |
-| "Full project setup"              | planner        | reviewer -> implementer -> verifier -> documenter -> gitOps |
+| "Full project setup"              | refine         | implementer -> verifier -> documenter -> gitOps |
 
 ## Automatic Handoff Management
 
@@ -90,16 +90,16 @@ Maintain a workflow state throughout the orchestration:
 
 | From Agent   | Condition                | Hand Off To   |
 |--------------|--------------------------|---------------|
-| planner      | Plan complete            | reviewer      |
-| reviewer     | Score >= 90 (APPROVED)   | implementer   |
-| reviewer     | Score 70-89 (REVISE)     | planner       |
-| reviewer     | Score < 70 (REJECTED)    | planner (with new approach) |
+| refine       | APPROVED (score >= 90)   | implementer   |
+| refine       | ESCALATED (max iter)     | human review  |
 | implementer  | Implementation complete  | verifier      |
 | implementer  | Implementation failed    | debugger      |
 | verifier     | Score >= 90 (PASS)       | git (commit)  |
 | verifier     | Score < 90 (FAIL)        | debugger      |
-| debugger     | Diagnosis complete       | planner (fix plan) |
+| debugger     | Diagnosis complete       | refine (fix plan) |
 | docs         | Documentation complete   | verifier (optional) |
+
+> Note: `/refine` replaces the manual planner → reviewer → planner cycle. It automatically loops until the plan is APPROVED or the iteration cap is reached. Use `/plan` and `/review` directly only for one-off, single-pass inspection.
 
 ## Escalation Rules
 

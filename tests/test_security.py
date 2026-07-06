@@ -7,8 +7,8 @@ import pytest
 from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
-from security.command_validator import CommandValidator
-from security.path_guard import PathGuard
+from claudekit.security.command_validator import CommandValidator
+from claudekit.security.path_guard import PathGuard
 
 
 class TestCommandValidator:
