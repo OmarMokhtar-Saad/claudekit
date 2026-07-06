@@ -8,6 +8,7 @@ model: sonnet
 
 Runs the local `planner` agent via `claude -p --agent planner`.
 Verified mechanism: `--agent <name>` loads `.claude/agents/<name>.md` as system prompt.
+Canonical spawn contract: see `.claude/agents/_shared/INVOCATION.md` (single source of truth).
 
 ## Task
 
