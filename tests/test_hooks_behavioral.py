@@ -1,0 +1,137 @@
+"""Behavioral tests for enforcement hooks (task 003).
+
+These replace keyword-grep "theater" with real subprocess runs: feed a hook a JSON
+payload on stdin and assert the exit code + stderr. The contract under test:
+
+  * Claude Code blocks a PreToolUse ONLY on exit code 2 with the reason on stderr.
+    exit 1 / stdout does NOT block — for a year, no enforcement hook actually blocked.
+  * Blocking guards must FAIL CLOSED: malformed JSON => block, never silent-allow.
+"""
+
+import json
+import os
+import subprocess
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parent.parent
+HOOKS = REPO / ".claude" / "hooks"
+
+
+def run_hook(name, payload, env=None):
+    """Run a hook with `payload` (str or dict) on stdin from the repo root.
+
+    Hermetic w.r.t. ECC_HOOK_PROFILE: default to `standard` (enforcement on) so the
+    result never depends on the developer's own session profile (which may be
+    `minimal` while working on the kit). Callers override via `env` to test other
+    profiles.
+    """
+    if isinstance(payload, (dict, list)):
+        payload = json.dumps(payload)
+    run_env = dict(os.environ, ECC_HOOK_PROFILE="standard")
+    if env is not None:
+        run_env = env
+    return subprocess.run(
+        ["bash", str(HOOKS / name)],
+        input=payload,
+        capture_output=True,
+        text=True,
+        cwd=str(REPO),
+        env=run_env,
+        timeout=30,
+    )
+
+
+class TestBlockNoVerify:
+    def test_git_commit_no_verify_is_blocked(self):
+        p = run_hook("block-no-verify.sh", {"command": "git commit --no-verify -m 'x'"})
+        assert p.returncode == 2, p.stderr
+        assert "BLOCKED" in p.stderr
+
+    def test_message_mentioning_flag_is_allowed(self):
+        p = run_hook("block-no-verify.sh", {"command": "git commit -m 'fix --no-verify handling'"})
+        assert p.returncode == 0, p.stderr
+
+    def test_plain_command_allowed(self):
+        p = run_hook("block-no-verify.sh", {"command": "ls -la"})
+        assert p.returncode == 0, p.stderr
+
+    def test_malformed_json_fails_closed(self):
+        p = run_hook("block-no-verify.sh", "{not valid json")
+        assert p.returncode == 2, p.stderr
+
+
+class TestOpsEnforcement:
+    def test_direct_source_edit_blocked(self):
+        p = run_hook("ops-enforcement.sh", {
+            "tool_name": "Edit",
+            "tool_input": {"file_path": "src/claudekit/cli/main.py"},
+        })
+        assert p.returncode == 2, p.stderr
+        assert "OPS ENFORCEMENT" in p.stderr
+
+    def test_claude_config_edit_allowed(self):
+        p = run_hook("ops-enforcement.sh", {
+            "tool_name": "Edit",
+            "tool_input": {"file_path": ".claude/settings.json"},
+        })
+        assert p.returncode == 0, p.stderr
+
+    def test_docs_edit_allowed(self):
+        p = run_hook("ops-enforcement.sh", {
+            "tool_name": "Write",
+            "tool_input": {"file_path": "README.md"},
+        })
+        assert p.returncode == 0, p.stderr
+
+    def test_ops_json_edit_allowed(self):
+        p = run_hook("ops-enforcement.sh", {
+            "tool_name": "Write",
+            "tool_input": {"file_path": ".claude/plans/foo.ops.json"},
+        })
+        assert p.returncode == 0, p.stderr
+
+    def test_malformed_json_fails_closed(self):
+        p = run_hook("ops-enforcement.sh", "}{ garbage")
+        assert p.returncode == 2, p.stderr
+
+    def test_minimal_profile_disables(self):
+        env = dict(os.environ, ECC_HOOK_PROFILE="minimal")
+        p = run_hook("ops-enforcement.sh", {
+            "tool_name": "Edit", "tool_input": {"file_path": "src/claudekit/cli/main.py"},
+        }, env=env)
+        assert p.returncode == 0, p.stderr
+
+
+class TestConfigProtection:
+    def test_eslint_config_blocked(self):
+        p = run_hook("config-protection.sh", {
+            "tool_name": "Edit",
+            "tool_input": {"file_path": "eslint.config.js"},
+        })
+        assert p.returncode == 2, p.stderr
+        assert "CONFIG PROTECTION" in p.stderr
+
+    def test_new_pyproject_allowed(self):
+        p = run_hook("config-protection.sh", {
+            "tool_name": "Write",
+            "tool_input": {"file_path": "some/brand/new/pyproject.toml"},
+        })
+        assert p.returncode == 0, p.stderr
+
+    def test_malformed_json_fails_closed(self):
+        p = run_hook("config-protection.sh", "not json at all {")
+        assert p.returncode == 2, p.stderr
+
+
+class TestLibHelpers:
+    def test_ops_regex_matches_both_conventions(self):
+        script = (
+            'source "$1/lib.sh"; '
+            'echo "a.ops.json" | grep -qE "$OPS_REGEX" && echo A; '
+            'echo "ops-a.json" | grep -qE "$OPS_REGEX" && echo B; '
+            'echo "notops.json" | grep -qE "$OPS_REGEX" && echo C || true'
+        )
+        p = subprocess.run(["bash", "-c", script, "_", str(HOOKS)],
+                           capture_output=True, text=True, timeout=10)
+        assert "A" in p.stdout and "B" in p.stdout
+        assert "C" not in p.stdout

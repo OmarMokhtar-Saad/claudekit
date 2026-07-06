@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.8', '3.10', '3.12']
+        python-version: ['3.9', '3.10', '3.12', '3.13']
 
     steps:
       - uses: actions/checkout@v4
@@ -50,6 +50,26 @@ jobs:
             echo "Checking $f..."
             shellcheck "$f"
           done
+
+  permission-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: No --dangerously-skip-permissions in shipped assets
+        run: |
+          # Match actual `claude ... --dangerously-skip-permissions` invocations (not prose
+          # that documents the ban). Search shipped assets only, not plan scratch.
+          # The single permitted exception is a documented opt-in in loop-start.md.
+          hits=$(grep -rnE 'claude[^|]*--dangerously-skip-permissions' \
+            .claude/commands .claude/agents .claude/skills .claude/hooks templates \
+            2>/dev/null | grep -v "commands/loop-start.md" || true)
+          if [ -n "$hits" ]; then
+            echo "Forbidden --dangerously-skip-permissions invocation found:"
+            echo "$hits"
+            exit 1
+          fi
+          echo "OK: no unsanctioned permission bypass."
 
   structure:
     runs-on: ubuntu-latest
@@ -128,7 +148,29 @@ jobs:
         run: pip install -r tests/requirements.txt
 
       - name: Run CLI tests
-        run: python -m pytest tests/test_cli.py -v || true
+        run: python -m pytest tests/test_cli.py -v
 
       - name: Run security tests
-        run: python -m pytest tests/test_security.py -v || true
+        run: python -m pytest tests/test_security.py -v
+
+  package-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Build wheel and sdist
+        run: |
+          python -m pip install --upgrade build
+          python -m build
+
+      - name: Install wheel in a clean venv and run console scripts
+        run: |
+          python -m venv /tmp/ck-smoke
+          /tmp/ck-smoke/bin/pip install dist/*.whl
+          /tmp/ck-smoke/bin/claudekit --version
+          /tmp/ck-smoke/bin/ck --help

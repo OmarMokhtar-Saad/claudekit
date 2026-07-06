@@ -8,9 +8,19 @@ import shutil
 import subprocess
 import sys
 import time
+from importlib import metadata
 from pathlib import Path
 
-__version__ = "1.1.0"
+
+def _resolve_version() -> str:
+    """Single source of truth: installed package metadata, with a source-checkout fallback."""
+    try:
+        return metadata.version("claudekit")
+    except metadata.PackageNotFoundError:
+        return "2.1.0"
+
+
+__version__ = _resolve_version()
 
 # Colors
 class C:

@@ -58,7 +58,7 @@ ClaudeKit ships 13 specialized agents, each with a single responsibility.
 - Architecture: 30% — Layer compliance, dependency direction
 - Security: 30% — No secrets, input validation, safe operations
 
-**Auto-reject triggers**: Missing ops.json, >5 operations, architecture violations.
+**Auto-reject triggers**: Missing ops.json, architecture violations.
 
 ## Implementer
 

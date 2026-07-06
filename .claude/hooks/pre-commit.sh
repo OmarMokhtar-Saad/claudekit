@@ -10,6 +10,7 @@ set -e
 
 HOOK_NAME="pre-commit"
 LOG_FILE="$SCRIPT_DIR/hooks.log"
+[ -f "$SCRIPT_DIR/lib.sh" ] && . "$SCRIPT_DIR/lib.sh"
 
 log() {
     local level="$1"
@@ -88,7 +89,7 @@ except Exception as e:
         else
             log "INFO" "Valid: $ops_file"
         fi
-    done < <(find .claude/plans/ -name "ops-*.json" 2>/dev/null)
+    done < <(find .claude/plans/ "${OPS_FIND_EXPR[@]}" 2>/dev/null)
 
     return $has_errors
 }
@@ -112,15 +113,20 @@ check_secrets() {
     # Patterns that indicate potential secrets.
     # Deliberately exclude bare `token\s*:` and `password\s*:` (TypeScript type annotations).
     # Require an actual value after the separator: a quote, digit, or env var reference.
+    # Quote classes come from lib.sh (ERE_QUOTE_CLASS = ["'] , negation = [^"']).
+    # The previous inline `["\x27]` was NOT decoded by grep -E, so single-quoted
+    # secrets slipped through entirely.
+    local q="${ERE_QUOTE_CLASS:-[\"']}"
+    local nq="${ERE_NOT_QUOTE_CLASS:-[^\"']}"
     local patterns=(
-        'api_key\s*[:=]\s*["\x27][^"\x27]{8}'
-        'apikey\s*[:=]\s*["\x27][^"\x27]{8}'
-        'api_secret\s*[:=]\s*["\x27][^"\x27]{8}'
-        'password\s*=\s*["\x27][^"\x27]{4}'
-        'passwd\s*=\s*["\x27][^"\x27]{4}'
-        'secret_key\s*[:=]\s*["\x27][^"\x27]{8}'
-        'access_token\s*[:=]\s*["\x27][^"\x27]{8}'
-        'private_key\s*[:=]\s*["\x27]'
+        "api_key\\s*[:=]\\s*${q}${nq}{8}"
+        "apikey\\s*[:=]\\s*${q}${nq}{8}"
+        "api_secret\\s*[:=]\\s*${q}${nq}{8}"
+        "password\\s*=\\s*${q}${nq}{4}"
+        "passwd\\s*=\\s*${q}${nq}{4}"
+        "secret_key\\s*[:=]\\s*${q}${nq}{8}"
+        "access_token\\s*[:=]\\s*${q}${nq}{8}"
+        "private_key\\s*[:=]\\s*${q}"
         'BEGIN RSA PRIVATE KEY'
         'BEGIN OPENSSH PRIVATE KEY'
         'BEGIN EC PRIVATE KEY'
@@ -149,8 +155,9 @@ check_secrets() {
     if [ $has_secrets -ne 0 ]; then
         echo ""
         echo "SECRETS CHECK FAILED"
-        echo "Review the warnings above. If these are false positives, use:"
-        echo "  git commit --no-verify"
+        echo "Review the warnings above and remove the secrets from staged content."
+        echo "If these are genuine false positives, refine the patterns in pre-commit.sh"
+        echo "or unstage the file — do NOT bypass with --no-verify (block-no-verify blocks it)."
         return 1
     fi
 

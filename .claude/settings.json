@@ -6,6 +6,15 @@
         "hooks": [
           {
             "type": "command",
+            "command": "bash -c 'ROOT=$(git rev-parse --show-toplevel 2>/dev/null); bash \"$ROOT/.claude/hooks/ops-enforcement.sh\"'"
+          }
+        ]
+      },
+      {
+        "matcher": "str_replace_based_edit_tool|write_file|Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
             "command": "bash -c 'ROOT=$(git rev-parse --show-toplevel 2>/dev/null); bash \"$ROOT/.claude/hooks/config-protection.sh\"'"
           }
         ]
@@ -71,7 +80,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'ROOT=$(git rev-parse --show-toplevel 2>/dev/null); bash \"$ROOT/.claude/hooks/post-tool-use.sh\" \"$CLAUDE_TOOL_NAME\" \"$CLAUDE_TOOL_RESULT\" \"$CLAUDE_TOOL_ARGS\"'"
+            "command": "bash -c 'ROOT=$(git rev-parse --show-toplevel 2>/dev/null); bash \"$ROOT/.claude/hooks/post-tool-use.sh\"'"
           }
         ]
       },
@@ -113,7 +122,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'ROOT=$(git rev-parse --show-toplevel 2>/dev/null); LOG=\"$ROOT/.claude/hooks/hooks.log\"; echo \"[$(date \"+%Y-%m-%d %H:%M:%S\")] [stop] [INFO] Session stopping - running final checks\" >> \"$LOG\" 2>/dev/null; ISSUES=0; if [ -n \"$(git status --porcelain 2>/dev/null)\" ]; then echo \"[$(date \"+%Y-%m-%d %H:%M:%S\")] [stop] [WARN] Uncommitted changes remain in working tree\" >> \"$LOG\" 2>/dev/null; echo \"WARNING: Uncommitted changes remain. Review with git status.\"; ISSUES=1; fi; if find \"$ROOT/.claude/plans\" -name \"ops-*.json\" -print -quit 2>/dev/null | grep -q .; then for f in $(find \"$ROOT/.claude/plans\" -name \"ops-*.json\" 2>/dev/null); do if ! python3 -c \"import json,sys; json.load(open(sys.argv[1]))\" \"$f\" 2>/dev/null; then echo \"[$(date \"+%Y-%m-%d %H:%M:%S\")] [stop] [WARN] Invalid ops.json: $f\" >> \"$LOG\" 2>/dev/null; ISSUES=1; fi; done; fi; echo \"[$(date \"+%Y-%m-%d %H:%M:%S\")] [stop] [INFO] Session ended (issues=$ISSUES)\" >> \"$LOG\" 2>/dev/null; exit 0'"
+            "command": "bash -c 'ROOT=$(git rev-parse --show-toplevel 2>/dev/null); LOG=\"$ROOT/.claude/hooks/hooks.log\"; echo \"[$(date \"+%Y-%m-%d %H:%M:%S\")] [stop] [INFO] Session stopping - running final checks\" >> \"$LOG\" 2>/dev/null; ISSUES=0; if [ -n \"$(git status --porcelain 2>/dev/null)\" ]; then echo \"[$(date \"+%Y-%m-%d %H:%M:%S\")] [stop] [WARN] Uncommitted changes remain in working tree\" >> \"$LOG\" 2>/dev/null; echo \"WARNING: Uncommitted changes remain. Review with git status.\"; ISSUES=1; fi; if find \"$ROOT/.claude/plans\" \\( -name \"*.ops.json\" -o -name \"ops-*.json\" \\) -print -quit 2>/dev/null | grep -q .; then find \"$ROOT/.claude/plans\" \\( -name \"*.ops.json\" -o -name \"ops-*.json\" \\) 2>/dev/null | while IFS= read -r f; do if ! python3 -c \"import json,sys; json.load(open(sys.argv[1]))\" \"$f\" 2>/dev/null; then echo \"[$(date \"+%Y-%m-%d %H:%M:%S\")] [stop] [WARN] Invalid ops.json: $f\" >> \"$LOG\" 2>/dev/null; ISSUES=1; fi; done; fi; echo \"[$(date \"+%Y-%m-%d %H:%M:%S\")] [stop] [INFO] Session ended (issues=$ISSUES)\" >> \"$LOG\" 2>/dev/null; exit 0'"
           }
         ]
       },
@@ -162,7 +171,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'ROOT=$(git rev-parse --show-toplevel 2>/dev/null); LOG=\"$ROOT/.claude/hooks/hooks.log\"; echo \"[$(date \"+%Y-%m-%d %H:%M:%S\")] [tool-failure] [ERROR] Tool failed: ${CLAUDE_TOOL_NAME:-unknown}\" >> \"$LOG\" 2>/dev/null; echo \"[tool-failure] Tool ${CLAUDE_TOOL_NAME:-unknown} encountered an error. Check logs at $ROOT/.claude/hooks/hooks.log\"'"
+            "command": "bash -c 'ROOT=$(git rev-parse --show-toplevel 2>/dev/null); LOG=\"$ROOT/.claude/hooks/hooks.log\"; TOOL_INPUT=$(cat); TN=$(echo \"$TOOL_INPUT\" | python3 -c \"import sys,json;\\ntry: print(json.load(sys.stdin).get(\\\"tool_name\\\",\\\"unknown\\\"))\\nexcept Exception: print(\\\"unknown\\\")\" 2>/dev/null); TN=${TN:-unknown}; echo \"[$(date \"+%Y-%m-%d %H:%M:%S\")] [tool-failure] [ERROR] Tool failed: $TN\" >> \"$LOG\" 2>/dev/null; echo \"[tool-failure] Tool $TN encountered an error. Check logs at $ROOT/.claude/hooks/hooks.log\"'"
           }
         ]
       }

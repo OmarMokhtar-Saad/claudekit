@@ -4,9 +4,17 @@ set -euo pipefail
 # ClaudeKit Installer
 # Usage: ./install.sh [TARGET_DIR] [--full|--minimal] [--language LANG] [--with-mcp] [--with-i18n]
 
-VERSION="2.0.0"
+VERSION="2.1.0"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_SRC="$SCRIPT_DIR/.claude"
+
+# curl|bash guard: piped execution has no source tree to copy from.
+if [[ ! -d "$CLAUDE_SRC" ]]; then
+    echo "ERROR: ClaudeKit source not found next to this script." >&2
+    echo "Clone the repo and run ./install.sh from the checkout, e.g.:" >&2
+    echo "  git clone https://github.com/OmarMokhtar-Saad/claudekit.git && cd claudekit && ./install.sh <target>" >&2
+    exit 1
+fi
 
 # Colors
 RED='\033[0;31m'
@@ -37,6 +45,7 @@ LANGUAGE=""
 FORCE=false
 WITH_MCP=false
 WITH_I18N=false
+ASSUME_YES=false
 
 usage() {
     echo "Usage: $0 [TARGET_DIR] [OPTIONS]"
@@ -47,7 +56,8 @@ usage() {
     echo "  --language LANG Pre-configure for language (python|typescript|java|go|kotlin|swift|rust|csharp|ruby|php)"
     echo "  --with-mcp      Install MCP server configurations"
     echo "  --with-i18n     Install internationalization files"
-    echo "  --force         Overwrite existing .claude directory"
+    echo "  --force         Overwrite existing .claude directory (backed up first)"
+    echo "  --yes           Non-interactive: assume yes to prompts (for CI)"
     echo "  --help          Show this help"
     echo ""
     echo "Examples:"
@@ -65,6 +75,7 @@ while [[ $# -gt 0 ]]; do
         --with-mcp) WITH_MCP=true; shift ;;
         --with-i18n) WITH_I18N=true; shift ;;
         --force)    FORCE=true; shift ;;
+        --yes|--non-interactive) ASSUME_YES=true; shift ;;
         --help)     usage; exit 0 ;;
         -*)         print_err "Unknown option: $1"; usage; exit 1 ;;
         *)
@@ -78,36 +89,49 @@ done
 
 # Validate target
 if [[ -z "$TARGET_DIR" ]]; then
-    echo -n "Target project directory: "
-    read -r TARGET_DIR
+    if [[ -t 0 ]] && [[ "$ASSUME_YES" != true ]]; then
+        echo -n "Target project directory: "
+        read -r TARGET_DIR
+    else
+        print_err "No target directory given (stdin is not a TTY). Pass it as an argument."
+        exit 1
+    fi
 fi
 
-TARGET_DIR="$(cd "$TARGET_DIR" 2>/dev/null && pwd || echo "$TARGET_DIR")"
+TARGET_DIR="$(cd "$TARGET_DIR" 2>/dev/null && pwd)" || { print_err "Cannot access target directory"; exit 1; }
 
 if [[ ! -d "$TARGET_DIR" ]]; then
     print_err "Directory does not exist: $TARGET_DIR"
     exit 1
 fi
 
-DEST="$TARGET_DIR/.claude"
+FINAL_DEST="$TARGET_DIR/.claude"
+STAGING="$TARGET_DIR/.claude.staging.$$"
+DEST="$STAGING"   # install writes to staging; atomically swapped into place on success
+BACKUP=""
 
-# Cleanup on failure - remove partial installation
+# Cleanup on failure removes ONLY the staging dir. The user's real .claude is
+# never touched until the atomic swap succeeds — no more rm -rf of live data.
 _cleanup_on_failure() {
-    if [[ -d "$DEST" ]]; then
-        print_err "Installation failed. Cleaning up partial installation..."
-        rm -rf "$DEST"
-    fi
+    [[ -d "$STAGING" ]] && rm -rf "$STAGING"
+    print_err "Installation failed. Your existing .claude (if any) was left untouched."
 }
 trap '_cleanup_on_failure' ERR
+rm -rf "$STAGING" 2>/dev/null || true
 
 # Check for existing installation
-if [[ -d "$DEST" ]] && [[ "$FORCE" != true ]]; then
-    print_warn "Directory $DEST already exists."
-    echo -n "Overwrite? (y/N): "
-    read -r confirm
-    if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
-        echo "Installation cancelled."
-        exit 0
+if [[ -d "$FINAL_DEST" ]] && [[ "$FORCE" != true ]] && [[ "$ASSUME_YES" != true ]]; then
+    if [[ -t 0 ]]; then
+        print_warn "$FINAL_DEST already exists. It will be backed up before reinstall."
+        echo -n "Continue? (y/N): "
+        read -r confirm
+        if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+            echo "Installation cancelled."
+            exit 0
+        fi
+    else
+        print_err "$FINAL_DEST exists. Re-run with --force or --yes to reinstall (it is backed up first)."
+        exit 1
     fi
 fi
 
@@ -215,6 +239,15 @@ if [[ "$MODE" == "full" ]]; then
     chmod +x "$DEST"/hooks/*.sh 2>/dev/null || true
     HOOK_COUNT=$(ls -1 "$DEST/hooks/"*.sh 2>/dev/null | wc -l | tr -d ' ')
     print_ok "$HOOK_COUNT hooks installed"
+
+    # Install settings.json — WITHOUT it, none of the hooks above ever fire.
+    # (For years this was omitted, so every install shipped dead hooks.)
+    if [[ -f "$CLAUDE_SRC/settings.json" ]]; then
+        cp "$CLAUDE_SRC/settings.json" "$DEST/settings.json"
+        print_ok "settings.json installed (hooks wired)"
+    else
+        print_warn "settings.json not found in source — hooks will not fire"
+    fi
 fi
 
 # Copy modes from templates
@@ -360,6 +393,42 @@ with open(config_path, 'w') as f:
 " 2>/dev/null && print_ok "Hooks configured" || print_warn "Could not auto-configure hooks (update .claude/hooks/config.json manually)"
 fi
 
+# ---- Atomic swap: back up any existing .claude, move staging into place ----
+if [[ -d "$FINAL_DEST" ]]; then
+    BACKUP="$TARGET_DIR/.claude.bak-$(date +%Y%m%d-%H%M%S)"
+    mv "$FINAL_DEST" "$BACKUP"
+fi
+mv "$STAGING" "$FINAL_DEST"
+DEST="$FINAL_DEST"
+trap - ERR   # past the destructive phase; nothing left to clean up
+
+# ---- Install manifest (records version + per-file sha256 for `ck update`) ----
+CLAUDEKIT_VERSION="$VERSION" python3 - "$FINAL_DEST" "$MODE" "$LANGUAGE" <<'MANIFEST_PY' && print_ok "Install manifest written" || print_warn "Manifest generation failed"
+import hashlib, json, os, sys, datetime
+dest, mode, lang = sys.argv[1], sys.argv[2], sys.argv[3]
+files = {}
+for root, _, names in os.walk(dest):
+    for n in names:
+        path = os.path.join(root, n)
+        rel = os.path.relpath(path, dest)
+        if rel == ".claudekit-manifest.json":
+            continue
+        try:
+            with open(path, "rb") as fh:
+                files[rel] = hashlib.sha256(fh.read()).hexdigest()
+        except OSError:
+            pass
+manifest = {
+    "version": os.environ.get("CLAUDEKIT_VERSION", "unknown"),
+    "installed_at": datetime.datetime.now().isoformat(timespec="seconds"),
+    "mode": mode,
+    "language": lang,
+    "files": files,
+}
+with open(os.path.join(dest, ".claudekit-manifest.json"), "w") as fh:
+    json.dump(manifest, fh, indent=2)
+MANIFEST_PY
+
 # Update .gitignore
 print_step "Updating .gitignore..."
 GITIGNORE="$TARGET_DIR/.gitignore"
@@ -395,14 +464,16 @@ echo ""
 echo "  Location: $DEST"
 echo "  Mode:     $MODE"
 echo "  Language: $LANGUAGE"
+[[ -n "$BACKUP" ]] && echo "  Backup:   previous .claude saved to $BACKUP"
 echo ""
-echo "  Installed:"
-echo "    - ${AGENT_COUNT} agents (coordinator, planner, reviewer, implementer, verifier, debugger, documenter, gitOps, explore, tester, security-scanner, devops, database-architect, silent-failure-hunter, harness-optimizer, performance-optimizer, code-simplifier, typescript-reviewer, python-reviewer, tdd-guide, refactor-cleaner, doc-updater, code-reviewer, build-error-resolver, loop-operator, opensource-sanitizer, opensource-packager, model-router)"
-echo "    - 37 commands (/plan, /review, /implement, /verify, /debug, /docs, /git, /coordinator, /explore, /security, /deps, /rollback, /test, /deploy, /performance, /migrate, /batch, /santa, /hookify, /save-session, /resume-session, /model-route, /prp-plan, /prp-implement, /prp-commit, /prp-pr, /build-fix, /code-review, /gan-build, /opensource, /loop-start, /context-budget, /audit, /eval, /onboard, /blueprint)"
-echo "    - 7 behavioral modes (default, brainstorm, token-efficient, deep-research, implementation, review, orchestration)"
+echo "  Installed (counts computed from the installed tree):"
+echo "    - ${AGENT_COUNT} agents"
+echo "    - ${CMD_COUNT} commands"
+echo "    - ${MODE_COUNT:-0} behavioral modes"
 if [[ "$MODE" == "full" ]]; then
     echo "    - ${SKILL_COUNT} skills"
-    echo "    - 15 hooks (including config-protection, commit-quality, security-reminder, format-typecheck, session-start)"
+    echo "    - ${HOOK_COUNT} hooks"
+    [[ -f "$DEST/settings.json" ]] && echo "    - settings.json (hooks wired)"
 fi
 echo "    - Operations scripts (validate, execute, restore)"
 if [[ "$WITH_MCP" == true ]]; then

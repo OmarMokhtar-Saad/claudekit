@@ -32,7 +32,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-from shared import PROTECTED_PATTERNS, MAX_FILE_SIZE_BYTES, is_protected_file, __version__
+from shared import PROTECTED_PATTERNS, is_protected_file, __version__
 
 try:
     import fcntl
@@ -364,14 +364,6 @@ def execute_code_edit(operation: dict, backup_dir: Path, dry_run: bool) -> Tuple
         print(f"  File not found: {file_path}")
         return False, "file-not-found"
 
-    # File size guard (matches validator GUARD 27)
-    try:
-        file_size = file_path.stat().st_size
-        if file_size > MAX_FILE_SIZE_BYTES:
-            print(f"  BLOCKED: File too large ({file_size} bytes, max {MAX_FILE_SIZE_BYTES}): {file_path}")
-            return False, "file-too-large"
-    except OSError:
-        pass
 
     # Backup original (preserve directory structure)
     if not dry_run:

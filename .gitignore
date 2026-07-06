@@ -25,3 +25,9 @@ backups/
 *.log
 .claude-core.lock
 .claude/.managed/
+.claude/hooks/compact-counter.txt
+
+# Local, per-developer Claude Code overrides (never shipped)
+.claude/settings.local.json
+
+.coverage

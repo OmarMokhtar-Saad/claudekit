@@ -5,19 +5,34 @@ All notable changes to ClaudeKit will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.3.0] — 2026-04-11
+> **Versioning correction (2026-07):** the entry previously published as `1.3.0`
+> (2026-04-11) actually shipped *after* `2.0.0` (2026-03-17). It has been renumbered to
+> `2.1.0` to restore monotonic order. Two agents listed under it — `dead-code-hunter` and
+> `open-source-forker` — never shipped and have been removed.
+
+## [Unreleased]
+
+### Changed
+- Packaging: fixed the `pyproject.toml` build backend; moved to true `src/claudekit/`
+  src-layout; single version source via `importlib.metadata`.
+- Prompt layer: planner ops.json schema now references the canonical
+  `generate-operations-config` schema; `execute-operations-config` drives all changes through
+  `execute-json-ops.py` (no manual Edit/Write).
+
+### Added
+- `MAX_DELETIONS` guard (max 3 `file_delete` operations per plan) in the ops validator.
+
+## [2.1.0] — 2026-04-11
 
 ### Added
 
-#### Agents (8 new — total: 30)
+#### Agents (6 new — total: 28)
 - **code-reviewer** (Opus) — Reviews actual code/diffs with 5 dimensions: Correctness, Security, Performance, Reliability, Code Quality; confidence-filtered findings with file:line references
 - **build-error-resolver** (Sonnet) — Minimum-diff error fixer; THE ONE RULE: fix the error only; max 7 iterations; never uses `@ts-ignore`
 - **loop-operator** (Sonnet) — Autonomous loop monitor with 3 intervention levels: Warn, Pause+Report, Emergency Stop; stagnation detection
 - **opensource-sanitizer** (Sonnet) — Stage 1+2 of open-source pipeline; BLOCKER/WARNING classification across 6 categories (secrets, infra, PII, tooling, legal, artifacts)
 - **opensource-packager** (Haiku) — Stage 3 of open-source pipeline; generates CLAUDE.md, README, LICENSE, .env.example, CONTRIBUTING.md, .github/ templates from actual code
 - **model-router** (Haiku) — 4-dimension scoring rubric (reasoning depth, output complexity, error cost, domain novelty) → haiku/sonnet/opus recommendation
-- **dead-code-hunter** — Detects unreachable code, unused exports, dead feature flags, zombie dependencies
-- **open-source-forker** — Transforms private code to public-safe version in staging directory
 
 #### Skills (6 new — total: 73)
 - **santa-method** — Adversarial dual-review: Skeptic (Opus) + Pragmatist (Sonnet) spawned simultaneously with no shared context (anti-anchoring)

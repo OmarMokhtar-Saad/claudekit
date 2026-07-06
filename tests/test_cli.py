@@ -2,13 +2,23 @@
 
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
 import pytest
 from pathlib import Path
 
-CLI_PATH = os.path.join(os.path.dirname(__file__), '..', 'src', 'cli', 'main.py')
+CLI_PATH = os.path.join(os.path.dirname(__file__), '..', 'src', 'claudekit', 'cli', 'main.py')
+
+
+def _pyproject_version():
+    """Single source of truth: the version declared in pyproject.toml."""
+    pyproject = Path(__file__).resolve().parent.parent / "pyproject.toml"
+    text = pyproject.read_text(encoding="utf-8")
+    match = re.search(r'^version\s*=\s*"([^"]+)"', text, re.MULTILINE)
+    assert match, "no version found in pyproject.toml"
+    return match.group(1)
 
 
 class TestCLIHelp:
@@ -28,7 +38,7 @@ class TestCLIHelp:
             capture_output=True, text=True, timeout=10
         )
         assert result.returncode == 0
-        assert "1.1.0" in result.stdout
+        assert _pyproject_version() in result.stdout
 
     def test_no_args_shows_help(self):
         result = subprocess.run(

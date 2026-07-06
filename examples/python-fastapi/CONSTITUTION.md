@@ -29,7 +29,6 @@ Clean Architecture: API → Domain → Data. No direct API→Data imports.
 ## Article V: Operations
 
 - All plans require ops.json
-- Max 5 operations per config
 - Protected files: requirements.txt, pyproject.toml, *.md
 
 ## Article VI: Review

@@ -1,25 +1,23 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # =============================================================================
 # Commit Quality Hook (PreToolUse — Bash, intercepts git commit)
 # Checks staged files for debug artifacts and validates commit message quality.
-# Blocks ONLY on staged secrets. Warns on quality issues.
+# Blocks ONLY on staged secrets (exit 2 + stderr). Warns on quality issues.
 # =============================================================================
-# ECC_HOOK_PROFILE: runs in standard + strict (not minimal)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+HOOK_NAME="commit-quality"
+LOG_FILE="$SCRIPT_DIR/hooks.log"
+[ -f "$SCRIPT_DIR/lib.sh" ] && . "$SCRIPT_DIR/lib.sh"
+
 [ "${ECC_HOOK_PROFILE:-standard}" = "minimal" ] && exit 0
 
-LOG=".claude/hooks/hooks.log"
-log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] [commit-quality] [$1] $2" >> "$LOG" 2>/dev/null; }
+# Back-compat shim for the older log() name used below.
+log() { hlog "$1" "$2"; }
 
-# Read tool input
+# Read tool input; fail closed on an unparseable payload.
 TOOL_INPUT=$(cat)
-CMD=$(echo "$TOOL_INPUT" | python3 -c "
-import sys, json
-try:
-    d = json.load(sys.stdin)
-    print(d.get('command', ''))
-except:
-    print('')
-" 2>/dev/null)
+CMD=$(extract_json_field "$TOOL_INPUT" command) || deny \
+    "BLOCKED: could not parse the tool payload; refusing to run an unverified commit."
 
 # Only intercept git commit commands
 if ! echo "$CMD" | grep -qE '^\s*git\s+commit'; then
@@ -57,7 +55,7 @@ if [ -n "$COMMIT_MSG" ]; then
 
     # Check for generic/meaningless messages
     GENERIC_PATTERNS="^(fix|update|wip|temp|test|done|ok|changes|stuff|misc|patch|hotfix|asdf|xxx)\.?$"
-    if echo "${COMMIT_MSG,,}" | grep -qE "$GENERIC_PATTERNS"; then
+    if printf '%s' "$COMMIT_MSG" | tr '[:upper:]' '[:lower:]' | grep -qE "$GENERIC_PATTERNS"; then
         echo "COMMIT WARNING: Generic commit message '$COMMIT_MSG'. Describe what changed and why."
         HAS_WARNINGS=1
         log "WARN" "Generic commit message: '$COMMIT_MSG'"
@@ -98,10 +96,9 @@ if [ -n "$STAGED_FILES" ]; then
     done <<< "$STAGED_FILES"
 
     if [ -n "$SECRET_FILES" ]; then
-        echo ""
-        echo "COMMIT BLOCKED: Secret/key files staged for commit:$SECRET_FILES"
-        echo "  Remove these files: git reset HEAD$SECRET_FILES"
-        echo "  Add to .gitignore to prevent future accidents."
+        BLOCK_REASON="COMMIT BLOCKED: Secret/key files staged for commit:$SECRET_FILES
+  Remove these files: git reset HEAD$SECRET_FILES
+  Add to .gitignore to prevent future accidents."
         log "BLOCK" "Secret files staged:$SECRET_FILES"
         HAS_BLOCKS=1
     fi
@@ -125,10 +122,13 @@ fi
 # ---------------------------------------------------------------------------
 # 3. Report result
 # ---------------------------------------------------------------------------
-if [ $HAS_WARNINGS -eq 1 ] && [ $HAS_BLOCKS -eq 0 ]; then
+if [ $HAS_BLOCKS -eq 1 ]; then
+    deny "${BLOCK_REASON:-COMMIT BLOCKED: staged content failed the commit-quality guard.}"
+fi
+
+if [ $HAS_WARNINGS -eq 1 ]; then
     echo ""
     echo "Commit quality warnings above. Commit will proceed — review warnings."
 fi
 
-[ $HAS_BLOCKS -eq 1 ] && exit 1
 exit 0

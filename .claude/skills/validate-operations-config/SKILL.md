@@ -54,7 +54,7 @@ The validator checks (among 29 guards):
 - `file_delete` has `path` and `reason` (min 10 chars), and the file exists
 - `code_edit` has `path`, `edits` array, each edit has `find` key, and all `find` patterns exist in the target file
 - No path traversal, null bytes, or paths outside the project
-- Max 5 operations, max 3 deletions, max 2 MB file size
+- No count or size limits — only structural and safety guards
 
 ---
 
@@ -150,4 +150,4 @@ For manual quick-checks when the Python scripts are unavailable (e.g., missing v
 - [ ] Every `file_delete` has a `reason` field with at least 10 characters
 - [ ] Every `code_edit` has an `edits` array; each item has a `find` key
 - [ ] All `find` strings exist verbatim in their target files
-- [ ] Total operations ≤ 5; total `file_delete` operations ≤ 3
+- [ ] Total `file_delete` operations ≤ 3

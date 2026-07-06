@@ -47,7 +47,10 @@ If ANY check fails, STOP and report the failure. Do NOT proceed without a valida
 
 ## IRON LAW
 
-Execute operations EXACTLY as specified in ops.json. Do not improvise, skip steps, or reorder operations unless a blocking error requires it. If you must deviate, document the deviation and the reason.
+Execute operations EXACTLY as specified in ops.json using execute-json-ops.py.
+Direct Edit or Write tool use is PERMANENTLY FORBIDDEN — even for minor post-script fixes.
+If ops.json is missing, STOP immediately. Do not proceed. Return to the Planner.
+If you must deviate from the ops.json spec, you need explicit user authorization.
 
 ## Script Execution Workflow
 

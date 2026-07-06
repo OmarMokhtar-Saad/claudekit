@@ -9,11 +9,11 @@ Supports Two Formats:
   - LEGACY: {"plan": "...", "files": [...]} - Code edits only
   - MODERN: {"plan": "...", "operations": [...]} - file_create, file_delete, code_edit
 
-Validation Guards: 29 total
+Validation Guards: 26 total
   - 11 guards for code editing
-  - 7 guards for file operations (create/delete)
+  - 6 guards for file operations (create/delete)
   - 6 guards for backup/restore compatibility
-  - 5 guards for security (null bytes, file size, operation type)
+  - 3 guards for security (null bytes, operation type)
 """
 
 import argparse
@@ -24,7 +24,7 @@ import sys
 from pathlib import Path
 from typing import List, Tuple
 
-from shared import PROTECTED_PATTERNS, MAX_FILE_SIZE_BYTES, is_protected_file, __version__
+from shared import PROTECTED_PATTERNS, is_protected_file, __version__
 
 try:
     import jsonschema
@@ -32,6 +32,11 @@ try:
     JSONSCHEMA_AVAILABLE = True
 except ImportError:
     JSONSCHEMA_AVAILABLE = False
+
+# GUARD 26: Bound the number of deletions a single plan may perform. An unbounded
+# batch of file_delete operations is the highest-blast-radius thing a plan can do;
+# a plan that legitimately needs to remove more than this should be split and reviewed.
+MAX_DELETIONS = 3
 
 
 def detect_config_format(config: dict) -> str:
@@ -52,19 +57,26 @@ def validate_file_operations(operations: List[dict]) -> Tuple[bool, List[str]]:
     - GUARD 12: File exists (for delete)
     - GUARD 13: File not protected
     - GUARD 14: Deletion reason >= 10 chars
-    - GUARD 15: Max 3 deletions per config
     - GUARD 16: Not a directory
     - GUARD 17: Parent directory exists (for create)
     - GUARD 18: File doesn't exist (for create)
+    - GUARD 26: Total deletions within MAX_DELETIONS
     """
     errors = []
-    deletion_count = 0
+
+    # GUARD 26: Cap total deletions per plan (unbounded batch delete is the
+    # highest-blast-radius operation a plan can request).
+    delete_count = sum(1 for op in operations if op.get('type') == 'file_delete')
+    if delete_count > MAX_DELETIONS:
+        errors.append(
+            f"BLOCKED - Too many deletions in one plan: {delete_count} "
+            f"(maximum {MAX_DELETIONS}). Split into smaller reviewed batches."
+        )
 
     for i, op in enumerate(operations, 1):
         op_type = op.get('type', '')
 
         if op_type == 'file_delete':
-            deletion_count += 1
             file_path = op.get('path', '')
             reason = op.get('reason', '')
 
@@ -141,13 +153,6 @@ def validate_file_operations(operations: List[dict]) -> Tuple[bool, List[str]]:
             if not content:
                 errors.append(f"Operation {i} (file_create): Content cannot be empty")
 
-    # GUARD 15: Max 3 deletions per config
-    if deletion_count > 3:
-        errors.append(
-            f"Too many file deletions ({deletion_count}) - maximum 3 per config\n"
-            f"                  Split into multiple configs if needed"
-        )
-
     return len(errors) == 0, errors
 
 
@@ -222,14 +227,35 @@ def validate_against_schema(config: dict, schema_file: str) -> Tuple[bool, List[
         return True, []
     except ValidationError as e:
         msg = getattr(e, 'message', str(e))
+
+        # For oneOf/anyOf failures, dig into sub-errors for the most actionable message.
+        additional_props_msg = None
+        if e.context:
+            for sub in e.context:
+                sub_msg = getattr(sub, 'message', '')
+                if "Additional properties are not allowed" in sub_msg:
+                    additional_props_msg = sub_msg
+                    break
+
         error_msg = f"Schema validation failed: {msg}"
         if e.absolute_path:
             path = ".".join(str(p) for p in e.absolute_path)
             error_msg += f" at path: {path}"
         errors.append(error_msg)
-        if "Additional properties are not allowed" in msg:
-            errors.append("REJECTED: Config contains non-standard fields!")
-            errors.append("Allowed fields: plan, files, operations, path, edits, find, add_after, add_before, replace, delete")
+
+        check_msg = additional_props_msg or msg
+        if "Additional properties are not allowed" in check_msg:
+            extra = re.findall(r"'([^']+)'", check_msg)
+            if extra:
+                errors.append(f"REJECTED: Operation has unknown field(s): {', '.join(repr(f) for f in extra)}")
+            else:
+                errors.append("REJECTED: Config contains non-standard fields!")
+            errors.append(
+                "Allowed operation fields:\n"
+                "  file_create : type, path, content  (+ optional: id, description)\n"
+                "  file_delete : type, path, reason   (+ optional: id, description)\n"
+                "  code_edit   : type, path, edits    (+ optional: id, description)"
+            )
         return False, errors
     except SchemaError as e:
         return False, [f"Invalid schema definition: {e}"]
@@ -295,13 +321,6 @@ def validate_legacy_format(config: dict, errors: List[str]) -> Tuple[bool, List[
     if not files:
         errors.append("No files defined in config")
 
-    # GUARD 28: Max operations limit
-    if len(files) > 5:
-        errors.append(
-            f"Too many operations ({len(files)}) — maximum 5 per config\n"
-            f"                  Split into multiple configs if needed"
-        )
-
     for i, file_op in enumerate(files, 1):
         # GUARD 5: Validate required fields for each file
         if 'path' not in file_op:
@@ -318,14 +337,6 @@ def validate_legacy_format(config: dict, errors: List[str]) -> Tuple[bool, List[
         # GUARD 6: Check file exists
         if not os.path.exists(file_path):
             errors.append(f"File {i}: File does not exist: {file_path}")
-            continue
-
-        # GUARD 27: File size check
-        file_size = os.path.getsize(file_path)
-        if file_size > MAX_FILE_SIZE_BYTES:
-            errors.append(
-                f"File {i}: File too large ({file_size} bytes, max {MAX_FILE_SIZE_BYTES}): {file_path}"
-            )
             continue
 
         # GUARD 7: Validate edits array exists
@@ -365,13 +376,6 @@ def validate_modern_format(config: dict, errors: List[str]) -> Tuple[bool, List[
         errors.append("No operations defined in config")
         return False, errors
 
-    # GUARD 28: Max operations limit
-    if len(operations) > 5:
-        errors.append(
-            f"Too many operations ({len(operations)}) — maximum 5 per config\n"
-            f"                  Split into multiple configs if needed"
-        )
-
     # Validate file operations (GUARD 12-18)
     file_ops_valid, file_ops_errors = validate_file_operations(operations)
     if not file_ops_valid:
@@ -407,14 +411,6 @@ def validate_modern_format(config: dict, errors: List[str]) -> Tuple[bool, List[
         # GUARD 6: Check file exists
         if not os.path.exists(file_path):
             errors.append(f"Operation {i} (code_edit): File does not exist: {file_path}")
-            continue
-
-        # GUARD 27: File size check
-        file_size = os.path.getsize(file_path)
-        if file_size > MAX_FILE_SIZE_BYTES:
-            errors.append(
-                f"Operation {i} (code_edit): File too large ({file_size} bytes, max {MAX_FILE_SIZE_BYTES}): {file_path}"
-            )
             continue
 
         # GUARD 7: Validate edits array exists
@@ -599,11 +595,10 @@ Safety Guards (29 total):
     GUARD 10: Pattern exists in file
     GUARD 11: Ambiguous match detection
 
-  File Operations (7):
+  File Operations (6):
     GUARD 12: File exists before deletion
     GUARD 13: Protected file check
     GUARD 14: Deletion reason >= 10 characters
-    GUARD 15: Max 3 deletions per config
     GUARD 16: Not a directory
     GUARD 17: Parent directory exists (for create)
     GUARD 18: File doesn't exist (for create - overwrite protection)
@@ -616,11 +611,9 @@ Safety Guards (29 total):
     GUARD 23: File naming collision detection
     GUARD 24: Nested directory path handling
 
-  Security (5):
+  Security (3):
     GUARD 25: Null byte rejection in file paths
     GUARD 26: Null byte rejection in content
-    GUARD 27: File size limit (2MB)
-    GUARD 28: Max operations limit (5 per config)
     GUARD 29: Operation type validation
         """
     )

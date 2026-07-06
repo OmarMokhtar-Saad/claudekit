@@ -4,7 +4,8 @@
 
 | Version | Supported          |
 |---------|--------------------|
-| 1.x     | Yes                |
+| 2.x     | Yes                |
+| 1.x     | No                 |
 
 ## Reporting a Vulnerability
 
@@ -29,6 +30,18 @@ ClaudeKit executes shell scripts and Python scripts as part of its workflow. Use
 - Use the pre-commit hook's secret detection feature
 - Review operations configs before execution (use `--dry-run`)
 - Keep the operations scripts updated to the latest version
+
+## Disclosures & Threat Model
+
+- **Permission bypass removed (v2.1).** Earlier releases spawned planner/reviewer sub-agents with
+  `--dangerously-skip-permissions`, disabling Claude Code's permission gating while those agents
+  read untrusted repo and plan content. As of v2.1 this flag is removed from all shipped commands;
+  sub-agents run scoped via `--allowedTools` with permission gating active. See
+  `.claude/agents/_shared/INVOCATION.md`. A CI gate prevents the flag from returning.
+- **Prompt assets are prompts.** Agents, commands, and skills are instructions to a model, not a
+  sandbox. Treat them as you would any code you run: review before installing from an untrusted source.
+- **Hooks are advisory-to-enforcing.** Some hooks block (`exit 2`); none are a substitute for OS-level
+  isolation. For untrusted code, run inside a container/VM.
 
 ## Scope
 
