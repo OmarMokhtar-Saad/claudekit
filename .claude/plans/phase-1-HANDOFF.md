@@ -1,9 +1,22 @@
 # Phase 1 — Handoff to Next Agent
 
-**Repo:** claudekit · **Branch:** main (nothing committed yet — all work is in the working tree)
+> **STATUS: PHASE 1 COMPLETE (2026-07-06).** All four waves (A–D) landed on branch
+> `phase-1-fix-whats-broken`. **506 tests passing**; ruff + mypy clean; docs-drift clean.
+> Commits: `987192a` (Waves A/B + enhancement suite), `66d5af5` (002 security wiring),
+> `00a86f3` (006 docs + 011 CI), `fed37e9` (dormant-hook wiring + CLAUDEKIT_HOME),
+> `969b242` (ck-init end-to-end fixes), `4ef8d38` (commit-quality block test).
+> Not yet: merge to `main`, tag `v2.1.0`, PyPI publish (all **user-gated** — see Open decisions).
+> Exit criteria met: `ck init && ck doctor` clean 19/19; every enforcement hook has a
+> demonstrable-block test; no doc/version disagrees with the tree (CI-enforced); the CI
+> `test` job runs the whole suite (can't pass with a failing test). The only residual on
+> criterion 1 is a *pure-PyPI* standalone `pip install claudekit && ck init` — needs assets
+> bundled into the wheel (Phase-2 packaging) + the name decision. `ck init` works today from
+> a checkout or with `CLAUDEKIT_HOME`.
+
+**Repo:** claudekit · **Branch:** `phase-1-fix-whats-broken` (6 commits; not yet merged to main)
 **Plan of record:** `.claude/plans/phase-1-fix-whats-broken.md`
 **Source audit/tasks:** `review/roadmap.md §1`, `review/tasks/00{1..6}.md`, `review/tasks/011-*.md`
-**Test command:** `python3 -m pytest tests/ -q` → currently **459 passing, 0 failing**
+**Test command:** `python3 -m pytest tests/ -q` → **506 passing, 0 failing**
 
 Phase 1 = v2.1 "Fix What's Broken". Every item is a defect in something already advertised.
 Exit criteria: `pip install claudekit && ck init && ck doctor` works clean; every enforcement
@@ -64,42 +77,52 @@ hook demonstrably blocks; no version/doc disagrees with the tree; CI can't pass 
 
 ---
 
-## REMAINING in Phase 1
+## DONE — Wave C & D (this phase, tested)
 
-### Wave C — 002 Security (full wiring) — P1, ~3–5d
-Fix `src/claudekit/security/{command_validator,path_guard}.py` bypasses, then WIRE them:
-- `command_validator.py`: reads `config.get("hooks")` but schema puts safeMode/allow/block under
-  **`security`**; `bash -c`/`&&`-chaining/`xargs`/`find -delete` all pass (only argv[0] checked);
-  `\$\(` over-bans. `path_guard.py`: relative-symlink resolved against cwd not link dir; `.env`
-  substring match. Then: expose `claudekit check-command`/`check-path`, wire a **fail-closed**
-  PreToolUse Bash guard under `ECC_HOOK_PROFILE=strict`, dedupe the 3 parallel impls, fix the
-  ARCHITECTURE.md claim. `tests/test_security.py` exists (imports already fixed to
-  `claudekit.security.*`). See `review/tasks/002-wire-security-layer.md`.
+### Wave C
+- **002 Security** — fixed `from_config` (`hooks`→`security`), chained-command + `$(...)`/backtick
+  segment validation, removed bash/sh/env/xargs from the allowlist, added find -delete/-exec, IFS
+  evasion, python interpreter-smuggling detection; `path_guard` relative-symlink + component-level
+  `.env` matching + named `MAX_DIRECTORY_DEPTH`. Wired: `claudekit check-command`/`check-path`,
+  `python3 -m claudekit.security`, and the fail-closed `command-guard.sh` PreToolUse hook
+  (strict=block, standard=warn, minimal=off). ARCHITECTURE.md/SECURITY.md rewritten as "speed
+  bump, not a sandbox." Ops-script `validate_path` cross-references the canonical module (kept
+  dependency-free for standalone runs). +bypass-corpus + CLI tests.
+- **§1.6 Prompt-layer** — already landed in Wave A.
 
 ### Wave D
-- **006 full** — `scripts/gen-docs.py` + docs-drift CI job; regenerate counts (README says
-  13/17/45; reality ~28 agents / 52 commands / 73 skills); one canonical slug everywhere; rewrite
-  `docs/HOOKS.md` around settings.json + `ECC_HOOK_PROFILE`; link `docs/cli.md`. Also update the
-  now-obsolete `docs/CUSTOMIZATION.md:179` "back up first" text (installer auto-backs-up now).
-  See `review/tasks/006-*.md`.
-- **011 full** — run entire `tests/` in one job; add macOS matrix; install→`doctor --strict`
-  integration job; coverage gate; ruff/mypy; manifest-derived count checks; dangling-hook-path
-  check; SHA-pin actions + dependabot. See `review/tasks/011-*.md`.
+- **006** — `scripts/gen-docs.py` (filesystem = source of truth; `--check` = docs-drift gate);
+  corrected all counts to **28 agents / 39 commands / 73 skills / 19 hooks**; canonical slug
+  `OmarMokhtar-Saad/claudekit` everywhere (incl. i18n); rewrote `docs/HOOKS.md` around
+  settings.json + `ECC_HOOK_PROFILE`; linked `docs/cli.md`; fixed CUSTOMIZATION "back up" text.
+- **011** — CI `test` runs the whole `tests/` on ubuntu+macos × py3.9/3.10/3.12/3.13; new jobs:
+  coverage (security ≥85%), lint (ruff+mypy), docs-drift, dangling-hooks, install-integration
+  (install.sh→doctor); SHA-pinned actions + `.github/dependabot.yml`; `doctor --strict`.
+- **Deferred fixes swept**: wired dormant `file-guard`/`prompt-injection-scanner` as advisory
+  strict-only wrappers; `CLAUDEKIT_HOME` honored; `find_claudekit_root` src-layout depth bug fixed;
+  `ck init --full/--minimal/--yes`; `skills-registry.json` dangling ref (`i18n-workflow`→
+  `i18n-patterns`); `MANIFEST.in`; new `test_registry.py`.
 
-### Deferred inside completed tasks (pick up opportunistically)
-- **001**: tag `v2.1.0`, exercise `release.yml`, PyPI publish (blocked on name decision); ship
-  `.claude/` assets in the wheel (`MANIFEST.in`) OR honor `CLAUDEKIT_HOME` in `find_claudekit_root`.
-- **005**: `ck update` three-way merge (manifest foundation is in place), `ck uninstall`, `ck diff`,
-  settings.json merge-on-existing, detection refinements (JS-vs-TS via tsconfig, csproj maxdepth),
-  sed hardening for `& | \`.
-- **003 (P2 rot)**: wire dormant `templates/hooks/file-guard.sh` + `prompt-injection-scanner.sh`
-  into settings.json (anchor patterns first); auto-checkpoint stash-SHA fix; suggest-compact
-  stale-lock + BSD date; format-typecheck data-source rewrite.
-- **004**: full doc sweep of every wrapper command + `HANDOFF_PROTOCOL.md` to cite INVOCATION.md.
+---
+
+## GENUINELY REMAINING (Phase 2 / user-gated — NOT Phase-1 blockers)
+
+- **Publish (user-gated):** merge `phase-1-fix-whats-broken`→`main`; tag `v2.1.0`; exercise
+  `release.yml`; PyPI publish. **Blocked on the PyPI-name decision.**
+- **Wheel-bundled assets (Phase-2 packaging):** to make a *pure* `pip install claudekit && ck init`
+  work with no checkout, bundle `.claude/`/`templates/`/`install.sh` into the wheel (they only reach
+  the sdist today via `MANIFEST.in`). Until then `ck init` needs a checkout or `CLAUDEKIT_HOME`.
+- **New CLI features (Phase 2 — the "no new features" thesis excludes these from Phase 1):**
+  `ck update` three-way merge (manifest foundation exists), `ck uninstall`, `ck diff`,
+  settings.json merge-on-existing.
+- **Installer detection refinements:** JS-vs-TS via tsconfig, csproj maxdepth, sed hardening for
+  `& | \``.
+- **003 P2 rot (low):** auto-checkpoint stash-SHA fix; suggest-compact stale-lock + BSD date;
+  format-typecheck data-source rewrite.
+- **004 (low):** doc sweep of every wrapper command + `HANDOFF_PROTOCOL.md` to cite INVOCATION.md.
 
 ---
 
 ## Suggested next step
-Commit the Phase 1 work on a branch (it's a large, tested, coherent changeset), THEN start
-**002 (security wiring)** — it's the last substantive P1 and completes the security story that
-004+003 began. Confirm the PyPI-name decision with the user before any publish/tag work.
+Get the user's PyPI-name decision, then merge to `main` and tag `v2.1.0`. After that, the top
+Phase-2 item is wheel-bundled assets (unblocks standalone `pip install`), then `ck update`.
