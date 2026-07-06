@@ -97,7 +97,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - `pre-commit.sh` path: `find operations/ -name "ops.json"` → `find .claude/plans/ -name "ops-*.json"` (planner writes to `.claude/plans/`)
 - `skills-registry.json` `agentMapping` structure: confirmed as dict (agent_name → list of skill IDs), not a list
-- Documented component counts corrected to match the filesystem: 28 agents / 39 commands / 73 skills / 17 hooks, now generated and CI-enforced by `scripts/gen-docs.py`
+- Documented component counts corrected to match the filesystem: 28 agents / 39 commands / 73 skills / 19 hooks, now generated and CI-enforced by `scripts/gen-docs.py`
 
 ## [2.0.0] — 2026-03-17
 

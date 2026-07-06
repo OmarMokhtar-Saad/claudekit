@@ -9,6 +9,15 @@ import sys
 from importlib import metadata
 from pathlib import Path
 
+# When run as a raw script from a checkout (``python3 src/claudekit/cli/main.py``)
+# rather than via the installed console script, the ``src`` root isn't on
+# sys.path, so ``import claudekit.*`` would fail. Add it so sibling subpackages
+# (e.g. claudekit.security) import cleanly in both modes.
+if __package__ in (None, ""):
+    _SRC_ROOT = Path(__file__).resolve().parents[2]
+    if str(_SRC_ROOT) not in sys.path:
+        sys.path.insert(0, str(_SRC_ROOT))
+
 
 def _resolve_version() -> str:
     """Single source of truth: installed package metadata, with a source-checkout fallback."""
@@ -37,7 +46,17 @@ def err(msg): print(f"{C.RED}[✗]{C.NC} {msg}", file=sys.stderr)
 
 
 def find_claudekit_root():
-    """Find the ClaudeKit source directory."""
+    """Find the ClaudeKit source directory.
+
+    Resolution order: ``$CLAUDEKIT_HOME`` (if it points at a real install),
+    then the repo containing this file, then common home-directory locations.
+    """
+    # Explicit override wins.
+    env_home = os.environ.get("CLAUDEKIT_HOME")
+    if env_home:
+        p = Path(env_home).expanduser()
+        if (p / ".claude" / "agents").exists():
+            return p
     # Check if we're inside the claudekit repo
     here = Path(__file__).resolve().parent.parent.parent
     if (here / ".claude" / "agents").exists():

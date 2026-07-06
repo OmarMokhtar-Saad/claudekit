@@ -83,3 +83,37 @@ class TestConfigCommand:
         )
         # May fail if not in a claudekit project, that's ok
         assert result.returncode in (0, 1)
+
+
+class TestFindRoot:
+    """Test ClaudeKit source resolution, incl. CLAUDEKIT_HOME override."""
+
+    def _import_main(self):
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+        from claudekit.cli import main as m
+        return m
+
+    def test_claudekit_home_env_is_honored(self, tmp_path, monkeypatch):
+        m = self._import_main()
+        # A directory with .claude/agents is a valid ClaudeKit source.
+        (tmp_path / ".claude" / "agents").mkdir(parents=True)
+        monkeypatch.setenv("CLAUDEKIT_HOME", str(tmp_path))
+        assert m.find_claudekit_root() == tmp_path
+
+    def test_claudekit_home_ignored_when_invalid(self, tmp_path, monkeypatch):
+        m = self._import_main()
+        # Points somewhere without .claude/agents -> falls back (not this path).
+        monkeypatch.setenv("CLAUDEKIT_HOME", str(tmp_path))
+        assert m.find_claudekit_root() != tmp_path
+
+    def test_check_command_subcommand_exit_codes(self):
+        block = subprocess.run(
+            [sys.executable, CLI_PATH, "check-command", "rm -rf /"],
+            capture_output=True, text=True, timeout=10,
+        )
+        assert block.returncode == 2
+        allow = subprocess.run(
+            [sys.executable, CLI_PATH, "check-command", "git status"],
+            capture_output=True, text=True, timeout=10,
+        )
+        assert allow.returncode == 0
