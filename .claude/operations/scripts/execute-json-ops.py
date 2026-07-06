@@ -32,7 +32,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-from shared import PROTECTED_PATTERNS, MAX_FILE_SIZE_BYTES, is_protected_file, __version__
+from shared import PROTECTED_PATTERNS, is_protected_file, __version__
 
 try:
     import fcntl
@@ -184,6 +184,12 @@ def validate_path(file_path: str) -> bool:
     Validate file path for safety.
     Rejects path traversal, null bytes, and paths resolving outside project root.
     Always resolves the full path (including symlinked parent directories).
+
+    NOTE: The canonical, richer implementation is
+    ``claudekit.security.PathGuard`` (src/claudekit/security/path_guard.py).
+    This inline copy is kept deliberately dependency-free so ops scripts run in
+    target projects that installed via ``install.sh`` without ``pip install
+    claudekit``. Keep the two in sync when changing path-safety semantics.
     """
     if '\x00' in file_path:
         print(f"  BLOCKED: Path contains null bytes: {file_path!r}")
@@ -364,14 +370,6 @@ def execute_code_edit(operation: dict, backup_dir: Path, dry_run: bool) -> Tuple
         print(f"  File not found: {file_path}")
         return False, "file-not-found"
 
-    # File size guard (matches validator GUARD 27)
-    try:
-        file_size = file_path.stat().st_size
-        if file_size > MAX_FILE_SIZE_BYTES:
-            print(f"  BLOCKED: File too large ({file_size} bytes, max {MAX_FILE_SIZE_BYTES}): {file_path}")
-            return False, "file-too-large"
-    except OSError:
-        pass
 
     # Backup original (preserve directory structure)
     if not dry_run:
@@ -579,7 +577,9 @@ def _execute_operations(config: dict, operations: list, plan_name: str,
                 if success:
                     stats['code_edit'] += 1
             else:
-                print(f"  Unknown operation type: {op_type}")
+                print(f"  ERROR: Unknown operation type: {op_type!r}")
+                print(f"  Valid types: file_create, file_delete, code_edit")
+                print(f"  Hint: regenerate ops.json using the generate-operations-config skill")
                 success = False
 
             if success:

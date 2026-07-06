@@ -6,7 +6,7 @@ Thank you for your interest in contributing to ClaudeKit! This guide will help y
 
 ### Reporting Issues
 
-- Use [GitHub Issues](https://github.com/omarmokhtar/claudekit/issues) to report bugs or request features
+- Use [GitHub Issues](https://github.com/OmarMokhtar-Saad/claudekit/issues) to report bugs or request features
 - Check existing issues first to avoid duplicates
 - Use the provided issue templates
 
@@ -22,11 +22,28 @@ Thank you for your interest in contributing to ClaudeKit! This guide will help y
 ### Development Setup
 
 ```bash
-git clone https://github.com/omarmokhtar/claudekit.git
+git clone https://github.com/OmarMokhtar-Saad/claudekit.git
 cd claudekit
 pip install -r tests/requirements.txt
 python3 -m pytest tests/ -v
 ```
+
+#### Working on ClaudeKit itself (hook enforcement)
+
+ClaudeKit's own `.claude/settings.json` ships enforcement hooks that block direct
+`Edit`/`Write` to source files outside `.claude/` and docs (so consumer agents must route
+changes through `ops.json`). When developing the kit *itself* you are the maintainer, not a
+constrained agent, so relax enforcement with a **local, un-committed** override:
+
+```jsonc
+// .claude/settings.local.json   (gitignored — never shipped)
+{ "env": { "ECC_HOOK_PROFILE": "minimal" } }
+```
+
+`ECC_HOOK_PROFILE` values: `minimal` (enforcement off), `standard` (default, blocks),
+`strict` (adds opt-in guards). The setting takes effect at the next session start. The
+behavioral tests (`tests/test_hooks_behavioral.py`) set the profile per-subprocess, so they
+verify blocking regardless of your session profile.
 
 ### Adding a New Skill
 

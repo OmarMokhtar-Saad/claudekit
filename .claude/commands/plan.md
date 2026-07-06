@@ -1,94 +1,46 @@
 ---
-description: "Create implementation plan via planner agent"
+description: "Create implementation plan via planner agent and save to .claude/plans/"
+argument-hint: "[task description]"
 model: sonnet
 ---
 
 # Planner Command
 
-Invoke the planner agent to create a structured implementation plan.
-
-## Agent Reference
-
-See @agents/planner.md for the full agent specification.
+Runs the local `planner` agent via `claude -p --agent planner`.
+Verified mechanism: `--agent <name>` loads `.claude/agents/<name>.md` as system prompt.
+Canonical spawn contract: see `.claude/agents/_shared/INVOCATION.md` (single source of truth).
 
 ## Task
 
 Create implementation plan for: $ARGUMENTS
 
-## Mandatory Skills
+## Invocation
 
-You MUST load and apply the following skills before proceeding:
+Use the Bash tool to run:
 
-- **using-superpowers** - Core agent capabilities and tool usage
-- **brainstorming** - Divergent thinking and option generation
-- **writing-plans** - Structured plan authoring format
-- **generate-operations-config** - ops.json generation and validation
+```bash
+PLAN_FILE=".claude/plans/plan-$(date +%Y%m%d-%H%M%S).md"
+mkdir -p .claude/plans
 
-## IRON LAW
+PLANNER_MSG="Create a complete implementation plan for the following task.
 
-Every plan MUST produce a valid `ops.json` file. A plan without ops.json is not a plan -- it is a wish. The ops.json file is the contract between the planner and the implementer. No exceptions.
+Task: $ARGUMENTS
 
-## Workflow Phases
+IRON LAW: The plan MUST include a valid ops.json."
 
-### Phase 1: Discovery
-- Read all relevant source files and configuration
-- Identify existing patterns, conventions, and constraints
-- Map dependencies and integration points
-- Note any blockers or risks
+plan_output=$(echo "$PLANNER_MSG" | claude -p --agent planner --model sonnet --allowedTools "Read,Grep,Glob,Write")
+EXIT_CODE=$?
 
-### Phase 2: Analysis
-- Break the task into discrete, testable units of work
-- Identify the minimal change set required
-- Evaluate alternative approaches (at least 2)
-- Select the approach with the best tradeoff of simplicity, correctness, and maintainability
+if [ $EXIT_CODE -ne 0 ]; then
+  echo "ERROR: Planner agent failed (exit code $EXIT_CODE). Check that .claude/agents/planner.md exists."
+  exit 1
+fi
 
-### Phase 3: Plan Authoring
-- Write the plan in tiered briefing format (see below)
-- Generate the ops.json operations config
-- Include rollback steps for each operation
-- Define success criteria for each step
+echo "$plan_output" | tee "$PLAN_FILE"
+echo ""
+echo "Plan saved to: $PLAN_FILE"
+```
 
-### Phase 4: Review Trigger
-- After the plan is complete, automatically suggest running the reviewer agent
-- Provide the command: `/review`
-
-## Tiered Briefing Format
-
-Structure every plan output as follows:
-
-### TL;DR (3 sentences max)
-What we are doing, why, and the expected outcome.
-
-### Overview
-- **Goal**: One-line objective
-- **Scope**: What is in and out of scope
-- **Approach**: Selected strategy with brief rationale
-- **Risk Level**: Low / Medium / High with justification
-
-### Detailed Steps
-For each step:
-1. **Step N: Title**
-   - Action: What to do
-   - Files: Which files are touched
-   - Rationale: Why this step
-   - Verification: How to confirm it worked
-   - Rollback: How to undo if needed
-
-### ops.json Summary
-- Total operations count
-- Operation types breakdown
-- Estimated complexity
-
-## Forbidden Actions
-
-- Do NOT implement any code changes -- planning only
-- Do NOT modify any existing files
-- Do NOT create branches or make commits
-- Do NOT skip the ops.json generation step
-- Do NOT produce a plan with fewer than 2 steps or more than 30 steps
-- Do NOT assume dependencies exist without verifying
-- Do NOT plan changes to files outside the project directory
-
-## Output
-
-Deliver the plan as a structured document followed by the ops.json file content. End with a clear prompt to run the reviewer agent for validation.
+After output, suggest:
+- `/refine "$ARGUMENTS"` — automatic iterative plan-review loop until score ≥ 90
+- `/review` — single-pass review (auto-detects the saved plan file)

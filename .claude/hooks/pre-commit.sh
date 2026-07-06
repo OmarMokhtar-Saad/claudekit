@@ -1,4 +1,5 @@
 #!/bin/bash
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 set -e
 
 # =============================================================================
@@ -8,7 +9,8 @@ set -e
 # =============================================================================
 
 HOOK_NAME="pre-commit"
-LOG_FILE=".claude/hooks/hooks.log"
+LOG_FILE="$SCRIPT_DIR/hooks.log"
+[ -f "$SCRIPT_DIR/lib.sh" ] && . "$SCRIPT_DIR/lib.sh"
 
 log() {
     local level="$1"
@@ -21,14 +23,14 @@ log() {
 
 get_project_config() {
     local key="$1"
-    local config=".claude/hooks/config.json"
+    local config="$SCRIPT_DIR/config.json"
     if [ -f "$config" ] && command -v python3 &>/dev/null; then
         python3 -c "import json, sys; c=json.load(open(sys.argv[1])); print(c.get('project',{}).get(sys.argv[2],''))" "$config" "$key" 2>/dev/null
     fi
 }
 
 # ---------------------------------------------------------------------------
-# Step 1: Validate ops.json files in operations/
+# Step 1: Validate ops.json files in .claude/plans/
 # ---------------------------------------------------------------------------
 validate_ops_configs() {
     log "INFO" "Validating operations configs..."
@@ -87,7 +89,7 @@ except Exception as e:
         else
             log "INFO" "Valid: $ops_file"
         fi
-    done < <(find operations/ -name "ops.json" 2>/dev/null)
+    done < <(find .claude/plans/ "${OPS_FIND_EXPR[@]}" 2>/dev/null)
 
     return $has_errors
 }
@@ -108,18 +110,23 @@ check_secrets() {
         return 0
     fi
 
-    # Patterns that indicate potential secrets
+    # Patterns that indicate potential secrets.
+    # Deliberately exclude bare `token\s*:` and `password\s*:` (TypeScript type annotations).
+    # Require an actual value after the separator: a quote, digit, or env var reference.
+    # Quote classes come from lib.sh (ERE_QUOTE_CLASS = ["'] , negation = [^"']).
+    # The previous inline `["\x27]` was NOT decoded by grep -E, so single-quoted
+    # secrets slipped through entirely.
+    local q="${ERE_QUOTE_CLASS:-[\"']}"
+    local nq="${ERE_NOT_QUOTE_CLASS:-[^\"']}"
     local patterns=(
-        'api_key\s*[:=]'
-        'apikey\s*[:=]'
-        'api_secret\s*[:=]'
-        'password\s*[:=]'
-        'passwd\s*[:=]'
-        'secret\s*[:=]'
-        'secret_key\s*[:=]'
-        'token\s*[:=]'
-        'access_token\s*[:=]'
-        'private_key'
+        "api_key\\s*[:=]\\s*${q}${nq}{8}"
+        "apikey\\s*[:=]\\s*${q}${nq}{8}"
+        "api_secret\\s*[:=]\\s*${q}${nq}{8}"
+        "password\\s*=\\s*${q}${nq}{4}"
+        "passwd\\s*=\\s*${q}${nq}{4}"
+        "secret_key\\s*[:=]\\s*${q}${nq}{8}"
+        "access_token\\s*[:=]\\s*${q}${nq}{8}"
+        "private_key\\s*[:=]\\s*${q}"
         'BEGIN RSA PRIVATE KEY'
         'BEGIN OPENSSH PRIVATE KEY'
         'BEGIN EC PRIVATE KEY'
@@ -148,8 +155,9 @@ check_secrets() {
     if [ $has_secrets -ne 0 ]; then
         echo ""
         echo "SECRETS CHECK FAILED"
-        echo "Review the warnings above. If these are false positives, use:"
-        echo "  git commit --no-verify"
+        echo "Review the warnings above and remove the secrets from staged content."
+        echo "If these are genuine false positives, refine the patterns in pre-commit.sh"
+        echo "or unstage the file — do NOT bypass with --no-verify (block-no-verify blocks it)."
         return 1
     fi
 

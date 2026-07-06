@@ -1,7 +1,7 @@
 """Shared constants and utilities for CodeManifest scripts."""
 
-__version__ = "3.1.0"
-__all__ = ["__version__", "PROTECTED_PATTERNS", "MAX_FILE_SIZE_BYTES", "is_protected_file"]
+__version__ = "2.1.0"
+__all__ = ["__version__", "PROTECTED_PATTERNS", "is_protected_file"]
 
 import fnmatch
 import os
@@ -26,10 +26,6 @@ PROTECTED_PATTERNS = [
     "Pipfile.lock",
     "tsconfig.json",
 ]
-
-# Maximum file size the executor will process (2 MB)
-MAX_FILE_SIZE_BYTES = 2 * 1024 * 1024
-
 
 def is_protected_file(file_path: str) -> bool:
     """Check if file matches protected patterns.

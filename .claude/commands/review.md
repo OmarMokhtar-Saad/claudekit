@@ -5,91 +5,66 @@ model: opus
 
 # Reviewer Command
 
-Invoke the reviewer agent to validate the most recent implementation plan.
-
-## Agent Reference
-
-See @agents/reviewer.md for the full agent specification.
+Runs the local `reviewer` agent via `claude -p --agent reviewer`.
+Verified mechanism: `--agent <name>` loads `.claude/agents/<name>.md` as system prompt.
+Canonical spawn contract: see `.claude/agents/_shared/INVOCATION.md` (single source of truth).
 
 ## Task
 
 Validate the most recent plan.
 
-## Mandatory Skills
+## Invocation
 
-You MUST load and apply the following skills before proceeding:
+1. Use the Bash tool to auto-detect the latest plan and run the reviewer:
 
-- **using-superpowers** - Core agent capabilities and tool usage
-- **validate-operations-config** - ops.json schema and semantic validation
-- **clean-architecture** - Architectural quality gates
-- **security-checklist** - Security and safety validation
+```bash
+# Find the most recently saved plan
+PLAN_FILE=$(ls -t .claude/plans/plan-*.md 2>/dev/null | head -1)
 
-## Pre-Validation Check
+if [ -z "$PLAN_FILE" ]; then
+  echo "ERROR: No plan files found in .claude/plans/. Run /plan first."
+  exit 1
+fi
 
-Before scoring, verify these prerequisites:
+echo "Reviewing: $PLAN_FILE"
+PLAN_CONTENT=$(cat "$PLAN_FILE")
 
-1. A plan document exists in the current conversation or working directory
-2. An ops.json file is present and parseable
-3. The plan has a clear goal statement
-4. The plan includes at least one verification step
+REVIEWER_MSG="Review the following implementation plan and ops.json.
 
-If ANY prerequisite is missing, REJECT immediately with a clear explanation of what is missing.
+Respond in EXACTLY this format — no deviations:
 
-## Mandatory Rejection Rules
+=== REVIEW ===
+SCORE: <integer 0-100>
+DECISION: APPROVED | CONDITIONAL | REVISE | REJECTED
+CRITICAL_MAJOR_COUNT: <integer>
+ISSUES:
+- [CRITICAL] <issue> — Location: <where> — Fix: <how>
+- [MAJOR] <issue> — Location: <where> — Fix: <how>
+- [MINOR] <issue> — Location: <where> — Fix: <how>
+(write ISSUES: none if no issues found)
+=== END REVIEW ===
 
-Automatically score 0 and REJECT if any of the following are true:
+DECISION RULES:
+APPROVED = score >= 90 AND CRITICAL_MAJOR_COUNT == 0
+CONDITIONAL = score 70-89 OR CRITICAL_MAJOR_COUNT > 0
+REVISE = score < 70
+REJECTED = no ops.json, invalid ops.json, destructive ops without rollback
 
-- ops.json is missing or invalid JSON
-- Plan modifies files outside the project directory
-- Plan includes destructive git operations (force push, reset --hard) without explicit user request
-- Plan has no rollback strategy for any step
-- Plan creates files that duplicate existing functionality without justification
-- Security-sensitive operations lack validation steps
-- Plan violates clean architecture boundaries
+PLAN TO REVIEW:
+$PLAN_CONTENT"
 
-## Scoring Formula
+review_output=$(echo "$REVIEWER_MSG" | claude -p --agent reviewer --model opus --allowedTools "Read,Grep,Glob")
+EXIT_CODE=$?
 
-See the Reviewer agent specification for the scoring formula and evaluation criteria.
+if [ $EXIT_CODE -ne 0 ]; then
+  echo "ERROR: Reviewer agent failed (exit code $EXIT_CODE). Check that .claude/agents/reviewer.md exists."
+  exit 1
+fi
 
-## Output Format
-
-```
-## Plan Review Report
-
-### Summary
-- **Plan**: [plan title or goal]
-- **Score**: [final score]/100
-- **Decision**: APPROVED / REVISE / REJECTED
-
-### Dimension Scores
-| Dimension    | Score | Weight | Weighted | Notes                |
-|--------------|-------|--------|----------|----------------------|
-| Completeness | XX    | 25%    | XX.X     | [brief note]         |
-| Correctness  | XX    | 25%    | XX.X     | [brief note]         |
-| Safety       | XX    | 20%    | XX.X     | [brief note]         |
-| Architecture | XX    | 15%    | XX.X     | [brief note]         |
-| Efficiency   | XX    | 10%    | XX.X     | [brief note]         |
-| Clarity      | XX    | 5%     | XX.X     | [brief note]         |
-
-### Issues Found
-1. [CRITICAL/MAJOR/MINOR] Description of issue
-   - Location: where in the plan
-   - Suggestion: how to fix
-
-### ops.json Validation
-- Schema valid: YES/NO
-- Operations count: N
-- Semantic issues: [list or "None"]
+echo "$review_output"
 ```
 
-## Decision Logic
-
-- **Score >= 90**: APPROVED -- proceed to implementation with `/implement`
-- **Score 70-89**: REVISE -- send back to planner with specific feedback, suggest `/plan` with refined arguments
-- **Score < 70**: REJECTED -- fundamental issues must be resolved, explain why
-
-## Post-Review
-
-- If APPROVED: suggest running `/implement`
-- If REVISE: list the specific changes needed and suggest re-running `/plan`
-- If REJECTED: provide a clear explanation and suggest a different approach
+2. After output, suggest:
+   - If APPROVED (score ≥ 90): run `/implement`
+   - If CONDITIONAL/REVISE: address issues and re-run `/plan` or `/refine`
+   - If REJECTED: restate the task more narrowly and re-run `/plan`

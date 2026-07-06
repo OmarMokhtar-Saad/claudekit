@@ -1,6 +1,6 @@
 ---
 name: insecure-defaults
-description: Detect insecure default configurations, hardcoded credentials, fail-open security patterns, and dangerous default values across configuration files and code.
+description: Use when checking for insecure defaults — detects hardcoded credentials, fail-open patterns, and dangerous default values in configuration files and code.
 user-invocable: false
 allowed-tools: Read, Grep, Glob
 ---

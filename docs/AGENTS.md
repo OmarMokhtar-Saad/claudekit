@@ -1,6 +1,8 @@
 # Agents
 
-ClaudeKit ships 13 specialized agents, each with a single responsibility.
+ClaudeKit ships 28 specialized agents, each with a single responsibility. The
+core orchestration agents are documented in detail below; run `ck agents` (or
+`claudekit agents`) to list every installed agent, including the extended suite.
 
 ## Agent Summary
 
@@ -58,7 +60,7 @@ ClaudeKit ships 13 specialized agents, each with a single responsibility.
 - Architecture: 30% — Layer compliance, dependency direction
 - Security: 30% — No secrets, input validation, safe operations
 
-**Auto-reject triggers**: Missing ops.json, >5 operations, architecture violations.
+**Auto-reject triggers**: Missing ops.json, architecture violations.
 
 ## Implementer
 

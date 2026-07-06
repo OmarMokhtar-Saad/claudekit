@@ -10,7 +10,7 @@ import pytest
 SCRIPTS_DIR = os.path.join(os.path.dirname(__file__), '..', '.claude', 'operations', 'scripts')
 sys.path.insert(0, SCRIPTS_DIR)
 
-from shared import is_protected_file, PROTECTED_PATTERNS, MAX_FILE_SIZE_BYTES
+from shared import is_protected_file, PROTECTED_PATTERNS
 
 
 class TestProtectedFiles:
@@ -50,9 +50,6 @@ class TestConstants:
         parts = __version__.split('.')
         assert len(parts) == 3
         assert all(p.isdigit() for p in parts)
-
-    def test_max_file_size(self):
-        assert MAX_FILE_SIZE_BYTES == 2 * 1024 * 1024
 
     def test_protected_patterns_not_empty(self):
         assert len(PROTECTED_PATTERNS) > 0

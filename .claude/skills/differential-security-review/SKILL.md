@@ -1,6 +1,6 @@
 ---
 name: differential-security-review
-description: Security-focused differential review of code changes with git history analysis. Detect regressions, removed security controls, and newly introduced vulnerabilities in diffs.
+description: Use when reviewing code changes for security regressions — detects removed security controls and newly introduced vulnerabilities via git diff analysis.
 user-invocable: false
 allowed-tools: Read, Bash, Grep, Glob
 ---

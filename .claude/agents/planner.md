@@ -134,35 +134,50 @@ Write the implementation plan as a structured document.
 
 Create the ops.json file that maps directly to the plan steps.
 
-**ops.json format:**
+**The `generate-operations-config` skill is the single source of truth for the ops.json
+schema.** Load it and follow the CANONICAL SCHEMA there — do NOT invent fields. The schema
+below is a summary; if it ever disagrees with the skill, the skill wins.
+
+**ops.json format (MODERN — required for all new plans):**
 ```json
 {
-  "version": "1.0",
-  "plan_ref": "plan.md",
+  "plan": "kebab-case-plan-name",
   "operations": [
     {
-      "id": "step-1",
-      "type": "create|modify|delete|move|rename",
-      "file": "path/to/file",
-      "description": "What this operation does",
-      "changes": [
-        {
-          "action": "insert|replace|delete|append",
-          "target": "line number, function name, or search pattern",
-          "content": "the new content to insert or replace with"
-        }
-      ],
-      "dependencies": [],
-      "rollback": "description of how to undo"
+      "type": "file_create",
+      "path": "src/module/new_file.py",
+      "content": "<full file content as a string>"
+    },
+    {
+      "type": "file_delete",
+      "path": "src/module/deprecated.py",
+      "reason": "Removing deprecated module (min 10 chars)"
+    },
+    {
+      "type": "code_edit",
+      "path": "src/module/file.py",
+      "edits": [
+        { "find": "def old_function(x):", "replace": "def new_function(x, y=None):" }
+      ]
     }
-  ],
-  "validation": {
-    "build_command": "command to verify build succeeds",
-    "test_command": "command to run tests",
-    "lint_command": "command to run linter"
-  }
+  ]
 }
 ```
+
+**Hard rules the validator enforces (violating any one rejects the whole config):**
+- Top-level key is `plan` (kebab-case string) — NOT `version`, `plan_ref`, or `description`.
+- Operation `type` is exactly one of `file_create`, `file_delete`, `code_edit` — NOT
+  `create`, `modify`, `delete`, `move`, or `rename`.
+- Paths use the `path` key — NOT `file` or `target`.
+- `code_edit` uses an `edits` array; each entry has `find` + exactly one of
+  `replace` / `add_after` / `add_before` / `delete: true` — NOT a `changes`/`action` block.
+- `additionalProperties: false` — only `type`, `path`, the type-specific field, and optional
+  `id`/`description` are allowed. Rollback, dependency, and validation notes go in **plan.md**,
+  not ops.json.
+- Max 3 `file_delete` operations per config (GUARD 26); split larger deletions across files.
+
+After writing ops.json, validate it immediately:
+`python3 .claude/operations/scripts/validate-config-json.py <ops-file>` — fix any FAIL before handoff.
 
 ### Phase 4: Save Outputs
 
@@ -267,16 +282,18 @@ Risk Level: <Low|Medium|High>
 
 ## Operations Config Rules
 
-When generating ops.json:
+When generating ops.json (schema owned by `generate-operations-config`):
 
 1. **Every plan step MUST map to at least one operation**
-2. **Operations MUST be ordered by dependency** (independent ops first)
-3. **Each operation MUST have a rollback description**
-4. **File paths MUST be relative to project root**
-5. **Content strings MUST be exact** (no pseudocode or placeholders)
-6. **Search patterns MUST be unique** within the target file
-7. **Dependencies MUST reference operation IDs** that exist in the config
-8. **Validation commands MUST be runnable** from project root
+2. **Operations MUST be ordered by dependency** (independent ops first) — encode order by
+   position in the `operations` array; the schema has no `dependencies` field.
+3. **Rollback, dependency, and validation notes live in plan.md**, not ops.json (the schema
+   forbids extra fields).
+4. **File paths MUST be relative to project root** (`path` key)
+5. **`content` and `find` strings MUST be exact** — full file text for `file_create`; `find`
+   copied verbatim from the Read tool output (exact whitespace), no pseudocode or placeholders.
+6. **`find` patterns MUST be unique** within the target file
+7. **Every ops.json MUST pass `validate-config-json.py`** before handoff to the Reviewer.
 
 ---
 
@@ -299,11 +316,11 @@ Before handing off to the Reviewer, verify:
 
 - [ ] Plan has a clear overview and scope
 - [ ] Every step specifies the target file and action
-- [ ] ops.json exists and is valid JSON
+- [ ] ops.json exists and PASSES `validate-config-json.py`
 - [ ] Every plan step has a corresponding ops.json operation
 - [ ] All file paths are correct and relative to project root
-- [ ] Validation commands are included
-- [ ] Rollback descriptions are present
+- [ ] Validation commands are documented in plan.md (not ops.json)
+- [ ] Rollback descriptions are documented in plan.md (not ops.json)
 - [ ] Risk assessment is included
 - [ ] Testing strategy is defined
 - [ ] No placeholder or TODO content remains

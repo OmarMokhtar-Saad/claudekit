@@ -102,8 +102,6 @@ The following files cannot be deleted via operations config:
 - `tsconfig.json`, `go.mod`, `Cargo.toml`
 
 ### Section 3: Safety Limits
-- Maximum 5 operations per config
-- Maximum 3 file deletions per config
 - Deletion reason minimum: 10 characters
 - Automatic backup before all operations
 
@@ -156,7 +154,6 @@ All implementation plans must include:
 - Missing operations config folder
 - Missing ops.json file
 - Architecture violations
-- Exceeds 5 operations per config
 
 ### Section 4: Escalation
 - Maximum 3 plan/review iterations before user escalation

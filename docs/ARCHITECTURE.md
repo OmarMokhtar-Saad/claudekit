@@ -30,7 +30,7 @@ ClaudeKit is a multi-agent orchestration framework for Claude Code. It provides 
 ```
 claudekit/
 ├── .claude/
-│   ├── agents/           # 13 specialized agent definitions
+│   ├── agents/           # 28 specialized agent definitions
 │   │   ├── _shared/      # Shared agent configuration
 │   │   ├── coordinator.md
 │   │   ├── planner.md
@@ -45,8 +45,8 @@ claudekit/
 │   │   ├── security-scanner.md
 │   │   ├── devops.md
 │   │   └── database-architect.md
-│   ├── commands/         # 17 slash commands
-│   ├── skills/           # 44 skill modules + registry
+│   ├── commands/         # 39 slash commands
+│   ├── skills/           # 73 skill modules + registry
 │   │   ├── skills-registry.json
 │   │   └── <skill-name>/SKILL.md
 │   ├── hooks/            # Lifecycle hooks
@@ -466,7 +466,7 @@ Skills are markdown documents with YAML frontmatter, organized as self-contained
 ├── golden-rule/SKILL.md          # Mandatory: no code changes without approval
 ├── writing-plans/SKILL.md        # Planner: plan structure and ops.json
 ├── systematic-debugging/SKILL.md # Debugger: 4-phase investigation
-├── ...                           # 44 skills total
+├── ...                           # 73 skills total
 ```
 
 ### Registry Structure
@@ -474,7 +474,7 @@ Skills are markdown documents with YAML frontmatter, organized as self-contained
 The `skills-registry.json` contains:
 
 - **skills array**: Every skill with id, name, path, mandatory flag, usedBy agents, description
-- **agentMapping**: Maps each of the 13 agents to its ordered list of skill IDs
+- **agentMapping**: Maps each of the 28 agents to its ordered list of skill IDs
 - **version**: Registry format version for compatibility checks
 
 ### Skill Loading Protocol
@@ -519,9 +519,31 @@ The `skills-registry.json` contains:
 
 ClaudeKit implements defense-in-depth security across multiple layers.
 
+> **Speed bump, not a sandbox.** The command and path validators are a
+> *denylist speed bump*: they raise the cost of an accidental or low-effort
+> destructive operation. They are **not** a security boundary and will not
+> contain a determined adversary (obfuscation, novel interpreters, and
+> environment-dependent shell expansion can evade a static check). For real
+> isolation, run Claude Code under OS-level sandboxing (containers, seccomp,
+> restricted users). See `SECURITY.md`.
+
 ### Layer 1: Command Validation
 
-The `CommandValidator` (`src/security/command_validator.py`) validates every shell command:
+The `CommandValidator` (`src/claudekit/security/command_validator.py`) is wired
+into a **`PreToolUse` Bash hook** (`.claude/hooks/command-guard.sh`) and exposed
+as `claudekit check-command "<cmd>"`. It inspects **every** segment of a chained
+command (`a && b`, `a | b`, `a; b`) plus the contents of command substitutions
+(`$(...)`, backticks) — not just the first word.
+
+Rollout is gated by `ECC_HOOK_PROFILE`:
+
+| Profile    | Behavior                                              |
+|------------|-------------------------------------------------------|
+| `strict`   | **Blocks** (exit 2 + reason on stderr); fail-closed   |
+| `standard` | **Warns** only (default) — logs what it would block   |
+| `minimal`  | Off                                                   |
+
+Validation pipeline:
 
 ```
   Command Input
@@ -532,17 +554,25 @@ The `CommandValidator` (`src/security/command_validator.py`) validates every she
   +--------+---------+
            |
   +--------v---------+
-  | Blocklist check  |  Block: rm -rf /, sudo rm, eval, curl|bash
+  | Pattern check    |  Block: eval/exec, IFS evasion, redirect to
+  |                  |  /etc /dev /sys, find -delete/-exec, python
+  |                  |  os.system()/subprocess smuggling, fork bombs
   +--------+---------+
            |
   +--------v---------+
-  | Pattern check    |  Block: pipe to bash, redirect to /etc,
-  |                  |  command chaining with dangerous ops
+  | Substitution     |  Validate $(...) / backtick payloads
+  | check            |  (blocklist-only, so $(date) passes)
   +--------+---------+
            |
   +--------v---------+
-  | Allowlist check  |  Safe mode: only allowlisted commands pass
-  | (safe mode)      |  Unsafe mode: pass if not in blocklist
+  | Segment split    |  Split on ; && || | & and validate EACH
+  |                  |  segment's base command (rm, sudo, curl…)
+  +--------+---------+
+           |
+  +--------v---------+
+  | Blocklist +      |  Block: rm, sudo, curl, dd, chmod…
+  | Allowlist (safe) |  Safe mode: base must be allowlisted.
+  |                  |  bash/sh/env/xargs are NOT allowlisted.
   +--------+---------+
            |
            v
@@ -551,13 +581,19 @@ The `CommandValidator` (`src/security/command_validator.py`) validates every she
 
 ### Layer 2: Path Guarding
 
-The `PathGuard` (`src/security/path_guard.py`) validates all file paths:
+The `PathGuard` (`src/claudekit/security/path_guard.py`) is exposed as
+`claudekit check-path <path>` and validates file paths at **component**
+granularity (so `my.envelope.txt` is not mistaken for `.env`):
 
 - **Project boundary**: Paths must resolve within the project root
 - **Traversal detection**: Blocks `../` sequences after path resolution
+- **Symlink escapes**: Follows symlinks (relative targets resolved against the
+  link's own directory) and blocks any that point outside the project root
+- **Protected files**: `.env`, `.git/config`, `.ssh/`, `.aws/credentials`, etc.,
+  matched per path component (not substring)
 - **Null byte injection**: Rejects paths containing `\x00`
-- **System path protection**: Blocks `/etc/`, `/usr/`, `/var/`, and other system directories
-- **Directory depth limits**: Prevents excessively deep directory creation
+- **System path protection**: Blocks `/etc`, `/usr`, `/dev`, and other system directories
+- **Directory depth limits**: Prevents excessively deep directory creation (> 20 levels)
 - **Empty path rejection**: Blank paths are rejected
 
 ### Layer 3: Operations Safety

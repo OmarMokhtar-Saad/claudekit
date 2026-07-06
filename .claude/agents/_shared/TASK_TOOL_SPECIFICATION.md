@@ -2,6 +2,11 @@
 
 Patterns for using the Task tool to spawn subagents in ClaudeKit workflows.
 
+> **Authority:** `_shared/INVOCATION.md` is the single source of truth for how agents are
+> spawned. The verified default is scoped headless `claude -p --agent … --allowedTools …`
+> (never `--dangerously-skip-permissions`). The Task-tool patterns below apply only where a
+> workflow uses the Task tool; they must still load the agent definition explicitly in-prompt.
+
 ---
 
 ## Overview

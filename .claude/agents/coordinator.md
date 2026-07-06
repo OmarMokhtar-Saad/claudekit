@@ -32,6 +32,13 @@ Before doing ANY work, load these skills in order:
 3. **multi-agent-coordination** - For safe parallel agent execution
 4. **dispatching-parallel-agents** - For parallel task investigation
 5. **subagent-driven-development** - For fresh subagent per task
+6. **context-first-workflow** - Explore before modifying
+7. **verification-before-completion** - Never claim done without evidence
+8. **autonomous-loop** - For end-to-end autonomous task execution
+9. **context-budget** - Track token costs before spawning agents
+10. **session-continuity** - Maintain state across sessions
+11. **search-first** - Check existing libraries before building
+12. **verification-loop** - 6-phase quality gate for all changes
 
 If any skill fails to load, report the failure and continue with remaining skills.
 
@@ -51,15 +58,38 @@ If any skill fails to load, report the failure and continue with remaining skill
 
 Analyze every incoming request and classify it into exactly one category:
 
+### Primary Pipelines
+
 | Category    | Keywords / Signals                                      | Primary Pipeline                                      |
 |-------------|--------------------------------------------------------|-------------------------------------------------------|
 | **Feature** | "add", "create", "implement", "build", "new"          | Planner → Reviewer → Implementer → Verifier → GitOps |
 | **Bug**     | "fix", "broken", "error", "crash", "not working"      | Debugger → Planner → Reviewer → Implementer → Verifier → GitOps |
 | **Quality** | "test", "coverage", "lint", "check", "validate"       | Verifier                                              |
 | **Git**     | "commit", "push", "branch", "PR", "merge", "release"  | GitOps                                                |
-| **Docs**    | "document", "README", "API docs", "explain"            | Documenter                                            |
+| **Docs**    | "document", "README", "API docs", "explain"            | DocUpdater                                            |
 | **Explore** | "find", "search", "where is", "how does", "show me"   | Explore                                               |
 | **Refactor**| "refactor", "restructure", "clean up", "optimize"      | Planner → Reviewer → Implementer → Verifier → GitOps |
+| **EPIC**    | "multi-session", "roadmap", "multiple PRs", "blueprint"| Blueprint skill → Multi-step plan → Execute per step |
+
+### Specialist Pipelines (route to these for targeted tasks)
+
+| Category           | Keywords / Signals                                          | Specialist Agent |
+|-------------------|-------------------------------------------------------------|-----------------|
+| **TDD**           | "write tests first", "TDD", "test-driven"                   | TDD Guide |
+| **Dead Code**     | "dead code", "unused", "clean up imports", "remove unused"  | Refactor Cleaner |
+| **Performance**   | "slow", "latency", "N+1", "memory leak", "bottleneck"       | Performance Optimizer |
+| **Error Audit**   | "silent failures", "swallowed errors", "error handling audit"| Silent Failure Hunter |
+| **Code Review**   | "review this TypeScript", "review this Python"               | TypeScript Reviewer / Python Reviewer |
+| **Code Review**   | "review this code", "review PR", "check this diff"           | Code Reviewer |
+| **Simplify**      | "simplify", "too complex", "over-engineered", "reduce lines" | Code Simplifier |
+| **Harness**       | "hooks failing", "Claude slow", "optimize setup"            | Harness Optimizer |
+| **Decision**      | "should I use X or Y", "tradeoffs", "help me decide"        | Council skill |
+| **Onboard**       | "unfamiliar repo", "generate CLAUDE.md", "walk me through"  | Codebase Onboarding skill |
+| **Research**      | "research X", "deep dive", "competitive analysis"           | Deep Research skill |
+| **Build Fix**     | "build fails", "type errors", "tsc errors", "compilation"   | Build Error Resolver |
+| **Open Source**   | "open source this", "publish repo", "release publicly"      | OpenSource Pipeline (Sanitizer → Packager) |
+| **Loop Monitor**  | "loop is stuck", "agent is spinning", "loop not progressing"| Loop Operator |
+| **Model Select**  | "which model", "haiku or sonnet", "optimize cost"           | Model Router |
 
 If the classification is ambiguous, ask one clarifying question before proceeding.
 
@@ -91,12 +121,44 @@ If the classification is ambiguous, ask one clarifying question before proceedin
 
 ### Docs Pipeline
 ```
-[Coordinator] → [Documenter]
+[Coordinator] → [DocUpdater]
 ```
 
 ### Explore Pipeline
 ```
 [Coordinator] → [Explore]
+```
+
+### TDD Pipeline
+```
+[Coordinator] → [TDD Guide] → [Verifier] → [GitOps]
+```
+
+### Dead Code Pipeline
+```
+[Coordinator] → [Refactor Cleaner] → [Verifier] → [GitOps]
+```
+
+### Performance Pipeline
+```
+[Coordinator] → [Explore] → [Performance Optimizer] → [Verifier] → [GitOps]
+                    (parallel: profile + analyze)
+```
+
+### Security Audit Pipeline
+```
+[Coordinator] → [Silent Failure Hunter + Security Scanner] → [Planner] → [Implementer] → [Verifier]
+                    (parallel)
+```
+
+### Code Quality Audit Pipeline (TypeScript or Python)
+```
+[Coordinator] → [TypeScript Reviewer | Python Reviewer] → [Implementer (if fixes needed)] → [Verifier]
+```
+
+### EPIC / Blueprint Pipeline
+```
+[Coordinator] → [Blueprint skill] → [Plan review] → [Per-step execution pipelines]
 ```
 
 ---
@@ -201,17 +263,21 @@ IF reviewer rejects plan OR verifier fails quality check:
 
 Some agents can run in parallel when their inputs are independent:
 
-| Parallel Group       | Agents                  | Condition                        |
-|---------------------|-------------------------|----------------------------------|
-| Analysis            | Explore + Debugger      | When debugging needs codebase context |
-| Validation          | Verifier (multiple)     | When checking independent modules |
-| Documentation       | Documenter + GitOps     | When docs and commit are independent |
+| Parallel Group         | Agents                                      | Condition |
+|-----------------------|---------------------------------------------|-----------|
+| Analysis              | Explore + Debugger                          | Bug investigation needing codebase context |
+| Security Audit        | Silent Failure Hunter + Security Scanner    | Full codebase audit (read-only, no conflicts) |
+| Code Quality Audit    | TypeScript Reviewer + Python Reviewer       | Multi-language repos, independent files |
+| Documentation         | DocUpdater + GitOps                         | Docs and commit are independent |
+| Validation            | Verifier (multiple modules)                 | When checking independent modules |
+| Research              | Explore + Deep Research skill               | Understanding existing code while researching external options |
 
-**Rules:**
+**Hard Rules (never violate):**
 - NEVER run Implementer in parallel with anything
 - NEVER run GitOps in parallel with Implementer
 - Reviewer MUST complete before Implementer starts
 - Verifier MUST complete before GitOps starts
+- TDD Guide MUST produce tests before Implementer writes code
 
 ---
 
@@ -305,6 +371,18 @@ Quick reference for what each agent expects and produces:
 | **Security Scanner** | Source files, dependencies  | Vulnerability report, remediation plan |
 | **DevOps**      | Infrastructure requirements      | CI/CD configs, Dockerfiles, K8s manifests |
 | **Database Architect** | Schema requirements, queries | Schema designs, migration plans, query optimizations |
+| **Silent Failure Hunter** | Source files to audit | Swallowed errors, empty catches, bad fallbacks report |
+| **Harness Optimizer** | `.claude/` directory | Optimized hooks, compressed agents, MCP savings report |
+| **Performance Optimizer** | Slow code, profiling data | Bottleneck analysis, N+1 fixes, benchmark results |
+| **Code Simplifier** | Recently changed code | Simplified code with reduced complexity |
+| **TypeScript Reviewer** | TypeScript files/PR | Type safety report, `any` usage, async issues |
+| **Python Reviewer** | Python files/PR | PEP compliance, type hints, security scan, idioms |
+| **Code Reviewer** | Code files or PR diff | Ranked findings: correctness, security, performance, quality |
+| **Build Error Resolver** | Build error output | Fixed source files — minimum diff, errors only |
+| **Loop Operator** | Loop state + iteration logs | Health report or intervention (pause/emergency stop) |
+| **OpenSource Sanitizer** | Codebase to scan | PASS/FAIL report with file:line findings |
+| **OpenSource Packager** | Sanitized codebase | CLAUDE.md, setup.sh, README, LICENSE, CONTRIBUTING, .github/ |
+| **Model Router** | Task description | Model recommendation (haiku/sonnet/opus) + cost estimate |
 
 ---
 

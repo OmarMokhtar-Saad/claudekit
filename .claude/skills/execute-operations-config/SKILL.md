@@ -1,23 +1,32 @@
 ---
 name: execute-operations-config
-description: "Use after /validate-ops - executes approved ops.json with backup and verification"
+description: "Use after /validate-ops - executes approved ops.json via execute-json-ops.py with backup and rollback"
 disable-model-invocation: true
-allowed-tools: Read, Write, Edit, Bash, Grep, Glob
+allowed-tools: Read, Bash, Grep, Glob
 ---
 
 # Execute Operations Config
 
 ## Core Principle
 
-**Execute only validated, approved operations.** Every execution includes backup, verification, and rollback capability.
+**Never apply ops.json changes by hand.** All changes are applied by the execution engine,
+`execute-json-ops.py`, which provides atomic ordering, automatic pre-change backup, and
+automatic rollback on failure.
+
+> ## IRON LAW (matches the Implementer agent)
+> Direct use of the **Edit** or **Write** tools to apply an operation is FORBIDDEN — with or
+> without ops.json. The `ops-enforcement.sh` hook blocks manual edits to files under an ops
+> plan. The only permitted way to apply changes is the execution script below. If the executor
+> can't apply an operation, STOP and report — do not hand-edit around it.
 
 ---
 
 ## Prerequisites
 
 Before execution, confirm:
-- [ ] ops.json has been generated (generate-operations-config)
-- [ ] ops.json has been validated (validate-operations-config) with PASS verdict
+- [ ] ops.json has been generated (`generate-operations-config`) in the canonical MODERN schema
+      (`plan` + `operations[]` of `file_create` / `file_delete` / `code_edit`)
+- [ ] ops.json has PASSED `validate-config-json.py`
 - [ ] User has approved the operations (golden-rule)
 
 If ANY prerequisite is missing, **STOP** and complete it first.
@@ -27,209 +36,105 @@ If ANY prerequisite is missing, **STOP** and complete it first.
 ## The Execution Process
 
 ```
-[STEP 1] Final dry-run confirmation
+[STEP 1] Dry run   -> execute-json-ops.py <ops.json> --dry-run
     |
     v
-[STEP 2] Execute operations in order
+[STEP 2] Execute   -> execute-json-ops.py <ops.json>   (auto-backup + auto-rollback)
     |
     v
-[STEP 3] Verify each operation succeeded
+[STEP 3] Verify    -> run the plan.md build/test/lint commands
     |
     v
-[STEP 4] Run final verification command
-    |
-    v
-[REPORT] Summary of all changes
+[REPORT] Summary of changes + backup location for rollback
 ```
 
----
+## Step 1: Dry Run
 
-## Step 1: Final Dry-Run
-
-Even though validation passed, run one final check:
-
-1. Verify all target files still exist and have not changed since validation
-2. If files have changed, STOP and re-validate
-3. Confirm: "Dry-run passed. Proceeding with execution."
-
----
-
-## Step 2: Execute Operations
-
-Process each operation in `execution_order`:
-
-### Edit Operations
-
-```
-1. Read current file content
-2. Find the search string
-3. Apply the replacement
-4. Write the modified content using Edit tool
-5. Verify the edit took effect
+```bash
+python3 .claude/operations/scripts/execute-json-ops.py <ops.json> --dry-run
 ```
 
-### Create Operations
+Review the preview:
+- Every operation targets the expected file, with the expected change
+- No unexpected file is touched
+- If anything looks wrong → STOP, fix ops.json, re-validate, re-dry-run
 
-```
-1. Prepare content (from inline, template, or copy source)
-2. Write the file using Write tool
-3. Verify the file exists
-```
+## Step 2: Execute
 
-### Delete Operations
-
-```
-1. Confirm file exists
-2. Note the file path for rollback record
-3. Delete the file
-4. Verify deletion
+```bash
+python3 .claude/operations/scripts/execute-json-ops.py <ops.json>
 ```
 
-### Move Operations
+The engine, not you, applies each operation:
+- It backs up every file it will modify or delete **before** touching anything
+  (manifest compatible with `restore-backup.py`).
+- It applies operations in array order.
+- On ANY failure it **automatically rolls back** the whole batch from the backup.
 
-```
-1. Confirm source exists and destination does not
-2. Execute the move
-3. Verify source is gone and destination exists
-```
+Do not use Edit/Write to "finish" a partial run. If the run fails, read the engine's output,
+fix the ops.json, and re-run the script from the dry-run step.
 
-### Execution Rules
+## Step 3: Verify
 
-- Execute operations **one at a time** in the specified order
-- After each operation, verify it succeeded before proceeding
-- If ANY operation fails, **STOP** immediately
-- Do not attempt to continue past a failed operation
-- Record the result of each operation for the report
+Run the build / test / lint commands recorded in **plan.md** (they are not stored in ops.json):
 
----
-
-## Step 3: Per-Operation Verification
-
-After each operation, run its `verification` command if specified:
-
-```
-Operation op-001: EXECUTED
-  Verification: grep -n 'def new_function' src/module/file.py
-  Result: PASS (found at line 42)
-
-Operation op-002: EXECUTED
-  Verification: test -f src/module/new_file.py
-  Result: PASS (file exists)
+```bash
+# examples — use the project's real commands from plan.md
+python3 -m pytest -q
+ruff check src/ tests/
 ```
 
-If verification fails:
-1. Record the failure
-2. Stop execution
-3. Report which operation failed and why
-4. Provide rollback instructions
-
----
-
-## Step 4: Final Verification
-
-After all operations complete successfully:
-
-1. Run the `verification_command` from ops.json (typically test suite)
-2. Record the full output
-3. Determine PASS or FAIL
-
-```
-Final Verification: npm test
-Result: PASS (47 tests passed, 0 failed)
-```
-
-If final verification fails:
-- Report which tests/checks failed
-- Provide the test output
-- Suggest investigation steps
-- Offer rollback
+Record the output and determine PASS or FAIL. If verification FAILS, offer rollback (below).
 
 ---
 
 ## Execution Report
-
-After execution completes, provide:
 
 ```
 ## Execution Report
 
 ### Summary
-- Operations executed: [N] of [M]
-- Status: SUCCESS / PARTIAL / FAILED
+- Operations executed: [N] of [M]   (engine reports this; SUCCESS means all M applied)
+- Status: SUCCESS / ROLLED BACK
 
 ### Operations
-| ID | Type | Target | Status |
-|---|---|---|---|
-| op-001 | edit | src/module/file.py | SUCCESS |
-| op-002 | create | src/module/new_file.py | SUCCESS |
-| op-003 | delete | src/module/deprecated.py | SUCCESS |
+| Type        | Path                        | Status  |
+|-------------|-----------------------------|---------|
+| code_edit   | src/module/file.py          | SUCCESS |
+| file_create | src/module/new_file.py      | SUCCESS |
+| file_delete | src/module/deprecated.py    | SUCCESS |
 
 ### Verification
-- Per-operation checks: [N] PASS, [N] FAIL
-- Final verification: PASS / FAIL
-
-### Files Changed
-- Modified: [list]
-- Created: [list]
-- Deleted: [list]
+- Build/test/lint (from plan.md): PASS / FAIL
 
 ### Rollback
-If rollback needed, execute in this order:
-1. [rollback step 1]
-2. [rollback step 2]
-3. [rollback step 3]
+- Backup created at: <path printed by the engine>
+- To roll back:  /rollback latest   (or restore-backup.py --list then restore)
 ```
 
 ---
 
-## Rollback Instructions
+## Rollback
 
-If the user requests rollback:
-
-### Using Git (preferred)
+The engine rolls back automatically on a failed run. To undo a **completed** run afterward,
+use the backup it created — never hand-revert:
 
 ```bash
-git checkout -- <modified files>
-git clean -f <created files>
+python3 .claude/operations/scripts/restore-backup.py --list      # find the backup
+python3 .claude/operations/scripts/restore-backup.py <backup-name>
 ```
 
-### Manual Rollback
-
-Follow the `rollback_order` from ops.json, reversing each operation:
-- For `edit`: reverse the search/replace
-- For `create`: delete the created file
-- For `delete`: restore from git or backup
-- For `move`: move back to original location
+Or run the `/rollback` command, which wraps `restore-backup.py`.
 
 ---
 
 ## Error Handling
 
-### Operation Fails to Apply
+### The engine reports a failed operation
+The batch has already been rolled back. Read the reason (pattern not found, path outside
+project, protected file, etc.), fix ops.json, re-validate, and re-run from Step 1.
+**Do not** attempt a manual Edit to patch the single failing operation.
 
-```
-ERROR: Operation [id] failed
-Reason: [search string not found / file not writable / etc.]
-Action: Execution halted at operation [id]
-Completed: [N] of [M] operations
-Rollback: [provide rollback for completed operations]
-```
-
-### Verification Fails
-
-```
-WARNING: Operation [id] applied but verification failed
-Verification command: [command]
-Expected: [expected result]
-Actual: [actual result]
-Action: Investigate before continuing
-```
-
-### Final Verification Fails
-
-```
-WARNING: All operations applied but final verification failed
-Command: [verification command]
-Output: [output]
-Action: Review test failures, may need rollback
-```
+### Verification fails after a clean run
+All operations applied but the build/tests fail. Investigate; if the change is bad, roll back
+with `restore-backup.py` / `/rollback`, then revise the plan and ops.json.

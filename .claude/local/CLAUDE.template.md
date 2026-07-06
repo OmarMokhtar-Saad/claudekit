@@ -43,7 +43,7 @@
 
 ## ClaudeKit Integration
 
-This project uses [ClaudeKit](https://github.com/omarmokhtar/claudekit) for multi-agent workflows.
+This project uses [ClaudeKit](https://github.com/OmarMokhtar-Saad/claudekit) for multi-agent workflows.
 
 ### AI-Assisted Code Changes (MANDATORY)
 

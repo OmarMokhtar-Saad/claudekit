@@ -30,15 +30,27 @@ Before writing any code, verify ALL of the following:
 
 1. An approved plan exists (review score >= 90 or explicit user override)
 2. ops.json is present, valid, and parseable
-3. All target directories exist or can be created
-4. No conflicting uncommitted changes in the working tree
-5. All dependencies referenced in the plan are available
+3. **Run the Python validator** (MANDATORY — do not skip):
+   ```bash
+   python3 .claude/operations/scripts/validate-config-json.py <path-to-ops.json>
+   ```
+   If it exits non-zero or prints FAIL, STOP. Fix ops.json and re-run `/review` before proceeding.
+4. **Run the dry-run executor** (MANDATORY — do not skip):
+   ```bash
+   python3 .claude/operations/scripts/execute-json-ops.py <path-to-ops.json> --dry-run
+   ```
+   If it exits non-zero, STOP. The ops.json has a runtime issue that must be resolved first.
+5. No conflicting uncommitted changes in the working tree
+6. All dependencies referenced in the plan are available
 
-If ANY check fails, STOP and report the failure. Do NOT proceed without a valid ops.json.
+If ANY check fails, STOP and report the failure. Do NOT proceed without a validator PASS and a dry-run exit 0.
 
 ## IRON LAW
 
-Execute operations EXACTLY as specified in ops.json. Do not improvise, skip steps, or reorder operations unless a blocking error requires it. If you must deviate, document the deviation and the reason.
+Execute operations EXACTLY as specified in ops.json using execute-json-ops.py.
+Direct Edit or Write tool use is PERMANENTLY FORBIDDEN — even for minor post-script fixes.
+If ops.json is missing, STOP immediately. Do not proceed. Return to the Planner.
+If you must deviate from the ops.json spec, you need explicit user authorization.
 
 ## Script Execution Workflow
 

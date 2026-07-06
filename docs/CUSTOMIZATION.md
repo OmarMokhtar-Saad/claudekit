@@ -126,11 +126,9 @@ PROTECTED_PATTERNS = [
 ]
 ```
 
-### Changing Operation Limits
+### Operation Limits
 
-Edit `.claude/operations/scripts/operations-schema.json`:
-- `maxItems`: Change max operations per config (default: 5)
-- Deletion limit: Enforced in validator (default: 3)
+There are no count or size limits on operations. The validator enforces structural correctness (valid types, existing paths, non-empty content) but not quantity. Split ops.json into sequenced files only when it aids review clarity.
 
 ## Customizing Hooks
 
@@ -185,4 +183,10 @@ To update an existing installation:
 ./install.sh /path/to/project --force
 ```
 
-This overwrites the `.claude/` directory. Your customizations in `CLAUDE.project.md` and `CONSTITUTION.md` will be regenerated from templates, so back them up first or use version control.
+This overwrites the `.claude/` directory. The installer first stages the new
+files and takes a timestamped **backup** of your existing `.claude/` (and writes
+a `.claudekit-manifest.json` recording versions + per-file checksums) before
+atomically swapping them in — so an interrupted run never leaves a half-written
+install. Your customizations in `CLAUDE.project.md` and `CONSTITUTION.md` are
+regenerated from templates; recover prior versions from the backup or from
+version control if needed.
