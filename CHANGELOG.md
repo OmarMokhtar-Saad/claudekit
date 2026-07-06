@@ -49,6 +49,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   fails CI when any doc hard-codes a stale count (the new `docs-drift` gate).
 - CI: whole-suite test job, macOS matrix, `install.sh → doctor` integration job, coverage
   gate, `ruff`/`mypy` lint, dangling-hook-path check, and SHA-pinned actions + Dependabot.
+- Wheel now bundles the runtime asset tree (`setup.py` → `<prefix>/share/claudekit`), so a
+  plain `pip install` is self-contained and `ck init` works with no source checkout.
+
+### Fixed
+- Packaging: `find_claudekit_root` resolved to `src/` (not the repo root) after the src-layout
+  move, breaking `ck init`; now walks up to `.claude/agents`. `CLAUDEKIT_HOME` is honored.
+- `skills-registry.json`: `documenter` referenced a non-existent skill (`i18n-workflow` →
+  `i18n-patterns`), which failed the validate-registry gate.
+- Installer: template rendering used `sed s|{{X}}|$VAL|` — values with `&`/`|`/`\` (e.g.
+  `npm run build && npm test`) corrupted output; replaced with literal Python substitution.
+  C# detection now searches subdirs for `*.csproj`/`*.sln`. `set -E` so staging cleanup fires
+  on a helper failure. `settings.local.json` is preserved across a reinstall.
+- Hooks: `suggest-compact` daily reset was GNU-`date -r`-only (broken on macOS) — now stores the
+  date in the counter file, with stale-lock cleanup. `format-typecheck` read edited files from
+  the wrong log (Bash commands, not Edit/Write targets) — now uses a dedicated `edited-files.log`.
+  `auto-checkpoint` stored a positional `stash@{0}` ref that pruned the wrong stash — now uses the
+  stable stash SHA. Wired the dormant `file-guard`/`prompt-injection-scanner` as advisory hooks.
+  Fixed the latently-red shellcheck CI job (`.shellcheckrc`).
 
 ## [2.1.0] — 2026-04-11
 
