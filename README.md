@@ -43,6 +43,11 @@ Without ClaudeKit, an AI assistant makes changes directly — no plan, no review
 ### Install
 
 ```bash
+# Option A — install the CLI from PyPI, then initialize any project
+pip install claude-kit          # the `claudekit` PyPI name was taken; commands stay `claudekit`/`ck`
+claudekit init /path/to/your-project --full
+
+# Option B — from a clone (no PyPI needed)
 git clone https://github.com/OmarMokhtar-Saad/claudekit.git
 ./claudekit/install.sh /path/to/your-project --full
 ```
