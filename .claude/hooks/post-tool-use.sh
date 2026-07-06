@@ -63,7 +63,13 @@ else:
 
 case "$TOOL_NAME" in
     *Edit*|*Write*|*edit*|*write*|NotebookEdit)
-        [ -n "$FILE_PATH" ] && validate_ops_on_edit "$FILE_PATH"
+        if [ -n "$FILE_PATH" ]; then
+            validate_ops_on_edit "$FILE_PATH"
+            # Record the edited path so the Stop-time format-typecheck hook knows
+            # which files actually changed (Edit/Write targets are NOT in
+            # bash-commands.log, which only records Bash commands).
+            printf '%s\n' "$FILE_PATH" >> "$SCRIPT_DIR/edited-files.log" 2>/dev/null
+        fi
         ;;
     *Bash*|*bash*)
         if printf '%s' "$CMD" | grep -qE '^\s*git\s+'; then

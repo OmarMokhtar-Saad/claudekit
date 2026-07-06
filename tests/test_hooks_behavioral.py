@@ -255,6 +255,40 @@ class TestAdvisoryHooks:
         assert p.stderr.strip() == ""
 
 
+class TestPostToolUseEditLog:
+    """post-tool-use.sh records Edit/Write targets to edited-files.log so the
+    Stop-time format-typecheck hook has the right data source (regression: it
+    used to read bash-commands.log, which never contains tool edits)."""
+
+    def _hooks_copy(self, tmp_path):
+        import shutil
+        hd = tmp_path / ".claude" / "hooks"
+        hd.mkdir(parents=True)
+        for name in ("post-tool-use.sh", "lib.sh"):
+            shutil.copy(HOOKS / name, hd / name)
+        return hd
+
+    def _run(self, hd, payload):
+        return subprocess.run(
+            ["bash", str(hd / "post-tool-use.sh")],
+            input=json.dumps(payload), capture_output=True, text=True,
+            cwd=str(hd.parent.parent), timeout=30,
+            env=dict(os.environ, ECC_HOOK_PROFILE="standard"),
+        )
+
+    def test_edit_is_logged(self, tmp_path):
+        hd = self._hooks_copy(tmp_path)
+        self._run(hd, {"tool_name": "Write", "tool_input": {"file_path": "src/app.ts"}})
+        logged = (hd / "edited-files.log").read_text()
+        assert "src/app.ts" in logged
+
+    def test_bash_command_not_logged_as_edit(self, tmp_path):
+        hd = self._hooks_copy(tmp_path)
+        self._run(hd, {"tool_name": "Bash", "tool_input": {"command": "git status"}})
+        assert not (hd / "edited-files.log").exists() or \
+            (hd / "edited-files.log").read_text().strip() == ""
+
+
 class TestLibHelpers:
     def test_ops_regex_matches_both_conventions(self):
         script = (

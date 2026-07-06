@@ -9,7 +9,9 @@
 [ "${ECC_HOOK_PROFILE:-standard}" = "standard" ] && exit 0
 
 LOG=".claude/hooks/hooks.log"
-BASH_LOG=".claude/hooks/bash-commands.log"
+# Files actually edited this response come from post-tool-use.sh (Edit/Write
+# targets). bash-commands.log only holds Bash commands and misses tool edits.
+EDITED_LOG=".claude/hooks/edited-files.log"
 REPORT=".claude/hooks/format-typecheck-last.log"
 
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] [format-typecheck] [$1] $2" >> "$LOG" 2>/dev/null; }
@@ -19,23 +21,21 @@ log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] [format-typecheck] [$1] $2" >> "$LO
     log "INFO" "Starting batch format+typecheck"
 
     # ---------------------------------------------------------------------------
-    # 1. Collect JS/TS files edited in this session from bash-commands.log
+    # 1. Collect JS/TS files edited this response from edited-files.log
     # ---------------------------------------------------------------------------
-    # Timing note: bash-commands.log is written by command-log-audit.sh (PostToolUse/Bash).
-    # This hook runs at Stop, after all PostToolUse events have completed, so the log
-    # should be fully written. The 1s sleep gives any in-flight async writes time to flush.
+    # edited-files.log is appended by post-tool-use.sh (PostToolUse Edit/Write).
+    # This hook runs at Stop, after those events; the 1s sleep lets any in-flight
+    # async writes flush. The log is truncated at the end so each Stop only
+    # processes files edited since the previous one.
     sleep 1
     TS_FILES=()
-    if [ -f "$BASH_LOG" ]; then
-        # Extract file paths from log entries that contain .ts/.tsx/.js/.jsx
-        while IFS= read -r line; do
-            # Match file paths in log lines
-            while IFS= read -r filepath; do
-                if [ -f "$filepath" ]; then
-                    TS_FILES+=("$filepath")
-                fi
-            done < <(echo "$line" | grep -oE '[a-zA-Z0-9_./-]+\.(ts|tsx|js|jsx|mts|cts|mjs)' 2>/dev/null)
-        done < <(tail -200 "$BASH_LOG" 2>/dev/null)
+    if [ -f "$EDITED_LOG" ]; then
+        while IFS= read -r filepath; do
+            case "$filepath" in
+                *.ts|*.tsx|*.js|*.jsx|*.mts|*.cts|*.mjs)
+                    [ -f "$filepath" ] && TS_FILES+=("$filepath") ;;
+            esac
+        done < <(tail -500 "$EDITED_LOG" 2>/dev/null)
     fi
 
     # Deduplicate
@@ -43,7 +43,8 @@ log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] [format-typecheck] [$1] $2" >> "$LO
     unset IFS
 
     if [ ${#TS_FILES[@]} -eq 0 ]; then
-        log "INFO" "No JS/TS files edited this session — skipping"
+        log "INFO" "No JS/TS files edited this response — skipping"
+        : > "$EDITED_LOG" 2>/dev/null
         exit 0
     fi
 
@@ -96,6 +97,9 @@ log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] [format-typecheck] [$1] $2" >> "$LO
         echo "Run 'tsc --noEmit' to see details, or check .claude/hooks/format-typecheck-last.log"
         echo ""
     fi
+
+    # Consume the edit log so the next Stop only processes newly-edited files.
+    : > "$EDITED_LOG" 2>/dev/null
 
 } &
 

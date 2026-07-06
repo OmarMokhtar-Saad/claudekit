@@ -13,33 +13,38 @@ LOG=".claude/hooks/hooks.log"
 {
     mkdir -p .claude/hooks 2>/dev/null
 
-    # Increment counter atomically using a lock file (prevents race with parallel agents)
-    LOCK_FILE="${COUNTER_FILE}.lock"
-    COUNT=0
-
-    # flock is available on Linux; on macOS use mkdir as a portable mutex
-    _lock_acquired=false
     _lock_dir="${COUNTER_FILE}.lockdir"
-    if mkdir "$_lock_dir" 2>/dev/null; then
-        _lock_acquired=true
-    else
+
+    # Clear a stale lock: if the lockdir is older than 1 minute a previous
+    # subshell died mid-critical-section. `find -mmin` is portable (BSD + GNU),
+    # unlike `date -r`/`stat` which differ across platforms.
+    if [ -d "$_lock_dir" ]; then
+        find "$_lock_dir" -maxdepth 0 -mmin +1 -exec rmdir {} \; 2>/dev/null
+    fi
+
+    # mkdir is an atomic, portable mutex (flock is Linux-only).
+    if ! mkdir "$_lock_dir" 2>/dev/null; then
         # Another subshell holds the lock — skip this increment to avoid corruption
         exit 0
     fi
 
-    # Critical section
+    # The counter file stores "YYYY-MM-DD COUNT" so the daily reset is portable
+    # and doesn't depend on file mtime (`date -r` is GNU-only; on macOS it
+    # treated the path as epoch seconds, so the reset never fired).
+    TODAY=$(date '+%Y-%m-%d')
+    COUNT=0
     if [ -f "$COUNTER_FILE" ]; then
-        COUNT=$(cat "$COUNTER_FILE" 2>/dev/null || echo 0)
-        # Reset counter daily
-        FILE_DATE=$(date -r "$COUNTER_FILE" '+%Y-%m-%d' 2>/dev/null || date '+%Y-%m-%d')
-        TODAY=$(date '+%Y-%m-%d')
-        if [ "$FILE_DATE" != "$TODAY" ]; then
-            COUNT=0
+        read -r _saved_date _saved_count < "$COUNTER_FILE" 2>/dev/null
+        case "$_saved_count" in
+            ''|*[!0-9]*) _saved_count=0 ;;
+        esac
+        if [ "$_saved_date" = "$TODAY" ]; then
+            COUNT=$_saved_count
         fi
     fi
 
     COUNT=$((COUNT + 1))
-    echo "$COUNT" > "$COUNTER_FILE"
+    echo "$TODAY $COUNT" > "$COUNTER_FILE"
 
     # Release lock
     rmdir "$_lock_dir" 2>/dev/null
