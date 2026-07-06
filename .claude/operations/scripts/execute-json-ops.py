@@ -184,6 +184,12 @@ def validate_path(file_path: str) -> bool:
     Validate file path for safety.
     Rejects path traversal, null bytes, and paths resolving outside project root.
     Always resolves the full path (including symlinked parent directories).
+
+    NOTE: The canonical, richer implementation is
+    ``claudekit.security.PathGuard`` (src/claudekit/security/path_guard.py).
+    This inline copy is kept deliberately dependency-free so ops scripts run in
+    target projects that installed via ``install.sh`` without ``pip install
+    claudekit``. Keep the two in sync when changing path-safety semantics.
     """
     if '\x00' in file_path:
         print(f"  BLOCKED: Path contains null bytes: {file_path!r}")

@@ -123,6 +123,48 @@ class TestConfigProtection:
         assert p.returncode == 2, p.stderr
 
 
+def _env(profile):
+    return dict(os.environ, ECC_HOOK_PROFILE=profile)
+
+
+class TestCommandGuard:
+    """The fail-closed Bash command guard (task 002)."""
+
+    def test_strict_blocks_dangerous_command(self):
+        p = run_hook("command-guard.sh", {"command": "rm -rf /"}, env=_env("strict"))
+        assert p.returncode == 2, p.stderr
+        assert "command-guard" in p.stderr
+
+    def test_strict_blocks_chaining_bypass(self):
+        p = run_hook("command-guard.sh", {"command": "echo hi && rm -rf /"}, env=_env("strict"))
+        assert p.returncode == 2, p.stderr
+
+    def test_strict_blocks_interpreter_smuggling(self):
+        p = run_hook("command-guard.sh", {"command": "bash -c 'rm -rf /'"}, env=_env("strict"))
+        assert p.returncode == 2, p.stderr
+
+    def test_strict_allows_safe_command(self):
+        p = run_hook("command-guard.sh", {"command": "git status"}, env=_env("strict"))
+        assert p.returncode == 0, p.stderr
+
+    def test_standard_warns_but_does_not_block(self):
+        p = run_hook("command-guard.sh", {"command": "rm -rf /"}, env=_env("standard"))
+        assert p.returncode == 0, p.stderr
+        assert "warn-only" in p.stderr
+
+    def test_minimal_is_off(self):
+        p = run_hook("command-guard.sh", {"command": "rm -rf /"}, env=_env("minimal"))
+        assert p.returncode == 0, p.stderr
+
+    def test_strict_malformed_json_fails_closed(self):
+        p = run_hook("command-guard.sh", "not json {", env=_env("strict"))
+        assert p.returncode == 2, p.stderr
+
+    def test_empty_command_allowed(self):
+        p = run_hook("command-guard.sh", {"command": ""}, env=_env("strict"))
+        assert p.returncode == 0, p.stderr
+
+
 class TestLibHelpers:
     def test_ops_regex_matches_both_conventions(self):
         script = (
