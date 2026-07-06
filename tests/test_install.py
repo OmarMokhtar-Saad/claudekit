@@ -153,6 +153,19 @@ class TestInstallSafety:
             assert r.returncode == 0, r.stderr
             assert os.path.isfile(os.path.join(tmpdir, '.claude', 'settings.json'))
 
+    def test_reinstall_preserves_settings_local(self):
+        # settings.local.json is the user's local override surface (never shipped).
+        # A reinstall must carry it forward, not leave it behind in the backup.
+        with tempfile.TemporaryDirectory() as tmpdir:
+            open(os.path.join(tmpdir, 'pyproject.toml'), 'w').close()
+            assert self._install(tmpdir, '--full', '--yes').returncode == 0
+            local = os.path.join(tmpdir, '.claude', 'settings.local.json')
+            with open(local, 'w') as f:
+                f.write('{"env": {"ECC_HOOK_PROFILE": "strict"}}')
+            assert self._install(tmpdir, '--full', '--yes', '--force').returncode == 0
+            assert os.path.isfile(local), "settings.local.json lost on reinstall"
+            assert 'strict' in open(local).read()
+
     def test_install_writes_manifest(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             open(os.path.join(tmpdir, 'go.mod'), 'w').close()
