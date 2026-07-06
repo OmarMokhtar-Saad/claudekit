@@ -65,6 +65,15 @@
         ]
       },
       {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'ROOT=$(git rev-parse --show-toplevel 2>/dev/null); bash \"$ROOT/.claude/hooks/command-guard.sh\"'"
+          }
+        ]
+      },
+      {
         "matcher": "",
         "hooks": [
           {

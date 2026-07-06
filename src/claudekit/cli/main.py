@@ -317,6 +317,18 @@ def cmd_agents(args):
     return 0
 
 
+def cmd_check_command(args):
+    """Validate a shell command against the security denylist (speed bump)."""
+    from claudekit.security.cli import check_command
+    return check_command(args.command_str)
+
+
+def cmd_check_path(args):
+    """Validate a file path against the path guard."""
+    from claudekit.security.cli import check_path
+    return check_path(args.path_str)
+
+
 def cmd_config(args):
     """Show or edit configuration."""
     config_path = Path(".claude/hooks/config.json")
@@ -379,6 +391,16 @@ def main():
     # agents
     sub.add_parser("agents", help="List installed agents")
 
+    # check-command
+    p = sub.add_parser("check-command",
+                       help="Validate a shell command (exit 0 allow / 2 block)")
+    p.add_argument("command_str", metavar="command", help="Command string to validate")
+
+    # check-path
+    p = sub.add_parser("check-path",
+                       help="Validate a file path (exit 0 allow / 2 block)")
+    p.add_argument("path_str", metavar="path", help="File path to validate")
+
     # config
     p = sub.add_parser("config", help="Show or query configuration")
     p.add_argument("key", nargs="?", help="Config key (dot notation, e.g. project.build_cmd)")
@@ -396,6 +418,8 @@ def main():
         "execute": cmd_execute,
         "rollback": cmd_rollback,
         "agents": cmd_agents,
+        "check-command": cmd_check_command,
+        "check-path": cmd_check_path,
         "config": cmd_config,
     }
 
