@@ -29,6 +29,15 @@
         ]
       },
       {
+        "matcher": "str_replace_based_edit_tool|write_file|Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'ROOT=$(git rev-parse --show-toplevel 2>/dev/null); bash \"$ROOT/.claude/hooks/file-guard-gate.sh\"'"
+          }
+        ]
+      },
+      {
         "matcher": "Bash",
         "hooks": [
           {
@@ -110,6 +119,15 @@
           {
             "type": "command",
             "command": "bash -c 'ROOT=$(git rev-parse --show-toplevel 2>/dev/null); USER_INPUT=$(cat); PLAN_REF=$(echo \"$USER_INPUT\" | grep -ioE \"(plan|create plan|new plan)\\s+[a-zA-Z0-9_-]+\" | head -1 | sed \"s/^[^ ]* //\"); if [ -n \"$PLAN_REF\" ]; then bash \"$ROOT/.claude/hooks/pre-plan.sh\" \"$PLAN_REF\"; fi'"
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'ROOT=$(git rev-parse --show-toplevel 2>/dev/null); bash \"$ROOT/.claude/hooks/injection-scan-gate.sh\"'"
           }
         ]
       }
