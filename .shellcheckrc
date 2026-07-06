@@ -1,0 +1,25 @@
+# ShellCheck configuration for ClaudeKit hooks + installer.
+#
+# Every hook sources .claude/hooks/lib.sh, which consumes HOOK_NAME / LOG_FILE
+# and provides deny/hlog/extract_json_field/etc. Follow those sources so vars
+# the library reads aren't reported "unused".
+external-sources=true
+source-path=.claude/hooks
+
+# Disabled checks, with rationale. Genuine errors (syntax, real quoting bugs
+# like SC2046) stay enabled and still fail CI.
+#
+#   SC1091  Dynamic `. "$SCRIPT_DIR/lib.sh"` path can't be statically followed.
+#   SC2034  "Unused" var — false-positive for config vars and vars consumed by
+#           the sourced lib.sh (OPS_REGEX, ERE_QUOTE_CLASS, HOOK_NAME, …).
+#   SC2154  "Referenced but not assigned" — false-positive where a `local` var
+#           defaults from a lib.sh-provided value (e.g. nq in pre-commit.sh).
+#   SC2010  `ls | grep` — deliberate simple filename counting.
+#   SC2012  `ls` for counting — output is only piped to wc, never parsed.
+#   SC2126  `grep | wc -l` — kept for readability of the counting pipelines.
+#   SC2015  `A && B || C` — used intentionally as best-effort (C is the fallback).
+#   SC2016  Single-quoted `$var` inside regex strings is intentional (ERE, not shell).
+#   SC1003  Literal backslash in a `tr` set is intentional.
+#   SC2207  `arr=($(...))` under a controlled `IFS=$'\n'` split.
+#   SC2221/SC2222  Overlapping case globs (`*Edit*`/`NotebookEdit`) are harmless.
+disable=SC1091,SC2034,SC2154,SC2010,SC2012,SC2126,SC2015,SC2016,SC1003,SC2207,SC2221,SC2222
