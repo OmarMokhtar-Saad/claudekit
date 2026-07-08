@@ -203,10 +203,10 @@ File: .claude/state/workflow-<task_id>.json
 }
 ```
 
-Use file-based state when:
-- The pipeline has more than 3 agents
-- A revision loop is triggered
-- The user explicitly requests persistence
+File-based state is the DEFAULT for any multi-agent pipeline: write the state file when the
+pipeline starts and update it after every handoff. Assume compaction can happen at any time —
+a fresh context must be able to resume the workflow from the file alone. Memory-only state is
+acceptable solely for single-agent, single-session dispatches.
 
 ---
 
@@ -271,6 +271,11 @@ Some agents can run in parallel when their inputs are independent:
 | Documentation         | DocUpdater + GitOps                         | Docs and commit are independent |
 | Validation            | Verifier (multiple modules)                 | When checking independent modules |
 | Research              | Explore + Deep Research skill               | Understanding existing code while researching external options |
+
+**Dispatch mechanics:** spawn every agent in a parallel group in ONE message (multiple Task
+calls in a single response). Spawning them one turn at a time serializes the group and wastes
+the parallelism. Two independent read-only agents already justify a parallel group — don't
+wait for three.
 
 **Hard Rules (never violate):**
 - NEVER run Implementer in parallel with anything
@@ -391,8 +396,9 @@ Quick reference for what each agent expects and produces:
 If an agent fails unexpectedly:
 
 1. Log the error in workflow state
-2. Attempt to re-run the agent once with the same inputs
-3. If it fails again, escalate to human
+2. Re-run the agent ONCE with amended inputs that include the failure evidence — never
+   verbatim (identical inputs reproduce identical failures)
+3. If it fails again, escalate to human with the pasted failure output
 4. Never silently skip an agent in the pipeline
 5. Never proceed to the next agent if the current one failed
 

@@ -92,9 +92,12 @@ PLANNER_MSG="Create a complete implementation plan for the following task.
 
 Task: <TASK>
 
+Before writing anything, explore the codebase with BATCHED parallel Read/Grep/Glob calls —
+fire all independent searches in ONE message.
+
 IRON LAW: the plan MUST include a valid ops.json."
 
-current_plan=$(echo "$PLANNER_MSG" | claude -p --agent planner --model sonnet --allowedTools "Read,Grep,Glob,Write")
+current_plan=$(echo "$PLANNER_MSG" | claude -p --agent planner --model opus --allowedTools "Read,Grep,Glob,Write,Bash(python3 .claude/operations/scripts/validate-config-json.py *)")
 echo "$current_plan"
 ```
 
@@ -110,7 +113,7 @@ The reviewer scored the previous plan <last_score>/100 and found these issues:
 
 Address EVERY issue. State what changed. Produce the complete revised plan and a new ops.json."
 
-current_plan=$(echo "$PLANNER_MSG" | claude -p --agent planner --model sonnet --allowedTools "Read,Grep,Glob,Write")
+current_plan=$(echo "$PLANNER_MSG" | claude -p --agent planner --model opus --allowedTools "Read,Grep,Glob,Write,Bash(python3 .claude/operations/scripts/validate-config-json.py *)")
 echo "$current_plan"
 ```
 
@@ -212,7 +215,16 @@ Next:     <CONVERGED|REVISING|ESCALATING>
 
 ### Step 3: Final Report
 
-**On APPROVED:**
+**On APPROVED — verify before you report it.** The success banner's evidence line must be
+EARNED, not templated. Run both commands and paste their real results:
+
+```bash
+python3 .claude/operations/scripts/validate-config-json.py <ops-file>
+python3 .claude/operations/scripts/execute-json-ops.py <ops-file> --dry-run
+```
+
+If either fails, the plan is NOT approved — feed the failure back as reviewer feedback and
+continue the loop (or escalate if out of iterations).
 
 ```
 REFINE LOOP — PLAN APPROVED
@@ -228,7 +240,7 @@ Iteration history:
   ...
   [N] Score: <s> — APPROVED
 
-ops.json: validated and dry-run clean
+ops.json: <paste the actual validator + dry-run results — never claim this unexecuted>
 
 Next step: run /implement to execute the approved plan
 ```

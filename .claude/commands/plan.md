@@ -26,9 +26,13 @@ PLANNER_MSG="Create a complete implementation plan for the following task.
 
 Task: $ARGUMENTS
 
+Before writing anything, explore the codebase with BATCHED parallel Read/Grep/Glob calls —
+fire all independent searches in ONE message; do not serialize independent lookups.
+Open the plan with a 3-line summary: goal, approach, riskiest step.
+
 IRON LAW: The plan MUST include a valid ops.json."
 
-plan_output=$(echo "$PLANNER_MSG" | claude -p --agent planner --model sonnet --allowedTools "Read,Grep,Glob,Write")
+plan_output=$(echo "$PLANNER_MSG" | claude -p --agent planner --model opus --allowedTools "Read,Grep,Glob,Write,Bash(python3 .claude/operations/scripts/validate-config-json.py *)")
 EXIT_CODE=$?
 
 if [ $EXIT_CODE -ne 0 ]; then

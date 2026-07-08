@@ -10,7 +10,7 @@ Invoke the explore agent to search, navigate, and understand codebase architectu
 
 ## Agent Reference
 
-See @agents/explore.md for the full agent specification.
+See @.claude/agents/explore.md for the full agent specification.
 
 ## Task
 
@@ -47,6 +47,8 @@ If the user does not specify a level, infer from the complexity of the question.
 - Select the appropriate thoroughness level
 
 ### Phase 2: Parallel Searches
+- Fire ALL independent Glob/Grep/Read calls of a phase in ONE message — searching one at a
+  time serializes the exploration and abandons breadth
 - Use Glob for file discovery
 - Use Grep for content and pattern search
 - Read project metadata and configuration files
@@ -62,7 +64,8 @@ If the user does not specify a level, infer from the complexity of the question.
 
 Follow the structured output format defined in the explore agent specification. Always include:
 
-1. **Purpose** of the exploration
+1. **Answer** — the headline finding, first (the reader asked a question; answer it before
+   describing your process)
 2. **Target Files** table with relevance ratings
 3. **Findings** organized by topic
 4. **Patterns** observed in the codebase

@@ -60,7 +60,11 @@ git rev-parse HEAD
 
 ### Step 3: Brief the Loop Operator
 
-The `loop-operator` agent monitors the loop. Brief it with:
+**Mechanism (honest):** no agent can watch another agent's live tool calls. The operator
+checklist below runs in the ORCHESTRATING context BETWEEN iterations — after each worker
+iteration returns, apply the checks before dispatching the next one. Destructive-command
+blocking is enforced by the PreToolUse hooks, not by the operator. Brief the operator role
+with:
 
 ```
 Task: <TASK>
@@ -131,7 +135,8 @@ The loop terminates when:
 
 ### Step 7: Completion Report
 
-**Success:**
+**Success:** (every gate line below must quote the EXECUTED command's output — a gate line
+without a real result is fabricated evidence)
 ```
 AUTONOMOUS LOOP COMPLETE
 =========================
@@ -140,16 +145,15 @@ Agent: <agent>
 Iterations used: <N> / <max>
 
 Progress per iteration:
-  [1] Created src/auth/middleware.ts (+47 lines) — build PASS
-  [2] Fixed type error in auth.ts:88 — types PASS
-  [3] Added tests in tests/auth.test.ts — tests PASS (12/12)
+  [1] <what changed> — <executed check + real result>
+  [2] <what changed> — <executed check + real result>
 
 Validation gate:
-  Build:    PASS ✓
-  Types:    PASS ✓
-  Lint:     PASS ✓
-  Tests:    PASS ✓ (N passed)
-  Security: PASS ✓
+  Build:    <real result + exit code>
+  Types:    <real result + exit code>
+  Lint:     <real result + exit code>
+  Tests:    <real result: X passed, Y failed, from actual output>
+  Security: <real result + what was scanned>
 
 Files modified: N
 Next: /prp-commit "<task summary>"

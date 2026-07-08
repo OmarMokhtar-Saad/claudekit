@@ -1,7 +1,7 @@
 ---
 description: "Run unified quality and test validation via verifier agent"
 argument-hint: "[scope: all|tests|lint|coverage]"
-model: haiku
+model: sonnet
 ---
 
 # Verifier Command
@@ -10,7 +10,7 @@ Invoke the verifier agent to run comprehensive quality and test validation.
 
 ## Agent Reference
 
-See @agents/verifier.md for the full agent specification.
+See @.claude/agents/verifier.md for the full agent specification.
 
 ## Task
 
@@ -36,6 +36,9 @@ See the Verifier agent specification for the scoring formula and evaluation crit
 - Identify the project type and build system
 - Determine which test frameworks are in use
 
+**Phases 2–4 are independent — launch the build, test, and lint commands in ONE batched
+message** (background where long-running). Serializing them wastes the whole run's wall clock.
+
 ### Phase 2: Build Validation
 - Run the project build command
 - Capture and categorize any errors or warnings
@@ -60,6 +63,13 @@ See the Verifier agent specification for the scoring formula and evaluation crit
 
 ### Phase 6: Report
 Generate a comprehensive quality report.
+
+**Evidence rules (non-negotiable):**
+- Every number in the report MUST be copied from executed command output. Include the
+  command and the relevant tail of its output for each phase. Never estimate a score.
+- Before reporting PASS, run the refutation pass: list what you did NOT run and whether
+  any claim rests on reading rather than executing. If a core check was skipped,
+  downgrade to WARN and say why.
 
 ## Decision Logic
 

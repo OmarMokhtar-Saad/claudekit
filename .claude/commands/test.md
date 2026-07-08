@@ -12,7 +12,7 @@ Generate, execute, and analyze tests for a target file or feature.
 
 ## Agent Reference
 
-See @agents/tester.md for the full agent specification.
+See @.claude/agents/tester.md for the full agent specification.
 
 ## Task
 

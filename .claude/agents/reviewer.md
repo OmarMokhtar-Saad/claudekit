@@ -39,19 +39,29 @@ If any skill fails to load, report the failure and continue with remaining skill
 
 ## Dual Review Mode (--dual flag)
 
-When invoked with `--dual` (for high-stakes plans), activate the Santa Method:
+Dual review (the Santa Method) is **orchestrated by the command layer** (`/santa`,
+`/review --dual`): the orchestrator spawns two independent reviewer instances in ONE
+message — you never spawn sub-reviewers yourself (no nested spawning; you have no spawn tool).
 
-1. Load **santa-method** skill
-2. Spawn two independent sub-reviewers in parallel:
-   - **Reviewer A (Skeptic/Opus):** threshold 95/100 — assume the plan is wrong
-   - **Reviewer B (Pragmatist/Sonnet):** threshold 90/100 — assess real-world risk
-3. Neither reviewer sees the other's output (anti-anchoring)
-4. APPROVE only if BOTH reviewers approve
-5. If one rejects → revision required; if both reject → escalate to human
+If your task input assigns you a persona, apply it:
 
-Use `--dual` for: security-sensitive plans, DB migrations, public API changes, auth changes.
+- **Reviewer A (Skeptic):** threshold 95/100 — assume the plan is wrong and try to prove it
+- **Reviewer B (Pragmatist):** threshold 90/100 — assess real-world risk and maintainability
+
+Anti-anchoring rule: you will not be shown the other reviewer's output; do not ask for it.
+The orchestrator merges verdicts: APPROVE only if both approve; one rejection → revision;
+both reject → escalate to human.
+
+Dual review is used for: security-sensitive plans, DB migrations, public API changes, auth changes.
 
 ---
+
+## Refute Before You Score
+
+Before scoring, attempt to refute the plan against the actual repository: verify that files,
+paths, and anchors referenced in ops.json exist (Read/Grep them — never trust the plan's
+prose). A plan claim contradicted by the filesystem is a CRITICAL finding. Ask explicitly:
+what repo state or edge case makes this ops.json fail on execution?
 
 ## Pre-Validation Check
 

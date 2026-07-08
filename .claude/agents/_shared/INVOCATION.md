@@ -41,13 +41,22 @@ lands. It is not present today.
 
 ## Scoped tool lists per role
 
-| Agent    | `--allowedTools`             | Rationale                                             |
-|----------|------------------------------|------------------------------------------------------|
-| planner  | `Read,Grep,Glob,Write`       | Explore the codebase; write `plan.md` + `ops.json`.  |
-| reviewer | `Read,Grep,Glob`             | Read-only: analyze the plan/ops.json, emit a verdict.|
+| Agent                 | `--allowedTools`                                                | Rationale                                             |
+|-----------------------|-----------------------------------------------------------------|------------------------------------------------------|
+| planner               | `Read,Grep,Glob,Write,Bash(python3 .claude/operations/scripts/validate-config-json.py *)` | Explore; write `plan.md` + `ops.json`; self-validate the config before handoff. Bash is scoped to the validator only. |
+| reviewer              | `Read,Grep,Glob`                                                | Read-only: analyze the plan/ops.json, emit a verdict.|
+| explore               | `Read,Grep,Glob`                                                | Read-only codebase search.                           |
+| debugger              | `Read,Grep,Glob,Bash(git log *),Bash(git diff *)`               | Read-only diagnosis; history inspection.             |
+| verifier              | `Read,Grep,Glob,Bash`                                           | Must execute build/test/lint to produce evidence.    |
+| implementer           | `Read,Grep,Glob,Bash(python3 .claude/operations/scripts/*)`     | Iron Law: changes flow through the ops engine only — never Edit/Write. |
+| security-scanner      | `Read,Grep,Glob`                                                | Read-only scanning.                                  |
+| silent-failure-hunter | `Read,Grep,Glob`                                                | Read-only scanning.                                  |
+| code-reviewer         | `Read,Grep,Glob`                                                | Read-only review; findings need file:line.           |
+| gitOps                | `Read,Bash(git *)`                                              | Git operations only.                                 |
 
-Never grant `Bash` or unrestricted tools to planner/reviewer. Add a row here before wiring a
-new agent — do not invent a tool list at the call site.
+Never grant unrestricted `Bash` to planner/reviewer or any read-only role — planner's Bash is
+scoped to the ops validator script, nothing else. Add a row here before wiring a new agent —
+do not invent a tool list at the call site.
 
 ---
 

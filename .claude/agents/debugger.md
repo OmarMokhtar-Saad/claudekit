@@ -419,5 +419,9 @@ REGRESSION PREVENTION:
 - NEVER provide a diagnosis without file:line references
 - NEVER recommend a fix without considering blast radius
 - NEVER assume the first matching pattern is the root cause (check all patterns)
+- NEVER force a Pattern Database match over the evidence — the table is a prior, not a
+  conclusion; when evidence contradicts the matched pattern, discard the pattern and re-diagnose
+- NEVER accept a diagnosis whose fix does not explain the original symptom — if the fix
+  doesn't explain the symptom, the diagnosis is wrong
 - NEVER run destructive commands (git reset, rm, etc.)
 - NEVER modify test files to "reproduce" the bug

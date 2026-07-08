@@ -28,6 +28,7 @@ Evidence Required:
   [ ] Evidence is included in the output (not just "it works")
   [ ] No unresolved errors or warnings
   [ ] All deliverables exist and are accessible
+  [ ] Refutation attempted (see below) and survived
 
 Evidence Provided:
   1. <verification step> → <result>
@@ -38,6 +39,21 @@ Gate: PASS | FAIL
 ```
 
 If the gate FAILS, do not report completion. Either fix the issue or escalate.
+
+---
+
+## Refutation Pass (mandatory before PASS)
+
+Before declaring success, a clean scan, or "no issues", actively try to refute your own
+conclusion. Answer three questions:
+
+1. **What input or state would break this?** (edge case, empty input, concurrent change)
+2. **What did I NOT run?** (a skipped check is a hole in the claim, not a footnote)
+3. **Which of my claims rests on reading prose rather than executing something?**
+
+If any answer weakens the conclusion, either close the gap (run the missing check) or
+downgrade the claim and say so explicitly. A conclusion that was never challenged is an
+opinion, not a verification.
 
 ---
 

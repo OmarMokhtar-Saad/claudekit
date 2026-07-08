@@ -12,6 +12,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Frontier-behavior corpus upgrade.** Audited all shared agent docs, 10 core agents, 14
+  core commands, and the load-bearing skills against a 10-pattern operating spec (parallel
+  batching, persistence, verification, adversarial self-check, evidence integrity, calibrated
+  autonomy, read-before-conclude, context economy, root-cause discipline, resumable
+  decomposition) so Opus/Sonnet agents operate at frontier level. Highlights:
+  - "Batch independent tool calls in ONE message" is now mandated corpus-wide
+    (AGENT_TEMPLATE, using-superpowers, TASK_TOOL_SPECIFICATION, coordinator, and the
+    verify/debug/explore/audit/santa/plan workflows). The "3+ problems before parallelizing"
+    gate is gone (2+ suffices).
+  - New mandatory **Refutation Pass** before any PASS/clean/complete claim
+    (VERIFICATION_PROTOCOL + verification-before-completion): what breaks it, what wasn't
+    run, which claim rests on prose.
+  - Evidence integrity: numbers must come from executed output; evidence is exempt from
+    silent-mode token caps; templates no longer pre-print fake evidence (refine success
+    banner now actually runs the validator + dry-run; loop-start gate lines quote real
+    results); token-optimization can never compress verification evidence.
+  - Persistence: retries must change approach (never verbatim — including coordinator error
+    recovery); executing-plans' mid-plan "Continue?" permission loop removed — an approved
+    plan is the permission; checkpoint to files instead.
+  - Fixed unexecutable contracts: 8 commands' broken `@agents/` references (the delegated
+    agent specs never loaded); reviewer `--dual` no longer tells a spawn-less agent to spawn
+    (orchestrated by the command layer); planner frontmatter reconciled with INVOCATION.md
+    (Write granted, Agent removed, Bash scoped to the ops validator); INVOCATION.md tool
+    table extended from 2 to 10 roles.
+  - Model routing: planner sonnet→**opus** (feeds the ≥90 plan gate), verifier
+    haiku→**sonnet** (scores a hard ≥80 gate); coordinator stays sonnet (routing is
+    table-driven). 24 anchor tests (`tests/test_behavior_spec.py`) pin all of the above.
+
 ### Added
 - **Legacy-install lifecycle support.** Installs that predate the v2.1 manifest are no
   longer locked out of the lifecycle commands:

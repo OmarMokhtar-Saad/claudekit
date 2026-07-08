@@ -24,15 +24,16 @@ disable-model-invocation: true
 [EXECUTE] Implement the next batch of tasks (default: 3)
     |
     v
-[REPORT] Show what was done, what changed, what's next
+[REPORT] Checkpoint progress to the plan file: what was done, what changed, what's next
     |
-    v
-[CONTINUE?] Check if user wants to proceed
-    |
-    +---> Yes -----> Back to REVIEW
-    +---> No ------> Save progress and stop
-    +---> Issue ---> Stop and discuss
+    +---> More tasks + no STOP condition ---> Back to REVIEW (continue autonomously)
+    +---> STOP condition hit --------------> Stop and report (see STOP table)
+    +---> Plan complete -------------------> Final verification and report
 ```
+
+The plan was already approved — approval covers ALL of its tasks. Do NOT pause between
+batches to ask "continue?"; the STOP table below defines every legitimate reason to halt.
+Checkpointing to the plan file (silent) replaces mid-task check-ins (console).
 
 ---
 
@@ -128,28 +129,28 @@ After each batch, provide:
 
 ## Step 5: CONTINUE
 
-After each report, ask the user:
-
-- "Continue with the next batch?" (normal case)
-- "I have a concern about [X]. How should I proceed?" (issue found)
-- "Plan complete. Ready for final verification?" (last batch)
+Continue autonomously to the next batch — the approved plan IS the permission. Checkpoint
+progress to the plan file after each batch, then proceed. Speak up only when a STOP
+condition below is hit or the plan is complete ("Plan complete. Ready for final
+verification?").
 
 ---
 
-## When to STOP and Ask
+## When to STOP
 
-**Always stop when:**
+These are the ONLY legitimate reasons to halt mid-plan:
 
 | Situation | Action |
 |---|---|
-| A task fails its verification | Stop and report the failure |
+| A task fails its verification twice (different approaches) | Stop and report with the failure output |
 | You discover the plan has a mistake | Stop and explain the issue |
 | A file is not in the expected state | Stop and investigate |
 | You need to make changes not in the plan | Stop and ask for approval |
-| Tests fail unexpectedly | Stop and diagnose |
-| You are uncertain about a task's intent | Stop and clarify |
+| Tests fail unexpectedly and diagnosis points outside the plan | Stop and report the diagnosis |
+| A task's intent is genuinely ambiguous (two valid readings diverge) | Stop and clarify |
 
-**Never assume.** When in doubt, stop and ask.
+Everything else: proceed. Stopping to ask "continue?" on an approved plan trains
+turn-ending, not diligence.
 
 ---
 
@@ -170,13 +171,16 @@ When resuming a previously paused plan:
 If a task cannot be completed as specified:
 
 1. **Attempt the task** as specified
-2. **If it fails**, diagnose why
-3. **Report the failure** with:
+2. **If it fails**, diagnose the ROOT CAUSE before any retry — if your fix wouldn't explain
+   the original failure, the diagnosis is wrong. Never add null-checks/try-catches just to
+   make a symptom disappear.
+3. **Retry once with a materially different approach** within the plan's scope
+4. **Report the failure** (if the retry also fails) with:
    - What you tried
    - Why it failed
    - Your assessment of whether the plan can continue
    - Suggested fix (but do NOT implement without approval)
-4. **Wait for user decision**
+5. **Wait for user decision**
 
 ---
 

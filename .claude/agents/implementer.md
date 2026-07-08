@@ -93,18 +93,24 @@ Monitor execution output:
 - Record which operations succeeded and which failed
 
 ### Step 3: Verify Build
-Run the validation commands from ops.json:
+Run the validation commands listed in **plan.md** (the ops.json schema forbids a validation
+section — `additionalProperties: false`; validation commands live in the plan document). If
+plan.md names none, use the project defaults from `.claude/hooks/config.json`:
 
 ```bash
 # Build verification
-<build_command from ops.json validation section>
+<build_cmd from plan.md, or config.json project.build_cmd>
 
 # Lint verification
-<lint_command from ops.json validation section>
+<lint_cmd from plan.md, or config.json project.lint_cmd>
 
 # Test verification
-<test_command from ops.json validation section>
+<test_cmd from plan.md, or config.json project.test_cmd>
 ```
+
+These three checks are independent — launch them in ONE batched message. Every PASS/FAIL you
+later report must quote the executed command's actual output (exit code, counts) — never
+estimate.
 
 ### Step 4: Handle Failures
 

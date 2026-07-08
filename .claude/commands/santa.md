@@ -56,14 +56,17 @@ Do NOT include: prior review feedback, author's explanation of choices, team opi
 
 ### Step 3: Spawn Both Reviewers in Parallel (CRITICAL — no shared context)
 
-Spawn two independent agents simultaneously. Neither sees the other's output.
+Spawn both reviewers in ONE message (two spawns, single response — spawning one per turn
+serializes them and breaks the isolation guarantee). Neither sees the other's output.
+Spawn per `.claude/agents/_shared/INVOCATION.md` with `--allowedTools "Read,Grep,Glob"` —
+reviewers verify claims against the actual repo, not just the packaged text.
 
-**Reviewer A — The Skeptic (Opus)**
-- Prompt: "You are reviewing this code change as a skeptic. Assume something is wrong. Find every bug, security issue, and edge case. Score each dimension 0-40/0-30/0-30. Only APPROVE if you cannot find a flaw. Return: APPROVE or REJECT, score, ranked findings."
+**Reviewer A — The Skeptic (Opus)** — spawn with `--model opus`
+- Prompt: "You are reviewing this code change as a skeptic. Assume something is wrong. Find every bug, security issue, and edge case. Verify suspicious claims against the repository (Read/Grep) — confirm at least one CRITICAL finding by inspection before REJECT. Score each dimension 0-40/0-30/0-30. Only APPROVE if you cannot find a flaw. Return: APPROVE or REJECT, score, findings — each with file:line, why it's wrong, and the fix."
 - Threshold: 90/100 normal, 95/100 with --strict
 
-**Reviewer B — The Pragmatist (Sonnet)**  
-- Prompt: "You are reviewing this code change as a pragmatist. Assess real-world risk. Would you ship this? What breaks if it's wrong? Score each dimension. APPROVE if risk is acceptable and change is sound. Return: APPROVE or REJECT, score, ranked findings."
+**Reviewer B — The Pragmatist (Sonnet)** — spawn with `--model sonnet`
+- Prompt: "You are reviewing this code change as a pragmatist. Assess real-world risk. Would you ship this? What breaks if it's wrong? Check the surrounding code (Read/Grep) before judging integration risk. Score each dimension. APPROVE if risk is acceptable and change is sound. Return: APPROVE or REJECT, score, findings — each with file:line, why it matters, and the fix."
 - Threshold: 90/100 normal, 95/100 with --strict
 
 ### Step 4: Synthesize Verdicts

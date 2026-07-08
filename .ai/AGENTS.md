@@ -29,10 +29,10 @@ flowchart TB
     subgraph CORE["Core Pipeline Agents (10)"]
         direction TB
         COORD[coordinator<br/>sonnet - routes and orchestrates]
-        PLAN[planner<br/>sonnet - plan.md + ops.json]
+        PLAN[planner<br/>opus - plan.md + ops.json]
         REV[reviewer<br/>opus - plan gate 90/100]
         IMPL[implementer<br/>sonnet - executes ops.json]
-        VER[verifier<br/>haiku - quality gate 80/100]
+        VER[verifier<br/>sonnet - quality gate 80/100]
         DBG[debugger<br/>opus - read-only root cause]
         DOC[documenter<br/>haiku - new docs]
         DOCU[doc-updater<br/>haiku - doc sync + codemaps]
@@ -233,7 +233,7 @@ TaskCreate:
 **Example invocation.**
 ```bash
 echo "Create a plan for adding a caching layer. Write plan.md and ops.json to .claude/plans/" | \
-  claude -p --agent planner --model sonnet --allowedTools "Read,Grep,Glob,Write"
+  claude -p --agent planner --model opus --allowedTools "Read,Grep,Glob,Write,Bash(python3 .claude/operations/scripts/validate-config-json.py *)"
 ```
 (Per `_shared/INVOCATION.md`, planner's scoped tool list is `Read,Grep,Glob,Write` — never Bash.)
 

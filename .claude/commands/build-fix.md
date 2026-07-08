@@ -75,8 +75,10 @@ case "$BUILD_TYPE" in
     ;;
 esac
 
-ERROR_COUNT=$(wc -l < /tmp/build-errors.txt)
-echo "Initial errors: $ERROR_COUNT lines"
+# Count actual error records, not raw lines — multi-line errors make wc -l noise,
+# and the continue/revert decision depends on this number being real:
+ERROR_COUNT=$(grep -cE "error TS[0-9]+|error\[|^ERROR|: error" /tmp/build-errors.txt || true)
+echo "Initial errors: $ERROR_COUNT"
 ```
 
 ### Step 4: Invoke Build Error Resolver
