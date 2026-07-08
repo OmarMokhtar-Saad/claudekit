@@ -2,19 +2,26 @@
 
 > Update this file at the end of every significant AI working session. It is the resume point.
 
-**Last updated:** 2026-07-08 · **By:** Claude (Fable 5) — AI-handover documentation session
+**Last updated:** 2026-07-08 · **By:** Claude (Fable 5) — fleet audit + legacy-install lifecycle session
 
 ## Current project state
 
-- v2.1.0 complete on `main`; 516 tests passing; all CI gates green as of `0c9223b`.
+- v2.1.0 complete on `main`; **523 tests passing**; all local gates green (pytest/ruff/mypy/gen-docs/bash -n; shellcheck not installed locally).
 - Release to PyPI **pending user decision** (tag push triggers release.yml / Trusted Publishing).
 - The 2026-07-05 audit (`review/`) is the work queue: tasks 001–006+011 done; 007–010, 012–014 open.
+- **Uncommitted work on `main` from two sessions** (this one + /adapt + .ai/ docs) — needs conventional commits; see CHANGELOG_AI.md 2026-07-08 entries for the split.
 
 ## Recent changes (this session)
 
-- Added the self-adaptation capability: `/adapt` command + `project-adaptation` skill (registered; counts now 40 commands / 74 skills across README, docs, .ai). First product change after Phase 1 — needs a conventional commit.
-- Created the `.ai/` AI operating system (36 documents) from a full-repository analysis.
-- Created the root `CLAUDE.md` (the repo previously had none — only templates for user projects).
+- Legacy-install lifecycle (plan: `.claude/plans/plan-legacy-install-lifecycle.md`): `ck diff`
+  source-fallback + three-way classification + custom listing; `ck update` on pre-manifest
+  installs; install.sh custom-asset preservation. +7 behavioral tests; docs/cli.md; CHANGELOG.
+- Fleet resync: qaforge-ai, LeanApis, ai-agent-system, MobileUIAutomator, qa-agents updated to
+  v2.1.0 manifest-tracked and diff-clean (this killed live `--dangerously-skip-permissions`
+  usage in 3 projects). AppiumLens intentionally left (selective sync pending owner decision).
+- Fleet audit findings recorded in CHANGELOG_AI.md: nothing upstreamable (all round-trips of
+  kit templates); per-template keep/delete verdicts feed task 008.
+- Earlier same day: `/adapt` command + `project-adaptation` skill; `.ai/` operating system; root CLAUDE.md.
 
 ## Important files for orientation
 
@@ -32,6 +39,15 @@
 
 - PyPI publish → owner go-ahead.
 - Plugin packaging (007) and consolidation deletions (008) → owner sign-off (user-visible surface changes).
+- QA-pack decision → owner: qa-agents contributed 3 generic manual-QA agents (bug-reporter,
+  exploratory-coach, test-scenario) worth a domain pack, not core (see CHANGELOG_AI 2026-07-08).
+- AppiumLens sync → owner: selective strategy required (real project customization in ~26 kit
+  files + 15 project skills); blind `ck update` would work but degrade its local fixes.
+- Spawn-mechanism contradiction → needs an empirical test: INVOCATION.md canonicalizes
+  `claude -p --agent`; AppiumLens field evidence (2026-06-30) claims that times out and
+  Task-tool invocation works. Both can't be right; affects /plan, /review, /refine.
+- `<example>`-blocks-inside-YAML-frontmatter in current kit agents (planner, coordinator,
+  reviewer, explore, implementer) — possibly invalid YAML; audit + fix pattern kit-wide.
 
 ## Known risks
 
