@@ -262,6 +262,15 @@ class TestContractConsistency:
         assert "from ops.json validation section" not in text
         assert "plan.md" in text
 
+    def test_hook_wrappers_survive_non_git_projects(self):
+        # Regression (qa-agents, 2026-07-08): ROOT=$(git rev-parse ...) with no
+        # fallback made every hook resolve to /.claude/... in non-git projects.
+        text = _read(ROOT, ".claude", "settings.json")
+        fragile = text.count('ROOT=$(git rev-parse')
+        assert fragile == 0, \
+            f"{fragile} hook wrapper(s) resolve ROOT without a non-git fallback"
+        assert "CLAUDE_PROJECT_DIR" in text  # the fallback chain is present
+
     def test_pipeline_commands_offer_task_tool_path(self):
         # Interactive default = Task tool (no cold boot); claude -p = scripted path.
         for cmd in ("plan.md", "review.md", "refine.md"):

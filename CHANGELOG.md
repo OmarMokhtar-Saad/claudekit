@@ -47,6 +47,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   mechanically checkable instead of prompt-enforced-only.
 
 ### Changed
+- **Hooks no longer break in non-git projects.** All 21 hook wrappers resolved the
+  project root with bare `git rev-parse --show-toplevel` — in a project without `.git`
+  (e.g. qa-agents) every hook tried to run `/.claude/hooks/...` at the filesystem root and
+  failed on every session. Root resolution is now `CLAUDE_PROJECT_DIR` → git → `pwd`;
+  verified by executing the real session-start wrapper in a non-git sandbox.
 - **Pipeline commands are dual-mechanism.** `/plan`, `/review`, `/refine` name the Task
   tool as the interactive default (local agents register post-frontmatter-fix; no cold
   boot, shared MCP/permissions) and keep scoped `claude -p` as the scripted/CI path — one

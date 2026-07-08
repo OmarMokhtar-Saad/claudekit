@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'ROOT=$(git rev-parse --show-toplevel 2>/dev/null); bash \"$ROOT/.claude/hooks/ops-enforcement.sh\"'"
+            "command": "bash -c 'ROOT=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\"; bash \"$ROOT/.claude/hooks/ops-enforcement.sh\"'"
           }
         ]
       },
@@ -15,7 +15,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'ROOT=$(git rev-parse --show-toplevel 2>/dev/null); bash \"$ROOT/.claude/hooks/config-protection.sh\"'"
+            "command": "bash -c 'ROOT=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\"; bash \"$ROOT/.claude/hooks/config-protection.sh\"'"
           }
         ]
       },
@@ -24,7 +24,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'ROOT=$(git rev-parse --show-toplevel 2>/dev/null); bash \"$ROOT/.claude/hooks/security-reminder.sh\"'"
+            "command": "bash -c 'ROOT=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\"; bash \"$ROOT/.claude/hooks/security-reminder.sh\"'"
           }
         ]
       },
@@ -33,7 +33,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'ROOT=$(git rev-parse --show-toplevel 2>/dev/null); bash \"$ROOT/.claude/hooks/file-guard-gate.sh\"'"
+            "command": "bash -c 'ROOT=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\"; bash \"$ROOT/.claude/hooks/file-guard-gate.sh\"'"
           }
         ]
       },
@@ -42,7 +42,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'ROOT=$(git rev-parse --show-toplevel 2>/dev/null); TOOL_INPUT=$(cat); CMD=$(echo \"$TOOL_INPUT\" | python3 -c \"import sys,json; print(json.load(sys.stdin).get(\\\"command\\\",\\\"\\\"))\" 2>/dev/null); if echo \"$CMD\" | grep -qE \"^\\s*git\\s+commit\"; then bash \"$ROOT/.claude/hooks/pre-commit.sh\"; fi'"
+            "command": "bash -c 'ROOT=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\"; TOOL_INPUT=$(cat); CMD=$(echo \"$TOOL_INPUT\" | python3 -c \"import sys,json; print(json.load(sys.stdin).get(\\\"command\\\",\\\"\\\"))\" 2>/dev/null); if echo \"$CMD\" | grep -qE \"^\\s*git\\s+commit\"; then bash \"$ROOT/.claude/hooks/pre-commit.sh\"; fi'"
           }
         ]
       },
@@ -51,7 +51,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'ROOT=$(git rev-parse --show-toplevel 2>/dev/null); bash \"$ROOT/.claude/hooks/commit-quality.sh\"'"
+            "command": "bash -c 'ROOT=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\"; bash \"$ROOT/.claude/hooks/commit-quality.sh\"'"
           }
         ]
       },
@@ -60,7 +60,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'ROOT=$(git rev-parse --show-toplevel 2>/dev/null); TOOL_INPUT=$(cat); CMD=$(echo \"$TOOL_INPUT\" | python3 -c \"import sys,json; print(json.load(sys.stdin).get(\\\"command\\\",\\\"\\\"))\" 2>/dev/null); if echo \"$CMD\" | grep -qE \"^\\s*git\\s+push\"; then bash \"$ROOT/.claude/hooks/pre-push.sh\"; fi'"
+            "command": "bash -c 'ROOT=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\"; TOOL_INPUT=$(cat); CMD=$(echo \"$TOOL_INPUT\" | python3 -c \"import sys,json; print(json.load(sys.stdin).get(\\\"command\\\",\\\"\\\"))\" 2>/dev/null); if echo \"$CMD\" | grep -qE \"^\\s*git\\s+push\"; then bash \"$ROOT/.claude/hooks/pre-push.sh\"; fi'"
           }
         ]
       },
@@ -69,7 +69,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'ROOT=$(git rev-parse --show-toplevel 2>/dev/null); bash \"$ROOT/.claude/hooks/block-no-verify.sh\"'"
+            "command": "bash -c 'ROOT=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\"; bash \"$ROOT/.claude/hooks/block-no-verify.sh\"'"
           }
         ]
       },
@@ -78,7 +78,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'ROOT=$(git rev-parse --show-toplevel 2>/dev/null); bash \"$ROOT/.claude/hooks/command-guard.sh\"'"
+            "command": "bash -c 'ROOT=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\"; bash \"$ROOT/.claude/hooks/command-guard.sh\"'"
           }
         ]
       },
@@ -87,7 +87,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'ROOT=$(git rev-parse --show-toplevel 2>/dev/null); bash \"$ROOT/.claude/hooks/suggest-compact.sh\" &'"
+            "command": "bash -c 'ROOT=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\"; bash \"$ROOT/.claude/hooks/suggest-compact.sh\" &'"
           }
         ]
       }
@@ -98,7 +98,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'ROOT=$(git rev-parse --show-toplevel 2>/dev/null); bash \"$ROOT/.claude/hooks/post-tool-use.sh\"'"
+            "command": "bash -c 'ROOT=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\"; bash \"$ROOT/.claude/hooks/post-tool-use.sh\"'"
           }
         ]
       },
@@ -107,7 +107,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'ROOT=$(git rev-parse --show-toplevel 2>/dev/null); bash \"$ROOT/.claude/hooks/command-log-audit.sh\" &'"
+            "command": "bash -c 'ROOT=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\"; bash \"$ROOT/.claude/hooks/command-log-audit.sh\" &'"
           }
         ]
       }
@@ -118,7 +118,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'ROOT=$(git rev-parse --show-toplevel 2>/dev/null); USER_INPUT=$(cat); PLAN_REF=$(echo \"$USER_INPUT\" | grep -ioE \"(plan|create plan|new plan)\\s+[a-zA-Z0-9_-]+\" | head -1 | sed \"s/^[^ ]* //\"); if [ -n \"$PLAN_REF\" ]; then bash \"$ROOT/.claude/hooks/pre-plan.sh\" \"$PLAN_REF\"; fi'"
+            "command": "bash -c 'ROOT=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\"; USER_INPUT=$(cat); PLAN_REF=$(echo \"$USER_INPUT\" | grep -ioE \"(plan|create plan|new plan)\\s+[a-zA-Z0-9_-]+\" | head -1 | sed \"s/^[^ ]* //\"); if [ -n \"$PLAN_REF\" ]; then bash \"$ROOT/.claude/hooks/pre-plan.sh\" \"$PLAN_REF\"; fi'"
           }
         ]
       },
@@ -127,7 +127,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'ROOT=$(git rev-parse --show-toplevel 2>/dev/null); bash \"$ROOT/.claude/hooks/injection-scan-gate.sh\"'"
+            "command": "bash -c 'ROOT=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\"; bash \"$ROOT/.claude/hooks/injection-scan-gate.sh\"'"
           }
         ]
       }
@@ -138,7 +138,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'ROOT=$(git rev-parse --show-toplevel 2>/dev/null); bash \"$ROOT/.claude/hooks/session-start.sh\"'"
+            "command": "bash -c 'ROOT=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\"; bash \"$ROOT/.claude/hooks/session-start.sh\"'"
           }
         ]
       }
@@ -149,7 +149,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'ROOT=$(git rev-parse --show-toplevel 2>/dev/null); LOG=\"$ROOT/.claude/hooks/hooks.log\"; echo \"[$(date \"+%Y-%m-%d %H:%M:%S\")] [stop] [INFO] Session stopping - running final checks\" >> \"$LOG\" 2>/dev/null; ISSUES=0; if [ -n \"$(git status --porcelain 2>/dev/null)\" ]; then echo \"[$(date \"+%Y-%m-%d %H:%M:%S\")] [stop] [WARN] Uncommitted changes remain in working tree\" >> \"$LOG\" 2>/dev/null; echo \"WARNING: Uncommitted changes remain. Review with git status.\"; ISSUES=1; fi; if find \"$ROOT/.claude/plans\" \\( -name \"*.ops.json\" -o -name \"ops-*.json\" \\) -print -quit 2>/dev/null | grep -q .; then find \"$ROOT/.claude/plans\" \\( -name \"*.ops.json\" -o -name \"ops-*.json\" \\) 2>/dev/null | while IFS= read -r f; do if ! python3 -c \"import json,sys; json.load(open(sys.argv[1]))\" \"$f\" 2>/dev/null; then echo \"[$(date \"+%Y-%m-%d %H:%M:%S\")] [stop] [WARN] Invalid ops.json: $f\" >> \"$LOG\" 2>/dev/null; ISSUES=1; fi; done; fi; echo \"[$(date \"+%Y-%m-%d %H:%M:%S\")] [stop] [INFO] Session ended (issues=$ISSUES)\" >> \"$LOG\" 2>/dev/null; exit 0'"
+            "command": "bash -c 'ROOT=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\"; LOG=\"$ROOT/.claude/hooks/hooks.log\"; echo \"[$(date \"+%Y-%m-%d %H:%M:%S\")] [stop] [INFO] Session stopping - running final checks\" >> \"$LOG\" 2>/dev/null; ISSUES=0; if [ -n \"$(git status --porcelain 2>/dev/null)\" ]; then echo \"[$(date \"+%Y-%m-%d %H:%M:%S\")] [stop] [WARN] Uncommitted changes remain in working tree\" >> \"$LOG\" 2>/dev/null; echo \"WARNING: Uncommitted changes remain. Review with git status.\"; ISSUES=1; fi; if find \"$ROOT/.claude/plans\" \\( -name \"*.ops.json\" -o -name \"ops-*.json\" \\) -print -quit 2>/dev/null | grep -q .; then find \"$ROOT/.claude/plans\" \\( -name \"*.ops.json\" -o -name \"ops-*.json\" \\) 2>/dev/null | while IFS= read -r f; do if ! python3 -c \"import json,sys; json.load(open(sys.argv[1]))\" \"$f\" 2>/dev/null; then echo \"[$(date \"+%Y-%m-%d %H:%M:%S\")] [stop] [WARN] Invalid ops.json: $f\" >> \"$LOG\" 2>/dev/null; ISSUES=1; fi; done; fi; echo \"[$(date \"+%Y-%m-%d %H:%M:%S\")] [stop] [INFO] Session ended (issues=$ISSUES)\" >> \"$LOG\" 2>/dev/null; exit 0'"
           }
         ]
       },
@@ -158,7 +158,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'ROOT=$(git rev-parse --show-toplevel 2>/dev/null); bash \"$ROOT/.claude/hooks/cost-tracker.sh\" &'"
+            "command": "bash -c 'ROOT=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\"; bash \"$ROOT/.claude/hooks/cost-tracker.sh\" &'"
           }
         ]
       },
@@ -167,7 +167,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'ROOT=$(git rev-parse --show-toplevel 2>/dev/null); bash \"$ROOT/.claude/hooks/desktop-notify.sh\" &'"
+            "command": "bash -c 'ROOT=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\"; bash \"$ROOT/.claude/hooks/desktop-notify.sh\" &'"
           }
         ]
       },
@@ -176,7 +176,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'ROOT=$(git rev-parse --show-toplevel 2>/dev/null); bash \"$ROOT/.claude/hooks/format-typecheck.sh\" &'"
+            "command": "bash -c 'ROOT=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\"; bash \"$ROOT/.claude/hooks/format-typecheck.sh\" &'"
           }
         ]
       }
@@ -187,7 +187,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'ROOT=$(git rev-parse --show-toplevel 2>/dev/null); LOG=\"$ROOT/.claude/hooks/hooks.log\"; echo \"[$(date \"+%Y-%m-%d %H:%M:%S\")] [subagent-stop] [INFO] Subagent completed\" >> \"$LOG\" 2>/dev/null'"
+            "command": "bash -c 'ROOT=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\"; LOG=\"$ROOT/.claude/hooks/hooks.log\"; echo \"[$(date \"+%Y-%m-%d %H:%M:%S\")] [subagent-stop] [INFO] Subagent completed\" >> \"$LOG\" 2>/dev/null'"
           }
         ]
       }
@@ -198,7 +198,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'ROOT=$(git rev-parse --show-toplevel 2>/dev/null); LOG=\"$ROOT/.claude/hooks/hooks.log\"; TOOL_INPUT=$(cat); TN=$(echo \"$TOOL_INPUT\" | python3 -c \"import sys,json; print(json.load(sys.stdin).get('tool_name') or 'unknown')\" 2>/dev/null); TN=${TN:-unknown}; echo \"[$(date \"+%Y-%m-%d %H:%M:%S\")] [tool-failure] [ERROR] Tool failed: $TN\" >> \"$LOG\" 2>/dev/null; echo \"[tool-failure] Tool $TN encountered an error. Check logs at $ROOT/.claude/hooks/hooks.log\"'"
+            "command": "bash -c 'ROOT=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\"; LOG=\"$ROOT/.claude/hooks/hooks.log\"; TOOL_INPUT=$(cat); TN=$(echo \"$TOOL_INPUT\" | python3 -c \"import sys,json; print(json.load(sys.stdin).get('tool_name') or 'unknown')\" 2>/dev/null); TN=${TN:-unknown}; echo \"[$(date \"+%Y-%m-%d %H:%M:%S\")] [tool-failure] [ERROR] Tool failed: $TN\" >> \"$LOG\" 2>/dev/null; echo \"[tool-failure] Tool $TN encountered an error. Check logs at $ROOT/.claude/hooks/hooks.log\"'"
           }
         ]
       }
