@@ -13,7 +13,8 @@ Phase 2 of the Product Requirements Process. Loads a PRP plan and implements it 
 - **using-superpowers** - Core capabilities
 - **executing-plans** - Batch execution with checkpoints
 - **verification-loop** - 6-phase quality gate
-- **verification-before-completion** - Never claim done without evidence
+
+**On demand:** load **verification-before-completion** before accepting any completion claim.
 
 ## Task
 

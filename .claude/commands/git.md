@@ -21,9 +21,10 @@ Git operation: $ARGUMENTS
 You MUST load and apply the following skills before proceeding:
 
 - **using-superpowers** - Core agent capabilities and tool usage
-- **using-git-worktrees** - Git worktree management for parallel work
 - **finishing-a-development-branch** - Branch completion, merge, and cleanup
 - **security-checklist** - Pre-commit and pre-push security validation
+
+**On demand:** load **using-git-worktrees** when worktree operations are requested.
 
 ## Safety Rules
 

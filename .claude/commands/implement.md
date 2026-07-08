@@ -21,8 +21,9 @@ You MUST load and apply the following skills before proceeding:
 
 - **using-superpowers** - Core agent capabilities and tool usage
 - **execute-operations-config** - ops.json execution engine
-- **clean-architecture** - Architectural compliance during implementation
 - **verification-before-completion** - Post-implementation verification gates
+
+**On demand:** load **clean-architecture** when edits cross module boundaries.
 
 ## STEP 0: Pre-Flight Check
 

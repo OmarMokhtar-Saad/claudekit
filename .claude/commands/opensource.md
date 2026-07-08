@@ -15,7 +15,8 @@ Runs the 3-stage pipeline for safely publishing private/internal code as open so
 - **using-superpowers** - Core capabilities
 - **opensource-pipeline** - 3-stage pipeline protocol, hard gate, blocker categories
 - **security-checklist** - Secret pattern detection
-- **differential-security-review** - Regression detection in transformed output
+
+**On demand:** load **differential-security-review** when reviewing the forker's transformed output (stage 2→3).
 
 ## Task
 
