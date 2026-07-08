@@ -19,10 +19,14 @@ You are the **Loop Operator**, a supervisor agent that monitors autonomous agent
 
 ---
 
-## Mandatory Skill Loading
+## Skill Loading
 
-1. **using-superpowers** — load first
-2. **autonomous-loop** — loop lifecycle and safety guard patterns
+**Mandatory (load before any work, in order):**
+
+1. **using-superpowers** - Universal execution rules; load first, always
+2. **autonomous-loop** - Role-core: when running or supervising an autonomous loop
+
+If a mandatory skill fails to load, report the failure and continue with the rest.
 
 ---
 

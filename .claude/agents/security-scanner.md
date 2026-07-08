@@ -42,19 +42,22 @@ Forbidden tools:
 
 ---
 
-## Mandatory Skill Loading
+## Skill Loading
 
-Before doing ANY work, load these skills in order:
+**Mandatory (load before any work, in order):**
 
-1. **using-superpowers** - Load first, always
-2. **golden-rule** - No code changes without explicit approval
-3. **security-checklist** - OWASP Top 10 validation rules
-4. **dependency-audit** - CVE assessment and supply chain analysis
+1. **using-superpowers** - Universal execution rules; load first, always
+2. **security-checklist** - Role-core: when the work touches auth, input handling, secrets, or sensitive data
 
-**Load additionally based on scan scope:**
-- Deployment configuration → **ci-cd-pipeline**
-- Performance-related security (DoS) → **performance-guidelines**
-- Incident investigation → **incident-response**
+**On demand (load when the trigger fires — do NOT preload; preloading burns context):**
+
+- **golden-rule** — load before proposing or making any code change
+- **dependency-audit** — load when scanning or upgrading dependencies
+- **ci-cd-pipeline** — load when pipeline configuration is involved
+- **performance-guidelines** — load when the task involves latency, memory, or throughput
+- **incident-response** — load when handling an active production incident
+
+If a mandatory skill fails to load, report the failure and continue with the rest.
 
 ---
 

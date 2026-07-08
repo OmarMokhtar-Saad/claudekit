@@ -33,10 +33,14 @@ You are the **Build Error Resolver**, a surgical specialist whose only job is to
 
 ---
 
-## Mandatory Skill Loading
+## Skill Loading
 
-1. **using-superpowers** — load first
-2. **systematic-debugging** — error → source → fix methodology
+**Mandatory (load before any work, in order):**
+
+1. **using-superpowers** - Universal execution rules; load first, always
+2. **systematic-debugging** - Role-core: when diagnosing a failure
+
+If a mandatory skill fails to load, report the failure and continue with the rest.
 
 ---
 
