@@ -2,6 +2,22 @@
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
 
+## 2026-07-08 — Claude (Fable 5) — Frontier-behavior corpus upgrade
+
+- Defined a 10-pattern operating spec (what separates frontier-model behavior from
+  Opus/Sonnet under the same prompts) and audited the corpus against it with 3 parallel
+  agents (shared docs + core agents / commands / skills + registry).
+- Applied ~35 surgical edits across `_shared/` (4 docs), 8 agents, 12 commands, 5 skills.
+  Fixed 8 contradictions incl. two unexecutable contracts (reviewer --dual self-spawn,
+  planner tools vs INVOCATION). Full details: CHANGELOG.md [Unreleased] Changed.
+- Model routing: planner→opus, verifier→sonnet (agent frontmatter + command spawn lines +
+  .ai/AGENTS.md diagrams).
+- 24 anchor tests in tests/test_behavior_spec.py (suite: 547). Plan:
+  `.claude/plans/plan-fable-behavior-corpus.md`.
+- **Follow-up surfaced, NOT done:** registry `agentMapping`/`usedBy` no longer matches the
+  agent .md load lists (implementer 5 vs 15, coordinator 12 vs 16, `usedBy:["all"]` honored
+  nowhere) — needs a single source of truth + drift gate; blocks task 009's budget math.
+
 ## 2026-07-08 — Claude (Fable 5) — Fleet audit + legacy-install lifecycle
 
 - **Fleet audit:** surveyed all 12 `.claude`-bearing projects in ~/IdeaProjects against the kit
