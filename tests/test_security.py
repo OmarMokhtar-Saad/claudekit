@@ -3,13 +3,11 @@
 import os
 import sys
 import tempfile
-import pytest
-from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+from claudekit.security import cli as security_cli
 from claudekit.security.command_validator import CommandValidator
 from claudekit.security.path_guard import PathGuard
-from claudekit.security import cli as security_cli
 
 
 class TestCommandValidator:

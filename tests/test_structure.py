@@ -2,8 +2,8 @@
 
 import json
 import os
-import pytest
 
+import pytest
 
 ROOT = os.path.join(os.path.dirname(__file__), '..')
 CLAUDE_DIR = os.path.join(ROOT, '.claude')

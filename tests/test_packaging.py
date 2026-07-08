@@ -62,6 +62,7 @@ def test_setup_bundles_runtime_assets():
     exclude local/runtime cruft.
     """
     import importlib.util
+
     import pytest
     # setup.py imports setuptools; Python 3.12+ venvs don't bundle it.
     setuptools = pytest.importorskip("setuptools")

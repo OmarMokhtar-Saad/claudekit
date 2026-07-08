@@ -1,6 +1,6 @@
 """Tests for security hooks."""
 import os
-import stat
+
 import pytest
 
 TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "templates")

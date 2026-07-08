@@ -4,13 +4,12 @@ import json
 import os
 import sys
 import tempfile
-import pytest
 
 # Add scripts to path
 SCRIPTS_DIR = os.path.join(os.path.dirname(__file__), '..', '.claude', 'operations', 'scripts')
 sys.path.insert(0, SCRIPTS_DIR)
 
-from shared import is_protected_file, PROTECTED_PATTERNS
+from shared import PROTECTED_PATTERNS, is_protected_file  # noqa: E402
 
 
 class TestProtectedFiles:
