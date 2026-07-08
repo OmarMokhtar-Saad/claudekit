@@ -13,6 +13,12 @@
 
 ## Recent changes (this session)
 
+- Frontier-behavior corpus upgrade (plan: `.claude/plans/plan-fable-behavior-corpus.md`):
+  ~35 edits across _shared docs/agents/commands/skills encoding parallel batching,
+  refutation-before-claim, evidence integrity, persistence; fixed 8 contradictions incl.
+  broken `@agents/` refs in 8 commands; planner→opus, verifier→sonnet; 24 anchor tests
+  (suite now 547). Registry↔agent-file drift surfaced as follow-up (blocks task 009).
+
 - Legacy-install lifecycle (plan: `.claude/plans/plan-legacy-install-lifecycle.md`): `ck diff`
   source-fallback + three-way classification + custom listing; `ck update` on pre-manifest
   installs; install.sh custom-asset preservation. +7 behavioral tests; docs/cli.md; CHANGELOG.
@@ -48,6 +54,10 @@
   Task-tool invocation works. Both can't be right; affects /plan, /review, /refine.
 - `<example>`-blocks-inside-YAML-frontmatter in current kit agents (planner, coordinator,
   reviewer, explore, implementer) — possibly invalid YAML; audit + fix pattern kit-wide.
+- Registry reconciliation → skills-registry.json `agentMapping`/`usedBy` disagrees with the
+  agent .md "Mandatory Skill Loading" lists (implementer 5 vs 15, coordinator 12 vs 16,
+  `usedBy:["all"]` honored nowhere). Pick one source of truth (suggest: agent files, registry
+  generated) + drift gate. Blocks honest context-budget math for task 009.
 
 ## Known risks
 
