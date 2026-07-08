@@ -2,6 +2,18 @@
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
 
+## 2026-07-08 — Claude (Fable 5) — Agent-registration root cause + fix (spawn contradiction resolved)
+
+- Empirical test settled the Task-tool-vs-`claude -p` question: invalid YAML frontmatter
+  (bare `<example>` blocks between fields) had unregistered ALL 28 agents from BOTH
+  mechanisms — `claude -p --agent explore` returned "agent not found"; a clean-frontmatter
+  probe agent worked (14s). Both prior claims had wrong causality.
+- Fixed all 28 agents (examples moved into description block scalars; name/model/color/tools
+  preserved), rewrote INVOCATION.md around the two verified mechanisms, corrected stale
+  claims in refine.md/gan-build.md, added TestAgentRegistration guard (suite: 549).
+- Rolled to all 6 projects via ck update; AppiumLens's 3 Task-tool command overrides restored
+  (tracked as locally-modified) pending a cold-boot timing test in ITS MCP-heavy env.
+
 ## 2026-07-08 — Claude (Fable 5) — Frontier-behavior corpus upgrade
 
 - Defined a 10-pattern operating spec (what separates frontier-model behavior from
