@@ -39,6 +39,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `docs/ARCHITECTURE.md`/`SECURITY.md` now describe what actually runs.
 
 ### Added
+- `/adapt` command + `project-adaptation` skill: adapt ClaudeKit to any project and
+  language (including stacks without a dedicated template) — detect installation
+  state, learn the project, configure `config.json` commands / `CLAUDE.md` /
+  `CONSTITUTION.md` / hook profile / `.agentignore`, verify with evidence
+  (hook block test, ops round-trip, `ck doctor`), and record adaptation decisions.
 - CLI install-lifecycle commands built on the install manifest (`.claudekit-manifest.json`):
   `claudekit diff` (show locally-modified managed files), `claudekit update` (re-install over an
   existing project, warning before overwriting local edits; installer backs up first), and
