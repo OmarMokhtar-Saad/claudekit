@@ -25,6 +25,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   scripted/CI paths with the cold-boot cost stated). Structural regression test added.
 
 ### Changed
+- **Context budget: lazy skill loading (task 009 core).** Agents no longer preload their
+  whole skill list: each declares ≤3 mandatory skills (`using-superpowers` + role-core) and
+  moves the rest to an explicit on-demand tier with per-skill load triggers ("load when the
+  work touches auth/input/secrets", ...). Mandatory preload drops 16,120 → 6,649 lines
+  across the 18 skill-loading agents (−59%); coordinator alone 2,397 → ~350 lines. Effort
+  is unchanged — the operating rules live in the always-present `_shared` docs; skill
+  bodies are depth that loads exactly when the trigger fires.
+- **skills-registry.json is now generated, not hand-maintained.** New
+  `scripts/gen-registry.py` derives `agentMapping` from the agent files' Skill Loading
+  sections (single source of truth) with a `--check` drift gate wired into the test suite
+  — the audit had found 10 mapped agents with no skill section and 2 commands mapped as
+  agents; the mapping is now 18 honest entries. Budget gate tests: max 3 mandatory skills
+  per agent, every on-demand entry must declare its trigger.
 - **Frontier-behavior corpus upgrade.** Audited all shared agent docs, 10 core agents, 14
   core commands, and the load-bearing skills against a 10-pattern operating spec (parallel
   batching, persistence, verification, adversarial self-check, evidence integrity, calibrated

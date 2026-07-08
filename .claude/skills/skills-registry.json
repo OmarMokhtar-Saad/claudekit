@@ -1,7 +1,7 @@
 {
   "version": "2.0",
   "lastUpdated": "2026-07-08",
-  "description": "ClaudeKit skills registry — maps skills to agents",
+  "description": "ClaudeKit skills registry \u2014 maps skills to agents",
   "skills": [
     {
       "id": "using-superpowers",
@@ -628,7 +628,7 @@
         "coordinator",
         "harness-optimizer"
       ],
-      "description": "Audit token consumption across agents, skills, MCP servers — find bloat and optimize"
+      "description": "Audit token consumption across agents, skills, MCP servers \u2014 find bloat and optimize"
     },
     {
       "id": "token-budget-advisor",
@@ -661,7 +661,7 @@
         "planner",
         "implementer"
       ],
-      "description": "Research-first approach — search npm/PyPI/MCP/GitHub before writing custom code"
+      "description": "Research-first approach \u2014 search npm/PyPI/MCP/GitHub before writing custom code"
     },
     {
       "id": "verification-loop",
@@ -694,7 +694,7 @@
         "explore",
         "coordinator"
       ],
-      "description": "Analyze unfamiliar codebase in 4 phases — generates onboarding guide and starter CLAUDE.md"
+      "description": "Analyze unfamiliar codebase in 4 phases \u2014 generates onboarding guide and starter CLAUDE.md"
     },
     {
       "id": "project-adaptation",
@@ -770,7 +770,7 @@
         "coordinator",
         "planner"
       ],
-      "description": "Structured session save/resume — serialize task state, decisions, next steps across sessions"
+      "description": "Structured session save/resume \u2014 serialize task state, decisions, next steps across sessions"
     },
     {
       "id": "prp-plan",
@@ -781,7 +781,7 @@
         "planner",
         "coordinator"
       ],
-      "description": "Product Requirements Process plan phase — deep codebase analysis before writing a single line of implementation"
+      "description": "Product Requirements Process plan phase \u2014 deep codebase analysis before writing a single line of implementation"
     },
     {
       "id": "gan-harness",
@@ -807,234 +807,129 @@
     }
   ],
   "agentMapping": {
-    "coordinator": [
-      "using-superpowers",
-      "golden-rule",
-      "multi-agent-coordination",
-      "dispatching-parallel-agents",
-      "subagent-driven-development",
-      "session-continuity",
-      "autonomous-loop",
-      "context-priming",
-      "usage-monitoring",
-      "prompt-injection-defense",
-      "hook-profiling",
-      "autonomous-loops",
-      "context-first-workflow",
-      "verification-before-completion",
-      "search-first",
-      "verification-loop"
-    ],
-    "planner": [
-      "using-superpowers",
-      "golden-rule",
-      "context-first-workflow",
-      "writing-plans",
-      "brainstorming",
-      "generate-operations-config",
-      "clean-architecture",
-      "refactoring-patterns",
-      "mcp-integration",
-      "codebase-mapping",
-      "spec-driven-development",
-      "search-first"
-    ],
-    "reviewer": [
-      "using-superpowers",
-      "golden-rule",
-      "validate-operations-config",
-      "clean-architecture",
-      "security-checklist",
-      "supply-chain-audit",
-      "differential-security-review",
-      "insecure-defaults",
-      "static-analysis-integration"
-    ],
-    "implementer": [
-      "using-superpowers",
-      "golden-rule",
-      "context-first-workflow",
-      "execute-operations-config",
-      "executing-plans",
-      "clean-architecture",
-      "verification-before-completion",
-      "test-driven-development",
-      "error-handling",
-      "receiving-code-review",
-      "property-based-testing",
-      "mcp-integration",
-      "autonomous-loop",
-      "verification-loop",
-      "search-first"
-    ],
-    "verifier": [
-      "using-superpowers",
-      "golden-rule",
-      "verification-before-completion",
-      "test-driven-development",
-      "performance-guidelines",
-      "supply-chain-audit",
-      "insecure-defaults",
-      "static-analysis-integration",
-      "verification-loop",
-      "eval-harness"
-    ],
-    "debugger": [
-      "using-superpowers",
-      "golden-rule",
+    "build-error-resolver": [
       "systematic-debugging",
-      "incident-response"
-    ],
-    "documenter": [
-      "using-superpowers",
-      "golden-rule",
-      "documentation-standards",
-      "i18n-patterns"
-    ],
-    "gitOps": [
-      "using-superpowers",
-      "golden-rule",
-      "git-workflow",
-      "using-git-worktrees",
-      "finishing-a-development-branch",
-      "security-checklist",
-      "differential-security-review",
-      "requesting-code-review"
-    ],
-    "explore": [
-      "using-superpowers",
-      "golden-rule",
-      "codebase-mapping",
-      "context-priming"
-    ],
-    "tester": [
-      "using-superpowers",
-      "golden-rule",
-      "test-driven-development",
-      "verification-before-completion",
-      "property-based-testing",
-      "eval-harness"
-    ],
-    "security-scanner": [
-      "using-superpowers",
-      "golden-rule",
-      "security-checklist",
-      "dependency-audit",
-      "supply-chain-audit",
-      "insecure-defaults",
-      "differential-security-review",
-      "static-analysis-integration",
-      "prompt-injection-defense"
-    ],
-    "devops": [
-      "using-superpowers",
-      "golden-rule",
-      "ci-cd-pipeline",
-      "containerization-patterns",
-      "monitoring-observability",
-      "security-checklist",
-      "hook-profiling"
-    ],
-    "database-architect": [
-      "using-superpowers",
-      "golden-rule",
-      "database-migration-patterns",
-      "performance-guidelines",
-      "clean-architecture"
-    ],
-    "silent-failure-hunter": [
-      "using-superpowers",
-      "golden-rule",
-      "error-handling",
-      "systematic-debugging"
-    ],
-    "harness-optimizer": [
-      "using-superpowers",
-      "golden-rule",
-      "context-budget",
-      "hook-profiling"
-    ],
-    "performance-optimizer": [
-      "using-superpowers",
-      "golden-rule",
-      "performance-guidelines",
-      "monitoring-observability"
-    ],
-    "code-simplifier": [
-      "using-superpowers",
-      "golden-rule",
-      "refactoring-patterns",
-      "clean-architecture"
-    ],
-    "typescript-reviewer": [
-      "using-superpowers",
-      "golden-rule",
-      "security-checklist",
-      "static-analysis-integration"
-    ],
-    "python-reviewer": [
-      "using-superpowers",
-      "golden-rule",
-      "security-checklist",
-      "static-analysis-integration"
-    ],
-    "tdd-guide": [
-      "using-superpowers",
-      "golden-rule",
-      "test-driven-development",
-      "verification-before-completion",
-      "property-based-testing",
-      "eval-harness"
-    ],
-    "refactor-cleaner": [
-      "using-superpowers",
-      "golden-rule",
-      "refactoring-patterns",
-      "verification-before-completion"
-    ],
-    "doc-updater": [
-      "using-superpowers",
-      "golden-rule",
-      "documentation-standards",
-      "codebase-onboarding"
+      "using-superpowers"
     ],
     "code-reviewer": [
-      "using-superpowers",
+      "differential-security-review",
       "golden-rule",
       "security-checklist",
-      "differential-security-review"
+      "using-superpowers"
     ],
-    "build-error-resolver": [
+    "coordinator": [
+      "autonomous-loop",
+      "context-budget",
+      "context-first-workflow",
+      "dispatching-parallel-agents",
+      "golden-rule",
+      "multi-agent-coordination",
+      "search-first",
+      "session-continuity",
+      "subagent-driven-development",
       "using-superpowers",
-      "systematic-debugging"
+      "verification-before-completion",
+      "verification-loop"
+    ],
+    "database-architect": [
+      "api-design-patterns",
+      "clean-architecture",
+      "database-migration-patterns",
+      "golden-rule",
+      "performance-guidelines",
+      "security-checklist",
+      "using-superpowers"
+    ],
+    "debugger": [
+      "golden-rule",
+      "performance-guidelines",
+      "security-checklist",
+      "systematic-debugging",
+      "test-driven-development",
+      "using-superpowers"
+    ],
+    "devops": [
+      "ci-cd-pipeline",
+      "containerization-patterns",
+      "database-migration-patterns",
+      "dependency-audit",
+      "golden-rule",
+      "monitoring-observability",
+      "security-checklist",
+      "using-superpowers"
+    ],
+    "documenter": [
+      "documentation-standards",
+      "golden-rule",
+      "using-superpowers"
+    ],
+    "explore": [
+      "golden-rule",
+      "using-superpowers"
+    ],
+    "gitOps": [
+      "finishing-a-development-branch",
+      "git-workflow",
+      "golden-rule",
+      "security-checklist",
+      "using-git-worktrees",
+      "using-superpowers"
+    ],
+    "implementer": [
+      "clean-architecture",
+      "execute-operations-config",
+      "golden-rule",
+      "using-superpowers",
+      "verification-before-completion"
     ],
     "loop-operator": [
-      "using-superpowers",
-      "autonomous-loop"
-    ],
-    "opensource-sanitizer": [
-      "using-superpowers",
-      "security-checklist",
-      "supply-chain-audit"
+      "autonomous-loop",
+      "using-superpowers"
     ],
     "opensource-packager": [
-      "using-superpowers",
-      "documentation-standards"
+      "documentation-standards",
+      "using-superpowers"
     ],
-    "model-router": [
-      "using-superpowers",
-      "context-budget"
-    ],
-    "opensource": [
-      "using-superpowers",
-      "opensource-pipeline",
+    "opensource-sanitizer": [
       "security-checklist",
-      "differential-security-review"
+      "supply-chain-audit",
+      "using-superpowers"
     ],
-    "loop-start": [
+    "planner": [
+      "brainstorming",
+      "context-first-workflow",
+      "generate-operations-config",
+      "golden-rule",
       "using-superpowers",
-      "autonomous-loop",
-      "verification-loop",
+      "writing-plans"
+    ],
+    "reviewer": [
+      "clean-architecture",
+      "golden-rule",
+      "security-checklist",
+      "using-superpowers",
+      "validate-operations-config"
+    ],
+    "security-scanner": [
+      "ci-cd-pipeline",
+      "dependency-audit",
+      "golden-rule",
+      "incident-response",
+      "performance-guidelines",
+      "security-checklist",
+      "using-superpowers"
+    ],
+    "tester": [
+      "golden-rule",
+      "test-driven-development",
+      "using-superpowers",
+      "verification-before-completion"
+    ],
+    "verifier": [
+      "golden-rule",
+      "performance-guidelines",
+      "test-driven-development",
+      "using-superpowers",
       "verification-before-completion"
     ]
   }

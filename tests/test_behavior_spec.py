@@ -7,6 +7,8 @@ can't silently regress them. Each test names the pattern it guards.
 """
 import os
 import re
+import subprocess
+import sys
 
 ROOT = os.path.join(os.path.dirname(__file__), "..")
 SHARED = os.path.join(ROOT, ".claude", "agents", "_shared")
@@ -172,6 +174,58 @@ class TestAgentRegistration:
                 assert data.get(key), f"{fname}: missing frontmatter key {key!r}"
             assert set(data) <= set(self.KNOWN_KEYS), \
                 f"{fname}: unexpected frontmatter keys {set(data) - set(self.KNOWN_KEYS)}"
+
+
+class TestContextBudget:
+    """Task 009: agents preload at most 3 skills; depth loads on trigger.
+    The 2026-07 audit measured 16,120 preloaded lines across 18 agents
+    (coordinator alone: 12 skills / 2,397 lines) — this gate keeps it fixed."""
+
+    MANDATORY_RE = re.compile(
+        r"\*\*Mandatory \(load before any work, in order\):\*\*\n(.*?)(?=\n\*\*On demand|\nIf a mandatory)",
+        re.S)
+    SECTION_RE = re.compile(r"## Skill Loading\n(.*?)(?=\n## |\n---)", re.S)
+
+    def _agents_with_skills(self):
+        for fname in sorted(os.listdir(AGENTS)):
+            path = os.path.join(AGENTS, fname)
+            if not fname.endswith(".md") or not os.path.isfile(path):
+                continue
+            text = _read(path)
+            if text.startswith("---\n") and self.SECTION_RE.search(text):
+                yield fname, self.SECTION_RE.search(text).group(1)
+
+    def test_no_agent_preloads_more_than_three_skills(self):
+        found = 0
+        for fname, section in self._agents_with_skills():
+            found += 1
+            m = self.MANDATORY_RE.search(section)
+            assert m, f"{fname}: Skill Loading section lacks the Mandatory block"
+            mandatory = re.findall(r"^\d+\. \*\*([a-z0-9-]+)\*\*", m.group(1), re.M)
+            assert 1 <= len(mandatory) <= 3, \
+                f"{fname}: {len(mandatory)} mandatory skills (max 3): {mandatory}"
+            assert mandatory[0] == "using-superpowers", \
+                f"{fname}: using-superpowers must be the first mandatory skill"
+        assert found >= 15, f"only {found} agents with Skill Loading sections — wrong regex?"
+
+    def test_on_demand_entries_declare_triggers(self):
+        for fname, section in self._agents_with_skills():
+            if "**On demand" not in section:
+                continue
+            on_demand = section.split("**On demand", 1)[1]
+            for line in on_demand.split("\n"):
+                if line.startswith("- **"):
+                    assert "— load " in line, \
+                        f"{fname}: on-demand skill without a load trigger: {line!r}"
+
+    def test_registry_matches_agent_files(self):
+        # gen-registry --check is the drift gate (same pattern as gen-docs).
+        script = os.path.join(ROOT, "scripts", "gen-registry.py")
+        result = subprocess.run(
+            [sys.executable, script, "--check"],
+            capture_output=True, text=True, timeout=30)
+        assert result.returncode == 0, \
+            f"registry drifted from agent files:\n{result.stdout}{result.stderr}"
 
 
 class TestContractConsistency:

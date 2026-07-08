@@ -43,23 +43,26 @@ regardless of which model you run on:
 
 ## Skill Loading Protocol
 
-Before performing any work, load required skills in the order specified by your agent definition.
+Your agent definition declares skills in two tiers. Respect the tiers — they are the
+context budget:
+
+1. **Mandatory** (≤3 per agent): load in order before any work. `using-superpowers` is
+   always first.
+2. **On demand**: do NOT preload. Each entry names its trigger; load the skill at the
+   moment the trigger fires and not before. Preloading on-demand skills burns context
+   that the actual task needs.
 
 ```
 SKILL LOADING:
-1. Attempt to load each skill in order
+1. Load each MANDATORY skill in order
 2. If a skill fails to load:
    a. Log the failure
    b. Continue with remaining skills
    c. Report missing skills in your output
 3. Never block on a failed skill load
 4. Never skip work because a skill failed to load
+5. Load an ON-DEMAND skill immediately when its trigger fires
 ```
-
-Required for ALL agents:
-- **using-superpowers** -- Always load first
-
-Additional skills are specified per-agent in their definition file.
 
 ---
 

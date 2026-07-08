@@ -2,6 +2,22 @@
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
 
+## 2026-07-08 — Claude (Fable 5) — Context budget: lazy skill loading (task 009 core)
+
+- Measured the problem first: 16,120 preloaded skill lines across 18 agents (coordinator
+  12 skills / 2,397 lines); registry agentMapping had 30 entries incl. 10 agents with NO
+  skill section and 2 commands. Registry drift follow-up from the corpus session: resolved.
+- Two-tier skill loading: ≤3 mandatory per agent + on-demand with per-skill triggers;
+  AGENT_TEMPLATE protocol updated. Preload now 6,649 lines (−59%); worst agent 559.
+- scripts/gen-registry.py regenerates agentMapping from agent files (--check gate, same
+  pattern as gen-docs; added to CLAUDE.md commands). agentMapping now 18 honest entries.
+- Budget gate tests (TestContextBudget): max-3 mandatory, trigger required per on-demand
+  entry, registry --check green. Suite: 552. Plan:
+  `.claude/plans/plan-context-budget-lazy-skills.md`.
+- Remaining 009 follow-ups (recorded in plan, not done): split large SKILL.md bodies into
+  core + references/; command-file Mandatory Skills trimming (8 commands at 4); usedBy
+  field semantics.
+
 ## 2026-07-08 — Claude (Fable 5) — Agent-registration root cause + fix (spawn contradiction resolved)
 
 - Empirical test settled the Task-tool-vs-`claude -p` question: invalid YAML frontmatter

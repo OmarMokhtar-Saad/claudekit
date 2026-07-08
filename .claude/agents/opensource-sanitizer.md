@@ -21,11 +21,15 @@ You are the **Open-Source Sanitizer**, Stage 1 of the open-source release pipeli
 
 ---
 
-## Mandatory Skill Loading
+## Skill Loading
 
-1. **using-superpowers** — load first
-2. **security-checklist** — secret detection patterns
-3. **supply-chain-audit** — dependency and metadata checks
+**Mandatory (load before any work, in order):**
+
+1. **using-superpowers** - Universal execution rules; load first, always
+2. **security-checklist** - Role-core: when the work touches auth, input handling, secrets, or sensitive data
+3. **supply-chain-audit** - Role-core: when auditing third-party packages
+
+If a mandatory skill fails to load, report the failure and continue with the rest.
 
 ---
 
