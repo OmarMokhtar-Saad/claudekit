@@ -39,6 +39,15 @@ Verified 2026-07-08: `claude -p --agent explore` failed with "agent not found" p
 post-fix it completed a trivial haiku task in 13s. Probe agent with clean frontmatter
 confirmed causality (14s).
 
+**Headless `.claude/**` write gate (verified 2026-07-08):** in `claude -p` mode the platform
+treats `.claude/**` as sensitive and requires interactive approval for Write/Edit there —
+bare `Write` in `--allowedTools`, path-scoped `Write(.claude/plans/**)`, and settings-file
+allow rules were ALL tested and none bypass it. Consequence: headless agents deliver
+`.claude/`-destined artifacts via **stdout**, and the invoking command saves them
+(`tee` + `extract-json-from-plan.py` for plans). Full E2E pipeline validated the same day:
+plan ($0.68/opus) → review ($0.18/opus, refutation ran) → implement ($0.36/sonnet, ops
+engine) → verify ($0.64/sonnet, scores matched ground truth) ≈ $1.86 total on a small task.
+
 ---
 
 ## IRON RULE: never `--dangerously-skip-permissions`

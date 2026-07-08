@@ -216,11 +216,16 @@ Next:     <CONVERGED|REVISING|ESCALATING>
 ### Step 3: Final Report
 
 **On APPROVED — verify before you report it.** The success banner's evidence line must be
-EARNED, not templated. Run both commands and paste their real results:
+EARNED, not templated. Save the approved plan and extract its ops config first (the planner
+cannot write into `.claude/` when spawned headless — its stdout is the delivery contract),
+then run the validator and dry-run and paste their real results:
 
 ```bash
-python3 .claude/operations/scripts/validate-config-json.py <ops-file>
-python3 .claude/operations/scripts/execute-json-ops.py <ops-file> --dry-run
+PLAN_FILE=".claude/plans/plan-<slug>.md"; OPS_FILE="${PLAN_FILE%.md}.ops.json"
+printf '%s\n' "$current_plan" > "$PLAN_FILE"
+python3 .claude/operations/scripts/extract-json-from-plan.py "$PLAN_FILE" --output "$OPS_FILE"
+python3 .claude/operations/scripts/validate-config-json.py "$OPS_FILE"
+python3 .claude/operations/scripts/execute-json-ops.py "$OPS_FILE" --dry-run
 ```
 
 If either fails, the plan is NOT approved — feed the failure back as reviewer feedback and

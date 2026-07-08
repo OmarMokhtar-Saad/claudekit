@@ -41,8 +41,18 @@ if [ $EXIT_CODE -ne 0 ]; then
 fi
 
 echo "$plan_output" | tee "$PLAN_FILE"
+
+# The planner cannot write into .claude/ itself when spawned headless (sensitive-path
+# gate, verified 2026-07-08) — its stdout is the delivery contract. Extract the ops.json
+# it emitted and validate it.
+OPS_FILE="${PLAN_FILE%.md}.ops.json"
+python3 .claude/operations/scripts/extract-json-from-plan.py "$PLAN_FILE" --output "$OPS_FILE" \
+  && python3 .claude/operations/scripts/validate-config-json.py "$OPS_FILE" \
+  || { echo "ERROR: no valid ops.json in planner output — IRON LAW violated, re-run /plan"; exit 1; }
+
 echo ""
 echo "Plan saved to: $PLAN_FILE"
+echo "Ops config:    $OPS_FILE (validated)"
 ```
 
 After output, suggest:

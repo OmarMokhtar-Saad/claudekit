@@ -194,6 +194,14 @@ Save both files to the project:
 3. Report file locations to the coordinator
 ```
 
+**Headless fallback (verified 2026-07-08):** in headless spawns (`claude -p`), writes into
+`.claude/**` are hard-blocked by the platform's sensitive-path gate — no allow rule or
+`--allowedTools` grant overrides it, and there is nobody to approve. If your first Write to
+`.claude/plans/` is blocked, do NOT retry or end asking for approval: emit both artifacts in
+your final response instead — the plan document, then the complete ops.json in a fenced
+```json block. The invoking command saves them (tee + extract-json-from-plan.py). Stdout IS
+the delivery contract in headless mode.
+
 ---
 
 ## Tiered Briefing Format
