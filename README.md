@@ -1,8 +1,8 @@
 <p align="center">
   <img src="https://img.shields.io/badge/ClaudeKit-v2.1.0-blue?style=for-the-badge" alt="Version">
   <img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" alt="License">
-  <img src="https://img.shields.io/badge/python-3.8%2B-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python">
-  <img src="https://img.shields.io/badge/bash-4.0%2B-4EAA25?style=for-the-badge&logo=gnubash&logoColor=white" alt="Bash">
+  <img src="https://img.shields.io/badge/python-3.9%2B-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python">
+  <img src="https://img.shields.io/badge/bash-3.2%2B-4EAA25?style=for-the-badge&logo=gnubash&logoColor=white" alt="Bash">
   <img src="https://img.shields.io/github/actions/workflow/status/OmarMokhtar-Saad/claudekit/ci.yml?style=for-the-badge&label=CI" alt="CI">
 </p>
 
@@ -63,6 +63,8 @@ Open your project in Claude Code and run:
 ```
 
 ClaudeKit takes over — the Planner explores your codebase, writes a plan with an ops.json config, the Reviewer validates it, the Implementer executes it with automatic backup, and the Verifier checks the result.
+
+> **Tip:** in your first session, run `/adapt` — it fits ClaudeKit to your project (any language, even without a dedicated template), configures build/test/lint commands, and verifies the setup with evidence.
 
 ### Install Options
 
@@ -147,6 +149,7 @@ ClaudeKit takes over — the Planner explores your codebase, writes a plan with 
 | `/docs` | Generate documentation | `/docs API reference for auth module` |
 | `/git` | Git operations | `/git commit "feat: add auth"` |
 | `/coordinator` | Multi-agent orchestration | `/coordinator Migrate database schema` |
+| `/adapt` | Fit ClaudeKit to the current project — any language, any stack | `/adapt` |
 | `/explore` | Explore codebase architecture | `/explore How does the auth module work?` |
 | `/security` | Run security analysis | `/security Scan auth module for vulnerabilities` |
 | `/deps` | Audit dependencies | `/deps Check for outdated packages and CVEs` |
@@ -176,6 +179,8 @@ ClaudeKit takes over — the Planner explores your codebase, writes a plan with 
 | **Security Scanner** | OWASP Top 10 scanning, secret detection, dependency CVE analysis | Opus | Crimson |
 | **DevOps** | CI/CD pipelines, containerization, deployment, infrastructure-as-code | Sonnet | Silver |
 | **Database Architect** | Schema design, migrations, query optimization, data modeling | Sonnet | Bronze |
+
+*The table shows the core pipeline roles. More specialists ship alongside them (code-reviewer, build-error-resolver, model-router, loop-operator, opensource-sanitizer/-packager, language reviewers, …) — run `ck agents` for the full list of all 28.*
 
 ---
 
@@ -217,26 +222,28 @@ ops.json  →  validate-config-json.py  →  execute-json-ops.py  →  backups/
 }
 ```
 
-### Safety Guards (26 Total)
+### Safety Guards (29 Total)
 
-| Category | Guards | Examples |
-|----------|--------|----------|
-| **Code Editing** | 11 | Pattern exists in file, no ambiguous matches, action type validation |
-| **File Operations** | 6 | Protected file check, deletion reason required, file existence check |
-| **Backup/Restore** | 6 | Path format consistency, backup directory writable, collision detection |
-| **Security** | 3 | Null byte rejection, operation type validation |
+| Category | Examples |
+|----------|----------|
+| **Structure & schema** | Valid JSON, schema conformance, required fields, non-empty operations |
+| **Code editing** | Pattern exists in file, no ambiguous matches, action type validation |
+| **File operations** | Protected-file check, deletion reason required, existence/overwrite checks, MAX_DELETIONS (max 3 per plan) |
+| **Security** | Null-byte rejection on paths and content, operation type validation |
+
+The authoritative list is the numbered guards in [`validate-config-json.py`](.claude/operations/scripts/validate-config-json.py).
 
 ### Protected Files
 
 These files cannot be deleted via operations config:
 
-`.gitignore` · `*.md` · `Makefile` · `Dockerfile` · `requirements.txt` · `package.json` · `pyproject.toml` · `tsconfig.json` · `setup.py` · `Pipfile` · `yarn.lock`
+`.gitignore` · `*.md` · `Makefile` · `Dockerfile` · `docker-compose.*` · `requirements.txt` · `package.json` · `package-lock.json` · `yarn.lock` · `pyproject.toml` · `tsconfig.json` · `setup.py` · `Pipfile` — canonical, extensible list: `PROTECTED_PATTERNS` in [`shared.py`](.claude/operations/scripts/shared.py).
 
 ---
 
 ## Skills
 
-ClaudeKit includes 73 reusable skills that agents load on-demand:
+ClaudeKit includes 74 reusable skills that agents load on-demand:
 
 | Category | Skills |
 |----------|--------|
@@ -254,6 +261,8 @@ ClaudeKit includes 73 reusable skills that agents load on-demand:
 
 ## Hooks
 
+19 hooks are wired through `.claude/settings.json` (PreToolUse, PostToolUse, UserPromptSubmit, SessionStart, Stop) and gated by `ECC_HOOK_PROFILE` (`minimal` / `standard` / `strict`). Blocking hooks fail closed: `exit 2` + reason on stderr. Highlights:
+
 | Hook | Trigger | Blocking | Purpose |
 |------|---------|----------|---------|
 | **pre-commit** | Before `git commit` | Yes | Validates ops.json configs, scans for hardcoded secrets |
@@ -262,7 +271,7 @@ ClaudeKit includes 73 reusable skills that agents load on-demand:
 | **pre-push** | Before `git push` | Yes | Full validation: tests, lint, build must all pass |
 | **post-tool-use** | After Edit/Write/Bash | No | Tracks modifications, validates ops.json on edit |
 
-All hook commands are configured in `.claude/hooks/config.json` — no hardcoded values.
+Other wired hooks include `ops-enforcement` (blocks source edits without an approved ops.json), `command-guard` (runs Bash commands through the security validator), `config-protection`, `block-no-verify`, `commit-quality`, `injection-scan-gate`, and session/telemetry hooks. Project commands (build/test/lint/coverage) are configured once in `.claude/hooks/config.json` — no hardcoded values. Full reference: [docs/HOOKS.md](docs/HOOKS.md).
 
 ---
 
@@ -307,8 +316,8 @@ Each project gets a `CONSTITUTION.md` — a governance document that agents enfo
 | Component | Count |
 |-----------|------:|
 | Agents    | 28 |
-| Commands  | 39 |
-| Skills    | 73 |
+| Commands  | 40 |
+| Skills    | 74 |
 | Hooks     | 19 |
 <!-- END GENERATED:inventory -->
 
@@ -329,8 +338,8 @@ claudekit/
 │   │   ├── gitOps.md
 │   │   ├── explore.md
 │   │   └── _shared/                  # Templates and protocols
-│   ├── commands/                     # 39 slash commands
-│   ├── skills/                       # 73 domain skills + registry
+│   ├── commands/                     # 40 slash commands
+│   ├── skills/                       # 74 domain skills + registry
 │   ├── hooks/                        # 19 workflow hooks + lib.sh
 │   ├── operations/scripts/           # Validate, execute, restore
 │   └── local/                        # CLAUDE.md + CONSTITUTION.md templates
@@ -356,7 +365,7 @@ claudekit/
 │   ├── HOOKS.md
 │   ├── CUSTOMIZATION.md
 │   └── CONSTITUTION-GUIDE.md
-├── tests/                            # Test suite (110 tests)
+├── tests/                            # Test suite (516 tests)
 ├── .github/workflows/ci.yml          # CI/CD pipeline
 ├── install.sh                        # One-command installer
 ├── CONTRIBUTING.md
@@ -386,8 +395,8 @@ claudekit/
 | Requirement | Version | Purpose |
 |-------------|---------|---------|
 | [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | Latest | CLI environment |
-| Python | 3.8+ | Operations scripts (validate, execute, restore) |
-| Bash | 4.0+ | Installer and hook scripts |
+| Python | 3.9+ | CLI, security layer, operations scripts |
+| Bash | 3.2+ (stock macOS works) | Installer and hook scripts |
 | Git | 2.0+ | Version control operations |
 
 No external Python packages are required for production use. The operations scripts use only the Python standard library. Test dependencies (`pytest`, `jsonschema`) are listed in `tests/requirements.txt`.
@@ -419,7 +428,7 @@ See [`examples/typescript-nextjs/`](examples/typescript-nextjs/) for a complete 
 <details>
 <summary><strong>Does ClaudeKit work with any programming language?</strong></summary>
 
-Yes. ClaudeKit ships templates for Python, TypeScript, Java, Go, Kotlin, Swift, Rust, C#, Ruby, and PHP. For any other language, use the `generic` template and configure your build/test/lint commands in `.claude/hooks/config.json`.
+Yes. ClaudeKit ships templates for Python, TypeScript, Java, Go, Kotlin, Swift, Rust, C#, Ruby, and PHP. For any other language, use the `generic` template — then run `/adapt`, which detects your stack, configures build/test/lint commands in `.claude/hooks/config.json`, and verifies the kit works in your project.
 </details>
 
 <details>
