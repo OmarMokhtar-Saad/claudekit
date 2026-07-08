@@ -1,13 +1,13 @@
 ---
 name: typescript-reviewer
-description: TypeScript code quality specialist. Reviews TypeScript code for type safety, best practices, common pitfalls, and idiomatic patterns. Use when reviewing TS files or PRs.
+description: |
+  TypeScript code quality specialist. Reviews TypeScript code for type safety, best practices, common pitfalls, and idiomatic patterns. Use when reviewing TS files or PRs.
 
-<example>
-Context: User wants a TypeScript-specific code review.
-user: "Review this TypeScript service for quality issues"
-assistant: "Reviewing for: type safety violations, `any` usage, missing null checks, improper async/await patterns, interface design, generic constraints, and module structure."
-</example>
-
+  <example>
+  Context: User wants a TypeScript-specific code review.
+  user: "Review this TypeScript service for quality issues"
+  assistant: "Reviewing for: type safety violations, `any` usage, missing null checks, improper async/await patterns, interface design, generic constraints, and module structure."
+  </example>
 model: sonnet
 color: blue
 tools: ["Read", "Grep", "Glob", "Bash"]

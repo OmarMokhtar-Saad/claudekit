@@ -1,19 +1,18 @@
 ---
 name: code-reviewer
-description: Expert code review specialist that reviews actual code diffs, files, and PRs for bugs, logic errors, security issues, and code quality. Distinct from the plan-reviewer — this agent reviews implementation, not plans. Use when code has been written and needs review before merging.
+description: |
+  Expert code review specialist that reviews actual code diffs, files, and PRs for bugs, logic errors, security issues, and code quality. Distinct from the plan-reviewer — this agent reviews implementation, not plans. Use when code has been written and needs review before merging.
 
-<example>
-Context: Developer wants a second opinion on a newly written feature.
-user: "Review the changes in src/auth/ for correctness and security"
-assistant: "I'll read every changed file, trace the logic, check for security issues, and produce a ranked findings report with file:line references and suggested fixes."
-</example>
-
-<example>
-Context: PR is ready to merge and needs a quality gate.
-user: "Review PR #42"
-assistant: "I'll fetch the PR diff, analyze all changed files, and report findings ranked by severity: Critical → High → Medium → Low. Only issues that actually matter — no style nitpicks without substance."
-</example>
-
+  <example>
+  Context: Developer wants a second opinion on a newly written feature.
+  user: "Review the changes in src/auth/ for correctness and security"
+  assistant: "I'll read every changed file, trace the logic, check for security issues, and produce a ranked findings report with file:line references and suggested fixes."
+  </example>
+  <example>
+  Context: PR is ready to merge and needs a quality gate.
+  user: "Review PR #42"
+  assistant: "I'll fetch the PR diff, analyze all changed files, and report findings ranked by severity: Critical → High → Medium → Low. Only issues that actually matter — no style nitpicks without substance."
+  </example>
 model: opus
 color: orange
 tools: ["Read", "Grep", "Glob", "Bash"]

@@ -1,13 +1,13 @@
 ---
 name: opensource-packager
-description: Stage 3 of the open-source pipeline. Generates complete open-source packaging for a sanitized repo — CLAUDE.md, setup.sh, README.md structure, LICENSE, CONTRIBUTING.md, and GitHub templates. Only runs after opensource-sanitizer PASSES and opensource-forker completes.
+description: |
+  Stage 3 of the open-source pipeline. Generates complete open-source packaging for a sanitized repo — CLAUDE.md, setup.sh, README.md structure, LICENSE, CONTRIBUTING.md, and GitHub templates. Only runs after opensource-sanitizer PASSES and opensource-forker completes.
 
-<example>
-Context: Internal tool has been sanitized and is ready for public release.
-user: "Package this for open source release"
-assistant: "I'll analyze the codebase, then generate: project-specific CLAUDE.md, setup.sh with all dependencies, README.md with badges and examples, LICENSE, CONTRIBUTING.md, and GitHub issue/PR templates."
-</example>
-
+  <example>
+  Context: Internal tool has been sanitized and is ready for public release.
+  user: "Package this for open source release"
+  assistant: "I'll analyze the codebase, then generate: project-specific CLAUDE.md, setup.sh with all dependencies, README.md with badges and examples, LICENSE, CONTRIBUTING.md, and GitHub issue/PR templates."
+  </example>
 model: haiku
 color: green
 tools: ["Read", "Glob", "Bash", "Write"]

@@ -12,6 +12,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Agent registration was silently broken for all 28 agents.** Bare `<example>` blocks
+  between YAML frontmatter fields made every agent file unparseable, so Claude Code
+  registered none of them — both the Task tool and `claude -p --agent <name>` failed with
+  "agent not found", disabling the kit's entire dispatch layer (`/plan`, `/review`,
+  `/refine`, `/audit`, ...). Examples now live inside the `description:` block scalar
+  (routing signal preserved); verified post-fix: `claude -p --agent explore` resolves and
+  completes (measured ~13s cold boot). This also resolves the Task-tool-vs-`claude -p`
+  contradiction: local agents register fine once frontmatter parses — `INVOCATION.md` now
+  documents both mechanisms (Task tool default in-session; scoped `claude -p` for
+  scripted/CI paths with the cold-boot cost stated). Structural regression test added.
+
 ### Changed
 - **Frontier-behavior corpus upgrade.** Audited all shared agent docs, 10 core agents, 14
   core commands, and the load-bearing skills against a 10-pattern operating spec (parallel

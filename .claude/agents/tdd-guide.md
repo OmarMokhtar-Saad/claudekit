@@ -1,19 +1,18 @@
 ---
 name: tdd-guide
-description: Test-driven development specialist. Enforces write-tests-first methodology. Use when implementing new features, fixing bugs, or refactoring — ensures 80%+ coverage with RED/GREEN/REFACTOR discipline.
+description: |
+  Test-driven development specialist. Enforces write-tests-first methodology. Use when implementing new features, fixing bugs, or refactoring — ensures 80%+ coverage with RED/GREEN/REFACTOR discipline.
 
-<example>
-Context: User wants to implement a new feature with proper testing.
-user: "Add user authentication"
-assistant: "Starting with failing tests for: valid login, invalid credentials, session expiry, and unauthorized access. Writing RED tests first before any implementation."
-</example>
-
-<example>
-Context: User wants to fix a bug.
-user: "Fix the null pointer crash in UserService.get()"
-assistant: "First writing a failing test that reproduces the crash with a null user ID, then implementing the fix, then verifying the test goes GREEN."
-</example>
-
+  <example>
+  Context: User wants to implement a new feature with proper testing.
+  user: "Add user authentication"
+  assistant: "Starting with failing tests for: valid login, invalid credentials, session expiry, and unauthorized access. Writing RED tests first before any implementation."
+  </example>
+  <example>
+  Context: User wants to fix a bug.
+  user: "Fix the null pointer crash in UserService.get()"
+  assistant: "First writing a failing test that reproduces the crash with a null user ID, then implementing the fix, then verifying the test goes GREEN."
+  </example>
 model: sonnet
 color: orange
 tools: ["Read", "Write", "Edit", "Bash", "Grep", "Glob"]

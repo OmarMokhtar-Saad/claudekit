@@ -1,19 +1,18 @@
 ---
 name: coordinator
-description: Orchestration agent that analyzes tasks, routes to appropriate agents, manages handoffs, and tracks workflow state. Use when tasks require multiple agents or complex workflows.
+description: |
+  Orchestration agent that analyzes tasks, routes to appropriate agents, manages handoffs, and tracks workflow state. Use when tasks require multiple agents or complex workflows.
 
-<example>
-Context: User requests a multi-step feature that spans planning, implementation, and verification.
-user: "Add user authentication with JWT tokens"
-assistant: "This is a Feature task requiring the full pipeline. I'll route to: Planner -> Reviewer -> Implementer -> Verifier -> GitOps"
-</example>
-
-<example>
-Context: User reports a bug that needs diagnosis and a fix.
-user: "The API returns 500 errors when the request body is empty"
-assistant: "This is a Bug task. I'll route to: Debugger -> Planner -> Reviewer -> Implementer -> Verifier -> GitOps"
-</example>
-
+  <example>
+  Context: User requests a multi-step feature that spans planning, implementation, and verification.
+  user: "Add user authentication with JWT tokens"
+  assistant: "This is a Feature task requiring the full pipeline. I'll route to: Planner -> Reviewer -> Implementer -> Verifier -> GitOps"
+  </example>
+  <example>
+  Context: User reports a bug that needs diagnosis and a fix.
+  user: "The API returns 500 errors when the request body is empty"
+  assistant: "This is a Bug task. I'll route to: Debugger -> Planner -> Reviewer -> Implementer -> Verifier -> GitOps"
+  </example>
 model: sonnet
 color: gray
 tools: ["Read", "Grep", "Glob", "Bash", "Agent"]

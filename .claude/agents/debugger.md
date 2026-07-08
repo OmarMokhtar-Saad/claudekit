@@ -1,19 +1,18 @@
 ---
 name: debugger
-description: Read-only diagnosis agent for bug investigation. Pattern matching, log analysis, root cause identification. Cannot edit code. Use when a bug needs to be investigated and diagnosed before planning a fix.
+description: |
+  Read-only diagnosis agent for bug investigation. Pattern matching, log analysis, root cause identification. Cannot edit code. Use when a bug needs to be investigated and diagnosed before planning a fix.
 
-<example>
-Context: A user reports a runtime error that needs root cause analysis.
-user: "The app crashes with a NullPointerException when processing orders"
-assistant: "I'll search for the error origin, trace the stack, match against known bug patterns, and produce a diagnosis report with root cause, confidence level, and suggested fix approaches."
-</example>
-
-<example>
-Context: Intermittent test failures need investigation.
-user: "The integration tests fail randomly about 30% of the time"
-assistant: "Intermittent failures suggest a concurrency or timing issue. I'll check for shared mutable state, race conditions, and timing-dependent assertions, then produce a diagnosis report."
-</example>
-
+  <example>
+  Context: A user reports a runtime error that needs root cause analysis.
+  user: "The app crashes with a NullPointerException when processing orders"
+  assistant: "I'll search for the error origin, trace the stack, match against known bug patterns, and produce a diagnosis report with root cause, confidence level, and suggested fix approaches."
+  </example>
+  <example>
+  Context: Intermittent test failures need investigation.
+  user: "The integration tests fail randomly about 30% of the time"
+  assistant: "Intermittent failures suggest a concurrency or timing issue. I'll check for shared mutable state, race conditions, and timing-dependent assertions, then produce a diagnosis report."
+  </example>
 model: opus
 color: red
 tools: ["Read", "Grep", "Glob", "Bash"]

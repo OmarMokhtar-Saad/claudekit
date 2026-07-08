@@ -125,6 +125,55 @@ class TestModelRouting:
         assert "--agent planner --model opus" in _read(COMMANDS, "refine.md")
 
 
+class TestAgentRegistration:
+    """Agent frontmatter must be valid YAML or Claude Code silently drops the
+    agent from BOTH the Task tool and `claude -p --agent` ("agent not found").
+    Root-caused 2026-07-08: bare <example> blocks between YAML fields had
+    unregistered all 28 agents. Examples belong inside the description block
+    scalar. Structural check (no pyyaml dependency): every frontmatter line is
+    a known key, blank, or an indented block-scalar continuation."""
+
+    KNOWN_KEYS = ("name", "description", "model", "color", "tools")
+
+    def _frontmatters(self):
+        for fname in sorted(os.listdir(AGENTS)):
+            path = os.path.join(AGENTS, fname)
+            if not fname.endswith(".md") or not os.path.isfile(path):
+                continue
+            text = _read(path)
+            if not text.startswith("---\n"):
+                continue  # shared docs without frontmatter (QUICK_START etc.)
+            yield fname, text[4:text.index("\n---", 3) + 1]
+
+    def test_frontmatter_is_structurally_valid_yaml(self):
+        key_re = re.compile(r"^(%s):(\s|$)" % "|".join(self.KNOWN_KEYS))
+        found_any = False
+        for fname, fm in self._frontmatters():
+            found_any = True
+            for line in fm.split("\n"):
+                if not line.strip():
+                    continue
+                if key_re.match(line) or line.startswith("  "):
+                    continue
+                raise AssertionError(
+                    f"{fname}: frontmatter line is neither a known key nor an "
+                    f"indented continuation (this un-registers the agent): {line!r}")
+        assert found_any, "no agent frontmatter found — wrong path?"
+
+    def test_frontmatter_parses_as_yaml_when_available(self):
+        try:
+            import yaml
+        except ImportError:
+            return  # structural test above still guards the bug class
+        for fname, fm in self._frontmatters():
+            data = yaml.safe_load(fm)
+            assert isinstance(data, dict), f"{fname}: frontmatter not a mapping"
+            for key in ("name", "description", "model"):
+                assert data.get(key), f"{fname}: missing frontmatter key {key!r}"
+            assert set(data) <= set(self.KNOWN_KEYS), \
+                f"{fname}: unexpected frontmatter keys {set(data) - set(self.KNOWN_KEYS)}"
+
+
 class TestContractConsistency:
     """The written workflows must be executable as specified."""
 

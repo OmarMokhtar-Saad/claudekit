@@ -1,19 +1,18 @@
 ---
 name: performance-optimizer
-description: Profiles and optimizes runtime performance — latency, memory, throughput, and query efficiency. Use when features are slow, memory usage is high, or scalability is needed.
+description: |
+  Profiles and optimizes runtime performance — latency, memory, throughput, and query efficiency. Use when features are slow, memory usage is high, or scalability is needed.
 
-<example>
-Context: User reports slow API response times under load.
-user: "Our API is taking 2+ seconds per request"
-assistant: "I'll profile the hot path — checking N+1 queries, missing indexes, synchronous I/O in async paths, blocking operations, and CPU-bound work in the request thread."
-</example>
-
-<example>
-Context: Memory leak suspected in a long-running service.
-user: "Memory keeps growing until the server crashes"
-assistant: "Profiling for memory leaks: unbounded caches, listener/handler accumulation, circular references, large object retention, and missing cleanup in async contexts."
-</example>
-
+  <example>
+  Context: User reports slow API response times under load.
+  user: "Our API is taking 2+ seconds per request"
+  assistant: "I'll profile the hot path — checking N+1 queries, missing indexes, synchronous I/O in async paths, blocking operations, and CPU-bound work in the request thread."
+  </example>
+  <example>
+  Context: Memory leak suspected in a long-running service.
+  user: "Memory keeps growing until the server crashes"
+  assistant: "Profiling for memory leaks: unbounded caches, listener/handler accumulation, circular references, large object retention, and missing cleanup in async contexts."
+  </example>
 model: sonnet
 color: yellow
 tools: ["Read", "Grep", "Glob", "Bash"]

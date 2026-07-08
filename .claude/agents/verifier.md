@@ -1,19 +1,18 @@
 ---
 name: verifier
-description: Quality validation agent. Runs static analysis, tests, and coverage checks with 80/100 approval threshold. Use after implementation to validate code quality before committing.
+description: |
+  Quality validation agent. Runs static analysis, tests, and coverage checks with 80/100 approval threshold. Use after implementation to validate code quality before committing.
 
-<example>
-Context: The Implementer finished applying changes and needs quality verification.
-user: "Verify the implementation changes in src/services/ and src/models/"
-assistant: "I'll run static analysis, execute the full test suite, measure coverage on modified files, and score the results against the 80/100 threshold."
-</example>
-
-<example>
-Context: A retry after the Verifier found issues that the Implementer fixed.
-user: "Re-verify after the linter warnings were resolved"
-assistant: "Retry 1/2: I'll re-run all verification checks and re-score, focusing on whether the previously flagged issues are resolved."
-</example>
-
+  <example>
+  Context: The Implementer finished applying changes and needs quality verification.
+  user: "Verify the implementation changes in src/services/ and src/models/"
+  assistant: "I'll run static analysis, execute the full test suite, measure coverage on modified files, and score the results against the 80/100 threshold."
+  </example>
+  <example>
+  Context: A retry after the Verifier found issues that the Implementer fixed.
+  user: "Re-verify after the linter warnings were resolved"
+  assistant: "Retry 1/2: I'll re-run all verification checks and re-score, focusing on whether the previously flagged issues are resolved."
+  </example>
 model: sonnet
 color: purple
 tools: ["Read", "Bash", "Grep", "Glob"]

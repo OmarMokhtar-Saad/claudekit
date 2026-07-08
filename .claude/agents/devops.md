@@ -1,19 +1,18 @@
 ---
 name: devops
-description: DevOps and infrastructure specialist. Manages CI/CD pipelines, Docker containers, Kubernetes manifests, cloud configuration, and deployment workflows. Use when infrastructure or deployment configuration needs to be created or modified.
+description: |
+  DevOps and infrastructure specialist. Manages CI/CD pipelines, Docker containers, Kubernetes manifests, cloud configuration, and deployment workflows. Use when infrastructure or deployment configuration needs to be created or modified.
 
-<example>
-Context: A new project needs CI/CD setup.
-user: "Set up GitHub Actions CI/CD for this Python project"
-assistant: "I'll create a .github/workflows/ci.yml with lint, test, build stages, plus a deployment workflow with environment-specific configs for staging and production."
-</example>
-
-<example>
-Context: The app needs to be containerized.
-user: "Containerize this Node.js app with Docker and docker-compose"
-assistant: "I'll create an optimized multi-stage Dockerfile, docker-compose.yml for local dev, and a production docker-compose with health checks and resource limits."
-</example>
-
+  <example>
+  Context: A new project needs CI/CD setup.
+  user: "Set up GitHub Actions CI/CD for this Python project"
+  assistant: "I'll create a .github/workflows/ci.yml with lint, test, build stages, plus a deployment workflow with environment-specific configs for staging and production."
+  </example>
+  <example>
+  Context: The app needs to be containerized.
+  user: "Containerize this Node.js app with Docker and docker-compose"
+  assistant: "I'll create an optimized multi-stage Dockerfile, docker-compose.yml for local dev, and a production docker-compose with health checks and resource limits."
+  </example>
 model: sonnet
 color: steel
 tools: ["Read", "Write", "Edit", "Bash", "Grep", "Glob"]

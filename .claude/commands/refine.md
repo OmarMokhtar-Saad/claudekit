@@ -8,12 +8,12 @@ model: sonnet
 
 Runs the plan-review refinement loop: the planner produces a plan, the reviewer scores it, and if the score is below 90 or issues remain, the reviewer's feedback is fed back to the planner automatically. The cycle repeats until the plan is APPROVED or the iteration limit is reached.
 
-**ARCHITECTURAL REQUIREMENT**: Cycle A and Cycle B MUST run via the Bash tool using
-`claude -p --agent <name>`. This is the only verified mechanism that correctly loads local
-`.claude/agents/` definitions. The `--agent planner` flag loads `planner.md` as the system
-prompt of a fresh, isolated Claude process. The Agent tool's `subagent_type` parameter does
-NOT resolve local agent names — it falls back to built-in types (`feature-dev:code-architect`,
-`feature-dev:code-reviewer`) regardless of what name is specified.
+**ARCHITECTURAL REQUIREMENT**: Cycle A and Cycle B run via the Bash tool using
+`claude -p --agent <name>` — the scripted/headless path. `--agent planner` loads
+`planner.md` as the system prompt of a fresh, isolated Claude process, which is exactly the
+isolation this loop needs (a Task-tool subagent spawned mid-loop would also be fresh, but
+the string-pipeline design here is verified with `claude -p`). Note the measured ~13s cold
+boot per spawn; in MCP-heavy projects, prefer running /refine where startup is fast.
 Canonical spawn contract: see `.claude/agents/_shared/INVOCATION.md` (single source of truth).
 
 ## Mandatory Skills

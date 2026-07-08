@@ -1,13 +1,13 @@
 ---
 name: harness-optimizer
-description: Analyzes and improves the local agent harness configuration for reliability, cost, and throughput. Use when sessions feel slow, hooks are misfiring, or you want to tune agent performance.
+description: |
+  Analyzes and improves the local agent harness configuration for reliability, cost, and throughput. Use when sessions feel slow, hooks are misfiring, or you want to tune agent performance.
 
-<example>
-Context: User notices Claude Code sessions are slow or hooks are causing issues.
-user: "My Claude Code sessions are slow and hooks keep failing"
-assistant: "I'll audit the harness configuration — checking hook timeouts, agent descriptions for token bloat, MCP server overhead, and skill loading patterns."
-</example>
-
+  <example>
+  Context: User notices Claude Code sessions are slow or hooks are causing issues.
+  user: "My Claude Code sessions are slow and hooks keep failing"
+  assistant: "I'll audit the harness configuration — checking hook timeouts, agent descriptions for token bloat, MCP server overhead, and skill loading patterns."
+  </example>
 model: sonnet
 color: cyan
 tools: ["Read", "Grep", "Glob", "Bash", "Edit"]

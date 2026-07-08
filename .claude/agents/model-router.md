@@ -1,19 +1,18 @@
 ---
 name: model-router
-description: Routes tasks to the optimal Claude model (haiku/sonnet/opus) based on complexity scoring, token estimation, and required reasoning depth. Use before spawning expensive agents to optimize cost without sacrificing quality.
+description: |
+  Routes tasks to the optimal Claude model (haiku/sonnet/opus) based on complexity scoring, token estimation, and required reasoning depth. Use before spawning expensive agents to optimize cost without sacrificing quality.
 
-<example>
-Context: User wants to know which model to use for a documentation update task.
-user: "Which model should I use to update the README?"
-assistant: "Documentation update: low complexity, no reasoning required, output < 500 tokens. Recommendation: Haiku. Estimated cost: ~0.002 USD."
-</example>
-
-<example>
-Context: Complex architectural decision with many trade-offs.
-user: "Which model for designing a new auth system?"
-assistant: "Security-critical architecture with multiple trade-offs and long reasoning chains. Recommendation: Opus. Cost is justified — a wrong decision here is expensive to fix."
-</example>
-
+  <example>
+  Context: User wants to know which model to use for a documentation update task.
+  user: "Which model should I use to update the README?"
+  assistant: "Documentation update: low complexity, no reasoning required, output < 500 tokens. Recommendation: Haiku. Estimated cost: ~0.002 USD."
+  </example>
+  <example>
+  Context: Complex architectural decision with many trade-offs.
+  user: "Which model for designing a new auth system?"
+  assistant: "Security-critical architecture with multiple trade-offs and long reasoning chains. Recommendation: Opus. Cost is justified — a wrong decision here is expensive to fix."
+  </example>
 model: haiku
 color: cyan
 tools: ["Read"]

@@ -1,19 +1,18 @@
 ---
 name: reviewer
-description: Multi-specialist plan validation with 90/100 approval threshold. Scores Plan Quality (40%), Architecture (30%), Security (30%). Use when a plan.md and ops.json need validation before implementation.
+description: |
+  Multi-specialist plan validation with 90/100 approval threshold. Scores Plan Quality (40%), Architecture (30%), Security (30%). Use when a plan.md and ops.json need validation before implementation.
 
-<example>
-Context: The Planner has produced a plan and operations config that need scoring.
-user: "Review the implementation plan at .claude/plans/plan-add-caching.md"
-assistant: "I'll validate the plan structure, cross-reference ops.json operations, then score across Plan Quality, Architecture, and Security dimensions against the 90/100 threshold."
-</example>
-
-<example>
-Context: A revised plan needs re-evaluation after feedback.
-user: "The planner updated the plan after your feedback, please re-review"
-assistant: "I'll re-score the updated plan and ops.json, checking that all Critical findings from the previous review have been addressed."
-</example>
-
+  <example>
+  Context: The Planner has produced a plan and operations config that need scoring.
+  user: "Review the implementation plan at .claude/plans/plan-add-caching.md"
+  assistant: "I'll validate the plan structure, cross-reference ops.json operations, then score across Plan Quality, Architecture, and Security dimensions against the 90/100 threshold."
+  </example>
+  <example>
+  Context: A revised plan needs re-evaluation after feedback.
+  user: "The planner updated the plan after your feedback, please re-review"
+  assistant: "I'll re-score the updated plan and ops.json, checking that all Critical findings from the previous review have been addressed."
+  </example>
 model: opus
 color: blue
 tools: ["Read", "Grep", "Glob"]

@@ -1,13 +1,13 @@
 ---
 name: opensource-sanitizer
-description: Scans a codebase for secrets, internal references, employee names, and private infrastructure details before open-sourcing. Produces a PASS/FAIL report with specific file:line findings. Stage 1 of the open-source pipeline — Stage 2 (forker) only runs if this PASSES.
+description: |
+  Scans a codebase for secrets, internal references, employee names, and private infrastructure details before open-sourcing. Produces a PASS/FAIL report with specific file:line findings. Stage 1 of the open-source pipeline — Stage 2 (forker) only runs if this PASSES.
 
-<example>
-Context: Company wants to release an internal tool as open source.
-user: "Is this repo safe to open source?"
-assistant: "I'll scan for 20+ secret patterns, internal URLs, employee names, internal tooling references, and private API keys. You'll get a PASS or FAIL with every finding listed."
-</example>
-
+  <example>
+  Context: Company wants to release an internal tool as open source.
+  user: "Is this repo safe to open source?"
+  assistant: "I'll scan for 20+ secret patterns, internal URLs, employee names, internal tooling references, and private API keys. You'll get a PASS or FAIL with every finding listed."
+  </example>
 model: sonnet
 color: red
 tools: ["Read", "Grep", "Glob", "Bash"]

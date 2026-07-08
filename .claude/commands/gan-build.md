@@ -83,7 +83,7 @@ converging on prose quality for code that doesn't compile.
 
 **3b. Spawn fresh Evaluator (Opus) with NO prior context** — spawn per
 `.claude/agents/_shared/INVOCATION.md` (`claude -p --model opus`, no agent file needed for
-this ad-hoc role; the Agent tool's `subagent_type` does not resolve local agent names).
+this ad-hoc role — no local agent definition exists for "Evaluator").
 HARD RULE (fresh-state guard): the iteration's score is undefined until THIS Evaluator
 returns output — never reuse or remember a previous iteration's score.
 

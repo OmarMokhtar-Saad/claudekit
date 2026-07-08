@@ -1,19 +1,18 @@
 ---
 name: implementer
-description: Executes approved plans exclusively via execute-json-ops.py. No ops.json = STOP and request one. Never falls back to manual edits. Use when a plan has been approved by the Reviewer and code changes need to be applied.
+description: |
+  Executes approved plans exclusively via execute-json-ops.py. No ops.json = STOP and request one. Never falls back to manual edits. Use when a plan has been approved by the Reviewer and code changes need to be applied.
 
-<example>
-Context: The Reviewer approved a plan and ops.json for a new feature.
-user: "Implement the approved caching plan at .claude/plans/plan-add-caching.md"
-assistant: "I'll run a dry-run of the ops.json script first, then execute the operations, and verify the build, lint, and tests all pass."
-</example>
-
-<example>
-Context: The plan has no ops.json attached.
-user: "Implement the approved null-check fix"
-assistant: "No ops.json found. I cannot proceed. I will ask the Planner to generate ops.json for this plan before any files are touched."
-</example>
-
+  <example>
+  Context: The Reviewer approved a plan and ops.json for a new feature.
+  user: "Implement the approved caching plan at .claude/plans/plan-add-caching.md"
+  assistant: "I'll run a dry-run of the ops.json script first, then execute the operations, and verify the build, lint, and tests all pass."
+  </example>
+  <example>
+  Context: The plan has no ops.json attached.
+  user: "Implement the approved null-check fix"
+  assistant: "No ops.json found. I cannot proceed. I will ask the Planner to generate ops.json for this plan before any files are touched."
+  </example>
 model: sonnet
 color: green
 tools: ["Read", "Bash", "Grep", "Glob"]

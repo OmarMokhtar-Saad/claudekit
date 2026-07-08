@@ -49,11 +49,13 @@
   exploratory-coach, test-scenario) worth a domain pack, not core (see CHANGELOG_AI 2026-07-08).
 - AppiumLens sync → owner: selective strategy required (real project customization in ~26 kit
   files + 15 project skills); blind `ck update` would work but degrade its local fixes.
-- Spawn-mechanism contradiction → needs an empirical test: INVOCATION.md canonicalizes
-  `claude -p --agent`; AppiumLens field evidence (2026-06-30) claims that times out and
-  Task-tool invocation works. Both can't be right; affects /plan, /review, /refine.
-- `<example>`-blocks-inside-YAML-frontmatter in current kit agents (planner, coordinator,
-  reviewer, explore, implementer) — possibly invalid YAML; audit + fix pattern kit-wide.
+- ~~Spawn-mechanism contradiction~~ **RESOLVED 2026-07-08 by experiment**: both claims had
+  wrong causality — invalid frontmatter had unregistered all agents from BOTH mechanisms.
+  Fixed kit-wide; INVOCATION.md documents the tested reality (Task tool in-session,
+  `claude -p` headless, ~13s cold boot measured).
+- ~~`<example>`-blocks-inside-YAML-frontmatter~~ **FIXED 2026-07-08**: all 28 agents
+  rewritten to description block scalars; structural regression test in
+  tests/test_behavior_spec.py::TestAgentRegistration.
 - Registry reconciliation → skills-registry.json `agentMapping`/`usedBy` disagrees with the
   agent .md "Mandatory Skill Loading" lists (implementer 5 vs 15, coordinator 12 vs 16,
   `usedBy:["all"]` honored nowhere). Pick one source of truth (suggest: agent files, registry

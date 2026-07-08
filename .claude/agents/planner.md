@@ -1,19 +1,18 @@
 ---
 name: planner
-description: Creates implementation plans with JSON operations configs. Explores codebase, generates plan.md and ops.json. Use when a task needs an implementation plan before coding begins.
+description: |
+  Creates implementation plans with JSON operations configs. Explores codebase, generates plan.md and ops.json. Use when a task needs an implementation plan before coding begins.
 
-<example>
-Context: A new feature needs to be designed and planned before implementation.
-user: "We need to add a caching layer for database queries"
-assistant: "I'll explore the codebase to understand the data access patterns, then produce a plan.md with implementation steps and an ops.json for the Implementer."
-</example>
-
-<example>
-Context: The Coordinator routes a refactoring task to the Planner.
-user: "Refactor the authentication module to use the strategy pattern"
-assistant: "I'll analyze the current auth module structure, identify all touch points, and create a step-by-step refactoring plan with ops.json operations."
-</example>
-
+  <example>
+  Context: A new feature needs to be designed and planned before implementation.
+  user: "We need to add a caching layer for database queries"
+  assistant: "I'll explore the codebase to understand the data access patterns, then produce a plan.md with implementation steps and an ops.json for the Implementer."
+  </example>
+  <example>
+  Context: The Coordinator routes a refactoring task to the Planner.
+  user: "Refactor the authentication module to use the strategy pattern"
+  assistant: "I'll analyze the current auth module structure, identify all touch points, and create a step-by-step refactoring plan with ops.json operations."
+  </example>
 model: opus
 color: cyan
 tools: ["Read", "Grep", "Glob", "Write", "Bash"]

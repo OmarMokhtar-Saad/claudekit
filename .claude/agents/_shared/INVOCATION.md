@@ -6,7 +6,23 @@ this one, this one wins.
 
 ---
 
-## The verified mechanism: scoped headless `claude -p --agent`
+## Two verified mechanisms (tested 2026-07-08)
+
+**Precondition for BOTH: valid YAML frontmatter.** Agent registration parses
+`.claude/agents/*.md` frontmatter; bare `<example>` blocks between YAML fields made every
+kit agent invisible to both the Task tool AND `claude -p --agent` ("agent not found").
+Examples belong INSIDE the `description:` block scalar. A structural test now gates this
+(`tests/test_behavior_spec.py::TestAgentRegistration`).
+
+### 1. Task-tool invocation — DEFAULT for interactive sessions
+
+With valid frontmatter, local agents register as subagent types at session start. Prefer
+this in-session: no cold boot, inherits the session's MCP servers and permission gating,
+and parallel groups spawn in ONE message. (Historical note: the old claim that
+`subagent_type` "does not resolve local agents" was observed while the frontmatter was
+invalid — wrong causality.)
+
+### 2. Scoped headless `claude -p --agent` — for scripted/CI paths
 
 ```bash
 claude -p --agent <agent-name> --model <model> --allowedTools "<scoped,tool,list>"
@@ -15,14 +31,13 @@ claude -p --agent <agent-name> --model <model> --allowedTools "<scoped,tool,list
 - `--agent <name>` loads `.claude/agents/<name>.md` as the system prompt.
 - The prompt is passed on **stdin** (`echo "$MSG" | claude -p ...`); the result is on **stdout**.
 - `--allowedTools` scopes the sub-agent to exactly the tools its role needs.
+- **Cost: ~13–14s cold boot measured in this repo** (new CLI + MCP servers). MCP-heavy
+  projects can hit timeouts — one field report (AppiumLens, 2026-06-30) did. Use this path
+  for string-pipeline commands (/plan, /refine loops) and CI, not for interactive fan-outs.
 
-### Why not the Task tool's `agent:` parameter?
-As of the current Claude Code release we do not rely on the Task/`subagent_type`
-parameter to resolve **project-local** `.claude/agents/*.md` definitions. Where a workflow
-does use the Task tool, it must load the definition explicitly inside the prompt
-(`Read your agent definition: .claude/agents/<name>.md`) — see `TASK_TOOL_SPECIFICATION.md`.
-Re-run the spike below when upgrading Claude Code; if native resolution is confirmed, migrate
-here first and update every caller.
+Verified 2026-07-08: `claude -p --agent explore` failed with "agent not found" pre-fix;
+post-fix it completed a trivial haiku task in 13s. Probe agent with clean frontmatter
+confirmed causality (14s).
 
 ---
 
