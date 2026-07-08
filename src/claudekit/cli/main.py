@@ -346,6 +346,14 @@ def cmd_agents(args):
 
 MANIFEST_NAME = ".claudekit-manifest.json"
 
+# Kit-managed asset locations inside .claude/ (what installs create and what
+# diff-without-a-manifest may safely compare against the kit source tree).
+MANAGED_DIRS = ("agents", "commands", "skills", "hooks", "operations/scripts")
+MANAGED_FILES = ("settings.json",)
+# Never compared: expected to differ per-project or generated at runtime.
+DIFF_IGNORED = {"hooks/config.json", "settings.local.json"}
+DIFF_IGNORED_NAMES = {"compact-counter.txt", "cost-tracker.log"}  # hook runtime state
+
 
 def _sha256(path):
     import hashlib
@@ -373,6 +381,47 @@ def _load_manifest(target):
         return None
 
 
+def _managed_files(base):
+    """Paths (relative to ``base``, POSIX separators) of kit-managed assets
+    under a .claude tree. Skips runtime artifacts and per-project overrides."""
+    found = []
+    for rel in MANAGED_FILES:
+        if (base / rel).is_file():
+            found.append(rel)
+    for d in MANAGED_DIRS:
+        droot = base / d
+        if not droot.is_dir():
+            continue
+        for root, dirs, names in os.walk(droot):
+            dirs[:] = [x for x in dirs if x != "__pycache__"]
+            for n in names:
+                if n.endswith((".pyc", ".log")) or n in DIFF_IGNORED_NAMES:
+                    continue
+                rel = (Path(root) / n).relative_to(base).as_posix()
+                if rel not in DIFF_IGNORED:
+                    found.append(rel)
+    return found
+
+
+def _diff_against_source(target, root):
+    """Manifest-less fallback: compare a project's managed assets against the
+    kit source tree. Provenance is unknown (no install-time hashes), so a
+    difference only means "not the current kit version"."""
+    base = _manifest_base(target)
+    kit = root / ".claude"
+    proj = set(_managed_files(base))
+    kitf = set(_managed_files(kit))
+    identical, differs, custom, not_installed = [], [], [], []
+    for rel in sorted(proj | kitf):
+        if rel in proj and rel in kitf:
+            (identical if _sha256(base / rel) == _sha256(kit / rel) else differs).append(rel)
+        elif rel in proj:
+            custom.append(rel)
+        else:
+            not_installed.append(rel)
+    return identical, differs, custom, not_installed
+
+
 def _classify_manifest(target, manifest):
     """Compare installed files against the manifest.
 
@@ -394,26 +443,66 @@ def _classify_manifest(target, manifest):
 
 
 def cmd_diff(args):
-    """Show local modifications to ClaudeKit-managed files (vs. the manifest)."""
+    """Show local modifications to ClaudeKit-managed files (vs. the manifest,
+    falling back to a kit-source comparison for pre-manifest installs)."""
     target = Path(args.target or ".").resolve()
     manifest = _load_manifest(target)
+    root = find_claudekit_root()
+
     if manifest is None:
-        err(f"No {MANIFEST_NAME} found in {target}. Not a ClaudeKit install "
-            "(or installed before manifests existed). Run: claudekit init")
-        return 1
+        if root is None or not (root / ".claude").is_dir():
+            err(f"No {MANIFEST_NAME} found in {target} and no kit source available "
+                "for fallback comparison. Set CLAUDEKIT_HOME or run: claudekit init")
+            return 1
+        if not (_manifest_base(target)).is_dir():
+            err(f"No .claude/ directory in {target}. Run: claudekit init")
+            return 1
+        identical, differs, custom, not_installed = _diff_against_source(target, root)
+        print(f"\n{C.CYAN}ClaudeKit diff{C.NC} — no install manifest (pre-manifest "
+              f"install); comparing against kit source at {root}\n")
+        warn("Provenance unknown: 'differs' may be a local edit OR an older kit version.")
+        for rel in differs:
+            warn(f"differs:       {rel}")
+        for rel in custom:
+            info(f"custom:        {rel}")
+        for rel in not_installed[:15]:
+            print(f"    not installed: {rel}")
+        if len(not_installed) > 15:
+            print(f"    ... and {len(not_installed) - 15} more not installed")
+        print(f"\n  {len(identical)} identical, {len(differs)} differ, "
+              f"{len(custom)} custom, {len(not_installed)} not installed.")
+        info("Run `claudekit update` to refresh (backs up first, preserves custom assets).")
+        return 0
 
     modified, missing, unchanged = _classify_manifest(target, manifest)
     print(f"\n{C.CYAN}ClaudeKit diff{C.NC} — installed v{manifest.get('version', '?')} "
           f"({manifest.get('mode', '?')} mode)\n")
+    base = _manifest_base(target)
+    kit = (root / ".claude") if root else None
     for rel in modified:
-        warn(f"modified: {rel}")
+        label = "modified"
+        if kit is not None:
+            kit_hash = _sha256(kit / rel) if (kit / rel).exists() else None
+            expected = manifest.get("files", {}).get(rel)
+            actual = _sha256(base / rel)
+            if actual == kit_hash:
+                label = "kit-updated"      # already matches the newer kit source
+            elif kit_hash == expected:
+                label = "locally modified"  # kit unchanged; the edit is local
+            elif kit_hash is not None:
+                label = "both changed"      # local edit AND the kit moved on
+        warn(f"{label}: {rel}")
     for rel in missing:
         err(f"missing:  {rel}")
+    custom = sorted(set(_managed_files(base)) - set(manifest.get("files", {})))
+    for rel in custom:
+        info(f"custom:   {rel}")
     if not modified and not missing:
-        ok(f"All {len(unchanged)} managed files match the manifest.")
+        ok(f"All {len(unchanged)} managed files match the manifest"
+           + (f" ({len(custom)} custom files besides)." if custom else "."))
     else:
         print(f"\n  {len(modified)} modified, {len(missing)} missing, "
-              f"{len(unchanged)} unchanged.")
+              f"{len(unchanged)} unchanged, {len(custom)} custom.")
     return 0
 
 
@@ -478,8 +567,8 @@ def cmd_update(args):
     """Re-install ClaudeKit over an existing project, preserving local edits via backup."""
     target = Path(args.target or ".").resolve()
     manifest = _load_manifest(target)
-    if manifest is None:
-        err(f"No {MANIFEST_NAME} found in {target}. Use `claudekit init` for a fresh install.")
+    if manifest is None and not (_manifest_base(target)).is_dir():
+        err(f"No .claude/ directory in {target}. Use `claudekit init` for a fresh install.")
         return 1
 
     root = find_claudekit_root()
@@ -491,21 +580,32 @@ def cmd_update(args):
         err(f"install.sh not found at {install_script}")
         return 1
 
-    modified, missing, _ = _classify_manifest(target, manifest)
-    if modified:
-        warn(f"{len(modified)} locally-modified managed files will be overwritten "
-             "(the installer backs up the previous .claude/ first):")
-        for rel in modified:
-            print(f"    {rel}")
+    if manifest is None:
+        warn(f"No {MANIFEST_NAME} in {target} — pre-manifest (legacy) install.")
+        info("The installer will back up the existing .claude/ and write a fresh "
+             "install (full mode) with a manifest; custom agents/commands/skills "
+             "are preserved from the backup.")
         if not args.yes:
-            resp = input("Continue with update? [y/N] ")
+            resp = input("Continue with legacy update? [y/N] ")
             if resp.strip().lower() not in ("y", "yes"):
                 info("Aborted.")
                 return 0
+    else:
+        modified, missing, _ = _classify_manifest(target, manifest)
+        if modified:
+            warn(f"{len(modified)} locally-modified managed files will be overwritten "
+                 "(the installer backs up the previous .claude/ first):")
+            for rel in modified:
+                print(f"    {rel}")
+            if not args.yes:
+                resp = input("Continue with update? [y/N] ")
+                if resp.strip().lower() not in ("y", "yes"):
+                    info("Aborted.")
+                    return 0
 
-    mode = manifest.get("mode") or "full"
+    mode = (manifest.get("mode") if manifest else None) or "full"
     cmd = ["bash", str(install_script), str(target), f"--{mode}", "--force", "--yes"]
-    lang = manifest.get("language")
+    lang = manifest.get("language") if manifest else None
     if lang and lang != "auto":
         cmd.extend(["--language", lang])
     result = subprocess.run(cmd)

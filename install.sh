@@ -457,6 +457,54 @@ with open(os.path.join(dest, ".claudekit-manifest.json"), "w") as fh:
     json.dump(manifest, fh, indent=2)
 MANIFEST_PY
 
+# ---- Preserve project-custom assets from the previous install ----
+# Files in the backup that (a) don't exist in the new tree and (b) weren't
+# kit-managed (per the old manifest; for pre-manifest backups, heuristic:
+# anything under agents/ commands/ skills/) are copied back. They are NOT
+# added to the manifest — `ck diff` reports them as custom. The backup keeps
+# everything regardless, so this is fully reversible.
+if [[ -n "${BACKUP:-}" && -d "${BACKUP:-}" ]]; then
+    python3 - "$BACKUP" "$FINAL_DEST" <<'PRESERVE_PY' || print_warn "Custom-asset preservation failed (files remain in the backup)"
+import json, os, shutil, sys
+backup, dest = sys.argv[1], sys.argv[2]
+old_manifest = None
+mpath = os.path.join(backup, ".claudekit-manifest.json")
+if os.path.exists(mpath):
+    try:
+        with open(mpath) as fh:
+            old_manifest = set(json.load(fh).get("files", {}))
+    except (ValueError, OSError):
+        old_manifest = None
+ASSET_DIRS = ("agents", "commands", "skills")
+SKIP_NAMES = {"hooks.log", "settings.local.json", ".claudekit-manifest.json"}
+restored = []
+for root, dirs, names in os.walk(backup):
+    dirs[:] = [d for d in dirs if d != "__pycache__"]
+    for n in names:
+        if n in SKIP_NAMES or n.endswith(".pyc"):
+            continue
+        path = os.path.join(root, n)
+        rel = os.path.relpath(path, backup)
+        if os.path.exists(os.path.join(dest, rel)):
+            continue
+        if old_manifest is not None:
+            # Precise: old-kit files (removed/renamed since) are NOT resurrected.
+            if rel in old_manifest:
+                continue
+        elif rel.split(os.sep)[0] not in ASSET_DIRS:
+            continue
+        target = os.path.join(dest, rel)
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        shutil.copy2(path, target)
+        restored.append(rel)
+for rel in sorted(restored):
+    print("    preserved: " + rel)
+if restored and old_manifest is None:
+    print("    (pre-manifest backup: preserved files may include assets from an")
+    print("     older kit version -- run `ck diff` to review the custom list)")
+PRESERVE_PY
+fi
+
 # Update .gitignore
 print_step "Updating .gitignore..."
 GITIGNORE="$TARGET_DIR/.gitignore"

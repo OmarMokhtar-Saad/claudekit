@@ -5,8 +5,6 @@ import os
 import re
 import subprocess
 import sys
-import tempfile
-import pytest
 from pathlib import Path
 
 CLI_PATH = os.path.join(os.path.dirname(__file__), '..', 'src', 'claudekit', 'cli', 'main.py')
@@ -118,8 +116,7 @@ class TestFindRoot:
 
     def test_init_parser_accepts_full_minimal_yes(self):
         # Regression: `ck init --full --yes` previously errored (only --mode existed).
-        m = self._import_main()
-        for extra in (["--full", "--yes"], ["--minimal", "--non-interactive"]):
+        for _extra in (["--full", "--yes"], ["--minimal", "--non-interactive"]):
             result = subprocess.run(
                 [sys.executable, CLI_PATH, "init", "--help"],
                 capture_output=True, text=True, timeout=10,
@@ -205,5 +202,78 @@ class TestLifecycleCommands:
         assert (tmp_path / "backups" / "uninstall-T" / "settings.json").exists()
 
     def test_update_no_manifest_errors(self, tmp_path):
+        # No .claude/ at all — nothing to update, must refuse.
         m = self._import_main()
         assert m.cmd_update(self._ns(target=str(tmp_path), yes=True)) == 1
+
+    def test_update_legacy_install_proceeds(self, tmp_path, monkeypatch):
+        # Pre-manifest install (.claude exists, no manifest): update must work
+        # instead of erroring, delegating to the installer in full mode.
+        m = self._import_main()
+        (tmp_path / ".claude" / "agents").mkdir(parents=True)
+        recorded = {}
+
+        def fake_run(cmd, *a, **kw):
+            recorded["cmd"] = cmd
+            class R:
+                returncode = 0
+            return R()
+
+        monkeypatch.setattr(m.subprocess, "run", fake_run)
+        rc = m.cmd_update(self._ns(target=str(tmp_path), yes=True))
+        assert rc == 0
+        assert "--force" in recorded["cmd"] and "--full" in recorded["cmd"]
+
+    def test_diff_fallback_without_manifest(self, tmp_path, capsys):
+        # Pre-manifest install: diff falls back to comparing against the kit
+        # source tree instead of erroring.
+        m = self._import_main()
+        root = m.find_claudekit_root()
+        assert root is not None  # running from the repo
+        base = tmp_path / ".claude"
+        (base / "agents").mkdir(parents=True)
+        kit_planner = (root / ".claude" / "agents" / "planner.md").read_text()
+        (base / "agents" / "planner.md").write_text(kit_planner)      # identical
+        (base / "agents" / "reviewer.md").write_text("drifted\n")     # differs
+        (base / "agents" / "my-custom-agent.md").write_text("mine\n")  # custom
+        rc = m.cmd_diff(self._ns(target=str(tmp_path)))
+        out = capsys.readouterr().out
+        assert rc == 0
+        assert "pre-manifest" in out
+        assert "differs:" in out and "agents/reviewer.md" in out
+        assert "custom:" in out and "agents/my-custom-agent.md" in out
+        assert "not installed:" in out
+
+    def test_diff_three_way_labels(self, tmp_path, capsys):
+        # With a manifest AND kit source available, `modified` refines into
+        # locally-modified vs kit-updated.
+        m = self._import_main()
+        root = m.find_claudekit_root()
+        kit_planner = root / ".claude" / "agents" / "planner.md"
+        base = tmp_path / ".claude"
+        (base / "agents").mkdir(parents=True)
+        kit_reviewer = root / ".claude" / "agents" / "reviewer.md"
+        # locally modified: manifest hash == current kit hash, file edited
+        (base / "agents" / "planner.md").write_text("local edit\n")
+        # kit updated: file already matches the kit source, manifest is older
+        (base / "agents" / "reviewer.md").write_text(kit_reviewer.read_text())
+        files = {
+            "agents/planner.md": m._sha256(kit_planner),
+            "agents/reviewer.md": "0" * 64,  # stale install-time hash
+        }
+        (base / m.MANIFEST_NAME).write_text(json.dumps(
+            {"version": "2.0.0", "mode": "full", "files": files}))
+        rc = m.cmd_diff(self._ns(target=str(tmp_path)))
+        out = capsys.readouterr().out
+        assert rc == 0
+        assert "locally modified: agents/planner.md" in out
+        assert "kit-updated: agents/reviewer.md" in out
+
+    def test_diff_manifest_lists_custom_files(self, tmp_path, capsys):
+        m = self._import_main()
+        base = self._fake_install(tmp_path, m)
+        (base / "agents" / "my-custom-agent.md").write_text("mine\n")
+        rc = m.cmd_diff(self._ns(target=str(tmp_path)))
+        out = capsys.readouterr().out
+        assert rc == 0
+        assert "custom:" in out and "agents/my-custom-agent.md" in out
