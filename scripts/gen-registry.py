@@ -45,6 +45,25 @@ def derive_mapping():
     return mapping
 
 
+def derive_used_by(registry, mapping):
+    """skill -> usedBy: agents from the reverse mapping, plus any existing
+    non-agent entries (e.g. command names). The literal "all" is fiction
+    (honored nowhere) and is dropped."""
+    agent_names = {os.path.splitext(f)[0]
+                   for f in os.listdir(AGENTS_DIR) if f.endswith(".md")}
+    reverse = {}
+    for agent, skills in mapping.items():
+        for skill in skills:
+            reverse.setdefault(skill, set()).add(agent)
+    result = {}
+    for skill in registry.get("skills", []):
+        sid = skill["id"]
+        keep = {u for u in skill.get("usedBy", [])
+                if u != "all" and u not in agent_names}
+        result[sid] = sorted(reverse.get(sid, set()) | keep)
+    return result
+
+
 def main():
     check = "--check" in sys.argv
     with open(REGISTRY) as fh:
@@ -61,24 +80,34 @@ def main():
                   file=sys.stderr)
         return 1
 
-    if registry.get("agentMapping") == derived:
-        print(f"OK: agentMapping matches agent files ({len(derived)} agents).")
+    used_by = derive_used_by(registry, derived)
+    current_used_by = {s["id"]: s.get("usedBy", []) for s in registry.get("skills", [])}
+    clean = (registry.get("agentMapping") == derived and current_used_by == used_by)
+
+    if clean:
+        print(f"OK: agentMapping + usedBy match agent files ({len(derived)} agents).")
         return 0
     if check:
         current = registry.get("agentMapping", {})
         for key in sorted(set(current) | set(derived)):
             if current.get(key) != derived.get(key):
-                print(f"DRIFT: {key}: registry={current.get(key)} "
+                print(f"DRIFT agentMapping {key}: registry={current.get(key)} "
                       f"agent-file={derived.get(key)}", file=sys.stderr)
-        print("FAIL: skills-registry.json agentMapping drifted from agent files. "
+        for sid in sorted(current_used_by):
+            if current_used_by[sid] != used_by.get(sid):
+                print(f"DRIFT usedBy {sid}: registry={current_used_by[sid]} "
+                      f"derived={used_by.get(sid)}", file=sys.stderr)
+        print("FAIL: skills-registry.json drifted from agent files. "
               "Run: python3 scripts/gen-registry.py", file=sys.stderr)
         return 1
 
     registry["agentMapping"] = derived
+    for skill in registry.get("skills", []):
+        skill["usedBy"] = used_by[skill["id"]]
     with open(REGISTRY, "w") as fh:
         json.dump(registry, fh, indent=2)
         fh.write("\n")
-    print(f"Rewrote agentMapping from agent files ({len(derived)} agents).")
+    print(f"Rewrote agentMapping + usedBy from agent files ({len(derived)} agents).")
     return 0
 
 

@@ -22,7 +22,8 @@ You MUST load and apply the following skills before proceeding:
 - **using-superpowers** - Core agent capabilities and tool usage
 - **golden-rule** - No code changes without explicit approval
 - **multi-agent-coordination** - Safe parallel execution patterns
-- **using-git-worktrees** - Isolated workspace management
+
+**On demand:** load **using-git-worktrees** when batches need isolated worktrees.
 
 ## Workflow
 

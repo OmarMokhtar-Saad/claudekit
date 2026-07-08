@@ -13,7 +13,8 @@ Starts an autonomous agent loop with the `loop-operator` agent watching in the b
 - **using-superpowers** - Core capabilities
 - **autonomous-loop** - Autonomous execution with checkpoints
 - **verification-loop** - 6-phase quality gate
-- **verification-before-completion** - Never claim done without evidence
+
+**On demand:** load **verification-before-completion** before accepting the worker's completion claim.
 
 ## Task
 

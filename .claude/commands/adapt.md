@@ -13,7 +13,8 @@ Fit ClaudeKit to this project. Works for any language — including stacks with 
 - **using-superpowers** - Core capabilities
 - **golden-rule** - Propose changes, get approval before writing
 - **project-adaptation** - The full adaptation methodology
-- **codebase-onboarding** - Reconnaissance (loaded by project-adaptation)
+
+**On demand:** load **codebase-onboarding** when project-adaptation directs reconnaissance (it loads this itself).
 
 ## Task
 

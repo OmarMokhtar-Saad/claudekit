@@ -13,7 +13,8 @@ Phase 1 of the Product Requirements Process. Explores the codebase deeply before
 - **using-superpowers** - Core capabilities
 - **prp-plan** - 5-phase codebase-first planning protocol
 - **context-first-workflow** - Explore before modifying
-- **search-first** - Check what already exists
+
+**On demand:** load **search-first** before proposing any new component.
 
 ## Task
 
