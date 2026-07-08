@@ -1,5 +1,6 @@
 """Tests for behavioral modes system."""
 import os
+
 import pytest
 
 TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "templates")

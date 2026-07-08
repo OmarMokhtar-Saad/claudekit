@@ -1,5 +1,6 @@
 """Tests for all new commands added in v2.0.0."""
 import os
+
 import pytest
 
 TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "templates")
