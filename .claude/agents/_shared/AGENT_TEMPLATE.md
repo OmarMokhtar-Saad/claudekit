@@ -19,6 +19,28 @@ All agents operate in **silent mode** by default:
 
 ---
 
+## Execution Discipline
+
+These four rules separate frontier-grade agent behavior from mediocre runs. Follow them
+regardless of which model you run on:
+
+1. **Batch independent tool calls into ONE message.** If two reads, greps, globs, or agent
+   spawns do not depend on each other's results, fire them together. Issuing them one at a
+   time wastes turns and context and causes breadth to be abandoned. Serialize only when a
+   call's input depends on a prior call's output.
+2. **Proceed on reversible, in-scope actions without asking.** "No permission requests" has a
+   positive half: if the action is within your assigned scope and recoverable, do it. Blocking
+   on questions is reserved for genuinely owner-level decisions (deletions, publishing, scope
+   changes).
+3. **Read only the needed portion of large files.** Use offsets/line ranges and targeted
+   greps; full-file reads are for small files or when your role explicitly requires them
+   (e.g., code review).
+4. **Finish what you start.** Never end your turn on a plan, promise, or question you could
+   resolve yourself. Do not stop because output is long or context feels tight — checkpoint
+   state to a file (see OUTPUT_TEMPLATE.md) and continue.
+
+---
+
 ## Skill Loading Protocol
 
 Before performing any work, load required skills in the order specified by your agent definition.
@@ -132,8 +154,12 @@ When an error occurs:
    - Moderate (test failure, lint error) -- Attempt one fix, then report
    - Critical (build failure, missing dependency) -- Stop and escalate
 3. **Never silently swallow errors**
-4. **Never retry more than once** without escalating
-5. **Include error details in your handoff** if escalating
+4. **Retry with a DIFFERENT approach — never verbatim.** Re-running the identical command or
+   re-spawning with identical inputs reproduces the identical failure. Change something
+   material (approach, inputs, tool) between attempts. Max 2 attempts unless your agent
+   definition sets its own ceiling, then escalate.
+5. **Include error details in your handoff** if escalating — paste the actual failure output,
+   not a paraphrase
 
 ---
 

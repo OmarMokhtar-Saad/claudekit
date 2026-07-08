@@ -16,7 +16,7 @@ disable-model-invocation: true
 
 ### Prerequisites (ALL must be true)
 
-1. **Three or more independent problems** exist
+1. **Two or more independent problems** exist — dispatch ALL of them in ONE message
 2. Problems are **truly independent** (different root causes, different files)
 3. Each problem can be **fully investigated in isolation**
 4. No agent needs another agent's output to proceed
@@ -186,7 +186,7 @@ If an agent discovers its problem is connected to another agent's problem:
 
 | Situation | Better Approach |
 |---|---|
-| Only 1-2 problems | Handle sequentially - dispatch overhead not worth it |
+| Only 1 problem | Handle directly - dispatch overhead not worth it |
 | Problems might be related | Investigate holistically first |
 | Shared file modifications needed | Assign one agent per shared file area |
 | Time pressure for a single critical issue | Focus all effort on the one issue |

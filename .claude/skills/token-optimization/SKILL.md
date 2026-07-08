@@ -145,3 +145,6 @@ Do NOT compress:
 - Code that will be copied verbatim into production
 - Legal or compliance text
 - Commit messages (follow conventional commit format)
+- **Verification evidence** — executed command output, exit codes, pass/fail counts, and
+  agent handoff blocks are ALWAYS quoted verbatim (VERIFICATION_PROTOCOL.md outranks this
+  skill); compression never applies to the evidence layer

@@ -9,7 +9,7 @@ Invoke the implementer agent to execute an approved implementation plan.
 
 ## Agent Reference
 
-See @agents/implementer.md for the full agent specification.
+See @.claude/agents/implementer.md for the full agent specification.
 
 ## Task
 
@@ -57,7 +57,6 @@ If you must deviate from the ops.json spec, you need explicit user authorization
 ### Phase 1: Preparation
 - Parse ops.json and validate all operations
 - Create a checklist of all operations with status tracking
-- Identify any operations that can be parallelized
 - Set up verification checkpoints
 
 ### Phase 2: Execution
@@ -73,7 +72,10 @@ For each operation in ops.json order:
 - Run all verification steps defined in the plan
 - Execute project build (if applicable)
 - Run affected test suites
+- Build, tests, and lint are independent — launch them in ONE batched message
 - Validate no regressions introduced
+- Every PASS/FAIL you report must quote the executed command's actual output (exit code,
+  counts) — never estimate or fill in template numbers
 
 ### Phase 4: Report
 - Summarize all operations executed
@@ -95,7 +97,9 @@ For each operation in ops.json order:
 
 ## Error Handling
 
-- On first failure: attempt the specific rollback for that step
+- On operation failure: retry ONCE with a materially different approach within the ops.json
+  scope (a verbatim retry reproduces the same failure); if the retry fails, attempt the
+  specific rollback for that step and STOP with the pasted error output
 - On rollback failure: STOP immediately, report state, suggest manual intervention
 - On test failure: report which tests failed and why, suggest `/debug` for investigation
 - On build failure: report the error, check if a previous step caused it

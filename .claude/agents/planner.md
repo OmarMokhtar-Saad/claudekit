@@ -14,9 +14,9 @@ user: "Refactor the authentication module to use the strategy pattern"
 assistant: "I'll analyze the current auth module structure, identify all touch points, and create a step-by-step refactoring plan with ops.json operations."
 </example>
 
-model: sonnet
+model: opus
 color: cyan
-tools: ["Read", "Grep", "Glob", "Bash", "Agent"]
+tools: ["Read", "Grep", "Glob", "Write", "Bash"]
 ---
 
 # Planner Agent
@@ -178,6 +178,9 @@ below is a summary; if it ever disagrees with the skill, the skill wins.
 
 After writing ops.json, validate it immediately:
 `python3 .claude/operations/scripts/validate-config-json.py <ops-file>` — fix any FAIL before handoff.
+(Your Bash access is scoped to this validator script only — see `_shared/INVOCATION.md`. You
+never spawn sub-agents; exploration is your own Read/Grep/Glob, batched in ONE message when
+the searches are independent.)
 
 ### Phase 4: Save Outputs
 

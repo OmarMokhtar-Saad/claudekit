@@ -10,7 +10,7 @@ Invoke the gitOps agent to perform safe, structured git operations.
 
 ## Agent Reference
 
-See @agents/gitOps.md for the full agent specification.
+See @.claude/agents/gitOps.md for the full agent specification.
 
 ## Task
 

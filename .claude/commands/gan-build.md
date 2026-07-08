@@ -76,7 +76,16 @@ Capture the Generator's output as `artifact_v1`.
 
 For iteration 1 to MAX_ITER:
 
-**3a. Spawn fresh Evaluator (Opus) with NO prior context:**
+**3a. Mechanical pre-check (BEFORE spending an Evaluator):** run the cheap compile/syntax
+check from Step 4 on the artifact. If it fails, skip the Evaluator this iteration and feed
+the compiler output to the Generator as automatic critique #1 — never burn iterations
+converging on prose quality for code that doesn't compile.
+
+**3b. Spawn fresh Evaluator (Opus) with NO prior context** — spawn per
+`.claude/agents/_shared/INVOCATION.md` (`claude -p --model opus`, no agent file needed for
+this ad-hoc role; the Agent tool's `subagent_type` does not resolve local agent names).
+HARD RULE (fresh-state guard): the iteration's score is undefined until THIS Evaluator
+returns output — never reuse or remember a previous iteration's score.
 
 ```
 You are seeing this artifact for the first time. Score it on its own merits.
@@ -107,7 +116,7 @@ TOP CRITIQUES (ordered by impact, max 3):
 3. [DIMENSION] <specific actionable critique>
 ```
 
-**3b. Adjudicator evaluates result:**
+**3c. Adjudicator evaluates result:**
 
 ```
 IF score >= THRESHOLD:
@@ -121,7 +130,7 @@ ELSE:
   → Pass to Generator for refinement
 ```
 
-**3c. Generator refines (if continuing):**
+**3d. Generator refines (if continuing):**
 
 ```
 Your previous output scored <score>/<threshold>.
@@ -140,13 +149,16 @@ After the loop exits with CONVERGED status, run verification:
 
 ```bash
 # Apply the artifact (write files or apply diff)
-# Then run appropriate checks for the project type:
-[ -f "tsconfig.json" ] && npx tsc --noEmit 2>&1 | tail -5
-[ -f "pyproject.toml" ] && python3 -m py_compile <generated files>
-[ -f "go.mod" ] && go build ./...
+# Then run appropriate checks for the project type — capture EXIT CODES, not truncated tails:
+[ -f "tsconfig.json" ] && { npx tsc --noEmit; echo "tsc exit: $?"; }
+[ -f "pyproject.toml" ] && { python3 -m py_compile <generated files>; echo "py_compile exit: $?"; }
+[ -f "go.mod" ] && { go build ./...; echo "go build exit: $?"; }
+# And run the test suite for the touched areas — compiling is not passing:
+# <project test command scoped to affected modules>; echo "tests exit: $?"
 ```
 
-If verification fails, run one targeted fix cycle (not a full GAN iteration).
+If verification fails, run one targeted fix cycle (not a full GAN iteration). The final
+report quotes these executed results verbatim.
 
 ### Step 5: Report
 

@@ -88,14 +88,13 @@ When agents can run independently:
 ```
 PARALLEL DISPATCH:
 
-1. Prepare handoff for Agent A
-2. Prepare handoff for Agent B
-3. Spawn Agent A via Task tool
-4. Spawn Agent B via Task tool
-5. Wait for both to complete
-6. Read both output files
-7. Merge results
-8. Continue pipeline
+1. Prepare handoffs for ALL agents in the parallel group
+2. Spawn ALL of them in ONE message (multiple Task calls in a single
+   response — spawning one per turn serializes what should be concurrent)
+3. Wait for all to complete
+4. Read all output files
+5. Merge results
+6. Continue pipeline
 ```
 
 **Parallel-safe combinations:**

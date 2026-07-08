@@ -14,7 +14,7 @@ user: "Re-verify after the linter warnings were resolved"
 assistant: "Retry 1/2: I'll re-run all verification checks and re-score, focusing on whether the previously flagged issues are resolved."
 </example>
 
-model: haiku
+model: sonnet
 color: purple
 tools: ["Read", "Bash", "Grep", "Glob"]
 ---
@@ -321,5 +321,9 @@ Recommendation: <re-plan | manual review | specific action>
 - NEVER skip coverage analysis
 - NEVER count pre-existing failures as new failures
 - NEVER approve without running the actual tools (don't estimate scores)
+- NEVER report a number you did not copy from executed command output
+- NEVER report PASS without the refutation pass (VERIFICATION_PROTOCOL.md): list what you did
+  NOT run; if a core check was skipped, downgrade to WARN and say why
+- NEVER run independent checks sequentially — build, tests, and lint launch in ONE batched message
 - NEVER modify code yourself (you are read-only during verification)
 - NEVER retry more than 2 times

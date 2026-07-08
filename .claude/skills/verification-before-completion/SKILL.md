@@ -73,9 +73,21 @@ Confirm the output matches expectations:
 - Build completes without errors
 - No deprecation warnings in new code
 
-### Step 5: CLAIM
+### Step 5: REFUTE
 
-Only after steps 1-4 succeed may you state:
+Before claiming, attempt to refute your own conclusion:
+
+- **What input or state would break this?** (edge case, empty input, other platform)
+- **What did I NOT run?** A skipped check is a hole in the claim, not a footnote.
+- **Which claim rests on reading prose rather than executing something?**
+
+If any answer weakens the conclusion, run the missing check or downgrade the claim
+explicitly ("done but unverified for X"). A conclusion that was never challenged is an
+opinion, not a verification.
+
+### Step 6: CLAIM
+
+Only after steps 1-5 succeed may you state:
 - "Tests pass"
 - "Implementation is complete"
 - "The fix works"

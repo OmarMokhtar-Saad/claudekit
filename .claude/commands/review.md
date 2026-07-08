@@ -31,6 +31,10 @@ PLAN_CONTENT=$(cat "$PLAN_FILE")
 
 REVIEWER_MSG="Review the following implementation plan and ops.json.
 
+Before scoring, attempt to REFUTE the plan: verify via Read/Grep that the files, paths, and
+anchors referenced in ops.json actually exist in the repo. A plan claim contradicted by the
+filesystem is a CRITICAL issue. Ask: what repo state or edge case makes this ops.json fail?
+
 Respond in EXACTLY this format — no deviations:
 
 === REVIEW ===

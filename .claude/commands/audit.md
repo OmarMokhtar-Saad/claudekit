@@ -49,8 +49,11 @@ Routes to Performance Optimizer agent.
 
 ### Phase 1: Scope Assessment
 
+Scope comes from `$ARGUMENTS` when given (e.g. `/audit src/payments/`); otherwise detect the
+project's actual source layout first — do not assume `src/` or any fixed language list:
+
 ```bash
-# Understand the codebase size before running
+# Understand the codebase size before running (adjust dir/extensions to the detected stack)
 echo "Files to audit:"
 find src/ -name "*.ts" -o -name "*.py" -o -name "*.go" 2>/dev/null | wc -l
 
@@ -68,12 +71,16 @@ except: print('  Not available')
 
 ### Phase 2: Parallel Specialist Audit
 
-Spawn specialists in parallel (they are all read-only):
+Spawn ALL specialists in ONE message (they are read-only; spawning one per turn serializes
+the audit). Spawn per `.claude/agents/_shared/INVOCATION.md` with each agent's scoped tool
+row (`Read,Grep,Glob` for the scanners):
 
 **Agent 1 — Silent Failure Hunter:** Scan for empty catches, swallowed errors, dangerous fallbacks
 **Agent 2 — Security Scanner:** Run static analysis, check for OWASP Top 10, dependency CVEs
+**Agent 3 — Performance Optimizer** (only with `--all`/`--performance`): hot paths, N+1, allocations
 
-Both return findings reports. Synthesize.
+Each specialist must return its own scan counts alongside findings — the commands it ran and
+what they covered. Synthesize after all return.
 
 ### Phase 3: Synthesized Report
 
@@ -94,9 +101,13 @@ Files audited: N | Critical: N | High: N | Medium: N | Low: N
 ...
 
 ### Audit Coverage
-- Error handling: [N functions scanned]
-- Security checks: [N patterns checked]
-- Dependencies: [N packages checked]
+- Error handling: [count reported by Silent Failure Hunter — never invent this]
+- Security checks: [count reported by Security Scanner — never invent this]
+- Dependencies: [count reported by Security Scanner — never invent this]
+
+### Coverage Gaps (MANDATORY — especially when zero criticals are found)
+- [what was NOT scanned: dirs excluded, languages unsupported, checks skipped]
+- A clean audit without a gaps list is an unverified audit
 
 ### Top 5 Riskiest Files
 1. path/to/file.ts — N issues (N critical)

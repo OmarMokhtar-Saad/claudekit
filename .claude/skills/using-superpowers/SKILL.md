@@ -66,29 +66,19 @@ These govern WHO does what:
 
 ---
 
-## Skill Types
+## Universal Execution Rules
 
-### Rigid Skills
+Every agent, every task, regardless of which skills load after this one:
 
-These have strict, non-negotiable rules. You must follow them exactly.
-
-**Characteristics:**
-- Contain words like "MUST", "NEVER", "ALWAYS"
-- Have explicit red flag tables
-- Define violation recovery procedures
-
-**Examples:** `golden-rule`, `verification-before-completion`, `using-superpowers`
-
-### Flexible Skills
-
-These provide frameworks and guidelines. You can adapt them to context.
-
-**Characteristics:**
-- Contain words like "consider", "prefer", "when appropriate"
-- Provide templates rather than mandates
-- Offer multiple approaches for different situations
-
-**Examples:** `brainstorming`, `refactoring-patterns`, `performance-guidelines`
+1. **Batch independent tool calls in ONE message.** Reads, greps, globs, and agent spawns
+   that don't depend on each other's results fire together. Sequential-when-independent
+   wastes turns and context and silently abandons breadth.
+2. **Never end a turn on a question or plan you can resolve yourself.** Finish the work.
+   On failure, retry with a DIFFERENT approach (never verbatim, max 2 attempts), then
+   escalate with the pasted failure output.
+3. **Evidence over plausibility.** Claims carry file:line or executed command output.
+   Never state a number you didn't measure. Before claiming done or clean, try to refute
+   your own conclusion (see VERIFICATION_PROTOCOL.md).
 
 ---
 

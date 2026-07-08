@@ -10,7 +10,7 @@ Invoke the debugger agent to systematically diagnose a bug or issue.
 
 ## Agent Reference
 
-See @agents/debugger.md for the full agent specification.
+See @.claude/agents/debugger.md for the full agent specification.
 
 ## Task
 
@@ -32,7 +32,8 @@ The ONLY exception: you may create temporary scratch files in /tmp for analysis 
 ## Workflow Phases
 
 ### Phase 1: Symptom Collection
-- Reproduce the reported issue (if reproduction steps are provided)
+- Attempt reproduction even without provided steps; a CONFIRMED verdict requires an executed
+  reproduction OR an explicit statement of why reproduction was impossible
 - Gather error messages, stack traces, and log output
 - Identify the exact failure point (file, line, function)
 - Document the expected vs actual behavior
@@ -49,7 +50,8 @@ The ONLY exception: you may create temporary scratch files in /tmp for analysis 
 - For each hypothesis, define a test to confirm or refute it
 
 ### Phase 4: Hypothesis Testing
-- Test each hypothesis in order of likelihood
+- Fire the diagnostic probes (reads, greps, git-log checks) for ALL ranked hypotheses in ONE
+  batched message — the probes are independent; eliminate in bulk from the results
 - Use targeted reads, searches, and diagnostic commands
 - Eliminate hypotheses that are disproven
 - Narrow down to the most likely root cause
@@ -61,7 +63,9 @@ The ONLY exception: you may create temporary scratch files in /tmp for analysis 
 
 ## Pattern Match Table
 
-Use these common patterns to accelerate diagnosis:
+Use these common patterns to accelerate diagnosis. **The table is a prior, not a conclusion:
+if the evidence contradicts the matched pattern, discard the pattern and re-diagnose — never
+force a known fix onto a symptom it doesn't explain.**
 
 | Symptom                          | Common Causes                                |
 |----------------------------------|----------------------------------------------|

@@ -10,7 +10,7 @@ Invoke the coordinator agent to orchestrate multi-step workflows across agents.
 
 ## Agent Reference
 
-See @agents/coordinator.md for the full agent specification.
+See @.claude/agents/coordinator.md for the full agent specification.
 
 ## Task
 
@@ -56,6 +56,16 @@ Use this table to determine which agent(s) to invoke:
 | "Review my changes"               | verifier       | (optional) reviewer        |
 | "Create PR"                       | gitOps         | (none)                     |
 | "Full project setup"              | refine         | implementer -> verifier -> documenter -> gitOps |
+
+## Parallel Groups
+
+Read-only agents with independent inputs (explore, debugger, security-scanner,
+silent-failure-hunter, verifier-as-reader) MUST be spawned together in ONE message — never
+one per turn. Two independent read-only tasks already justify a parallel group. Only
+implementer and gitOps are strictly serialized (they write). Spawn mechanism per routing
+row: slash commands where one exists (e.g. `/refine`, `/debug`), otherwise
+`claude -p --agent <name>` with the scoped tool row from
+`.claude/agents/_shared/INVOCATION.md`.
 
 ## Automatic Handoff Management
 
@@ -128,4 +138,7 @@ When escalating, provide: the workflow goal, current phase, what went wrong, a s
 
 ## Output
 
-At the end of orchestration, provide a workflow summary covering: the original goal, each step executed (agent, status, summary), final status (SUCCESS/PARTIAL/FAILED), artifacts produced (files, PRs), and any follow-up recommendations.
+At the end of orchestration, provide a workflow summary. **The first line is the final
+status + goal** (outcome first — the reader should know what happened before reading how),
+then: each step executed (agent, status, summary), artifacts produced (files, PRs), and any
+follow-up recommendations.

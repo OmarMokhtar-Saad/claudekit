@@ -10,7 +10,7 @@ Invoke the documenter agent to create or update project documentation.
 
 ## Agent Reference
 
-See @agents/documenter.md for the full agent specification.
+See @.claude/agents/documenter.md for the full agent specification.
 
 ## Task
 

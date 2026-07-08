@@ -15,6 +15,15 @@ Silent mode output standards for all ClaudeKit agents. Controls message length, 
 
 For anything beyond these limits, write a report file.
 
+**Evidence is exempt from the caps.** Key command results — exit codes, pass/fail counts,
+error lines — are always quoted verbatim from executed output; everything else overflows to
+the report file. Never state a number or percentage you did not compute or measure. The
+first line of any completion or finding is the outcome itself, not process narrative.
+
+**Silent-mode clarification:** mid-task state checkpoints written to files
+(`.claude/state/`, plan files, report files) do NOT violate silent mode — silence governs
+console chatter, not persistence. Checkpoint freely; assume compaction can happen at any time.
+
 ---
 
 ## Completion Message Format
