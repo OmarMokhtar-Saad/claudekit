@@ -42,10 +42,20 @@ Checks: Python version, Bash, Git, agents, commands, skills, hooks, registry int
 ### `claudekit diff [target]`
 
 Show which ClaudeKit-managed files you've locally modified, using the install
-manifest (`.claude/.claudekit-manifest.json`, per-file sha256).
+manifest (`.claude/.claudekit-manifest.json`, per-file sha256). When the kit
+source is also available, modified files are refined into `locally modified`
+(you edited it), `kit-updated` (the file already matches a newer kit), or
+`both changed`; files you added under `agents/ commands/ skills/ hooks/` are
+listed as `custom`.
+
+Pre-manifest installs (before v2.1) don't error: `diff` falls back to comparing
+the project's managed assets directly against the kit source, classifying each
+file as `identical` / `differs` / `custom` / `not installed`. Provenance is
+unknown in this mode — `differs` may be a local edit or just an older kit
+version.
 
 ```bash
-claudekit diff              # report modified/missing/unchanged managed files
+claudekit diff              # report modified/missing/unchanged/custom files
 ```
 
 ### `claudekit update [target]`
@@ -53,6 +63,12 @@ claudekit diff              # report modified/missing/unchanged managed files
 Re-install ClaudeKit over an existing project. Detects locally-modified managed
 files and warns before overwriting; the installer stages + backs up the previous
 `.claude/` first (recoverable). Reuses the mode/language from the manifest.
+Project-custom assets (files under `agents/ commands/ skills/` that the kit
+doesn't manage) are preserved across the update.
+
+Pre-manifest installs work too: `update` warns, asks for confirmation (or
+`--yes`), reinstalls in full mode, and writes a manifest so the next update is
+precise.
 
 ```bash
 claudekit update            # prompts if local edits would be overwritten

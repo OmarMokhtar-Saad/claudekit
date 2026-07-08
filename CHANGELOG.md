@@ -12,6 +12,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Legacy-install lifecycle support.** Installs that predate the v2.1 manifest are no
+  longer locked out of the lifecycle commands:
+  - `claudekit diff` falls back to comparing managed assets (`agents/ commands/ skills/
+    hooks/ operations/scripts/ settings.json`) against the kit source when no manifest
+    exists, classifying files as `identical` / `differs` / `custom` / `not installed`.
+  - With a manifest **and** kit source available, `diff` refines `modified` into
+    `locally modified` / `kit-updated` / `both changed`, and lists project-added
+    `custom` files.
+  - `claudekit update` now works on pre-manifest installs (confirmation-gated full-mode
+    reinstall that writes a manifest for next time).
+  - The installer preserves project-custom assets across reinstalls: backup files not
+    tracked by the old manifest (or, for pre-manifest backups, anything under
+    `agents/ commands/ skills/`) are restored into the new tree instead of being
+    stranded in `.claude.bak-*`. Old kit-managed files are never resurrected when a
+    manifest exists.
+
 ### Security
 - **Wired the security layer (was dead code).** `CommandValidator`/`PathGuard` are now
   reachable in production via a `PreToolUse` Bash guard (`.claude/hooks/command-guard.sh`)

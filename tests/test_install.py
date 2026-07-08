@@ -3,8 +3,6 @@
 import os
 import subprocess
 import tempfile
-import pytest
-
 
 INSTALL_SCRIPT = os.path.join(os.path.dirname(__file__), '..', 'install.sh')
 
@@ -216,3 +214,75 @@ class TestInstallSafety:
             assert open(sentinel).read() == 'USER CUSTOM CONTENT'
             staging = [d for d in os.listdir(tmpdir) if d.startswith('.claude.staging.')]
             assert not staging, "staging dir leaked after failure"
+
+
+class TestCustomAssetPreservation:
+    """Reinstall must carry project-custom agents/commands/skills forward,
+    not strand them in the backup dir."""
+
+    def _install(self, tmpdir, *args):
+        return subprocess.run(
+            ['bash', INSTALL_SCRIPT, tmpdir, *args],
+            capture_output=True, text=True, timeout=90, stdin=subprocess.DEVNULL,
+        )
+
+    def test_reinstall_preserves_custom_skill(self):
+        # Manifest-tracked install: a custom skill (not in the manifest)
+        # survives a forced reinstall in the live tree.
+        with tempfile.TemporaryDirectory() as tmpdir:
+            open(os.path.join(tmpdir, 'pyproject.toml'), 'w').close()
+            assert self._install(tmpdir, '--minimal', '--yes').returncode == 0
+            custom = os.path.join(tmpdir, '.claude', 'skills', 'my-team-skill')
+            os.makedirs(custom)
+            with open(os.path.join(custom, 'SKILL.md'), 'w') as f:
+                f.write('# my team skill\n')
+            r = self._install(tmpdir, '--minimal', '--yes', '--force')
+            assert r.returncode == 0, r.stderr
+            assert os.path.isfile(os.path.join(custom, 'SKILL.md')), \
+                "custom skill stranded in backup on reinstall"
+            # Custom files must NOT enter the manifest (they are not kit-managed).
+            import json
+            manifest = json.load(open(os.path.join(
+                tmpdir, '.claude', '.claudekit-manifest.json')))
+            assert 'skills/my-team-skill/SKILL.md' not in manifest['files']
+
+    def test_reinstall_does_not_resurrect_old_kit_files(self):
+        # A file the OLD manifest tracked (i.e. kit-managed, since removed or
+        # renamed upstream) must NOT be restored as if it were custom.
+        import json
+        with tempfile.TemporaryDirectory() as tmpdir:
+            open(os.path.join(tmpdir, 'pyproject.toml'), 'w').close()
+            assert self._install(tmpdir, '--minimal', '--yes').returncode == 0
+            claude = os.path.join(tmpdir, '.claude')
+            obsolete = os.path.join(claude, 'agents', 'obsolete-kit-agent.md')
+            with open(obsolete, 'w') as f:
+                f.write('# shipped by an old kit version\n')
+            mpath = os.path.join(claude, '.claudekit-manifest.json')
+            manifest = json.load(open(mpath))
+            manifest['files']['agents/obsolete-kit-agent.md'] = '0' * 64
+            with open(mpath, 'w') as f:
+                json.dump(manifest, f)
+            r = self._install(tmpdir, '--minimal', '--yes', '--force')
+            assert r.returncode == 0, r.stderr
+            assert not os.path.exists(obsolete), \
+                "old kit-managed file resurrected as custom"
+
+    def test_legacy_reinstall_preserves_asset_dirs_only(self):
+        # Pre-manifest install (no old manifest): heuristic preserves files
+        # under agents/ commands/ skills/ but not arbitrary .claude/ files.
+        with tempfile.TemporaryDirectory() as tmpdir:
+            open(os.path.join(tmpdir, 'pyproject.toml'), 'w').close()
+            assert self._install(tmpdir, '--minimal', '--yes').returncode == 0
+            claude = os.path.join(tmpdir, '.claude')
+            os.remove(os.path.join(claude, '.claudekit-manifest.json'))
+            custom_cmd = os.path.join(claude, 'commands', 'my-cmd.md')
+            with open(custom_cmd, 'w') as f:
+                f.write('# mine\n')
+            stray = os.path.join(claude, 'notes.txt')
+            with open(stray, 'w') as f:
+                f.write('scratch\n')
+            r = self._install(tmpdir, '--minimal', '--yes', '--force')
+            assert r.returncode == 0, r.stderr
+            assert os.path.isfile(custom_cmd), "custom command lost on legacy reinstall"
+            assert not os.path.exists(stray), \
+                "non-asset file restored by legacy heuristic"
