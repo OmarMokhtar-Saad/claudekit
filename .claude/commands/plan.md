@@ -6,15 +6,30 @@ model: sonnet
 
 # Planner Command
 
-Runs the local `planner` agent via `claude -p --agent planner`.
-Verified mechanism: `--agent <name>` loads `.claude/agents/<name>.md` as system prompt.
-Canonical spawn contract: see `.claude/agents/_shared/INVOCATION.md` (single source of truth).
+Spawns the local `planner` agent. Two verified mechanisms (see
+`.claude/agents/_shared/INVOCATION.md`, single source of truth):
+
+- **Interactive session (default): Task tool**, `subagent_type: "planner"` — no cold boot,
+  shares the session's MCP servers and permission gating.
+- **Scripted/CI: `claude -p --agent planner`** — pays ~13s cold boot per spawn.
+
+Either way the DELIVERY CONTRACT is the same: the planner returns the plan document and the
+complete ops.json in its response (headless spawns cannot write into `.claude/**` — platform
+sensitive-path gate); this command saves and validates them.
 
 ## Task
 
 Create implementation plan for: $ARGUMENTS
 
-## Invocation
+## Invocation — interactive (default)
+
+1. Spawn via the Task tool with `subagent_type: "planner"` (model: opus) and the same
+   message as `PLANNER_MSG` below, plus: "Return the complete plan document and ops.json
+   in your final response."
+2. Save the returned plan to `.claude/plans/plan-<slug>.md` and extract + validate the ops
+   config exactly as the post-processing block below does.
+
+## Invocation — scripted (claude -p)
 
 Use the Bash tool to run:
 

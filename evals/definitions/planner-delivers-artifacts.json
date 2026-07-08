@@ -1,0 +1,15 @@
+{
+  "id": "planner-delivers-artifacts",
+  "description": "Planner produces a plan whose ops.json is extractable and validator-APPROVED (headless stdout delivery contract).",
+  "agent": "planner",
+  "model": "opus",
+  "allowed_tools": "Read,Grep,Glob,Write,Bash(python3 .claude/operations/scripts/validate-config-json.py *)",
+  "fixture": "calc",
+  "prompt": "Create a complete implementation plan for the following task.\n\nTask: Add src/calc/stats.py with mean(values) and median(values) (empty list -> ValueError) plus tests in tests/test_stats.py matching the existing test style.\n\nBefore writing anything, explore the codebase with BATCHED parallel Read/Grep/Glob calls.\nReturn the complete plan document and ops.json in your final response.\n\nIRON LAW: The plan MUST include a valid ops.json.",
+  "checks": [
+    {"type": "ops_extractable_and_valid"},
+    {"type": "regex_present", "pattern": "(?i)rollback", "why": "plan must include a rollback strategy"},
+    {"type": "regex_absent", "pattern": "(?i)would you like me to|shall i proceed", "why": "must not end asking permission"}
+  ],
+  "max_cost_usd": 1.5
+}

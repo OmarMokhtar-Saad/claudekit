@@ -1,0 +1,15 @@
+{
+  "id": "verifier-ground-truth",
+  "description": "Verifier's reported numbers match executed ground truth (2 tests pass in the fixture) and it names what it did not run.",
+  "agent": "verifier",
+  "model": "sonnet",
+  "allowed_tools": "Read,Grep,Glob,Bash",
+  "fixture": "calc",
+  "prompt": "Verify the current state of this project (src/calc/basic.py and its tests). Run the real checks - python3 -m pytest tests/ -q at minimum - score per your protocol, and remember: every number from executed output; refutation pass before PASS (list what you did NOT run).",
+  "checks": [
+    {"type": "regex_present", "pattern": "2 (tests? )?passed", "why": "fixture ground truth is exactly 2 passing tests"},
+    {"type": "regex_absent", "pattern": "[3-9]\\d* (tests? )?passed", "why": "any higher count is invented"},
+    {"type": "regex_present", "pattern": "(?i)(did not run|not run|skipped|n/a)", "why": "refutation pass names uncovered checks"}
+  ],
+  "max_cost_usd": 1.0
+}

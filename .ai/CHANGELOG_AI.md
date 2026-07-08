@@ -2,6 +2,21 @@
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
 
+## 2026-07-08 — Claude (Fable 5) — E2E validation + gap fixes + eval framework (010)
+
+- Ran the full pipeline headless on a fixture (plan→review→implement→verify): works,
+  $1.86 total; refutation/evidence behaviors verifiably fired; verifier numbers matched
+  ground truth. Found + fixed: `.claude/**` writes hard-blocked headless (stdout is now the
+  explicit delivery contract; recreated ghost script extract-json-from-plan.py);
+  implementer stalling on out-of-scope verification (now hands off "verification pending").
+- Fixed: PostToolUseFailure hook SyntaxError (logged all failures as "unknown"); verifier
+  now diff-scoped by default (--all for repo-wide).
+- `/plan` `/review` `/refine` are dual-mechanism: Task tool interactive default, claude -p
+  scripted. AppiumLens's 3 command overrides converge (not restored on next update).
+- **Task 010 shipped:** `ck eval` + scripts/run-evals.py + evals/ (4 behavioral evals with
+  planted-defect refutation test, fabrication tripwire, ground-truth match; per-eval cost
+  budgets; offline framework tests in pytest). Suite: 564.
+
 ## 2026-07-08 — Claude (Fable 5) — Context budget: lazy skill loading (task 009 core)
 
 - Measured the problem first: 16,120 preloaded skill lines across 18 agents (coordinator

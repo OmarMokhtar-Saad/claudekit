@@ -36,7 +36,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   review(opus $0.18, refutation ran) → implement(sonnet $0.36) → verify(sonnet $0.64,
   scores matched ground truth) ≈ $1.86. `ck doctor` now checks the extract script ships.
 
+### Added
+- **Behavioral eval framework (task 010).** `claudekit eval` + `scripts/run-evals.py` +
+  `evals/`: each eval spawns a real agent in an isolated fixture workspace and asserts on
+  behavior, not prompt text — planner artifacts extractable + validator-APPROVED, reviewer
+  verdict-block format + refutation catches a planted phantom-file defect, implementer
+  never fabricates verification it couldn't run, verifier numbers match executed ground
+  truth. Four evals derived from the 2026-07-08 E2E pipeline run; per-eval cost budgets;
+  `--dry-run`/`--list` are free and covered by offline tests. This makes the quality gates
+  mechanically checkable instead of prompt-enforced-only.
+
 ### Changed
+- **Pipeline commands are dual-mechanism.** `/plan`, `/review`, `/refine` name the Task
+  tool as the interactive default (local agents register post-frontmatter-fix; no cold
+  boot, shared MCP/permissions) and keep scoped `claude -p` as the scripted/CI path — one
+  delivery contract for both. The verifier now scopes lint/types/coverage to the changed
+  files (full test suite always); `--all` forces the repo-wide audit pass. The
+  PostToolUseFailure hook's embedded Python was a guaranteed SyntaxError, logging every
+  failed tool as "unknown" — fixed, failures now log the real tool name.
 - **Context budget: lazy skill loading (task 009 core).** Agents no longer preload their
   whole skill list: each declares ≤3 mandatory skills (`using-superpowers` + role-core) and
   moves the rest to an explicit on-demand tier with per-skill load triggers ("load when the

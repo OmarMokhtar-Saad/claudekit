@@ -262,6 +262,13 @@ class TestContractConsistency:
         assert "from ops.json validation section" not in text
         assert "plan.md" in text
 
+    def test_pipeline_commands_offer_task_tool_path(self):
+        # Interactive default = Task tool (no cold boot); claude -p = scripted path.
+        for cmd in ("plan.md", "review.md", "refine.md"):
+            text = _read(COMMANDS, cmd)
+            assert "Task tool" in text, f"{cmd}: missing interactive Task-tool path"
+            assert "claude -p" in text, f"{cmd}: missing scripted claude -p path"
+
     def test_headless_stdout_delivery_contract(self):
         # Verified 2026-07-08: claude -p cannot write into .claude/** (platform
         # sensitive-path gate) — stdout is the delivery contract, commands save.
