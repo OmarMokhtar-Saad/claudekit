@@ -23,6 +23,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   contradiction: local agents register fine once frontmatter parses — `INVOCATION.md` now
   documents both mechanisms (Task tool default in-session; scoped `claude -p` for
   scripted/CI paths with the cold-boot cost stated). Structural regression test added.
+- **Headless pipeline was broken at the save step (found by end-to-end test).** `claude -p`
+  spawns cannot write into `.claude/**` — the platform's sensitive-path gate requires
+  interactive approval and no `--allowedTools` grant or settings allow rule bypasses it
+  (all three tested). The planner burned turns retrying blocked Writes and ended asking a
+  human who isn't there. Now: stdout is the explicit headless delivery contract — the
+  planner emits plan + ops.json in its response, `/plan` and `/refine` save via tee and the
+  restored `extract-json-from-plan.py` ops script (recreated; it existed only in pre-2.0
+  installs), then validate. The implementer likewise no longer stalls when verification
+  commands exceed its scoped tool grant — it reports "executed, verification pending" and
+  hands off to the verifier. E2E pipeline validated on a fixture: plan(opus $0.68) →
+  review(opus $0.18, refutation ran) → implement(sonnet $0.36) → verify(sonnet $0.64,
+  scores matched ground truth) ≈ $1.86. `ck doctor` now checks the extract script ships.
 
 ### Changed
 - **Context budget: lazy skill loading (task 009 core).** Agents no longer preload their

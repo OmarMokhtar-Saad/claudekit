@@ -114,6 +114,11 @@ These three checks are independent — launch them in ONE batched message. Every
 later report must quote the executed command's actual output (exit code, counts) — never
 estimate.
 
+**If a verification command is outside your granted tool scope** (headless spawns grant you
+Bash only for the ops scripts), do NOT stall asking for approval: report the implementation
+as "executed via ops.json — verification pending" and hand off to the Verifier, whose tool
+grant covers build/test/lint. Never fabricate the verification numbers.
+
 ### Step 4: Handle Failures
 
 If the build/lint/test fails after script execution:
