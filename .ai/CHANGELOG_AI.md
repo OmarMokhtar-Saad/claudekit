@@ -14,9 +14,13 @@ Reverse-chronological log of AI working sessions on this repository. Append an e
 - Budget gate tests (TestContextBudget): max-3 mandatory, trigger required per on-demand
   entry, registry --check green. Suite: 552. Plan:
   `.claude/plans/plan-context-budget-lazy-skills.md`.
-- Remaining 009 follow-ups (recorded in plan, not done): split large SKILL.md bodies into
-  core + references/; command-file Mandatory Skills trimming (8 commands at 4); usedBy
-  field semantics.
+- Follow-ups CLOSED same day: 8 commands trimmed to 3 mandatory + on-demand trigger;
+  usedBy now generated from reverse agentMapping (0 "all" fictions remain, 38 skills
+  honestly on-demand-only); SKILL.md splitting measured and skipped (only 3 kit skills
+  >300 lines; on-demand loading made size pay-per-use). Fleet re-rolled; output-cap env
+  vars (BASH_MAX_OUTPUT_LENGTH, MAX_MCP_OUTPUT_TOKENS) added to 5 projects'
+  settings.local.json. AppiumLens MCP server trimming left to owner (filesystem server
+  is demonstrably used; no usage evidence for sequential-thinking/greptile).
 
 ## 2026-07-08 — Claude (Fable 5) — Agent-registration root cause + fix (spawn contradiction resolved)
 
