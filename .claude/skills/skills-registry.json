@@ -1,7 +1,7 @@
 {
   "version": "2.0",
-  "lastUpdated": "2026-04-11",
-  "description": "ClaudeKit skills registry \u2014 maps skills to agents",
+  "lastUpdated": "2026-07-08",
+  "description": "ClaudeKit skills registry — maps skills to agents",
   "skills": [
     {
       "id": "using-superpowers",
@@ -628,7 +628,7 @@
         "coordinator",
         "harness-optimizer"
       ],
-      "description": "Audit token consumption across agents, skills, MCP servers \u2014 find bloat and optimize"
+      "description": "Audit token consumption across agents, skills, MCP servers — find bloat and optimize"
     },
     {
       "id": "token-budget-advisor",
@@ -661,7 +661,7 @@
         "planner",
         "implementer"
       ],
-      "description": "Research-first approach \u2014 search npm/PyPI/MCP/GitHub before writing custom code"
+      "description": "Research-first approach — search npm/PyPI/MCP/GitHub before writing custom code"
     },
     {
       "id": "verification-loop",
@@ -694,7 +694,18 @@
         "explore",
         "coordinator"
       ],
-      "description": "Analyze unfamiliar codebase in 4 phases \u2014 generates onboarding guide and starter CLAUDE.md"
+      "description": "Analyze unfamiliar codebase in 4 phases — generates onboarding guide and starter CLAUDE.md"
+    },
+    {
+      "id": "project-adaptation",
+      "name": "Project Adaptation",
+      "path": "skills/project-adaptation/SKILL.md",
+      "mandatory": false,
+      "usedBy": [
+        "coordinator",
+        "explore"
+      ],
+      "description": "Adapt ClaudeKit to any project/language: detect state, configure, verify, enhance"
     },
     {
       "id": "blueprint",
@@ -759,7 +770,7 @@
         "coordinator",
         "planner"
       ],
-      "description": "Structured session save/resume \u2014 serialize task state, decisions, next steps across sessions"
+      "description": "Structured session save/resume — serialize task state, decisions, next steps across sessions"
     },
     {
       "id": "prp-plan",
@@ -770,7 +781,7 @@
         "planner",
         "coordinator"
       ],
-      "description": "Product Requirements Process plan phase \u2014 deep codebase analysis before writing a single line of implementation"
+      "description": "Product Requirements Process plan phase — deep codebase analysis before writing a single line of implementation"
     },
     {
       "id": "gan-harness",
