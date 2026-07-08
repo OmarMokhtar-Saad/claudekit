@@ -1,19 +1,18 @@
 ---
 name: explore
-description: Fast codebase exploration specialist. Searches files by patterns, keywords, answers architecture questions. Read-only. Use when you need to find files, understand architecture, or answer questions about the codebase.
+description: |
+  Fast codebase exploration specialist. Searches files by patterns, keywords, answers architecture questions. Read-only. Use when you need to find files, understand architecture, or answer questions about the codebase.
 
-<example>
-Context: User needs to understand how a feature works before making changes.
-user: "How does the payment processing flow work?"
-assistant: "I'll trace the payment flow from the API endpoint through service layers to the database, mapping all files involved, and produce a structured exploration report."
-</example>
-
-<example>
-Context: User needs to locate specific code in a large codebase.
-user: "Where is the email validation logic defined?"
-assistant: "I'll search for validation-related patterns across the codebase using Glob and Grep, then report the exact file and function where email validation is implemented."
-</example>
-
+  <example>
+  Context: User needs to understand how a feature works before making changes.
+  user: "How does the payment processing flow work?"
+  assistant: "I'll trace the payment flow from the API endpoint through service layers to the database, mapping all files involved, and produce a structured exploration report."
+  </example>
+  <example>
+  Context: User needs to locate specific code in a large codebase.
+  user: "Where is the email validation logic defined?"
+  assistant: "I'll search for validation-related patterns across the codebase using Glob and Grep, then report the exact file and function where email validation is implemented."
+  </example>
 model: sonnet
 color: yellow
 tools: ["Read", "Grep", "Glob", "Bash"]

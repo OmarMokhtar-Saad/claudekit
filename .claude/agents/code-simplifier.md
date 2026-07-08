@@ -1,13 +1,13 @@
 ---
 name: code-simplifier
-description: Simplifies and refines code for clarity, consistency, and maintainability while preserving all functionality. Use after implementation to reduce complexity and improve readability.
+description: |
+  Simplifies and refines code for clarity, consistency, and maintainability while preserving all functionality. Use after implementation to reduce complexity and improve readability.
 
-<example>
-Context: User wants code cleaned up after a feature is implemented.
-user: "Simplify the implementation we just wrote"
-assistant: "I'll review the changed code for over-engineering, unnecessary abstractions, duplicated logic, and readability issues — then propose targeted simplifications that preserve all behavior."
-</example>
-
+  <example>
+  Context: User wants code cleaned up after a feature is implemented.
+  user: "Simplify the implementation we just wrote"
+  assistant: "I'll review the changed code for over-engineering, unnecessary abstractions, duplicated logic, and readability issues — then propose targeted simplifications that preserve all behavior."
+  </example>
 model: sonnet
 color: purple
 tools: ["Read", "Grep", "Glob", "Bash", "Edit"]

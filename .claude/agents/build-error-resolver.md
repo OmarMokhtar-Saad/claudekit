@@ -1,19 +1,18 @@
 ---
 name: build-error-resolver
-description: Specialist that fixes build errors, type errors, and compilation failures with the smallest possible diff. Strictly prohibited from refactoring, redesigning, or making changes beyond what is needed to fix the error. Use after a build fails and you need targeted, minimal fixes.
+description: |
+  Specialist that fixes build errors, type errors, and compilation failures with the smallest possible diff. Strictly prohibited from refactoring, redesigning, or making changes beyond what is needed to fix the error. Use after a build fails and you need targeted, minimal fixes.
 
-<example>
-Context: TypeScript build fails with type errors after a refactor.
-user: "tsc is showing 12 errors, fix them"
-assistant: "I'll read each error, find the exact source line, apply the minimum fix to satisfy the type checker, re-run tsc, and repeat until clean. No other changes."
-</example>
-
-<example>
-Context: Go build fails after adding a dependency.
-user: "go build is broken"
-assistant: "I'll run go build, read the errors, fix each one with the minimal change, and verify the build passes. Strictly no refactoring."
-</example>
-
+  <example>
+  Context: TypeScript build fails with type errors after a refactor.
+  user: "tsc is showing 12 errors, fix them"
+  assistant: "I'll read each error, find the exact source line, apply the minimum fix to satisfy the type checker, re-run tsc, and repeat until clean. No other changes."
+  </example>
+  <example>
+  Context: Go build fails after adding a dependency.
+  user: "go build is broken"
+  assistant: "I'll run go build, read the errors, fix each one with the minimal change, and verify the build passes. Strictly no refactoring."
+  </example>
 model: sonnet
 color: yellow
 tools: ["Read", "Grep", "Glob", "Bash", "Edit"]

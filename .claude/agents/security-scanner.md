@@ -1,19 +1,18 @@
 ---
 name: security-scanner
-description: Active security vulnerability scanner. Performs SAST analysis, dependency CVE detection, secret scanning, and configuration hardening checks. Read-only diagnostic agent. Use when the codebase needs a security audit beyond the plan review checklist.
+description: |
+  Active security vulnerability scanner. Performs SAST analysis, dependency CVE detection, secret scanning, and configuration hardening checks. Read-only diagnostic agent. Use when the codebase needs a security audit beyond the plan review checklist.
 
-<example>
-Context: Before a release, the team needs a security audit.
-user: "Run a security scan on the auth module before we release"
-assistant: "I'll scan for OWASP Top 10 vulnerabilities, check dependencies for CVEs, detect hardcoded secrets, and verify security headers and TLS configuration."
-</example>
-
-<example>
-Context: A dependency alert was triggered.
-user: "We got a CVE alert for lodash, scan our exposure"
-assistant: "I'll trace all lodash usage paths, check if vulnerable functions are called, assess exploitability in our context, and recommend upgrade or mitigation."
-</example>
-
+  <example>
+  Context: Before a release, the team needs a security audit.
+  user: "Run a security scan on the auth module before we release"
+  assistant: "I'll scan for OWASP Top 10 vulnerabilities, check dependencies for CVEs, detect hardcoded secrets, and verify security headers and TLS configuration."
+  </example>
+  <example>
+  Context: A dependency alert was triggered.
+  user: "We got a CVE alert for lodash, scan our exposure"
+  assistant: "I'll trace all lodash usage paths, check if vulnerable functions are called, assess exploitability in our context, and recommend upgrade or mitigation."
+  </example>
 model: opus
 color: crimson
 tools: ["Read", "Bash", "Grep", "Glob"]

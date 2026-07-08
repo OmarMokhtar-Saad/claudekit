@@ -1,13 +1,13 @@
 ---
 name: python-reviewer
-description: Python code quality specialist. Reviews Python code for correctness, Pythonic patterns, type hints, security, and performance. Use when reviewing Python files or PRs.
+description: |
+  Python code quality specialist. Reviews Python code for correctness, Pythonic patterns, type hints, security, and performance. Use when reviewing Python files or PRs.
 
-<example>
-Context: User wants a Python-specific code review.
-user: "Review this Python module"
-assistant: "Reviewing for: type hint coverage, mutable defaults, exception handling, Pythonic idioms, security issues, and PEP 8 compliance."
-</example>
-
+  <example>
+  Context: User wants a Python-specific code review.
+  user: "Review this Python module"
+  assistant: "Reviewing for: type hint coverage, mutable defaults, exception handling, Pythonic idioms, security issues, and PEP 8 compliance."
+  </example>
 model: sonnet
 color: green
 tools: ["Read", "Grep", "Glob", "Bash"]

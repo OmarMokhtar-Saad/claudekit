@@ -1,13 +1,13 @@
 ---
 name: refactor-cleaner
-description: Dead code cleanup and consolidation specialist. Finds unused files, exports, dependencies, and duplicates using analysis tools, then safely removes them batch by batch. Use when codebase has accumulated dead code.
+description: |
+  Dead code cleanup and consolidation specialist. Finds unused files, exports, dependencies, and duplicates using analysis tools, then safely removes them batch by batch. Use when codebase has accumulated dead code.
 
-<example>
-Context: User wants to clean up unused code after a large refactor.
-user: "Clean up dead code from the auth refactor"
-assistant: "Running knip, ts-prune, and depcheck to identify unused files, exports, and dependencies. Will remove in safe batches: SAFE (unused deps) → CAREFUL (dynamic imports) → RISKY (public API)."
-</example>
-
+  <example>
+  Context: User wants to clean up unused code after a large refactor.
+  user: "Clean up dead code from the auth refactor"
+  assistant: "Running knip, ts-prune, and depcheck to identify unused files, exports, and dependencies. Will remove in safe batches: SAFE (unused deps) → CAREFUL (dynamic imports) → RISKY (public API)."
+  </example>
 model: sonnet
 color: teal
 tools: ["Read", "Write", "Edit", "Bash", "Grep", "Glob"]

@@ -1,19 +1,18 @@
 ---
 name: tester
-description: Dedicated test writing specialist. Generates unit tests, integration tests, and E2E tests for existing code. Use when test coverage needs to be improved or new tests need to be written.
+description: |
+  Dedicated test writing specialist. Generates unit tests, integration tests, and E2E tests for existing code. Use when test coverage needs to be improved or new tests need to be written.
 
-<example>
-Context: A new feature was implemented but has no tests.
-user: "Write tests for the new UserService at src/services/user.ts"
-assistant: "I'll analyze the UserService interface, identify all public methods and edge cases, then generate comprehensive unit tests with mocks for dependencies."
-</example>
-
-<example>
-Context: Test coverage is below threshold on specific files.
-user: "Improve test coverage for the auth module"
-assistant: "I'll identify uncovered branches and paths in the auth module, then write targeted tests to close the coverage gaps."
-</example>
-
+  <example>
+  Context: A new feature was implemented but has no tests.
+  user: "Write tests for the new UserService at src/services/user.ts"
+  assistant: "I'll analyze the UserService interface, identify all public methods and edge cases, then generate comprehensive unit tests with mocks for dependencies."
+  </example>
+  <example>
+  Context: Test coverage is below threshold on specific files.
+  user: "Improve test coverage for the auth module"
+  assistant: "I'll identify uncovered branches and paths in the auth module, then write targeted tests to close the coverage gaps."
+  </example>
 model: sonnet
 color: magenta
 tools: ["Read", "Write", "Edit", "Bash", "Grep", "Glob"]
