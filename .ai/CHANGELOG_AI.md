@@ -2,6 +2,30 @@
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
 
+## 2026-07-08 — Claude (Fable 5) — Fleet audit + legacy-install lifecycle
+
+- **Fleet audit:** surveyed all 12 `.claude`-bearing projects in ~/IdeaProjects against the kit
+  (4 parallel review agents). Verdicts: the 13 "extra" commands + `i18n-workflow` in
+  LeanApis/ai-agent-system are byte-identical round-trips of `templates/commands|skills/`
+  (nothing to upstream; per-asset keep/delete calls recorded for task 008); zero graft-worthy
+  edits in any project (all version lag); AppiumLens/MobileUIAutomator ran pre-Phase-1 kit
+  generations, and the 3 near-current projects were running commands with
+  `--dangerously-skip-permissions` (the exact Phase-1 regression) — now fixed by resync.
+- **Product change (plan: `.claude/plans/plan-legacy-install-lifecycle.md`):** legacy
+  (pre-manifest) installs are now first-class: `ck diff` falls back to kit-source comparison
+  (identical/differs/custom/not-installed) and refines manifest diffs into locally-modified /
+  kit-updated / both-changed + custom listing; `ck update` works on pre-manifest installs;
+  install.sh preserves project-custom agents/commands/skills across reinstalls (old-manifest
+  precise mode; asset-dir heuristic for legacy). 7 new behavioral tests (523 total); ruff clean
+  across tests/ (was CI-exempt); docs/cli.md + CHANGELOG updated.
+- **Fleet resync (via the new `ck update`):** qaforge-ai, LeanApis, ai-agent-system,
+  MobileUIAutomator, qa-agents → v2.1.0 manifest-tracked, diff-clean; customs preserved
+  (qa-agents' 3 QA agents + 4 commands; MobileUIAutomator's 9 project skills). AppiumLens
+  deliberately NOT auto-updated (real customization + open spawn-mechanism question).
+- Open decisions surfaced to owner: QA-pack (3 generic QA agents from qa-agents), AppiumLens
+  selective sync, Task-tool vs `claude -p` spawn contradiction, `<example>`-in-frontmatter
+  YAML validity audit.
+
 ## 2026-07-08 — Claude (Fable 5) — /adapt self-adaptation capability
 
 - Added `/adapt` command (`.claude/commands/adapt.md`) and `project-adaptation` skill (`.claude/skills/project-adaptation/SKILL.md`): ClaudeKit now teaches an AI, when the kit is added to **any** project in **any** language, what to change (config.json commands, CLAUDE.md, CONSTITUTION.md, hook profile, .agentignore), how to verify it works (hook block test, four commands, ops round-trip, doctor), and how to keep enhancing the fit (/hookify, /learn, decision recording).
