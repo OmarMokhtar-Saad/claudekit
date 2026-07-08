@@ -5,7 +5,9 @@ model: opus
 
 # Reviewer Command
 
-Runs the local `reviewer` agent via `claude -p --agent reviewer`.
+Spawns the local `reviewer` agent — Task tool (`subagent_type: "reviewer"`, model opus) in
+interactive sessions (default; no cold boot); `claude -p --agent reviewer` for scripted/CI
+paths. Same `REVIEWER_MSG` and output contract either way.
 Verified mechanism: `--agent <name>` loads `.claude/agents/<name>.md` as system prompt.
 Canonical spawn contract: see `.claude/agents/_shared/INVOCATION.md` (single source of truth).
 

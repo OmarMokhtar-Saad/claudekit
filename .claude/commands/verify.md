@@ -122,6 +122,9 @@ Generate a comprehensive quality report.
 
 ## Notes
 
+- Default scope is the CHANGE (git diff / plan file list): full test suite always, but
+  lint/types/coverage scoped to changed files + direct importers. `--all` forces the
+  repo-wide audit-grade pass.
 - If no arguments are provided, run the full validation suite
 - Respect project-specific configuration (.eslintrc, tsconfig.json, etc.)
 - Do not modify any files -- this is a read-only validation pass

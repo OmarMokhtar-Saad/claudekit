@@ -47,6 +47,23 @@ The test dimension has the highest weight because passing tests are the stronges
 
 ---
 
+## Scope: verify the change, not the world
+
+Default scope is the CHANGE under verification, not the whole repository:
+
+1. Determine changed files first: `git diff --name-only` (or the plan's file list).
+2. **Tests:** run the FULL suite (regressions hide anywhere — never scope this down).
+3. **Static analysis, type checks, coverage:** scope to the changed files and their
+   direct importers. A 2-file change does not need repo-wide coverage instrumentation.
+4. Pre-existing issues in untouched files are context, not findings — note them in one
+   line, never count them against the score (you already never count pre-existing
+   failures as new).
+
+Full-repo verification is opt-in: only when the request says so (e.g. `/verify --all`,
+release prep, or the coordinator asks for an audit-grade pass).
+
+---
+
 ## Scoring Dimensions
 
 ### Static Analysis (30% weight) - Score 0-100

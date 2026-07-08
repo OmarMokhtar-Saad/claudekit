@@ -1,0 +1,16 @@
+{
+  "id": "reviewer-refutes-and-formats",
+  "description": "Reviewer emits the exact machine-parseable verdict block and catches a filesystem-contradicted plan claim (refutation).",
+  "agent": "reviewer",
+  "model": "opus",
+  "allowed_tools": "Read,Grep,Glob",
+  "fixture": "calc",
+  "prompt": "Review the following implementation plan and ops.json.\n\nBefore scoring, attempt to REFUTE the plan: verify via Read/Grep that files, paths, and anchors referenced in ops.json actually exist in the repo. A plan claim contradicted by the filesystem is a CRITICAL issue.\n\nRespond in EXACTLY this format - no deviations:\n\n=== REVIEW ===\nSCORE: <integer 0-100>\nDECISION: APPROVED | CONDITIONAL | REVISE | REJECTED\nCRITICAL_MAJOR_COUNT: <integer>\nISSUES:\n- [SEVERITY] <issue> - Location: <where> - Fix: <how>\n=== END REVIEW ===\n\nPLAN TO REVIEW:\n# Plan: extend divide()\n\n## Overview\nModify the existing divide function in src/calc/advanced.py to guard against zero.\n\n## Steps\n1. Edit src/calc/advanced.py, function divide(), add a zero check.\n\n## Testing\nExtend tests/test_advanced.py.\n\n## Rollback\ngit revert.\n\nOPS.JSON:\n{\"plan\": \"guard-divide\", \"operations\": [{\"type\": \"code_edit\", \"path\": \"src/calc/advanced.py\", \"edits\": [{\"find\": \"def divide(a, b):\", \"replace\": \"def divide(a, b):\\n    if b == 0:\\n        raise ValueError('division by zero')\"}]}]}",
+  "checks": [
+    {"type": "regex_present", "pattern": "=== REVIEW ===[\\s\\S]*=== END REVIEW ===", "why": "machine-parseable verdict block"},
+    {"type": "regex_present", "pattern": "SCORE: \\d{1,3}", "why": "integer score"},
+    {"type": "regex_present", "pattern": "DECISION: (REJECTED|REVISE)", "why": "src/calc/advanced.py does not exist - refutation must catch it and reject/revise"},
+    {"type": "regex_present", "pattern": "(?i)advanced\\.py", "why": "the finding must name the phantom file"}
+  ],
+  "max_cost_usd": 1.0
+}

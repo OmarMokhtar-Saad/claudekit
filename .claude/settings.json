@@ -198,7 +198,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'ROOT=$(git rev-parse --show-toplevel 2>/dev/null); LOG=\"$ROOT/.claude/hooks/hooks.log\"; TOOL_INPUT=$(cat); TN=$(echo \"$TOOL_INPUT\" | python3 -c \"import sys,json;\\ntry: print(json.load(sys.stdin).get(\\\"tool_name\\\",\\\"unknown\\\"))\\nexcept Exception: print(\\\"unknown\\\")\" 2>/dev/null); TN=${TN:-unknown}; echo \"[$(date \"+%Y-%m-%d %H:%M:%S\")] [tool-failure] [ERROR] Tool failed: $TN\" >> \"$LOG\" 2>/dev/null; echo \"[tool-failure] Tool $TN encountered an error. Check logs at $ROOT/.claude/hooks/hooks.log\"'"
+            "command": "bash -c 'ROOT=$(git rev-parse --show-toplevel 2>/dev/null); LOG=\"$ROOT/.claude/hooks/hooks.log\"; TOOL_INPUT=$(cat); TN=$(echo \"$TOOL_INPUT\" | python3 -c \"import sys,json; print(json.load(sys.stdin).get('tool_name') or 'unknown')\" 2>/dev/null); TN=${TN:-unknown}; echo \"[$(date \"+%Y-%m-%d %H:%M:%S\")] [tool-failure] [ERROR] Tool failed: $TN\" >> \"$LOG\" 2>/dev/null; echo \"[tool-failure] Tool $TN encountered an error. Check logs at $ROOT/.claude/hooks/hooks.log\"'"
           }
         ]
       }

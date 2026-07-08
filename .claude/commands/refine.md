@@ -8,12 +8,17 @@ model: sonnet
 
 Runs the plan-review refinement loop: the planner produces a plan, the reviewer scores it, and if the score is below 90 or issues remain, the reviewer's feedback is fed back to the planner automatically. The cycle repeats until the plan is APPROVED or the iteration limit is reached.
 
-**ARCHITECTURAL REQUIREMENT**: Cycle A and Cycle B run via the Bash tool using
-`claude -p --agent <name>` — the scripted/headless path. `--agent planner` loads
-`planner.md` as the system prompt of a fresh, isolated Claude process, which is exactly the
-isolation this loop needs (a Task-tool subagent spawned mid-loop would also be fresh, but
-the string-pipeline design here is verified with `claude -p`). Note the measured ~13s cold
-boot per spawn; in MCP-heavy projects, prefer running /refine where startup is fast.
+**ARCHITECTURAL REQUIREMENT**: Cycle A and Cycle B run in FRESH, isolated subagent
+contexts — never inline (self-review bias). Two verified mechanisms:
+
+- **Interactive session (default): Task tool** — spawn `subagent_type: "planner"` (opus)
+  for Cycle A and a fresh `subagent_type: "reviewer"` (opus) for Cycle B each iteration.
+  Every spawn starts a fresh context, which preserves the anti-anchoring guarantee, with
+  no cold boot. Use the same PLANNER_MSG/REVIEWER_MSG contents shown below; the planner
+  returns plan + ops.json in its response (delivery contract).
+- **Scripted/CI: the Bash blocks below** (`claude -p --agent <name>`) — same isolation,
+  ~13s cold boot per spawn (measured; worse in MCP-heavy projects).
+
 Canonical spawn contract: see `.claude/agents/_shared/INVOCATION.md` (single source of truth).
 
 ## Mandatory Skills

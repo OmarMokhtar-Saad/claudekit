@@ -615,6 +615,23 @@ def cmd_update(args):
     return result.returncode
 
 
+def cmd_eval(args):
+    """Run the behavioral eval harness (task 010). Requires the kit source tree."""
+    root = find_claudekit_root()
+    if root is None or not (root / "scripts" / "run-evals.py").exists():
+        err("Eval harness not found. Evals run from the ClaudeKit source tree "
+            "(set CLAUDEKIT_HOME or run inside the repo).")
+        return 1
+    cmd = [sys.executable, str(root / "scripts" / "run-evals.py")]
+    if args.list:
+        cmd.append("--list")
+    if args.dry_run:
+        cmd.append("--dry-run")
+    if args.only:
+        cmd.extend(["--only", args.only])
+    return subprocess.run(cmd, cwd=root).returncode
+
+
 def cmd_check_command(args):
     """Validate a shell command against the security denylist (speed bump)."""
     from claudekit.security.cli import check_command
@@ -715,6 +732,14 @@ def main():
     p.add_argument("--dry-run", action="store_true", help="List files without removing")
     p.add_argument("--stamp", help=argparse.SUPPRESS)  # deterministic backup name (tests)
 
+    # eval
+    p = sub.add_parser("eval", help="Run behavioral evals against the prompt corpus "
+                                    "(costs real API calls; --dry-run is free)")
+    p.add_argument("--list", action="store_true", help="List available evals")
+    p.add_argument("--dry-run", action="store_true",
+                   help="Validate definitions + workspace build without running agents")
+    p.add_argument("--only", help="Run a single eval by id")
+
     # check-command
     p = sub.add_parser("check-command",
                        help="Validate a shell command (exit 0 allow / 2 block)")
@@ -745,6 +770,7 @@ def main():
         "diff": cmd_diff,
         "update": cmd_update,
         "uninstall": cmd_uninstall,
+        "eval": cmd_eval,
         "check-command": cmd_check_command,
         "check-path": cmd_check_path,
         "config": cmd_config,

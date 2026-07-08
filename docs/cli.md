@@ -85,6 +85,24 @@ claudekit uninstall --dry-run   # list what would be removed
 claudekit uninstall --yes       # remove (non-interactive)
 ```
 
+### `claudekit eval`
+
+Run behavioral evals against the prompt corpus (task 010): each eval spawns a real agent
+in an isolated fixture workspace and asserts on its *behavior* — artifacts extractable and
+valid, refutation catches planted defects, no fabricated verification numbers, reported
+counts match executed ground truth. Complements the structural test suite, which only
+asserts the prompt text.
+
+```bash
+claudekit eval --list       # available evals
+claudekit eval --dry-run    # validate definitions + workspace build (free)
+claudekit eval              # run all (real API calls, ~$0.2–1.5 per eval)
+claudekit eval --only planner-delivers-artifacts
+```
+
+Definitions live in `evals/definitions/*.json`; fixtures in `evals/fixtures/`. Run after
+any prompt-corpus change and before releases.
+
 ### `claudekit check-command "<cmd>"` / `claudekit check-path <path>`
 
 Validate a shell command or file path against the security layer (a denylist
