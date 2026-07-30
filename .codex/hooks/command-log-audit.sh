@@ -30,6 +30,11 @@ except:
 CMD_TRUNCATED="${CMD:0:500}"
 [ ${#CMD} -gt 500 ] && CMD_TRUNCATED="$CMD_TRUNCATED...(truncated)"
 
+# Neutralize embedded newlines/CRs so a logged command can't forge extra
+# audit-log lines (log injection / log forging).
+CMD_TRUNCATED="${CMD_TRUNCATED//$'\n'/\\n}"
+CMD_TRUNCATED="${CMD_TRUNCATED//$'\r'/\\r}"
+
 # Append to audit log
 mkdir -p "$(dirname "$AUDIT_LOG")"
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] pwd=$(pwd) cmd=$CMD_TRUNCATED" >> "$AUDIT_LOG" 2>/dev/null
