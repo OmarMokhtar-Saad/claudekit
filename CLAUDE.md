@@ -4,7 +4,7 @@ You are working **on** ClaudeKit (the multi-agent orchestration kit for Claude C
 
 ## What this repo is
 
-Prompt corpus (28 agents · 40 commands · 74 skills in `.claude/`) + enforcement layer (19 hooks, `src/claudekit/security/`) + operations engine (`.claude/operations/scripts/`) + delivery shell (`src/claudekit/cli/`, `install.sh`, CI). Version 2.1.0 (unreleased tag); PyPI name `claude-kit`; CLI `claudekit`/`ck`; zero runtime dependencies.
+Prompt corpus (29 agents · 40 commands · 74 skills in `.claude/`) + enforcement layer (19 hooks, `src/claudekit/security/`) + operations engine (`.claude/operations/scripts/`) + delivery shell (`src/claudekit/cli/`, `install.sh`, CI). Version 2.1.0 (unreleased tag); PyPI name `claude-kit`; CLI `claudekit`/`ck`; zero runtime dependencies.
 
 ## Session setup gotcha (read first)
 

@@ -19,7 +19,7 @@ Everything here was generated from a full-repository analysis on **2026-07-08** 
 
 | Document | Contents |
 |----------|----------|
-| [AGENTS.md](AGENTS.md) | All 28 agents, shared protocols, interaction diagrams |
+| [AGENTS.md](AGENTS.md) | All 29 agents, shared protocols, interaction diagrams |
 | [COMMANDS.md](COMMANDS.md) | All 40 slash commands + 13 template commands + 7 modes |
 | [SKILLS.md](SKILLS.md) | All 74 skills, the registry, the operations pipeline |
 | [HOOKS.md](HOOKS.md) | All 19 hooks, settings.json wiring, lifecycle, profiles |

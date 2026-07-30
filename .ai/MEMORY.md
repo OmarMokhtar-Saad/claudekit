@@ -8,7 +8,7 @@ Short, hard facts. If your context is tight, load this file plus [SESSION_STATE.
 - Version 2.1.0, `[Unreleased]`; tag/publish is user-gated.
 
 ## Counts (regenerate via `python3 scripts/gen-docs.py`)
-28 agents · 40 commands · 74 skills · 19 hooks · 29 ops guards · 11 language templates · 516 tests · py ≥3.9 · 0 runtime deps.
+29 agents · 40 commands · 74 skills · 19 hooks · 29 ops guards · 11 language templates · 516 tests · py ≥3.9 · 0 runtime deps.
 
 ## Invariants (never violate — full list in [KNOWLEDGE_BASE.md](KNOWLEDGE_BASE.md))
 Iron Law (ops.json only; implementer can't Edit) · hooks block via exit 2+stderr, fail closed · no `--dangerously-skip-permissions` (CI-gated) · protected files + MAX_DELETIONS=3 · golden rule (no changes without approval) · "speed bump, not a sandbox" framing · 3 synced version locations (pyproject, `src/claudekit/__init__.py`, `operations/scripts/shared.py`) · counts generated, never typed · bash-3.2/macOS compatible · conventional commits + AI Co-Authored-By line.
