@@ -44,7 +44,7 @@ Delivery shell around them: the Python CLI (`src/claudekit/cli/main.py` — init
 
 ## Key numbers (verify with `gen-docs.py`)
 
-28 agents · 40 commands · 74 skills · 19 hooks · 29 ops guards · 11 language templates · 516 tests · Python ≥3.9 · zero runtime dependencies · version 2.1.0 · PyPI name `claude-kit` · GitHub `OmarMokhtar-Saad/claudekit`.
+29 agents · 40 commands · 74 skills · 19 hooks · 29 ops guards · 11 language templates · 516 tests · Python ≥3.9 · zero runtime dependencies · version 2.1.0 · PyPI name `claude-kit` · GitHub `OmarMokhtar-Saad/claudekit`.
 
 ## Where the project stands
 

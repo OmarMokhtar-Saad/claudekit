@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Audit-log forging in `command-log-audit.sh`.** The hook wrote the raw Bash command
+  straight into `bash-commands.log`, so a command containing embedded newlines could forge
+  additional, fake audit entries (attributing arbitrary commands to arbitrary directories).
+  `\n`/`\r` are now escaped before the line is written; regression test asserts a forged
+  entry stays on a single log line. Low severity — a local audit trail, and anyone running
+  the command already has local execution — but the log is now trustworthy as evidence.
 - **Agent registration was silently broken for all 28 agents.** Bare `<example>` blocks
   between YAML frontmatter fields made every agent file unparseable, so Claude Code
   registered none of them — both the Task tool and `claude -p --agent <name>` failed with
@@ -37,6 +43,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   scores matched ground truth) ≈ $1.86. `ck doctor` now checks the extract script ships.
 
 ### Added
+- **`web-researcher` agent (haiku) — the only agent that calls WebSearch/WebFetch.** The
+  main agent and planner must delegate external lookups to it; it reads pages inside its own
+  context and returns a distilled answer instead of raw page content, with results cached to
+  `.claude/reports/research/`. For library/framework/API docs, context7 MCP is tried first.
+- **Coordinator Orchestration Protocol v2.** Triage table (trivial fast-path / single task /
+  decompose), file-ownership map so no two sub-plans ever write the same file, parallel
+  read-only plan+review fan-out, a composition gate that dry-runs all approved ops.json
+  files together before anything touches the tree, and disjoint-set parallel execution.
+- **Codex CLI mirror.** `.codex/` (28 agents, 26 hooks, `config.toml`) + `.agents/skills/`
+  (75 skills) + a Codex-flavored `AGENTS.md`, so the same prompt corpus runs under Codex CLI.
 - **Behavioral eval framework (task 010).** `claudekit eval` + `scripts/run-evals.py` +
   `evals/`: each eval spawns a real agent in an isolated fixture workspace and asserts on
   behavior, not prompt text — planner artifacts extractable + validator-APPROVED, reviewer
@@ -47,6 +63,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   mechanically checkable instead of prompt-enforced-only.
 
 ### Changed
+- **Per-agent model routing tuned for token economy.** `reviewer` opus → sonnet (escalates
+  to opus per-call for multi-phase, architecture-touching, or security-relevant plans),
+  `implementer` and `explore` sonnet → haiku. `planner` stays opus. The surviving invariant
+  is "a quality gate never runs on haiku", not "the reviewer is always opus" — the routing
+  spec test now encodes that, and requires the escalation path to stay documented.
 - **Hooks no longer break in non-git projects.** All 21 hook wrappers resolved the
   project root with bare `git rev-parse --show-toplevel` — in a project without `.git`
   (e.g. qa-agents) every hook tried to run `/.claude/hooks/...` at the filesystem root and

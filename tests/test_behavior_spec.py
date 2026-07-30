@@ -111,7 +111,14 @@ class TestEvidenceIntegrity:
 
 
 class TestModelRouting:
-    """Routing corollary: judgment-dense roles on opus; gates never on haiku."""
+    """Routing corollary: judgment-dense roles on opus; gates never on haiku.
+
+    Revised 2026-07-30 (plan-model-routing-token-orchestration): the reviewer
+    gate defaults to sonnet for token economy and escalates to opus per-call for
+    multi-phase / architecture / security plans. The invariant that survives is
+    "a gate is never on haiku" — not "the reviewer is always opus"."""
+
+    GATE_AGENTS = ("planner.md", "reviewer.md", "verifier.md")
 
     def test_planner_is_opus(self):
         assert _frontmatter_field(os.path.join(AGENTS, "planner.md"), "model") == "opus"
@@ -119,8 +126,19 @@ class TestModelRouting:
     def test_verifier_is_sonnet(self):
         assert _frontmatter_field(os.path.join(AGENTS, "verifier.md"), "model") == "sonnet"
 
-    def test_reviewer_stays_opus(self):
-        assert _frontmatter_field(os.path.join(AGENTS, "reviewer.md"), "model") == "opus"
+    def test_reviewer_defaults_to_sonnet(self):
+        assert _frontmatter_field(os.path.join(AGENTS, "reviewer.md"), "model") == "sonnet"
+
+    def test_no_gate_agent_runs_on_haiku(self):
+        for name in self.GATE_AGENTS:
+            model = _frontmatter_field(os.path.join(AGENTS, name), "model")
+            assert model != "haiku", f"{name} is a quality gate and must not run on haiku"
+
+    def test_reviewer_opus_escalation_is_documented(self):
+        """A sonnet default is only safe if the escalation path is written down."""
+        coordinator = _read(AGENTS, "coordinator.md")
+        assert "ESCALATE reviewer to opus" in coordinator
+        assert "escalate to opus" in _read(ROOT, "CLAUDE.md")
 
     def test_plan_command_spawns_planner_on_opus(self):
         assert "--agent planner --model opus" in _read(COMMANDS, "plan.md")
