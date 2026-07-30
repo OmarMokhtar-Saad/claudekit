@@ -289,6 +289,41 @@ class TestPostToolUseEditLog:
             (hd / "edited-files.log").read_text().strip() == ""
 
 
+class TestCommandLogAudit:
+    """command-log-audit.sh appends the raw Bash command to a persistent audit
+    log; embedded newlines/CRs must be neutralized so a logged command can't
+    forge extra log lines (regression: log injection / log forging)."""
+
+    def _hooks_copy(self, tmp_path):
+        import shutil
+        hd = tmp_path / ".claude" / "hooks"
+        hd.mkdir(parents=True)
+        shutil.copy(HOOKS / "command-log-audit.sh", hd / "command-log-audit.sh")
+        return hd
+
+    def _run(self, hd, payload):
+        return subprocess.run(
+            ["bash", str(hd / "command-log-audit.sh")],
+            input=json.dumps(payload), capture_output=True, text=True,
+            cwd=str(hd.parent.parent), timeout=30,
+            env=dict(os.environ, ECC_HOOK_PROFILE="standard"),
+        )
+
+    def test_logs_plain_command(self, tmp_path):
+        hd = self._hooks_copy(tmp_path)
+        self._run(hd, {"command": "git status"})
+        logged = (hd / "bash-commands.log").read_text()
+        assert "cmd=git status" in logged
+
+    def test_embedded_newline_does_not_forge_a_log_line(self, tmp_path):
+        hd = self._hooks_copy(tmp_path)
+        forged = "echo hi\n[2099-01-01 00:00:00] pwd=/evil cmd=rm -rf /"
+        self._run(hd, {"command": forged})
+        lines = (hd / "bash-commands.log").read_text().splitlines()
+        assert len(lines) == 1
+        assert "\\n[2099-01-01 00:00:00] pwd=/evil cmd=rm -rf /" in lines[0]
+
+
 class TestLibHelpers:
     def test_ops_regex_matches_both_conventions(self):
         script = (
