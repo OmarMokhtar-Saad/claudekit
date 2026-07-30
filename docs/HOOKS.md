@@ -45,8 +45,8 @@ A single environment variable controls how aggressively hooks enforce:
 | Profile | Behavior |
 |---------|----------|
 | `minimal` | Blocking/enforcement hooks are **off**. Advisory + telemetry hooks still run. Use this when working *on ClaudeKit itself* so your own edits aren't blocked. |
-| `standard` | **Default.** Enforcement hooks block; the command guard **warns only**. |
-| `strict` | Everything in `standard`, plus the command guard **blocks** and expensive checks (`format-typecheck`) run. |
+| `standard` | **Default.** Enforcement hooks block, including the command guard. The one permissive path: if the `claude-kit` Python package isn't installed the guard can't run, so it warns that the command was **not checked** rather than denying every command. |
+| `strict` | Everything in `standard`, plus a missing validator **blocks** too (no permissive path at all), and expensive checks (`format-typecheck`) and the opt-in advisory gates (`file-guard-gate`, `injection-scan-gate`) run. |
 
 Set it in your shell or in `.claude/settings.local.json` (git-ignored):
 
@@ -123,6 +123,13 @@ Hooks that build/test/lint read their commands from
 | `test_cmd` | `pytest tests/ -v` | `npm test` | `./gradlew test` |
 | `lint_cmd` | `ruff check .` | `npm run lint` | `./gradlew check` |
 | `coverage_cmd` | `pytest --cov=src` | `npm test -- --coverage` | `./gradlew jacocoTestReport` |
+
+`build_cmd` runs via `bash -c` in `pre-commit.sh` on every commit that touches
+source files — treat it with the same care as a `package.json` script.
+`pre-commit.sh` screens it through the same `CommandValidator` that gates the
+Bash tool before running it, and refuses `config.json` outright if it's a
+symlink (both close the "config.json is trusted input, no questions asked"
+gap; fixed 2026-07-30).
 
 ## Disabling hooks
 

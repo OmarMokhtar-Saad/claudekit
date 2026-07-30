@@ -36,7 +36,7 @@ Two codebases live here:
 This repo ships enforcement hooks *and runs them on itself*. `ops-enforcement.sh` blocks direct Edit/Write to source files outside `.claude/` and docs unless an approved ops.json exists.
 
 - `.claude/settings.local.json` (gitignored) sets `ECC_HOOK_PROFILE=minimal` to disable enforcement for kit development. If your session is being blocked, that override is missing — see `CONTRIBUTING.md` "Working on ClaudeKit itself".
-- Profiles: `minimal` = enforcement off · `standard` = default (command-guard warns) · `strict` = everything blocks.
+- Profiles: `minimal` = enforcement off · `standard` = default (command-guard blocks; warns only if the validator itself is missing) · `strict` = also blocks a missing validator.
 - Tests that prove blocking behavior set `ECC_HOOK_PROFILE=standard` per-subprocess — don't weaken them.
 
 ## 5. How to verify your work (Definition of Done)

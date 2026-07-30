@@ -24,9 +24,33 @@ log() {
 get_project_config() {
     local key="$1"
     local config="$SCRIPT_DIR/config.json"
+    # Refuse a symlinked config: `project.build_cmd` is executed as a shell
+    # command below, so a swapped-in symlink would be arbitrary code execution
+    # triggered by an ordinary `git commit`.
+    if [ -L "$config" ]; then
+        log "ERROR" "refusing to read config.json: it is a symlink"
+        return 1
+    fi
     if [ -f "$config" ] && command -v python3 &>/dev/null; then
         python3 -c "import json, sys; c=json.load(open(sys.argv[1])); print(c.get('project',{}).get(sys.argv[2],''))" "$config" "$key" 2>/dev/null
     fi
+}
+
+# Screen a configured command through the same CommandValidator that guards the
+# Bash tool, so `project.build_cmd` can't smuggle `rm -rf /` (or a curl-to-shell)
+# into every commit. Returns 0 = cleared to run, 1 = flagged, 127 = no validator.
+validate_configured_cmd() {
+    local cmd="$1" root
+    root="$(cd "$SCRIPT_DIR/../.." 2>/dev/null && pwd)" || root="$PWD"
+    if command -v claudekit >/dev/null 2>&1; then
+        claudekit check-command "$cmd" 2>&1
+        return $?
+    elif [ -d "$root/src/claudekit" ]; then
+        PYTHONPATH="$root/src${PYTHONPATH:+:$PYTHONPATH}" \
+            python3 -m claudekit.security check-command "$cmd" 2>&1
+        return $?
+    fi
+    return 127
 }
 
 # ---------------------------------------------------------------------------
@@ -187,6 +211,19 @@ run_build() {
     if [ -z "$source_changed" ]; then
         log "INFO" "No source files changed, skipping build"
         return 0
+    fi
+
+    # Screen the configured command before handing it to a shell.
+    local vout vrc
+    vout="$(validate_configured_cmd "$build_cmd")"; vrc=$?
+    if [ "$vrc" -eq 127 ]; then
+        log "WARN" "CommandValidator unavailable — running build_cmd unscreened"
+    elif [ "$vrc" -ne 0 ]; then
+        log "ERROR" "Refusing to run build_cmd: ${vout:-policy violation}"
+        echo "ERROR: config.json project.build_cmd was rejected by CommandValidator:"
+        echo "  ${vout:-policy violation}"
+        echo "Fix build_cmd in .claude/hooks/config.json — the hook will not execute it."
+        return 1
     fi
 
     log "INFO" "Source files changed, running build: $build_cmd"

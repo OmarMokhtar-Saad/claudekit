@@ -6,7 +6,7 @@
 
 - Hook receives the tool-call payload as **JSON on stdin** (never env vars — the historic env-var assumption meant telemetry was dead until v2.1).
 - Exit codes: `0` allow · `2` **block** (message on **stderr**) · anything else = non-blocking error. Blocking hooks **fail closed**: if they can't parse the payload they block rather than allow.
-- Enforcement gated by `ECC_HOOK_PROFILE`: `minimal` (enforcement off — kit development), `standard` (default; command-guard warns instead of blocking), `strict` (everything blocks).
+- Enforcement gated by `ECC_HOOK_PROFILE`: `minimal` (enforcement off — kit development), `standard` (default; command-guard BLOCKS — warn-only was a fail-open default, fixed 2026-07-30), `strict` (also blocks when the validator is unavailable).
 - Shared helpers in `lib.sh`: `resolve_root` (git toplevel with fallback), `hlog` (append to hooks.log, logs parse failures), `deny` (stderr + exit 2), `OPS_FIND_EXPR`/`OPS_REGEX` (matches **both** `*.ops.json` and `ops-*.json` — never reintroduce the split-brain).
 
 ## Lifecycle

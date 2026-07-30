@@ -539,8 +539,8 @@ Rollout is gated by `ECC_HOOK_PROFILE`:
 
 | Profile    | Behavior                                              |
 |------------|-------------------------------------------------------|
-| `strict`   | **Blocks** (exit 2 + reason on stderr); fail-closed   |
-| `standard` | **Warns** only (default) — logs what it would block   |
+| `strict`   | **Blocks**; a missing validator also blocks (no permissive path) |
+| `standard` | **Blocks** (default, exit 2 + reason on stderr); a missing validator warns |
 | `minimal`  | Off                                                   |
 
 Validation pipeline:

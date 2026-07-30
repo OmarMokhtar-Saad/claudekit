@@ -6,7 +6,7 @@ v2.1 is a repair release — the biggest "breaking" change is that **enforcement
 
 1. **Update the install:** `pip install -U claude-kit && ck update <project>` (or re-run `install.sh`). The installer backs up first; `ck diff` shows which managed files you modified locally (re-apply after).
 2. **Hooks go live.** Old installs never had `settings.json` copied, so hooks were inert. After update: blocking hooks really block (exit 2). If workflows suddenly stop, that's enforcement working — see the profile note below.
-3. **Set your profile.** `ECC_HOOK_PROFILE`: `standard` (default; command-guard warns), `strict` (blocks), `minimal` (off). Local override in `.claude/settings.local.json` (never overwritten by updates).
+3. **Set your profile.** `ECC_HOOK_PROFILE`: `standard` (default; command-guard blocks), `strict` (also blocks when the validator is missing), `minimal` (off). Local override in `.claude/settings.local.json` (never overwritten by updates).
 4. **Ops filename tolerance:** both `*.ops.json` and `ops-*.json` now match everywhere. Plans live in `.claude/plans/` (old `operations/` search paths are gone).
 5. **Agent invocation changed:** any custom prompts that used `--dangerously-skip-permissions` must switch to scoped `--allowedTools` (see `.claude/agents/_shared/INVOCATION.md`).
 6. **Version sanity:** `ck doctor --strict` after updating; it validates 19 checks including hook registration and manifest integrity.
