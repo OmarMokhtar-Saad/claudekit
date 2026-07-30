@@ -13,7 +13,7 @@ description: |
   user: "Implement the approved null-check fix"
   assistant: "No ops.json found. I cannot proceed. I will ask the Planner to generate ops.json for this plan before any files are touched."
   </example>
-model: sonnet
+model: haiku
 color: green
 tools: ["Read", "Bash", "Grep", "Glob"]
 ---
