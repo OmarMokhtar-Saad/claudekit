@@ -183,7 +183,13 @@ class TestCommitQuality:
 
 
 class TestCommandGuard:
-    """The fail-closed Bash command guard (task 002)."""
+    """The fail-closed Bash command guard (task 002).
+
+    Revised 2026-07-30: `standard` (the default) BLOCKS a flagged command. It
+    previously warned only, so out of the box the denylist denied nothing — a
+    fail-open default. The single remaining permissive path is "validator not
+    installed", which cannot block without denying every Bash call in installs
+    that ship `.claude/` without the Python package."""
 
     def test_strict_blocks_dangerous_command(self):
         p = run_hook("command-guard.sh", {"command": "rm -rf /"}, env=_env("strict"))
@@ -202,10 +208,21 @@ class TestCommandGuard:
         p = run_hook("command-guard.sh", {"command": "git status"}, env=_env("strict"))
         assert p.returncode == 0, p.stderr
 
-    def test_standard_warns_but_does_not_block(self):
+    def test_standard_blocks_dangerous_command(self):
+        """Regression: the default profile must DENY, not merely warn."""
         p = run_hook("command-guard.sh", {"command": "rm -rf /"}, env=_env("standard"))
+        assert p.returncode == 2, p.stderr
+        assert "command-guard" in p.stderr
+
+    def test_default_profile_blocks_when_env_unset(self):
+        """No ECC_HOOK_PROFILE at all must still block (the actual out-of-box path)."""
+        env = {k: v for k, v in os.environ.items() if k != "ECC_HOOK_PROFILE"}
+        p = run_hook("command-guard.sh", {"command": "rm -rf /"}, env=env)
+        assert p.returncode == 2, p.stderr
+
+    def test_standard_allows_safe_command(self):
+        p = run_hook("command-guard.sh", {"command": "git status"}, env=_env("standard"))
         assert p.returncode == 0, p.stderr
-        assert "warn-only" in p.stderr
 
     def test_minimal_is_off(self):
         p = run_hook("command-guard.sh", {"command": "rm -rf /"}, env=_env("minimal"))
@@ -214,6 +231,34 @@ class TestCommandGuard:
     def test_strict_malformed_json_fails_closed(self):
         p = run_hook("command-guard.sh", "not json {", env=_env("strict"))
         assert p.returncode == 2, p.stderr
+
+    def test_standard_malformed_json_fails_closed(self):
+        p = run_hook("command-guard.sh", "not json {", env=_env("standard"))
+        assert p.returncode == 2, p.stderr
+
+    def test_missing_validator_warns_under_standard_but_blocks_under_strict(self, tmp_path):
+        """The one documented permissive path. Blocking under standard would deny
+        every Bash command in installs without the claude-kit package."""
+        import shutil
+        hd = tmp_path / ".claude" / "hooks"
+        hd.mkdir(parents=True)
+        for name in ("command-guard.sh", "lib.sh"):
+            shutil.copy(HOOKS / name, hd / name)
+
+        def run(profile):
+            return subprocess.run(
+                ["bash", str(hd / "command-guard.sh")],
+                input=json.dumps({"command": "rm -rf /"}),
+                capture_output=True, text=True, cwd=str(tmp_path), timeout=30,
+                # env -i style: no claudekit on PATH, and no src/claudekit in cwd.
+                env={"PATH": "/usr/bin:/bin", "HOME": str(tmp_path),
+                     "ECC_HOOK_PROFILE": profile},
+            )
+
+        std = run("standard")
+        assert std.returncode == 0, std.stderr
+        assert "NOT checked" in std.stderr
+        assert run("strict").returncode == 2
 
     def test_empty_command_allowed(self):
         p = run_hook("command-guard.sh", {"command": ""}, env=_env("strict"))
@@ -287,6 +332,65 @@ class TestPostToolUseEditLog:
         self._run(hd, {"tool_name": "Bash", "tool_input": {"command": "git status"}})
         assert not (hd / "edited-files.log").exists() or \
             (hd / "edited-files.log").read_text().strip() == ""
+
+
+class TestPreCommitBuildCmd:
+    """pre-commit.sh executes `project.build_cmd` from config.json via `bash -c`.
+    That value is screened through CommandValidator first, and a symlinked
+    config.json is refused outright — otherwise an ordinary `git commit` is an
+    arbitrary-code-execution trigger."""
+
+    def _repo(self, tmp_path, build_cmd, symlink_config=False):
+        import shutil
+        import subprocess as sp
+        repo = tmp_path
+        sp.run(["git", "init", "-q"], cwd=repo, check=True)
+        sp.run(["git", "config", "user.email", "t@t.t"], cwd=repo, check=True)
+        sp.run(["git", "config", "user.name", "t"], cwd=repo, check=True)
+        hd = repo / ".claude" / "hooks"
+        hd.mkdir(parents=True)
+        for name in ("pre-commit.sh", "lib.sh"):
+            shutil.copy(HOOKS / name, hd / name)
+        # Real source tree so the validator resolves (mirrors an in-repo install).
+        (repo / "src").symlink_to(REPO / "src")
+        cfg = {"project": {"build_cmd": build_cmd}}
+        if symlink_config:
+            real = repo / "elsewhere.json"
+            real.write_text(json.dumps(cfg))
+            (hd / "config.json").symlink_to(real)
+        else:
+            (hd / "config.json").write_text(json.dumps(cfg))
+        # A staged source file, so run_build is actually reached.
+        (repo / "app.py").write_text("x = 1\n")
+        sp.run(["git", "add", "app.py"], cwd=repo, check=True)
+        return repo
+
+    def _run(self, repo):
+        return subprocess.run(
+            ["bash", str(repo / ".claude" / "hooks" / "pre-commit.sh")],
+            capture_output=True, text=True, cwd=str(repo), timeout=60,
+            env=dict(os.environ, ECC_HOOK_PROFILE="standard"),
+        )
+
+    def test_dangerous_build_cmd_is_refused(self, tmp_path):
+        repo = self._repo(tmp_path, "rm -rf /")
+        p = self._run(repo)
+        assert p.returncode != 0
+        assert "rejected by CommandValidator" in p.stdout
+        # And it must not have actually run the command.
+        assert "Running build" not in p.stdout
+
+    def test_benign_build_cmd_still_runs(self, tmp_path):
+        repo = self._repo(tmp_path, "echo built-ok")
+        p = self._run(repo)
+        assert "Running build" in p.stdout
+        assert "built-ok" in p.stdout
+
+    def test_symlinked_config_is_refused(self, tmp_path):
+        repo = self._repo(tmp_path, "echo built-ok", symlink_config=True)
+        p = self._run(repo)
+        # Symlinked config is not read at all -> no build_cmd -> build skipped.
+        assert "Running build" not in p.stdout
 
 
 class TestCommandLogAudit:

@@ -18,7 +18,7 @@ Everything here is easy to get wrong without conversation history. Read before m
 ## The repo runs its own enforcement on itself
 
 - `.claude/settings.json` wires 19 hooks that apply to any Claude Code session **in this repo**. `ops-enforcement.sh` blocks Edit/Write to source files outside `.claude/`+docs unless an approved ops.json exists; blocking hooks exit 2 with stderr and fail closed.
-- Escape hatch: `.claude/settings.local.json` (gitignored, survives reinstall since `719ea2c`) sets `ECC_HOOK_PROFILE=minimal`. `standard` is the shipped default (command-guard warns instead of blocks); `strict` blocks everything.
+- Escape hatch: `.claude/settings.local.json` (gitignored, survives reinstall since `719ea2c`) sets `ECC_HOOK_PROFILE=minimal`. `standard` is the shipped default and command-guard BLOCKS under it (changed 2026-07-30 — warn-only was a fail-open default); `strict` additionally blocks when the validator itself is missing.
 - If you are an agent working here through Claude Code and your edits are blocked, that local override is missing — do not try to bypass hooks; restore the override per CONTRIBUTING.md.
 
 ## History in one paragraph

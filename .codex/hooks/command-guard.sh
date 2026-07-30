@@ -5,13 +5,20 @@
 # Runs CommandValidator over the Bash tool's `command`. This is a SPEED BUMP,
 # NOT A SANDBOX (see docs/ARCHITECTURE.md "Security Architecture").
 #
-# ECC_HOOK_PROFILE rollout:
-#   strict   -> BLOCK (exit 2 + reason on stderr)
-#   standard -> WARN only (exit 0, reason on stderr + log)   [default]
+# ECC_HOOK_PROFILE:
+#   strict   -> BLOCK, including when the validator is missing (exit 2)
+#   standard -> BLOCK a flagged command (exit 2 + reason on stderr)   [default]
 #   minimal  -> off (exit 0)
 #
-# Fail-closed: an unparseable payload or an unavailable validator BLOCKS under
-# strict (never silently allows).
+# Fail-closed: a validator-flagged command and an unparseable payload BOTH block
+# under standard. Blocking is the DEFAULT — a denylist that only warns unless you
+# opt in is a fail-open default, which is what this hook exists to prevent.
+#
+# ONE deliberate exception (documented, not an oversight): if the validator
+# itself is UNAVAILABLE (rc 127), standard warns instead of blocking. `.claude/`
+# is frequently installed without the `claude-kit` Python package, and blocking
+# there would deny every Bash command in those projects. `ck doctor` reports it,
+# and `strict` closes it for anyone who wants no permissive path at all.
 # =============================================================================
 set -uo pipefail
 
@@ -28,10 +35,10 @@ PROFILE="${ECC_HOOK_PROFILE:-standard}"
 PAYLOAD="$(cat)"
 
 # Extract the command; a JSON parse failure returns rc 3 -> fail closed.
+# Blocks under BOTH standard and strict: an unreadable payload means the guard
+# cannot know what it is about to allow.
 CMD="$(extract_json_field "$PAYLOAD" command)" || {
-    [ "$PROFILE" = "strict" ] && deny "command-guard: unparseable tool payload (fail-closed)"
-    hlog "WARN" "unparseable payload (standard warn-only)"
-    exit 0
+    deny "command-guard: unparseable tool payload (fail-closed)"
 }
 [ -z "$CMD" ] && exit 0
 
@@ -51,21 +58,17 @@ run_validator() {
 
 OUT="$(run_validator "$CMD")"; RC=$?
 
+# Validator missing: the ONE permissive path under standard (see header).
 if [ "$RC" -eq 127 ]; then
     [ "$PROFILE" = "strict" ] && deny "command-guard: validator unavailable (fail-closed)"
-    hlog "WARN" "validator unavailable (standard warn-only)"
+    hlog "WARN" "validator unavailable — command NOT checked (install claude-kit, or set ECC_HOOK_PROFILE=strict to block instead)"
+    printf 'command-guard: validator unavailable, command NOT checked. Install the claude-kit package (`ck doctor` diagnoses) or set ECC_HOOK_PROFILE=strict to block instead.\n' >&2
     exit 0
 fi
 
+# Flagged command: block under standard AND strict.
 if [ "$RC" -ne 0 ]; then
-    REASON="${OUT:-policy violation}"
-    if [ "$PROFILE" = "strict" ]; then
-        deny "command-guard: $REASON"
-    fi
-    # standard: warn only, do not block.
-    hlog "WARN" "would block (standard warn-only): $REASON"
-    printf 'command-guard (warn-only, set ECC_HOOK_PROFILE=strict to block): %s\n' "$REASON" >&2
-    exit 0
+    deny "command-guard: ${OUT:-policy violation}"
 fi
 
 exit 0

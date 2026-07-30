@@ -13,6 +13,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **`command-guard.sh` was fail-open by default.** The default `standard` profile
+  only *warned* about a validator-flagged Bash command; nothing was actually
+  denied unless a project opted into `strict`. `standard` now blocks a flagged
+  command and an unparseable payload, matching the documented "denylist" framing.
+  One narrower permissive path remains, kept deliberately and documented: if the
+  `claude-kit` package isn't installed, the validator can't run at all, and
+  blocking every Bash command in that state would brick installs that ship
+  `.claude/` without the Python package — `standard` still warns there, `strict`
+  blocks it too. `docs/HOOKS.md`, `docs/ARCHITECTURE.md`, `CONTRIBUTING.md`, and
+  several `.ai/*` files described the old warn-only behavior; updated to match.
+- **`pre-commit.sh` ran `config.json`'s `project.build_cmd` unscreened.** It was
+  handed straight to `bash -c` on every commit touching source files — a
+  malicious or corrupted `config.json` (e.g. from a checked-out branch) was
+  arbitrary code execution on `git commit`. It's now screened through the same
+  CommandValidator that gates the Bash tool before running, and `config.json`
+  is refused outright if it's a symlink.
 - **Audit-log forging in `command-log-audit.sh`.** The hook wrote the raw Bash command
   straight into `bash-commands.log`, so a command containing embedded newlines could forge
   additional, fake audit entries (attributing arbitrary commands to arbitrary directories).

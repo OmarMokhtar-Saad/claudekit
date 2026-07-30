@@ -40,8 +40,9 @@ constrained agent, so relax enforcement with a **local, un-committed** override:
 { "env": { "ECC_HOOK_PROFILE": "minimal" } }
 ```
 
-`ECC_HOOK_PROFILE` values: `minimal` (enforcement off), `standard` (default, blocks),
-`strict` (adds opt-in guards). The setting takes effect at the next session start. The
+`ECC_HOOK_PROFILE` values: `minimal` (enforcement off), `standard` (default, blocks —
+including the command guard), `strict` (also blocks when the validator is missing, and
+adds the opt-in guards). The setting takes effect at the next session start. The
 behavioral tests (`tests/test_hooks_behavioral.py`) set the profile per-subprocess, so they
 verify blocking regardless of your session profile.
 
