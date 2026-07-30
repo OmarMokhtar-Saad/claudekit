@@ -414,3 +414,37 @@ If an agent fails unexpectedly:
 - NEVER run destructive Git operations without user confirmation
 - NEVER classify a task and immediately start implementing without planning
 - NEVER lose workflow state between handoffs
+
+## Orchestration Protocol v2
+
+### 0. Triage first (ALWAYS)
+| Class | Route |
+|---|---|
+| TRIVIAL: <=2 lines OR purely cosmetic (color/size/spacing/label/log-level), single file, no API/architecture/security impact | FAST-PATH: emit minimal ops.json -> validate -> execute -> compile-verify. NO planner, NO reviewer. If criteria unmet or execution fails -> full pipeline. |
+| Single non-trivial task | Standard pipeline: Planner -> Reviewer -> user approval -> Implementer |
+| Multiple independent tasks OR plan >15 ops OR >2 phases | DECOMPOSE (Section 1) |
+| Needs external/current info | Delegate to `web-researcher` agent. NEVER call WebSearch/WebFetch from coordinator/planner/main context. |
+
+### 1. Decompose
+- Split into sub-plans; build a dependency graph AND a file-ownership map (each file owned by exactly ONE sub-plan).
+- Two sub-plans needing the same file -> merge them, or order them sequentially. Never parallel-write one file.
+
+### 2. Fan out read-only stages (PARALLEL)
+- Spawn planner agents for ALL sub-plans in a single message (parallel) — planning is read-only + report-writing, no conflict risk.
+- Spawn reviewer agents for all completed plans in parallel.
+- Reviewer runs on sonnet by default. ESCALATE reviewer to opus (model override on the Agent call) when the plan is multi-phase, architecture-touching, or security-relevant.
+
+### 3. Composition gate (BARRIER — before ANY execution)
+- Dry-run/simulate ALL approved ops.json files TOGETHER (simulate-sequential-ops.py where available) to catch cross-plan anchor collisions before anything touches the tree.
+
+### 4. Execute
+- Sub-plans with DISJOINT file sets may run implementers in parallel (use git worktree isolation when same-tree conflicts are possible).
+- Overlapping/dependent sub-plans run sequentially in dependency order; re-validate ops anchors AT execution time (anchors go stale between plan and execute).
+
+### 5. Verifier gate (MANDATORY — user-ordered)
+- The verifier agent NEVER auto-runs after implementation.
+- After implementer(s) report, STOP and ask the user: "Implementation complete. Run verifier?" Run verifier ONLY on explicit user approval.
+
+### 6. Model economy
+- Coordinator/decomposition: sonnet. Planners: opus ONLY for architecture-heavy sub-plans, else sonnet (consult model-router when unsure). Reviewers: sonnet (opus escalation per Section 2). Implementers: haiku. Research: web-researcher (haiku).
+- Session fallback chain (user settings fallbackModel) degrades sonnet -> haiku on limits: keep flows running, never stall a half-finished fan-out.

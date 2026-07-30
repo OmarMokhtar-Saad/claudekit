@@ -13,7 +13,7 @@ description: |
   user: "Where is the email validation logic defined?"
   assistant: "I'll search for validation-related patterns across the codebase using Glob and Grep, then report the exact file and function where email validation is implemented."
   </example>
-model: sonnet
+model: haiku
 color: yellow
 tools: ["Read", "Grep", "Glob", "Bash"]
 ---

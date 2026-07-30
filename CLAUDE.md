@@ -57,3 +57,13 @@ Plan review ≥90/100 (Plan 40 / Architecture 30 / Security 30; missing ops.json
 ## Current state & priorities
 
 Phase 1 ("Fix What's Broken") merged 2026-07-06; release tag + PyPI publish are **user-gated**. Next: consolidation (008), eval framework (010), context budget (009). Live snapshot: [.ai/STATUS.md](.ai/STATUS.md) · resume point: [.ai/SESSION_STATE.md](.ai/SESSION_STATE.md) · work queue: [.ai/BACKLOG.md](.ai/BACKLOG.md).
+
+<!-- CLAUDEKIT:TOKEN-MODEL-POLICY v1 START -->
+## Token & Model Policy (ClaudeKit, 2026-07-23)
+
+- **Web research**: main agent and planner MUST NOT call WebSearch/WebFetch directly. Delegate to the `web-researcher` agent (haiku). For library/framework/API docs try context7 MCP first. Check `.claude/reports/research/` cache before any new search.
+- **Trivial fast-path**: <=2 lines OR purely cosmetic (color, size, spacing, label, log level), single file, no API/architecture/security impact -> create minimal ops.json -> validate -> execute -> compile-verify. SKIP planner/reviewer. Criteria unmet or execution fails -> full flow.
+- **Verifier gate**: the verifier agent NEVER auto-runs after implementation. Stop, ask the user, run only on explicit approval.
+- **Model routing**: planner=opus, reviewer=sonnet (escalate to opus for multi-phase/architecture/security plans), implementer=haiku, explore=haiku, web-researcher=haiku. Session fallback chain sonnet->haiku is configured in user settings — on model limits, degrade and continue, never stop.
+- **Parallel orchestration**: many tasks or plan >15 ops / >2 phases -> `coordinator` agent Orchestration Protocol v2 (decompose with file-ownership map, parallel plan/review, composition gate before execution, disjoint-set parallel execution).
+<!-- CLAUDEKIT:TOKEN-MODEL-POLICY v1 END -->

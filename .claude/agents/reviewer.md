@@ -13,7 +13,7 @@ description: |
   user: "The planner updated the plan after your feedback, please re-review"
   assistant: "I'll re-score the updated plan and ops.json, checking that all Critical findings from the previous review have been addressed."
   </example>
-model: opus
+model: sonnet
 color: blue
 tools: ["Read", "Grep", "Glob"]
 ---
