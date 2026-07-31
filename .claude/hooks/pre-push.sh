@@ -26,9 +26,46 @@ log() {
 get_project_config() {
     local key="$1"
     local config="$SCRIPT_DIR/config.json"
+    # Refuse a symlinked config: project.*_cmd values are executed as shell
+    # commands, so a swapped-in symlink would be arbitrary code execution.
+    if [ -L "$config" ]; then
+        log "ERROR" "refusing to read config.json: it is a symlink"
+        return 1
+    fi
     if [ -f "$config" ] && command -v python3 &>/dev/null; then
         python3 -c "import json, sys; c=json.load(open(sys.argv[1])); print(c.get('project',{}).get(sys.argv[2],''))" "$config" "$key" 2>/dev/null
     fi
+}
+
+# Screen a configured command through the same CommandValidator that guards the
+# Bash tool (parity with pre-commit.sh — a config.json command is arbitrary code
+# execution if unscreened). Returns 0 = cleared, 1 = flagged, 127 = no validator.
+validate_configured_cmd() {
+    local cmd="$1" root
+    root="$(cd "$SCRIPT_DIR/../.." 2>/dev/null && pwd)" || root="$PWD"
+    if command -v claudekit >/dev/null 2>&1; then
+        claudekit check-command "$cmd" 2>&1
+        return $?
+    elif [ -d "$root/src/claudekit" ]; then
+        PYTHONPATH="$root/src${PYTHONPATH:+:$PYTHONPATH}" \
+            python3 -m claudekit.security check-command "$cmd" 2>&1
+        return $?
+    fi
+    return 127
+}
+
+screen_cmd() {
+    local name="$1" cmd="$2" vout vrc
+    vout="$(validate_configured_cmd "$cmd")"; vrc=$?
+    if [ "$vrc" -eq 127 ]; then
+        log "WARN" "CommandValidator unavailable — running $name unscreened"
+        return 0
+    elif [ "$vrc" -ne 0 ]; then
+        log "ERROR" "Refusing to run $name: ${vout:-policy violation}"
+        echo "ERROR: config.json project.$name was rejected by CommandValidator: ${vout:-policy violation}"
+        return 1
+    fi
+    return 0
 }
 
 # ---------------------------------------------------------------------------
@@ -97,6 +134,8 @@ run_tests() {
     echo "[pre-push] Running full test suite: $test_cmd"
 
     local output
+    screen_cmd test_cmd "$test_cmd" || return 1
+
     if output=$(bash -c "$test_cmd" 2>&1); then
         log "INFO" "Tests passed"
         echo "[pre-push] Tests: PASSED"
@@ -128,6 +167,8 @@ run_lint() {
     echo "[pre-push] Running lint: $lint_cmd"
 
     local output
+    screen_cmd lint_cmd "$lint_cmd" || return 1
+
     if output=$(bash -c "$lint_cmd" 2>&1); then
         log "INFO" "Lint passed"
         echo "[pre-push] Lint: PASSED"
@@ -159,6 +200,8 @@ run_build() {
     echo "[pre-push] Running build: $build_cmd"
 
     local output
+    screen_cmd build_cmd "$build_cmd" || return 1
+
     if output=$(bash -c "$build_cmd" 2>&1); then
         log "INFO" "Build succeeded"
         echo "[pre-push] Build: PASSED"
