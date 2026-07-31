@@ -46,6 +46,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a full review every time.
 
 ### Fixed
+- **`/refine` iterations 2+ now delta-review instead of full re-reviewing.** Every
+  refine iteration spawned a fresh reviewer that re-read the whole plan + ops.json +
+  code (~100k tokens per round; a live 5-iteration run burned ~600k). Cycle B now
+  records each verdict via `review-record.py` and hands the next reviewer only the
+  diff + the prior findings (sonnet for deltas; full review only when the diff tool
+  demands it). Paired convergence rules: defects in sections the delta didn't touch
+  that no prior review flagged go to `FOLLOW_UPS` — reported, but excluded from
+  `CRITICAL_MAJOR_COUNT` and the score — and two consecutive sub-threshold rounds
+  with disjoint findings STOP the loop for a user decision. Fixes both failure
+  modes observed live: per-round full-read cost and moving-target scoring that
+  never terminates (83 → 88 → new scope each round).
 - **`/refine`'s headless iteration-1 planner message was self-contradictory.** It told
   the planner to "report only a short summary" while the wrapper's only delivery channel
   is stdout-to-file — a compliant planner would produce a plan file with no ops.json,
