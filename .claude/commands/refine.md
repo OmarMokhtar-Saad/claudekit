@@ -154,7 +154,9 @@ Before writing anything, explore the codebase with BATCHED parallel Read/Grep/Gl
 fire all independent searches in ONE message.
 
 IRON LAW: the plan MUST include a valid ops.json.
-Report only a short summary in your response — the wrapper below saves your output to disk."
+Output the complete plan document, then the complete ops.json in a fenced \`\`\`json block —
+the wrapper below captures your stdout and saves it to disk; you do not have Write access
+headless, so this response IS the delivery channel, not a summary of it."
 
 plan_output=$(echo "$PLANNER_MSG" | claude -p --agent planner --model opus --allowedTools "Read,Grep,Glob,Write,Bash(python3 .claude/operations/scripts/validate-config-json.py *)")
 printf '%s\n' "$plan_output" > "$PLAN_FILE"

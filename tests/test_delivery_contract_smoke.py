@@ -5,6 +5,20 @@ plumbing keep a large fake plan/ops payload off stdout and on disk, regardless o
 what the model itself said. Runs the actual scripts (extract-json-from-plan.py,
 validate-config-json.py) against a realistic ~40KB payload, matching the size of
 the originally observed leak.
+
+Coverage is uneven by design, not oversight: `/plan`'s scripted bash block is
+extracted from the real command file and executed, so it exercises the literal
+current text. `/refine`'s scripted mode is pseudocode fragments across several
+markdown sections with `<N>`/`<MAX_ITER>`/`$last_score` placeholders that aren't a
+standalone runnable script -- the `/refine` test below assembles an equivalent
+2-iteration script matching the DESIGN refine.md documents, not the literal file
+content. That means it pins the mechanism (fixed paths, write-in-place, no echo)
+but can NOT catch a prompt-text-level bug embedded in refine.md's actual
+PLANNER_MSG strings (e.g. the iteration-1 message once told the headless planner
+to "report only a short summary" while the wrapper it hands off to only saves
+stdout to disk -- self-contradictory, would have broken at runtime; fixed
+2026-07-31). `test_refine_scripted_messages_are_not_self_contradictory` below is
+the mechanical (regex, not execution) guard against that specific class of bug.
 """
 import json
 import os
@@ -16,6 +30,7 @@ import subprocess
 REPO_ROOT = os.path.join(os.path.dirname(__file__), "..")
 SCRIPTS_DIR = os.path.join(REPO_ROOT, ".claude", "operations", "scripts")
 PLAN_MD = os.path.join(REPO_ROOT, ".claude", "commands", "plan.md")
+REFINE_MD = os.path.join(REPO_ROOT, ".claude", "commands", "refine.md")
 
 FAKE_OPS = {
     "plan": "toy-smoke-test",
@@ -210,3 +225,35 @@ echo "Ops config: $OPS_FILE"
     # Only the two scoreboards + two summary lines should reach stdout -- nowhere
     # near the ~90KB (two ~40KB plan bodies) that leaked in the original bug.
     assert len(result.stdout) < 3000, result.stdout
+
+
+def _scripted_planner_messages(markdown_text):
+    """Both PLANNER_MSG string literals from refine.md's scripted Cycle A block, in
+    iteration order. Doesn't execute them (they contain unassembled placeholders) --
+    just extracts the literal instruction text sent to the headless planner."""
+    section = markdown_text.split("#### Cycle A: Planner", 1)[1].split("#### Cycle B", 1)[0]
+    return re.findall(r'PLANNER_MSG="(.*?)"\n\nplan_output=', section, re.S)
+
+
+def test_refine_scripted_messages_are_not_self_contradictory():
+    """Regression guard for the exact bug this test suite couldn't catch by execution
+    (see module docstring): a scripted-mode PLANNER_MSG telling the headless planner to
+    return only a summary, when the surrounding wrapper's only delivery channel is
+    stdout-to-file (`printf '%s\\n' "$plan_output" > "$PLAN_FILE"`). If the planner
+    obeyed that instruction, the plan file would contain a summary instead of a plan +
+    ops.json, and extract-json-from-plan.py would find nothing to extract."""
+    messages = _scripted_planner_messages(open(REFINE_MD).read())
+    assert len(messages) == 2, "expected iteration-1 and iteration-2+ PLANNER_MSG blocks"
+
+    summary_only_phrases = ("report only a short summary", "return only a short summary",
+                             "return only a summary")
+    for msg in messages:
+        lowered = msg.lower()
+        assert not any(p in lowered for p in summary_only_phrases), (
+            "a headless-mode PLANNER_MSG instructs the planner to return only a "
+            "summary, but the wrapper's only delivery channel is stdout-to-file -- "
+            f"the plan/ops payload would never reach $PLAN_FILE:\n{msg}"
+        )
+        # Every scripted-mode message must tell the planner its stdout IS the
+        # payload (it has no Write access headless), not merely a report of one.
+        assert "wrapper" in lowered and ("saves" in lowered or "captures" in lowered), msg
