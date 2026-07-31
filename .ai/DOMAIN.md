@@ -27,7 +27,7 @@ The concepts ClaudeKit is *about*, independent of implementation. Terms: [GLOSSA
 5. **Permission floor:** agents run with scoped tools under Claude Code's permission system; nothing may bypass it.
 6. **Hard stage gates:** multi-stage pipelines (opensource) may not proceed past a FAILed stage.
 7. **Loop containment:** every autonomous loop has iteration caps and a supervising operator with an intervention ladder.
-8. **Only GitOps commits** (division of labor rule; one cataloged violator — refactor-cleaner — is a known bug, AGENTS.md issue #13).
+8. **Only GitOps commits** (division of labor rule; one cataloged violator — refactor-cleaner — is a known bug, AGENTS_KNOWN_ISSUES.md issue #13).
 9. **Evidence rule:** no agent claims success without command output proving it.
 10. **Config over code:** project-specific commands live in config, not in prompts or scripts.
 

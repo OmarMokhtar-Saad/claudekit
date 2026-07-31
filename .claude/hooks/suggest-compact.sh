@@ -11,6 +11,8 @@
 # =============================================================================
 # ECC_HOOK_PROFILE: runs in all profiles including minimal
 # Always exits 0 — a broken counter must never block a tool.
+# Tool-call count chosen over byte-size/wall-clock as the context-growth proxy —
+# see plan-remaining-fixes-2026-07-31.md §5b for the rejected alternatives and why.
 
 COUNTER_FILE=".claude/hooks/compact-counter.txt"
 LOG=".claude/hooks/hooks.log"

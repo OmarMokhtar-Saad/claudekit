@@ -23,7 +23,7 @@ Every sanctioned way work moves through ClaudeKit. Commands in [COMMANDS.md](COM
 `/audit` = explore + silent-failure-hunter + security-scanner in parallel, merged report. Individual entry points: `/security`, `/performance`, `/deps`, `/code-review`.
 
 ## 7. Open-source pipeline
-`/opensource`: Stage 1 sanitizer (secrets/PII/internal refs → PASS/FAIL) ⇒ **hard gate** ⇒ Stage 2 fork/transform ⇒ Stage 3 packager (README/CLAUDE.md/LICENSE/CONTRIBUTING/.github). Note: the "forker" stage is referenced by prompts but has no agent file (AGENTS.md issue #8).
+`/opensource`: Stage 1 sanitizer (secrets/PII/internal refs → PASS/FAIL) ⇒ **hard gate** ⇒ Stage 2 fork/transform ⇒ Stage 3 packager (README/CLAUDE.md/LICENSE/CONTRIBUTING/.github). Note: the "forker" stage is referenced by prompts but has no agent file (AGENTS_KNOWN_ISSUES.md issue #8).
 
 ## 8. Session continuity
 `/save-session` writes `.claude/session-context.md`; `session-start.sh` auto-surfaces it; `/resume-session` restores with freshness rules (<4h trust · 4–24h verify · >72h stale-warn). Long multi-PR efforts: `/blueprint` produces a sequenced construction plan; `.claude/plans/phase-1-HANDOFF.md` is the exemplar of a phase handoff document.
