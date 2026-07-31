@@ -1,0 +1,372 @@
+{
+  "plan": "ops-hardening-implementer-contract",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/execute-json-ops.py",
+      "edits": [
+        {
+          "find": "LOCK_FILE = \".codemanifest.lock\"\n\n# Global transaction reference for signal handler rollback\n_active_txn: Optional['OperationTransaction'] = None",
+          "replace": "LOCK_FILE = \".codemanifest.lock\"\n\n# Reserved by the backup manifest at the backup root. A project file with this\n# name at the project root would map onto the same backup path, so it is\n# refused rather than silently corrupting the recovery manifest.\nMANIFEST_NAME = \"manifest.json\"\n\n# Global transaction reference for signal handler rollback\n_active_txn: Optional['OperationTransaction'] = None\n\n# Run context for out-of-band result emission (signal handler)\n_active_plan: str = \"unknown\"\n_active_dry_run: bool = False\n_active_backup_dir: Optional[str] = None\n\n# The run summary is emitted exactly once; later handlers must not double-report\n_result_emitted: bool = False"
+        },
+        {
+          "find": "    print(f\"\\n  Interrupted by {sig_name}\")\n    if _active_txn is not None:\n        _active_txn.rollback()\n    sys.exit(130 if signum == signal.SIGINT else 143)",
+          "replace": "    print(f\"\\n  Interrupted by {sig_name}\")\n    if _active_txn is not None:\n        _active_txn.rollback()\n    _emit_result(_active_plan, _active_dry_run, 'interrupted', [],\n                 backup_dir=_active_backup_dir, reason=f\"signal-{sig_name}\")\n    sys.exit(130 if signum == signal.SIGINT else 143)"
+        },
+        {
+          "find": "    manifest_path = backup_dir / 'manifest.json'",
+          "replace": "    manifest_path = backup_dir / MANIFEST_NAME"
+        },
+        {
+          "find": "  - Dry-run mode with diff preview for code edits\n  - Transactional execution with automatic rollback on failure\n  - Execution lock to prevent concurrent runs",
+          "replace": "  - Dry-run mode with diff preview for code edits (state threaded across operations)\n  - Fail-closed edits: a missing or ambiguous anchor aborts before any write\n  - First-write-wins backups so rollback always restores pristine content\n  - Transactional execution with automatic rollback on failure\n  - Machine-readable RESULT-JSON summary line on config load/normalize error, lock contention, manifest failure, operation failure, crash, and signal\n  - Execution lock to prevent concurrent runs"
+        },
+        {
+          "find": "def execute_file_create(operation: dict, backup_dir: Path, dry_run: bool) -> Tuple[bool, str]:\n    \"\"\"Create new file with specified content.\"\"\"",
+          "replace": "def _emit_result(plan_name: str, dry_run: bool, status: str, operations: list,\n                 backup_dir: Optional[str] = None, reason: str = \"\") -> None:\n    \"\"\"Print the machine-readable run summary consumed by the Implementer.\n\n    Emitted on config load/normalize errors, lock contention, manifest failure,\n    operation failure, crashes and signals. Absence means the process never\n    reached a reported exit path — killed outright (SIGKILL/OOM), or failed\n    before execution began (e.g. bad CLI arguments) — so the working tree must\n    be treated as unknown.\n\n    Idempotent: only the FIRST call reports. A crash inside the operation loop\n    emits there and then re-raises through outer handlers, which must not\n    overwrite that verdict with a less specific one.\n    \"\"\"\n    global _result_emitted\n    if _result_emitted:\n        return\n    _result_emitted = True\n    payload: Dict[str, object] = {\n        'plan': plan_name,\n        'mode': 'dry-run' if dry_run else 'execute',\n        'status': status,\n        'operations': operations,\n        'backup_dir': backup_dir,\n    }\n    if reason:\n        payload['reason'] = reason\n    print(\"RESULT-JSON: \" + json.dumps(payload))\n\n\ndef execute_file_create(operation: dict, backup_dir: Path, dry_run: bool,\n                        sim_state: Optional[Dict[str, Optional[str]]] = None) -> Tuple[bool, str]:\n    \"\"\"Create new file with specified content.\"\"\""
+        },
+        {
+          "find": "    if dry_run:\n        print(f\"  [DRY RUN] Would create: {file_path}\")\n        print(f\"            Size: {byte_size} bytes, Lines: {content.count(chr(10)) + 1}\")\n        return True, \"dry-run\"",
+          "replace": "    if dry_run:\n        print(f\"  [DRY RUN] Would create: {file_path}\")\n        print(f\"            Size: {byte_size} bytes, Lines: {content.count(chr(10)) + 1}\")\n        if sim_state is not None:\n            sim_state[os.path.relpath(str(file_path))] = content\n        return True, \"dry-run\""
+        },
+        {
+          "find": "def execute_file_delete(operation: dict, backup_dir: Path, dry_run: bool) -> Tuple[bool, str]:\n    \"\"\"Back up then delete specified file.\"\"\"",
+          "replace": "def execute_file_delete(operation: dict, backup_dir: Path, dry_run: bool,\n                        sim_state: Optional[Dict[str, Optional[str]]] = None,\n                        backed_up: Optional[set] = None) -> Tuple[bool, str]:\n    \"\"\"Back up then delete specified file.\"\"\""
+        },
+        {
+          "find": "    # Check protected file patterns\n    if is_protected_file(str(file_path)):\n        print(f\"  BLOCKED: Cannot delete protected file: {file_path}\")\n        return False, \"protected-file\"",
+          "add_after": "\n\n    # Refused in BOTH modes, so dry-run cannot report a clean plan that execution\n    # would then reject — see execute_code_edit for why the name is reserved.\n    rel_key = os.path.relpath(str(file_path))\n    if rel_key == MANIFEST_NAME:\n        print(f\"  BLOCKED: a project-root {MANIFEST_NAME} collides with the engine's\"\n              \" backup manifest; back it up manually and run this op separately.\")\n        return False, \"manifest-name-collision\""
+        },
+        {
+          "find": "    if dry_run:\n        print(f\"  [DRY RUN] Would delete: {file_path}\")\n        print(f\"            Reason: {reason}\")\n        if file_path.exists():\n            print(f\"            Size: {file_path.stat().st_size} bytes\")\n        return True, \"dry-run\"",
+          "replace": "    if dry_run:\n        print(f\"  [DRY RUN] Would delete: {file_path}\")\n        print(f\"            Reason: {reason}\")\n        if file_path.exists():\n            print(f\"            Size: {file_path.stat().st_size} bytes\")\n        if sim_state is not None:\n            sim_state[os.path.relpath(str(file_path))] = None\n        return True, \"dry-run\""
+        },
+        {
+          "find": "    # Backup before deletion\n    try:\n        rel_path = Path(os.path.relpath(file_path))\n        backup_path = backup_dir / rel_path\n        backup_path.parent.mkdir(parents=True, exist_ok=True)\n        shutil.copy2(str(file_path), str(backup_path))\n        print(f\"  Backed up to: {backup_path}\")\n    except Exception as e:\n        print(f\"  Error backing up file before deletion: {e}\")",
+          "replace": "    # Backup before deletion. First write wins — see execute_code_edit.\n    try:\n        rel_path = Path(os.path.relpath(file_path))\n        backup_path = backup_dir / rel_path\n        if backed_up is not None and rel_key in backed_up:\n            print(f\"  Backup already captured this run: {backup_path}\")\n        else:\n            backup_path.parent.mkdir(parents=True, exist_ok=True)\n            shutil.copy2(str(file_path), str(backup_path))\n            if backed_up is not None:\n                backed_up.add(rel_key)\n            print(f\"  Backed up to: {backup_path}\")\n    except Exception as e:\n        print(f\"  Error backing up file before deletion: {e}\")"
+        },
+        {
+          "find": "def execute_code_edit(operation: dict, backup_dir: Path, dry_run: bool) -> Tuple[bool, str]:\n    \"\"\"Apply find-replace edits to existing file.\"\"\"\n    file_path = Path(operation['path'])\n    edits = operation.get('edits', [])\n\n    if not validate_path(str(file_path)):\n        return False, \"path-validation-failed\"\n\n    if not file_path.exists():\n        print(f\"  File not found: {file_path}\")\n        return False, \"file-not-found\"",
+          "replace": "def execute_code_edit(operation: dict, backup_dir: Path, dry_run: bool,\n                      sim_state: Optional[Dict[str, Optional[str]]] = None,\n                      backed_up: Optional[set] = None) -> Tuple[bool, str]:\n    \"\"\"Apply find-replace edits to existing file.\n\n    Fails closed: a missing or ambiguous anchor aborts the operation before any\n    write, so the caller can roll the whole batch back.\n\n    In dry-run mode, sim_state threads each file's simulated content across\n    operations so the preview matches real sequential execution.\n    \"\"\"\n    file_path = Path(operation['path'])\n    edits = operation.get('edits', [])\n\n    if not validate_path(str(file_path)):\n        return False, \"path-validation-failed\"\n\n    rel_key = os.path.relpath(str(file_path))\n\n    sim_content: Optional[str] = None\n    if dry_run and sim_state is not None and rel_key in sim_state:\n        sim_content = sim_state[rel_key]\n        if sim_content is None:\n            print(f\"  File deleted by an earlier operation: {file_path}\")\n            return False, \"file-not-found\"\n\n    if sim_content is None and not file_path.exists():\n        print(f\"  File not found: {file_path}\")\n        return False, \"file-not-found\""
+        },
+        {
+          "find": "    # Backup original (preserve directory structure)\n    if not dry_run:\n        try:\n            rel_path = Path(os.path.relpath(file_path))\n            backup_path = backup_dir / rel_path\n            backup_path.parent.mkdir(parents=True, exist_ok=True)\n            shutil.copy2(str(file_path), str(backup_path))\n            print(f\"  Backed up to: {backup_path}\")\n        except Exception as e:\n            print(f\"  Error backing up file: {e}\")",
+          "replace": "    # A project-root manifest.json maps onto the engine's own backup manifest.\n    # Refuse rather than corrupt the file restore-backup.py depends on.\n    if rel_key == MANIFEST_NAME:\n        print(f\"  BLOCKED: a project-root {MANIFEST_NAME} collides with the engine's\"\n              \" backup manifest; back it up manually and run this op separately.\")\n        return False, \"manifest-name-collision\"\n\n    # Backup original (preserve directory structure).\n    #\n    # FIRST WRITE WINS: when a later operation touches a file an earlier\n    # operation already modified, re-copying would overwrite the pristine\n    # backup with mutated content — and a subsequent rollback would then\n    # \"restore\" that intermediate state, silently losing the original.\n    # Membership is tracked in a run-scoped set rather than probed on disk,\n    # so nothing the engine itself writes into backup_dir can be mistaken\n    # for an already-captured backup.\n    if not dry_run:\n        try:\n            rel_path = Path(os.path.relpath(file_path))\n            backup_path = backup_dir / rel_path\n            if backed_up is not None and rel_key in backed_up:\n                print(f\"  Backup already captured this run: {backup_path}\")\n            else:\n                backup_path.parent.mkdir(parents=True, exist_ok=True)\n                shutil.copy2(str(file_path), str(backup_path))\n                if backed_up is not None:\n                    backed_up.add(rel_key)\n                print(f\"  Backed up to: {backup_path}\")\n        except Exception as e:\n            print(f\"  Error backing up file: {e}\")"
+        },
+        {
+          "find": "    try:\n        content = file_path.read_text(encoding='utf-8-sig')\n    except UnicodeDecodeError:",
+          "replace": "    try:\n        if sim_content is not None:\n            content = sim_content\n        else:\n            content = file_path.read_text(encoding='utf-8-sig')\n    except UnicodeDecodeError:"
+        },
+        {
+          "find": "    for j, edit in enumerate(edits, 1):\n        find_pattern = edit.get('find', '')\n\n        if not find_pattern:\n            print(f\"  Edit {j}: No 'find' pattern specified\")\n            continue\n\n        if find_pattern not in modified_content:\n            print(f\"  Edit {j}: Pattern not found (may have been changed by previous edit)\")\n            continue",
+          "replace": "    for j, edit in enumerate(edits, 1):\n        find_pattern = edit.get('find', '')\n\n        if not find_pattern:\n            print(f\"  Edit {j}: FAILED - No 'find' pattern specified\")\n            logger.warning(\"Edit %d for %s has no find pattern\", j, file_path)\n            return False, \"missing-find-pattern\"\n\n        occurrences = modified_content.count(find_pattern)\n        if occurrences == 0:\n            print(f\"  Edit {j}: FAILED - Pattern not found \"\n                  \"(may have been changed by a previous edit)\")\n            logger.warning(\"Anchor missing at edit %d for %s\", j, file_path)\n            return False, \"pattern-not-found\"\n        if occurrences > 1:\n            print(f\"  Edit {j}: FAILED - Pattern appears {occurrences} times \"\n                  \"in current content (ambiguous match)\")\n            logger.warning(\"Ambiguous anchor (%d matches) at edit %d for %s\",\n                           occurrences, j, file_path)\n            return False, \"ambiguous-pattern\""
+        },
+        {
+          "find": "        else:\n            print(f\"  Edit {j}: No action specified (add_after, add_before, replace, delete)\")",
+          "replace": "        else:\n            print(f\"  Edit {j}: FAILED - No action specified \"\n                  \"(add_after, add_before, replace, delete)\")\n            logger.warning(\"Edit %d for %s specifies no action\", j, file_path)\n            return False, \"no-action-specified\""
+        },
+        {
+          "find": "    if edits_applied < len(edits):\n        logger.warning(\n            \"Only %d of %d edits applied for %s\", edits_applied, len(edits), file_path\n        )\n        print(f\"  WARNING: Only {edits_applied}/{len(edits)} edits applied\")\n\n    if edits_applied == 0 and len(edits) > 0:\n        print(f\"  FAILED: No edits could be applied\")\n        return False, \"no-edits-applied\"\n\n    byte_size = len(modified_content.encode('utf-8'))",
+          "replace": "    byte_size = len(modified_content.encode('utf-8'))"
+        },
+        {
+          "find": "    if dry_run:\n        print(f\"  [DRY RUN] Would write {byte_size} bytes to: {file_path}\")\n        if content != modified_content:\n            show_diff(str(file_path), content, modified_content)\n        if edits_applied < len(edits):\n            return False, \"dry-run-partial\"\n        return True, \"dry-run\"",
+          "replace": "    if dry_run:\n        print(f\"  [DRY RUN] Would write {byte_size} bytes to: {file_path}\")\n        if content != modified_content:\n            show_diff(str(file_path), content, modified_content)\n        if sim_state is not None:\n            sim_state[rel_key] = modified_content\n        return True, \"dry-run\""
+        },
+        {
+          "find": "        try:\n            atomic_write(file_path, modified_content)\n            print(f\"  Written {byte_size} bytes, {edits_applied}/{len(edits)} edits applied\")\n            if edits_applied < len(edits):\n                return False, \"partial-edits\"\n            return True, \"edited\"",
+          "replace": "        try:\n            atomic_write(file_path, modified_content)\n            print(f\"  Written {byte_size} bytes, {edits_applied}/{len(edits)} edits applied\")\n            show_diff(str(file_path), content, modified_content)\n            return True, \"edited\""
+        },
+        {
+          "find": "    try:\n        with open(config_file, 'r', encoding='utf-8') as f:\n            raw_config = json.load(f)\n    except Exception as e:\n        print(f\"Error loading config: {e}\")\n        return False\n\n    config = normalize_config(raw_config)\n    if config is None:\n        return False\n    plan_name = config.get('plan', 'unknown')",
+          "replace": "    try:\n        with open(config_file, 'r', encoding='utf-8') as f:\n            raw_config = json.load(f)\n    except Exception as e:\n        print(f\"Error loading config: {e}\")\n        _emit_result('unknown', dry_run, 'failed', [], reason=f\"config-load-error: {e}\")\n        return False\n\n    config = normalize_config(raw_config)\n    if config is None:\n        _emit_result('unknown', dry_run, 'failed', [], reason=\"config-normalize-failed\")\n        return False\n    plan_name = config.get('plan', 'unknown')"
+        },
+        {
+          "find": "        except RuntimeError as e:\n            print(f\"Error: {e}\")\n            return False",
+          "replace": "        except RuntimeError as e:\n            print(f\"Error: {e}\")\n            _emit_result(plan_name, dry_run, 'failed', [], reason=f\"lock-contention: {e}\")\n            return False"
+        },
+        {
+          "find": "        if not create_manifest(backup_dir, plan_name, files_to_backup, files_to_create):\n            return False",
+          "replace": "        if not create_manifest(backup_dir, plan_name, files_to_backup, files_to_create):\n            _emit_result(plan_name, dry_run, 'failed', [],\n                         reason=\"manifest-creation-failed\")\n            return False"
+        },
+        {
+          "find": "    success_count = 0\n    error_count = 0\n    stats = {'file_create': 0, 'file_delete': 0, 'code_edit': 0}",
+          "replace": "    success_count = 0\n    error_count = 0\n    stats = {'file_create': 0, 'file_delete': 0, 'code_edit': 0}\n    sim_state: Dict[str, Optional[str]] = {}\n    backed_up: set = set()\n    op_results: List[Dict[str, object]] = []\n    # Once the loop finishes, every operation is committed; a later failure\n    # (e.g. BrokenPipeError while printing the summary) must NOT roll it back.\n    loop_completed = False"
+        },
+        {
+          "find": "                success, status = execute_file_create(operation, backup_dir, dry_run)",
+          "replace": "                success, status = execute_file_create(operation, backup_dir, dry_run, sim_state)"
+        },
+        {
+          "find": "                success, status = execute_file_delete(operation, backup_dir, dry_run)",
+          "replace": "                success, status = execute_file_delete(operation, backup_dir, dry_run,\n                                                      sim_state, backed_up)"
+        },
+        {
+          "find": "                success, status = execute_code_edit(operation, backup_dir, dry_run)",
+          "replace": "                success, status = execute_code_edit(operation, backup_dir, dry_run,\n                                                    sim_state, backed_up)"
+        },
+        {
+          "find": "                if status in (\"edited\", \"partial-edits\"):",
+          "replace": "                if status == \"edited\":"
+        },
+        {
+          "find": "                print(f\"  Hint: regenerate ops.json using the generate-operations-config skill\")\n                success = False",
+          "replace": "                print(f\"  Hint: regenerate ops.json using the generate-operations-config skill\")\n                success, status = False, \"unknown-type\""
+        },
+        {
+          "find": "            if success:\n                success_count += 1\n            else:\n                error_count += 1\n                if not dry_run:\n                    txn.rollback()\n                break",
+          "replace": "            op_results.append({\n                'index': i, 'type': op_type, 'path': str(file_path),\n                'success': success, 'status': status,\n            })\n            if success:\n                success_count += 1\n            else:\n                error_count += 1\n                if not dry_run:\n                    txn.rollback()\n                break"
+        },
+        {
+          "find": "        # Summary\n        print()",
+          "replace": "        # The batch is committed. Retire the transaction BEFORE printing anything:\n        # _signal_handler rolls back whatever _active_txn still points at, so a SIGINT\n        # arriving during the summary would otherwise revert a finished run — and\n        # _result_emitted would then suppress the 'interrupted' verdict, leaving success\n        # evidence over a reverted tree.\n        _active_txn = None\n        loop_completed = True\n\n        # Summary\n        print()"
+        },
+        {
+          "find": "        print(\"-\" * 50)\n\n        return error_count == 0\n    finally:\n        _active_txn = None",
+          "replace": "        print(\"-\" * 50)\n        _emit_result(\n            plan_name, dry_run,\n            'success' if error_count == 0 else 'failed',\n            op_results,\n            backup_dir=None if dry_run else str(backup_dir),\n        )\n\n        return error_count == 0\n    except Exception as e:\n        # An unexpected crash must not leave partial writes on disk, and must\n        # still report — the Implementer treats a missing RESULT-JSON as an\n        # unknown working tree.\n        #\n        # Roll back ONLY if the operation loop was still running. Once it has\n        # completed, every write is committed and intended; a failure while\n        # printing the summary (BrokenPipeError under `| head`, for instance)\n        # must not revert a successful run.\n        if not dry_run and not loop_completed:\n            txn.rollback()\n        _emit_result(plan_name, dry_run, 'crashed', op_results,\n                     backup_dir=None if dry_run else str(backup_dir),\n                     reason=f\"{type(e).__name__}: {e}\")\n        raise\n    finally:\n        _active_txn = None\n        _active_plan = \"unknown\"\n        _active_dry_run = False\n        _active_backup_dir = None\n        # NOT reset: _result_emitted must stay latched for the life of the\n        # process. Clearing it here lets the outer `except RuntimeError` in\n        # execute_json_config emit a second, less specific verdict over the\n        # 'crashed' one — the exact double-report this flag exists to prevent."
+        },
+        {
+          "find": "    \"\"\"Internal execution logic, called with lock held.\"\"\"",
+          "replace": "    \"\"\"Internal execution logic, called with lock held.\"\"\"\n    # Publish run context first: a signal arriving during backup-dir or manifest\n    # creation must still report the real plan name, not \"unknown\".\n    global _active_plan, _active_dry_run, _active_backup_dir\n    _active_plan = plan_name\n    _active_dry_run = dry_run\n"
+        },
+        {
+          "find": "    if not dry_run:\n        backup_dir.mkdir(parents=True, exist_ok=True)\n        print(f\"Backup directory: {backup_dir}\\n\")",
+          "replace": "    if not dry_run:\n        backup_dir.mkdir(parents=True, exist_ok=True)\n        _active_backup_dir = str(backup_dir)\n        print(f\"Backup directory: {backup_dir}\\n\")"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/validate-config-json.py",
+      "edits": [
+        {
+          "find": "def _validate_edits(edits: list, file_content: str, label: str, errors: List[str]):\n    \"\"\"Validate edit entries against file content (GUARDs 8-11).\n\n    Args:\n        edits: List of edit dicts from the config.\n        file_content: The current text content of the target file.\n        label: Prefix for error messages (e.g. \"File 1\" or \"Operation 2\").\n        errors: List to append error messages to.\n    \"\"\"\n    for j, edit in enumerate(edits, 1):",
+          "replace": "def _validate_edits(edits: list, file_content: str, label: str, errors: List[str]) -> str:\n    \"\"\"Validate edit entries against file content (GUARDs 8-11).\n\n    Edits are simulated cumulatively: each guard checks the content as it will\n    exist when the executor reaches that edit, and the post-edit content is\n    returned so callers can thread state across operations on the same file.\n\n    Args:\n        edits: List of edit dicts from the config.\n        file_content: The text content of the target file before these edits.\n        label: Prefix for error messages (e.g. \"File 1\" or \"Operation 2\").\n        errors: List to append error messages to.\n\n    Returns:\n        The simulated content after applying all cleanly-matching edits.\n    \"\"\"\n    sim = file_content\n    for j, edit in enumerate(edits, 1):"
+        },
+        {
+          "find": "        # GUARD 10: Verify 'find' exists in file\n        if find_pattern not in file_content:",
+          "replace": "        # GUARD 10: Verify 'find' exists in the content as it will exist at apply time\n        if find_pattern not in sim:"
+        },
+        {
+          "find": "        # GUARD 11: Check for multiple occurrences (ambiguous match)\n        occurrence_count = file_content.count(find_pattern)\n        if occurrence_count > 1:\n            errors.append(\n                f\"{label}, Edit {j}: Pattern appears {occurrence_count} times in file\\n\"\n                f\"                  FIX: Make pattern more specific to match only once\"\n            )",
+          "replace": "        # GUARD 11: Check for multiple occurrences (ambiguous match)\n        occurrence_count = sim.count(find_pattern)\n        if occurrence_count > 1:\n            errors.append(\n                f\"{label}, Edit {j}: Pattern appears {occurrence_count} times in file\\n\"\n                f\"                  FIX: Make pattern more specific to match only once\"\n            )\n            continue\n\n        # Simulate the edit so later guards see the mutated content\n        if 'add_after' in edit:\n            sim = sim.replace(find_pattern, find_pattern + edit['add_after'], 1)\n        elif 'add_before' in edit:\n            sim = sim.replace(find_pattern, edit['add_before'] + find_pattern, 1)\n        elif 'replace' in edit:\n            sim = sim.replace(find_pattern, edit['replace'], 1)\n        elif edit.get('delete') is True:\n            sim = sim.replace(find_pattern, '', 1)\n\n    return sim"
+        },
+        {
+          "find": "    # Validate all operations\n    valid_types = ['file_create', 'file_delete', 'code_edit']",
+          "replace": "    # Validate all operations, threading simulated content across ops on the same file\n    valid_types = ['file_create', 'file_delete', 'code_edit']\n    sim_files = {}"
+        },
+        {
+          "find": "        try:\n            with open(file_path, 'r', encoding='utf-8-sig') as f:\n                file_content = f.read()\n        except UnicodeDecodeError:\n            errors.append(f\"Operation {i} (code_edit): File appears to be binary or non-UTF-8: {file_path}\")\n            continue\n        except OSError as e:\n            errors.append(f\"Operation {i} (code_edit): Error reading file: {e}\")\n            continue\n\n        _validate_edits(edits, file_content, f\"Operation {i}\", errors)",
+          "replace": "        sim_key = os.path.relpath(file_path)\n        if sim_key in sim_files:\n            file_content = sim_files[sim_key]\n        else:\n            try:\n                with open(file_path, 'r', encoding='utf-8-sig') as f:\n                    file_content = f.read()\n            except UnicodeDecodeError:\n                errors.append(f\"Operation {i} (code_edit): File appears to be binary or non-UTF-8: {file_path}\")\n                continue\n            except OSError as e:\n                errors.append(f\"Operation {i} (code_edit): Error reading file: {e}\")\n                continue\n\n        sim_files[sim_key] = _validate_edits(edits, file_content, f\"Operation {i}\", errors)"
+        },
+        {
+          "find": "        _validate_edits(edits, file_content, f\"File {i}\", errors)",
+          "replace": "        sim_key = os.path.relpath(file_path)\n        legacy_sim[sim_key] = _validate_edits(\n            edits, legacy_sim.get(sim_key, file_content), f\"File {i}\", errors\n        )"
+        },
+        {
+          "find": "def validate_legacy_format(config: dict, errors: List[str]) -> Tuple[bool, List[str]]:\n    \"\"\"Validate legacy format (files array with code edits only).\"\"\"",
+          "replace": "def validate_legacy_format(config: dict, errors: List[str]) -> Tuple[bool, List[str]]:\n    \"\"\"Validate legacy format (files array with code edits only).\n\n    Duplicate paths across entries are threaded through legacy_sim so each edit is\n    checked against the content as it will exist when the executor reaches it.\n    \"\"\"\n    legacy_sim = {}"
+        }
+      ]
+    },
+    {
+      "type": "file_create",
+      "path": "tests/test_ops_hardening.py",
+      "content": "\"\"\"Behavioral tests for the ops-engine hardening.\n\nCovers the fail-closed apply-time guards, first-write-wins backups, dry-run\nstate threading, execution evidence (diff + RESULT-JSON), and cumulative\nvalidator simulation added by plan-ops-hardening-implementer-contract.\n\nAll tests run the real scripts via subprocess in an isolated tmp project dir.\n\"\"\"\n\nimport json\nimport os\nimport pathlib\nimport subprocess\nimport sys\n\nSCRIPTS_DIR = os.path.abspath(\n    os.path.join(os.path.dirname(__file__), '..', '.claude', 'operations', 'scripts')\n)\nEXECUTOR = os.path.join(SCRIPTS_DIR, 'execute-json-ops.py')\nVALIDATOR = os.path.join(SCRIPTS_DIR, 'validate-config-json.py')\n\nRESULT_PREFIX = 'RESULT-JSON: '\n\n\ndef _run(script, ops_path, cwd, *flags):\n    return subprocess.run(\n        [sys.executable, script, str(ops_path)] + list(flags),\n        cwd=str(cwd), capture_output=True, text=True, timeout=120,\n    )\n\n\ndef _result_json(stdout):\n    \"\"\"Extract the single RESULT-JSON payload, with an informative failure.\"\"\"\n    lines = [ln for ln in stdout.splitlines() if ln.startswith(RESULT_PREFIX)]\n    assert len(lines) == 1, f\"expected exactly 1 RESULT-JSON line, got {len(lines)}\"\n    return json.loads(lines[0][len(RESULT_PREFIX):])\n\n\ndef _ops(tmp_path, operations, name='test-hardening'):\n    path = tmp_path / 'ops.json'\n    path.write_text(json.dumps({'plan': name, 'operations': operations}),\n                    encoding='utf-8')\n    return path\n\n\ndef _edit(path, find, replace):\n    return {'type': 'code_edit', 'path': path,\n            'edits': [{'find': find, 'replace': replace}]}\n\n\nclass TestApplyTimeGuards:\n    def test_ambiguous_anchor_aborts_without_writing(self, tmp_path):\n        target = tmp_path / 'app.py'\n        original = 'x = 1\\nx = 1\\n'\n        target.write_text(original, encoding='utf-8')\n        ops = _ops(tmp_path, [_edit('app.py', 'x = 1', 'x = 2')])\n        res = _run(EXECUTOR, ops, tmp_path)\n        assert res.returncode == 1\n        assert 'ambiguous' in (res.stdout + res.stderr).lower()\n        assert target.read_text(encoding='utf-8') == original\n\n    def test_missing_anchor_aborts_and_rolls_back_prior_ops(self, tmp_path):\n        a = tmp_path / 'a.py'\n        b = tmp_path / 'b.py'\n        a.write_text('alpha\\n', encoding='utf-8')\n        b.write_text('other\\n', encoding='utf-8')\n        ops = _ops(tmp_path, [\n            _edit('a.py', 'alpha', 'beta'),\n            _edit('b.py', 'not-present', 'anything'),\n        ])\n        res = _run(EXECUTOR, ops, tmp_path)\n        assert res.returncode == 1\n        # The first (successful) op must be rolled back after the second fails.\n        assert a.read_text(encoding='utf-8') == 'alpha\\n'\n\n\nclass TestBackupFirstWriteWins:\n    def test_same_file_twice_rollback_restores_pristine(self, tmp_path):\n        \"\"\"Regression: op 2's backup must not clobber op 1's pristine copy.\n\n        Before first-write-wins backups, the second operation on a file copied\n        the ALREADY-MUTATED content over the backup, so rollback restored the\n        intermediate state and the original was lost.\n        \"\"\"\n        target = tmp_path / 'app.py'\n        target.write_text('alpha\\n', encoding='utf-8')\n        ops = _ops(tmp_path, [\n            _edit('app.py', 'alpha', 'beta'),\n            _edit('app.py', 'NO_SUCH_ANCHOR', 'x'),\n        ])\n        res = _run(EXECUTOR, ops, tmp_path)\n        assert res.returncode == 1\n        assert target.read_text(encoding='utf-8') == 'alpha\\n', \\\n            'rollback restored a mutated intermediate instead of the original'\n\n    def test_backup_file_itself_holds_pristine_content(self, tmp_path):\n        target = tmp_path / 'app.py'\n        target.write_text('alpha\\n', encoding='utf-8')\n        ops = _ops(tmp_path, [\n            _edit('app.py', 'alpha', 'beta'),\n            _edit('app.py', 'beta', 'gamma'),\n        ])\n        res = _run(EXECUTOR, ops, tmp_path)\n        assert res.returncode == 0, res.stdout + res.stderr\n        assert target.read_text(encoding='utf-8') == 'gamma\\n'\n        backups = list((tmp_path / 'backups').glob('*/app.py'))\n        assert len(backups) == 1\n        assert backups[0].read_text(encoding='utf-8') == 'alpha\\n', \\\n            'backup must hold pre-run content so restore-backup.py is correct'\n\n    def test_delete_after_edit_keeps_pristine_backup(self, tmp_path):\n        \"\"\"file_delete must not overwrite the backup an earlier code_edit made.\"\"\"\n        target = tmp_path / 'app.py'\n        other = tmp_path / 'b.py'\n        target.write_text('alpha\\n', encoding='utf-8')\n        other.write_text('other\\n', encoding='utf-8')\n        ops = _ops(tmp_path, [\n            _edit('app.py', 'alpha', 'beta'),\n            {'type': 'file_delete', 'path': 'app.py',\n             'reason': 'superseded by the rewritten module'},\n            _edit('b.py', 'NO_SUCH_ANCHOR', 'x'),\n        ])\n        res = _run(EXECUTOR, ops, tmp_path)\n        assert res.returncode == 1\n        assert target.exists(), 'rollback must recreate the deleted file'\n        assert target.read_text(encoding='utf-8') == 'alpha\\n'\n\n    def test_root_manifest_json_is_refused_not_silently_unbacked(self, tmp_path):\n        \"\"\"A project-root manifest.json collides with the engine's own manifest.\"\"\"\n        target = tmp_path / 'manifest.json'\n        target.write_text('{\"name\": \"app\"}\\n', encoding='utf-8')\n        ops = _ops(tmp_path, [_edit('manifest.json', '\"app\"', '\"renamed\"')])\n        res = _run(EXECUTOR, ops, tmp_path)\n        assert res.returncode == 1\n        assert 'collides' in res.stdout\n        assert target.read_text(encoding='utf-8') == '{\"name\": \"app\"}\\n'\n\n\nclass TestDryRunFidelity:\n    def test_dry_run_threads_state_across_ops_on_same_file(self, tmp_path):\n        target = tmp_path / 'app.py'\n        target.write_text('alpha\\n', encoding='utf-8')\n        ops = _ops(tmp_path, [\n            _edit('app.py', 'alpha', 'beta'),\n            _edit('app.py', 'beta', 'gamma'),  # 'beta' exists only after op 1\n        ])\n        res = _run(EXECUTOR, ops, tmp_path, '--dry-run')\n        assert res.returncode == 0, res.stdout + res.stderr\n        # Dry run must not touch the file.\n        assert target.read_text(encoding='utf-8') == 'alpha\\n'\n\n\nclass TestExecutionEvidence:\n    def test_execute_prints_diff_and_result_json(self, tmp_path):\n        target = tmp_path / 'app.py'\n        target.write_text('alpha\\n', encoding='utf-8')\n        ops = _ops(tmp_path, [_edit('app.py', 'alpha', 'beta')])\n        res = _run(EXECUTOR, ops, tmp_path)\n        assert res.returncode == 0, res.stdout + res.stderr\n        assert target.read_text(encoding='utf-8') == 'beta\\n'\n        assert 'Diff preview' in res.stdout\n        payload = _result_json(res.stdout)\n        assert payload['status'] == 'success'\n        assert payload['mode'] == 'execute'\n        assert payload['operations'][0]['status'] == 'edited'\n        assert payload['backup_dir']\n\n    def test_failed_run_reports_failed_status_in_result_json(self, tmp_path):\n        target = tmp_path / 'app.py'\n        target.write_text('alpha\\n', encoding='utf-8')\n        ops = _ops(tmp_path, [_edit('app.py', 'missing', 'beta')])\n        res = _run(EXECUTOR, ops, tmp_path)\n        assert res.returncode == 1\n        payload = _result_json(res.stdout)\n        assert payload['status'] == 'failed'\n        assert payload['operations'][0]['status'] == 'pattern-not-found'\n\n    def test_engine_level_abort_still_emits_result_json(self, tmp_path):\n        \"\"\"An unreadable config aborts before execution but must still report.\"\"\"\n        bad = tmp_path / 'ops.json'\n        bad.write_text('{not valid json', encoding='utf-8')\n        res = _run(EXECUTOR, bad, tmp_path)\n        assert res.returncode == 1\n        payload = _result_json(res.stdout)\n        assert payload['status'] == 'failed'\n        assert 'config-load-error' in payload['reason']\n\n\nclass TestValidatorCumulativeSimulation:\n    def test_flags_edit_made_ambiguous_by_prior_edit(self, tmp_path):\n        target = tmp_path / 'app.py'\n        target.write_text('A\\nB\\n', encoding='utf-8')\n        ops = _ops(tmp_path, [{\n            'type': 'code_edit', 'path': 'app.py',\n            'edits': [\n                {'find': 'A', 'replace': 'B'},   # makes 'B' ambiguous\n                {'find': 'B', 'replace': 'C'},\n            ],\n        }])\n        res = _run(VALIDATOR, ops, tmp_path)\n        assert res.returncode != 0\n        assert 'appears 2 times' in (res.stdout + res.stderr)\n\n    def test_accepts_edit_dependent_on_prior_edit_same_op(self, tmp_path):\n        target = tmp_path / 'app.py'\n        target.write_text('alpha\\n', encoding='utf-8')\n        ops = _ops(tmp_path, [{\n            'type': 'code_edit', 'path': 'app.py',\n            'edits': [\n                {'find': 'alpha', 'replace': 'beta'},\n                {'find': 'beta', 'replace': 'gamma'},  # exists only post-edit-1\n            ],\n        }])\n        res = _run(VALIDATOR, ops, tmp_path)\n        assert res.returncode == 0, res.stdout + res.stderr\n\n    def test_threads_state_across_operations_on_same_file(self, tmp_path):\n        target = tmp_path / 'app.py'\n        target.write_text('alpha\\n', encoding='utf-8')\n        ops = _ops(tmp_path, [\n            _edit('app.py', 'alpha', 'beta'),\n            _edit('app.py', 'beta', 'gamma'),\n        ])\n        res = _run(VALIDATOR, ops, tmp_path)\n        assert res.returncode == 0, res.stdout + res.stderr\n\n\nclass TestPostLoopFailureDoesNotRevert:\n    \"\"\"A crash AFTER the operation loop must not roll back a committed batch.\n\n    Verified by copying the engine into the tmp project and injecting a fault at\n    the exact point the loop finishes — the only way to isolate this path, since\n    a real BrokenPipeError lands non-deterministically (with small output none\n    fires; with large output it lands inside the loop, where rollback is right).\n    \"\"\"\n\n    def _engine_with_injection(self, tmp_path, injected):\n        src = pathlib.Path(EXECUTOR).read_text(encoding='utf-8')\n        marker = '        loop_completed = True\\n'\n        assert marker in src, 'engine no longer has the loop_completed marker'\n        patched = tmp_path / 'engine_injected.py'\n        patched.write_text(src.replace(marker, marker + injected, 1), encoding='utf-8')\n        return patched\n\n    def test_crash_after_loop_keeps_applied_changes(self, tmp_path):\n        target = tmp_path / 'f.txt'\n        target.write_text('alpha\\n', encoding='utf-8')\n        ops = _ops(tmp_path, [_edit('f.txt', 'alpha', 'beta')])\n        engine = self._engine_with_injection(\n            tmp_path, \"        raise RuntimeError('injected post-loop failure')\\n\")\n        env = dict(os.environ, PYTHONPATH=SCRIPTS_DIR)\n        res = subprocess.run([sys.executable, str(engine), str(ops)], cwd=str(tmp_path),\n                             capture_output=True, text=True, timeout=120, env=env)\n        assert res.returncode != 0\n        assert target.read_text(encoding='utf-8') == 'beta\\n', \\\n            'a committed batch was reverted by a post-loop failure'\n        assert _result_json(res.stdout)['status'] == 'crashed'\n\n    def test_transaction_retired_before_summary(self, tmp_path):\n        \"\"\"_active_txn must be cleared before the summary prints.\n\n        Otherwise a signal arriving during the summary would roll back a finished\n        run, and _result_emitted would suppress the 'interrupted' verdict — leaving\n        success evidence over a reverted tree.\n        \"\"\"\n        target = tmp_path / 'f.txt'\n        target.write_text('alpha\\n', encoding='utf-8')\n        ops = _ops(tmp_path, [_edit('f.txt', 'alpha', 'beta')])\n        engine = self._engine_with_injection(\n            tmp_path,\n            \"        assert _active_txn is None, 'txn still live during summary'\\n\")\n        env = dict(os.environ, PYTHONPATH=SCRIPTS_DIR)\n        res = subprocess.run([sys.executable, str(engine), str(ops)], cwd=str(tmp_path),\n                             capture_output=True, text=True, timeout=120, env=env)\n        assert res.returncode == 0, res.stdout + res.stderr\n        assert target.read_text(encoding='utf-8') == 'beta\\n'\n"
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/implementer.md",
+      "edits": [
+        {
+          "find": "### Step 4: Handle Failures",
+          "replace": "### Step 5: Handle Failures"
+        },
+        {
+          "find": "### Step 3: Verify Build",
+          "replace": "### Step 4: Verify Build"
+        },
+        {
+          "find": "### Step 2: Execute",
+          "replace": "### Step 3: Execute"
+        },
+        {
+          "find": "## Script Execution Workflow\n\n### Step 1: Dry Run",
+          "replace": "## Script Execution Workflow\n\n### Step 1: Validate (MANDATORY)\n```bash\npython3 .claude/operations/scripts/validate-config-json.py <ops.json>\n```\n\nNon-zero exit or FAIL output → STOP. Report the validator's errors and request a corrected\nops.json from the Planner. The validator proves every `code_edit` anchor exists and is unique\n— GUARDs 10/11, simulated cumulatively across edits and operations — so do NOT re-verify\nanchors by reading target files. (Known asymmetry: a `code_edit` targeting a file created\nearlier in the same ops.json is rejected by GUARD 6; split it into a second ops.json.)\n\n### Step 2: Dry Run"
+        },
+        {
+          "find": "Monitor execution output:\n- Watch for any operation failures\n- If an operation fails, the script should rollback\n- Record which operations succeeded and which failed",
+          "replace": "Monitor execution output:\n- Watch for any operation failures\n- If an operation fails, the script rolls the whole batch back\n- Capture the unified diff and the `RESULT-JSON:` line the engine prints — they are your\n  evidence of what changed; relay them instead of re-reading files. The diff is truncated at\n  50 lines per file; `RESULT-JSON` is the complete per-operation record.\n- The engine emits `RESULT-JSON:` on config load/normalize errors, lock contention, manifest failure, operation\n  failure, crashes (`status: crashed`) and signals (`status: interrupted`). If it is ABSENT the process never\n  reached a reported exit path — killed outright (SIGKILL/OOM), or failed before execution\n  began (e.g. bad CLI arguments). Treat the working tree as UNKNOWN, inspect `backups/`,\n  and report that verbatim; never infer success or failure from anything else."
+        },
+        {
+          "find": "### Before Any Modification\n- ALWAYS read a file before editing it\n- ALWAYS verify the target line/function/pattern exists\n- NEVER overwrite a file without reading it first\n- NEVER delete a file without confirmation from the plan",
+          "replace": "### Before Any Modification\n- NEVER read target source files or ops.json into context upfront — pass their paths to\n  the scripts. The validator (GUARDs 10/11) and the executor's apply-time guards prove\n  every anchor exists and is unique before anything is written; re-reading files to\n  check this duplicates the engine at large token cost.\n- Read a target file ONLY to diagnose a failure reported by validate, dry-run, execute,\n  or the build/lint/test step.\n- NEVER delete a file without confirmation from the plan"
+        },
+        {
+          "find": "- NEVER skip the dry run step",
+          "replace": "- NEVER skip the validator or the dry run step\n- NEVER read target files or ops.json upfront to \"double-check\" anchors — the validator\n  and executor fail closed on missing or ambiguous anchors"
+        },
+        {
+          "find": "  [ ] Verify all target files/directories exist (or will be created)",
+          "replace": "  [ ] Target files exist — proven by the validator (GUARDs 6/12), not by Reading them"
+        },
+        {
+          "find": "  [ ] Create backup of files that will be modified",
+          "replace": "  [ ] Backups are automatic — the executor backs up every file before touching it"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/execute-operations-config/SKILL.md",
+      "edits": [
+        {
+          "find": "[STEP 1] Dry run   -> execute-json-ops.py <ops.json> --dry-run\n    |\n    v\n[STEP 2] Execute   -> execute-json-ops.py <ops.json>   (auto-backup + auto-rollback)",
+          "replace": "[STEP 0] Validate  -> validate-config-json.py <ops.json>       (MANDATORY; FAIL = STOP)\n    |\n    v\n[STEP 1] Dry run   -> execute-json-ops.py <ops.json> --dry-run\n    |\n    v\n[STEP 2] Execute   -> execute-json-ops.py <ops.json>   (auto-backup + auto-rollback)"
+        },
+        {
+          "find": "## Prerequisites",
+          "add_before": "## Read Policy (token discipline)\n\nDo NOT Read target source files or ops.json into context before running the scripts. The\nvalidator proves every anchor exists and is unique (simulating edits cumulatively), and the\nexecutor fails closed — aborting and rolling back — on any anchor drift. After execution the\nengine prints a unified diff and a `RESULT-JSON:` summary line; that output is your evidence.\nRead a target file only to diagnose a reported failure.\n\n---\n\n"
+        },
+        {
+          "find": "Do not use Edit/Write to \"finish\" a partial run. If the run fails, read the engine's output,",
+          "add_before": "After a successful run the engine prints a unified diff per edited file (truncated at 50\nlines per file) and a final `RESULT-JSON:` summary line carrying the complete per-operation\nrecord — quote both in your report as evidence of what changed. `RESULT-JSON:` is emitted on\nconfig load/normalize errors, lock contention, manifest failure, operation failure, crashes\nand signals; if it is absent the process never reached a reported exit path (killed outright,\nor failed before execution began), so treat the working tree as UNKNOWN and inspect `backups/`.\n\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".codex/agents/implementer.toml",
+      "edits": [
+        {
+          "find": "### Step 4: Handle Failures",
+          "replace": "### Step 5: Handle Failures"
+        },
+        {
+          "find": "### Step 3: Verify Build",
+          "replace": "### Step 4: Verify Build"
+        },
+        {
+          "find": "### Step 2: Execute",
+          "replace": "### Step 3: Execute"
+        },
+        {
+          "find": "## Script Execution Workflow\n\n### Step 1: Dry Run",
+          "replace": "## Script Execution Workflow\n\n### Step 1: Validate (MANDATORY)\n```bash\npython3 .Codex/operations/scripts/validate-config-json.py <ops.json>\n```\n\nNon-zero exit or FAIL output → STOP and request a corrected ops.json. The validator proves\nevery `code_edit` anchor exists and is unique (GUARDs 10/11, simulated cumulatively), so do\nNOT re-verify anchors by reading target files.\n\n### Step 2: Dry Run"
+        },
+        {
+          "find": "Monitor execution output:\n- Watch for any operation failures\n- If an operation fails, the script should rollback\n- Record which operations succeeded and which failed",
+          "replace": "Monitor execution output:\n- Watch for any operation failures\n- If an operation fails, the script rolls the whole batch back\n- Capture the unified diff and the `RESULT-JSON:` line the engine prints — they are your\n  evidence of what changed; relay them instead of re-reading files. The diff is truncated at\n  50 lines per file; `RESULT-JSON` is the complete per-operation record.\n- If `RESULT-JSON:` is ABSENT the process never reached a reported exit path — killed\n  outright (SIGKILL/OOM), or failed before execution began. Crashes and signals ARE\n  reported (`status: crashed` / `interrupted`). Treat the tree as UNKNOWN, inspect\n  `backups/`, and report that verbatim rather than inferring an outcome."
+        },
+        {
+          "find": "  [ ] Verify all target files/directories exist (or will be created)",
+          "replace": "  [ ] Target files exist — proven by the validator (GUARDs 6/12), not by Reading them"
+        },
+        {
+          "find": "  [ ] Create backup of files that will be modified",
+          "replace": "  [ ] Backups are automatic — the executor backs up every file before touching it"
+        },
+        {
+          "find": "### Before Any Modification\n- ALWAYS read a file before editing it\n- ALWAYS verify the target line/function/pattern exists\n- NEVER overwrite a file without reading it first\n- NEVER delete a file without confirmation from the plan",
+          "replace": "### Before Any Modification\n- NEVER read target source files or ops.json into context upfront — pass their paths to\n  the scripts. The validator and the executor's apply-time guards prove every anchor\n  exists and is unique before anything is written.\n- Read a target file ONLY to diagnose a failure reported by validate, dry-run, execute,\n  or the build/lint/test step.\n- NEVER delete a file without confirmation from the plan"
+        },
+        {
+          "find": "- NEVER skip the dry run step",
+          "replace": "- NEVER skip the validator or the dry run step\n- NEVER read target files or ops.json upfront to \"double-check\" anchors — the validator\n  and executor fail closed on missing or ambiguous anchors"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".agents/skills/execute-operations-config/SKILL.md",
+      "edits": [
+        {
+          "find": "Do not use Edit/Write to \"finish\" a partial run. If the run fails, read the engine's output,",
+          "add_before": "After a successful run the engine prints a unified diff per edited file (truncated at 50\nlines per file) and a final `RESULT-JSON:` summary line carrying the complete per-operation\nrecord — quote both in your report as evidence of what changed. `RESULT-JSON:` is emitted on\nconfig load/normalize errors, lock contention, manifest failure, operation failure, crashes\nand signals; if it is absent the process never reached a reported exit path (killed outright,\nor failed before execution began), so treat the working tree as UNKNOWN and inspect `backups/`.\n\n"
+        },
+        {
+          "find": "[STEP 1] Dry run   -> execute-json-ops.py <ops.json> --dry-run\n    |\n    v\n[STEP 2] Execute   -> execute-json-ops.py <ops.json>   (auto-backup + auto-rollback)",
+          "replace": "[STEP 0] Validate  -> validate-config-json.py <ops.json>       (MANDATORY; FAIL = STOP)\n    |\n    v\n[STEP 1] Dry run   -> execute-json-ops.py <ops.json> --dry-run\n    |\n    v\n[STEP 2] Execute   -> execute-json-ops.py <ops.json>   (auto-backup + auto-rollback)"
+        },
+        {
+          "find": "## Prerequisites",
+          "add_before": "## Read Policy (token discipline)\n\nDo NOT Read target source files or ops.json into context before running the scripts. The\nvalidator proves every anchor exists and is unique (simulating edits cumulatively), and the\nexecutor fails closed — aborting and rolling back — on any anchor drift. After execution the\nengine prints a unified diff and a `RESULT-JSON:` summary line; that output is your evidence.\nRead a target file only to diagnose a reported failure.\n\n---\n\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/validate-operations-config/SKILL.md",
+      "edits": [
+        {
+          "find": "Common warnings:\n- Search string matches multiple times (for non-replace_all)",
+          "replace": "Common warnings:\n- Target file has been modified since plan creation (re-anchor before executing)"
+        },
+        {
+          "find": "- Target file has been modified since plan creation\n- Large file modification (>100 lines changed)",
+          "replace": "- Large file modification (>100 lines changed)\n\nNote: an anchor matching multiple times is NOT a warning — GUARD 11 is a hard FAIL, and it\nis evaluated cumulatively (against the content as it will exist when that edit is applied)."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".agents/skills/validate-operations-config/SKILL.md",
+      "edits": [
+        {
+          "find": "Common warnings:\n- Search string matches multiple times (for non-replace_all)",
+          "replace": "Common warnings:\n- Target file has been modified since plan creation (re-anchor before executing)"
+        },
+        {
+          "find": "- Target file has been modified since plan creation\n- Large file modification (>100 lines changed)",
+          "replace": "- Large file modification (>100 lines changed)\n\nNote: an anchor matching multiple times is NOT a warning — GUARD 11 is a hard FAIL, and it\nis evaluated cumulatively (against the content as it will exist when that edit is applied)."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/commands/implement.md",
+      "edits": [
+        {
+          "find": "### Phase 1: Preparation\n- Parse ops.json and validate all operations\n- Create a checklist of all operations with status tracking\n- Set up verification checkpoints",
+          "replace": "### Phase 1: Preparation\n- Run `validate-config-json.py <ops.json>` and read its verdict. Do NOT parse or read\n  ops.json yourself — pass the path; the validator proves every anchor exists and is\n  unique (GUARDs 10/11, simulated cumulatively) and the executor fails closed on drift.\n- Note the validation commands recorded in plan.md for Phase 3"
+        },
+        {
+          "find": "### Phase 2: Execution\nFor each operation in ops.json order:\n1. Announce: \"Executing step N of M: [operation description]\"\n2. Execute the operation\n3. Verify the operation succeeded (compile check, lint, basic test)\n4. Mark the operation as complete\n5. If the operation fails, attempt the rollback procedure from the plan\n6. If rollback fails, STOP and report",
+          "replace": "### Phase 2: Execution\nThe engine applies the whole batch in ONE invocation — there is no per-operation loop to\ndrive, and the implementer's tool grant (`Bash(python3 .claude/operations/scripts/*)`)\ncannot run per-operation build/lint checks anyway.\n\n1. Dry run: `execute-json-ops.py <ops.json> --dry-run` — abort on any failure\n2. Execute: `execute-json-ops.py <ops.json>`\n3. The engine backs up every target first and rolls the ENTIRE batch back on any\n   failure. Never hand-patch a partial run.\n4. Capture the unified diff and the final `RESULT-JSON:` line as your evidence of what\n   changed, and relay them — do not re-read the target files to find out."
+        },
+        {
+          "find": "2. ops.json is present, valid, and parseable",
+          "replace": "2. ops.json is present at the specified path (step 3's validator proves it is valid —\n   you do not need to open it)"
+        },
+        {
+          "find": "  scope (a verbatim retry reproduces the same failure); if the retry fails, attempt the\n  specific rollback for that step and STOP with the pasted error output",
+          "replace": "  scope (a verbatim retry reproduces the same failure); if the retry fails, STOP with the\n  pasted error output — the engine has already rolled the ENTIRE batch back, so there is no\n  per-step rollback to run and no partial state to hand-patch"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "docs/ARCHITECTURE.md",
+      "edits": [
+        {
+          "find": "- **Pre-execution backup**: Every target file copied to `backups/{plan}-{timestamp}/`",
+          "replace": "- **Pre-execution backup**: Every target file copied to `backups/{plan}-{timestamp}/`,\n  first-write-wins per run so a second operation on the same file cannot overwrite the\n  pristine copy that rollback depends on\n- **Fail-closed anchor matching**: An edit whose `find` pattern is missing or ambiguous in\n  the current (already-mutated) content aborts before any write, and the batch rolls back\n- **Run evidence**: A unified diff per edited file plus a machine-readable `RESULT-JSON:`\n  summary line on config load/normalize error, lock contention, manifest failure, operation failure, crash, and signal"
+        },
+        {
+          "find": "  YES: Implementer reads    ops.json + plan.md",
+          "replace": "  YES: Implementer reads    plan.md (ops.json is passed by path to the engine)"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "edits": [
+        {
+          "find": "### Changed\n- **Per-agent model routing tuned for token economy.**",
+          "replace": "### Changed\n- **Ops engine no longer loses the original file on a multi-operation rollback.**\n  `execute-json-ops.py` backed up a file on *every* operation touching it, so a second\n  operation overwrote the pristine backup with already-mutated content — a later failure\n  then \"rolled back\" to that intermediate state, and `restore-backup.py` / `/rollback`\n  restored the wrong content. Backups are now first-write-wins per run.\n- **Ops engine fails closed on anchor drift at apply time.** An edit whose `find` pattern\n  is missing or ambiguous in the current (already-mutated) content now aborts and rolls\n  back, instead of skip-and-continue with first-occurrence replacement. Dry-run threads\n  simulated file state across operations so previews match real sequential execution, and\n  the engine prints a unified diff plus a machine-readable `RESULT-JSON:` summary line on\n  config load/normalize error, lock contention, manifest failure, operation failure,\n  crash, and signal; absence of the line means the process never reached a reported\n  exit path (killed outright, or failed before execution began).\n- **Validator simulates edits cumulatively.** `validate-config-json.py` GUARDs 10/11 now\n  validate each anchor against the content as it will exist when the executor reaches\n  that edit — within an operation and across operations on the same file.\n- **Implementer contract: reactive reads.** The implementer now validates (a mandatory step\n  its own spec previously omitted), dry-runs, and executes by passing paths to the ops\n  scripts, and relays the engine's diff and `RESULT-JSON` output as evidence; it reads\n  target files only to diagnose reported failures. Mirrored into the Codex corpus.\n- **Per-agent model routing tuned for token economy.**"
+        }
+      ]
+    }
+  ]
+}
