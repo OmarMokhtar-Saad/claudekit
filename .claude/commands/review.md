@@ -29,15 +29,35 @@ if [ -z "$PLAN_FILE" ]; then
 fi
 
 echo "Reviewing: $PLAN_FILE"
-# Both ops-file naming forms are valid in this repo (historic split-brain fix, see
-# .ai/FAQ.md) -- a plan can be paired with either <slug>.ops.json or ops-<slug>.json.
-OPS_FILE="${PLAN_FILE%.md}.ops.json"
-if [ ! -f "$OPS_FILE" ]; then
-  OPS_FILE=$(echo "$PLAN_FILE" | sed 's#/plan-#/ops-#; s/\.md$/.json/')
-fi
-if [ ! -f "$OPS_FILE" ]; then
-  echo "ERROR: no ops config found for $PLAN_FILE (looked for \${PLAN_FILE%.md}.ops.json and ops-*.json)."
+# Resolve the ops.json this plan owns (all naming forms; ambiguity is an error).
+OPS_FILE=$(python3 .claude/operations/scripts/review-record.py resolve "$PLAN_FILE")
+if [ $? -ne 0 ] || [ -z "$OPS_FILE" ]; then
+  echo "ERROR: could not resolve a unique ops.json for $PLAN_FILE (missing or ambiguous)."
   exit 1
+fi
+
+# DELTA MODE: if this plan already has a recorded verdict and only the ops.json moved,
+# hand the reviewer the diff instead of a full re-read. review-record.py diff prints
+# "(no changes since approval)" and "# FULL REVIEW REQUIRED" with exit 0 too — both mean
+# NO delta block (normal/full review runs unmodified). Only a real diff qualifies.
+DELTA_BLOCK=""
+DIFF_OUT=$(python3 .claude/operations/scripts/review-record.py diff "$PLAN_FILE" "$OPS_FILE" 2>/dev/null)
+DIFF_EXIT=$?
+if [ $DIFF_EXIT -eq 0 ] && [ -n "$DIFF_OUT" ]; then
+  case "$DIFF_OUT" in
+    "(no changes since approval)"*|"# FULL REVIEW REQUIRED"*) : ;;
+    *)
+      echo "Delta review: ops.json changed since the last recorded verdict."
+      DELTA_BLOCK="
+
+DELTA REVIEW MODE — a prior review already recorded a verdict for a different version of
+this ops.json. Changed content (approved -> current) and the prior findings are below,
+deliberately WITHOUT the prior score, so you re-judge rather than reaffirm. You MUST still
+verify the CHANGED anchors against the filesystem. Re-score the plan as a whole.
+
+$DIFF_OUT"
+      ;;
+  esac
 fi
 
 REVIEWER_MSG="Review the implementation plan at $PLAN_FILE and the ops config at $OPS_FILE.
@@ -64,7 +84,7 @@ DECISION RULES:
 APPROVED = score >= 90 AND CRITICAL_MAJOR_COUNT == 0
 CONDITIONAL = score 70-89 OR CRITICAL_MAJOR_COUNT > 0
 REVISE = score < 70
-REJECTED = no ops.json, invalid ops.json, destructive ops without rollback"
+REJECTED = no ops.json, invalid ops.json, destructive ops without rollback$DELTA_BLOCK"
 
 review_output=$(echo "$REVIEWER_MSG" | claude -p --agent reviewer --model opus --allowedTools "Read,Grep,Glob")
 EXIT_CODE=$?
@@ -75,9 +95,29 @@ if [ $EXIT_CODE -ne 0 ]; then
 fi
 
 echo "$review_output"
+
+# Bind this verdict to the exact ops.json that was scored. Parsing happens inside the
+# script (strict anchored patterns), so an echoed format template cannot be mistaken
+# for a real verdict. A failed write is reported, never swallowed.
+printf '%s' "$review_output" | \
+  python3 .claude/operations/scripts/review-record.py write "$PLAN_FILE" "$OPS_FILE" --from-review - \
+  || echo "WARNING: verdict NOT recorded — /implement will report NO RECORD until /review succeeds." >&2
 ```
 
-2. After output, suggest:
+2. **Record the verdict (Task-tool path).** The bash block above only runs on the
+   scripted `claude -p` path. When the reviewer ran via the Task tool (the interactive
+   default), save its raw output to a file and record it yourself — a review whose verdict
+   was never recorded is not an approval:
+   ```bash
+   python3 .claude/operations/scripts/review-record.py resolve "$PLAN_FILE"
+   ```
+   ```bash
+   python3 .claude/operations/scripts/review-record.py write "$PLAN_FILE" "<resolved-ops-path>" --from-review <saved-output-file>
+   ```
+   Skipping this step means `/implement`'s STEP 0 gate refuses with exit 3 (no record) —
+   it fails closed, not silently.
+
+3. After output, suggest:
    - If APPROVED (score ≥ 90): run `/implement`
    - If CONDITIONAL/REVISE: address issues and re-run `/plan` or `/refine`
    - If REJECTED: restate the task more narrowly and re-run `/plan`

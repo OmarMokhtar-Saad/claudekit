@@ -374,6 +374,12 @@ Suggested actions:
 
 ## Notes
 
+- **Verdict recording binds to the FINAL iteration only** — there is nothing on disk for
+  `review-record.py` to bind to during iterations 1..N; once Step 3 writes plan.md and
+  ops.json, run `review-record.py resolve` then `write` once against the final iteration's
+  verdict, same as a one-shot `/review`. Automatic delta review ACROSS refine iterations
+  is an explicit, unclaimed follow-up (it would need an ops.json persisted per iteration,
+  which the loop does not do today).
 - **Subagent isolation is mandatory** — Cycle A and Cycle B MUST use the Agent tool. Inline
   execution in the same context window causes self-review bias: the model scores its own plan
   90+ and converges after 1 iteration regardless of plan quality. Subagents get clean contexts.

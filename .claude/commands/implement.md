@@ -29,7 +29,21 @@ You MUST load and apply the following skills before proceeding:
 
 Before writing any code, verify ALL of the following:
 
-1. An approved plan exists (review score >= 90 or explicit user override)
+1. An approved plan exists (review score >= 90 or explicit user override). Verify
+   mechanically — run each command as its OWN Bash invocation (the implementer tool grant
+   is a literal prefix match; compound/assignment forms may not match):
+   ```bash
+   python3 .claude/operations/scripts/review-record.py resolve <plan.md>
+   ```
+   ```bash
+   python3 .claude/operations/scripts/review-record.py check <plan.md> <resolved-ops-path>
+   ```
+   Exit 0 → the file matches an APPROVED, >= 90 record; proceed. Exit 2 → DRIFT: ops.json
+   changed after approval; STOP and re-run `/review` (it scores only the delta). Exit 3 →
+   no record; STOP and run `/review` first. Exit 4 → recorded verdict is not APPROVED /
+   below 90; STOP and fix the findings. Exit 1 → the check itself could not run; STOP and
+   report — never treat a non-zero exit as approval, and never re-run `check` in a retry
+   loop hoping for a different result.
 2. ops.json is present at the specified path (step 3's validator proves it is valid —
    you do not need to open it)
 3. **Run the Python validator** (MANDATORY — do not skip):

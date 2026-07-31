@@ -26,6 +26,9 @@ backups/
 .claude-core.lock
 .claude/.managed/
 .claude/hooks/compact-counter.txt
+# Review records: verdict + a full snapshot of each approved ops.json. Local drift-gate
+# state; duplicates large configs, so never shipped.
+.claude/reports/reviews/
 
 # Local, per-developer Claude Code overrides (never shipped)
 .claude/settings.local.json
