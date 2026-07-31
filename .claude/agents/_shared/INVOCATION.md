@@ -50,6 +50,31 @@ engine) → verify ($0.64/sonnet, scores matched ground truth) ≈ $1.86 total o
 
 ---
 
+## Delivery contract: paths, never payloads
+
+Handoffs between agents (and between an agent and the main session) pass **file paths and
+short summaries — never full file bodies.** A subagent response, an Agent-tool result, or a
+Bash `echo`/`tee` that reprints a plan, ops.json, or other artifact's full contents is a
+**contract violation**: that payload gets pinned in context for every subsequent turn,
+which is exactly what caused a measured 80.3M-token session burn (`.claude/plans/
+plan-token-waste-workflow-fixes.md`).
+
+- **Interactive spawns** (Task tool) write their own artifacts with their own Write access
+  and return only the path(s) plus a ≤10-line summary. Never instruct an interactive
+  subagent to "return the complete plan" or "print the full ops.json."
+- **Headless spawns** (`claude -p`) cannot Write into `.claude/**` (see the write-gate note
+  above), so they legitimately deliver via stdout — but the invoking command's wrapper must
+  capture that stdout and redirect it straight to disk (`printf '%s\n' "$out" > "$FILE"`)
+  **without ever teeing or echoing it**. The only stdout that should reach the caller is a
+  short scoreboard: file paths, a validation verdict, an op count, a few summary lines.
+- **Revision/edit requests** operate in place on the existing file (Write/Edit on the same
+  path) — never re-emit the complete artifact from scratch.
+
+This is the rule the `/plan` (Issues 1–2) and `/refine` (Issue 3) fixes both apply; keep any
+new command or agent that moves a plan/ops payload consistent with it.
+
+---
+
 ## IRON RULE: never `--dangerously-skip-permissions`
 
 Spawned agents read repo files and untrusted plan/source text, so they must run **with**

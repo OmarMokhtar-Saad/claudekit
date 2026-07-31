@@ -186,12 +186,15 @@ the searches are independent.)
 
 ### Phase 4: Save Outputs
 
-Save both files to the project:
+**Delivery contract: paths, never payloads** (see `.claude/agents/_shared/INVOCATION.md`).
+Never end a response with "here is the complete plan" or a full ops.json dump when you have
+Write access — that pins the whole payload in the caller's context.
 
+**Interactive spawn (Task tool, default):**
 ```
 1. Save plan.md to: .claude/plans/plan-<descriptive-name>.md
 2. Save ops.json to: .claude/plans/ops-<descriptive-name>.json
-3. Report file locations to the coordinator
+3. Report ONLY: both file paths, validation verdict, op count, and a ≤10-line summary.
 ```
 
 **Headless fallback (verified 2026-07-08):** in headless spawns (`claude -p`), writes into
@@ -199,8 +202,9 @@ Save both files to the project:
 `--allowedTools` grant overrides it, and there is nobody to approve. If your first Write to
 `.claude/plans/` is blocked, do NOT retry or end asking for approval: emit both artifacts in
 your final response instead — the plan document, then the complete ops.json in a fenced
-```json block. The invoking command saves them (tee + extract-json-from-plan.py). Stdout IS
-the delivery contract in headless mode.
+```json block. The invoking command's wrapper script redirects that stdout straight to disk
+(`printf '%s\n' > file`, never teed or echoed back) — stdout IS the delivery contract in
+headless mode, but only the wrapper, not you, decides whether it re-enters context.
 
 ---
 

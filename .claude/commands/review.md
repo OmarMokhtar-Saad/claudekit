@@ -29,9 +29,10 @@ if [ -z "$PLAN_FILE" ]; then
 fi
 
 echo "Reviewing: $PLAN_FILE"
-PLAN_CONTENT=$(cat "$PLAN_FILE")
+OPS_FILE=$(echo "$PLAN_FILE" | sed 's#/plan-#/ops-#; s/\.md$/.json/')
 
-REVIEWER_MSG="Review the following implementation plan and ops.json.
+REVIEWER_MSG="Review the implementation plan at $PLAN_FILE and the ops config at $OPS_FILE.
+Read them yourself with your Read tool — do not expect the contents pasted here.
 
 Before scoring, attempt to REFUTE the plan: verify via Read/Grep that the files, paths, and
 anchors referenced in ops.json actually exist in the repo. A plan claim contradicted by the
@@ -54,10 +55,7 @@ DECISION RULES:
 APPROVED = score >= 90 AND CRITICAL_MAJOR_COUNT == 0
 CONDITIONAL = score 70-89 OR CRITICAL_MAJOR_COUNT > 0
 REVISE = score < 70
-REJECTED = no ops.json, invalid ops.json, destructive ops without rollback
-
-PLAN TO REVIEW:
-$PLAN_CONTENT"
+REJECTED = no ops.json, invalid ops.json, destructive ops without rollback"
 
 review_output=$(echo "$REVIEWER_MSG" | claude -p --agent reviewer --model opus --allowedTools "Read,Grep,Glob")
 EXIT_CODE=$?
