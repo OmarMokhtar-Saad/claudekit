@@ -49,9 +49,9 @@ PRE-FLIGHT CHECKLIST:
   [ ] Check for ops.json at the specified path
   [ ] ops.json is present → proceed to Script Execution Workflow
   [ ] ops.json is MISSING → STOP. Notify user: "No ops.json found. Ask the Planner to generate one before /implement is called."
-  [ ] Verify all target files/directories exist (or will be created)
+  [ ] Target files exist — proven by the validator (GUARDs 6/12), not by Reading them
   [ ] Verify build tools are available
-  [ ] Create backup of files that will be modified
+  [ ] Backups are automatic — the executor backs up every file before touching it
 ```
 
 ---
@@ -73,7 +73,18 @@ python3 .claude/operations/scripts/execute-json-ops.py <path-to-ops.json>
 
 ## Script Execution Workflow
 
-### Step 1: Dry Run
+### Step 1: Validate (MANDATORY)
+```bash
+python3 .claude/operations/scripts/validate-config-json.py <ops.json>
+```
+
+Non-zero exit or FAIL output → STOP. Report the validator's errors and request a corrected
+ops.json from the Planner. The validator proves every `code_edit` anchor exists and is unique
+— GUARDs 10/11, simulated cumulatively across edits and operations — so do NOT re-verify
+anchors by reading target files. (Known asymmetry: a `code_edit` targeting a file created
+earlier in the same ops.json is rejected by GUARD 6; split it into a second ops.json.)
+
+### Step 2: Dry Run
 ```bash
 python3 .claude/operations/scripts/execute-json-ops.py <ops.json> --dry-run
 ```
@@ -84,17 +95,24 @@ Review the dry run output:
 - Verify operation ordering is correct
 - If any issues found → STOP and report to Coordinator
 
-### Step 2: Execute
+### Step 3: Execute
 ```bash
 python3 .claude/operations/scripts/execute-json-ops.py <ops.json>
 ```
 
 Monitor execution output:
 - Watch for any operation failures
-- If an operation fails, the script should rollback
-- Record which operations succeeded and which failed
+- If an operation fails, the script rolls the whole batch back
+- Capture the unified diff and the `RESULT-JSON:` line the engine prints — they are your
+  evidence of what changed; relay them instead of re-reading files. The diff is truncated at
+  50 lines per file; `RESULT-JSON` is the complete per-operation record.
+- The engine emits `RESULT-JSON:` on config load/normalize errors, lock contention, manifest failure, operation
+  failure, crashes (`status: crashed`) and signals (`status: interrupted`). If it is ABSENT the process never
+  reached a reported exit path — killed outright (SIGKILL/OOM), or failed before execution
+  began (e.g. bad CLI arguments). Treat the working tree as UNKNOWN, inspect `backups/`,
+  and report that verbatim; never infer success or failure from anything else.
 
-### Step 3: Verify Build
+### Step 4: Verify Build
 Run the validation commands listed in **plan.md** (the ops.json schema forbids a validation
 section — `additionalProperties: false`; validation commands live in the plan document). If
 plan.md names none, use the project defaults from `.claude/hooks/config.json`:
@@ -119,7 +137,7 @@ Bash only for the ops scripts), do NOT stall asking for approval: report the imp
 as "executed via ops.json — verification pending" and hand off to the Verifier, whose tool
 grant covers build/test/lint. Never fabricate the verification numbers.
 
-### Step 4: Handle Failures
+### Step 5: Handle Failures
 
 If the build/lint/test fails after script execution:
 
@@ -144,9 +162,12 @@ If the build/lint/test fails after script execution:
 ## Safety Rules
 
 ### Before Any Modification
-- ALWAYS read a file before editing it
-- ALWAYS verify the target line/function/pattern exists
-- NEVER overwrite a file without reading it first
+- NEVER read target source files or ops.json into context upfront — pass their paths to
+  the scripts. The validator (GUARDs 10/11) and the executor's apply-time guards prove
+  every anchor exists and is unique before anything is written; re-reading files to
+  check this duplicates the engine at large token cost.
+- Read a target file ONLY to diagnose a failure reported by validate, dry-run, execute,
+  or the build/lint/test step.
 - NEVER delete a file without confirmation from the plan
 
 ### During Implementation
@@ -285,7 +306,9 @@ Recommendation: <suggested fix or re-plan>
 ## Anti-Patterns (NEVER DO THESE)
 
 - NEVER use Edit/Write tools — period. ops.json script is the only permitted execution method.
-- NEVER skip the dry run step
+- NEVER skip the validator or the dry run step
+- NEVER read target files or ops.json upfront to "double-check" anchors — the validator
+  and executor fail closed on missing or ambiguous anchors
 - NEVER implement changes that aren't in the approved plan
 - NEVER skip post-implementation verification
 - NEVER commit code (leave that to GitOps)
