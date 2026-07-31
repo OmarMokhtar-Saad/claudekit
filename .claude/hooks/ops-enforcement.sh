@@ -35,6 +35,14 @@ TARGET_PATH=$(extract_json_field "$TOOL_INPUT" path) || deny \
 ABS_TARGET=$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$TARGET_PATH" 2>/dev/null || echo "$TARGET_PATH")
 ABS_ROOT=$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$ROOT" 2>/dev/null || echo "$ROOT")
 
+# Allow: session scratchpad / OS temp dirs. These live OUTSIDE the project and are
+# never source code — blocking them produced false "CROSS-PROJECT EDIT BLOCKED"
+# denials on the agent's own scratch files (upstreamed from an AppiumLens field fix).
+# Project src/ protection is unaffected.
+case "$ABS_TARGET" in
+    /private/tmp/claude-*|/tmp/claude-*|/private/var/folders/*|/var/folders/*) exit 0 ;;
+esac
+
 # Allow: files inside THIS project's .claude/ directory.
 case "$ABS_TARGET" in "$ABS_ROOT/.claude/"*) exit 0 ;; esac
 
