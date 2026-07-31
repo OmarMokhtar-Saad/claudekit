@@ -34,12 +34,25 @@ Implemented `.claude/plans/plan-remaining-fixes-2026-07-31.md` end to end:
 - **Item 5** — `docs(maintainer)`: 100KB `.ai/AGENTS.md` split into an index + 12 files,
   all <10KB, byte-preserving (reconstruction diff empty); Known-Issues references updated
   repo-wide; suggest-compact proxy decision recorded; 2 new P3 backlog lines.
-- **Item 4 (fleet) — NOT executed, report only:** all 6 fleet projects are at manifest
-  2.1.0 but every one has a dirty git tree (qa-agents 54, qaforge-ai 199, LeanApis 64,
-  ai-agent-system 228, MobileUIAutomator 80, AppiumLens 535 files). Per the plan's §4.2
-  step-2 rule, `ck update` must not run until each project's owner commits/stashes;
-  AppiumLens stays held back regardless (owner decision pending). Rollout commands are in
-  the plan, self-contained.
+- **Item 4 (fleet) — EXECUTED later this session on explicit owner instruction**
+  ("all projects"): all 6 managed projects updated via `ck update` (AppiumLens included —
+  owner lifted the hold) and the kit freshly installed into 11 more git projects
+  (qa-agent-pro, ApiForge, AutomationApp, Eatizaz, SehhatyApp, appium-lens-public, Lean,
+  codemanifest, CodeManifest-1/2/new; `--force` where an old hand-copied `.claude/`
+  existed, backed up first). All 17 validated: `ck doctor --strict` 22/22 each, plus a
+  per-project check that review-record.py, the new review.md/plan.md, and the
+  ops-enforcement scratchpad allowance actually landed. Every project's
+  `settings.local.json` was preserved across update by hand (see kit bug below).
+  AppiumLens' field fix (scratchpad/temp-dir allowance in ops-enforcement.sh) was
+  upstreamed as `354f905` BEFORE overwriting it, then re-synced to the 5 projects updated
+  earlier. Non-projects skipped: AppiumLens_backup, "AutomationApp copy", OpenReport,
+  SehhatyAppAndroidStudio, allure-report, private, test; the accidental
+  "LeanApis ai-agent-system AppiumLens MobileUIAutomator" dir (unquoted-spaces artifact)
+  deleted on owner approval.
+- **Kit bug found during rollout:** `settings.local.json` is manifest-managed, so
+  `ck update` clobbers per-project permission allowlists/MCP config with the kit's copy —
+  contradicts its own ".gitignore: never shipped" framing. Worked around manually; filed
+  in BACKLOG P2.
 
 ## Previous session (same day, earlier)
 

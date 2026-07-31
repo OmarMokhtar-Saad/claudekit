@@ -23,6 +23,7 @@ Priority-ordered. Sources: `review/tasks/` (file-level specs — read them befor
 - [ ] Task 014 supply chain: SHA256SUMS + Sigstore on releases; pin MCP template server versions (drop `npx -y @latest`); default filesystem MCP read-only.
 - [ ] Task 013 OSS health: CODE_OF_CONDUCT, CODEOWNERS, issue labels, demo GIF, MkDocs site.
 - [ ] `ck update` true three-way merge (unchanged→replace, modified→keep+`.new`, removed→prompt).
+- [ ] **`settings.local.json` must not be manifest-managed** — `ck update` overwrites per-project permission allowlists/MCP config with the kit's copy, contradicting its own "local, per-developer, never shipped" framing; the 2026-07-31 fleet rollout had to hand-preserve it in all 17 projects. Fix: exclude from the manifest (or treat as always-keep-local in update).
 - [ ] Hook-enforced autonomous-loop block-list (audit item 19) + sandbox profile presets.
 
 ## P3 — polish & smaller fixes (from AGENTS_KNOWN_ISSUES.md + audit)
