@@ -33,6 +33,9 @@ log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] [format-typecheck] [$1] $2" >> "$LO
         while IFS= read -r filepath; do
             case "$filepath" in
                 *.ts|*.tsx|*.js|*.jsx|*.mts|*.cts|*.mjs)
+                    # A leading-dash path would be parsed as an OPTION by
+                    # biome/prettier/tsc (argument injection) — anchor it.
+                    case "$filepath" in -*) filepath="./$filepath" ;; esac
                     [ -f "$filepath" ] && TS_FILES+=("$filepath") ;;
             esac
         done < <(tail -500 "$EDITED_LOG" 2>/dev/null)
