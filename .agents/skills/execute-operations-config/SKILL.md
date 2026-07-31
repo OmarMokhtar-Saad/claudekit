@@ -21,6 +21,16 @@ automatic rollback on failure.
 
 ---
 
+## Read Policy (token discipline)
+
+Do NOT Read target source files or ops.json into context before running the scripts. The
+validator proves every anchor exists and is unique (simulating edits cumulatively), and the
+executor fails closed — aborting and rolling back — on any anchor drift. After execution the
+engine prints a unified diff and a `RESULT-JSON:` summary line; that output is your evidence.
+Read a target file only to diagnose a reported failure.
+
+---
+
 ## Prerequisites
 
 Before execution, confirm:
@@ -36,6 +46,9 @@ If ANY prerequisite is missing, **STOP** and complete it first.
 ## The Execution Process
 
 ```
+[STEP 0] Validate  -> validate-config-json.py <ops.json>       (MANDATORY; FAIL = STOP)
+    |
+    v
 [STEP 1] Dry run   -> execute-json-ops.py <ops.json> --dry-run
     |
     v
@@ -70,6 +83,13 @@ The engine, not you, applies each operation:
   (manifest compatible with `restore-backup.py`).
 - It applies operations in array order.
 - On ANY failure it **automatically rolls back** the whole batch from the backup.
+
+After a successful run the engine prints a unified diff per edited file (truncated at 50
+lines per file) and a final `RESULT-JSON:` summary line carrying the complete per-operation
+record — quote both in your report as evidence of what changed. `RESULT-JSON:` is emitted on
+config load/normalize errors, lock contention, manifest failure, operation failure, crashes
+and signals; if it is absent the process never reached a reported exit path (killed outright,
+or failed before execution began), so treat the working tree as UNKNOWN and inspect `backups/`.
 
 Do not use Edit/Write to "finish" a partial run. If the run fails, read the engine's output,
 fix the ops.json, and re-run the script from the dry-run step.

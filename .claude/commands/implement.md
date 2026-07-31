@@ -30,7 +30,8 @@ You MUST load and apply the following skills before proceeding:
 Before writing any code, verify ALL of the following:
 
 1. An approved plan exists (review score >= 90 or explicit user override)
-2. ops.json is present, valid, and parseable
+2. ops.json is present at the specified path (step 3's validator proves it is valid —
+   you do not need to open it)
 3. **Run the Python validator** (MANDATORY — do not skip):
    ```bash
    python3 .claude/operations/scripts/validate-config-json.py <path-to-ops.json>
@@ -56,18 +57,22 @@ If you must deviate from the ops.json spec, you need explicit user authorization
 ## Script Execution Workflow
 
 ### Phase 1: Preparation
-- Parse ops.json and validate all operations
-- Create a checklist of all operations with status tracking
-- Set up verification checkpoints
+- Run `validate-config-json.py <ops.json>` and read its verdict. Do NOT parse or read
+  ops.json yourself — pass the path; the validator proves every anchor exists and is
+  unique (GUARDs 10/11, simulated cumulatively) and the executor fails closed on drift.
+- Note the validation commands recorded in plan.md for Phase 3
 
 ### Phase 2: Execution
-For each operation in ops.json order:
-1. Announce: "Executing step N of M: [operation description]"
-2. Execute the operation
-3. Verify the operation succeeded (compile check, lint, basic test)
-4. Mark the operation as complete
-5. If the operation fails, attempt the rollback procedure from the plan
-6. If rollback fails, STOP and report
+The engine applies the whole batch in ONE invocation — there is no per-operation loop to
+drive, and the implementer's tool grant (`Bash(python3 .claude/operations/scripts/*)`)
+cannot run per-operation build/lint checks anyway.
+
+1. Dry run: `execute-json-ops.py <ops.json> --dry-run` — abort on any failure
+2. Execute: `execute-json-ops.py <ops.json>`
+3. The engine backs up every target first and rolls the ENTIRE batch back on any
+   failure. Never hand-patch a partial run.
+4. Capture the unified diff and the final `RESULT-JSON:` line as your evidence of what
+   changed, and relay them — do not re-read the target files to find out.
 
 ### Phase 3: Verification
 - Run all verification steps defined in the plan
@@ -99,8 +104,9 @@ For each operation in ops.json order:
 ## Error Handling
 
 - On operation failure: retry ONCE with a materially different approach within the ops.json
-  scope (a verbatim retry reproduces the same failure); if the retry fails, attempt the
-  specific rollback for that step and STOP with the pasted error output
+  scope (a verbatim retry reproduces the same failure); if the retry fails, STOP with the
+  pasted error output — the engine has already rolled the ENTIRE batch back, so there is no
+  per-step rollback to run and no partial state to hand-patch
 - On rollback failure: STOP immediately, report state, suggest manual intervention
 - On test failure: report which tests failed and why, suggest `/debug` for investigation
 - On build failure: report the error, check if a previous step caused it

@@ -101,9 +101,11 @@ VALIDATION: WARN
 ```
 
 Common warnings:
-- Search string matches multiple times (for non-replace_all)
-- Target file has been modified since plan creation
+- Target file has been modified since plan creation (re-anchor before executing)
 - Large file modification (>100 lines changed)
+
+Note: an anchor matching multiple times is NOT a warning — GUARD 11 is a hard FAIL, and it
+is evaluated cumulatively (against the content as it will exist when that edit is applied).
 
 ### FAIL
 
