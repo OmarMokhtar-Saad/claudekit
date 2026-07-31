@@ -13,6 +13,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Queued ops configs are now validated against HEAD by the test suite.**
+  `test_queued_ops_configs_validate_against_head` runs `validate-config-json.py` over
+  every non-archived `.claude/plans/*.json`; a config whose anchors no longer match the
+  tree fails the suite instead of failing (or mis-applying) at execution time. Spent or
+  stale configs move to the new `.claude/plans/archive/` (see its README). Found live:
+  the archived `ops-review-approval-binding.json` was never executed, its anchors target
+  the pre-fix `review.md`, and its replacement text would have reintroduced the
+  `PLAN TO REVIEW: $PLAN_CONTENT` payload leak — it must be regenerated under the
+  path-not-payload contract before being pursued.
 - **Zero-LLM-cost regression test for the delivery-transport contract**
   (`tests/test_delivery_contract_smoke.py`). Extracts `/plan`'s actual scripted-path
   bash block and runs it against a stub `claude` binary that emits a ~40KB fake
