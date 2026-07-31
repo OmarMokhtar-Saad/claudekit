@@ -196,7 +196,8 @@ def cmd_doctor(args):
         # Operations scripts
         scripts_dir = claude_dir / "operations" / "scripts"
         for script in ["validate-config-json.py", "execute-json-ops.py",
-                       "extract-json-from-plan.py", "restore-backup.py", "shared.py"]:
+                       "extract-json-from-plan.py", "restore-backup.py", "shared.py",
+                       "review-record.py"]:
             check(f"Script: {script}",
                   (scripts_dir / script).exists(),
                   f"Missing {scripts_dir / script}")

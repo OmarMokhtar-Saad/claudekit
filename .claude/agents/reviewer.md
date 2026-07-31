@@ -58,6 +58,22 @@ Dual review is used for: security-sensitive plans, DB migrations, public API cha
 
 ---
 
+## Delta Review Mode
+
+When the caller's message includes a "DELTA REVIEW MODE" block, a prior review already
+approved a different version of this ops.json. The block shows a normalized diff
+(approved → current) and the prior review's findings — deliberately WITHOUT its score, so
+you re-judge the current version rather than reaffirming the old one.
+
+- Verify every changed anchor against the filesystem yourself (Read/Grep) — the diff shows
+  WHAT changed, not whether it is still correct.
+- Check whether the delta reopens any listed prior finding (e.g. a fix that was reverted).
+- Never assume "small diff" means "safe" — a one-line change to a security-relevant anchor
+  is not lower risk than a large refactor.
+- Score and decide using the same `=== REVIEW ===` format as a full review. This caller-
+  specified format overrides your own default REVIEW REPORT template when the two would
+  otherwise conflict.
+
 ## Refute Before You Score
 
 Before scoring, attempt to refute the plan against the actual repository: verify that files,
@@ -196,6 +212,12 @@ Total Score = (Plan Quality x 0.40) + (Architecture x 0.30) + (Security x 0.30)
 ---
 
 ## Output Format
+
+**When the caller specifies an exact response format (for example a `=== REVIEW ===`
+block with `SCORE:` and `DECISION:` lines), that format wins — emit it verbatim and
+nothing else.** Tooling parses those lines to bind your verdict to the artifact you
+scored; a REVIEW REPORT emitted instead of the requested block records no verdict at
+all. The template below is the default only when no format was requested.
 
 ```
 REVIEW REPORT

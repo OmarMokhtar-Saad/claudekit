@@ -32,6 +32,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   both iterations write the same fixed `PLAN_FILE`/`OPS_FILE` in place with only
   scoreboard-sized stdout. Pins the transport behavior mechanically so a future
   change can't silently reintroduce either leak.
+- **Review verdicts are now bound to the artifact they approved.** `/review` recorded
+  nothing beyond stdout, so an approved ops.json could be edited post-approval with no way
+  for `/implement` to detect it — this happened for real during this session (see
+  `plan-review-approval-binding.md`). `review-record.py` hashes ops.json at review time,
+  gates `/implement` on a matching APPROVED/`>=90` record, and offers delta review (diff +
+  prior findings, score withheld) for small post-approval edits so re-approval doesn't cost
+  a full review every time.
 
 ### Fixed
 - **`/refine`'s headless iteration-1 planner message was self-contradictory.** It told
