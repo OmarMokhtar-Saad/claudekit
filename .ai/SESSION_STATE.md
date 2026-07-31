@@ -2,32 +2,43 @@
 
 > Update this file at the end of every significant AI working session. It is the resume point.
 
-**Last updated:** 2026-07-08 · **By:** Claude (Fable 5) — fleet audit + legacy-install lifecycle session
+**Last updated:** 2026-07-31 · **By:** Claude (Sonnet 5) — token-waste workflow fixes session
 
 ## Current project state
 
-- v2.1.0 complete on `main`; **523 tests passing**; all local gates green (pytest/ruff/mypy/gen-docs/bash -n; shellcheck not installed locally).
+- v2.1.0 complete on `main`; **593 tests passing**; all local gates green (pytest/ruff/mypy/gen-docs/gen-registry; shellcheck not installed locally, unchanged pre-existing gap).
 - Release to PyPI **pending user decision** (tag push triggers release.yml / Trusted Publishing).
-- The 2026-07-05 audit (`review/`) is the work queue: tasks 001–006+011 done; 007–010, 012–014 open.
-- **Uncommitted work on `main` from two sessions** (this one + /adapt + .ai/ docs) — needs conventional commits; see CHANGELOG_AI.md 2026-07-08 entries for the split.
+- The 2026-07-05 audit (`review/`) is the work queue: tasks 001–006+009+011 done; 007, 008, 010, 012–014 open.
+- 6 commits landed on `main` this session, **not pushed** (see below).
 
 ## Recent changes (this session)
 
-- Frontier-behavior corpus upgrade (plan: `.claude/plans/plan-fable-behavior-corpus.md`):
-  ~35 edits across _shared docs/agents/commands/skills encoding parallel batching,
-  refutation-before-claim, evidence integrity, persistence; fixed 8 contradictions incl.
-  broken `@agents/` refs in 8 commands; planner→opus, verifier→sonnet; 24 anchor tests
-  (suite now 547). Registry↔agent-file drift surfaced as follow-up (blocks task 009).
-
-- Legacy-install lifecycle (plan: `.claude/plans/plan-legacy-install-lifecycle.md`): `ck diff`
-  source-fallback + three-way classification + custom listing; `ck update` on pre-manifest
-  installs; install.sh custom-asset preservation. +7 behavioral tests; docs/cli.md; CHANGELOG.
-- Fleet resync: qaforge-ai, LeanApis, ai-agent-system, MobileUIAutomator, qa-agents updated to
-  v2.1.0 manifest-tracked and diff-clean (this killed live `--dangerously-skip-permissions`
-  usage in 3 projects). AppiumLens intentionally left (selective sync pending owner decision).
-- Fleet audit findings recorded in CHANGELOG_AI.md: nothing upstreamable (all round-trips of
-  kit templates); per-template keep/delete verdicts feed task 008.
-- Earlier same day: `/adapt` command + `project-adaptation` skill; `.ai/` operating system; root CLAUDE.md.
+- Token-waste workflow fixes (plan: `.claude/plans/plan-token-waste-workflow-fixes.md`,
+  origin: transcript analysis of a 2026-07-30/31 session that burned 80.3M billed context
+  tokens over 381 API calls). New governing contract: subagent handoffs pass file paths,
+  never file bodies. Implemented phases 5, 1+2, 3, 4 (phase 6 turned out already shipped,
+  see below) — 6 commits, `51db588`..`3546f1e`:
+  - `/plan`, `/refine`, `/review` no longer leak full plan/ops.json payloads into the main
+    session context via `tee`, re-typed Writes, non-persisting shell variables, or `cat`'d
+    heredoc interpolation — the exact leaks that produced the 80.3M-token burn.
+  - `suggest-compact.sh` was a complete no-op (registered on PreToolUse, whose stdout the
+    model never sees, plus doubly backgrounded) — fixed to PostToolUse, foreground, cadence
+    40 calls.
+  - The path-not-payload rule is now written into `INVOCATION.md`/`HANDOFF_PROTOCOL.md`/
+    `planner.md` so future commands/agents don't regress it.
+  - Found and fixed a real pre-existing bug along the way: `/review`'s ops-file lookup only
+    checked one of this repo's two valid naming conventions (`*.ops.json` vs `ops-*.json`).
+  - Added `tests/test_delivery_contract_smoke.py`: a permanent, zero-LLM-cost regression
+    test that runs `/plan`'s actual scripted bash block (and an assembled `/refine`
+    2-iteration run) against a stub `claude` binary emitting a ~40KB fake payload, proving
+    it lands on disk/validates but never reaches stdout.
+  - **Phase 6 (task 009 lazy skill loading) required no work** — verified already fully
+    shipped in `fe7396e` (2026-07-08), three weeks before this plan's Phase 6 was drafted.
+    `TestContextBudget`'s three gates all still pass. Corrected the plan doc rather than
+    re-doing already-done work.
+- A background agent spawned earlier in this session for phases 1–3 hit the account's
+  session usage limit mid-run and had to be resumed manually from its partial/uncommitted
+  state — worth knowing if you see an orphaned background-agent task in this session's history.
 
 ## Important files for orientation
 
@@ -38,8 +49,10 @@
 1. **User-gated:** tag `v2.1.0`, publish to PyPI, announce. Recipe: [PLAYBOOK.md](PLAYBOOK.md) §Release.
 2. Task 008 — corpus consolidation (merge candidates listed in [BACKLOG.md](BACKLOG.md); get owner sign-off first).
 3. Task 010 — eval framework (`evals/` fixtures + `ck eval`).
-4. Task 009 — context-budget reduction (hook dispatcher consolidation, ≤2 mandatory skills/agent).
-5. Tasks 012/013/014 — behavioral tests, OSS health files, supply-chain signing.
+4. Tasks 012/013/014 — behavioral tests, OSS health files, supply-chain signing.
+5. Task 009 follow-ups (recorded as out-of-scope in `plan-context-budget-lazy-skills.md`,
+   the core work is DONE): splitting large SKILL.md bodies into core + references/,
+   `usedBy` field semantics cleanup, command-file mandatory-skill trimming.
 
 ## Blocked / waiting
 
@@ -56,10 +69,8 @@
 - ~~`<example>`-blocks-inside-YAML-frontmatter~~ **FIXED 2026-07-08**: all 28 agents
   rewritten to description block scalars; structural regression test in
   tests/test_behavior_spec.py::TestAgentRegistration.
-- Registry reconciliation → skills-registry.json `agentMapping`/`usedBy` disagrees with the
-  agent .md "Mandatory Skill Loading" lists (implementer 5 vs 15, coordinator 12 vs 16,
-  `usedBy:["all"]` honored nowhere). Pick one source of truth (suggest: agent files, registry
-  generated) + drift gate. Blocks honest context-budget math for task 009.
+- ~~Registry reconciliation~~ **RESOLVED 2026-07-08 by task 009 (`fe7396e`)**: agent .md
+  files are now the single source of truth; `scripts/gen-registry.py --check` gates drift.
 
 ## Known risks
 
