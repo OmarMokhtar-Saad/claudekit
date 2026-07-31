@@ -92,8 +92,12 @@ def sha256_of(path: Path) -> str:
 
 
 def record_paths(slug: str):
+    # Record filenames are derived, not user paths: collapse anything outside
+    # [A-Za-z0-9._-] and strip leading dots so a hostile plan filename (e.g.
+    # "plan-...md" -> slug "..") cannot produce dot-files or reserved names.
+    safe = re.sub(r"[^A-Za-z0-9._-]", "_", slug).lstrip(".") or "_"
     d = _records_dir()
-    return d / f"{slug}.json", d / f"{slug}.ops.json"
+    return d / f"{safe}.json", d / f"{safe}.ops.json"
 
 
 def parse_verdict(text: str):
@@ -142,12 +146,15 @@ def _records_dir() -> Path:
 
 
 def _safe_write(path: Path, text: str) -> bool:
-    """Refuse to write through a symlink anywhere on the path — the leaf file,
-    or the reports/reviews directory itself (both are arbitrary-write primitives
-    if a symlink is planted there)."""
-    if path.parent.is_symlink() or path.is_symlink():
-        print(f"Error: refusing to write through symlink: {path}", file=sys.stderr)
-        return False
+    """Refuse to write through a symlink anywhere on the records path — the leaf
+    file, the reviews/ dir, reports/, or .claude/ itself. Checking only the leaf
+    and its parent leaves an arbitrary-write primitive one level up: a symlink
+    planted at .claude/reports would be followed by mkdir -p and the write would
+    land outside the repo."""
+    for p in (path, path.parent, path.parent.parent, path.parent.parent.parent):
+        if p.is_symlink():
+            print(f"Error: refusing to write through symlink: {p}", file=sys.stderr)
+            return False
     path.write_text(text, encoding="utf-8")
     return True
 
