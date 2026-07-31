@@ -4,6 +4,7 @@
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import sys
 from importlib import metadata
@@ -140,6 +141,13 @@ def cmd_doctor(args):
         check(f"Bash available: {bash_ver[:60]}", True)
     except FileNotFoundError:
         check("Bash available", False, "Bash 4.0+ required")
+
+    # Shell-lint tooling (used by the repo's own DoD gate, not installed by default)
+    shellcheck_path = shutil.which("shellcheck")
+    check("shellcheck available", True if shellcheck_path else "warn",
+          "not on PATH — install with `brew install shellcheck` (macOS) or "
+          "`apt-get install shellcheck` (Linux) to run the shell-lint DoD gate "
+          "locally; CI runs it regardless")
 
     # Git
     try:
