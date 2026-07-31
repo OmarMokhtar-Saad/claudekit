@@ -26,6 +26,7 @@ import re
 import shutil
 import stat
 import subprocess
+import sys
 
 REPO_ROOT = os.path.join(os.path.dirname(__file__), "..")
 SCRIPTS_DIR = os.path.join(REPO_ROOT, ".claude", "operations", "scripts")
@@ -257,3 +258,30 @@ def test_refine_scripted_messages_are_not_self_contradictory():
         # Every scripted-mode message must tell the planner its stdout IS the
         # payload (it has no Write access headless), not merely a report of one.
         assert "wrapper" in lowered and ("saves" in lowered or "captures" in lowered), msg
+
+
+def test_queued_ops_configs_validate_against_head():
+    """Every queued (non-archived) ops config in .claude/plans/ must validate against
+    the current tree. A stale config -- authored against files that have since changed --
+    fails at execution time at best, or silently re-applies superseded text at worst
+    (found live 2026-07-31: an archived config's replacement text would have reintroduced
+    the `PLAN TO REVIEW: $PLAN_CONTENT` payload leak). Spent or stale configs belong in
+    .claude/plans/archive/ (see its README), which this test deliberately skips."""
+    plans_dir = os.path.join(REPO_ROOT, ".claude", "plans")
+    queued = sorted(
+        f for f in os.listdir(plans_dir)
+        if f.endswith(".json") and os.path.isfile(os.path.join(plans_dir, f))
+    )
+    failures = []
+    for name in queued:
+        result = subprocess.run(
+            [sys.executable, os.path.join(SCRIPTS_DIR, "validate-config-json.py"),
+             os.path.join(plans_dir, name)],
+            capture_output=True, text=True, cwd=REPO_ROOT,
+        )
+        if result.returncode != 0:
+            failures.append(f"{name}: {result.stdout.strip().splitlines()[-1] if result.stdout.strip() else result.stderr.strip()}")
+    assert not failures, (
+        "queued ops config(s) no longer validate against HEAD -- regenerate via /plan "
+        "or move to .claude/plans/archive/ with a README entry:\n" + "\n".join(failures)
+    )
