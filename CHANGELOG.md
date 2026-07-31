@@ -13,6 +13,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **`suggest-compact.sh` context-budget nudge was a complete no-op.** It was registered
+  as `PreToolUse` (whose stdout is never shown to the model) and additionally ran its
+  tip from a backgrounded subshell with a trailing `&` on the settings entry too, so the
+  "run /compact" tip was double-detached from stdout regardless of hook event. Moved to
+  `PostToolUse` (matcher `Edit|Write|Bash`, no trailing `&`), counter/tip logic now runs
+  in the foreground (still <100ms, file-touch only), and the nudge cadence tightened from
+  every 50 tool calls to every 40 with a stronger message. Still `exit 0` always
+  (non-blocking).
 - **`command-guard.sh` was fail-open by default.** The default `standard` profile
   only *warned* about a validator-flagged Bash command; nothing was actually
   denied unless a project opted into `strict`. `standard` now blocks a flagged
