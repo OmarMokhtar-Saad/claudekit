@@ -192,14 +192,67 @@ that is why the wrapper script itself, not the model, moves the bytes to `$PLAN_
 
 #### Cycle B: Reviewer
 
-**Interactive:** spawn a FRESH `subagent_type: "reviewer"` (opus) via the Task tool. Pass
-ONLY the file paths — no loop state, no prior review history:
+**Iteration 1 — full review.** Spawn a FRESH `subagent_type: "reviewer"` (opus) via the
+Task tool. Pass ONLY the file paths — no loop state, no prior review history:
 
 "Review the implementation plan at `<PLAN_FILE>` and the ops config at `<OPS_FILE>`. Read
 them yourself. Respond in EXACTLY this format: [format block below]."
 
+Immediately after parsing iteration 1's verdict, RECORD it so later iterations can delta:
+```bash
+python3 .claude/operations/scripts/review-record.py write "$PLAN_FILE" "$OPS_FILE" --from-review <saved-output-file>
+```
+
+**Iterations 2+ — DELTA review (this is the token fix; a full re-review of a large plan
+costs ~100k tokens per round and is how refine loops historically burned 500k+).** Before
+spawning the reviewer, get the diff since the recorded verdict:
+```bash
+python3 .claude/operations/scripts/review-record.py diff "$PLAN_FILE" "$OPS_FILE"
+```
+- Output is a real diff → spawn the reviewer (sonnet is sufficient for a delta; escalate
+  to opus only for security-sensitive deltas) with: the two file PATHS, the diff, the
+  prior findings the diff is meant to address, and the delta-scope rules below.
+- Output says `# FULL REVIEW REQUIRED` (sweeping rewrite) → full review as iteration 1,
+  then re-record.
+- After each iteration's verdict parses, re-record it (`write --from-review`) so the next
+  iteration diffs against the latest scored version, not iteration 1's.
+
+**Delta-scope rules — put these in the reviewer message verbatim; they are what makes the
+loop converge instead of oscillating on a moving target:**
+```
+You are re-reviewing a REVISION. Score ONLY: (a) whether each prior finding is fixed,
+(b) whether the changes shown in the diff are correct, (c) whether the diff introduces
+new problems. A defect in code or plan sections the diff did NOT touch and no prior
+review flagged is NOT a blocker: report it under FOLLOW_UPS (not ISSUES), do not count
+it in CRITICAL_MAJOR_COUNT, and do not lower the score for it — it predates this plan
+and gets its own backlog entry. Pre-existing repo bugs the plan merely fails to fix are
+FOLLOW_UPS unless the plan's changes actively make them worse.
+```
+
+**Stop rule:** if two consecutive iterations score below threshold with DISJOINT finding
+sets (nothing repeated), the loop is not converging — STOP, present both verdicts and the
+open findings to the user, and let them decide (accept with follow-ups filed, or redirect).
+Do not spend further iterations discovering fresh scope.
+
 **Scripted (same script):**
 ```bash
+# Iterations 2+: delta-review against the last recorded verdict instead of a full re-read.
+DELTA_BLOCK=""
+if [ "$iteration" -gt 1 ]; then
+  DIFF_OUT=$(python3 .claude/operations/scripts/review-record.py diff "$PLAN_FILE" "$OPS_FILE" 2>/dev/null)
+  case "$DIFF_OUT" in
+    ""|"(no changes since approval)"*|"# FULL REVIEW REQUIRED"*) : ;;  # full review runs
+    *) DELTA_BLOCK="
+
+DELTA REVIEW — score ONLY: prior findings fixed?, diff correct?, diff introduces new
+problems? A defect in sections the diff did not touch and no prior review flagged goes
+under FOLLOW_UPS (not ISSUES), does not count in CRITICAL_MAJOR_COUNT, and does not
+lower the score — it predates this revision.
+
+$DIFF_OUT" ;;
+  esac
+fi
+
 REVIEWER_MSG="Review the implementation plan at $PLAN_FILE and the ops config at $OPS_FILE.
 Read them yourself with your Read tool — do not expect the contents pasted here.
 
@@ -220,10 +273,13 @@ DECISION RULES:
 APPROVED = score >= 90 AND CRITICAL_MAJOR_COUNT == 0
 CONDITIONAL = score 70-89 OR CRITICAL_MAJOR_COUNT > 0
 REVISE = score < 70
-REJECTED = no ops.json, invalid ops.json, destructive ops without rollback"
+REJECTED = no ops.json, invalid ops.json, destructive ops without rollback$DELTA_BLOCK"
 
-review_output=$(echo "$REVIEWER_MSG" | claude -p --agent reviewer --model opus --allowedTools "Read,Grep,Glob")
+REVIEW_MODEL=$([ -n "$DELTA_BLOCK" ] && echo sonnet || echo opus)
+review_output=$(echo "$REVIEWER_MSG" | claude -p --agent reviewer --model "$REVIEW_MODEL" --allowedTools "Read,Grep,Glob")
 echo "$review_output"
+# Record/refresh the verdict so the NEXT iteration diffs against this scored version.
+printf '%s' "$review_output" | python3 .claude/operations/scripts/review-record.py write "$PLAN_FILE" "$OPS_FILE" --from-review - || true
 ```
 
 `review_output` is the scoreboard block itself — small by design (a dozen lines), so
@@ -374,12 +430,15 @@ Suggested actions:
 
 ## Notes
 
-- **Verdict recording binds to the FINAL iteration only** — there is nothing on disk for
-  `review-record.py` to bind to during iterations 1..N; once Step 3 writes plan.md and
-  ops.json, run `review-record.py resolve` then `write` once against the final iteration's
-  verdict, same as a one-shot `/review`. Automatic delta review ACROSS refine iterations
-  is an explicit, unclaimed follow-up (it would need an ops.json persisted per iteration,
-  which the loop does not do today).
+- **Verdicts are recorded EVERY iteration, and iterations 2+ review the DELTA** — after
+  each Cycle B verdict parses, `review-record.py write --from-review` binds it to the
+  on-disk ops.json; the next iteration passes the reviewer only the diff since that
+  verdict plus the prior findings (full re-review only when the diff tool demands it).
+  Fresh-context anti-anchoring is preserved — each reviewer spawn still starts clean; it
+  receives the diff and prior findings as INPUT, never conversation history. This is the
+  fix for refine loops burning ~100k tokens per iteration on full re-reads, compounded by
+  moving-target scoring (each fresh reviewer discovering new pre-existing scope — now
+  routed to FOLLOW_UPS instead of the score).
 - **Subagent isolation is mandatory** — Cycle A and Cycle B MUST use the Agent tool. Inline
   execution in the same context window causes self-review bias: the model scores its own plan
   90+ and converges after 1 iteration regardless of plan quality. Subagents get clean contexts.

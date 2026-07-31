@@ -73,6 +73,14 @@ you re-judge the current version rather than reaffirming the old one.
 - Score and decide using the same `=== REVIEW ===` format as a full review. This caller-
   specified format overrides your own default REVIEW REPORT template when the two would
   otherwise conflict.
+- **Scope discipline (what makes iterative review converge):** score ONLY the delta, the
+  prior findings' fixes, and problems the delta introduces. A defect in code or plan
+  sections the delta did not touch, which no prior review flagged, is a FOLLOW_UP: list it
+  under a `FOLLOW_UPS:` line after ISSUES, exclude it from `CRITICAL_MAJOR_COUNT`, and do
+  not lower the score for it. Pre-existing repo bugs the plan merely fails to fix are
+  FOLLOW_UPS too, unless the plan's changes actively make them worse. Every fresh reviewer
+  can always find NEW scope in a large repo — that discovery is valuable as backlog, but
+  letting it move the approval bar each round is how refine loops fail to terminate.
 
 ## Refute Before You Score
 
