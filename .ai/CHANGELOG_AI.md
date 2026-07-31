@@ -2,6 +2,37 @@
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
 
+## 2026-07-31 — Claude (Sonnet 5) — Token-waste workflow fixes
+
+- Origin: transcript analysis of a 2026-07-30/31 session that burned 80.3M billed context
+  tokens over 381 API calls, root-caused to full plan/ops.json payloads leaking into the
+  main session context via `tee`, re-typed Writes, non-persisting shell variables, and
+  `cat`'d heredoc interpolation. Plan: `.claude/plans/plan-token-waste-workflow-fixes.md`.
+  New governing contract: subagent handoffs pass file paths, never file bodies.
+- 6 commits (`51db588`..`3546f1e`): `suggest-compact.sh` fixed (was a no-op — PreToolUse
+  stdout is never shown to the model, plus doubly backgrounded; now PostToolUse,
+  foreground, cadence 40); `/plan` scripted+interactive paths stop leaking; `/refine`
+  restructured around fixed `PLAN_FILE`/`OPS_FILE` paths instead of a shell variable that
+  doesn't persist across Bash calls; the path-not-payload rule codified into
+  `INVOCATION.md`/`HANDOFF_PROTOCOL.md`/`planner.md`; `/review` audited and found to have
+  the identical leak (`cat`'d the whole plan into a prompt) — fixed, then a follow-up
+  commit corrected an over-narrow ops-file-naming assumption in that fix (this repo
+  intentionally supports both `*.ops.json` and `ops-*.json`, per `.ai/FAQ.md`).
+- Added `tests/test_delivery_contract_smoke.py`: zero-LLM-cost regression test running
+  `/plan`'s actual scripted bash block (extracted from the command file, not hand-copied)
+  and an assembled `/refine` 2-iteration run against a stub `claude` binary emitting a
+  ~40KB fake payload — asserts it lands on disk/validates but never reaches stdout. Chosen
+  over a live opus smoke-test run because the property under test (does the transport leak
+  bytes) is model-independent, and a background agent earlier in this same session had
+  already hit the account's usage limit mid-run.
+- Plan's Phase 6 (task 009 lazy skill loading) turned out to require zero work: verified
+  already fully shipped in `fe7396e` (2026-07-08), three weeks before this plan's Phase 6
+  was drafted (`TestContextBudget`'s three gates still pass). Corrected the plan doc
+  instead of re-implementing already-shipped work.
+- Suite: 593 (was 591 pre-session; +2 from the new smoke test). All local DoD gates green
+  except shellcheck (still not installed locally — pre-existing, unrelated to this session).
+- Follow-up not done this session: pushing these 6 commits (user-gated, not requested).
+
 ## 2026-07-08 — Claude (Fable 5) — E2E validation + gap fixes + eval framework (010)
 
 - Ran the full pipeline headless on a fixture (plan→review→implement→verify): works,
