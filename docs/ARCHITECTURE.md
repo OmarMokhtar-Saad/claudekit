@@ -369,7 +369,13 @@ The validator (`validate-config-json.py`) enforces:
 
 The executor (`execute-json-ops.py`) guarantees:
 
-- **Pre-execution backup**: Every target file copied to `backups/{plan}-{timestamp}/`
+- **Pre-execution backup**: Every target file copied to `backups/{plan}-{timestamp}/`,
+  first-write-wins per run so a second operation on the same file cannot overwrite the
+  pristine copy that rollback depends on
+- **Fail-closed anchor matching**: An edit whose `find` pattern is missing or ambiguous in
+  the current (already-mutated) content aborts before any write, and the batch rolls back
+- **Run evidence**: A unified diff per edited file plus a machine-readable `RESULT-JSON:`
+  summary line on config load/normalize error, lock contention, manifest failure, operation failure, crash, and signal
 - **Manifest tracking**: `manifest.json` records original paths, checksums, and timestamps
 - **Atomic writes**: Operations use temp file + rename to prevent partial writes
 - **Execution lock**: Prevents concurrent execution of operations
@@ -656,7 +662,7 @@ operations/{task-name}/
        v
   [score >= 90?]
        |
-  YES: Implementer reads    ops.json + plan.md
+  YES: Implementer reads    plan.md (ops.json is passed by path to the engine)
        Implementer writes   implementation.md (or issues.md)
        |
        v
