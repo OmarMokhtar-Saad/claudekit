@@ -29,7 +29,16 @@ if [ -z "$PLAN_FILE" ]; then
 fi
 
 echo "Reviewing: $PLAN_FILE"
-OPS_FILE=$(echo "$PLAN_FILE" | sed 's#/plan-#/ops-#; s/\.md$/.json/')
+# Both ops-file naming forms are valid in this repo (historic split-brain fix, see
+# .ai/FAQ.md) -- a plan can be paired with either <slug>.ops.json or ops-<slug>.json.
+OPS_FILE="${PLAN_FILE%.md}.ops.json"
+if [ ! -f "$OPS_FILE" ]; then
+  OPS_FILE=$(echo "$PLAN_FILE" | sed 's#/plan-#/ops-#; s/\.md$/.json/')
+fi
+if [ ! -f "$OPS_FILE" ]; then
+  echo "ERROR: no ops config found for $PLAN_FILE (looked for \${PLAN_FILE%.md}.ops.json and ops-*.json)."
+  exit 1
+fi
 
 REVIEWER_MSG="Review the implementation plan at $PLAN_FILE and the ops config at $OPS_FILE.
 Read them yourself with your Read tool — do not expect the contents pasted here.
