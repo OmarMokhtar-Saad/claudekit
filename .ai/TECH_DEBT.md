@@ -4,7 +4,7 @@ Live register — remove entries when paid. Severity: H/M/L. Historical context:
 
 | # | Debt | Sev | Where | Notes / exit |
 |---|------|-----|-------|--------------|
-| 1 | Legacy ops.json schema in shared template | **H** | `.claude/agents/_shared/WORKFLOW_FILE_TEMPLATES.md` | Contradicts planner's modern schema; validator rejects its output. Fix = reference `generate-operations-config`. (AGENTS.md #9) |
+| 1 | Legacy ops.json schema in shared template | **H** | `.claude/agents/_shared/WORKFLOW_FILE_TEMPLATES.md` | Contradicts planner's modern schema; validator rejects its output. Fix = reference `generate-operations-config`. (AGENTS_KNOWN_ISSUES.md #9) |
 | 2 | Prompt-corpus duplication (4 layers: command↔agent↔skill↔registry) | H | corpus-wide | ~60–80K tokens/pipeline waste; exit = tasks 008+009. |
 | 3 | Near-duplicate assets | H | agents (10 merge candidates), skills (5 pairs/trios), `templates/skills/` (14 dupes, 2 diverged) | Exit = task 008 with migration table. |
 | 4 | Gates are prompt-enforced only | H | reviewer/verifier prompts | 90/80 thresholds have no mechanical enforcement or calibration. Exit = task 010. |
@@ -19,10 +19,10 @@ Live register — remove entries when paid. Severity: H/M/L. Historical context:
 | 13 | Release pipeline never exercised | M | release.yml | Risk retires on first successful tag publish. |
 | 14 | i18n READMEs drift silently | L | `i18n/` | No CI check that translations track README; decide policy. |
 | 15 | `gitOps.md` camelCase filename | L | `.claude/agents/` | Standardize during 008 (breaking rename). |
-| 16 | refactor-cleaner self-commits | L | `refactor-cleaner.md` | Violates only-GitOps-commits rule (AGENTS.md #13). |
+| 16 | refactor-cleaner self-commits | L | `refactor-cleaner.md` | Violates only-GitOps-commits rule (AGENTS_KNOWN_ISSUES.md #13). |
 | 17 | docs/AGENTS.md depth gap (13 deep / 15 shallow) | L | docs/ | Generate specialist sections from frontmatter. |
 | 18 | No example CONSTITUTION.md in examples/ | L | examples/ | Guide + template exist; add filled examples. |
 | 19 | Local artifacts in tree (.coverage, cache dirs, hook logs) | L | repo root, .claude/hooks/ | Verify .gitignore coverage; never commit logs (historic leak). |
-| 20 | model-tension: Haiku verifier / Sonnet merge-verdict reviewers | L | frontmatter vs model-router rules | Decide and align (AGENTS.md #15). |
+| 20 | model-tension: Haiku verifier / Sonnet merge-verdict reviewers | L | frontmatter vs model-router rules | Decide and align (AGENTS_KNOWN_ISSUES.md #15). |
 
 **Adding debt:** every consciously-deferred fix gets a row here with an exit condition — that's the price of deferring.

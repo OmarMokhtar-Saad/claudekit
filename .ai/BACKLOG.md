@@ -1,6 +1,6 @@
 # Backlog
 
-Priority-ordered. Sources: `review/tasks/` (file-level specs — read them before starting), `review/FINAL-REPORT.md` §3 (top-100 list), AGENTS.md Known Issues. Status date: 2026-07-08.
+Priority-ordered. Sources: `review/tasks/` (file-level specs — read them before starting), `review/FINAL-REPORT.md` §3 (top-100 list), AGENTS_KNOWN_ISSUES.md. Status date: 2026-07-08.
 
 ## P0 — blocked on owner
 
@@ -10,7 +10,7 @@ Priority-ordered. Sources: `review/tasks/` (file-level specs — read them befor
 
 ## P1 — high value, unblocked
 
-- [ ] **Fix `_shared/WORKFLOW_FILE_TEMPLATES.md` legacy ops schema** (AGENTS.md issue #9) — actively harmful: agents following it produce validator-rejected configs. Small, surgical.
+- [ ] **Fix `_shared/WORKFLOW_FILE_TEMPLATES.md` legacy ops schema** (AGENTS_KNOWN_ISSUES.md issue #9) — actively harmful: agents following it produce validator-rejected configs. Small, surgical.
 - [ ] Fix QUICK_START table drift vs frontmatter (issue #6) and the phantom `opensource-forker` references (#8).
 - [ ] Task 008 prep (no deletions yet): draft the migration table for owner review.
 - [ ] Task 010 eval framework skeleton: `evals/` + one fixture repo + golden ops.json for planner + `ck eval` stub.
@@ -25,8 +25,10 @@ Priority-ordered. Sources: `review/tasks/` (file-level specs — read them befor
 - [ ] `ck update` true three-way merge (unchanged→replace, modified→keep+`.new`, removed→prompt).
 - [ ] Hook-enforced autonomous-loop block-list (audit item 19) + sandbox profile presets.
 
-## P3 — polish & smaller fixes (from AGENTS.md Known Issues + audit)
+## P3 — polish & smaller fixes (from AGENTS_KNOWN_ISSUES.md + audit)
 
+- [ ] Stale test-count references across 7 `.ai/*`+`CLAUDE.md` files ("516 tests"; actual 638 as of 2026-07-31 and still moving) — sweep once plan-remaining-fixes items are all landed, counts change again with each.
+- [ ] Consolidate the duplicate CI shellcheck jobs (`ci.yml` `shellcheck` job vs `security.yml` "Validate shell scripts" step — byte-identical intent, run twice per push).
 - [ ] INVOCATION.md `--allowedTools` rows for all 28 agents (only planner/reviewer covered; planner row contradicts frontmatter — issue #11).
 - [ ] reviewer `--dual` cannot spawn with its toolset (#12) — fix tools or drop the flag.
 - [ ] refactor-cleaner commits directly, violating "only GitOps commits" (#13).

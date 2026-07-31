@@ -50,4 +50,4 @@ Path resolution after layout moves (`find_claudekit_root` → `src/` bug) · reg
 
 ## Things future models SHOULD improve
 
-Corpus consolidation (008) · eval-grounded gates (010) · one hook dispatcher per event (009) · true three-way `ck update` merge · plugin packaging (007) · machine-parseable review verdicts · the 16 prompt-layer inconsistencies in [AGENTS.md](AGENTS.md#known-issues) · MCP server pinning · release signing (014) · behavioral test expansion (012) · OSS community health files (013).
+Corpus consolidation (008) · eval-grounded gates (010) · one hook dispatcher per event (009) · true three-way `ck update` merge · plugin packaging (007) · machine-parseable review verdicts · the 16 prompt-layer inconsistencies in [AGENTS.md](AGENTS_KNOWN_ISSUES.md) · MCP server pinning · release signing (014) · behavioral test expansion (012) · OSS community health files (013).

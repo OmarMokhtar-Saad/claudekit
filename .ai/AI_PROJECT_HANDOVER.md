@@ -22,7 +22,7 @@ A conceptually excellent, recently-repaired system. The 2026-07-05 external audi
 
 ## Where the bodies are buried
 
-- **The prompt corpus has 16 cataloged internal inconsistencies** — see [AGENTS.md](AGENTS.md#known-issues). The worst is `_shared/WORKFLOW_FILE_TEMPLATES.md` shipping the *legacy* ops.json schema that the validator rejects (issue #9). Fix that one before it causes a field failure.
+- **The prompt corpus has 16 cataloged internal inconsistencies** — see [AGENTS.md](AGENTS_KNOWN_ISSUES.md). The worst is `_shared/WORKFLOW_FILE_TEMPLATES.md` shipping the *legacy* ops.json schema that the validator rejects (issue #9). Fix that one before it causes a field failure.
 - **`hooks/config.json`** looks deprecated but its `project.*` command section feeds 6+ hooks. Don't delete it.
 - **Version fallbacks** in `src/claudekit/__init__.py` and `.claude/operations/scripts/shared.py` must bump with pyproject; tests catch it, but only if you run them.
 - **macOS/bash-3.2 compatibility** is where shell regressions hide; CI has a macOS matrix, trust it.

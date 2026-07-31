@@ -15,7 +15,7 @@ ClaudeKit **is** a prompt library — the production prompts are the product. Th
 
 ## Conventions (follow when authoring)
 
-1. **Frontmatter examples are load-bearing.** The `<example>` blocks teach Claude Code when to auto-select the agent. Two per agent is the standard (some newer ones have one — flagged in AGENTS.md Known Issues #14).
+1. **Frontmatter examples are load-bearing.** The `<example>` blocks teach Claude Code when to auto-select the agent. Two per agent is the standard (some newer ones have one — flagged in AGENTS_KNOWN_ISSUES.md #14).
 2. **Imperative, checklist-driven bodies.** Numbered phases, explicit STOP conditions ("no ops.json → STOP"), hard constraints stated as IRON LAW / NEVER / ALWAYS.
 3. **Single source of truth over duplication.** Schemas and invocation rules are *referenced* (e.g., planner → `generate-operations-config` skill), never embedded — embedded copies drift (the planner schema once failed the kit's own validator).
 4. **Tools = permissions.** Read-only agents omit Write/Edit from `tools`; implementer deliberately lacks Edit/Write to force the ops engine.
@@ -43,5 +43,5 @@ Versioning: prompts are versioned only through git + CHANGELOG (no per-prompt ve
 
 - Add few-shot *output* exemplars to reviewer/verifier (audit: gates lack output validation).
 - Machine-parseable verdicts (`review.json` schema) so hooks can mechanically gate `/implement` (roadmap §2.3).
-- Fix the 16 prompt-layer inconsistencies cataloged in [AGENTS.md](AGENTS.md#known-issues) — especially the legacy ops schema in `WORKFLOW_FILE_TEMPLATES.md` (issue #9, actively harmful) and QUICK_START table drift (#6).
+- Fix the 16 prompt-layer inconsistencies cataloged in [AGENTS.md](AGENTS_KNOWN_ISSUES.md) — especially the legacy ops schema in `WORKFLOW_FILE_TEMPLATES.md` (issue #9, actively harmful) and QUICK_START table drift (#6).
 - Generate "Mandatory Skill Loading" sections from the registry instead of hand-writing (roadmap §2.4).
