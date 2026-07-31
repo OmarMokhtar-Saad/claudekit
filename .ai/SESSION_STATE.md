@@ -2,16 +2,46 @@
 
 > Update this file at the end of every significant AI working session. It is the resume point.
 
-**Last updated:** 2026-07-31 · **By:** Claude (Sonnet 5) — token-waste workflow fixes session
+**Last updated:** 2026-07-31 (second session) · **By:** Claude (Fable 5) — remaining-fixes implementation
 
 ## Current project state
 
-- v2.1.0 complete on `main`; **593 tests passing**; all local gates green (pytest/ruff/mypy/gen-docs/gen-registry; shellcheck not installed locally, unchanged pre-existing gap).
+- v2.1.0 complete on `main`; **638 tests passing**; ALL local gates green including
+  shellcheck (now installed + surfaced via `ck doctor` warn and `tests/test_shell_lint.py`).
 - Release to PyPI **pending user decision** (tag push triggers release.yml / Trusted Publishing).
 - The 2026-07-05 audit (`review/`) is the work queue: tasks 001–006+009+011 done; 007, 008, 010, 012–014 open.
-- 6 commits landed on `main` this session, **not pushed** (see below).
+- **~20 commits on `main` ahead of origin, not pushed** — spans the token-waste transport
+  fixes, the ops-hardening engine work, approval-binding, and the maintainer-docs split.
+- **Working tree is CLEAN** for the first time in three sessions — the long-uncommitted
+  ops-hardening change is landed (4 conventional commits, provenance of its 2 post-approval
+  edits recorded in the `docs(agents)` commit message).
 
-## Recent changes (this session)
+## Recent changes (remaining-fixes session, 2026-07-31 later)
+
+Implemented `.claude/plans/plan-remaining-fixes-2026-07-31.md` end to end:
+- **Item 1** — ops-hardening committed as 4 commits (`fix(ops)`, `docs(agents)`,
+  `docs(architecture)`, `docs(plans)`). §1.1 evidence check ran first: archived config has
+  74 code_edits vs 72 scored; the 2 extra are prose-only implement.md contract fixes,
+  noted in the commit; the rejected `finally`-reset is confirmed absent.
+- **Item 2** — approval-binding rebased and landed (`feat(review)`): `review-record.py`
+  binds verdicts to sha256(ops.json); `/implement` gates on APPROVED>=90 via
+  resolve+check; delta review mode with size ceiling; 20 behavioral tests. Executed via
+  the ops engine itself (9/9 RESULT-JSON success); spent config archived. Follow-up
+  `fix(security)` closed 2 findings from the background security review (slug
+  sanitization, symlink-chain check) + 2 regression tests.
+- **Item 3** — `feat(doctor)`: shellcheck availability surfaced (warn + 21 visible
+  per-script test PASS/SKIPs). Zero shellcheck findings at introduction.
+- **Item 5** — `docs(maintainer)`: 100KB `.ai/AGENTS.md` split into an index + 12 files,
+  all <10KB, byte-preserving (reconstruction diff empty); Known-Issues references updated
+  repo-wide; suggest-compact proxy decision recorded; 2 new P3 backlog lines.
+- **Item 4 (fleet) — NOT executed, report only:** all 6 fleet projects are at manifest
+  2.1.0 but every one has a dirty git tree (qa-agents 54, qaforge-ai 199, LeanApis 64,
+  ai-agent-system 228, MobileUIAutomator 80, AppiumLens 535 files). Per the plan's §4.2
+  step-2 rule, `ck update` must not run until each project's owner commits/stashes;
+  AppiumLens stays held back regardless (owner decision pending). Rollout commands are in
+  the plan, self-contained.
+
+## Previous session (same day, earlier)
 
 - Token-waste workflow fixes (plan: `.claude/plans/plan-token-waste-workflow-fixes.md`,
   origin: transcript analysis of a 2026-07-30/31 session that burned 80.3M billed context

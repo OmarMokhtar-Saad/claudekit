@@ -2,6 +2,21 @@
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
 
+## 2026-07-31 (later) — Claude (Fable 5) — Remaining-fixes implementation
+
+- Implemented `.claude/plans/plan-remaining-fixes-2026-07-31.md` end to end — 9 commits:
+  ops-hardening landed as 4 conventional commits (post-approval 2-edit delta identified
+  and recorded as prose-only; rejected finally-reset confirmed absent); approval-binding
+  rebased against HEAD and executed via the ops engine itself (review-record.py, 20
+  tests, delta review mode) with a same-session `fix(security)` follow-up closing 2
+  background-review findings (slug sanitization, symlink-chain check); shellcheck gate
+  surfaced (`ck doctor` warn + tests/test_shell_lint.py, 21 visible per-script results);
+  100KB `.ai/AGENTS.md` split into 13 byte-preserving files each <10KB.
+- Fleet rollout deliberately NOT executed: all 6 projects at manifest 2.1.0 but every
+  tree dirty (54–535 files) — blocked on owners per the plan's own step-2 rule.
+- Suite: 638 (595 → +20 review-record, +2 write-safety, +21 shell-lint). All DoD gates
+  green including shellcheck for the first time.
+
 ## 2026-07-31 — Claude (Sonnet 5) — Token-waste workflow fixes
 
 - Origin: transcript analysis of a 2026-07-30/31 session that burned 80.3M billed context
