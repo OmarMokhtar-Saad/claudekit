@@ -12,6 +12,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Zero-LLM-cost regression test for the delivery-transport contract**
+  (`tests/test_delivery_contract_smoke.py`). Extracts `/plan`'s actual scripted-path
+  bash block and runs it against a stub `claude` binary that emits a ~40KB fake
+  plan+ops payload (matching the scale of the originally observed leak); asserts
+  the payload lands on disk and validates but never reaches stdout, and stdout
+  stays within the documented ≤15-line summary limit. A companion test assembles
+  `/refine`'s documented 2-iteration single-script design the same way and asserts
+  both iterations write the same fixed `PLAN_FILE`/`OPS_FILE` in place with only
+  scoreboard-sized stdout. Pins the transport behavior mechanically so a future
+  change can't silently reintroduce either leak.
+
 ### Fixed
 - **`/review` had the same `PLAN TO REVIEW: $var` leak `/refine` had.** It `cat`'d the
   whole plan file into `$PLAN_CONTENT` and interpolated it into the reviewer prompt every
