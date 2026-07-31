@@ -29,7 +29,12 @@ Return To: <agent to return to, usually coordinator>
 
 1. **Always use the structured format** -- No free-form handoffs
 2. **Include all required fields** -- Missing fields cause ambiguity
-3. **Reference files by path** -- Do not embed file content in the handoff
+3. **Reference files by path, never embed file content** -- a handoff, subagent response,
+   or echoed Bash output that reprints a plan/ops.json/artifact body pins that payload in
+   context for every subsequent turn (see `.claude/agents/_shared/INVOCATION.md`'s
+   "Delivery contract" section). Interactive spawns write their own artifacts and return
+   only the path; headless spawns' stdout is redirected straight to disk by the invoking
+   command's wrapper, never teed or echoed back.
 4. **State the expected output** -- The receiving agent must know what to produce
 5. **Specify return routing** -- Who gets the result when the target finishes
 6. **Include constraints** -- Any limitations the receiving agent must respect

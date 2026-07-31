@@ -13,6 +13,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **`/review` had the same `PLAN TO REVIEW: $var` leak `/refine` had.** It `cat`'d the
+  whole plan file into `$PLAN_CONTENT` and interpolated it into the reviewer prompt every
+  run. Now derives the paired `ops-*.json` path from the plan filename and hands the
+  reviewer both paths to Read itself — the plan body never enters the main context.
+- **The path-not-payload contract is now written down.** `.claude/agents/_shared/
+  INVOCATION.md` gained an explicit "Delivery contract" section (interactive spawns write
+  their own artifacts and return paths; headless spawns' stdout is redirected straight to
+  disk, never teed/echoed); `HANDOFF_PROTOCOL.md`'s handoff rules and `planner.md`'s
+  Phase 4 (Save Outputs) now state the same rule explicitly, so future commands/agents
+  don't regress `/plan` and `/refine`'s fix.
 - **`/plan` leaked its full payload into the main session context twice per cycle.**
   The scripted path piped the entire planner output through `tee`, printing the full
   plan+ops.json as Bash stdout; the interactive path told the planner to return the
