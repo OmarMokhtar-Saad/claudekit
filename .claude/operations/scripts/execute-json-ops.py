@@ -13,8 +13,11 @@ Features:
   - Auto-detects format and normalizes to modern format internally
   - Automatic backup before all operations (including deleted files)
   - Backup manifest generation (compatible with restore-backup.py)
-  - Dry-run mode with diff preview for code edits
+  - Dry-run mode with diff preview for code edits (state threaded across operations)
+  - Fail-closed edits: a missing or ambiguous anchor aborts before any write
+  - First-write-wins backups so rollback always restores pristine content
   - Transactional execution with automatic rollback on failure
+  - Machine-readable RESULT-JSON summary line on config load/normalize error, lock contention, manifest failure, operation failure, crash, and signal
   - Execution lock to prevent concurrent runs
 """
 
@@ -45,8 +48,21 @@ logger = logging.getLogger(__name__)
 
 LOCK_FILE = ".codemanifest.lock"
 
+# Reserved by the backup manifest at the backup root. A project file with this
+# name at the project root would map onto the same backup path, so it is
+# refused rather than silently corrupting the recovery manifest.
+MANIFEST_NAME = "manifest.json"
+
 # Global transaction reference for signal handler rollback
 _active_txn: Optional['OperationTransaction'] = None
+
+# Run context for out-of-band result emission (signal handler)
+_active_plan: str = "unknown"
+_active_dry_run: bool = False
+_active_backup_dir: Optional[str] = None
+
+# The run summary is emitted exactly once; later handlers must not double-report
+_result_emitted: bool = False
 
 
 def _signal_handler(signum, frame):
@@ -55,6 +71,8 @@ def _signal_handler(signum, frame):
     print(f"\n  Interrupted by {sig_name}")
     if _active_txn is not None:
         _active_txn.rollback()
+    _emit_result(_active_plan, _active_dry_run, 'interrupted', [],
+                 backup_dir=_active_backup_dir, reason=f"signal-{sig_name}")
     sys.exit(130 if signum == signal.SIGINT else 143)
 
 
@@ -252,7 +270,7 @@ def create_manifest(backup_dir: Path, plan_name: str, files_to_backup: List[str]
         'created_files': files_to_create
     }
 
-    manifest_path = backup_dir / 'manifest.json'
+    manifest_path = backup_dir / MANIFEST_NAME
     try:
         with open(manifest_path, 'w', encoding='utf-8') as f:
             json.dump(manifest, f, indent=2)
@@ -283,7 +301,38 @@ def show_diff(file_path: str, original: str, modified: str):
         print("  --- End diff ---")
 
 
-def execute_file_create(operation: dict, backup_dir: Path, dry_run: bool) -> Tuple[bool, str]:
+def _emit_result(plan_name: str, dry_run: bool, status: str, operations: list,
+                 backup_dir: Optional[str] = None, reason: str = "") -> None:
+    """Print the machine-readable run summary consumed by the Implementer.
+
+    Emitted on config load/normalize errors, lock contention, manifest failure,
+    operation failure, crashes and signals. Absence means the process never
+    reached a reported exit path — killed outright (SIGKILL/OOM), or failed
+    before execution began (e.g. bad CLI arguments) — so the working tree must
+    be treated as unknown.
+
+    Idempotent: only the FIRST call reports. A crash inside the operation loop
+    emits there and then re-raises through outer handlers, which must not
+    overwrite that verdict with a less specific one.
+    """
+    global _result_emitted
+    if _result_emitted:
+        return
+    _result_emitted = True
+    payload: Dict[str, object] = {
+        'plan': plan_name,
+        'mode': 'dry-run' if dry_run else 'execute',
+        'status': status,
+        'operations': operations,
+        'backup_dir': backup_dir,
+    }
+    if reason:
+        payload['reason'] = reason
+    print("RESULT-JSON: " + json.dumps(payload))
+
+
+def execute_file_create(operation: dict, backup_dir: Path, dry_run: bool,
+                        sim_state: Optional[Dict[str, Optional[str]]] = None) -> Tuple[bool, str]:
     """Create new file with specified content."""
     file_path = Path(operation['path'])
     content = operation['content']
@@ -296,6 +345,8 @@ def execute_file_create(operation: dict, backup_dir: Path, dry_run: bool) -> Tup
     if dry_run:
         print(f"  [DRY RUN] Would create: {file_path}")
         print(f"            Size: {byte_size} bytes, Lines: {content.count(chr(10)) + 1}")
+        if sim_state is not None:
+            sim_state[os.path.relpath(str(file_path))] = content
         return True, "dry-run"
 
     try:
@@ -309,7 +360,9 @@ def execute_file_create(operation: dict, backup_dir: Path, dry_run: bool) -> Tup
         return False, str(e)
 
 
-def execute_file_delete(operation: dict, backup_dir: Path, dry_run: bool) -> Tuple[bool, str]:
+def execute_file_delete(operation: dict, backup_dir: Path, dry_run: bool,
+                        sim_state: Optional[Dict[str, Optional[str]]] = None,
+                        backed_up: Optional[set] = None) -> Tuple[bool, str]:
     """Back up then delete specified file."""
     file_path = Path(operation['path'])
     reason = operation.get('reason', '')
@@ -322,24 +375,39 @@ def execute_file_delete(operation: dict, backup_dir: Path, dry_run: bool) -> Tup
         print(f"  BLOCKED: Cannot delete protected file: {file_path}")
         return False, "protected-file"
 
+    # Refused in BOTH modes, so dry-run cannot report a clean plan that execution
+    # would then reject — see execute_code_edit for why the name is reserved.
+    rel_key = os.path.relpath(str(file_path))
+    if rel_key == MANIFEST_NAME:
+        print(f"  BLOCKED: a project-root {MANIFEST_NAME} collides with the engine's"
+              " backup manifest; back it up manually and run this op separately.")
+        return False, "manifest-name-collision"
+
     if dry_run:
         print(f"  [DRY RUN] Would delete: {file_path}")
         print(f"            Reason: {reason}")
         if file_path.exists():
             print(f"            Size: {file_path.stat().st_size} bytes")
+        if sim_state is not None:
+            sim_state[os.path.relpath(str(file_path))] = None
         return True, "dry-run"
 
     if not file_path.exists():
         print(f"  File already deleted: {file_path}")
         return True, "already-deleted"
 
-    # Backup before deletion
+    # Backup before deletion. First write wins — see execute_code_edit.
     try:
         rel_path = Path(os.path.relpath(file_path))
         backup_path = backup_dir / rel_path
-        backup_path.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(str(file_path), str(backup_path))
-        print(f"  Backed up to: {backup_path}")
+        if backed_up is not None and rel_key in backed_up:
+            print(f"  Backup already captured this run: {backup_path}")
+        else:
+            backup_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(str(file_path), str(backup_path))
+            if backed_up is not None:
+                backed_up.add(rel_key)
+            print(f"  Backed up to: {backup_path}")
     except Exception as e:
         print(f"  Error backing up file before deletion: {e}")
         print("  Aborting delete — cannot proceed without backup.")
@@ -358,34 +426,75 @@ def execute_file_delete(operation: dict, backup_dir: Path, dry_run: bool) -> Tup
         return False, str(e)
 
 
-def execute_code_edit(operation: dict, backup_dir: Path, dry_run: bool) -> Tuple[bool, str]:
-    """Apply find-replace edits to existing file."""
+def execute_code_edit(operation: dict, backup_dir: Path, dry_run: bool,
+                      sim_state: Optional[Dict[str, Optional[str]]] = None,
+                      backed_up: Optional[set] = None) -> Tuple[bool, str]:
+    """Apply find-replace edits to existing file.
+
+    Fails closed: a missing or ambiguous anchor aborts the operation before any
+    write, so the caller can roll the whole batch back.
+
+    In dry-run mode, sim_state threads each file's simulated content across
+    operations so the preview matches real sequential execution.
+    """
     file_path = Path(operation['path'])
     edits = operation.get('edits', [])
 
     if not validate_path(str(file_path)):
         return False, "path-validation-failed"
 
-    if not file_path.exists():
+    rel_key = os.path.relpath(str(file_path))
+
+    sim_content: Optional[str] = None
+    if dry_run and sim_state is not None and rel_key in sim_state:
+        sim_content = sim_state[rel_key]
+        if sim_content is None:
+            print(f"  File deleted by an earlier operation: {file_path}")
+            return False, "file-not-found"
+
+    if sim_content is None and not file_path.exists():
         print(f"  File not found: {file_path}")
         return False, "file-not-found"
 
 
-    # Backup original (preserve directory structure)
+    # A project-root manifest.json maps onto the engine's own backup manifest.
+    # Refuse rather than corrupt the file restore-backup.py depends on.
+    if rel_key == MANIFEST_NAME:
+        print(f"  BLOCKED: a project-root {MANIFEST_NAME} collides with the engine's"
+              " backup manifest; back it up manually and run this op separately.")
+        return False, "manifest-name-collision"
+
+    # Backup original (preserve directory structure).
+    #
+    # FIRST WRITE WINS: when a later operation touches a file an earlier
+    # operation already modified, re-copying would overwrite the pristine
+    # backup with mutated content — and a subsequent rollback would then
+    # "restore" that intermediate state, silently losing the original.
+    # Membership is tracked in a run-scoped set rather than probed on disk,
+    # so nothing the engine itself writes into backup_dir can be mistaken
+    # for an already-captured backup.
     if not dry_run:
         try:
             rel_path = Path(os.path.relpath(file_path))
             backup_path = backup_dir / rel_path
-            backup_path.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(str(file_path), str(backup_path))
-            print(f"  Backed up to: {backup_path}")
+            if backed_up is not None and rel_key in backed_up:
+                print(f"  Backup already captured this run: {backup_path}")
+            else:
+                backup_path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(str(file_path), str(backup_path))
+                if backed_up is not None:
+                    backed_up.add(rel_key)
+                print(f"  Backed up to: {backup_path}")
         except Exception as e:
             print(f"  Error backing up file: {e}")
             print("  Aborting edit — cannot proceed without backup.")
             return False, str(e)
 
     try:
-        content = file_path.read_text(encoding='utf-8-sig')
+        if sim_content is not None:
+            content = sim_content
+        else:
+            content = file_path.read_text(encoding='utf-8-sig')
     except UnicodeDecodeError:
         print(f"  Error: File appears to be binary or non-UTF-8: {file_path}")
         return False, "binary-or-non-utf8"
@@ -400,12 +509,22 @@ def execute_code_edit(operation: dict, backup_dir: Path, dry_run: bool) -> Tuple
         find_pattern = edit.get('find', '')
 
         if not find_pattern:
-            print(f"  Edit {j}: No 'find' pattern specified")
-            continue
+            print(f"  Edit {j}: FAILED - No 'find' pattern specified")
+            logger.warning("Edit %d for %s has no find pattern", j, file_path)
+            return False, "missing-find-pattern"
 
-        if find_pattern not in modified_content:
-            print(f"  Edit {j}: Pattern not found (may have been changed by previous edit)")
-            continue
+        occurrences = modified_content.count(find_pattern)
+        if occurrences == 0:
+            print(f"  Edit {j}: FAILED - Pattern not found "
+                  "(may have been changed by a previous edit)")
+            logger.warning("Anchor missing at edit %d for %s", j, file_path)
+            return False, "pattern-not-found"
+        if occurrences > 1:
+            print(f"  Edit {j}: FAILED - Pattern appears {occurrences} times "
+                  "in current content (ambiguous match)")
+            logger.warning("Ambiguous anchor (%d matches) at edit %d for %s",
+                           occurrences, j, file_path)
+            return False, "ambiguous-pattern"
 
         if 'add_after' in edit:
             modified_content = modified_content.replace(
@@ -434,17 +553,10 @@ def execute_code_edit(operation: dict, backup_dir: Path, dry_run: bool) -> Tuple
             edits_applied += 1
 
         else:
-            print(f"  Edit {j}: No action specified (add_after, add_before, replace, delete)")
-
-    if edits_applied < len(edits):
-        logger.warning(
-            "Only %d of %d edits applied for %s", edits_applied, len(edits), file_path
-        )
-        print(f"  WARNING: Only {edits_applied}/{len(edits)} edits applied")
-
-    if edits_applied == 0 and len(edits) > 0:
-        print(f"  FAILED: No edits could be applied")
-        return False, "no-edits-applied"
+            print(f"  Edit {j}: FAILED - No action specified "
+                  "(add_after, add_before, replace, delete)")
+            logger.warning("Edit %d for %s specifies no action", j, file_path)
+            return False, "no-action-specified"
 
     byte_size = len(modified_content.encode('utf-8'))
 
@@ -452,15 +564,14 @@ def execute_code_edit(operation: dict, backup_dir: Path, dry_run: bool) -> Tuple
         print(f"  [DRY RUN] Would write {byte_size} bytes to: {file_path}")
         if content != modified_content:
             show_diff(str(file_path), content, modified_content)
-        if edits_applied < len(edits):
-            return False, "dry-run-partial"
+        if sim_state is not None:
+            sim_state[rel_key] = modified_content
         return True, "dry-run"
     else:
         try:
             atomic_write(file_path, modified_content)
             print(f"  Written {byte_size} bytes, {edits_applied}/{len(edits)} edits applied")
-            if edits_applied < len(edits):
-                return False, "partial-edits"
+            show_diff(str(file_path), content, modified_content)
             return True, "edited"
         except Exception as e:
             print(f"  Error writing file: {e}")
@@ -483,10 +594,12 @@ def execute_json_config(config_file: str, dry_run: bool = False) -> bool:
             raw_config = json.load(f)
     except Exception as e:
         print(f"Error loading config: {e}")
+        _emit_result('unknown', dry_run, 'failed', [], reason=f"config-load-error: {e}")
         return False
 
     config = normalize_config(raw_config)
     if config is None:
+        _emit_result('unknown', dry_run, 'failed', [], reason="config-normalize-failed")
         return False
     plan_name = config.get('plan', 'unknown')
     operations = config.get('operations', [])
@@ -508,6 +621,7 @@ def execute_json_config(config_file: str, dry_run: bool = False) -> bool:
                 return _execute_operations(config, operations, plan_name, config_format, dry_run)
         except RuntimeError as e:
             print(f"Error: {e}")
+            _emit_result(plan_name, dry_run, 'failed', [], reason=f"lock-contention: {e}")
             return False
     else:
         return _execute_operations(config, operations, plan_name, config_format, dry_run)
@@ -516,6 +630,12 @@ def execute_json_config(config_file: str, dry_run: bool = False) -> bool:
 def _execute_operations(config: dict, operations: list, plan_name: str,
                         config_format: str, dry_run: bool) -> bool:
     """Internal execution logic, called with lock held."""
+    # Publish run context first: a signal arriving during backup-dir or manifest
+    # creation must still report the real plan name, not "unknown".
+    global _active_plan, _active_dry_run, _active_backup_dir
+    _active_plan = plan_name
+    _active_dry_run = dry_run
+
     # Create backup directory (sanitize plan name for safe filesystem path)
     timestamp = datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S-%f')
     safe_plan_name = re.sub(r'[^a-zA-Z0-9_-]', '_', plan_name)
@@ -523,6 +643,7 @@ def _execute_operations(config: dict, operations: list, plan_name: str,
 
     if not dry_run:
         backup_dir.mkdir(parents=True, exist_ok=True)
+        _active_backup_dir = str(backup_dir)
         print(f"Backup directory: {backup_dir}\n")
 
     # Collect file lists for manifest
@@ -539,6 +660,8 @@ def _execute_operations(config: dict, operations: list, plan_name: str,
 
     if not dry_run:
         if not create_manifest(backup_dir, plan_name, files_to_backup, files_to_create):
+            _emit_result(plan_name, dry_run, 'failed', [],
+                         reason="manifest-creation-failed")
             return False
         print()
 
@@ -550,6 +673,12 @@ def _execute_operations(config: dict, operations: list, plan_name: str,
     success_count = 0
     error_count = 0
     stats = {'file_create': 0, 'file_delete': 0, 'code_edit': 0}
+    sim_state: Dict[str, Optional[str]] = {}
+    backed_up: set = set()
+    op_results: List[Dict[str, object]] = []
+    # Once the loop finishes, every operation is committed; a later failure
+    # (e.g. BrokenPipeError while printing the summary) must NOT roll it back.
+    loop_completed = False
 
     try:
         for i, operation in enumerate(operations, 1):
@@ -559,20 +688,22 @@ def _execute_operations(config: dict, operations: list, plan_name: str,
             print(f"[{i}/{len(operations)}] {op_type.upper()}: {file_path}")
 
             if op_type == 'file_create':
-                success, status = execute_file_create(operation, backup_dir, dry_run)
+                success, status = execute_file_create(operation, backup_dir, dry_run, sim_state)
                 if success:
                     stats['file_create'] += 1
                     if status == "created":
                         txn.record_created(str(file_path))
             elif op_type == 'file_delete':
-                success, status = execute_file_delete(operation, backup_dir, dry_run)
+                success, status = execute_file_delete(operation, backup_dir, dry_run,
+                                                      sim_state, backed_up)
                 if success:
                     stats['file_delete'] += 1
                     if status == "deleted":
                         txn.record_modified(str(file_path))
             elif op_type == 'code_edit':
-                success, status = execute_code_edit(operation, backup_dir, dry_run)
-                if status in ("edited", "partial-edits"):
+                success, status = execute_code_edit(operation, backup_dir, dry_run,
+                                                    sim_state, backed_up)
+                if status == "edited":
                     txn.record_modified(str(file_path))
                 if success:
                     stats['code_edit'] += 1
@@ -580,8 +711,12 @@ def _execute_operations(config: dict, operations: list, plan_name: str,
                 print(f"  ERROR: Unknown operation type: {op_type!r}")
                 print(f"  Valid types: file_create, file_delete, code_edit")
                 print(f"  Hint: regenerate ops.json using the generate-operations-config skill")
-                success = False
+                success, status = False, "unknown-type"
 
+            op_results.append({
+                'index': i, 'type': op_type, 'path': str(file_path),
+                'success': success, 'status': status,
+            })
             if success:
                 success_count += 1
             else:
@@ -591,6 +726,14 @@ def _execute_operations(config: dict, operations: list, plan_name: str,
                 break
 
             print()
+
+        # The batch is committed. Retire the transaction BEFORE printing anything:
+        # _signal_handler rolls back whatever _active_txn still points at, so a SIGINT
+        # arriving during the summary would otherwise revert a finished run — and
+        # _result_emitted would then suppress the 'interrupted' verdict, leaving success
+        # evidence over a reverted tree.
+        _active_txn = None
+        loop_completed = True
 
         # Summary
         print()
@@ -605,10 +748,38 @@ def _execute_operations(config: dict, operations: list, plan_name: str,
             print(f"Errors:     {error_count}")
             print(f"Backups:    {backup_dir}")
         print("-" * 50)
+        _emit_result(
+            plan_name, dry_run,
+            'success' if error_count == 0 else 'failed',
+            op_results,
+            backup_dir=None if dry_run else str(backup_dir),
+        )
 
         return error_count == 0
+    except Exception as e:
+        # An unexpected crash must not leave partial writes on disk, and must
+        # still report — the Implementer treats a missing RESULT-JSON as an
+        # unknown working tree.
+        #
+        # Roll back ONLY if the operation loop was still running. Once it has
+        # completed, every write is committed and intended; a failure while
+        # printing the summary (BrokenPipeError under `| head`, for instance)
+        # must not revert a successful run.
+        if not dry_run and not loop_completed:
+            txn.rollback()
+        _emit_result(plan_name, dry_run, 'crashed', op_results,
+                     backup_dir=None if dry_run else str(backup_dir),
+                     reason=f"{type(e).__name__}: {e}")
+        raise
     finally:
         _active_txn = None
+        _active_plan = "unknown"
+        _active_dry_run = False
+        _active_backup_dir = None
+        # NOT reset: _result_emitted must stay latched for the life of the
+        # process. Clearing it here lets the outer `except RuntimeError` in
+        # execute_json_config emit a second, less specific verdict over the
+        # 'crashed' one — the exact double-report this flag exists to prevent.
 
 
 def main():
