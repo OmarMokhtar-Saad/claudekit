@@ -14,10 +14,26 @@ contexts — never inline (self-review bias). Two verified mechanisms:
 - **Interactive session (default): Task tool** — spawn `subagent_type: "planner"` (opus)
   for Cycle A and a fresh `subagent_type: "reviewer"` (opus) for Cycle B each iteration.
   Every spawn starts a fresh context, which preserves the anti-anchoring guarantee, with
-  no cold boot. Use the same PLANNER_MSG/REVIEWER_MSG contents shown below; the planner
-  returns plan + ops.json in its response (delivery contract).
-- **Scripted/CI: the Bash blocks below** (`claude -p --agent <name>`) — same isolation,
-  ~13s cold boot per spawn (measured; worse in MCP-heavy projects).
+  no cold boot.
+- **Scripted/CI: ONE self-contained Bash script** running the whole loop (all iterations)
+  in a single Bash tool call — same isolation (each `claude -p --agent <name>` spawn is
+  still a fresh process/context), ~13s cold boot per spawn (measured; worse in MCP-heavy
+  projects).
+
+**Delivery contract: paths, never payloads.** Plans and ops configs live on disk for the
+ENTIRE loop; only a per-iteration scoreboard (iteration, score, decision, issue count) and
+final file paths ever enter the main session's context. Concretely:
+- The planner (interactive: Task tool; scripted: `claude -p --agent planner`) WRITES
+  `.claude/plans/plan-<slug>.md` and `.claude/plans/ops-<slug>.json` itself on iteration 1,
+  and EDITS those same two files in place on revision iterations — it never re-emits the
+  full plan body into a response or a shell variable that then gets echoed.
+- The reviewer is handed the two FILE PATHS ("Review the plan at `<PLAN_FILE>` and ops
+  config at `<OPS_FILE>`. Read them yourself.") and reads them with its own Read tool —
+  never the plan text pasted into its prompt.
+- Only the reviewer's small structured score block (`=== REFINE REVIEW ITERATION N ===`)
+  enters context each iteration; that IS the scoreboard, not a leak.
+- A shell variable holding the full plan body must never be interpolated into a later
+  Bash `echo`/heredoc — this was the root cause fixed here (see Step 2).
 
 Canonical spawn contract: see `.claude/agents/_shared/INVOCATION.md` (single source of truth).
 
@@ -47,6 +63,12 @@ if ARGS contains "--max-iter N":
 TASK = ARGS with --max-iter stripped
 ```
 
+Decide the plan/ops file paths ONCE, before iteration 1 (a slug derived from the task):
+```
+PLAN_FILE = ".claude/plans/plan-<slug>.md"
+OPS_FILE  = ".claude/plans/ops-<slug>.json"
+```
+
 Initialize loop state (NEVER inherit from prior conversation context):
 ```
 iteration            = 1
@@ -55,9 +77,11 @@ decision             = "PENDING"
 critical_major_count = 999
 status               = "PENDING"
 reviewer_feedback    = ""
-current_plan         = ""
 iteration_history    = []    ← list of {iteration, score, issue_count}
 ```
+
+The plan body itself is never held as a loop-state variable — it lives at `PLAN_FILE` /
+`OPS_FILE` on disk for the whole loop (see Step 2's delivery-contract note).
 
 **HARD RULE: Do NOT read any SCORE, DECISION, or reviewer output from earlier in this conversation.
 Each loop invocation is a fresh run. last_score = -1 until the reviewer SUBAGENT returns output.**
@@ -78,21 +102,50 @@ Method: Independent subagents (Agent tool) — adversarial planner/reviewer sepa
 
 Maintain state across iterations:
 - `iteration` — current cycle number (starts at 1)
-- `current_plan` — the plan artifact returned by the planner subagent
-- `reviewer_feedback` — CRITICAL+MAJOR issues returned by the reviewer subagent
+- `PLAN_FILE` / `OPS_FILE` — fixed paths decided ONCE, before iteration 1
+  (`.claude/plans/plan-<slug>.md` / `.claude/plans/ops-<slug>.json`); every iteration reads
+  and writes THESE SAME two files in place. The plan body never travels through a shell
+  variable that outlives one Bash call, and never gets echoed.
+- `reviewer_feedback` — CRITICAL+MAJOR issues returned by the reviewer subagent (small text,
+  fine to hold in context — this is the scoreboard, not the payload)
 - `last_score` — numeric score from the reviewer (0–100)
 - `status` — PENDING → APPROVED | ESCALATED
 - `iteration_history` — append `{iteration, score, issue_count}` after each Cycle B
+
+**Interactive session (default):** every Cycle A / Cycle B below is one Task tool call in
+THIS same conversation turn sequence — no separate Bash-tool-call boundary, so there is no
+shell-variable-doesn't-persist problem to begin with. Still write plan/ops to
+`PLAN_FILE`/`OPS_FILE` (never inline them in the spawn message or the response) so the
+pattern matches the scripted path and the anti-anchoring guarantee (fresh subagent context
+per cycle) is unaffected either way.
+
+**Scripted/CI:** the ENTIRE loop (every iteration's Cycle A, B, C) runs inside ONE Bash tool
+call as a single self-contained script. This is the fix for the original bug: shell
+variables (`current_plan=$(...)`) do NOT persist across SEPARATE Bash tool calls, which
+previously forced the plan text to be pasted by hand into the next call's heredoc (the
+observed ~26k-token leak). Inside one script, ordinary shell variables/loops work fine —
+but even so, do NOT hold the plan body in a variable longer than the single `claude -p`
+call that produced it: write it to `$PLAN_FILE` immediately (`printf '%s\n' > file`, never
+`tee`/`echo`) and pass only the PATH to the next spawn.
 
 ---
 
 #### Cycle A: Planner
 
-Use the **Bash tool** to run this command. Build `PLANNER_MSG` first, then pipe it into `claude -p`.
-`--agent planner` loads `.claude/agents/planner.md` as the system prompt.
+**Interactive:** spawn `subagent_type: "planner"` (opus) via the Task tool.
+- Iteration 1: "Create a complete implementation plan for: `<TASK>`. Explore with BATCHED
+  parallel Read/Grep/Glob (one message). IRON LAW: must include a valid ops.json. Write the
+  plan to `<PLAN_FILE>` and the ops config to `<OPS_FILE>` yourself (Write tool); do not
+  print their contents in your response. Return only the paths and a ≤10-line summary."
+- Iteration 2+: "Revise the plan at `<PLAN_FILE>` (ops config at `<OPS_FILE>`) for: `<TASK>`.
+  Iteration `<N>`/`<MAX_ITER>`. The reviewer scored the previous version `<last_score>`/100
+  and found: `<reviewer_feedback>`. Read both files yourself, address EVERY issue, and EDIT
+  them in place (Write tool) — do not print the revised contents. Return only a ≤10-line
+  change summary."
 
-**On iteration 1:**
+**Scripted (inside the single loop script):**
 ```bash
+# Iteration 1 only:
 PLANNER_MSG="Create a complete implementation plan for the following task.
 
 Task: <TASK>
@@ -100,14 +153,15 @@ Task: <TASK>
 Before writing anything, explore the codebase with BATCHED parallel Read/Grep/Glob calls —
 fire all independent searches in ONE message.
 
-IRON LAW: the plan MUST include a valid ops.json."
+IRON LAW: the plan MUST include a valid ops.json.
+Report only a short summary in your response — the wrapper below saves your output to disk."
 
-current_plan=$(echo "$PLANNER_MSG" | claude -p --agent planner --model opus --allowedTools "Read,Grep,Glob,Write,Bash(python3 .claude/operations/scripts/validate-config-json.py *)")
-echo "$current_plan"
-```
+plan_output=$(echo "$PLANNER_MSG" | claude -p --agent planner --model opus --allowedTools "Read,Grep,Glob,Write,Bash(python3 .claude/operations/scripts/validate-config-json.py *)")
+printf '%s\n' "$plan_output" > "$PLAN_FILE"
+python3 .claude/operations/scripts/extract-json-from-plan.py "$PLAN_FILE" --output "$OPS_FILE"
+unset plan_output   # never echo it — the file is now the source of truth
 
-**On iteration 2+:**
-```bash
+# Iteration 2+ (same script, later loop pass):
 PLANNER_MSG="Revise the implementation plan for the following task.
 
 Task: <TASK>
@@ -116,23 +170,36 @@ REVISION REQUEST — Iteration <N>/<MAX_ITER>
 The reviewer scored the previous plan <last_score>/100 and found these issues:
 <reviewer_feedback as numbered list>
 
-Address EVERY issue. State what changed. Produce the complete revised plan and a new ops.json."
+The current plan is at $PLAN_FILE and the ops config at $OPS_FILE — read them if you need
+to (you do not have Write access headless; this wrapper captures your revised output and
+writes it to disk). Address EVERY issue. State what changed, then output the complete
+revised plan and a new ops.json — the wrapper saves it; do not expect to Write it yourself."
 
-current_plan=$(echo "$PLANNER_MSG" | claude -p --agent planner --model opus --allowedTools "Read,Grep,Glob,Write,Bash(python3 .claude/operations/scripts/validate-config-json.py *)")
-echo "$current_plan"
+plan_output=$(echo "$PLANNER_MSG" | claude -p --agent planner --model opus --allowedTools "Read,Grep,Glob,Bash(python3 .claude/operations/scripts/validate-config-json.py *)")
+printf '%s\n' "$plan_output" > "$PLAN_FILE"
+python3 .claude/operations/scripts/extract-json-from-plan.py "$PLAN_FILE" --output "$OPS_FILE"
+unset plan_output
 ```
 
-Store `stdout` as `current_plan`.
+Headless `claude -p` spawns cannot Write into `.claude/**` (platform sensitive-path gate) —
+that is why the wrapper script itself, not the model, moves the bytes to `$PLAN_FILE`/
+`$OPS_FILE` each time. The script's own stdout during this cycle stays silent (no `echo
+"$plan_output"`); only the scoreboard printed at the end of Cycle C reaches the caller.
 
 ---
 
 #### Cycle B: Reviewer
 
-Use the **Bash tool** to run this command. `--agent reviewer` loads `.claude/agents/reviewer.md`
-as the system prompt. Pass ONLY `current_plan` — no loop state, no prior review history.
+**Interactive:** spawn a FRESH `subagent_type: "reviewer"` (opus) via the Task tool. Pass
+ONLY the file paths — no loop state, no prior review history:
 
+"Review the implementation plan at `<PLAN_FILE>` and the ops config at `<OPS_FILE>`. Read
+them yourself. Respond in EXACTLY this format: [format block below]."
+
+**Scripted (same script):**
 ```bash
-REVIEWER_MSG="Review the following implementation plan and ops.json.
+REVIEWER_MSG="Review the implementation plan at $PLAN_FILE and the ops config at $OPS_FILE.
+Read them yourself with your Read tool — do not expect the contents pasted here.
 
 Respond in EXACTLY this format — no deviations:
 
@@ -151,17 +218,16 @@ DECISION RULES:
 APPROVED = score >= 90 AND CRITICAL_MAJOR_COUNT == 0
 CONDITIONAL = score 70-89 OR CRITICAL_MAJOR_COUNT > 0
 REVISE = score < 70
-REJECTED = no ops.json, invalid ops.json, destructive ops without rollback
-
-PLAN TO REVIEW:
-$current_plan"
+REJECTED = no ops.json, invalid ops.json, destructive ops without rollback"
 
 review_output=$(echo "$REVIEWER_MSG" | claude -p --agent reviewer --model opus --allowedTools "Read,Grep,Glob")
 echo "$review_output"
 ```
 
-Store `stdout` as `review_output`. Parse it for `last_score`, `decision`, `critical_major_count`,
-`reviewer_feedback` from inside the `=== REFINE REVIEW ITERATION <N> ===` delimiters.
+`review_output` is the scoreboard block itself — small by design (a dozen lines), so
+printing it is fine; it is not the plan/ops payload. Store `stdout` as `review_output`.
+Parse it for `last_score`, `decision`, `critical_major_count`, `reviewer_feedback` from
+inside the `=== REFINE REVIEW ITERATION <N> ===` delimiters.
 
 Parse from the reviewer subagent's output (look only inside the
 `=== REFINE REVIEW ITERATION <N> ===` ... `=== END REVIEW ITERATION <N> ===` block):
@@ -221,14 +287,11 @@ Next:     <CONVERGED|REVISING|ESCALATING>
 ### Step 3: Final Report
 
 **On APPROVED — verify before you report it.** The success banner's evidence line must be
-EARNED, not templated. Save the approved plan and extract its ops config first (the planner
-cannot write into `.claude/` when spawned headless — its stdout is the delivery contract),
-then run the validator and dry-run and paste their real results:
+EARNED, not templated. `PLAN_FILE`/`OPS_FILE` already hold the approved content (every
+iteration wrote in place — nothing to save now); just re-validate and dry-run and paste the
+real results:
 
 ```bash
-PLAN_FILE=".claude/plans/plan-<slug>.md"; OPS_FILE="${PLAN_FILE%.md}.ops.json"
-printf '%s\n' "$current_plan" > "$PLAN_FILE"
-python3 .claude/operations/scripts/extract-json-from-plan.py "$PLAN_FILE" --output "$OPS_FILE"
 python3 .claude/operations/scripts/validate-config-json.py "$OPS_FILE"
 python3 .claude/operations/scripts/execute-json-ops.py "$OPS_FILE" --dry-run
 ```
@@ -313,7 +376,13 @@ Suggested actions:
   execution in the same context window causes self-review bias: the model scores its own plan
   90+ and converges after 1 iteration regardless of plan quality. Subagents get clean contexts.
 - **Planner receives only task + feedback** — never the reviewer's full output, never prior plans.
-  The reviewer receives only the plan — never the refine loop context or prior reviews.
+  The reviewer receives only the FILE PATH to the plan/ops — never the plan text pasted into
+  its prompt, never the refine loop context or prior reviews.
+- **Files, not shell variables, carry the plan across iterations** — `PLAN_FILE`/`OPS_FILE`
+  are fixed once and every Cycle A writes/edits them in place; no `current_plan=$(...)` shell
+  variable survives past the single Bash call that produced it, and nothing pastes the plan
+  body into a later heredoc or prompt. This is what keeps a full refine run under ~3k tokens
+  of plan-content in the main context, instead of the ~26k-token heredoc leak this replaced.
 - **Fresh state every invocation** — `last_score = -1` until the reviewer subagent completes.
   The loop cannot converge on a stale score from a prior `/review` in the conversation.
 - **Delimiter blocks prevent context bleed** — reviewer output is wrapped in
