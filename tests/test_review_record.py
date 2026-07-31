@@ -263,3 +263,35 @@ class TestDeltaOutput:
     def test_diff_without_record_reports_no_record(self, tmp_path):
         plan, ops = _fixture(tmp_path)
         assert _run(tmp_path, 'diff', str(plan), str(ops)).returncode == 3
+
+
+class TestWriteSafety:
+    def test_hostile_plan_filename_cannot_make_dotfiles(self, tmp_path):
+        """A plan named 'plan-...md' yields slug '..'; record filenames must be
+        sanitized so no dot-file (or worse) lands in reports/reviews."""
+        plans = tmp_path / '.claude' / 'plans'
+        plans.mkdir(parents=True)
+        plan = plans / 'plan-...md'
+        plan.write_text('# Plan\n', encoding='utf-8')
+        ops = plans / 'evil.json'
+        ops.write_text(json.dumps({'plan': 'x', 'operations': []}), encoding='utf-8')
+        res = _run(tmp_path, 'write', str(plan), str(ops),
+                   '--score', '95', '--decision', 'APPROVED')
+        assert res.returncode == 0, res.stderr
+        reviews = tmp_path / '.claude' / 'reports' / 'reviews'
+        names = sorted(p.name for p in reviews.iterdir())
+        assert names, 'record must be written somewhere'
+        assert all(not n.startswith('.') for n in names), names
+
+    def test_symlinked_reports_dir_refused(self, tmp_path):
+        """A symlink planted at .claude/reports must refuse the write — checking
+        only the leaf + reviews/ leaves an arbitrary-write primitive one level up."""
+        plan, ops = _fixture(tmp_path)
+        outside = tmp_path / 'outside-target'
+        outside.mkdir()
+        (tmp_path / '.claude' / 'reports').symlink_to(outside)
+        res = _run(tmp_path, 'write', str(plan), str(ops),
+                   '--score', '95', '--decision', 'APPROVED')
+        assert res.returncode == 1
+        assert 'symlink' in res.stderr
+        assert not any(outside.rglob('*.json')), 'nothing may land at the symlink target'
