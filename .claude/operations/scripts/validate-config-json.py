@@ -156,15 +156,23 @@ def validate_file_operations(operations: List[dict]) -> Tuple[bool, List[str]]:
     return len(errors) == 0, errors
 
 
-def _validate_edits(edits: list, file_content: str, label: str, errors: List[str]):
+def _validate_edits(edits: list, file_content: str, label: str, errors: List[str]) -> str:
     """Validate edit entries against file content (GUARDs 8-11).
+
+    Edits are simulated cumulatively: each guard checks the content as it will
+    exist when the executor reaches that edit, and the post-edit content is
+    returned so callers can thread state across operations on the same file.
 
     Args:
         edits: List of edit dicts from the config.
-        file_content: The current text content of the target file.
+        file_content: The text content of the target file before these edits.
         label: Prefix for error messages (e.g. "File 1" or "Operation 2").
         errors: List to append error messages to.
+
+    Returns:
+        The simulated content after applying all cleanly-matching edits.
     """
+    sim = file_content
     for j, edit in enumerate(edits, 1):
         # GUARD 8: Check for action type
         action_types = ['add_after', 'add_before', 'replace', 'delete']
@@ -189,8 +197,8 @@ def _validate_edits(edits: list, file_content: str, label: str, errors: List[str
             if action_key in edit and '\x00' in edit[action_key]:
                 errors.append(f"{label}, Edit {j}: '{action_key}' content contains null bytes")
 
-        # GUARD 10: Verify 'find' exists in file
-        if find_pattern not in file_content:
+        # GUARD 10: Verify 'find' exists in the content as it will exist at apply time
+        if find_pattern not in sim:
             preview = find_pattern[:50].replace('\n', '\\n')
             if len(find_pattern) > 50:
                 preview += "..."
@@ -202,12 +210,25 @@ def _validate_edits(edits: list, file_content: str, label: str, errors: List[str
             continue
 
         # GUARD 11: Check for multiple occurrences (ambiguous match)
-        occurrence_count = file_content.count(find_pattern)
+        occurrence_count = sim.count(find_pattern)
         if occurrence_count > 1:
             errors.append(
                 f"{label}, Edit {j}: Pattern appears {occurrence_count} times in file\n"
                 f"                  FIX: Make pattern more specific to match only once"
             )
+            continue
+
+        # Simulate the edit so later guards see the mutated content
+        if 'add_after' in edit:
+            sim = sim.replace(find_pattern, find_pattern + edit['add_after'], 1)
+        elif 'add_before' in edit:
+            sim = sim.replace(find_pattern, edit['add_before'] + find_pattern, 1)
+        elif 'replace' in edit:
+            sim = sim.replace(find_pattern, edit['replace'], 1)
+        elif edit.get('delete') is True:
+            sim = sim.replace(find_pattern, '', 1)
+
+    return sim
 
 
 def validate_against_schema(config: dict, schema_file: str) -> Tuple[bool, List[str]]:
@@ -311,7 +332,12 @@ def validate_json_config(config_file: str) -> Tuple[bool, List[str]]:
 
 
 def validate_legacy_format(config: dict, errors: List[str]) -> Tuple[bool, List[str]]:
-    """Validate legacy format (files array with code edits only)."""
+    """Validate legacy format (files array with code edits only).
+
+    Duplicate paths across entries are threaded through legacy_sim so each edit is
+    checked against the content as it will exist when the executor reaches it.
+    """
+    legacy_sim = {}
     if 'files' not in config:
         errors.append("Missing required key: 'files'")
         return False, errors
@@ -359,7 +385,10 @@ def validate_legacy_format(config: dict, errors: List[str]) -> Tuple[bool, List[
             errors.append(f"File {i}: Error reading file: {e}")
             continue
 
-        _validate_edits(edits, file_content, f"File {i}", errors)
+        sim_key = os.path.relpath(file_path)
+        legacy_sim[sim_key] = _validate_edits(
+            edits, legacy_sim.get(sim_key, file_content), f"File {i}", errors
+        )
 
     return len(errors) == 0, errors
 
@@ -381,8 +410,9 @@ def validate_modern_format(config: dict, errors: List[str]) -> Tuple[bool, List[
     if not file_ops_valid:
         errors.extend(file_ops_errors)
 
-    # Validate all operations
+    # Validate all operations, threading simulated content across ops on the same file
     valid_types = ['file_create', 'file_delete', 'code_edit']
+    sim_files = {}
     for i, op in enumerate(operations, 1):
         op_type = op.get('type', '')
 
@@ -423,17 +453,21 @@ def validate_modern_format(config: dict, errors: List[str]) -> Tuple[bool, List[
             errors.append(f"Operation {i} (code_edit): Empty 'edits' array")
             continue
 
-        try:
-            with open(file_path, 'r', encoding='utf-8-sig') as f:
-                file_content = f.read()
-        except UnicodeDecodeError:
-            errors.append(f"Operation {i} (code_edit): File appears to be binary or non-UTF-8: {file_path}")
-            continue
-        except OSError as e:
-            errors.append(f"Operation {i} (code_edit): Error reading file: {e}")
-            continue
+        sim_key = os.path.relpath(file_path)
+        if sim_key in sim_files:
+            file_content = sim_files[sim_key]
+        else:
+            try:
+                with open(file_path, 'r', encoding='utf-8-sig') as f:
+                    file_content = f.read()
+            except UnicodeDecodeError:
+                errors.append(f"Operation {i} (code_edit): File appears to be binary or non-UTF-8: {file_path}")
+                continue
+            except OSError as e:
+                errors.append(f"Operation {i} (code_edit): Error reading file: {e}")
+                continue
 
-        _validate_edits(edits, file_content, f"Operation {i}", errors)
+        sim_files[sim_key] = _validate_edits(edits, file_content, f"Operation {i}", errors)
 
     return len(errors) == 0, errors
 
