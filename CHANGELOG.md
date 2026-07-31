@@ -24,6 +24,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   an interactive Task-subagent writing to `.claude/plans/` — verified) and return only
   paths + a short summary; the main agent re-validates once but never Reads the plan
   body back into context.
+- **`/refine` pasted the full plan into the reviewer's prompt every iteration.** The loop
+  stored the plan in a `current_plan=$(...)` shell variable in one Bash call and consumed
+  it in a later call (`PLAN TO REVIEW: $current_plan`) — shell state doesn't persist across
+  Bash tool calls, so the main agent hand-pasted the entire plan into the reviewer message
+  each time (the observed ~26k-token heredoc leak), and each revision iteration re-emitted
+  the complete plan + a new ops.json from scratch. `/refine` now fixes `PLAN_FILE`/`OPS_FILE`
+  paths once before iteration 1; the planner writes/edits those files in place (interactive:
+  via Task-tool Write; scripted: the wrapper script saves stdout to disk, never `echo`s it),
+  and the reviewer is handed only the two paths to Read itself. Only the per-iteration
+  scoreboard (`=== REFINE REVIEW ITERATION N ===`, a dozen lines) ever enters context.
 - **`suggest-compact.sh` context-budget nudge was a complete no-op.** It was registered
   as `PreToolUse` (whose stdout is never shown to the model) and additionally ran its
   tip from a backgrounded subshell with a trailing `&` on the settings entry too, so the
@@ -98,6 +108,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   mechanically checkable instead of prompt-enforced-only.
 
 ### Changed
+- **Ops engine no longer loses the original file on a multi-operation rollback.**
+  `execute-json-ops.py` backed up a file on *every* operation touching it, so a second
+  operation overwrote the pristine backup with already-mutated content — a later failure
+  then "rolled back" to that intermediate state, and `restore-backup.py` / `/rollback`
+  restored the wrong content. Backups are now first-write-wins per run.
+- **Ops engine fails closed on anchor drift at apply time.** An edit whose `find` pattern
+  is missing or ambiguous in the current (already-mutated) content now aborts and rolls
+  back, instead of skip-and-continue with first-occurrence replacement. Dry-run threads
+  simulated file state across operations so previews match real sequential execution, and
+  the engine prints a unified diff plus a machine-readable `RESULT-JSON:` summary line on
+  config load/normalize error, lock contention, manifest failure, operation failure,
+  crash, and signal; absence of the line means the process never reached a reported
+  exit path (killed outright, or failed before execution began).
+- **Validator simulates edits cumulatively.** `validate-config-json.py` GUARDs 10/11 now
+  validate each anchor against the content as it will exist when the executor reaches
+  that edit — within an operation and across operations on the same file.
+- **Implementer contract: reactive reads.** The implementer now validates (a mandatory step
+  its own spec previously omitted), dry-runs, and executes by passing paths to the ops
+  scripts, and relays the engine's diff and `RESULT-JSON` output as evidence; it reads
+  target files only to diagnose reported failures. Mirrored into the Codex corpus.
 - **Per-agent model routing tuned for token economy.** `reviewer` opus → sonnet (escalates
   to opus per-call for multi-phase, architecture-touching, or security-relevant plans),
   `implementer` and `explore` sonnet → haiku. `planner` stays opus. The surviving invariant
