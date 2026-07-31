@@ -2,6 +2,24 @@
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
 
+## 2026-07-31 (latest) — Claude (Fable 5) — Full fleet rollout
+
+- On explicit owner instruction ("all projects"), rolled the kit out across the entire
+  ~/IdeaProjects folder: 6 managed projects `ck update`d (AppiumLens hold lifted by
+  owner) + 11 fresh installs (qa-agent-pro, ApiForge, AutomationApp, Eatizaz, SehhatyApp,
+  appium-lens-public, Lean, codemanifest, CodeManifest-1/2/new; `--force` over old
+  hand-copied `.claude/` fragments, backed up first). All 17 validated: doctor --strict
+  22/22 each + per-project asset checks (review-record.py, new review.md/plan.md,
+  scratchpad hook allowance).
+- Upstreamed AppiumLens' field fix into the kit before overwriting it (`354f905`:
+  ops-enforcement.sh allows session-scratchpad/OS-temp targets — false cross-project
+  denials), then re-synced the 5 projects updated before the fix landed.
+- Kit bug filed (BACKLOG P2): settings.local.json is manifest-managed and gets clobbered
+  by `ck update`; hand-preserved in every project this rollout.
+- Deleted the accidental "LeanApis ai-agent-system AppiumLens MobileUIAutomator" dir
+  (unquoted-spaces artifact, owner-approved). Skipped non-projects: backups, report
+  outputs, scratch dirs.
+
 ## 2026-07-31 (later) — Claude (Fable 5) — Remaining-fixes implementation
 
 - Implemented `.claude/plans/plan-remaining-fixes-2026-07-31.md` end to end — 9 commits:
