@@ -32,6 +32,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   both iterations write the same fixed `PLAN_FILE`/`OPS_FILE` in place with only
   scoreboard-sized stdout. Pins the transport behavior mechanically so a future
   change can't silently reintroduce either leak.
+- **The shell-lint DoD gate is now surfaced, never silent.** CI always ran shellcheck,
+  but locally an uninstalled shellcheck meant the documented DoD command simply errored
+  and sessions worked around it. `ck doctor` now warns (with the install command) when
+  shellcheck is off PATH, and `tests/test_shell_lint.py` runs it per-script when present
+  — 21 visible PASS lines, or 21 visible SKIPs naming the install command when absent.
 - **Review verdicts are now bound to the artifact they approved.** `/review` recorded
   nothing beyond stdout, so an approved ops.json could be edited post-approval with no way
   for `/implement` to detect it — this happened for real during this session (see
