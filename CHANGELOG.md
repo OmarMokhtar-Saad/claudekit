@@ -13,6 +13,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **`/plan` leaked its full payload into the main session context twice per cycle.**
+  The scripted path piped the entire planner output through `tee`, printing the full
+  plan+ops.json as Bash stdout; the interactive path told the planner to return the
+  complete plan in its response and then had the main agent re-type it through Write
+  (the source of a measured 42,665-char Write). Scripted path now writes silently
+  (`printf > file`, no `tee`) and reports only paths + a ≤15-line summary (op count,
+  validation verdict, first 3 plan lines). Interactive path now has the planner write
+  `.claude/plans/plan-*.md` and `ops-*.json` itself (nothing in this repo's hooks blocks
+  an interactive Task-subagent writing to `.claude/plans/` — verified) and return only
+  paths + a short summary; the main agent re-validates once but never Reads the plan
+  body back into context.
 - **`suggest-compact.sh` context-budget nudge was a complete no-op.** It was registered
   as `PreToolUse` (whose stdout is never shown to the model) and additionally ran its
   tip from a backgrounded subshell with a trailing `&` on the settings entry too, so the
