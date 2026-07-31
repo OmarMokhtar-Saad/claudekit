@@ -25,6 +25,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   change can't silently reintroduce either leak.
 
 ### Fixed
+- **`/refine`'s headless iteration-1 planner message was self-contradictory.** It told
+  the planner to "report only a short summary" while the wrapper's only delivery channel
+  is stdout-to-file — a compliant planner would produce a plan file with no ops.json,
+  and the loop would die with "IRON LAW violated" on the very first iteration. Now tells
+  the planner its stdout IS the payload, matching iteration 2+'s (already-correct)
+  framing.
+- **`suggest-compact.sh`'s `PostToolUse` matcher lost Read/Grep/Glob/Task coverage.**
+  Narrowed to `Edit|Write|Bash` when the hook was fixed from a no-op `PreToolUse` entry
+  earlier — but exploration-heavy tool calls are exactly what ballooned the originally
+  observed sessions to 300k+ tokens. Restored to `""` (all tools); also added
+  `cd "$ROOT"` to the wrapper so the hook's relative counter-file path can't drift if a
+  session's cwd wanders (harmless while the hook was a no-op, now load-bearing).
 - **`/review` had the same `PLAN TO REVIEW: $var` leak `/refine` had.** It `cat`'d the
   whole plan file into `$PLAN_CONTENT` and interpolated it into the reviewer prompt every
   run. Now derives the paired `ops-*.json` path from the plan filename and hands the
