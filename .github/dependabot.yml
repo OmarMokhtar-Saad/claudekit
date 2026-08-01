@@ -15,3 +15,13 @@ updates:
       interval: "weekly"
     commit-message:
       prefix: "deps"
+
+  # Hash-pinned test lock (tests/requirements.in -> tests/requirements.txt).
+  # Dependabot bumps the pin; if a PR arrives without --hash lines, regenerate
+  # the lock per the procedure documented in that file's header.
+  - package-ecosystem: "pip"
+    directory: "/tests"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "deps"

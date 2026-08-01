@@ -15,11 +15,13 @@ MCP server operation: $ARGUMENTS
 
 | Server | Package | Purpose |
 |---|---|---|
-| `context7` | `@upstash/context7-mcp@latest` | Live documentation lookup for libraries and frameworks |
-| `sequential-thinking` | `@modelcontextprotocol/server-sequential-thinking` | Structured multi-step reasoning |
-| `playwright` | `@playwright/mcp@latest` | Browser automation and testing |
-| `memory` | `@modelcontextprotocol/server-memory` | Persistent key-value memory across sessions |
-| `filesystem` | `@modelcontextprotocol/server-filesystem` | Sandboxed filesystem read/write access |
+| `context7` | `@upstash/context7-mcp@3.2.5` | Live documentation lookup for libraries and frameworks |
+| `sequential-thinking` | `@modelcontextprotocol/server-sequential-thinking@2026.7.4` | Structured multi-step reasoning |
+| `playwright` | `@playwright/mcp@0.0.78` | Browser automation and testing |
+| `memory` | `@modelcontextprotocol/server-memory@2026.7.4` | Persistent key-value memory across sessions |
+| `filesystem` | `@modelcontextprotocol/server-filesystem@2026.7.10` | Scoped filesystem access, read-only by default |
+
+Versions are pinned deliberately -- see `templates/mcp/README.md` for what enabling a server grants and how to bump a pin.
 
 ## Operations
 

@@ -13,6 +13,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Supply chain hardened: every external ref is now pinned, and CI keeps it that way.**
+  `security.yml` was still on mutable action tags (`@v4`, `@v5`) and ran with the default token
+  scope; it is now SHA-pinned with `permissions: contents: read`, and all three workflows carry
+  precise `# vX.Y.Z` comments. The MCP template no longer fetches `@latest`: all five servers are
+  pinned to exact versions and the filesystem server ships **read-only** (`--allow-write` is now
+  a documented opt-in), with a "what this grants" disclosure in `templates/mcp/README.md`.
+  `tests/requirements.txt` became a fully hash-pinned lock generated from the new
+  `tests/requirements.in`, installed in CI and release with `--require-hashes`. A new
+  `supply-chain-pins` CI job fails on any unpinned `uses:` ref or any `@latest` under
+  `templates/mcp/`, and three new `tests/test_mcp.py` assertions enforce the MCP pins. Dependabot
+  now also watches the test lock. Release signing, SHA256SUMS and the repo-slug claim remain open
+  (task 014 steps 5-7) -- they need a real release and an owner account action.
 - **Queued ops configs are now validated against HEAD by the test suite.**
   `test_queued_ops_configs_validate_against_head` runs `validate-config-json.py` over
   every non-archived `.claude/plans/*.json`; a config whose anchors no longer match the
