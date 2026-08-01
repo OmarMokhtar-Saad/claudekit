@@ -13,6 +13,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Per-issue knowledge ledger — the project stops re-diagnosing bugs it already fixed.**
+  New `.claude/knowledge/issues/<slug>.md` store (markdown + frontmatter: `signature`,
+  `root_cause`, `fix`, `files`, `date`, `verified`) plus
+  `.claude/operations/scripts/knowledge-ledger.py` (stdlib-only; `search`/`record`/`list`/
+  `prune`). Writes fire **only at the Verifier PASS checkpoint** and only when the existing
+  `continuous-learning` reusability+novelty rubric scores >= 10 — no second scoring scheme, no
+  write on RETRY/FAIL, duplicate signatures refused, slugs constrained so an entry cannot
+  escape the ledger directory. The debugger gains a **Phase 0** that greps the ledger before
+  any fresh diagnosis and reports the known root cause (after re-validating it) instead of
+  re-deriving it; retrieval is pull-only — never auto-injected into context or CLAUDE.md — and
+  keyword-based, so there is no index and no new dependency. Ledger hygiene rides the existing
+  periodic backlog/docs-drift sweep: `prune` archives entries whose referenced files are all
+  gone. Scope is project-local; cross-project promotion to `~/.claude/skills/learned/` is an
+  explicit future phase. Behavioral coverage in `tests/test_knowledge_ledger.py`.
 - **Supply chain hardened: every external ref is now pinned, and CI keeps it that way.**
   `security.yml` was still on mutable action tags (`@v4`, `@v5`) and ran with the default token
   scope; it is now SHA-pinned with `permissions: contents: read`, and all three workflows carry
