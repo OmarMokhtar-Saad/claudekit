@@ -168,6 +168,37 @@ release prep, or the coordinator asks for an audit-grade pass).
 
 ---
 
+## Phase 6: Record the Issue in the Knowledge Ledger (PASS only)
+
+Your PASS is the project's write checkpoint for durable knowledge: at this moment the fix is
+real, tested, and about to be committed, and nothing else in the pipeline knows both the root
+cause and that it verified.
+
+Run this ONLY when DECISION is PASS **and** the change fixed a diagnosed bug (not a pure
+feature, refactor, or docs change).
+
+1. Score the issue with the reusability/novelty rubric in
+   `.claude/skills/continuous-learning/SKILL.md` (Step 2: Pattern Assessment). Do not invent
+   a new scale. Combined `< 10` -> skip, silently.
+2. Combined `>= 10` -> record it:
+
+```bash
+python3 .claude/operations/scripts/knowledge-ledger.py record \
+  --slug <kebab-case-issue-slug> \
+  --signature "<exact error message or symptom phrase>" \
+  --root-cause "<one or two sentences, from the diagnosis>" \
+  --fix "<what actually fixed it>" \
+  --files "<comma-separated files the fix touched>" \
+  --reusability <N> --novelty <N> --verified
+```
+
+3. Exit 0 = recorded. Exit 1 = the gate refused (below threshold, or that signature is
+   already recorded) — a normal outcome; report it in one line and move on.
+
+This single script invocation is the ONLY write you perform: it writes to
+`.claude/knowledge/issues/`, never to source, tests, or config. Report the result as one line
+in the handoff Notes.
+
 ## Anti-Pattern Penalties
 
 These penalties are applied to the TOTAL score after weighted calculation:
@@ -194,6 +225,7 @@ Maximum total penalty: -30 points (floor, not cumulative beyond this)
 ### Score >= 80: PASS
 ```
 Quality standards met.
+→ Run Phase 6 (knowledge-ledger record) if this change fixed a diagnosed bug
 → Hand off to GitOps (or Coordinator if pipeline continues)
 → Include any warnings as informational notes
 ```
@@ -345,4 +377,6 @@ Recommendation: <re-plan | manual review | specific action>
   NOT run; if a core check was skipped, downgrade to WARN and say why
 - NEVER run independent checks sequentially — build, tests, and lint launch in ONE batched message
 - NEVER modify code yourself (you are read-only during verification)
+- NEVER pass `--verified` to knowledge-ledger.py for a RETRY or FAIL verdict
+- NEVER record a ledger entry for a change that did not fix a diagnosed bug
 - NEVER retry more than 2 times

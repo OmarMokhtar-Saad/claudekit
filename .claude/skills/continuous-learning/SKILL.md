@@ -16,7 +16,15 @@ This skill governs how Claude extracts reusable patterns at session end and save
 
 ## When Pattern Extraction Triggers
 
-The Stop hook evaluates the session when:
+Extraction has TWO triggers:
+
+**A. Per-issue, at the Verifier PASS checkpoint (project-local ledger).** When a diagnosed bug
+is fixed and the Verifier returns PASS, score that one issue with the rubric below and — if it
+clears — write it to `.claude/knowledge/issues/` (see *Per-Issue Knowledge Ledger*). Immediate
+and per-issue; it does not wait for session end.
+
+**B. Per-session, at the Stop hook (learned skills).** The Stop hook evaluates the session
+when:
 
 1. The session had **10 or more meaningful exchanges** (not just clarifications)
 2. At least one of these occurred:
@@ -128,6 +136,54 @@ Add to `~/.claude/skills/learned/INDEX.md`:
 
 ---
 
+## Per-Issue Knowledge Ledger (project-local)
+
+Session-end extraction is too coarse for bugs: by the time Stop fires, the exact error
+signature and the verified root cause are buried in the transcript. So each *issue* is recorded
+at the moment it is proven fixed.
+
+| | Learned skills (Stop hook) | Issue ledger (Verifier PASS) |
+|---|---|---|
+| Trigger | session end | Verifier DECISION = PASS on a bug fix |
+| Unit | pattern / workflow | one issue |
+| Storage | `~/.claude/skills/learned/` | `.claude/knowledge/issues/<slug>.md` |
+| Scope | cross-project | this project only |
+| Retrieval | skill loading | debugger Phase 0 keyword grep |
+
+**Same gate — there is no second rubric.** Reuse the Step 2 Pattern Assessment scores
+unchanged: combined `reusability + novelty >= 10` extracts, `< 10` skips. The ledger script
+enforces that threshold *and* the verified-PASS precondition, and refuses anything else. The
+threshold is not hardcoded twice: the script reads
+`continuous_learning.issue_ledger.min_combined_score` from the Configuration block below and
+falls back to 10 when the key is absent.
+
+```bash
+# write (Verifier, on PASS only)
+python3 .claude/operations/scripts/knowledge-ledger.py record --slug <slug> \
+  --signature "<error signature>" --root-cause "<why>" --fix "<what>" \
+  --files "<a.py,b.py>" --reusability <N> --novelty <N> --verified
+
+# read (debugger, before diagnosing)
+python3 .claude/operations/scripts/knowledge-ledger.py search "<signature or keywords>"
+
+# hygiene (rides the periodic sweep — see .ai/BACKLOG.md)
+python3 .claude/operations/scripts/knowledge-ledger.py prune [--apply]
+```
+
+Entry frontmatter: `signature`, `root_cause`, `fix`, `files`, `date`, `verified`. File paths
+passed to `--files` may not contain `[`, `]`, `,`, quotes or newlines — the script rejects
+them so the `files:` line always parses back cleanly during pruning.
+
+Rules:
+- Retrieval is **pull-only**. The debugger greps the ledger on demand; NEVER auto-inject
+  entries into context or append them to a CLAUDE.md — that reintroduces exactly the context
+  cost the ledger exists to avoid.
+- Storage is plain markdown searched by keyword. No index, no vector store, no new runtime
+  dependency.
+- Scope is **project-local**. Promoting an entry to the cross-project
+  `~/.claude/skills/learned/` tier is a deliberate future phase — never ad hoc.
+- Stale entries (every referenced file gone) are archived by `prune`, never hand-deleted.
+
 ## Learning Categories
 
 ### Error Resolutions
@@ -195,7 +251,13 @@ Control extraction sensitivity in `.claude/hooks/config.json`:
     "min_session_messages": 10,
     "auto_approve": false,
     "storage_path": "~/.claude/skills/learned/",
-    "categories": ["error-resolution", "project-patterns", "debugging", "workflow"]
+    "categories": ["error-resolution", "project-patterns", "debugging", "workflow"],
+    "issue_ledger": {
+      "enabled": true,
+      "trigger": "verifier-pass",
+      "storage_path": ".claude/knowledge/issues/",
+      "min_combined_score": 10
+    }
   }
 }
 ```

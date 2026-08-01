@@ -27,6 +27,10 @@ Priority-ordered. Sources: `review/tasks/` (file-level specs — read them befor
 - [ ] Hook-enforced autonomous-loop block-list (audit item 19) + sandbox profile presets.
 
 ## P3 — polish & smaller fixes (from AGENTS_KNOWN_ISSUES.md + audit)
+- [ ] **Issue-ledger hygiene** — fold `python3 .claude/operations/scripts/knowledge-ledger.py prune`
+  into this same periodic sweep: it exits 1 and lists entries in `.claude/knowledge/issues/`
+  whose referenced files are all gone; `--apply` moves them to `issues/archive/`. Also
+  re-validate any entry older than the last large refactor. No separate mechanism, same cadence.
 
 - [ ] Stale test-count references across 7 `.ai/*`+`CLAUDE.md` files ("516 tests"; actual 638 as of 2026-07-31 and still moving) — sweep once plan-remaining-fixes items are all landed, counts change again with each.
 - [ ] Consolidate the duplicate CI shellcheck jobs (`ci.yml` `shellcheck` job vs `security.yml` "Validate shell scripts" step — byte-identical intent, run twice per push).
@@ -42,5 +46,9 @@ Priority-ordered. Sources: `review/tasks/` (file-level specs — read them befor
 - [ ] `ck lint` for consumer-authored assets; `ck new <asset>` scaffolder.
 
 ## Icebox
+
+Cross-project promotion of `.claude/knowledge/issues/` entries into the global
+`~/.claude/skills/learned/` tier — explicitly out of scope for ledger v1 (project-local only);
+needs a redaction story and a per-project provenance field before it can be considered.
 
 Windows support · MCP server for the ops engine · `ck cost`/`ck trace` observability · team features · README translations refresh policy (i18n/ currently drifts silently — no CI check).

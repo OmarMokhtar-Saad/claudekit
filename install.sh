@@ -232,6 +232,15 @@ if [[ "$MODE" == "full" ]]; then
     SKILL_COUNT=$(find "$DEST/skills" -name "SKILL.md" 2>/dev/null | wc -l | tr -d ' ')
     print_ok "$SKILL_COUNT skills installed"
 
+    # Copy the issue-ledger entry-format contract. The ledger directory and its
+    # entries self-materialize on the first `record`, but the README is the
+    # documented entry format, so a full install must ship it.
+    if [[ -f "$CLAUDE_SRC/knowledge/issues/README.md" ]]; then
+        mkdir -p "$DEST/knowledge/issues"
+        cp "$CLAUDE_SRC/knowledge/issues/README.md" "$DEST/knowledge/issues/"
+        print_ok "Issue-ledger entry contract installed"
+    fi
+
     print_step "Installing hooks..."
     cp "$CLAUDE_SRC"/hooks/*.sh "$DEST/hooks/" 2>/dev/null || true
     cp "$CLAUDE_SRC"/hooks/*.json "$DEST/hooks/" 2>/dev/null || true

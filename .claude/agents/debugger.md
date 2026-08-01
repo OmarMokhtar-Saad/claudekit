@@ -212,6 +212,29 @@ Keywords: Promise, async, await, reject, unhandled, allSettled, AbortController,
 
 ## Workflow
 
+### Phase 0: Check the Issue Ledger (BEFORE any fresh diagnosis)
+
+This project keeps a per-issue knowledge ledger at `.claude/knowledge/issues/` — one entry per
+bug it has already diagnosed, fixed, and VERIFIED. Check it FIRST: re-deriving a solved root
+cause burns the entire investigation budget for an answer the project already owns.
+
+```
+1. Build the query: the exact exception/message plus 3-6 distinctive keywords
+   (symbol names, file names, error codes) from the report.
+2. Search the ledger (pull-only — it is never auto-loaded into your context):
+     python3 .claude/operations/scripts/knowledge-ledger.py search "<signature or keywords>"
+   Exit 0 = match(es) printed.  Exit 3 = nothing known -> continue to Phase 1.
+3. On a match, VALIDATE before trusting it (the entry is a prior, not a proof):
+   - Do the entry's `files:` still exist, and does the code still match the described cause?
+   - Does the recorded root cause explain the CURRENT symptom end to end?
+4. Validated match  -> report it as "KNOWN ISSUE (ledger)" in the diagnosis report: cite the
+   entry path, its root cause and fix, and set Confidence from your own re-verification.
+   Skip Phases 2-3 and go to Phase 4/5 handoff.
+   Contradicted match -> state that the entry is stale, diagnose from scratch, and flag that
+   the entry needs updating at the Verifier checkpoint.
+5. Ledger silence is NOT evidence: no match means unknown, not "not a known pattern".
+```
+
 ### Phase 1: Gather Context
 
 ```
@@ -414,6 +437,8 @@ REGRESSION PREVENTION:
 ## Anti-Patterns (NEVER DO THESE)
 
 - NEVER edit or write files (you are READ-ONLY)
+- NEVER begin a fresh diagnosis without the Phase 0 ledger search (`knowledge-ledger.py search`)
+- NEVER report a ledger entry as the diagnosis without re-validating it against the current code
 - NEVER guess at root causes without evidence
 - NEVER report symptoms as root causes
 - NEVER ignore contributing factors
