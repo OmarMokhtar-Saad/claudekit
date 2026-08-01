@@ -2,6 +2,28 @@
 
 Pre-configured Model Context Protocol (MCP) server definitions for use with Claude Code. These servers extend Claude's capabilities with documentation lookup, structured reasoning, browser automation, persistent memory, and filesystem access.
 
+## What this grants (read before enabling)
+
+Enabling these servers is a trust decision, not a configuration detail. Every entry below launches `npx`, which **downloads and executes code from the npm registry** on your machine, with your user's permissions, inside your project. Once running, an MCP server is a tool the model can call -- its capabilities become the model's capabilities.
+
+Concretely, `--with-mcp` grants:
+
+| Server | What it can do | Blast radius |
+|---|---|---|
+| `context7` | Outbound HTTPS to Upstash to fetch documentation | The library names and versions you look up leave your machine |
+| `sequential-thinking` | A local reasoning scratchpad; no I/O | Minimal |
+| `playwright` | Drives a real browser: navigate, click, submit forms, screenshot | Any site reachable from your machine, using your network position and any logged-in session in that browser profile |
+| `memory` | Reads and writes a local JSON store that persists across sessions | Anything written there is replayed into future sessions |
+| `filesystem` | Reads files under the path you pass as an argument | Everything under that path -- including `.env` files and credentials, if they are in scope |
+
+Mitigations already applied in this template:
+
+- **Exact version pins.** Every package is pinned to a specific version (`@x.y.z`), never a floating `latest` tag. A compromised *new* release of any of these packages does not reach you until someone deliberately bumps the pin. This does **not** make the fetch safe: pinning fixes *which* remote code runs, not *that* remote code runs, and npm provides no signature verification here.
+- **Filesystem read-only by default.** The filesystem server ships without `--allow-write`. Write access is an explicit opt-in (see below).
+- **Least scope.** The filesystem server is scoped to `.` (the project directory), never `/` or `$HOME`.
+
+If that trade is not acceptable for your threat model, do not enable the server. Each entry is independent and can be omitted.
+
 ## Prerequisites
 
 - **Node.js 18+** (required for all servers via `npx`)
@@ -43,7 +65,7 @@ Enables structured, multi-step reasoning through a dedicated thinking tool. Usef
 
 ---
 
-### 3. Playwright (`@playwright/mcp@latest`)
+### 3. Playwright (`@playwright/mcp`)
 
 Provides browser automation capabilities through the Playwright testing framework. Claude can navigate web pages, interact with elements, take screenshots, and verify UI behavior.
 
@@ -75,14 +97,26 @@ Provides persistent key-value memory that survives across sessions. Claude can s
 
 ### 5. Filesystem (`@modelcontextprotocol/server-filesystem`)
 
-Provides sandboxed filesystem access with explicit read/write permissions. The `--allow-write .` flag grants write access to the current working directory.
+Provides scoped filesystem access. Every path the server may touch is passed as an argument; anything outside those paths is inaccessible to it.
 
 **Use cases:**
-- Reading and writing project files through the MCP protocol
-- Performing bulk file operations
-- Managing file-based configuration
+- Reading project files through the MCP protocol
+- Bulk inspection of file-based configuration
+- Answering questions about files the model would otherwise have to open one at a time
 
-**Security note:** The `--allow-write .` argument restricts write access to the current directory. Adjust the path argument to control the scope of filesystem access. Remove `--allow-write` entirely for read-only mode.
+**Default in this template -- read-only, scoped to the project directory:**
+
+```json
+"args": ["-y", "@modelcontextprotocol/server-filesystem@2026.7.10", "."]
+```
+
+**Opt-in to write access (a deliberate change, not the shipped default):**
+
+```json
+"args": ["-y", "@modelcontextprotocol/server-filesystem@2026.7.10", "--allow-write", "."]
+```
+
+**Security note:** adding `--allow-write` lets the model create, overwrite, and delete files anywhere under the scoped path -- including files it was never asked to touch, and including `.env` files, keys, and shell history if they live in scope. Claude Code's own Edit/Write tools are covered by this kit's hooks and permission prompts; the MCP filesystem server is not. If you do enable writes, scope them to a specific subdirectory (`./src`, `./docs`) rather than `.`.
 
 ---
 
@@ -105,13 +139,25 @@ Copy specific server entries from `mcp-settings.json` into your existing `mcpSer
 
 ## Customization
 
-### Filesystem server path
+### Filesystem server scope
 
-By default the filesystem server has write access to `.` (current directory). Change this to restrict or expand access:
+By default the filesystem server is read-only and scoped to `.` (the project directory). Narrow the scope by replacing the trailing path argument:
 
 ```json
-"args": ["-y", "@modelcontextprotocol/server-filesystem", "--allow-write", "/path/to/allowed/dir"]
+"args": ["-y", "@modelcontextprotocol/server-filesystem@2026.7.10", "./src"]
 ```
+
+Write access is opt-in; see the security note in the Filesystem section above.
+
+### Updating the pinned versions
+
+Every server is pinned to an exact version. To bump one:
+
+1. Review what changed -- `npm view <package> versions` plus the package's own changelog.
+2. Edit the version in `mcp-settings.json` **and** in the table in `templates/commands/mcp.md`.
+3. Re-run the test suite. `tests/test_mcp.py` enforces that every package spec is an exact `@x.y.z` and that the filesystem server carries no `--allow-write`.
+
+Never reintroduce a floating `latest` tag: CI fails on any such spec under `templates/mcp/`.
 
 ### Disabling a server
 
@@ -125,4 +171,4 @@ Remove or comment out the server entry from your `mcpServers` configuration. Eac
 | Server fails to start | Run the `npx` command manually in a terminal to see error output |
 | Playwright browsers missing | Run `npx playwright install` to download browser binaries |
 | Memory server data lost | Check file permissions in the server's data directory |
-| Filesystem server permission denied | Verify the `--allow-write` path is correct and accessible |
+| Filesystem server permission denied | Verify the scoped path argument is correct and readable; writing requires the explicit `--allow-write` opt-in |

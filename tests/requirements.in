@@ -1,0 +1,13 @@
+# Direct test dependencies -- edit this file, not requirements.txt.
+#
+# tests/requirements.txt is the resolved, hash-pinned lock generated from this
+# file; CI installs it with --require-hashes. See that file's header for the
+# regeneration procedure.
+pytest>=7.0
+jsonschema>=4.0
+# Python 3.12+ venvs no longer bundle setuptools; test_packaging execs setup.py
+# (the wheel-bundling shim), which imports it.
+setuptools>=64
+# Coverage gate in CI (security modules must stay >= 85%). Kept here rather than
+# on the CI command line: hash-checking mode rejects unhashed requirements.
+pytest-cov>=4.0
