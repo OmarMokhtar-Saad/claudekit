@@ -2,7 +2,26 @@
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
 
-## 2026-08-02 (latest) — Claude (Fable 5) — Project graph sidecar (Graphify-inspired)
+## 2026-08-02 (later) — Claude (Fable 5) — Work-loss protection + fleet rollout ×3
+
+- Incident-driven (concurrent session's git checkout wiped 5 rounds of accumulated work on
+  one file in a kitted project): landed `46d437c feat(safety)` — destructive-git screening
+  in CommandValidator (reset --hard/clean -f/checkout --/worktree restore/stash drop;
+  benign forms allowed), `--stamp-baseline` drift gate (executor aborts pre-write on sha256
+  mismatch, /implement stamps by default), post-state checkpoints + `restore-backup.py
+  --post` forward recovery, concurrent-session warning in session-start (.claude/locks/).
+  15 tests in test_work_loss_protection.py; 730 total green.
+- Found + fixed a silent screening hole: user projects had NO command screening (validator
+  rc-127 permissive path — no console script on PATH, no src/ tree). pip-installed
+  claude-kit locally and added a third hook fallback `python3 -m claudekit.security`
+  (commit `fix(hooks)`); verified the guard now blocks `git reset --hard` (rc 2) from
+  inside AppiumLens.
+- Graph-sidecar automation landed earlier today (`38e246c`): session-start graph status
+  line + explore record-back. Fleet rolled out 3× today (graph, safety, hook-fallback) to
+  all 16 kitted projects; settings.local.json intact each time (installer preservation
+  held — no hand-restores needed).
+
+## 2026-08-02 — Claude (Fable 5) — Project graph sidecar (Graphify-inspired)
 
 - Researched Graphify-Labs/graphify (tree-sitter/NetworkX codebase→knowledge-graph tool)
   on owner request; vendoring ruled out (hard rule 8). Borrowed three patterns stdlib-only
