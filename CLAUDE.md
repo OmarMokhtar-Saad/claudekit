@@ -61,7 +61,7 @@ Phase 1 ("Fix What's Broken") merged 2026-07-06; release tag + PyPI publish are 
 <!-- CLAUDEKIT:TOKEN-MODEL-POLICY v1 START -->
 ## Token & Model Policy (ClaudeKit, 2026-07-23)
 
-- **Web research**: main agent and planner MUST NOT call WebSearch/WebFetch directly. Delegate to the `web-researcher` agent (haiku). For library/framework/API docs try context7 MCP first. Check `.claude/reports/research/` cache before any new search.
+- **Web research**: main agent and planner MUST NOT call WebSearch/WebFetch directly. Route by query type, in this order: (1) library/framework/API documentation question -> call the context7 MCP tools DIRECTLY YOURSELF first (resolve-library-id then query-docs; the web-researcher agent has no MCP access, so delegating a docs question wastes a search); (2) context7 miss, or any non-docs web need (repos, errors, news, tool flags) -> delegate to the `web-researcher` agent (haiku). Check `.claude/reports/research/` cache before any new search.
 - **Trivial fast-path**: <=2 lines OR purely cosmetic (color, size, spacing, label, log level), single file, no API/architecture/security impact -> create minimal ops.json -> validate -> execute -> compile-verify. SKIP planner/reviewer. Criteria unmet or execution fails -> full flow.
 - **Verifier gate**: the verifier agent NEVER auto-runs after implementation. Stop, ask the user, run only on explicit approval.
 - **Model routing**: planner=opus, reviewer=sonnet (escalate to opus for multi-phase/architecture/security plans), implementer=haiku, explore=haiku, web-researcher=haiku. Session fallback chain sonnet->haiku is configured in user settings — on model limits, degrade and continue, never stop.
