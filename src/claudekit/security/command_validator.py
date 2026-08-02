@@ -59,7 +59,31 @@ DANGEROUS_PATTERNS = [
     (r'\bsubprocess\.(?:Popen|call|run|check_output|check_call)\b', "python subprocess"),
     (r'\b__import__\s*\(', "python __import__()"),
     (r':\s*\(\s*\)\s*\{', "fork bomb"),
+    # Destructive git: silently discards uncommitted work. Another session (or a
+    # later round of the same task) may have unstaged accumulated changes; these
+    # commands wipe them with no undo. Benign forms (branch checkout, -b,
+    # restore --staged) deliberately do not match.
+    (r'\bgit\b[^;&|]*\breset\b[^;&|]*--hard\b', "git reset --hard discards uncommitted work"),
+    (r'\bgit\b[^;&|]*\bclean\b[^;&|]*(?:\s-[a-zA-Z]*f|\s--force\b)',
+     "git clean -f deletes untracked files"),
+    (r'\bgit\b[^;&|]*\bcheckout\b[^;&|]*\s--\s', "git checkout -- overwrites uncommitted work"),
+    (r'\bgit\b[^;&|]*\bcheckout\b\s+\.(?:\s|$)', "git checkout . overwrites uncommitted work"),
+    (r'\bgit\b[^;&|]*\bstash\b[^;&|]*\b(?:drop|clear)\b', "git stash drop/clear destroys stashes"),
 ]
+
+# `git restore` needs its own check: worktree restore destroys uncommitted work,
+# but pure `--staged` usage only unstages (worktree untouched) and stays allowed.
+_GIT_RESTORE_RE = re.compile(r'\bgit\b[^;&|]*\brestore\b([^;&|]*)')
+
+
+def _git_restore_violation(command: str) -> bool:
+    match = _GIT_RESTORE_RE.search(command)
+    if not match:
+        return False
+    args = match.group(1)
+    # Safe only when --staged is present and no worktree flag pulls the
+    # restore back into the working tree.
+    return "--staged" not in args or "--worktree" in args or re.search(r'\s-[a-zA-Z]*W', args) is not None
 
 # Token strings shlex emits for command separators (with punctuation_chars).
 _SEPARATORS = {";", "&&", "||", "|", "&", "|&", "\n"}
@@ -91,6 +115,10 @@ class CommandValidator:
         for pattern, label in DANGEROUS_PATTERNS:
             if re.search(pattern, command):
                 return False, f"Dangerous pattern ({label})"
+        if _git_restore_violation(command):
+            return False, ("Dangerous pattern (git restore overwrites uncommitted work; "
+                           "only pure --staged unstaging is allowed — commit/stash first, "
+                           "or the user runs it manually)")
 
         # 2. Validate every command-substitution payload against the blocklist
         #    only, so legitimate `$(date)` passes but `$(rm -rf /)` does not.

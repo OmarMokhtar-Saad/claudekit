@@ -14,6 +14,14 @@
           "description": "Plan name (kebab-case)",
           "minLength": 1
         },
+        "baseline": {
+          "type": "object",
+          "description": "Optional drift gate: sha256 of each target file at stamping time (written by validate-config-json.py --stamp-baseline; verified by the executor before any write)",
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          }
+        },
         "files": {
           "type": "array",
           "description": "Array of file operations (code edits only)",
@@ -82,6 +90,14 @@
           "type": "string",
           "description": "Plan name (kebab-case)",
           "minLength": 1
+        },
+        "baseline": {
+          "type": "object",
+          "description": "Optional drift gate: sha256 of each target file at stamping time (written by validate-config-json.py --stamp-baseline; verified by the executor before any write)",
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          }
         },
         "operations": {
           "type": "array",

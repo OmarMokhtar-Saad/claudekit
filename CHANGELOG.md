@@ -13,6 +13,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Work-loss protection — a concurrent session can no longer silently wipe accumulated
+  work.** Four layers, prompted by a real incident (an external `git checkout` reset a file
+  mid-multi-round-plan, destroying five rounds of edits, discovered only via test failures):
+  (1) the command guard now blocks destructive git (`reset --hard`, `clean -f`,
+  `checkout -- <path>`/`checkout .`, worktree `restore`, `stash drop/clear`) while benign
+  forms (branch checkout, `-b`, `restore --staged`, soft/mixed reset) stay allowed;
+  (2) `validate-config-json.py --stamp-baseline` records sha256 of every target file into
+  ops.json and the executor refuses to run — before any write, dry-run included — when a
+  stamped file changed since (`BASELINE DRIFT` report names each file); the /implement flow
+  now stamps by default; (3) every successful execution snapshots the post-state of touched
+  files under `<backup>/post/` and `restore-backup.py --post` restores that checkpoint —
+  forward recovery from an external wipe becomes one command instead of replaying every
+  archived ops config; (4) session-start warns when another live Claude session holds a lock
+  in `.claude/locks/` (per-pid files, dead pids pruned, warning-only). Behavioral coverage in
+  `tests/test_work_loss_protection.py` (15 tests) and `tests/test_security.py` (destructive
+  vs benign git corpus).
 - **Project graph sidecar — agents query cached structure instead of re-grepping the repo
   each session.** New `.claude/operations/scripts/project-graph.py` (stdlib-only;
   `build`/`query`/`hubs`/`path`/`stale`) stores an agent-built dependency graph at

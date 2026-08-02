@@ -34,7 +34,7 @@ allowed-tools: Read, Bash, Grep, Glob
 Use the Bash tool to run the Python validator:
 
 ```bash
-python3 .claude/operations/scripts/validate-config-json.py <path-to-ops.json>
+python3 .claude/operations/scripts/validate-config-json.py <path-to-ops.json> --stamp-baseline
 ```
 
 If the script is not at that path, search for it:

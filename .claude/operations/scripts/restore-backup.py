@@ -31,7 +31,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 from shared import __version__
 
 
-def restore_from_backup(backup_dir, force=False, dry_run=False):
+def restore_from_backup(backup_dir, force=False, dry_run=False, post=False):
     """
     Restore all files from backup directory.
 
@@ -39,6 +39,8 @@ def restore_from_backup(backup_dir, force=False, dry_run=False):
         backup_dir: Path to backup directory
         force: Skip user confirmation if True
         dry_run: Preview what would be restored without touching files
+        post: Restore the POST-execution checkpoint (forward recovery after an
+              external wipe) instead of the pre-execution state (rollback)
 
     Returns:
         True if successful
@@ -81,6 +83,19 @@ def restore_from_backup(backup_dir, force=False, dry_run=False):
         files_to_restore = manifest.get('files', [])
         created_files = manifest.get('created_files', [])
 
+        # Forward recovery: restore the checkpointed RESULT of the run, not its
+        # pre-state. The post/ snapshot covers modified AND created files;
+        # nothing gets removed (that's rollback's job).
+        source_root = backup_dir
+        if post:
+            if not manifest.get('post_state'):
+                print("Error: This backup has no post-execution checkpoint "
+                      "(older run, or the checkpoint failed). Use plain restore for rollback.")
+                return False
+            source_root = os.path.join(backup_dir, 'post')
+            files_to_restore = files_to_restore + created_files
+            created_files = []
+
         # GUARD 11: Path traversal protection on manifest entries
         cwd = os.path.realpath(os.getcwd())
         for fp in files_to_restore + created_files:
@@ -114,7 +129,7 @@ def restore_from_backup(backup_dir, force=False, dry_run=False):
                 print(f"Would restore ({len(files_to_restore)}):")
                 for fp in files_to_restore:
                     rel_path = os.path.relpath(fp)
-                    backup_path = os.path.join(backup_dir, rel_path)
+                    backup_path = os.path.join(source_root, rel_path)
                     exists = "exists" if os.path.exists(backup_path) else "MISSING in backup"
                     print(f"  - {fp}  [{exists}]")
                 print()
@@ -170,10 +185,10 @@ def restore_from_backup(backup_dir, force=False, dry_run=False):
 
         # Restore each file (GUARD 7, 8, 9)
         restored_count = 0
-        real_backup_dir = os.path.realpath(backup_dir)
+        real_backup_dir = os.path.realpath(source_root)
         for file_path in files_to_restore:
             rel_path = os.path.relpath(file_path)
-            backup_path = os.path.join(backup_dir, rel_path)
+            backup_path = os.path.join(source_root, rel_path)
 
             # GUARD 12: Verify backup source stays inside backup directory
             real_backup_path = os.path.realpath(backup_path)
@@ -184,6 +199,11 @@ def restore_from_backup(backup_dir, force=False, dry_run=False):
                 return False
 
             # GUARD 7: Backup file exists
+            if post and not os.path.exists(backup_path):
+                # A file the plan deleted has no post-state snapshot — its
+                # correct post-execution state is "absent", so skip it.
+                print(f"  Skipped (deleted by plan): {file_path}")
+                continue
             if not os.path.exists(backup_path):
                 print(f"Error: Backup file missing: {backup_path}")
                 if restored_files:
@@ -308,6 +328,9 @@ Examples:
     )
 
     parser.add_argument('--backup', help='Path to backup directory to restore from')
+    parser.add_argument('--post', action='store_true',
+                        help='Restore the post-execution checkpoint (forward recovery after '
+                             'an external wipe) instead of the pre-execution state (rollback)')
     parser.add_argument('--force', action='store_true', help='Skip confirmation prompt')
     parser.add_argument('--dry-run', action='store_true', help='Preview what would be restored without touching files')
     parser.add_argument('--list', action='store_true', help='List available backups')
@@ -350,7 +373,8 @@ Examples:
         parser.print_help()
         sys.exit(1)
 
-    success = restore_from_backup(args.backup, force=args.force, dry_run=args.dry_run)
+    success = restore_from_backup(args.backup, force=args.force, dry_run=args.dry_run,
+                                  post=args.post)
     sys.exit(0 if success else 1)
 
 

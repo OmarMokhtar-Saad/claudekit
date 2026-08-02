@@ -48,7 +48,7 @@ Before writing any code, verify ALL of the following:
    you do not need to open it)
 3. **Run the Python validator** (MANDATORY — do not skip):
    ```bash
-   python3 .claude/operations/scripts/validate-config-json.py <path-to-ops.json>
+   python3 .claude/operations/scripts/validate-config-json.py <path-to-ops.json> --stamp-baseline
    ```
    If it exits non-zero or prints FAIL, STOP. Fix ops.json and re-run `/review` before proceeding.
 4. **Run the dry-run executor** (MANDATORY — do not skip):
@@ -71,7 +71,7 @@ If you must deviate from the ops.json spec, you need explicit user authorization
 ## Script Execution Workflow
 
 ### Phase 1: Preparation
-- Run `validate-config-json.py <ops.json>` and read its verdict. Do NOT parse or read
+- Run `validate-config-json.py <ops.json> --stamp-baseline` and read its verdict. Do NOT parse or read
   ops.json yourself — pass the path; the validator proves every anchor exists and is
   unique (GUARDs 10/11, simulated cumulatively) and the executor fails closed on drift.
 - Note the validation commands recorded in plan.md for Phase 3

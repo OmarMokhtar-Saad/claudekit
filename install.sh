@@ -521,6 +521,7 @@ ENTRIES=(
     "# ClaudeKit"
     ".claude/reports/"
     ".claude/hooks/hooks.log"
+    ".claude/locks/"
     ".claude-core.lock"
     "backups/"
     "operations/**/state.json"

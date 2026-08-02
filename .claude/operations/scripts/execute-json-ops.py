@@ -257,6 +257,68 @@ def normalize_config(config: dict) -> dict:
     }
 
 
+def _sha256_file(path: str) -> Optional[str]:
+    """sha256 of a file's bytes, or None if unreadable."""
+    import hashlib
+    try:
+        digest = hashlib.sha256()
+        with open(path, 'rb') as fh:
+            for chunk in iter(lambda: fh.read(65536), b''):
+                digest.update(chunk)
+        return "sha256:" + digest.hexdigest()
+    except OSError:
+        return None
+
+
+def verify_baseline(baseline: dict) -> List[str]:
+    """Compare each baseline-recorded file hash against disk.
+
+    Returns a drift message per mismatched file. A file that changed since the
+    plan was stamped means the plan was authored against a state that no longer
+    exists (concurrent session, external git checkout/restore, manual edit) —
+    applying edits on top of it risks compounding the damage.
+    """
+    drift: List[str] = []
+    for rel, expected in sorted(baseline.items()):
+        if not isinstance(rel, str) or not isinstance(expected, str):
+            drift.append(f"baseline entry malformed: {rel!r}")
+            continue
+        actual = _sha256_file(rel)
+        if actual is None:
+            drift.append(f"{rel}: MISSING (was {expected[:19]}...) — file deleted or moved "
+                         "since the plan was stamped")
+        elif actual != expected:
+            drift.append(f"{rel}: CHANGED since the plan was stamped "
+                         f"(expected {expected[:19]}..., found {actual[:19]}...)")
+    return drift
+
+
+def snapshot_post_state(backup_dir: Path, rel_paths: List[str]) -> bool:
+    """Snapshot the post-execution state of touched files under backup_dir/post/.
+
+    The pre-execution backup enables rollback; this enables FORWARD recovery —
+    if an external actor (concurrent session, stray git restore) later wipes a
+    file, `restore-backup.py --post` restores the completed result instead of
+    forcing a replay of every ops config that built it.
+    """
+    post_dir = backup_dir / "post"
+    try:
+        for rel in rel_paths:
+            if not os.path.isfile(rel):
+                continue  # deleted by the plan — nothing to checkpoint
+            dest = post_dir / rel
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(rel, str(dest))
+        manifest_path = backup_dir / MANIFEST_NAME
+        manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+        manifest['post_state'] = True
+        manifest_path.write_text(json.dumps(manifest, indent=2), encoding='utf-8')
+        return True
+    except (OSError, ValueError) as e:
+        print(f"  Warning: post-state checkpoint failed ({e}) — rollback backups intact")
+        return False
+
+
 def create_manifest(backup_dir: Path, plan_name: str, files_to_backup: List[str], files_to_create: List[str]) -> bool:
     """Create manifest.json for backup compatibility with restore-backup.py.
 
@@ -609,6 +671,26 @@ def execute_json_config(config_file: str, dry_run: bool = False) -> bool:
     print(f"Format: {config_format}")
     print(f"Operations: {len(operations)}")
 
+    # Baseline drift gate: refuse to apply a plan authored against file states
+    # that no longer exist. Runs in dry-run too — a drifted dry-run preview is
+    # equally misleading.
+    baseline = raw_config.get('baseline')
+    if isinstance(baseline, dict) and baseline:
+        drift = verify_baseline(baseline)
+        if drift:
+            print(f"\nBASELINE DRIFT — {len(drift)} file(s) changed since this plan was stamped:")
+            for message in drift:
+                print(f"  {message}")
+            print("\nRefusing to execute. Re-validate the plan against the current tree")
+            print("(validate-config-json.py --stamp-baseline) or re-plan if the drift is real.")
+            _emit_result(plan_name, dry_run, 'failed', [],
+                         reason=f"baseline-drift: {len(drift)} file(s)")
+            return False
+        print(f"Baseline: verified ({len(baseline)} file(s) unchanged since stamping)")
+    else:
+        print("Baseline: none — drift since planning cannot be detected "
+              "(stamp via validate-config-json.py --stamp-baseline)")
+
     if dry_run:
         print("DRY RUN MODE - No changes will be made\n")
     else:
@@ -734,6 +816,12 @@ def _execute_operations(config: dict, operations: list, plan_name: str,
         # evidence over a reverted tree.
         _active_txn = None
         loop_completed = True
+
+        # Forward-recovery checkpoint: snapshot the resulting state of every
+        # touched file so an external wipe later is a restore, not a replay.
+        if not dry_run and error_count == 0:
+            if snapshot_post_state(backup_dir, files_to_backup + files_to_create):
+                print(f"\nPost-state checkpoint: {backup_dir}/post/")
 
         # Summary
         print()

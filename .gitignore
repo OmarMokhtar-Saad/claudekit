@@ -33,4 +33,7 @@ backups/
 # Local, per-developer Claude Code overrides (never shipped)
 .claude/settings.local.json
 
+# Per-session lock files (concurrent-session detection; runtime state)
+.claude/locks/
+
 .coverage
