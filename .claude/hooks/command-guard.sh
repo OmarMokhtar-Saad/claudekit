@@ -52,6 +52,10 @@ run_validator() {
         PYTHONPATH="$ROOT/src${PYTHONPATH:+:$PYTHONPATH}" \
             python3 -m claudekit.security check-command "$1" 2>&1
         return $?
+    elif python3 -c 'import claudekit.security' 2>/dev/null; then
+        # pip-installed package without the console script on PATH
+        python3 -m claudekit.security check-command "$1" 2>&1
+        return $?
     fi
     return 127
 }
