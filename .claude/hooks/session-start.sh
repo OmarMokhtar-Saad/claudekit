@@ -81,6 +81,23 @@ echo "  Project: $(basename "$(pwd)")"
 [ -n "$LINT_CMD"  ] && echo "  Lint:  $LINT_CMD"
 
 # ---------------------------------------------------------------------------
+# 3.5 Project graph status (no new hook — rides this one; never blocks)
+# ---------------------------------------------------------------------------
+GRAPH_SCRIPT=".claude/operations/scripts/project-graph.py"
+GRAPH_FILE=".claude/project-graph.json"
+if command -v python3 &>/dev/null && [ -f "$GRAPH_SCRIPT" ]; then
+    if [ -f "$GRAPH_FILE" ]; then
+        if python3 "$GRAPH_SCRIPT" stale >/dev/null 2>&1; then
+            echo "  Graph: fresh ($GRAPH_FILE) — query it before grepping"
+        else
+            echo "  Graph: STALE — refresh changed nodes via project-graph.py build --merge"
+        fi
+    else
+        echo "  Graph: none — agents build it incrementally as they explore"
+    fi
+fi
+
+# ---------------------------------------------------------------------------
 # 4. Load previous session context if available
 # ---------------------------------------------------------------------------
 CONTEXT_FILE=".claude/session-context.md"

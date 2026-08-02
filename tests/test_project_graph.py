@@ -372,6 +372,57 @@ class TestStale:
 
 
 # ---------------------------------------------------------------------------
+# session-start hook reports graph status (none / fresh / STALE)
+# ---------------------------------------------------------------------------
+
+HOOK = REPO / ".claude" / "hooks" / "session-start.sh"
+
+
+class TestSessionStartGraphStatus:
+    def _hook_project(self, tmp_path):
+        project = tmp_path / "proj"
+        scripts = project / ".claude" / "operations" / "scripts"
+        scripts.mkdir(parents=True)
+        (scripts / "project-graph.py").write_bytes(SCRIPT.read_bytes())
+        subprocess.run(["git", "init", "-q", str(project)], check=True, capture_output=True)
+        (project / "f.py").write_text("x = 1\n", encoding="utf-8")
+        return project
+
+    def _run_hook(self, project):
+        result = subprocess.run(["bash", str(HOOK)], capture_output=True, text=True,
+                                cwd=str(project), timeout=60)
+        assert result.returncode == 0
+        return result.stdout
+
+    def _build(self, project):
+        payload = json.dumps({"version": 1,
+                              "nodes": [{"id": "f.py", "kind": "file"}], "edges": []})
+        subprocess.run(
+            [sys.executable, str(project / ".claude/operations/scripts/project-graph.py"),
+             "build", "--input", "-"],
+            input=payload, capture_output=True, text=True, timeout=60,
+            cwd=str(project),
+            env={**os.environ, "CLAUDEKIT_PROJECT_ROOT": str(project)}, check=True)
+
+    def test_no_graph_reports_none(self, tmp_path):
+        project = self._hook_project(tmp_path)
+        assert "Graph: none" in self._run_hook(project)
+
+    def test_fresh_graph_reported(self, tmp_path):
+        project = self._hook_project(tmp_path)
+        self._build(project)
+        assert "Graph: fresh" in self._run_hook(project)
+
+    def test_changed_file_reports_stale(self, tmp_path):
+        project = self._hook_project(tmp_path)
+        self._build(project)
+        (project / "f.py").write_text("x = 2\n", encoding="utf-8")
+        out = self._run_hook(project)
+        assert "Graph: STALE" in out
+        assert "--merge" in out
+
+
+# ---------------------------------------------------------------------------
 # asset twins stay in lockstep
 # ---------------------------------------------------------------------------
 
