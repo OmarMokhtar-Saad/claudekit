@@ -2,7 +2,7 @@
 
 > Update this file at the end of every significant AI working session. It is the resume point.
 
-**Last updated:** 2026-07-31 (second session) · **By:** Claude (Fable 5) — remaining-fixes implementation
+**Last updated:** 2026-08-02 · **By:** Claude (Fable 5) — project graph sidecar (`2ae85c8`); resume point: fleet pilot on AppiumLens (see CHANGELOG_AI top entry)
 
 ## Current project state
 

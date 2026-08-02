@@ -2,7 +2,26 @@
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
 
-## 2026-07-31 (latest) — Claude (Fable 5) — Full fleet rollout
+## 2026-08-02 (latest) — Claude (Fable 5) — Project graph sidecar (Graphify-inspired)
+
+- Researched Graphify-Labs/graphify (tree-sitter/NetworkX codebase→knowledge-graph tool)
+  on owner request; vendoring ruled out (hard rule 8). Borrowed three patterns stdlib-only
+  instead, landed as `2ae85c8 feat(graph)`: `.claude/operations/scripts/project-graph.py`
+  (build/query/hubs/path/stale over `.claude/project-graph.json`), confidence tiers
+  (extracted/inferred/ambiguous) on every edge, GOD-NODE fan-in/out ranking, sha256
+  staleness detection. codebase-mapping skill gained Step 7 (emit sidecar) + stale→merge
+  refresh; explore/planner/refactor-cleaner go graph-first with exit-3→grep fallback.
+  34 behavioral tests in `tests/test_project_graph.py` incl. byte-identity guard on the
+  skills/templates twins. All gates green (706 tests).
+- Design decisions: no Skill Loading/registry coupling (agents call the script directly);
+  build refuses overwrite without --force (ledger convention); god-node thresholds are
+  flags, not config keys. AppiumLens exploration grounded the design (TestingDetailPanel
+  3,953 LOC etc. as the target god-node class).
+- Follow-up (approved plan, not yet executed): pilot `ck update` on AppiumLens + smoke
+  test (hubs must surface TestingDetailPanel), then fleet fan-out — remember the
+  settings.local.json clobber caveat from the 2026-07-31 rollout.
+
+## 2026-07-31 — Claude (Fable 5) — Full fleet rollout
 
 - On explicit owner instruction ("all projects"), rolled the kit out across the entire
   ~/IdeaProjects folder: 6 managed projects `ck update`d (AppiumLens hold lifted by
