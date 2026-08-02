@@ -22,6 +22,9 @@ Read these files (if they exist):
 2. `CONSTITUTION.md` -- behavioral rules and constraints
 3. `.claude/session-state.json` -- previous session context (via session-continuity skill)
 4. `.claude/project-index.md` -- project structure map (via codebase-mapping skill)
+5. `.claude/project-graph.json` -- dependency graph sidecar; do NOT inline it,
+   query via `python3 .claude/operations/scripts/project-graph.py`
+   (`query`/`hubs`/`path`) to stay inside the context budget
 
 ### Step 2: Scan Project Structure
 
@@ -146,6 +149,7 @@ Re-prime when:
 ## Integration
 
 - Invoked automatically by **coordinator** at session start
-- Uses **codebase-mapping** output if available
+- Uses **codebase-mapping** output if available, and its graph sidecar
+  (`.claude/project-graph.json`) — query it via the script, never inline it
 - Uses **session-continuity** state if available
 - Feeds context to all downstream agents

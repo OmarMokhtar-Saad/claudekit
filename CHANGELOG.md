@@ -13,6 +13,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Project graph sidecar — agents query cached structure instead of re-grepping the repo
+  each session.** New `.claude/operations/scripts/project-graph.py` (stdlib-only;
+  `build`/`query`/`hubs`/`path`/`stale`) stores an agent-built dependency graph at
+  `.claude/project-graph.json`. Graphify-inspired patterns, no new dependency: every edge
+  carries a confidence tier (`extracted`/`inferred`/`ambiguous`), `hubs` ranks fan-in/fan-out
+  and flags GOD-NODE candidates, `path` reports a route's weakest-tier confidence, and
+  `stale` re-hashes file-backed nodes (sha256) so an outdated graph is detected, not trusted.
+  The LLM (codebase-mapping skill, new Step 7) extracts nodes/edges from any language; the
+  script owns validation (anti-traversal ids, no dangling edges, size guards) and integrity
+  (hashes, line counts). Explore, planner and refactor-cleaner go graph-first when the sidecar
+  exists — script exit 3 means no graph/no match and they fall back to grep, so ungraphed
+  projects behave exactly as before. Refactor risk rules: a GOD-NODE is always RISKY; an
+  `ambiguous` inbound edge promotes SAFE to CAREFUL. Behavioral coverage in
+  `tests/test_project_graph.py`, including a byte-identity guard on the
+  `.claude/skills` ↔ `templates/skills` twins.
 - **Per-issue knowledge ledger — the project stops re-diagnosing bugs it already fixed.**
   New `.claude/knowledge/issues/<slug>.md` store (markdown + frontmatter: `signature`,
   `root_cause`, `fix`, `files`, `date`, `verified`) plus
