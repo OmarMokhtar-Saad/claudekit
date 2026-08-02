@@ -75,7 +75,7 @@ python3 .claude/operations/scripts/execute-json-ops.py <path-to-ops.json>
 
 ### Step 1: Validate (MANDATORY)
 ```bash
-python3 .claude/operations/scripts/validate-config-json.py <ops.json>
+python3 .claude/operations/scripts/validate-config-json.py <ops.json> --stamp-baseline
 ```
 
 Non-zero exit or FAIL output → STOP. Report the validator's errors and request a corrected

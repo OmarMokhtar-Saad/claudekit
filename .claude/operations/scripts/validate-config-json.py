@@ -602,6 +602,57 @@ def validate_backup_compatibility(config_file: str, config: dict = None) -> Tupl
     return len(errors) == 0, errors
 
 
+def stamp_baseline(config_file: str, config: dict) -> "int | None":
+    """Record sha256 of every existing target file into the config's 'baseline'.
+
+    Covers code_edit and file_delete targets (files the plan assumes exist in a
+    known state); file_create targets are excluded — they must not exist yet.
+    The executor's drift gate compares these hashes before touching anything, so
+    a file changed by a concurrent session or an external git checkout/restore
+    aborts execution instead of compounding the damage.
+
+    Returns the number of files stamped, or None on failure.
+    """
+    import hashlib
+    if config is None:
+        try:
+            with open(config_file, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+        except (OSError, ValueError) as e:
+            print(f"  Baseline stamping: cannot re-read config ({e})")
+            return None
+
+    targets = []
+    for op in config.get('operations', []):
+        if op.get('type') in ('code_edit', 'file_delete') and op.get('path'):
+            targets.append(op['path'])
+    for file_op in config.get('files', []):  # legacy format
+        if file_op.get('path'):
+            targets.append(file_op['path'])
+
+    baseline = {}
+    for path in sorted(set(targets)):
+        try:
+            digest = hashlib.sha256()
+            with open(path, 'rb') as fh:
+                for chunk in iter(lambda: fh.read(65536), b''):
+                    digest.update(chunk)
+            baseline[path] = "sha256:" + digest.hexdigest()
+        except OSError as e:
+            print(f"  Baseline stamping: cannot hash {path} ({e})")
+            return None
+
+    config['baseline'] = baseline
+    try:
+        with open(config_file, 'w', encoding='utf-8') as f:
+            json.dump(config, f, indent=2)
+            f.write('\n')
+    except OSError as e:
+        print(f"  Baseline stamping: cannot write config ({e})")
+        return None
+    return len(baseline)
+
+
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(
@@ -653,6 +704,10 @@ Safety Guards (29 total):
     )
     parser.add_argument('config', help='Path to JSON operations config file')
     parser.add_argument('--verbose', '-v', action='store_true', help='Enable debug logging')
+    parser.add_argument('--stamp-baseline', action='store_true',
+                        help='After successful validation, record sha256 of every existing '
+                             'target file into the config as "baseline" — the executor then '
+                             'refuses to run if any file changed since stamping (drift gate)')
     parser.add_argument('--version', action='version', version=f'%(prog)s {__version__}')
     args = parser.parse_args()
 
@@ -685,6 +740,12 @@ Safety Guards (29 total):
         print("  All required fields present")
         print("  All file paths valid")
         print("  All find patterns exist in files")
+        if args.stamp_baseline:
+            stamped = stamp_baseline(args.config, parsed_config)
+            if stamped is None:
+                print("\n-> REJECTED (baseline stamping failed)\n")
+                sys.exit(1)
+            print(f"  Baseline stamped: {stamped} file(s) hashed into 'baseline'")
         print("\n-> APPROVED\n")
         sys.exit(0)
     else:

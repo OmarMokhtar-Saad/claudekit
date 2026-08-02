@@ -128,6 +128,47 @@ class TestCommandValidatorBypassCorpus:
         self._allowed("echo $(git rev-parse HEAD)")
         self._allowed("grep -r foo .")
         self._allowed("find . -name '*.py'")
+
+    # -- destructive git: silently discards uncommitted work ------------------
+
+    def test_git_reset_hard_blocked(self):
+        self._blocked("git reset --hard")
+        self._blocked("git reset --hard HEAD~1")
+        self._blocked("git reset --hard origin/main")
+
+    def test_git_clean_force_blocked(self):
+        self._blocked("git clean -f")
+        self._blocked("git clean -fd")
+        self._blocked("git clean -xdf")
+        self._blocked("git clean --force")
+
+    def test_git_checkout_paths_blocked(self):
+        self._blocked("git checkout -- src/agent.py")
+        self._blocked("git checkout HEAD -- src/agent.py")
+        self._blocked("git checkout .")
+
+    def test_git_restore_worktree_blocked(self):
+        self._blocked("git restore src/agent.py")
+        self._blocked("git restore .")
+        self._blocked("git restore --source HEAD~2 src/agent.py")
+        self._blocked("git restore --staged --worktree src/agent.py")
+        self._blocked("git restore -SW src/agent.py")
+
+    def test_git_stash_drop_clear_blocked(self):
+        self._blocked("git stash drop")
+        self._blocked("git stash clear")
+        self._blocked("git stash drop stash@{0}")
+
+    def test_benign_git_still_allowed(self):
+        self._allowed("git checkout main")
+        self._allowed("git checkout -b feature/x")
+        self._allowed("git restore --staged src/agent.py")
+        self._allowed("git reset HEAD~1")          # soft/mixed keep the worktree
+        self._allowed("git reset --soft HEAD~1")
+        self._allowed("git stash")
+        self._allowed("git stash pop")
+        self._allowed("git stash list")
+        self._allowed("git clean -n")              # dry run
         self._allowed("cat file.txt > out.txt")
 
 

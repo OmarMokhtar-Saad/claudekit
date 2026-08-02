@@ -81,6 +81,36 @@ echo "  Project: $(basename "$(pwd)")"
 [ -n "$LINT_CMD"  ] && echo "  Lint:  $LINT_CMD"
 
 # ---------------------------------------------------------------------------
+# 3.4 Concurrent-session detection (warning only — never blocks)
+# One lock file per live session pid under .claude/locks/; dead pids pruned.
+# ---------------------------------------------------------------------------
+LOCKS_DIR=".claude/locks"
+mkdir -p "$LOCKS_DIR" 2>/dev/null
+OTHER_SESSIONS=0
+for lock in "$LOCKS_DIR"/session-*; do
+    [ -e "$lock" ] || continue
+    lock_pid="${lock##*session-}"
+    case "$lock_pid" in
+        ''|*[!0-9]*) rm -f "$lock" 2>/dev/null; continue ;;
+    esac
+    if [ "$lock_pid" = "$$" ] || [ "$lock_pid" = "${PPID:-0}" ]; then
+        continue
+    fi
+    if kill -0 "$lock_pid" 2>/dev/null; then
+        OTHER_SESSIONS=$((OTHER_SESSIONS + 1))
+    else
+        rm -f "$lock" 2>/dev/null
+    fi
+done
+date '+%Y-%m-%d %H:%M:%S' > "$LOCKS_DIR/session-${PPID:-$$}" 2>/dev/null
+if [ "$OTHER_SESSIONS" -gt 0 ]; then
+    echo "  WARNING: $OTHER_SESSIONS other session(s) appear active in this project."
+    echo "           Coordinate file ownership (multi-agent-coordination skill);"
+    echo "           uncommitted work can be lost to concurrent git operations."
+    log "WARN" "Concurrent sessions detected: $OTHER_SESSIONS other live lock(s)"
+fi
+
+# ---------------------------------------------------------------------------
 # 3.5 Project graph status (no new hook — rides this one; never blocks)
 # ---------------------------------------------------------------------------
 GRAPH_SCRIPT=".claude/operations/scripts/project-graph.py"
