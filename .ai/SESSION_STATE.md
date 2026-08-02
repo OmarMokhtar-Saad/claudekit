@@ -2,7 +2,12 @@
 
 > Update this file at the end of every significant AI working session. It is the resume point.
 
-**Last updated:** 2026-08-02 · **By:** Claude (Fable 5) — project graph sidecar (`2ae85c8`); resume point: fleet pilot on AppiumLens (see CHANGELOG_AI top entry)
+**Last updated:** 2026-08-02 (end of session) · **By:** Claude (Fable 5) — project graph
+sidecar (`2ae85c8`, `38e246c`) + work-loss protection (`46d437c`, `a3e93c2`), all rolled out
+to the 16-project fleet (3 rollouts, settings.local.json intact). **730 tests passing.**
+Resume point: nothing in-flight — next work per BACKLOG (008 consolidation, 010 evals).
+Note: claude-kit is now pip-installed on this machine (hooks use the module fallback);
+`ck` console script is at ~/Library/Python/3.9/bin (not on PATH yet).
 
 ## Current project state
 
