@@ -173,6 +173,10 @@ Execute searches in parallel when possible:
 ```
 - Graph-first: python3 .claude/operations/scripts/project-graph.py query <path> |
   path <a> <b> | hubs  (exit 3 -> no graph/no match, trace manually below)
+- Record-back: after tracing manually, persist what you found so the next
+  session doesn't repeat it — emit the discovered nodes/edges as JSON
+  (edges tagged extracted/inferred/ambiguous) and pipe to
+  project-graph.py build --merge --input -   (or plain build if no graph yet)
 - Find all imports of a module
 - Find all callers of a function
 - Find all implementors of an interface

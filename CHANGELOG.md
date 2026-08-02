@@ -25,7 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (hashes, line counts). Explore, planner and refactor-cleaner go graph-first when the sidecar
   exists — script exit 3 means no graph/no match and they fall back to grep, so ungraphed
   projects behave exactly as before. Refactor risk rules: a GOD-NODE is always RISKY; an
-  `ambiguous` inbound edge promotes SAFE to CAREFUL. Behavioral coverage in
+  `ambiguous` inbound edge promotes SAFE to CAREFUL. Fully automatic in the workflow: the
+  existing session-start hook reports graph status (none / fresh / STALE with the merge
+  remediation) each session — no new hook spawn — and explore records back manually-traced
+  dependencies via `build --merge`, so the graph accretes as agents work. Behavioral coverage in
   `tests/test_project_graph.py`, including a byte-identity guard on the
   `.claude/skills` ↔ `templates/skills` twins.
 - **Per-issue knowledge ledger — the project stops re-diagnosing bugs it already fixed.**
