@@ -54,6 +54,13 @@ python3 -m vulture src/ --min-confidence 80 2>&1 | head -50
 git log --all --full-history -- "**/*.ts" | grep -c "commit" || echo "Check git log"
 ```
 
+```bash
+# Graph sidecar (if the project has one; exit 3 = no graph, skip)
+python3 .claude/operations/scripts/project-graph.py hubs --top 15 2>/dev/null
+# And per removal candidate: who still depends on it?
+python3 .claude/operations/scripts/project-graph.py query <candidate> --direction in 2>/dev/null
+```
+
 ---
 
 ## Phase 2: Risk Classification
@@ -65,6 +72,10 @@ Categorize every detected item before acting:
 | **SAFE** | Definitively unused | Unused npm deps, private exports with 0 references | Remove directly |
 | **CAREFUL** | Potentially used dynamically | Dynamic imports via `require(variable)`, string-interpolated module names | Verify grep before removing |
 | **RISKY** | Public API / external consumers | Exported functions in index.ts, types in .d.ts, public npm package exports | Skip unless explicitly confirmed unused |
+| **RISKY** | Graph hub | Node flagged GOD-NODE by `project-graph.py hubs` — regardless of what detectors say | Skip unless explicitly confirmed unused |
+
+Any inbound edge tagged `ambiguous` in the graph (reflection, dynamic dispatch,
+string-built target) promotes a SAFE item to CAREFUL.
 
 ---
 

@@ -77,6 +77,10 @@ Explore the codebase to understand the current state before planning anything.
 4. Read existing tests to understand testing patterns
 5. Check for existing configuration files, CI/CD, linting rules
 6. Note any conventions (naming, structure, patterns)
+7. If .claude/project-graph.json exists: run project-graph.py hubs, and
+   query <file> --direction in for each file the plan will touch — touching
+   a GOD-NODE widens blast radius and MUST appear in the Risk Assessment
+   (exit 3 = no graph, skip)
 ```
 
 **Discovery output (internal, not shown to user):**

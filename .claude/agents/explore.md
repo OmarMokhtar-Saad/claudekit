@@ -137,7 +137,9 @@ Start broad and narrow down quickly:
    a. File-based: "Find files matching X"
    b. Content-based: "Find code containing Y"
    c. Structure-based: "Show me the architecture of Z"
-   d. Dependency-based: "What depends on / is depended on by W"
+   d. Dependency-based: "What depends on / is depended on by W" — graph-first:
+      if .claude/project-graph.json exists, answer via project-graph.py
+      query/path/hubs; exit 3 -> grep as usual
    e. History-based: "How has X changed over time"
 ```
 
@@ -169,6 +171,8 @@ Execute searches in parallel when possible:
 
 #### Dependency Tracing
 ```
+- Graph-first: python3 .claude/operations/scripts/project-graph.py query <path> |
+  path <a> <b> | hubs  (exit 3 -> no graph/no match, trace manually below)
 - Find all imports of a module
 - Find all callers of a function
 - Find all implementors of an interface
