@@ -27,6 +27,13 @@ Priority-ordered. Sources: `review/tasks/` (file-level specs — read them befor
 - [ ] Hook-enforced autonomous-loop block-list (audit item 19) + sandbox profile presets.
 
 ## P3 — polish & smaller fixes (from AGENTS_KNOWN_ISSUES.md + audit)
+- [ ] **Multi-interpreter validator resolution** — the hooks' `python3 -m claudekit.security`
+  fallback only works for whichever python3 wins PATH in that session; on a multi-Python
+  machine (3.9 system + 3.12 python.org + 3.14 Homebrew, seen 2026-08-03) sessions hit the
+  rc-127 warn path and prompt users to pip-install. Field fix applied: claude-kit user-site
+  installed into all three interpreters. Kit fix candidates: `ck doctor` check for "importable
+  under every python3 on PATH", or hooks probing `command -v python3 python3.12 python3.13`;
+  document the PEP-668 `--user --break-system-packages` recipe for Homebrew pythons.
 - [ ] **Issue-ledger hygiene** — fold `python3 .claude/operations/scripts/knowledge-ledger.py prune`
   into this same periodic sweep: it exits 1 and lists entries in `.claude/knowledge/issues/`
   whose referenced files are all gone; `--apply` moves them to `issues/archive/`. Also
