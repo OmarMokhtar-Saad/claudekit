@@ -12,6 +12,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Versioned Python interpreters no longer rejected by the command guard.** `python3.12`,
+  Homebrew's `python3.14`, `pip3.x` (bare or by absolute path) normalize to their
+  allowlisted base (`python3`/`pip3`) for allow/block decisions; multi-Python machines
+  previously got per-interpreter "not in allowlist" rejections that stalled sessions.
+  Normalization applies to the blocklist too, so it cannot be used to bypass screening
+  (`python3.12.evil` does not match). Regression cases in `tests/test_security.py`.
+
 ### Added
 - **Work-loss protection — a concurrent session can no longer silently wipe accumulated
   work.** Four layers, prompted by a real incident (an external `git checkout` reset a file

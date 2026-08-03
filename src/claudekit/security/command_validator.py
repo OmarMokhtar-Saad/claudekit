@@ -199,14 +199,18 @@ class CommandValidator:
             return True, "OK"
 
         base = parts[0].split("/")[-1].strip("\\")
+        # Versioned interpreters (`python3.12`, Homebrew's `python3.14`) are the
+        # same tool as `python3` for allow/block purposes; multi-Python machines
+        # otherwise get spurious "not in allowlist" rejections per interpreter.
+        normalized = re.sub(r'^(python|pip)3\.\d+$', r'\g<1>3', base)
 
-        if base in self.blocklist:
+        if base in self.blocklist or normalized in self.blocklist:
             return False, f"Blocked command: {base}"
 
         if blocklist_only:
             return True, "OK"
 
-        if self.safe_mode and base not in self.allowlist:
+        if self.safe_mode and base not in self.allowlist and normalized not in self.allowlist:
             return False, (
                 f"Command not in allowlist: {base}. "
                 "Add it to security.allowedCommands or disable security.safeMode."
