@@ -159,6 +159,24 @@ class TestCommandValidatorBypassCorpus:
         self._blocked("git stash clear")
         self._blocked("git stash drop stash@{0}")
 
+    # -- versioned interpreters normalize to their allowlisted base -----------
+
+    def test_versioned_python_allowed(self):
+        self._allowed("python3.12 scripts/build.py --version 1.0")
+        self._allowed("/usr/local/bin/python3.12 -m pytest")
+        self._allowed("/opt/homebrew/bin/python3.14 -c 'print(1)'")
+
+    def test_versioned_python_still_screened(self):
+        # Normalization must not bypass pattern/blocklist checks. The os.system
+        # string is adversarial INPUT to the validator (asserted blocked), never
+        # executed.
+        self._blocked("python3.12 -c 'import os; os.system(\"rm -rf /\")'")
+        self._blocked("echo $(python3.12 -m pip) && rm -rf /")
+
+    def test_fake_versioned_names_not_allowlisted(self):
+        self._blocked("python3.12.evil --payload")   # doesn't match the pattern
+        self._blocked("notpython3.12 --payload")
+
     def test_benign_git_still_allowed(self):
         self._allowed("git checkout main")
         self._allowed("git checkout -b feature/x")
