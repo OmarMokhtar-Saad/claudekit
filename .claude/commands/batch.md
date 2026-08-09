@@ -52,20 +52,29 @@ Validate that:
 - Each unit is small enough for a single agent to complete
 
 ### Phase 3: Parallel Execution
-- Create an isolated git worktree per unit using `EnterWorktree`
-- Spawn one agent per unit with the unit's specific instruction
+- Execute units in **waves of at most 5 concurrent worktrees** (the manager
+  enforces this cap; returns collapse past 4-5 parallel agents). Queue
+  remaining units for the next wave as slots free up.
+- Create each unit's worktree via the lifecycle manager:
+  `python3 .claude/operations/scripts/worktree-manager.py create <unit-slug> --json`
+  (fallback: `EnterWorktree` where the manager script is unavailable)
+- Spawn one agent per unit with the unit's specific instruction plus the
+  isolation contract: run every command as `cd <worktree_root> && <command>`
 - Each agent independently:
   1. Implements the changes in its worktree
   2. Runs relevant tests to verify correctness
-  3. Creates a feature branch with a descriptive commit
+  3. Commits on its `agent/<unit-slug>` branch — NEVER merges or pushes
   4. Reports success or failure with details
 - Monitor agent progress and collect results
 
 ### Phase 4: Aggregation
 - Collect results from all agents
 - Categorize: succeeded, failed, needs-review
-- For succeeded units: create individual PRs or merge to a staging branch
-- For failed units: report the failure with diagnostics
+- For succeeded units: hand the `agent/*` branch list to the gitOps agent's
+  Multi-Agent Merge Protocol (integration branch, single verification pass,
+  worktree cleanup) — agents never merge their own work
+- For failed units: report the failure with diagnostics; their branches are
+  excluded from integration
 
 ### Phase 5: Report
 Generate a comprehensive batch execution summary.
@@ -128,4 +137,5 @@ Generate a comprehensive batch execution summary.
 - Each unit should take 1-5 minutes for a single agent to complete
 - If the decomposition yields fewer than 5 units, consider using `/implement` instead
 - If it yields more than 30 units, consider splitting into multiple batch runs
+- Units run in waves of ≤5 concurrent worktrees; 30 units = 6 waves, not 30 parallel agents
 - Use `/verify` after all units are merged to validate overall project health

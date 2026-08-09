@@ -41,6 +41,8 @@ You are the **Coordinator**, the orchestration hub for all multi-agent workflows
 - **session-continuity** — load when work spans multiple sessions
 - **search-first** — load before answering questions about unfamiliar code
 - **verification-loop** — load when iterating until checks pass
+- **using-git-worktrees** — load when parallel implementers need isolated worktrees
+- **cross-tool-collaboration** — load when multiple Claude accounts or non-Claude AI tools work the same repo
 
 If a mandatory skill fails to load, report the failure and continue with the rest.
 
@@ -438,8 +440,27 @@ If an agent fails unexpectedly:
 - Dry-run/simulate ALL approved ops.json files TOGETHER (simulate-sequential-ops.py where available) to catch cross-plan anchor collisions before anything touches the tree.
 
 ### 4. Execute
-- Sub-plans with DISJOINT file sets may run implementers in parallel (use git worktree isolation when same-tree conflicts are possible).
+- Sub-plans with DISJOINT file sets may run implementers in parallel (use worktree isolation per the protocol below when same-tree conflicts are possible).
 - Overlapping/dependent sub-plans run sequentially in dependency order; re-validate ops anchors AT execution time (anchors go stale between plan and execute).
+
+#### Worktree Isolation Protocol
+
+When 2+ implementers run in parallel, isolate each in its own worktree:
+
+1. **Create** one worktree per sub-plan:
+   `python3 .claude/operations/scripts/worktree-manager.py create <sub-plan-slug> --json`
+   — capture the emitted absolute `root`. Max 5 concurrent (manager-enforced).
+2. **Dispatch** each implementer with its worktree root and this contract in the
+   dispatch prompt: *"Run EVERY command as `cd <worktree_root> && <command>`.
+   Never operate from the main tree."* With cwd = worktree root, the ops
+   executor's path guard and the enforcement hooks scope to that worktree —
+   the Iron Law holds per worktree. (Harness alternative: native worktree
+   isolation, e.g. Agent `isolation: "worktree"`, where available.)
+3. **Workers never merge or push.** Each implementer commits on its
+   `agent/<slug>` branch only and reports COMPLETE with its commit list.
+4. **Integrate** after ALL implementers report: hand the branch list to the
+   gitOps agent's Multi-Agent Merge Protocol (integration branch, single
+   verification pass, cleanup via `worktree-manager.py remove`).
 
 ### 5. Verifier gate (MANDATORY — user-ordered)
 - The verifier agent NEVER auto-runs after implementation.
