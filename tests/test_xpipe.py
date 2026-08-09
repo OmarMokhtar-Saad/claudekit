@@ -178,3 +178,42 @@ class TestDryRun:
         proc = run(["task", "--dry-run"], brain_dir=brain, cursor_bin=str(cursor))
         assert "worktree" in proc.stdout
         assert "never" in proc.stdout.lower()  # never merge instruction present
+
+    def test_review_stage_carries_record_handoff(self, brain, cursor):
+        # reviewer must be able AND instructed to write the binding review
+        # record (sha256(ops.json)) so /implement's approval gate resolves
+        proc = run(["task", "--dry-run"], brain_dir=brain, cursor_bin=str(cursor))
+        review_line = next(ln for ln in proc.stdout.splitlines()
+                           if ln.startswith("[review @ hands]"))
+        assert "review-record" in review_line
+        assert "Write" in review_line and "Bash" in review_line
+
+
+class TestPlanLocationConvention:
+    def _normalize(self, root, raw):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("xpipe", SCRIPT)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod.normalize_plan_location(root, raw)
+
+    def test_plan_at_repo_root_is_moved_home_with_ops(self, tmp_path):
+        root = tmp_path
+        (root / "plan-fix-x.md").write_text("# plan", encoding="utf-8")
+        (root / "ops-fix-x.json").write_text("{}", encoding="utf-8")
+        rel = self._normalize(root, "plan-fix-x.md")
+        assert rel == os.path.join(".claude", "plans", "plan-fix-x.md")
+        assert (root / ".claude" / "plans" / "plan-fix-x.md").is_file()
+        assert (root / ".claude" / "plans" / "ops-fix-x.json").is_file()
+        assert not (root / "plan-fix-x.md").exists()
+
+    def test_plan_already_in_plans_dir_untouched(self, tmp_path):
+        root = tmp_path
+        plans = root / ".claude" / "plans"
+        plans.mkdir(parents=True)
+        (plans / "plan-y.md").write_text("# plan", encoding="utf-8")
+        rel = self._normalize(root, str(plans / "plan-y.md"))
+        assert rel == os.path.join(".claude", "plans", "plan-y.md")
+
+    def test_missing_plan_returns_none(self, tmp_path):
+        assert self._normalize(tmp_path, "no-such-plan.md") is None
