@@ -54,33 +54,60 @@ Standard templates for workflow files used across ClaudeKit agents. These templa
 
 **Location:** `.claude/plans/ops-<descriptor>.json`
 
+**Schema owners:** `.claude/skills/generate-operations-config/SKILL.md` (CANONICAL SCHEMA) and
+`.claude/operations/scripts/operations-schema.json`. This template is a convenience copy — if it
+ever disagrees with them, they win. The example below is executed against the real
+`validate-config-json.py` by `tests/test_agent_doc_ops_examples.py`, so it cannot drift.
+
 ```json
 {
-  "version": "1.0",
-  "plan_ref": "plan-<descriptor>.md",
+  "plan": "add-user-repository",
   "operations": [
     {
-      "id": "step-1",
-      "type": "create|modify|delete|move|rename",
-      "file": "path/to/file",
-      "description": "What this operation does",
-      "changes": [
+      "type": "file_create",
+      "path": "src/repositories/user_repository.py",
+      "content": "class UserRepository:\n    def find_by_id(self, user_id):\n        raise NotImplementedError\n"
+    },
+    {
+      "type": "code_edit",
+      "path": "src/services/user_service.py",
+      "edits": [
         {
-          "action": "insert|replace|delete|append",
-          "target": "line number, function name, or search pattern",
-          "content": "the new content"
+          "find": "from src.repositories.legacy_repo import LegacyRepo",
+          "replace": "from src.repositories.user_repository import UserRepository"
+        },
+        {
+          "find": "        self.repo = LegacyRepo()",
+          "replace": "        self.repo = UserRepository()"
         }
-      ],
-      "dependencies": [],
-      "rollback": "description of how to undo"
+      ]
+    },
+    {
+      "type": "file_delete",
+      "path": "src/repositories/legacy_repo.py",
+      "reason": "Superseded by user_repository.py created earlier in this plan"
     }
-  ],
-  "validation": {
-    "build_command": "",
-    "test_command": "",
-    "lint_command": ""
-  }
+  ]
 }
+```
+
+Rules the validator enforces — violating any one rejects the whole config:
+
+| Rule | Detail |
+|------|--------|
+| Top-level keys | `plan` (kebab-case) plus exactly one of `operations` (modern) or `files` (legacy, code edits only). No `version`, `plan_ref`, `description`, `validation`. |
+| Operation types | exactly `file_create`, `file_delete`, `code_edit`. Never `create`/`modify`/`delete`/`move`/`rename`. |
+| Path key | `path`, relative to the project root. Never `file` or `target`. |
+| Per-type fields | `file_create` needs `content` (non-empty); `file_delete` needs `reason` (>= 10 chars); `code_edit` needs `edits` (non-empty array). Optional on any operation: `id`, `description`. |
+| Edit actions | each `edits` entry is `find` plus exactly one of `replace`, `add_after`, `add_before`, `delete: true`. Never a `changes`/`action`/`target` block. |
+| Unknown fields | `additionalProperties: false` — any other key rejects the whole config. Rollback notes, dependency ordering and validation commands belong in **plan.md**, not here. |
+| Deletions | at most 3 `file_delete` operations per config (GUARD 26); split larger removals across configs. |
+| `find` patterns | copied verbatim from the file (exact whitespace) and unique within it — ambiguous or missing matches are rejected. |
+
+Execution order is array order; the schema has no `dependencies` field. Validate before handoff:
+
+```bash
+python3 .claude/operations/scripts/validate-config-json.py .claude/plans/ops-<descriptor>.json
 ```
 
 ---

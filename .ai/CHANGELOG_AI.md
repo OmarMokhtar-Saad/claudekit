@@ -2,6 +2,32 @@
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
 
+## 2026-08-09 — Claude (Sonnet 5) — Fixed AGENTS_KNOWN_ISSUES.md #9 (legacy ops.json schema in shared template)
+
+- Executed the approved plan `plan-workflow-file-templates-ops-schema.md` / ops config
+  `ops-workflow-file-templates-ops-schema.json` in worktree
+  `agent/workflow-file-templates-ops-schema`, via `execute-json-ops.py` (7 operations: 1
+  `file_create`, 6 `code_edit`, all succeeded, 0 errors).
+- `_shared/WORKFLOW_FILE_TEMPLATES.md`'s Operations Config Template swapped from the
+  legacy schema (`version`/`plan_ref`/`file`/`changes`/`type: create|modify|delete|move|rename`)
+  — which `validate-config-json.py` rejects outright — to the canonical modern schema
+  (`plan` + `operations`; `file_create`/`file_delete`/`code_edit`; `path`/`edits`;
+  `additionalProperties: false`), with a validator-clean worked example and a rules table.
+  Schema ownership pinned to `generate-operations-config` SKILL.md + `operations-schema.json`.
+- New `tests/test_agent_doc_ops_examples.py`: materializes every ops-config-shaped JSON
+  fence in `.claude/agents/**` + `.claude/skills/**` into a throwaway project and runs the
+  real validator against it (10 tests, all pass) — regression guard so the legacy-schema
+  bug class cannot silently return.
+- Retired the issue: `.ai/AGENTS_KNOWN_ISSUES.md` #9 marked FIXED, `.ai/AGENTS_PROTOCOLS.md`
+  warning replaced, `.ai/TECH_DEBT.md` row 1 removed, `.ai/BACKLOG.md` P1 item removed,
+  `CHANGELOG.md [Unreleased] → Fixed` entry added.
+- DoD gate: 779 tests pass, ruff/mypy/shellcheck clean, gen-docs/gen-registry `--check`
+  green (counts unchanged: 29/42/75/19). Plan/ops artifacts could not be written to
+  `.claude/plans/` (sensitive-path gate blocks direct Edit/Write there even with
+  `ECC_HOOK_PROFILE=minimal`, distinct from the ops-enforcement hook) — they were kept at
+  the worktree root instead, same accommodation the plan's own artifact-location note
+  describes for planning-time writes.
+
 ## 2026-08-09 — Claude (Fable 5) — Worktree-per-agent + multi-account/cross-tool collaboration
 
 - Owner /goal directive: research → plan → review → implement worktree parallelism +
