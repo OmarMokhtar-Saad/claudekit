@@ -75,9 +75,24 @@ def brain_available(args: argparse.Namespace) -> bool:
     return False
 
 
-def cursor_available() -> bool:
+def cursor_available() -> "tuple[bool, str]":
+    """(available, reason-if-not). Requires the binary AND working auth in
+    THIS process context — macOS Keychain tokens are often unreadable from
+    headless shells; CURSOR_API_KEY always works."""
     exe = os.environ.get("XPIPE_CURSOR_BIN", "cursor-agent")
-    return shutil.which(exe) is not None
+    if shutil.which(exe) is None:
+        return False, "cursor auto-off: cursor-agent not on PATH"
+    if os.environ.get("CURSOR_API_KEY"):
+        return True, ""
+    try:
+        proc = subprocess.run([exe, "status"], capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.TimeoutExpired):
+        return False, "cursor auto-off: cursor-agent status failed"
+    if proc.returncode != 0 or "Not logged in" in proc.stdout + proc.stderr:
+        return False, ("cursor auto-off: not authenticated in this shell context "
+                       "(Keychain tokens are session-bound — set CURSOR_API_KEY "
+                       "for headless runs, or run xpipe from your own terminal)")
+    return True, ""
 
 
 def resolve_mode(args: argparse.Namespace) -> Dict[str, object]:
@@ -91,9 +106,11 @@ def resolve_mode(args: argparse.Namespace) -> Dict[str, object]:
             f"brain auto-off: no credentials in {brain_dir(args)} (second account "
             "not logged in — run: CLAUDE_CONFIG_DIR=" + str(brain_dir(args)) + " claude, then /login)"
         )
-    if cursor and not cursor_available():
-        cursor = False
-        notes.append("cursor auto-off: cursor-agent not on PATH")
+    if cursor:
+        cursor_ok, reason = cursor_available()
+        if not cursor_ok:
+            cursor = False
+            notes.append(reason)
     if brain and cursor:
         mode = "full"
     elif brain:
