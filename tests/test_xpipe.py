@@ -46,7 +46,20 @@ def brain(tmp_path):
 def cursor(tmp_path):
     stub = tmp_path / "bin" / "cursor-agent"
     stub.parent.mkdir()
-    stub.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    stub.write_text(
+        '#!/bin/sh\nif [ "$1" = "status" ]; then echo "Logged in as stub"; fi\nexit 0\n',
+        encoding="utf-8")
+    stub.chmod(0o755)
+    return stub
+
+
+@pytest.fixture()
+def cursor_unauthed(tmp_path):
+    stub = tmp_path / "bin2" / "cursor-agent"
+    stub.parent.mkdir()
+    stub.write_text(
+        '#!/bin/sh\nif [ "$1" = "status" ]; then echo "Not logged in"; fi\nexit 0\n',
+        encoding="utf-8")
     stub.chmod(0o755)
     return stub
 
@@ -94,6 +107,26 @@ class TestModeMatrix:
         proc = run(["--status"], brain_dir=d, cursor_bin=str(cursor))
         assert "mode: no-brain" in proc.stdout
         assert "not logged in" in proc.stdout
+
+    def test_cursor_auto_off_when_installed_but_not_authenticated(self, brain, cursor_unauthed):
+        # regression: Keychain-bound login invisible to headless shells must
+        # degrade with an explanation, not crash mid-pipeline
+        proc = run(["--status"], brain_dir=brain, cursor_bin=str(cursor_unauthed))
+        assert "mode: no-cursor" in proc.stdout
+        assert "CURSOR_API_KEY" in proc.stdout
+
+    def test_cursor_api_key_bypasses_status_check(self, brain, cursor_unauthed):
+        env_extra = {"CURSOR_API_KEY": "test-key"}
+        import os as _os
+        env = dict(_os.environ)
+        env["XPIPE_BRAIN_DIR"] = str(brain)
+        env["XPIPE_CURSOR_BIN"] = str(cursor_unauthed)
+        env.update(env_extra)
+        proc = subprocess.run(
+            [sys.executable, str(SCRIPT), "--status"],
+            capture_output=True, text=True, env=env, timeout=60, cwd=str(REPO),
+        )
+        assert "mode: full" in proc.stdout
 
     def test_brain_on_via_oauth_account_in_state(self, tmp_path, cursor):
         # macOS Keychain case: no .credentials.json, but oauthAccount recorded
