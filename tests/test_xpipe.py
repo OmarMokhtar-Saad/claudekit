@@ -158,6 +158,9 @@ class TestDryRun:
         assert f"CLAUDE_CONFIG_DIR={brain}" in out
         assert "--allowedTools" in out
         assert "--dangerously-skip-permissions" not in out
+        # cursor gets workspace trust but never force-allowed commands
+        assert "--trust" in out
+        assert "--yolo" not in out and " -f " not in out
 
     def test_dry_run_no_cursor_omits_cross_review(self, brain, cursor):
         proc = run(["task", "--dry-run", "--no-cursor"],

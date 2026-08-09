@@ -146,7 +146,9 @@ def stage_commands(args: argparse.Namespace, state: Dict[str, object]) -> List[D
     if state["cursor"]:
         stages.append({
             "stage": "cross-review", "runner": "cursor", "env": {},
-            "cmd": [os.environ.get("XPIPE_CURSOR_BIN", "cursor-agent"), "-p",
+            # --trust: workspace read access for reviewing the plan file.
+            # Never --yolo/-f — the cross-reviewer gets no force-allowed commands.
+            "cmd": [os.environ.get("XPIPE_CURSOR_BIN", "cursor-agent"), "--trust", "-p",
                     "Adversarially review the implementation plan at {PLAN_PATH} "
                     "for defects a same-vendor reviewer would miss. Print ONLY "
                     "'APPROVED' or 'REVISE' on the last line, findings above it."],
