@@ -41,7 +41,10 @@ DEFAULT_BRAIN_DIR = "~/.claude-acct-b"
 STAGE_TIMEOUT = 1800  # seconds per headless stage
 
 PLAN_TOOLS = "Read,Grep,Glob,Write,Bash"
-REVIEW_TOOLS = "Read,Grep,Glob"
+# Bash+Write so the reviewer can record its verdict via the project's
+# review-record mechanism (binds APPROVED to sha256(ops.json); /implement
+# gates on that record) — a printed verdict alone is not a valid handoff.
+REVIEW_TOOLS = "Read,Grep,Glob,Write,Bash"
 IMPLEMENT_TOOLS = "Read,Grep,Glob,Write,Edit,Bash"
 
 
@@ -139,8 +142,12 @@ def stage_commands(args: argparse.Namespace, state: Dict[str, object]) -> List[D
         "stage": "review", "runner": "hands", "env": {},
         "cmd": ["claude", "-p",
                 "Run /review on the plan file at {PLAN_PATH} (90/100 gate). "
-                "Print ONLY 'APPROVED <score>' or 'REVISE <score>' on the last "
-                "line, findings above it.",
+                "Follow the full reviewer handoff: if the project has the "
+                "review-record mechanism "
+                "(.claude/operations/scripts/review-record.py), record the "
+                "verdict bound to the plan's ops.json so /implement's approval "
+                "gate resolves. Print ONLY 'APPROVED <score>' or "
+                "'REVISE <score>' on the last line, findings above it.",
                 "--allowedTools", REVIEW_TOOLS],
     })
     if state["cursor"]:
@@ -194,6 +201,37 @@ def run_stage(stage: Dict[str, object], plan_path: Optional[str], log_dir: Path)
 def last_line(text: str) -> str:
     lines = [ln.strip() for ln in text.strip().splitlines() if ln.strip()]
     return lines[-1] if lines else ""
+
+
+def normalize_plan_location(root: Path, raw_path: str) -> Optional[str]:
+    """Enforce the .claude/plans/ convention. Headless planner sessions can
+    have .claude/** writes refused and fall back to the repo root or a
+    scratchpad — move the plan (and its sibling ops-*.json / ops.json) home.
+    Returns the repo-relative plan path, or None if the path isn't a file."""
+    src = Path(raw_path) if os.path.isabs(raw_path) else root / raw_path
+    if not src.is_file():
+        return None
+    plans_dir = root / ".claude" / "plans"
+    try:
+        if plans_dir in src.resolve().parents:
+            return os.path.relpath(str(src.resolve()), str(root))
+    except OSError:
+        return None
+    plans_dir.mkdir(parents=True, exist_ok=True)
+    moved = plans_dir / src.name
+    shutil.move(str(src), str(moved))
+    # sibling ops config: plan-<slug>.md -> ops-<slug>.json, plus plain ops.json
+    candidates = []
+    if src.name.startswith("plan-") and src.name.endswith(".md"):
+        candidates.append("ops-" + src.name[len("plan-"):-3] + ".json")
+    candidates.append("ops.json")
+    for name in candidates:
+        sib = src.parent / name
+        if sib.is_file():
+            shutil.move(str(sib), str(plans_dir / name))
+            print(f"xpipe: moved {name} -> .claude/plans/ (location convention)")
+    print(f"xpipe: moved {src.name} -> .claude/plans/ (location convention)")
+    return os.path.relpath(str(moved), str(root))
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -256,8 +294,8 @@ def main(argv: Optional[List[str]] = None) -> int:
                   f"log in {log_dir}", file=sys.stderr)
             return 1
         if stage["stage"] == "plan":
-            plan_path = tail
-            if not plan_path or not (root / plan_path).exists() and not Path(plan_path).exists():
+            plan_path = normalize_plan_location(root, tail)
+            if plan_path is None:
                 print(f"xpipe: plan stage did not yield a plan file (got {tail!r})",
                       file=sys.stderr)
                 return 1
