@@ -2,6 +2,32 @@
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
 
+## 2026-08-09 — Claude (Fable 5) — Worktree-per-agent + multi-account/cross-tool collaboration
+
+- Owner /goal directive: research → plan → review → implement worktree parallelism +
+  dual-Claude-account + cross-tool (Cursor) collaboration in claudekit, then apply to
+  AppiumLens. Research (3 web-researcher agents, cached to `.claude/reports/research/`):
+  worktree-per-agent is the 2026-converged pattern; `CLAUDE_CONFIG_DIR` is the dual-account
+  mechanism; AGENTS.md standard + file-based contract is the cross-tool layer.
+- Pipeline run on the repo's own conventions: `plan-worktree-multi-agent.md` rev 1 scored
+  **71.3 REVISE** by opus reviewer (15 findings — isolation mechanism unverified vs
+  executor cwd guard, /batch collision, registry path leak, missing input validation,
+  gen-docs prose lines); rev 2 scored **93.3 APPROVED**. All 7 non-blocking suggestions
+  folded into implementation.
+- Landed: `worktree-manager.py` (validated slugs, git-ignored registry, atomic+locked
+  writes, max 5, safe remove, base pinned to SHA at create) + 20 behavioral tests incl.
+  isolation proof (execute-json-ops.py cwd-scoped inside a worktree, escape rejected);
+  `/worktree` command; coordinator Worktree Isolation Protocol; gitOps Multi-Agent Merge
+  Protocol; /batch reconciled (waves ≤5, workers never merge); `cross-tool-collaboration`
+  skill; `docs/PARALLEL_AGENTS.md`; counts 41/75 across gated + maintainer docs;
+  `.agents/` mirrors synced (.codex deferred, noted in CHANGELOG).
+- AppiumLens applicability delivered: `AppiumLens/.claude/plans/plan-parallel-agents-pilot.md`
+  (device/port matrix per worktree — APPIUM_PORT/SYSTEM_PORT/WDA via WORKTREE_PORT_OFFSET,
+  one UDID per worktree; 3-task disjoint pilot; success criteria).
+- 753 tests green; all six gates pass. Follow-ups backlogged: corpus-wide
+  disable-model-invocation contradiction (~30 skills, ties into task 009), ck doctor
+  manifest entry for the manager script.
+
 ## 2026-08-02 (later) — Claude (Fable 5) — Work-loss protection + fleet rollout ×3
 
 - Incident-driven (concurrent session's git checkout wiped 5 rounds of accumulated work on

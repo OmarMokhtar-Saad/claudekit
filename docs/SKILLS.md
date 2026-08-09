@@ -60,6 +60,7 @@ Skills are markdown documents that provide domain expertise, workflow patterns, 
 | Skill | Description | Used By |
 |-------|-------------|---------|
 | multi-agent-coordination | Safe parallel execution patterns | Coordinator |
+| cross-tool-collaboration | Multi-account and heterogeneous AI tool collaboration on one repo | Coordinator, GitOps |
 | dispatching-parallel-agents | Parallel task investigation | Coordinator |
 | subagent-driven-development | Fresh subagent per task pattern | Coordinator |
 
