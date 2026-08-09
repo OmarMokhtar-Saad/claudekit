@@ -161,6 +161,52 @@ Agent C: starts from Agent B's commit → completes task 3 → commits
 
 **Best for:** Multiple agents with a single integration point
 
+### Pattern 4: Worktree-Per-Agent
+
+```
+Main tree:            orchestrator (plans, reviews, merges — single merge authority)
+.worktrees/task-a:    Agent A on branch agent/task-a
+.worktrees/task-b:    Agent B on branch agent/task-b
+.worktrees/task-c:    Agent C (may be a different account or a non-Claude tool)
+Integration:          gitOps merges agent/* -> integration/<goal> -> one verify pass -> PR
+```
+
+**Best for:** Parallel implementation where agents share a machine and a repo —
+filesystem isolation makes the Exclusive Ownership Rule physically enforceable.
+
+Mechanics: lifecycle via `worktree-manager.py` (see the **using-git-worktrees**
+skill); workers commit on `agent/*` only and never merge; ≤5 concurrent;
+cross-tool and multi-account setups load **cross-tool-collaboration**.
+
+### MULTI_AGENT_PLAN.md Template
+
+For worktree-per-agent runs, the coordination contract lives in a
+`MULTI_AGENT_PLAN.md` at the repo root (or the plan directory). Every agent —
+including non-Claude tools — reads it before acting:
+
+```markdown
+# Multi-Agent Plan: <goal>
+
+Base: <branch/sha>   Integration branch: integration/<goal>
+Merge authority: <who> (workers NEVER merge)
+
+| # | Task | Owner (agent/tool/account) | Branch | Worktree | Status |
+|---|------|----------------------------|--------|----------|--------|
+| 1 | <task> | claude-a (planner/reviewer) | - | main tree | - |
+| 2 | <task> | claude-b (implementer) | agent/<slug> | .worktrees/<slug> | IN PROGRESS |
+| 3 | <task> | cursor (cross-reviewer) | agent/<slug> | .worktrees/<slug> | PENDING |
+
+## File Ownership
+| Owner | WRITE | READ | MUST NOT TOUCH |
+|-------|-------|------|----------------|
+| task 2 | src/module-x/** | src/shared/** | src/module-y/** |
+| task 3 | tests/module-x/** | src/module-x/** | src/** (non-test) |
+
+## Completion Criteria
+- [ ] per-task tests green in each worktree
+- [ ] integration branch verified once, after ALL tasks report
+```
+
 ---
 
 ## Agent Communication Format

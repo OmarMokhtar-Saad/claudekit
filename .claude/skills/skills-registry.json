@@ -267,6 +267,7 @@
       "path": "skills/using-git-worktrees/SKILL.md",
       "mandatory": false,
       "usedBy": [
+        "coordinator",
         "gitOps"
       ],
       "description": "Isolated workspace patterns"
@@ -290,6 +291,17 @@
         "coordinator"
       ],
       "description": "Safe parallel execution patterns"
+    },
+    {
+      "id": "cross-tool-collaboration",
+      "name": "Cross-Tool Collaboration",
+      "path": "skills/cross-tool-collaboration/SKILL.md",
+      "mandatory": false,
+      "usedBy": [
+        "coordinator",
+        "gitOps"
+      ],
+      "description": "Multi-account and heterogeneous AI tool collaboration on one repo"
     },
     {
       "id": "dispatching-parallel-agents",
@@ -737,12 +749,14 @@
       "autonomous-loop",
       "context-budget",
       "context-first-workflow",
+      "cross-tool-collaboration",
       "dispatching-parallel-agents",
       "golden-rule",
       "multi-agent-coordination",
       "search-first",
       "session-continuity",
       "subagent-driven-development",
+      "using-git-worktrees",
       "using-superpowers",
       "verification-before-completion",
       "verification-loop"
@@ -784,6 +798,7 @@
       "using-superpowers"
     ],
     "gitOps": [
+      "cross-tool-collaboration",
       "finishing-a-development-branch",
       "git-workflow",
       "golden-rule",

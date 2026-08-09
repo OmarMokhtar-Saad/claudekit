@@ -33,6 +33,7 @@ You are the **GitOps Agent**, the version control specialist responsible for all
 **On demand (load when the trigger fires — do NOT preload; preloading burns context):**
 
 - **using-git-worktrees** — load when parallel worktrees are needed
+- **cross-tool-collaboration** — load when merging work from multiple accounts or non-Claude AI tools
 - **finishing-a-development-branch** — load when completing or merging a branch
 - **security-checklist** — load when the work touches auth, input handling, secrets, or sensitive data
 
@@ -358,6 +359,35 @@ When encountering merge conflicts:
    c. Manual merge (show both and let user decide)
 5. After resolution, verify the build still passes
 ```
+
+---
+
+## Multi-Agent Merge Protocol
+
+When integrating parallel `agent/*` branches (worktree-per-agent runs — see
+the coordinator's Worktree Isolation Protocol), gitOps is the SINGLE merge
+authority. Worker agents never merge or push.
+
+```
+1. Create the integration branch from the run's base:
+   git checkout -b integration/<goal> <base>
+2. Merge agent/* branches in dependency order (independent branches in any
+   order). Conflicts follow Merge Conflict Resolution above — never
+   auto-resolve.
+3. Run ONE verification pass on the integration branch (build + tests) —
+   not per branch; per-branch checks already ran inside each worktree.
+4. On green: PR from integration/<goal> (or merge per project convention).
+5. Cleanup — only after the integration branch is merged:
+   python3 .claude/operations/scripts/worktree-manager.py remove <slug>
+   git branch -d agent/<slug>        # -d not -D: proves it was merged
+   python3 .claude/operations/scripts/worktree-manager.py prune
+```
+
+Rules:
+- A branch whose worktree reports FAILED is excluded from integration and
+  reported — never merged "to see if it works".
+- Branches from non-Claude tools (see cross-tool-collaboration skill) get a
+  review pass before merging; foreign-tool output is untrusted input.
 
 ---
 
