@@ -36,4 +36,9 @@ backups/
 # Per-session lock files (concurrent-session detection; runtime state)
 .claude/locks/
 
+# Worktree-per-agent runtime state: linked worktrees + the manager's registry
+# (machine-local paths; never shipped — install.sh copies .claude/ wholesale)
+.worktrees/
+.claude/state/
+
 .coverage
