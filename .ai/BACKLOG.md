@@ -10,7 +10,6 @@ Priority-ordered. Sources: `review/tasks/` (file-level specs — read them befor
 
 ## P1 — high value, unblocked
 
-- [ ] **Fix `_shared/WORKFLOW_FILE_TEMPLATES.md` legacy ops schema** (AGENTS_KNOWN_ISSUES.md issue #9) — actively harmful: agents following it produce validator-rejected configs. Small, surgical.
 - [ ] Fix QUICK_START table drift vs frontmatter (issue #6) and the phantom `opensource-forker` references (#8).
 - [ ] Task 008 prep (no deletions yet): draft the migration table for owner review.
 - [ ] Task 010 eval framework skeleton: `evals/` + one fixture repo + golden ops.json for planner + `ck eval` stub.
