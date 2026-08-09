@@ -42,3 +42,6 @@ backups/
 .claude/state/
 
 .coverage
+
+# xpipe per-stage headless logs (runtime state)
+.claude/reports/xpipe/
