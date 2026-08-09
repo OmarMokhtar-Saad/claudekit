@@ -1,7 +1,6 @@
 ---
 name: using-git-worktrees
 description: "Use when needing isolated workspace for parallel development - git worktree patterns"
-disable-model-invocation: true
 ---
 
 # Using Git Worktrees
@@ -209,6 +208,61 @@ git worktree prune
 # List remaining worktrees to verify cleanup
 git worktree list
 ```
+
+---
+
+## Worktree-Per-Agent (Parallel AI Agents)
+
+**One branch = one worktree = one agent.** When multiple agents work the same
+repo in parallel, each gets its own worktree so edits never collide. Use the
+lifecycle manager — never improvise raw `git worktree` commands for agent work:
+
+```bash
+python3 .claude/operations/scripts/worktree-manager.py create <slug> [--base <ref>] [--json]
+python3 .claude/operations/scripts/worktree-manager.py list [--json]
+python3 .claude/operations/scripts/worktree-manager.py remove <slug> [--force]
+python3 .claude/operations/scripts/worktree-manager.py prune
+```
+
+The manager creates `.worktrees/<slug>` on branch `agent/<slug>`, tracks it in
+a git-ignored registry (`.claude/state/worktrees.json`), copies
+`.claude/settings.local.json` into the worktree (mode preserved), and caps
+concurrency at 5 (returns collapse past 4-5 parallel agents).
+
+### Rules for agent worktrees
+
+| Rule | Reason |
+|---|---|
+| Agents commit on their `agent/*` branch only — NEVER merge or push | Single merge authority (gitOps protocol) prevents integration chaos |
+| Copy local configuration, NOT secrets — `.env` requires explicit `--copy .env` | Secrets must not silently multiply across worktrees |
+| Run every command from the worktree root (`cd <worktree_root> && ...`) | The ops-executor path guard and enforcement hooks scope to the process cwd / git toplevel |
+| Required `.gitignore` entries: `.worktrees/` and `.claude/state/` | Worktrees and the registry are machine-local runtime state |
+
+### Known limitation (session-rooted hooks)
+
+The `cd`-contract above covers the Bash-invoked executor path (the Iron Law
+path). PreToolUse hooks resolve their root from the *session* cwd — a `cd`
+inside one Bash command does not move it. A session rooted in the MAIN tree
+that uses Edit/Write directly on `.worktrees/<slug>/.claude/...` paths is
+outside the hook's `.claude/*` exemption. For fully hook-scoped sessions,
+root the agent session in the worktree (or use the harness's native worktree
+isolation, e.g. Claude Code's `--worktree` / `EnterWorktree` / Agent
+`isolation: "worktree"`).
+
+### Per-worktree environment (ports & devices)
+
+The manager writes `.worktree-env` into each worktree:
+
+```
+WORKTREE_SLUG=<slug>
+WORKTREE_INDEX=<n>
+WORKTREE_PORT_OFFSET=<n*10>
+```
+
+Use the offset to keep parallel dev servers, Appium servers, emulators, or
+device assignments from colliding: e.g. `PORT=$((3000 + WORKTREE_PORT_OFFSET))`,
+`APPIUM_PORT=$((4723 + WORKTREE_PORT_OFFSET))`, and assign each device UDID to
+exactly one worktree.
 
 ---
 
