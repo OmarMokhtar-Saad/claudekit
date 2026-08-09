@@ -4,7 +4,7 @@ You are working **on** ClaudeKit (the multi-agent orchestration kit for Codex), 
 
 ## What this repo is
 
-Prompt corpus (29 agents · 41 commands · 75 skills in `.Codex/`) + enforcement layer (19 hooks, `src/claudekit/security/`) + operations engine (`.Codex/operations/scripts/`) + delivery shell (`src/claudekit/cli/`, `install.sh`, CI). Version 2.1.0 (unreleased tag); PyPI name `Codex-kit`; CLI `claudekit`/`ck`; zero runtime dependencies.
+Prompt corpus (29 agents · 42 commands · 75 skills in `.Codex/`) + enforcement layer (19 hooks, `src/claudekit/security/`) + operations engine (`.Codex/operations/scripts/`) + delivery shell (`src/claudekit/cli/`, `install.sh`, CI). Version 2.1.0 (unreleased tag); PyPI name `Codex-kit`; CLI `claudekit`/`ck`; zero runtime dependencies.
 
 ## Session setup gotcha (read first)
 
