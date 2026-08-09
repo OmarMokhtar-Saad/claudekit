@@ -243,7 +243,7 @@ These files cannot be deleted via operations config:
 
 ## Skills
 
-ClaudeKit includes 74 reusable skills that agents load on-demand:
+ClaudeKit includes 75 reusable skills that agents load on-demand:
 
 | Category | Skills |
 |----------|--------|
@@ -316,8 +316,8 @@ Each project gets a `CONSTITUTION.md` — a governance document that agents enfo
 | Component | Count |
 |-----------|------:|
 | Agents    | 29 |
-| Commands  | 40 |
-| Skills    | 74 |
+| Commands  | 41 |
+| Skills    | 75 |
 | Hooks     | 19 |
 <!-- END GENERATED:inventory -->
 
@@ -338,8 +338,8 @@ claudekit/
 │   │   ├── gitOps.md
 │   │   ├── explore.md
 │   │   └── _shared/                  # Templates and protocols
-│   ├── commands/                     # 40 slash commands
-│   ├── skills/                       # 74 domain skills + registry
+│   ├── commands/                     # 41 slash commands
+│   ├── skills/                       # 75 domain skills + registry
 │   ├── hooks/                        # 19 workflow hooks + lib.sh
 │   ├── operations/scripts/           # Validate, execute, restore
 │   └── local/                        # CLAUDE.md + CONSTITUTION.md templates
@@ -381,6 +381,7 @@ claudekit/
 | Document | Description |
 |----------|-------------|
 | [Architecture](docs/ARCHITECTURE.md) | System design, agent interactions, file-based state management |
+| [Parallel Agents](docs/PARALLEL_AGENTS.md) | Worktree-per-agent parallelism, multiple Claude accounts, cross-tool collaboration |
 | [Agents](docs/AGENTS.md) | Specifications for the core agents (run `ck agents` for the full list of all 28) |
 | [Skills](docs/SKILLS.md) | Skill catalog, creation guide, registry format |
 | [Hooks](docs/HOOKS.md) | Hook system, `settings.json` wiring, `ECC_HOOK_PROFILE`, troubleshooting |

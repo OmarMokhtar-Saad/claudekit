@@ -12,7 +12,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Worktree-per-agent parallel execution.** New `worktree-manager.py` operations script
+  (create/list/remove/prune; validated slugs, git-ignored registry at
+  `.claude/state/worktrees.json`, atomic lock-protected writes, max 5 concurrent, safe
+  removal that refuses dirty trees / unmerged commits / the primary worktree; secrets
+  never copied by default), new `/worktree` command as the lifecycle primitive, and a
+  coordinator "Worktree Isolation Protocol" + gitOps "Multi-Agent Merge Protocol"
+  (workers commit on `agent/*` only; single merge authority; one verification pass on the
+  integration branch). Isolation is proof-tested: `execute-json-ops.py` executed with
+  cwd = a worktree root writes inside the worktree and cannot escape it
+  (`tests/test_worktree_manager.py`, 20 behavioral tests).
+- **`cross-tool-collaboration` skill + `docs/PARALLEL_AGENTS.md`.** Running multiple
+  Claude accounts (`CLAUDE_CONFIG_DIR` isolation with hardening rules) and heterogeneous
+  AI tools (Cursor/Codex via the AGENTS.md standard, MULTI_AGENT_PLAN.md contract,
+  disjoint ownership, foreign-tool-output-is-data trust boundary) on one repository.
+  Dual-account recipe published per owner directive (2026-08-09 /goal).
+
+### Changed
+- `/batch` reconciled with the worktree engine: units execute in waves of ≤5 concurrent
+  worktrees (was 5–30 unbounded), lifecycle goes through `worktree-manager.py`, and
+  agent-side PR/merge steps are removed — integration flows through the gitOps
+  Multi-Agent Merge Protocol.
+- `multi-agent-coordination` skill gains Pattern 4 (worktree-per-agent) and the
+  `MULTI_AGENT_PLAN.md` template; `using-git-worktrees` gains the worktree-per-agent
+  rules, per-worktree env (`.worktree-env` port/device offsets), and a documented
+  session-rooted-hooks limitation. `.agents/` skill mirrors updated in lockstep
+  (`.codex/` mirror refresh deferred to the next corpus sync — `.codex/agents/gitOps.toml:30`
+  still references the skill and will pick up the frontmatter change then).
+
 ### Fixed
+- **`using-git-worktrees` was model-invocation-disabled while four loaders instruct
+  agents to load it** (`commands/git.md`, `agents/gitOps.md`, `commands/batch.md`,
+  `.codex/agents/gitOps.toml`) — agents could never actually load the skill. Frontmatter
+  flag removed for this skill only; the corpus-wide flag-vs-loader contradiction is
+  backlogged (interacts with task 009's context-budget policy).
 - **Versioned Python interpreters no longer rejected by the command guard.** `python3.12`,
   Homebrew's `python3.14`, `pip3.x` (bare or by absolute path) normalize to their
   allowlisted base (`python3`/`pip3`) for allow/block decisions; multi-Python machines

@@ -45,8 +45,8 @@ claudekit/
 │   │   ├── security-scanner.md
 │   │   ├── devops.md
 │   │   └── database-architect.md
-│   ├── commands/         # 40 slash commands
-│   ├── skills/           # 74 skill modules + registry
+│   ├── commands/         # 41 slash commands
+│   ├── skills/           # 75 skill modules + registry
 │   │   ├── skills-registry.json
 │   │   └── <skill-name>/SKILL.md
 │   ├── hooks/            # Lifecycle hooks
@@ -472,7 +472,7 @@ Skills are markdown documents with YAML frontmatter, organized as self-contained
 ├── golden-rule/SKILL.md          # Mandatory: no code changes without approval
 ├── writing-plans/SKILL.md        # Planner: plan structure and ops.json
 ├── systematic-debugging/SKILL.md # Debugger: 4-phase investigation
-├── ...                           # 74 skills total
+├── ...                           # 75 skills total
 ```
 
 ### Registry Structure
@@ -517,7 +517,7 @@ The `skills-registry.json` contains:
 | Architecture | clean-architecture, api-design-patterns, database-migration-patterns, performance-guidelines | Planner, Reviewer, Database-Architect |
 | DevOps | git-workflow, using-git-worktrees, finishing-a-development-branch, ci-cd-pipeline, containerization-patterns, monitoring-observability | GitOps, DevOps |
 | Domain | error-handling, documentation-standards, accessibility-standards, i18n-patterns, incident-response, code-explanation | Various specialists |
-| Meta | writing-skills, multi-agent-coordination, dispatching-parallel-agents, subagent-driven-development | Coordinator, All |
+| Meta | writing-skills, multi-agent-coordination, cross-tool-collaboration, dispatching-parallel-agents, subagent-driven-development | Coordinator, All |
 
 ---
 

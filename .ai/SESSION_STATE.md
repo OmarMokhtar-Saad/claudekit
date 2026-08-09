@@ -2,11 +2,16 @@
 
 > Update this file at the end of every significant AI working session. It is the resume point.
 
-**Last updated:** 2026-08-02 (end of session) · **By:** Claude (Fable 5) — project graph
-sidecar (`2ae85c8`, `38e246c`) + work-loss protection (`46d437c`, `a3e93c2`), all rolled out
-to the 16-project fleet (3 rollouts, settings.local.json intact). **730 tests passing.**
-Resume point: nothing in-flight — next work per BACKLOG (008 consolidation, 010 evals).
-Note: claude-kit is now pip-installed on this machine (hooks use the module fallback);
+**Last updated:** 2026-08-09 (end of session) · **By:** Claude (Fable 5) — worktree-per-agent
+parallelism + multi-account/cross-tool collaboration landed (plan reviewed 93.3/100 by opus
+reviewer; `worktree-manager.py` + 20 behavioral tests incl. isolation proof; coordinator/
+gitOps/batch protocols; `cross-tool-collaboration` skill; `docs/PARALLEL_AGENTS.md`; counts
+41 commands / 75 skills). **753 tests passing, all six gates green.** AppiumLens pilot recipe
+written to `AppiumLens/.claude/plans/plan-parallel-agents-pilot.md` — pilot NOT yet run.
+Resume point: (1) run the AppiumLens pilot (2 worktrees + device/port matrix), (2) fleet sync
+to distribute the new assets, (3) backlog: corpus-wide disable-model-invocation contradiction
+(ties into task 009). Fleet is otherwise synced per 2026-08-02.
+Note: claude-kit is pip-installed on this machine (hooks use the module fallback);
 `ck` console script is at ~/Library/Python/3.9/bin (not on PATH yet).
 
 ## Current project state
