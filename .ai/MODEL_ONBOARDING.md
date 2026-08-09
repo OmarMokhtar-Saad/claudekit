@@ -14,7 +14,7 @@ Read on demand: [ARCHITECTURE.md](ARCHITECTURE.md) before structural changes; th
 
 ## 2. The 60-second mental model
 
-ClaudeKit is **not a library you import** — it is a corpus of Markdown prompts (29 agents, 41 commands, 75 skills), shell hooks (19), and Python safety tooling that gets **copied into a user's project** (`ck init` / `install.sh`). Its core promise: every AI code change flows through **plan → scored review (≥90/100) → validated ops.json execution (29 guards, atomic, rollback) → verification (≥80/100)**, enforced by hooks, not politeness.
+ClaudeKit is **not a library you import** — it is a corpus of Markdown prompts (29 agents, 42 commands, 75 skills), shell hooks (19), and Python safety tooling that gets **copied into a user's project** (`ck init` / `install.sh`). Its core promise: every AI code change flows through **plan → scored review (≥90/100) → validated ops.json execution (29 guards, atomic, rollback) → verification (≥80/100)**, enforced by hooks, not politeness.
 
 Two codebases live here:
 

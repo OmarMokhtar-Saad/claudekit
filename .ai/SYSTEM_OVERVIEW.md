@@ -11,7 +11,7 @@ Users install it into their own project (`pip install claude-kit && ck init <pro
 ## The five subsystems
 
 1. **Agent corpus** (`.claude/agents/`, 28 Markdown agents + `_shared/` protocols) — role prompts with frontmatter (name, description, model, tools). Core pipeline: coordinator, planner, reviewer, implementer, verifier, gitOps; plus specialists (debugger, tester, security-scanner, code-reviewer, …). See [AGENTS.md](AGENTS.md).
-2. **Command layer** (`.claude/commands/`, 41 slash commands) — user entry points that dispatch agents and workflows (`/plan`, `/review`, `/implement`, `/santa`, `/gan-build`, `/prp-*`, …). See [COMMANDS.md](COMMANDS.md).
+2. **Command layer** (`.claude/commands/`, 42 slash commands) — user entry points that dispatch agents and workflows (`/plan`, `/review`, `/implement`, `/santa`, `/gan-build`, `/prp-*`, …). See [COMMANDS.md](COMMANDS.md).
 3. **Skill library** (`.claude/skills/`, 75 skills + `skills-registry.json`) — reusable procedure modules agents load on demand; the registry maps skills to agents, with `using-superpowers` and `golden-rule` mandatory for all. See [SKILLS.md](SKILLS.md).
 4. **Enforcement layer** (`.claude/hooks/`, 19 shell hooks wired in `.claude/settings.json`; `src/claudekit/security/` Python validator) — blocks unsafe edits, bad commits, dangerous commands; profiles via `ECC_HOOK_PROFILE`. See [HOOKS.md](HOOKS.md) and [SECURITY_GUIDE.md](SECURITY_GUIDE.md).
 5. **Operations engine** (`.claude/operations/scripts/`) — `validate-config-json.py` (29 guards), `execute-json-ops.py` (backups, atomic writes, rollback), `restore-backup.py`, `operations-schema.json`. The only sanctioned way agents change user code. See [SKILLS.md](SKILLS.md#operations-pipeline) and [DOMAIN.md](DOMAIN.md).
@@ -23,7 +23,7 @@ Delivery shell around them: the Python CLI (`src/claudekit/cli/main.py` — init
 | Path | What it is |
 |------|------------|
 | `.claude/agents/` | 28 agent prompts + `_shared/` protocol docs + QUICK_START, HANDOFF_PROTOCOL |
-| `.claude/commands/` | 41 slash-command prompts |
+| `.claude/commands/` | 42 slash-command prompts |
 | `.claude/skills/` | 75 skills (one dir each, `SKILL.md`) + `skills-registry.json` |
 | `.claude/hooks/` | 19 hook scripts + `lib.sh` + `config.json` (project cmds) + logs |
 | `.claude/operations/scripts/` | ops.json validator/executor/restore + schema |
@@ -44,7 +44,7 @@ Delivery shell around them: the Python CLI (`src/claudekit/cli/main.py` — init
 
 ## Key numbers (verify with `gen-docs.py`)
 
-29 agents · 41 commands · 75 skills · 19 hooks · 29 ops guards · 11 language templates · 516 tests · Python ≥3.9 · zero runtime dependencies · version 2.1.0 · PyPI name `claude-kit` · GitHub `OmarMokhtar-Saad/claudekit`.
+29 agents · 42 commands · 75 skills · 19 hooks · 29 ops guards · 11 language templates · 516 tests · Python ≥3.9 · zero runtime dependencies · version 2.1.0 · PyPI name `claude-kit` · GitHub `OmarMokhtar-Saad/claudekit`.
 
 ## Where the project stands
 

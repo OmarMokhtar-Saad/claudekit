@@ -20,7 +20,7 @@ Everything here was generated from a full-repository analysis on **2026-07-08** 
 | Document | Contents |
 |----------|----------|
 | [AGENTS.md](AGENTS.md) | Agent reference index — split into `AGENTS_*.md` files (pipeline, specialists, protocols, known issues), each under 10 KB |
-| [COMMANDS.md](COMMANDS.md) | All 41 slash commands + 13 template commands + 7 modes |
+| [COMMANDS.md](COMMANDS.md) | All 42 slash commands + 13 template commands + 7 modes |
 | [SKILLS.md](SKILLS.md) | All 75 skills, the registry, the operations pipeline |
 | [HOOKS.md](HOOKS.md) | All 19 hooks, settings.json wiring, lifecycle, profiles |
 | [PROMPTS.md](PROMPTS.md) | Prompt architecture, conventions, lifecycle |

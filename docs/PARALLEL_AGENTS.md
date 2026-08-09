@@ -89,6 +89,27 @@ Hardening (required):
 
 Details live in the `cross-tool-collaboration` skill.
 
+## One Command: `/xpipe` (with per-participant off-switches)
+
+The whole multi-party flow behind one entry point, where **any participant can
+be turned off — or all of them**:
+
+```bash
+python3 .claude/operations/scripts/xpipe.py --status          # who's available, what mode runs
+python3 .claude/operations/scripts/xpipe.py "<task>"          # full pipeline (auto-degrades)
+python3 .claude/operations/scripts/xpipe.py "<task>" --no-cursor   # Claude accounts only
+python3 .claude/operations/scripts/xpipe.py "<task>" --no-brain    # current account + Cursor
+python3 .claude/operations/scripts/xpipe.py "<task>" --solo        # standard single-session workflow
+```
+
+Roles: **brain** = second account (plans, merge authority), **hands** = your
+current account (reviews + implements), **cursor** = cross-vendor reviewer.
+Missing participants switch off automatically with an explanation (e.g. second
+account not logged in) — the pipeline never fails because someone is absent;
+with everything off it *is* the normal ClaudeKit workflow. A REVISE verdict
+from any reviewer stops the chain. Inside Claude Code, use the `/xpipe`
+command instead of calling the script directly.
+
 ## Troubleshooting
 
 | Problem | Fix |

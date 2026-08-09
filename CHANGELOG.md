@@ -29,6 +29,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   disjoint ownership, foreign-tool-output-is-data trust boundary) on one repository.
   Dual-account recipe published per owner directive (2026-08-09 /goal).
 
+- **`/xpipe` — the cross-account/cross-tool pipeline with per-participant off-flags.**
+  `xpipe.py` orchestrates brain (second account, plans) → hands (current account, reviews
+  + implements) → cursor (cross-vendor review) with `--no-brain` / `--no-cursor` /
+  `--solo` switches; unavailable participants auto-degrade with an explanation (second
+  account not logged in, cursor-agent absent) and with everything off the flow IS the
+  standard single-session pipeline. Headless stages use per-stage scoped `--allowedTools`
+  (never `--dangerously-skip-permissions`); REVISE verdicts stop the chain (exit 3).
+  12 behavioral tests (`tests/test_xpipe.py`).
+
 ### Changed
 - `/batch` reconciled with the worktree engine: units execute in waves of ≤5 concurrent
   worktrees (was 5–30 unbounded), lifecycle goes through `worktree-manager.py`, and

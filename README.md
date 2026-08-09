@@ -316,7 +316,7 @@ Each project gets a `CONSTITUTION.md` — a governance document that agents enfo
 | Component | Count |
 |-----------|------:|
 | Agents    | 29 |
-| Commands  | 41 |
+| Commands  | 42 |
 | Skills    | 75 |
 | Hooks     | 19 |
 <!-- END GENERATED:inventory -->
@@ -338,7 +338,7 @@ claudekit/
 │   │   ├── gitOps.md
 │   │   ├── explore.md
 │   │   └── _shared/                  # Templates and protocols
-│   ├── commands/                     # 41 slash commands
+│   ├── commands/                     # 42 slash commands
 │   ├── skills/                       # 75 domain skills + registry
 │   ├── hooks/                        # 19 workflow hooks + lib.sh
 │   ├── operations/scripts/           # Validate, execute, restore
