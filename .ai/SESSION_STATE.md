@@ -8,9 +8,13 @@ reviewer; `worktree-manager.py` + 20 behavioral tests incl. isolation proof; coo
 gitOps/batch protocols; `cross-tool-collaboration` skill; `docs/PARALLEL_AGENTS.md`; counts
 41 commands / 75 skills). **753 tests passing, all six gates green.** AppiumLens pilot recipe
 written to `AppiumLens/.claude/plans/plan-parallel-agents-pilot.md` — pilot NOT yet run.
-Resume point: (1) run the AppiumLens pilot (2 worktrees + device/port matrix), (2) fleet sync
-to distribute the new assets, (3) backlog: corpus-wide disable-model-invocation contradiction
-(ties into task 009). Fleet is otherwise synced per 2026-08-02.
+Later same day: AppiumLens pilot RAN (2 concurrent workers, clean octopus merge, one
+compile pass rc=0; integration/parallel-agents-pilot left for owner); fleet rollout DONE
+16/16 (worktree assets + xpipe, selective 9+2-file sync, settings.local.json untouched);
+`/xpipe` landed (611aa90) — per-participant off-flags, auto-degrade, 42 commands, 765+14
+tests green. Resume point: (1) owner logs in account B (Team seat = brain) —
+~/.claude-acct-b prepared, aliases in ~/.zshrc; (2) merge integration/parallel-agents-pilot
+in AppiumLens; (3) backlog: corpus-wide disable-model-invocation contradiction (task 009).
 Note: claude-kit is pip-installed on this machine (hooks use the module fallback);
 `ck` console script is at ~/Library/Python/3.9/bin (not on PATH yet).
 
