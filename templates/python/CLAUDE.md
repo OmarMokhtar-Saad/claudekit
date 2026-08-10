@@ -74,9 +74,13 @@ Operations scripts: `.claude/operations/scripts/`
 ## Parallel Agents & XPipe Policy (2026-08-09)
 
 - **Substantial tasks** (multi-file feature/refactor, architecture- or security-relevant):
-  check `python3 .claude/operations/scripts/xpipe.py --status` and, unless mode is `solo`,
-  route through `/xpipe` — brain account plans, hands account reviews (90/100) + implements,
-  cursor cross-reviews. Any REVISE verdict stops the chain; report findings, do not push through.
+  routing through `/xpipe` is MANDATORY, not advisory — check
+  `python3 .claude/operations/scripts/xpipe.py --status` first; unless mode is `solo`,
+  the plan review MUST run cross-account (brain) and, when available, cross-vendor (cursor)
+  via xpipe — an in-session reviewer subagent does NOT satisfy this (same account, same
+  model family, shared context = anchoring). Any REVISE verdict stops the chain; report
+  findings, do not push through. Deviating requires the task prompt to explicitly order a
+  different review path — state the override in your report when it happens.
 - **Trivial fast-path unchanged**: <=2-line/cosmetic single-file changes skip xpipe entirely.
 - **Parallel implementation** (>=2 implementers): coordinator Worktree Isolation Protocol —
   one worktree per sub-plan via `worktree-manager.py` (max 5), workers commit on `agent/*`
