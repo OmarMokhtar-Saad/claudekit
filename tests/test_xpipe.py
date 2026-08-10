@@ -189,6 +189,38 @@ class TestDryRun:
         assert "Write" in review_line and "Bash" in review_line
 
 
+class TestRoleAccountPinning:
+    """Roles stay pinned to accounts even when the orchestrating session IS
+    the brain account (CLAUDE_CONFIG_DIR inherited in its environment)."""
+
+    def _mod(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("xpipe", SCRIPT)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+
+    def test_hands_stage_drops_inherited_brain_config(self):
+        mod = self._mod()
+        stage = {"runner": "hands", "env": {}}
+        env = mod.stage_env(stage, {"CLAUDE_CONFIG_DIR": "/Users/x/.claude-acct-b",
+                                    "PATH": "/usr/bin"})
+        assert "CLAUDE_CONFIG_DIR" not in env
+        assert env["PATH"] == "/usr/bin"
+
+    def test_brain_stage_sets_its_config_over_inherited(self):
+        mod = self._mod()
+        stage = {"runner": "brain", "env": {"CLAUDE_CONFIG_DIR": "/Users/x/.claude-acct-b"}}
+        env = mod.stage_env(stage, {"CLAUDE_CONFIG_DIR": "/somewhere/else"})
+        assert env["CLAUDE_CONFIG_DIR"] == "/Users/x/.claude-acct-b"
+
+    def test_cursor_stage_env_untouched(self):
+        mod = self._mod()
+        stage = {"runner": "cursor", "env": {}}
+        env = mod.stage_env(stage, {"CLAUDE_CONFIG_DIR": "/Users/x/.claude-acct-b"})
+        assert env["CLAUDE_CONFIG_DIR"] == "/Users/x/.claude-acct-b"
+
+
 class TestPlanLocationConvention:
     def _normalize(self, root, raw):
         import importlib.util
