@@ -1,0 +1,84 @@
+{
+  "plan": "workflow-file-templates-ops-schema",
+  "operations": [
+    {
+      "id": "step-1",
+      "description": "Replace the legacy ops.json template with the canonical modern schema",
+      "type": "code_edit",
+      "path": ".claude/agents/_shared/WORKFLOW_FILE_TEMPLATES.md",
+      "edits": [
+        {
+          "find": "**Location:** `.claude/plans/ops-<descriptor>.json`\n\n```json\n{\n  \"version\": \"1.0\",\n  \"plan_ref\": \"plan-<descriptor>.md\",\n  \"operations\": [\n    {\n      \"id\": \"step-1\",\n      \"type\": \"create|modify|delete|move|rename\",\n      \"file\": \"path/to/file\",\n      \"description\": \"What this operation does\",\n      \"changes\": [\n        {\n          \"action\": \"insert|replace|delete|append\",\n          \"target\": \"line number, function name, or search pattern\",\n          \"content\": \"the new content\"\n        }\n      ],\n      \"dependencies\": [],\n      \"rollback\": \"description of how to undo\"\n    }\n  ],\n  \"validation\": {\n    \"build_command\": \"\",\n    \"test_command\": \"\",\n    \"lint_command\": \"\"\n  }\n}\n```",
+          "replace": "**Location:** `.claude/plans/ops-<descriptor>.json`\n\n**Schema owners:** `.claude/skills/generate-operations-config/SKILL.md` (CANONICAL SCHEMA) and\n`.claude/operations/scripts/operations-schema.json`. This template is a convenience copy — if it\never disagrees with them, they win. The example below is executed against the real\n`validate-config-json.py` by `tests/test_agent_doc_ops_examples.py`, so it cannot drift.\n\n```json\n{\n  \"plan\": \"add-user-repository\",\n  \"operations\": [\n    {\n      \"type\": \"file_create\",\n      \"path\": \"src/repositories/user_repository.py\",\n      \"content\": \"class UserRepository:\\n    def find_by_id(self, user_id):\\n        raise NotImplementedError\\n\"\n    },\n    {\n      \"type\": \"code_edit\",\n      \"path\": \"src/services/user_service.py\",\n      \"edits\": [\n        {\n          \"find\": \"from src.repositories.legacy_repo import LegacyRepo\",\n          \"replace\": \"from src.repositories.user_repository import UserRepository\"\n        },\n        {\n          \"find\": \"        self.repo = LegacyRepo()\",\n          \"replace\": \"        self.repo = UserRepository()\"\n        }\n      ]\n    },\n    {\n      \"type\": \"file_delete\",\n      \"path\": \"src/repositories/legacy_repo.py\",\n      \"reason\": \"Superseded by user_repository.py created earlier in this plan\"\n    }\n  ]\n}\n```\n\nRules the validator enforces — violating any one rejects the whole config:\n\n| Rule | Detail |\n|------|--------|\n| Top-level keys | `plan` (kebab-case) plus exactly one of `operations` (modern) or `files` (legacy, code edits only). No `version`, `plan_ref`, `description`, `validation`. |\n| Operation types | exactly `file_create`, `file_delete`, `code_edit`. Never `create`/`modify`/`delete`/`move`/`rename`. |\n| Path key | `path`, relative to the project root. Never `file` or `target`. |\n| Per-type fields | `file_create` needs `content` (non-empty); `file_delete` needs `reason` (>= 10 chars); `code_edit` needs `edits` (non-empty array). Optional on any operation: `id`, `description`. |\n| Edit actions | each `edits` entry is `find` plus exactly one of `replace`, `add_after`, `add_before`, `delete: true`. Never a `changes`/`action`/`target` block. |\n| Unknown fields | `additionalProperties: false` — any other key rejects the whole config. Rollback notes, dependency ordering and validation commands belong in **plan.md**, not here. |\n| Deletions | at most 3 `file_delete` operations per config (GUARD 26); split larger removals across configs. |\n| `find` patterns | copied verbatim from the file (exact whitespace) and unique within it — ambiguous or missing matches are rejected. |\n\nExecution order is array order; the schema has no `dependencies` field. Validate before handoff:\n\n```bash\npython3 .claude/operations/scripts/validate-config-json.py .claude/plans/ops-<descriptor>.json\n```"
+        }
+      ]
+    },
+    {
+      "id": "step-2",
+      "description": "Behavioral regression test: every embedded ops example must pass the real validator",
+      "type": "file_create",
+      "path": "tests/test_agent_doc_ops_examples.py",
+      "content": "\"\"\"Every ops.json example embedded in the agent/skill corpus must validate clean.\n\nRegression guard for AGENTS_KNOWN_ISSUES.md #9: `_shared/WORKFLOW_FILE_TEMPLATES.md` shipped\na legacy ops schema (`version` / `plan_ref` / `file` / `changes` /\n`type: create|modify|delete|move|rename`) that `validate-config-json.py` rejects, so every\nagent that followed the shared template produced a config the validator -- and therefore the\nReviewer -- had to reject. Prose review did not catch it for months; this test makes it\nmechanical.\n\nBehavioral, not structural: nothing is asserted about the markdown wording. Each embedded\nexample is materialized into a throwaway project (code_edit / file_delete targets created\nwith their find anchors, file_create targets deliberately absent) and the REAL validator is\nexecuted against it. The example must be APPROVED (exit 0).\n\"\"\"\nimport json\nimport os\nimport re\nimport subprocess\nimport sys\n\nimport pytest\n\nREPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))\nVALIDATOR = os.path.join(\n    REPO_ROOT, '.claude', 'operations', 'scripts', 'validate-config-json.py'\n)\n\n# Corpus roots whose markdown teaches agents how to write ops.json.\nDOC_ROOTS = (\n    os.path.join('.claude', 'agents'),\n    os.path.join('.claude', 'skills'),\n)\n\n# Docs that must keep at least this many ops examples. Without this floor, a fence-format or\n# path change would make the scanner find nothing and the suite would stay green while the\n# corpus kept teaching an unchecked schema.\nMIN_EXAMPLES = {\n    os.path.join('.claude', 'agents', '_shared', 'WORKFLOW_FILE_TEMPLATES.md'): 1,\n    os.path.join('.claude', 'agents', 'planner.md'): 1,\n    os.path.join('.claude', 'skills', 'generate-operations-config', 'SKILL.md'): 3,\n}\n\n# Keys from the rejected legacy schema. 'delete' is absent on purpose: it is a legal edit\n# action (\"delete\": true).\nLEGACY_KEYS = frozenset({\n    'version', 'plan_ref', 'file', 'changes', 'action', 'target', 'dependencies',\n    'rollback', 'validation', 'build_command', 'test_command', 'lint_command',\n})\nLEGACY_TYPES = frozenset({\n    'create', 'modify', 'delete', 'move', 'rename',\n    'create|modify|delete|move|rename',\n})\n\n# Substrings that mark a fence as ops-config-shaped even when it fails to parse.\nOPS_MARKERS = ('\"operations\"', '\"plan_ref\"', 'file_create', 'file_delete', 'code_edit')\n\n_FENCE_RE = re.compile(r'```json\\n(.*?)```', re.S)\n\n\ndef _doc_files():\n    for root in DOC_ROOTS:\n        for dirpath, _dirs, names in os.walk(os.path.join(REPO_ROOT, root)):\n            for name in names:\n                if name.endswith('.md'):\n                    yield os.path.relpath(os.path.join(dirpath, name), REPO_ROOT)\n\n\ndef _fences():\n    for rel in sorted(_doc_files()):\n        with open(os.path.join(REPO_ROOT, rel), encoding='utf-8') as handle:\n            text = handle.read()\n        for index, block in enumerate(_FENCE_RE.findall(text)):\n            yield rel, index, block\n\n\ndef _is_ops_config(obj):\n    \"\"\"Deliberately does NOT key on 'plan': the bug under guard replaced 'plan' with\n    'plan_ref', so a plan-keyed filter would skip exactly the broken example.\"\"\"\n    if not isinstance(obj, dict):\n        return False\n    if isinstance(obj.get('operations'), list) and obj['operations']:\n        return True\n    files = obj.get('files')\n    return (isinstance(files, list) and bool(files)\n            and all(isinstance(entry, dict) for entry in files))\n\n\ndef _collect():\n    found = []\n    for rel, index, block in _fences():\n        try:\n            parsed = json.loads(block)\n        except ValueError:\n            continue\n        if _is_ops_config(parsed):\n            found.append((rel, index, parsed))\n    return found\n\n\nOPS_EXAMPLES = _collect()\n\n\ndef _walk_keys(node):\n    if isinstance(node, dict):\n        for key, value in node.items():\n            yield key\n            yield from _walk_keys(value)\n    elif isinstance(node, list):\n        for item in node:\n            yield from _walk_keys(item)\n\n\ndef _materialize(config, root):\n    \"\"\"Build the on-disk state the example assumes: code_edit / file_delete targets exist\n    (each find anchor present exactly once), file_create targets do not (GUARD 18).\"\"\"\n    entries = list(config.get('operations', []))\n    entries += [dict(entry, type='code_edit') for entry in config.get('files', [])]\n    for operation in entries:\n        path = operation.get('path')\n        if not path or operation.get('type') == 'file_create':\n            continue\n        target = os.path.join(root, path)\n        os.makedirs(os.path.dirname(target) or root, exist_ok=True)\n        content = ''\n        if os.path.exists(target):\n            with open(target, encoding='utf-8') as handle:\n                content = handle.read()\n        for edit in operation.get('edits', []):\n            anchor = edit.get('find')\n            if anchor and anchor not in content:\n                content += anchor + '\\n'\n        with open(target, 'w', encoding='utf-8') as handle:\n            handle.write(content)\n\n\ndef _validate(config, root):\n    with open(os.path.join(root, 'ops.json'), 'w', encoding='utf-8') as handle:\n        json.dump(config, handle, indent=2)\n    # Hook profile forced explicitly so the subprocess never inherits whatever profile the\n    # developer session happens to run under (repo test convention).\n    env = dict(os.environ, ECC_HOOK_PROFILE='minimal')\n    return subprocess.run(\n        [sys.executable, VALIDATOR, 'ops.json'],\n        cwd=root, env=env, capture_output=True, text=True, timeout=120,\n    )\n\n\n@pytest.mark.parametrize(\n    'rel,index,config', OPS_EXAMPLES,\n    ids=['{}#{}'.format(rel, index) for rel, index, _config in OPS_EXAMPLES],\n)\ndef test_embedded_ops_example_is_approved_by_the_validator(rel, index, config, tmp_path):\n    root = str(tmp_path)\n    _materialize(config, root)\n    result = _validate(config, root)\n    assert result.returncode == 0, (\n        '{} (JSON block #{}) documents an ops config the validator REJECTS -- any agent '\n        'copying it produces a config /validate-ops and the Reviewer must reject:\\n{}{}'\n        .format(rel, index, result.stdout, result.stderr)\n    )\n\n\n@pytest.mark.parametrize('rel,minimum', sorted(MIN_EXAMPLES.items()))\ndef test_documented_homes_still_carry_ops_examples(rel, minimum):\n    count = sum(1 for found, _index, _config in OPS_EXAMPLES if found == rel)\n    assert count >= minimum, (\n        '{} exposes {} ops example(s), expected at least {} -- the scanner stopped seeing '\n        'them (doc renamed, fence changed, or example dropped), which would silently '\n        'disable this schema guard.'.format(rel, count, minimum)\n    )\n\n\ndef test_ops_shaped_fences_are_parseable_json():\n    broken = []\n    for rel, index, block in _fences():\n        try:\n            json.loads(block)\n        except ValueError as exc:\n            if any(marker in block for marker in OPS_MARKERS):\n                broken.append('{}#{}: {}'.format(rel, index, exc))\n    assert not broken, (\n        'ops-config-shaped JSON fence(s) do not parse, so the validator check above '\n        'silently skips them:\\n' + '\\n'.join(broken)\n    )\n\n\ndef test_ops_examples_use_no_legacy_schema_fields():\n    offenders = []\n    for rel, index, config in OPS_EXAMPLES:\n        for key in _walk_keys(config):\n            if key in LEGACY_KEYS:\n                offenders.append('{}#{}: legacy key {!r}'.format(rel, index, key))\n        for operation in config.get('operations', []):\n            if isinstance(operation, dict) and operation.get('type') in LEGACY_TYPES:\n                offenders.append('{}#{}: legacy operation type {!r}'.format(\n                    rel, index, operation.get('type')))\n    assert not offenders, (\n        'AGENTS_KNOWN_ISSUES.md #9 regression -- the legacy ops schema is back in the agent '\n        'corpus:\\n' + '\\n'.join(sorted(set(offenders)))\n    )\n"
+    },
+    {
+      "id": "step-3",
+      "description": "CHANGELOG [Unreleased] Fixed entry",
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "edits": [
+        {
+          "find": "- **`using-git-worktrees` was model-invocation-disabled while four loaders instruct",
+          "add_before": "- **Shared agent template no longer teaches an ops.json schema the validator rejects.**\n  `_shared/WORKFLOW_FILE_TEMPLATES.md` documented `version`/`plan_ref`/`file`/`changes`/\n  `type: create|modify|delete|move|rename` — every one of which `validate-config-json.py`\n  rejects, so any agent that followed the shared template produced a config the Reviewer had\n  to auto-reject (AGENTS_KNOWN_ISSUES.md #9). It now carries the canonical modern schema\n  (`plan` + `operations`; `file_create`/`file_delete`/`code_edit`; `path`/`edits`;\n  `additionalProperties: false`), names `generate-operations-config` +\n  `operations-schema.json` as the schema owners, and documents the enforced rules (deletion\n  cap, unique `find` anchors, array-order execution). New\n  `tests/test_agent_doc_ops_examples.py` runs the real validator against every\n  ops-config-shaped JSON fence in `.claude/agents/**` and `.claude/skills/**`, so a legacy\n  example cannot silently return.\n"
+        }
+      ]
+    },
+    {
+      "id": "step-4",
+      "description": "Mark AGENTS_KNOWN_ISSUES.md issue 9 as fixed, keeping the original diagnosis",
+      "type": "code_edit",
+      "path": ".ai/AGENTS_KNOWN_ISSUES.md",
+      "edits": [
+        {
+          "find": "9. **WORKFLOW_FILE_TEMPLATES.md ships the legacy ops.json schema.** Its template uses",
+          "replace": "9. **WORKFLOW_FILE_TEMPLATES.md ships the legacy ops.json schema.** **FIXED 2026-08-09** — the template now carries the canonical modern schema (`plan` + `operations`; types `file_create`/`file_delete`/`code_edit`; `path`/`edits`) and defers to `generate-operations-config` + `operations-schema.json` as schema owners; `tests/test_agent_doc_ops_examples.py` runs the real `validate-config-json.py` against every ops-config-shaped JSON fence in `.claude/agents/**` and `.claude/skills/**`, so this cannot silently regress. Original diagnosis, kept for the record: its template used"
+        }
+      ]
+    },
+    {
+      "id": "step-5",
+      "description": "Replace the stale legacy-schema warning in the protocol digest",
+      "type": "code_edit",
+      "path": ".ai/AGENTS_PROTOCOLS.md",
+      "edits": [
+        {
+          "find": "**Warning:** its ops.json template uses a legacy schema (`version`, `plan_ref`, types `create|modify|delete|move|rename`, `file` key, `changes` array, `rollback`, `validation` block) that planner.md's modern canonical schema explicitly says the validator will reject (see Known Issues).",
+          "replace": "Its ops.json section carries the canonical modern schema (`plan` + `operations`; `file_create`/`file_delete`/`code_edit`; `path`/`edits`; `additionalProperties: false`) and names `generate-operations-config` + `operations-schema.json` as the schema owners; `tests/test_agent_doc_ops_examples.py` validates the embedded examples with the real validator (legacy-schema issue fixed 2026-08-09)."
+        }
+      ]
+    },
+    {
+      "id": "step-6",
+      "description": "Remove the paid-off tech-debt row",
+      "type": "code_edit",
+      "path": ".ai/TECH_DEBT.md",
+      "edits": [
+        {
+          "find": "| 1 | Legacy ops.json schema in shared template | **H** | `.claude/agents/_shared/WORKFLOW_FILE_TEMPLATES.md` | Contradicts planner's modern schema; validator rejects its output. Fix = reference `generate-operations-config`. (AGENTS_KNOWN_ISSUES.md #9) |\n",
+          "delete": true
+        }
+      ]
+    },
+    {
+      "id": "step-7",
+      "description": "Remove the completed P1 backlog item",
+      "type": "code_edit",
+      "path": ".ai/BACKLOG.md",
+      "edits": [
+        {
+          "find": "- [ ] **Fix `_shared/WORKFLOW_FILE_TEMPLATES.md` legacy ops schema** (AGENTS_KNOWN_ISSUES.md issue #9) — actively harmful: agents following it produce validator-rejected configs. Small, surgical.\n",
+          "delete": true
+        }
+      ]
+    }
+  ]
+}

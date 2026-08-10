@@ -51,6 +51,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   still references the skill and will pick up the frontmatter change then).
 
 ### Fixed
+- **Shared agent template no longer teaches an ops.json schema the validator rejects.**
+  `_shared/WORKFLOW_FILE_TEMPLATES.md` documented `version`/`plan_ref`/`file`/`changes`/
+  `type: create|modify|delete|move|rename` — every one of which `validate-config-json.py`
+  rejects, so any agent that followed the shared template produced a config the Reviewer had
+  to auto-reject (AGENTS_KNOWN_ISSUES.md #9). It now carries the canonical modern schema
+  (`plan` + `operations`; `file_create`/`file_delete`/`code_edit`; `path`/`edits`;
+  `additionalProperties: false`), names `generate-operations-config` +
+  `operations-schema.json` as the schema owners, and documents the enforced rules (deletion
+  cap, unique `find` anchors, array-order execution). New
+  `tests/test_agent_doc_ops_examples.py` runs the real validator against every
+  ops-config-shaped JSON fence in `.claude/agents/**` and `.claude/skills/**`, so a legacy
+  example cannot silently return.
 - **`using-git-worktrees` was model-invocation-disabled while four loaders instruct
   agents to load it** (`commands/git.md`, `agents/gitOps.md`, `commands/batch.md`,
   `.codex/agents/gitOps.toml`) — agents could never actually load the skill. Frontmatter
