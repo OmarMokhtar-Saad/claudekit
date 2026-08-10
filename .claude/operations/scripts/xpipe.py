@@ -183,10 +183,21 @@ def print_status(args: argparse.Namespace, state: Dict[str, object]) -> None:
               "(/plan -> /review -> /implement, or /coordinator).")
 
 
+def stage_env(stage: Dict[str, object], base_env: Dict[str, str]) -> Dict[str, str]:
+    """Roles are pinned to accounts no matter which account orchestrates:
+    a session launched from the brain account (CLAUDE_CONFIG_DIR inherited in
+    its environment) must not leak that into hands stages, or both roles
+    collapse onto one account and cross-account independence is lost."""
+    env = dict(base_env)
+    if stage["runner"] == "hands":
+        env.pop("CLAUDE_CONFIG_DIR", None)
+    env.update(stage["env"])  # type: ignore[arg-type]
+    return env
+
+
 def run_stage(stage: Dict[str, object], plan_path: Optional[str], log_dir: Path) -> "subprocess.CompletedProcess[str]":
     cmd = [str(c).replace("{PLAN_PATH}", plan_path or "") for c in stage["cmd"]]  # type: ignore[union-attr]
-    env = dict(os.environ)
-    env.update(stage["env"])  # type: ignore[arg-type]
+    env = stage_env(stage, dict(os.environ))
     proc = subprocess.run(cmd, capture_output=True, text=True, env=env, timeout=STAGE_TIMEOUT)
     log_dir.mkdir(parents=True, exist_ok=True)
     stamp = time.strftime("%Y%m%d-%H%M%S")
