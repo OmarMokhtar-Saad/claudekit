@@ -4,7 +4,6 @@ Live register — remove entries when paid. Severity: H/M/L. Historical context:
 
 | # | Debt | Sev | Where | Notes / exit |
 |---|------|-----|-------|--------------|
-| 1 | Legacy ops.json schema in shared template | **H** | `.claude/agents/_shared/WORKFLOW_FILE_TEMPLATES.md` | Contradicts planner's modern schema; validator rejects its output. Fix = reference `generate-operations-config`. (AGENTS_KNOWN_ISSUES.md #9) |
 | 2 | Prompt-corpus duplication (4 layers: command↔agent↔skill↔registry) | H | corpus-wide | ~60–80K tokens/pipeline waste; exit = tasks 008+009. |
 | 3 | Near-duplicate assets | H | agents (10 merge candidates), skills (5 pairs/trios), `templates/skills/` (14 dupes, 2 diverged) | Exit = task 008 with migration table. |
 | 4 | Gates are prompt-enforced only | H | reviewer/verifier prompts | 90/80 thresholds have no mechanical enforcement or calibration. Exit = task 010. |

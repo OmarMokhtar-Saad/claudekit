@@ -2,7 +2,17 @@
 
 > Update this file at the end of every significant AI working session. It is the resume point.
 
-**Last updated:** 2026-08-09 (end of session) · **By:** Claude (Fable 5) — worktree-per-agent
+**Last updated:** 2026-08-09 (later same day) · **By:** Claude (Sonnet 5) — fixed
+AGENTS_KNOWN_ISSUES.md #9 (legacy ops.json schema in `_shared/WORKFLOW_FILE_TEMPLATES.md`)
+on branch `agent/workflow-file-templates-ops-schema` (worktree, **uncommitted at this
+edit** — implementer commits after this note lands). Template now teaches the canonical
+modern schema; new `tests/test_agent_doc_ops_examples.py` (10 tests) runs the real
+validator against every ops-config-shaped example in `.claude/agents/**` +
+`.claude/skills/**`. 779 tests green, all six DoD gates pass. Full detail:
+`.ai/CHANGELOG_AI.md` 2026-08-09 entry. Do not merge this branch automatically — owner-gated
+per worktree protocol.
+
+Prior entry, same day, earlier: Claude (Fable 5) — worktree-per-agent
 parallelism + multi-account/cross-tool collaboration landed (plan reviewed 93.3/100 by opus
 reviewer; `worktree-manager.py` + 20 behavioral tests incl. isolation proof; coordinator/
 gitOps/batch protocols; `cross-tool-collaboration` skill; `docs/PARALLEL_AGENTS.md`; counts
@@ -14,7 +24,8 @@ compile pass rc=0; integration/parallel-agents-pilot left for owner); fleet roll
 `/xpipe` landed (611aa90) — per-participant off-flags, auto-degrade, 42 commands, 765+14
 tests green. Resume point: (1) owner logs in account B (Team seat = brain) —
 ~/.claude-acct-b prepared, aliases in ~/.zshrc; (2) merge integration/parallel-agents-pilot
-in AppiumLens; (3) backlog: corpus-wide disable-model-invocation contradiction (task 009).
+in AppiumLens; (3) merge (or discard) `agent/workflow-file-templates-ops-schema`;
+(4) backlog: corpus-wide disable-model-invocation contradiction (task 009).
 Note: claude-kit is pip-installed on this machine (hooks use the module fallback);
 `ck` console script is at ~/Library/Python/3.9/bin (not on PATH yet).
 
