@@ -221,6 +221,80 @@ class TestRoleAccountPinning:
         assert env["CLAUDE_CONFIG_DIR"] == "/Users/x/.claude-acct-b"
 
 
+class TestRateLimitFailover:
+    """Limit-shaped stage failures fail over to the other Claude account;
+    both accounts limited parks the run (exit 4). Exercised end-to-end with
+    stub claude/cursor binaries via XPIPE_CLAUDE_BIN / XPIPE_CURSOR_BIN."""
+
+    def _project(self, tmp_path):
+        root = tmp_path / "proj"
+        (root / ".claude" / "plans").mkdir(parents=True)
+        (root / ".claude" / "plans" / "plan-stub.md").write_text("# plan", encoding="utf-8")
+        return root
+
+    def _claude_stub(self, tmp_path, limited_when):
+        """limited_when: 'brain' (CLAUDE_CONFIG_DIR set), 'hands' (unset), 'always'."""
+        stub = tmp_path / "stubs" / "claude"
+        stub.parent.mkdir(exist_ok=True)
+        cond = {"brain": '[ -n "$CLAUDE_CONFIG_DIR" ]',
+                "hands": '[ -z "$CLAUDE_CONFIG_DIR" ]',
+                "always": "true"}[limited_when]
+        stub.write_text(f"""#!/bin/sh
+if {cond}; then echo "usage limit reached — resets at 3pm"; exit 1; fi
+case "$2" in
+  *"/review"*) echo "APPROVED 95";;
+  *"/implement"*) echo "branch agent/stub commit abc123";;
+  *"/plan"*) echo ".claude/plans/plan-stub.md";;
+esac
+exit 0
+""", encoding="utf-8")
+        stub.chmod(0o755)
+        return stub
+
+    def _cursor_stub(self, tmp_path):
+        stub = tmp_path / "stubs" / "cursor-agent"
+        stub.parent.mkdir(exist_ok=True)
+        stub.write_text("""#!/bin/sh
+if [ "$1" = "status" ]; then echo "Logged in as stub"; exit 0; fi
+echo "APPROVED"
+exit 0
+""", encoding="utf-8")
+        stub.chmod(0o755)
+        return stub
+
+    def _run(self, tmp_path, brain, limited_when):
+        root = self._project(tmp_path)
+        env = dict(os.environ)
+        env.update({
+            "XPIPE_BRAIN_DIR": str(brain),
+            "XPIPE_CURSOR_BIN": str(self._cursor_stub(tmp_path)),
+            "XPIPE_CLAUDE_BIN": str(self._claude_stub(tmp_path, limited_when)),
+            "CLAUDEKIT_PROJECT_ROOT": str(root),
+        })
+        return subprocess.run(
+            [sys.executable, str(SCRIPT), "stub task"],
+            capture_output=True, text=True, env=env, timeout=60, cwd=str(root),
+        )
+
+    def test_brain_limited_fails_over_to_hands_and_completes(self, tmp_path, brain):
+        proc = self._run(tmp_path, brain, limited_when="brain")
+        assert proc.returncode == 0, proc.stderr + proc.stdout
+        assert "failing over to the hands account" in proc.stderr
+        assert "pipeline complete" in proc.stdout
+
+    def test_hands_limited_fails_over_to_brain_with_independence_warning(self, tmp_path, brain):
+        proc = self._run(tmp_path, brain, limited_when="hands")
+        assert proc.returncode == 0, proc.stderr + proc.stdout
+        assert "planner and reviewer are now the same account" in proc.stderr
+        assert "pipeline complete" in proc.stdout
+
+    def test_both_limited_parks_with_exit_4(self, tmp_path, brain):
+        proc = self._run(tmp_path, brain, limited_when="always")
+        assert proc.returncode == 4
+        assert "PARKED" in proc.stderr
+        assert "re-run" in proc.stderr
+
+
 class TestPlanLocationConvention:
     def _normalize(self, root, raw):
         import importlib.util
