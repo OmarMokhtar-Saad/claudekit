@@ -24,12 +24,21 @@ Safety: stages run headless with per-stage scoped --allowedTools (see
 .claude/agents/_shared/INVOCATION.md). --dangerously-skip-permissions is never
 used. A REVISE verdict from any reviewer stops the chain (exit 3).
 
-Exit codes: 0 ok/solo, 1 operational error, 2 validation refusal, 3 gate REVISE.
+Rate limits: a stage that fails with a limit-shaped error (5-hour window,
+weekly cap) fails over to the other Claude account — brain->hands silently,
+hands->brain with an independence warning on the review stage (cursor remains
+the independent gate). Cursor limits skip cross-review with a warning. Both
+Claude accounts limited -> the run parks (exit 4) with resume instructions;
+plan and review artifacts are files, so nothing is lost.
+
+Exit codes: 0 ok/solo, 1 operational error, 2 validation refusal,
+3 gate REVISE, 4 rate-limited (park and re-run after the window resets).
 """
 
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -39,6 +48,12 @@ from typing import Dict, List, Optional
 
 DEFAULT_BRAIN_DIR = "~/.claude-acct-b"
 STAGE_TIMEOUT = 1800  # seconds per headless stage
+LIMIT_RE = re.compile(
+    r"usage limit|rate.?limit|limit (?:reached|exceeded)|resets at|quota", re.I)
+
+
+def claude_bin() -> str:
+    return os.environ.get("XPIPE_CLAUDE_BIN", "claude")
 
 PLAN_TOOLS = "Read,Grep,Glob,Write,Bash"
 # Bash+Write so the reviewer can record its verdict via the project's
@@ -133,14 +148,14 @@ def stage_commands(args: argparse.Namespace, state: Dict[str, object]) -> List[D
     planner = "brain" if state["brain"] else "hands"
     stages.append({
         "stage": "plan", "runner": planner, "env": plan_env,
-        "cmd": ["claude", "-p",
+        "cmd": [claude_bin(), "-p",
                 f"Run /plan for this task and save the plan to .claude/plans/. "
                 f"Print ONLY the plan file path on the last line. Task: {task}",
                 "--allowedTools", PLAN_TOOLS],
     })
     stages.append({
         "stage": "review", "runner": "hands", "env": {},
-        "cmd": ["claude", "-p",
+        "cmd": [claude_bin(), "-p",
                 "Run /review on the plan file at {PLAN_PATH} (90/100 gate). "
                 "Follow the full reviewer handoff: if the project has the "
                 "review-record mechanism "
@@ -162,7 +177,7 @@ def stage_commands(args: argparse.Namespace, state: Dict[str, object]) -> List[D
         })
     stages.append({
         "stage": "implement", "runner": "hands", "env": {},
-        "cmd": ["claude", "-p",
+        "cmd": [claude_bin(), "-p",
                 "Run /implement for the approved plan at {PLAN_PATH} inside a "
                 "worktree (use /worktree; commit on the agent/* branch; never "
                 "merge). Report the branch and commit on the last line.",
@@ -289,6 +304,20 @@ def main(argv: Optional[List[str]] = None) -> int:
     root = project_root()
     log_dir = root / ".claude" / "reports" / "xpipe"
     plan_path: Optional[str] = None
+
+    def _limited(p: "subprocess.CompletedProcess[str]") -> bool:
+        return p.returncode != 0 and bool(LIMIT_RE.search(p.stdout + p.stderr))
+
+    def _park(msg: str) -> int:
+        print(f"xpipe: PARKED — {msg}", file=sys.stderr)
+        if plan_path:
+            print(f"xpipe: plan preserved at {plan_path} — nothing is lost.",
+                  file=sys.stderr)
+        print("xpipe: 5-hour windows reset on their own; re-run the same xpipe "
+              "command after the reset and completed artifacts are reused.",
+              file=sys.stderr)
+        return 4
+
     for stage in stages:
         print(f"xpipe: running {stage['stage']} on {stage['runner']} ...")
         try:
@@ -299,6 +328,36 @@ def main(argv: Optional[List[str]] = None) -> int:
         except FileNotFoundError as exc:
             print(f"xpipe: {exc}", file=sys.stderr)
             return 1
+
+        if _limited(proc):
+            runner = stage["runner"]
+            if runner == "cursor":
+                print("xpipe: cursor rate-limited — skipping cross-review "
+                      "(two-account review still holds)", file=sys.stderr)
+                continue
+            # Fail over to the other Claude account.
+            if runner == "brain":
+                alt: Dict[str, object] = {**stage, "runner": "hands", "env": {}}
+                print("xpipe: brain account rate-limited — failing over to the "
+                      "hands account for this stage", file=sys.stderr)
+            else:  # hands
+                if not state["brain"]:
+                    return _park("hands account rate-limited and no second "
+                                 "account available")
+                alt = {**stage, "runner": "brain",
+                       "env": {"CLAUDE_CONFIG_DIR": str(brain_dir(args))}}
+                warn = ("xpipe: hands account rate-limited — failing over to the "
+                        "brain account for this stage")
+                if stage["stage"] == "review":
+                    warn += (" (WARNING: planner and reviewer are now the same "
+                             "account — cursor cross-review is the only "
+                             "independent gate for this run)")
+                print(warn, file=sys.stderr)
+            print(f"xpipe: retrying {stage['stage']} on {alt['runner']} ...")
+            proc = run_stage(alt, plan_path, log_dir)
+            if _limited(proc):
+                return _park("both Claude accounts are rate-limited")
+
         tail = last_line(proc.stdout)
         if proc.returncode != 0:
             print(f"xpipe: {stage['stage']} failed (rc={proc.returncode}); "
