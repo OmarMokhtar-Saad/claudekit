@@ -140,6 +140,30 @@ def resolve_mode(args: argparse.Namespace) -> Dict[str, object]:
     return {"mode": mode, "brain": brain, "cursor": cursor, "notes": notes}
 
 
+def probe_account(env_overrides: Dict[str, str], drop_config: bool = False) -> "tuple[bool, str]":
+    """Login checks can't see quota: a logged-in account whose 5-hour window or
+    weekly cap is exhausted still looks ON. This makes one minimal real call
+    and classifies the failure, so exhausted accounts are rerouted BEFORE any
+    stage runs instead of mid-pipeline."""
+    env = dict(os.environ)
+    if drop_config:
+        env.pop("CLAUDE_CONFIG_DIR", None)
+    env.update(env_overrides)
+    try:
+        proc = subprocess.run(
+            [claude_bin(), "-p", "Reply with exactly: OK"],
+            capture_output=True, text=True, env=env, timeout=180,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return False, f"probe failed: {exc}"
+    out = proc.stdout + proc.stderr
+    if proc.returncode != 0:
+        if LIMIT_RE.search(out):
+            return False, "quota exhausted: " + last_line(out)[:120]
+        return False, f"probe error rc={proc.returncode}: {last_line(out)[:120]}"
+    return True, ""
+
+
 def stage_commands(args: argparse.Namespace, state: Dict[str, object]) -> List[Dict[str, object]]:
     """The exact headless commands per stage (also what --dry-run prints)."""
     task = args.task or "<task>"
@@ -271,6 +295,10 @@ def main(argv: Optional[List[str]] = None) -> int:
                         help="all external participants off — standard in-session workflow")
     parser.add_argument("--status", action="store_true",
                         help="report participant availability and resolved mode")
+    parser.add_argument("--probe", action="store_true",
+                        help="with --status: also verify quota with a minimal real call per account")
+    parser.add_argument("--no-probe", action="store_true",
+                        help="skip the preflight quota probe before execution")
     parser.add_argument("--dry-run", action="store_true",
                         help="print the exact stage commands without executing")
     parser.add_argument("--brain-dir", default=None,
@@ -279,7 +307,21 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     state = resolve_mode(args)
 
+    def _apply_probes() -> "tuple[bool, str]":
+        """Returns (hands_ok, hands_reason); demotes brain in state in place."""
+        if state["brain"]:
+            ok, reason = probe_account({"CLAUDE_CONFIG_DIR": str(brain_dir(args))})
+            if not ok:
+                state["brain"] = False
+                state["notes"].append(f"brain auto-off (probe): {reason}")  # type: ignore[union-attr]
+                state["mode"] = "no-brain" if state["cursor"] else "solo-claude"
+        return probe_account({}, drop_config=True)
+
     if args.status:
+        if args.probe:
+            hands_ok, hands_reason = _apply_probes()
+            if not hands_ok:
+                state["notes"].append(f"hands quota problem (probe): {hands_reason}")  # type: ignore[union-attr]
         print_status(args, state)
         return 0
 
@@ -291,7 +333,33 @@ def main(argv: Optional[List[str]] = None) -> int:
         print("xpipe: a task is required unless --status", file=sys.stderr)
         return 2
 
+    hands_limited_reason = ""
+    if not args.no_probe and not args.dry_run:
+        hands_ok, hands_reason = _apply_probes()
+        if not hands_ok:
+            hands_limited_reason = hands_reason
+        for note in state["notes"]:  # type: ignore[union-attr]
+            if "(probe)" in note:
+                print(f"xpipe: {note}", file=sys.stderr)
+
     stages = stage_commands(args, state)
+
+    if hands_limited_reason:
+        if not state["brain"]:
+            print(f"xpipe: PARKED — hands account unusable ({hands_limited_reason}) "
+                  "and no second account available. Re-run after the window resets.",
+                  file=sys.stderr)
+            return 4
+        print("xpipe: hands account unusable "
+              f"({hands_limited_reason}) — running hands stages on the brain "
+              "account (WARNING: planner and reviewer share one account; cursor "
+              "cross-review is the only independent gate for this run)",
+              file=sys.stderr)
+        for stage in stages:
+            if stage["runner"] == "hands":
+                stage["runner"] = "brain"
+                stage["env"] = {"CLAUDE_CONFIG_DIR": str(brain_dir(args))}
+
     if args.dry_run:
         print_status(args, state)
         for stage in stages:
