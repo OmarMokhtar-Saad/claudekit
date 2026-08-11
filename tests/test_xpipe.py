@@ -262,7 +262,8 @@ exit 0
         stub.chmod(0o755)
         return stub
 
-    def _run(self, tmp_path, brain, limited_when):
+    def _run(self, tmp_path, brain, limited_when, *extra):
+        extra = extra or ("--no-probe",)
         root = self._project(tmp_path)
         env = dict(os.environ)
         env.update({
@@ -272,11 +273,12 @@ exit 0
             "CLAUDEKIT_PROJECT_ROOT": str(root),
         })
         return subprocess.run(
-            [sys.executable, str(SCRIPT), "stub task"],
+            [sys.executable, str(SCRIPT), "stub task"] + list(extra),
             capture_output=True, text=True, env=env, timeout=60, cwd=str(root),
         )
 
     def test_brain_limited_fails_over_to_hands_and_completes(self, tmp_path, brain):
+        # --no-probe: this class tests the MID-RUN failover safety net
         proc = self._run(tmp_path, brain, limited_when="brain")
         assert proc.returncode == 0, proc.stderr + proc.stdout
         assert "failing over to the hands account" in proc.stderr
@@ -293,6 +295,58 @@ exit 0
         assert proc.returncode == 4
         assert "PARKED" in proc.stderr
         assert "re-run" in proc.stderr
+
+
+class TestPreflightQuotaProbe(TestRateLimitFailover):
+    """Logged-in-but-quota-exhausted accounts are detected BEFORE any stage
+    runs (the login check alone cannot see quota)."""
+
+    def test_status_probe_reveals_exhausted_brain(self, tmp_path, brain):
+        proc = self._run(tmp_path, brain, "brain", "--status", "--probe")
+        assert proc.returncode == 0
+        assert "brain auto-off (probe): quota exhausted" in proc.stdout
+        assert "mode: no-brain" in proc.stdout
+
+    def test_status_without_probe_still_shows_on(self, tmp_path, brain):
+        # documents the login-only limitation --probe exists to fix
+        proc = self._run(tmp_path, brain, "brain", "--status")
+        assert "mode: full" in proc.stdout
+
+    def test_exhausted_brain_preflight(self, tmp_path, brain):
+        root = self._project(tmp_path)
+        env = dict(os.environ)
+        env.update({
+            "XPIPE_BRAIN_DIR": str(brain),
+            "XPIPE_CURSOR_BIN": str(self._cursor_stub(tmp_path)),
+            "XPIPE_CLAUDE_BIN": str(self._claude_stub(tmp_path, "brain")),
+            "CLAUDEKIT_PROJECT_ROOT": str(root),
+        })
+        proc = subprocess.run(
+            [sys.executable, str(SCRIPT), "stub task"],
+            capture_output=True, text=True, env=env, timeout=60, cwd=str(root),
+        )
+        assert proc.returncode == 0, proc.stderr + proc.stdout
+        assert "brain auto-off (probe): quota exhausted" in proc.stderr
+        assert "retrying" not in proc.stdout  # rerouted BEFORE stages, no mid-run retry
+        assert "pipeline complete" in proc.stdout
+
+    def test_exhausted_hands_preswaps_to_brain_with_warning(self, tmp_path, brain):
+        root = self._project(tmp_path)
+        env = dict(os.environ)
+        env.update({
+            "XPIPE_BRAIN_DIR": str(brain),
+            "XPIPE_CURSOR_BIN": str(self._cursor_stub(tmp_path)),
+            "XPIPE_CLAUDE_BIN": str(self._claude_stub(tmp_path, "hands")),
+            "CLAUDEKIT_PROJECT_ROOT": str(root),
+        })
+        proc = subprocess.run(
+            [sys.executable, str(SCRIPT), "stub task"],
+            capture_output=True, text=True, env=env, timeout=60, cwd=str(root),
+        )
+        assert proc.returncode == 0, proc.stderr + proc.stdout
+        assert "hands account unusable" in proc.stderr
+        assert "only independent gate" in proc.stderr
+        assert "pipeline complete" in proc.stdout
 
 
 class TestPlanLocationConvention:
