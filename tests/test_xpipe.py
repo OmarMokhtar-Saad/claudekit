@@ -377,3 +377,20 @@ class TestPlanLocationConvention:
 
     def test_missing_plan_returns_none(self, tmp_path):
         assert self._normalize(tmp_path, "no-such-plan.md") is None
+
+
+class TestStageTimeoutOverride:
+    def test_env_override_changes_stage_timeout(self):
+        import importlib.util
+        env_backup = os.environ.get("XPIPE_STAGE_TIMEOUT")
+        os.environ["XPIPE_STAGE_TIMEOUT"] = "5400"
+        try:
+            spec = importlib.util.spec_from_file_location("xpipe_t", SCRIPT)
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            assert mod.STAGE_TIMEOUT == 5400
+        finally:
+            if env_backup is None:
+                os.environ.pop("XPIPE_STAGE_TIMEOUT", None)
+            else:
+                os.environ["XPIPE_STAGE_TIMEOUT"] = env_backup
