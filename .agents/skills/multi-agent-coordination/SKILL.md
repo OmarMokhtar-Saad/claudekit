@@ -87,6 +87,12 @@ The coordinating agent (or user) verifies:
 - Tests pass
 - No unexpected side effects
 
+**Completion semantics:** a background agent's "finished" notification means
+it STOPPED ITS TURN, not that its task completed — agents routinely stop
+mid-wait on long suites or nested reviews and display as finished. Accept a
+handoff only when the report contains the final deliverable the dispatch
+demanded; otherwise resume the agent with a nudge to block until done.
+
 ### Step 3: Agent B Receives
 
 ```

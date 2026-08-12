@@ -65,7 +65,10 @@ Validate that:
   2. Runs relevant tests to verify correctness
   3. Commits on its `agent/<unit-slug>` branch — NEVER merges or pushes
   4. Reports success or failure with details
-- Monitor agent progress and collect results
+- Monitor agent progress and collect results — a "finished" notification means
+  the agent STOPPED, not that its unit is done: verify the report carries the
+  final deliverable (commit + test evidence) and resume agents that stopped
+  mid-wait
 
 ### Phase 4: Aggregation
 - Collect results from all agents

@@ -47,7 +47,9 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 DEFAULT_BRAIN_DIR = "~/.claude-acct-b"
-STAGE_TIMEOUT = 1800  # seconds per headless stage
+# Per-stage wall clock. Deep reviews of large plans can legitimately exceed
+# the default 30 minutes — raise via env rather than editing the script.
+STAGE_TIMEOUT = int(os.environ.get("XPIPE_STAGE_TIMEOUT", "1800"))
 LIMIT_RE = re.compile(
     r"usage limit|rate.?limit|limit (?:reached|exceeded)|resets at|quota", re.I)
 

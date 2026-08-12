@@ -462,6 +462,21 @@ When 2+ implementers run in parallel, isolate each in its own worktree:
    gitOps agent's Multi-Agent Merge Protocol (integration branch, single
    verification pass, cleanup via `worktree-manager.py remove`).
 
+#### Completion Semantics (background agents)
+
+A "finished" notification means the agent STOPPED ITS TURN — not that its task
+is complete. Long-running agents routinely stop mid-wait (long test suites,
+nested review rounds) and display as finished while incomplete.
+
+- On every completion notification, VERIFY the report contains the final
+  deliverable (commit sha, verdict, suite numbers — whatever the dispatch
+  demanded). A report that ends mid-wait ("kicked off the suite", "waiting on
+  review") is NOT done — resume the agent with a targeted nudge to block until
+  the pending work finishes and report the actual result.
+- Dispatch prompts MUST include: "Do not end your turn while your task is
+  incomplete — block on long commands and report only the finished result.
+  Your final message must contain the completed deliverable."
+
 ### 5. Verifier gate (MANDATORY — user-ordered)
 - The verifier agent NEVER auto-runs after implementation.
 - After implementer(s) report, STOP and ask the user: "Implementation complete. Run verifier?" Run verifier ONLY on explicit user approval.
