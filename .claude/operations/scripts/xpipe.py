@@ -115,8 +115,33 @@ def cursor_available() -> "tuple[bool, str]":
     return True, ""
 
 
+# --- XPIPE_CLOSED (2026-08-16, operator request) ------------------------------
+# xpipe is CLOSED on this machine: every run resolves to `solo`, i.e. the
+# standard in-session ClaudeKit workflow (/plan -> /review -> /implement).
+# The code below is intact and unmodified — nothing was deleted.
+# Re-enable for one run:      XPIPE_ENABLED=1 python3 .../xpipe.py <task>
+# Re-enable permanently:      flip XPIPE_CLOSED_BY_DEFAULT to False.
+XPIPE_CLOSED_BY_DEFAULT = True
+
+
+def xpipe_closed() -> bool:
+    if os.environ.get("XPIPE_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}:
+        return False
+    return XPIPE_CLOSED_BY_DEFAULT
+
+
+CLOSED_NOTE = (
+    "xpipe is CLOSED (disabled 2026-08-16) — resolving to solo: run the "
+    "standard in-session pipeline. Re-enable with XPIPE_ENABLED=1."
+)
+# -----------------------------------------------------------------------------
+
+
 def resolve_mode(args: argparse.Namespace) -> Dict[str, object]:
     """Flags can only turn participants OFF; availability can only degrade."""
+    if xpipe_closed():
+        return {"mode": "solo", "brain": False, "cursor": False,
+                "notes": [CLOSED_NOTE]}
     notes: List[str] = []
     brain = not args.solo and not args.no_brain
     cursor = not args.solo and not args.no_cursor
