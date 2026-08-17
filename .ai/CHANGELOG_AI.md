@@ -2,6 +2,25 @@
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
 
+## 2026-08-17 — Claude (Fable 5) — Token-efficiency pass (measured, owner-approved)
+
+- Measured the token floors empirically (always-on ~12k tok; per-pipeline ~15k tok; ops.json
+  payload paid 3×; 737 KB of avoidable full Reads across archived plans) and verified a
+  6-approach proposal against the filesystem — plan + evidence in
+  `.claude/plans/plan-token-efficiency.md`, research cache in
+  `.claude/reports/research/multi-agent-token-efficiency-2026.md`.
+- Implemented steps 1–5: planner grep-anchor discipline, `<example>` strip from 29 agent
+  descriptions (−14,393 chars; kept 1 each for reviewer/code-reviewer +
+  doc-updater/documenter), reviewer manifest-first ops review (>15 KB configs),
+  CLAUDE.md blast-radius tiering (replaces the ≤2-line fast-path), and
+  `scripts/check-context-floor.py --check` CI-style gate + `tests/test_context_floor.py`.
+- All DoD gates green (828 tests, ruff, mypy, gen-docs, gen-registry, shellcheck).
+- Follow-ups: (a) `run_command` op type needs its own plan — Iron Law surface (validator
+  allows only file_create/file_delete/code_edit, forcing opus to hand-transcribe lockfiles;
+  58% of ops-task-014.json was a pip lockfile); (b) fleet-sync steps 1–2 to the 16 kitted
+  projects **surgically** — owner directive: never remove/overwrite downstream files with
+  project-specific content; (c) wire check-context-floor into CI workflow.
+
 ## 2026-08-09 — Claude (Sonnet 5) — Fixed AGENTS_KNOWN_ISSUES.md #9 (legacy ops.json schema in shared template)
 
 - Executed the approved plan `plan-workflow-file-templates-ops-schema.md` / ops config

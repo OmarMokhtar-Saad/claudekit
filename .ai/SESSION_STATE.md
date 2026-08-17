@@ -31,6 +31,13 @@ Note: claude-kit is pip-installed on this machine (hooks use the module fallback
 
 ## Current project state
 
+- **2026-08-17 token-efficiency pass landed** (branch `perf/token-efficiency`): planner
+  grep-anchor discipline, agent-description example strip, reviewer manifest-first review,
+  CLAUDE.md blast-radius tiering, `scripts/check-context-floor.py` gate. See
+  `.claude/plans/plan-token-efficiency.md` and CHANGELOG_AI 2026-08-17 for follow-ups
+  (`run_command` op type plan; surgical fleet-sync — never overwrite downstream
+  project-specific files; wire floor gate into CI).
+
 - v2.1.0 complete on `main`; **638 tests passing**; ALL local gates green including
   shellcheck (now installed + surfaced via `ck doctor` warn and `tests/test_shell_lint.py`).
 - Release to PyPI **pending user decision** (tag push triggers release.yml / Trusted Publishing).
