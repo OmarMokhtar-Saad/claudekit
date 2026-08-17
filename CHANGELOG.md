@@ -100,6 +100,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   planner/reviewer/implementer body total grew 4% with nothing failing while only
   always-on categories were gated). New `pipeline agent bodies` category, budget 43,000
   chars, with a regression test.
+- **Install test no longer mutates the real working tree** (found by independent
+  review): `test_mid_failure_preserves_existing_claude` moved the repo's actual
+  `CONSTITUTION.template.md` aside and restored it in a `finally` — an interrupted run
+  (Ctrl-C, CI timeout) left the tree broken and cascaded failures into every later
+  install/structure test until a complete run happened to restore it. The broken source
+  is now simulated in a throwaway copy of the repo; the working tree is never touched.
 - **`tests/test_structure.py` is cwd-independent**: `ROOT` was a relative path that
   resolved against the invoker's working directory, so running pytest from outside the
   repo root broke every path-existence assertion. Now `os.path.abspath`.

@@ -32,10 +32,17 @@ Note: claude-kit is pip-installed on this machine (hooks use the module fallback
 ## Current project state
 
 - **`ROOT` in tests/test_structure.py MUST stay `os.path.abspath(...)`** (fixed `1d62740`).
-  It was a relative path resolving against the invoker's cwd; running pytest from outside
-  the repo root broke every path assertion. An independent review reproduced failures in
-  its environment; three pre-fix runs from this repo root were green — both observations
-  are consistent with the cwd mechanism. Do not "simplify" it back.
+  It was a relative path resolving against the invoker's cwd. Do not "simplify" it back.
+- **RECORD CORRECTION (2026-08-17, second review round):** the cross-session "flaky"
+  install/structure failures were NOT cwd-related and NOT flaky — root cause was
+  `test_mid_failure_preserves_existing_claude` moving the REAL repo's
+  `CONSTITUTION.template.md` aside with only a `finally` to restore it: any interrupted
+  run left the tree broken and cascaded 14+ failures into later runs until a complete
+  run restored it. Independent review proved it by hiding the file (14 failed) — their
+  earlier "2 failed" report was leftover state from an interrupted run, i.e. REAL, not
+  falsified. Fixed by simulating the broken source in a throwaway copy of the repo
+  (install.sh + .claude + templates) so the working tree is never mutated. Tests must
+  NEVER move/modify tracked files in the real tree, even with a finally.
 
 - **2026-08-17 token-efficiency pass landed** (branch `perf/token-efficiency`): planner
   grep-anchor discipline, agent-description example strip, reviewer manifest-first review,
