@@ -5,7 +5,7 @@ import os
 
 import pytest
 
-ROOT = os.path.join(os.path.dirname(__file__), '..')
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 CLAUDE_DIR = os.path.join(ROOT, '.claude')
 
 

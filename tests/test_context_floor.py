@@ -101,6 +101,36 @@ def test_json_reports_not_ok_and_exits_1_when_over_budget(tmp_path):
     assert payload['sizes']['agent descriptions'] > payload['budgets']['agent descriptions']
 
 
+def test_gate_covers_pipeline_agent_bodies(tmp_path):
+    """Review finding 2026-08-17: the per-spawn floor (planner/reviewer/
+    implementer full bodies) grew 4% with nothing failing because only
+    always-on categories were budgeted. This pins the new category."""
+    root = tmp_path
+    (root / 'scripts').mkdir()
+    (root / '.claude' / 'agents').mkdir(parents=True)
+    (root / '.claude' / 'skills' / 'x').mkdir(parents=True)
+    (root / '.claude' / 'commands').mkdir(parents=True)
+    (root / 'CLAUDE.md').write_text('# minimal\n')
+    (root / '.claude' / 'skills' / 'x' / 'SKILL.md').write_text(
+        '---\nname: x\ndescription: "small"\n---\nbody\n'
+    )
+    (root / '.claude' / 'commands' / 'c.md').write_text(
+        '---\ndescription: "small"\n---\nbody\n'
+    )
+    (root / '.claude' / 'agents' / 'planner.md').write_text(
+        '---\nname: planner\ndescription: "small"\n---\n' + 'x' * 50000
+    )
+    with open(SCRIPT) as f:
+        (root / 'scripts' / 'check-context-floor.py').write_text(f.read())
+    result = subprocess.run(
+        [sys.executable, str(root / 'scripts' / 'check-context-floor.py'), '--check'],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 1
+    assert 'pipeline agent bodies' in result.stdout
+    assert 'OVER' in result.stdout
+
+
 @pytest.mark.parametrize(
     'agent_file',
     sorted(f for f in os.listdir(AGENTS_DIR) if f.endswith('.md') and not f[0].isupper()),

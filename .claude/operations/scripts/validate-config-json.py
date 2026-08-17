@@ -348,7 +348,38 @@ def validate_against_schema(config: dict, schema_file: str) -> Tuple[bool, List[
     except ValidationError as e:
         msg = getattr(e, 'message', str(e))
 
-        # For oneOf/anyOf failures, dig into sub-errors for the most actionable message.
+        # oneOf failures report every variant's mismatch; naively picking the first
+        # "Additional properties" sub-error attributes the failure to the WRONG
+        # variant (e.g. a run_command with a short reason gets "unknown field(s):
+        # 'command', 'reason'"). When the failing instance declares a known type,
+        # report that variant's own deepest sub-error instead.
+        instance = getattr(e, 'instance', None)
+        if e.context and isinstance(instance, dict) and 'type' in instance:
+            try:
+                variants = (schema.get('oneOf', [{}, {}])[1]
+                            .get('properties', {}).get('operations', {})
+                            .get('items', {}).get('oneOf', []))
+                type_to_index = {
+                    v.get('properties', {}).get('type', {}).get('const'): idx
+                    for idx, v in enumerate(variants)
+                }
+                idx = type_to_index.get(instance.get('type'))
+                if idx is not None:
+                    matching = [sub for sub in e.context
+                                if next(iter(sub.schema_path), None) == idx]
+                    if matching:
+                        best = max(matching, key=lambda s: len(list(s.absolute_path)))
+                        loc = ".".join(str(p) for p in e.absolute_path) or "operation"
+                        field = ".".join(str(p) for p in best.absolute_path)
+                        where = f" (field: {field})" if field else ""
+                        return False, [
+                            f"Schema validation failed at {loc}: "
+                            f"{instance['type']} operation invalid{where}: {best.message}"
+                        ]
+            except (AttributeError, IndexError, TypeError):
+                pass  # fall through to the generic reporting below
+
+        # For other oneOf/anyOf failures, dig into sub-errors for the most actionable message.
         additional_props_msg = None
         if e.context:
             for sub in e.context:
