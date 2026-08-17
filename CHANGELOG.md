@@ -13,6 +13,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`run_command` operation type** (plan: `.claude/plans/plan-run-command-op.md`): plans
+  can now regenerate machine-generatable content (lockfiles, formatter output, codegen)
+  instead of hand-transcribing it — 58% of the largest archived ops.json was a
+  hand-typed pip lockfile. Fail-closed security contract, enforced by validator GUARDs
+  30–34 and re-checked in the executor: argv array with `shell=False` (no shell ever
+  spawns), allowlisted executable basenames only (pip-compile, black, isort, ruff,
+  prettier, gofmt, goimports, rustfmt; per-project extension via
+  `CLAUDEKIT_RUN_COMMAND_EXTRA_ALLOW`), `reason` required, max 5 per plan, no
+  absolute/`..` arguments, bounded timeout (default 120s, cap 600s), and mandatory
+  ordering after all file operations because commands are not rolled back by the
+  transaction. Dry-run prints without executing. 16 behavioral tests in
+  `tests/test_run_command_ops.py`.
 - **Context-floor CI gate** (`scripts/check-context-floor.py --check`): measures the
   always-on context injected into every session (agent/skill/command frontmatter
   descriptions + CLAUDE.md) and fails above per-category char budgets — same drift-gate

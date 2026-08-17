@@ -29,13 +29,18 @@ import os
 import re
 import signal
 import shutil
+import subprocess
 import sys
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-from shared import PROTECTED_PATTERNS, is_protected_file, __version__
+from shared import PROTECTED_PATTERNS, is_protected_file, allowed_run_commands, __version__
+
+# run_command execution bounds (validator enforces the same schema limits)
+RUN_COMMAND_DEFAULT_TIMEOUT = 120
+RUN_COMMAND_MAX_TIMEOUT = 600
 
 try:
     import fcntl
@@ -391,6 +396,71 @@ def _emit_result(plan_name: str, dry_run: bool, status: str, operations: list,
     if reason:
         payload['reason'] = reason
     print("RESULT-JSON: " + json.dumps(payload))
+
+
+def execute_run_command(operation: dict, dry_run: bool) -> Tuple[bool, str]:
+    """Execute an allowlisted generator/formatter command.
+
+    Security contract (mirrors validator GUARDs 30-34, re-checked here as
+    defense in depth — the executor must be safe even on an unvalidated config):
+    argv array with shell=False (no shell ever spawns), argv[0] must be an
+    allowlisted bare basename, no absolute/'..' arguments, bounded timeout,
+    cwd pinned to the project root. NOT rolled back by the transaction —
+    the validator orders these after all file operations.
+    """
+    command = operation.get('command')
+    reason = operation.get('reason', '')
+
+    if not isinstance(command, list) or not command or \
+            not all(isinstance(a, str) and a for a in command):
+        print("  ERROR: 'command' must be a non-empty argv array of strings")
+        return False, "invalid-argv"
+
+    executable = command[0]
+    if os.sep in executable or (os.altsep and os.altsep in executable):
+        print(f"  BLOCKED: executable must be a bare basename, not a path: {executable!r}")
+        return False, "executable-is-path"
+    if executable not in allowed_run_commands():
+        print(f"  BLOCKED: '{executable}' is not an allowlisted command")
+        print(f"  Allowed: {', '.join(sorted(allowed_run_commands()))}")
+        return False, "not-allowlisted"
+    for arg in command[1:]:
+        if os.path.isabs(arg) or '..' in arg.split(os.sep):
+            print(f"  BLOCKED: argument escapes the project root: {arg!r}")
+            return False, "argument-escapes-root"
+
+    timeout = operation.get('timeout', RUN_COMMAND_DEFAULT_TIMEOUT)
+    if not isinstance(timeout, int) or timeout < 1:
+        timeout = RUN_COMMAND_DEFAULT_TIMEOUT
+    timeout = min(timeout, RUN_COMMAND_MAX_TIMEOUT)
+
+    print(f"  Command: {' '.join(command)}")
+    print(f"  Reason: {reason}")
+
+    if dry_run:
+        print(f"  [DRY RUN] Would run (timeout {timeout}s) — not executed")
+        return True, "dry-run"
+
+    try:
+        result = subprocess.run(
+            command, shell=False, cwd=os.getcwd(),
+            capture_output=True, text=True, timeout=timeout,
+        )
+    except FileNotFoundError:
+        print(f"  ERROR: executable not found on PATH: {executable}")
+        return False, "executable-not-found"
+    except subprocess.TimeoutExpired:
+        print(f"  ERROR: command timed out after {timeout}s and was killed")
+        return False, "timeout"
+
+    tail = (result.stdout + result.stderr).strip().splitlines()[-10:]
+    for line in tail:
+        print(f"    {line}")
+    if result.returncode != 0:
+        print(f"  ERROR: command exited {result.returncode}")
+        return False, f"exit-{result.returncode}"
+    print(f"  Command succeeded (exit 0)")
+    return True, "ran"
 
 
 def execute_file_create(operation: dict, backup_dir: Path, dry_run: bool,
@@ -754,7 +824,18 @@ def _execute_operations(config: dict, operations: list, plan_name: str,
         _active_txn = txn
     success_count = 0
     error_count = 0
-    stats = {'file_create': 0, 'file_delete': 0, 'code_edit': 0}
+    stats = {'file_create': 0, 'file_delete': 0, 'code_edit': 0, 'run_command': 0}
+
+    # Defense in depth (validator GUARD 33): run_command is not rollback-able,
+    # so it must never run before a file operation that could later fail and
+    # roll back around it.
+    run_positions = [i for i, op in enumerate(operations) if op.get('type') == 'run_command']
+    file_positions = [i for i, op in enumerate(operations)
+                      if op.get('type') in ('file_create', 'file_delete', 'code_edit')]
+    if run_positions and file_positions and min(run_positions) < max(file_positions):
+        print("ERROR: run_command operations must come after all file operations")
+        _emit_result(plan_name, dry_run, 'failed', [], reason="run-command-before-file-ops")
+        return False
     sim_state: Dict[str, Optional[str]] = {}
     backed_up: set = set()
     op_results: List[Dict[str, object]] = []
@@ -789,9 +870,13 @@ def _execute_operations(config: dict, operations: list, plan_name: str,
                     txn.record_modified(str(file_path))
                 if success:
                     stats['code_edit'] += 1
+            elif op_type == 'run_command':
+                success, status = execute_run_command(operation, dry_run)
+                if success:
+                    stats['run_command'] += 1
             else:
                 print(f"  ERROR: Unknown operation type: {op_type!r}")
-                print(f"  Valid types: file_create, file_delete, code_edit")
+                print(f"  Valid types: file_create, file_delete, code_edit, run_command")
                 print(f"  Hint: regenerate ops.json using the generate-operations-config skill")
                 success, status = False, "unknown-type"
 
@@ -831,6 +916,7 @@ def _execute_operations(config: dict, operations: list, plan_name: str,
         print(f"  file_create: {stats['file_create']}")
         print(f"  file_delete: {stats['file_delete']}")
         print(f"  code_edit:   {stats['code_edit']}")
+        print(f"  run_command: {stats['run_command']}")
         if not dry_run:
             print(f"Successful: {success_count}")
             print(f"Errors:     {error_count}")
@@ -885,6 +971,8 @@ Operation Types:
   file_create: Create new file with content
   file_delete: Delete file (backed up first, with reason required)
   code_edit:   Edit existing file (find-replace patterns)
+  run_command: Run an allowlisted generator/formatter (argv array, no shell,
+               reason required, ordered after all file ops, NOT rolled back)
 
 Edit Actions:
   add_after:  Insert content after matching pattern
