@@ -73,6 +73,8 @@ jobs:
           python-version: '3.12'
       - name: Component counts match the filesystem
         run: python3 scripts/gen-docs.py --check
+      - name: Always-on context floor within budget
+        run: python3 scripts/check-context-floor.py --check
 
   dangling-hooks:
     runs-on: ubuntu-latest
