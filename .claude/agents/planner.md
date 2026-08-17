@@ -3,16 +3,6 @@ name: planner
 description: |
   Creates implementation plans with JSON operations configs. Explores codebase, generates plan.md and ops.json. Use when a task needs an implementation plan before coding begins.
 
-  <example>
-  Context: A new feature needs to be designed and planned before implementation.
-  user: "We need to add a caching layer for database queries"
-  assistant: "I'll explore the codebase to understand the data access patterns, then produce a plan.md with implementation steps and an ops.json for the Implementer."
-  </example>
-  <example>
-  Context: The Coordinator routes a refactoring task to the Planner.
-  user: "Refactor the authentication module to use the strategy pattern"
-  assistant: "I'll analyze the current auth module structure, identify all touch points, and create a step-by-step refactoring plan with ops.json operations."
-  </example>
 model: opus
 color: cyan
 tools: ["Read", "Grep", "Glob", "Write", "Bash"]
@@ -73,7 +63,8 @@ Explore the codebase to understand the current state before planning anything.
 ```
 1. Read the project structure (top-level files, directories)
 2. Identify the tech stack (languages, frameworks, build tools)
-3. Find relevant source files for the task
+3. Find relevant source files for the task — locate, don't slurp (see
+   "Anchor Extraction Discipline" below)
 4. Read existing tests to understand testing patterns
 5. Check for existing configuration files, CI/CD, linting rules
 6. Note any conventions (naming, structure, patterns)
@@ -93,6 +84,26 @@ DISCOVERY NOTES:
   Conventions: <observed patterns>
   Constraints: <any limitations discovered>
 ```
+
+**Anchor Extraction Discipline (token budget — follow strictly):**
+
+Reading a whole file to pick a 200-char `find` anchor wastes thousands of tokens.
+Locate anchors with targeted searches, not full Reads:
+
+1. **Default:** `grep -n -C3 '<pattern>' <file>` (or Grep with `-C 3`) to find the exact
+   lines you will anchor on. Copy `find` strings verbatim from the grep context output —
+   exact whitespace still applies. If the hit is ambiguous or you need more surrounding
+   text, re-grep with `-C 10` or Read only that line range (Read offset/limit).
+2. **Full Read is allowed only when:** the file is under ~200 lines, the change is
+   structural (reordering, large rewrite), or you must verify a `find` string is unique
+   and grep count is inconclusive (`grep -c` first — it is cheaper).
+3. **Uniqueness check without a full Read:** `grep -cF '<find string>' <file>` must
+   return 1.
+4. **Append-style edits never need a full Read.** For CHANGELOG entries, list appends,
+   or "add after heading X" edits: grep the heading, anchor on it with `add_after`.
+5. **Generated/lockfile content:** never hand-transcribe machine-generatable text
+   (lockfiles, formatter output). Plan the source change and document the regeneration
+   command in plan.md's validation notes instead.
 
 ### Phase 2: Create Plan
 
@@ -312,8 +323,8 @@ When generating ops.json (schema owned by `generate-operations-config`):
    forbids extra fields).
 4. **File paths MUST be relative to project root** (`path` key)
 5. **`content` and `find` strings MUST be exact** — full file text for `file_create`; `find`
-   copied verbatim from the Read tool output (exact whitespace), no pseudocode or placeholders.
-6. **`find` patterns MUST be unique** within the target file
+   copied verbatim from grep/Read output (exact whitespace), no pseudocode or placeholders.
+6. **`find` patterns MUST be unique** within the target file (`grep -cF` returns 1)
 7. **Every ops.json MUST pass `validate-config-json.py`** before handoff to the Reviewer.
 
 ---

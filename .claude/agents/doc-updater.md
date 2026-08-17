@@ -8,11 +8,6 @@ description: |
   user: "Update docs for the new /payments endpoint"
   assistant: "Updating: API reference docs, README endpoint list, relevant JSDoc/docstrings in the payments service, and verifying all code examples still compile."
   </example>
-  <example>
-  Context: User wants to generate a codemap for a new module.
-  user: "Generate a codemap for the billing module"
-  assistant: "Analyzing billing module: exports, imports, data flow, external dependencies. Generating docs/CODEMAPS/billing.md."
-  </example>
 model: haiku
 color: cyan
 tools: ["Read", "Write", "Edit", "Bash", "Grep", "Glob"]

@@ -8,11 +8,6 @@ description: |
   user: "Document the new caching API endpoints"
   assistant: "I'll read the source code for the caching endpoints, gather parameter and return type information, then generate API reference docs with examples in docs/api/."
   </example>
-  <example>
-  Context: The project README is outdated after a major refactor.
-  user: "Update the README to reflect the new project structure"
-  assistant: "I'll analyze the current project structure, read existing docs for style conventions, then update README.md with accurate setup instructions, features, and directory descriptions."
-  </example>
 model: haiku
 color: teal
 tools: ["Read", "Write", "Edit", "Grep", "Glob"]
