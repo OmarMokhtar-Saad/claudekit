@@ -23,12 +23,20 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 # Budgets set 2026-08-17 after the example-block strip (measured + ~10% headroom).
+# "pipeline agent bodies" is the per-spawn floor: the FULL text of the three
+# pipeline agents, loaded on every plan->review->implement run (CLAUDE.md is
+# additionally re-injected into each spawn — budgeted once above, multiplier
+# implied). Added after review evidence showed this floor grew 4% with nothing
+# failing while only the always-on categories were gated.
 BUDGETS = {
     "agent descriptions": 10000,
     "skill descriptions": 14000,
     "command descriptions": 6000,
     "CLAUDE.md": 8500,
+    "pipeline agent bodies": 43000,
 }
+
+PIPELINE_AGENTS = ("planner.md", "reviewer.md", "implementer.md")
 
 
 def frontmatter(text: str) -> str:
@@ -55,6 +63,10 @@ def measure() -> "dict[str, int]":
     for f in sorted((ROOT / ".claude" / "commands").glob("*.md")):
         sizes["command descriptions"] += len(description_span(frontmatter(f.read_text())))
     sizes["CLAUDE.md"] = len((ROOT / "CLAUDE.md").read_text())
+    for name in PIPELINE_AGENTS:
+        agent_file = ROOT / ".claude" / "agents" / name
+        if agent_file.exists():
+            sizes["pipeline agent bodies"] += len(agent_file.read_text())
     return sizes
 
 

@@ -13,7 +13,7 @@ This repo runs its own enforcement hooks on itself. If Edit/Write gets blocked b
 ## Commands
 
 ```bash
-python3 -m pytest tests/ -q               # full suite — 516 tests, all must pass
+python3 -m pytest tests/ -q               # full suite — zero failures tolerated
 ruff check src/ tests/ scripts/           # lint (line-length 100)
 mypy                                      # types (py3.9 target)
 python3 scripts/gen-docs.py --check       # docs-drift gate (counts)

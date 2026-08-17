@@ -90,6 +90,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   still references the skill and will pick up the frontmatter change then).
 
 ### Fixed
+- **Validator no longer misattributes `oneOf` schema failures** (found by independent
+  review 2026-08-17): a run_command with a too-short `reason` used to report
+  `unknown field(s): 'command', 'reason'` while listing those fields as allowed. The
+  validator now maps the failing operation's declared `type` to its schema variant and
+  reports that variant's actual error (e.g. `'short12' is too short` at
+  `operations.0.reason`).
+- **Context-floor gate now budgets the per-spawn pipeline floor** (review finding: the
+  planner/reviewer/implementer body total grew 4% with nothing failing while only
+  always-on categories were gated). New `pipeline agent bodies` category, budget 43,000
+  chars, with a regression test.
+- **`tests/test_structure.py` is cwd-independent**: `ROOT` was a relative path that
+  resolved against the invoker's working directory, so running pytest from outside the
+  repo root broke every path-existence assertion. Now `os.path.abspath`.
 - **Shared agent template no longer teaches an ops.json schema the validator rejects.**
   `_shared/WORKFLOW_FILE_TEMPLATES.md` documented `version`/`plan_ref`/`file`/`changes`/
   `type: create|modify|delete|move|rename` — every one of which `validate-config-json.py`
