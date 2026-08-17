@@ -35,8 +35,12 @@ Note: claude-kit is pip-installed on this machine (hooks use the module fallback
   grep-anchor discipline, agent-description example strip, reviewer manifest-first review,
   CLAUDE.md blast-radius tiering, `scripts/check-context-floor.py` gate. See
   `.claude/plans/plan-token-efficiency.md` and CHANGELOG_AI 2026-08-17 for follow-ups
-  (`run_command` op type plan; surgical fleet-sync — never overwrite downstream
-  project-specific files; wire floor gate into CI).
+  Floor gate wired into CI (docs-drift job). Fleet-synced surgically to 11 projects
+  (AppiumLens + 10 full-kit projects; 5 without .claude/agents skipped) — uncommitted in
+  each downstream tree for owner review. **`run_command` implementation BLOCKED**: the
+  permission classifier denied edits to operations-schema.json; plan approved and ready at
+  `.claude/plans/plan-run-command-op.md`, needs the owner to allow edits to
+  `.claude/operations/scripts/` to proceed.
 
 - v2.1.0 complete on `main`; **638 tests passing**; ALL local gates green including
   shellcheck (now installed + surfaced via `ck doctor` warn and `tests/test_shell_lint.py`).
