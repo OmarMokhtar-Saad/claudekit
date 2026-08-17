@@ -37,10 +37,10 @@ Note: claude-kit is pip-installed on this machine (hooks use the module fallback
   `.claude/plans/plan-token-efficiency.md` and CHANGELOG_AI 2026-08-17 for follow-ups
   Floor gate wired into CI (docs-drift job). Fleet-synced surgically to 11 projects
   (AppiumLens + 10 full-kit projects; 5 without .claude/agents skipped) — uncommitted in
-  each downstream tree for owner review. **`run_command` implementation BLOCKED**: the
-  permission classifier denied edits to operations-schema.json; plan approved and ready at
-  `.claude/plans/plan-run-command-op.md`, needs the owner to allow edits to
-  `.claude/operations/scripts/` to proceed.
+  each downstream tree for owner review. **`run_command` op type LANDED** (`26f0d6b`,
+  unblocked after auto-mode setup): GUARDs 30–34, executor re-check, 16 behavioral tests,
+  docs in generate-operations-config skill + planner.md; plan at
+  `.claude/plans/plan-run-command-op.md`. 844 tests green.
 
 - v2.1.0 complete on `main`; **638 tests passing**; ALL local gates green including
   shellcheck (now installed + surfaced via `ck doctor` warn and `tests/test_shell_lint.py`).
