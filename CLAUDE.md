@@ -52,7 +52,7 @@ All six commands above pass · behavioral test coverage for the change · CHANGE
 
 ## Quality gates (the product's own)
 
-Plan review ≥90/100 (Plan 40 / Architecture 30 / Security 30; missing ops.json = AUTO-REJECT) · verification ≥80/100 (Static 30 / Tests 40 / Coverage 30) · security-module coverage ≥85% (CI). These gates are currently prompt-enforced; task 010 makes them mechanical — don't overstate them in docs until then.
+Single source is the enforcing agent: reviewer.md (plans ≥90/100; missing ops.json = AUTO-REJECT) · verifier.md (≥80/100) · security-module coverage ≥85% (CI). Prompt-enforced until task 010 makes them mechanical — don't overstate them in docs until then.
 
 ## Current state & priorities
 

@@ -24,18 +24,25 @@ ROOT = Path(__file__).resolve().parent.parent
 
 # Budgets set 2026-08-17 after the example-block strip (measured + ~10% headroom).
 # "pipeline agent bodies" is the per-spawn floor: the FULL text of the three
-# pipeline agents, loaded on every plan->review->implement run (CLAUDE.md is
-# additionally re-injected into each spawn — budgeted once above, multiplier
-# implied). Added after review evidence showed this floor grew 4% with nothing
-# failing while only the always-on categories were gated.
+# pipeline agents, loaded on every plan->review->implement run. Added after
+# review evidence showed this floor grew 4% with nothing failing while only
+# the always-on categories were gated.
+#
+# "CLAUDE.md" is DELIVERY-WEIGHTED (chars x CLAUDE_MD_MULTIPLIER): the file is
+# injected into the main context AND re-injected into each of the 3 pipeline
+# subagent spawns, so one char there costs ~4x what a char in a single agent
+# body costs. The gate measures delivered cost, not file size — otherwise
+# moving content out of CLAUDE.md into a consuming agent (a real token win)
+# would look like a regression in the tighter category.
 BUDGETS = {
     "agent descriptions": 10000,
     "skill descriptions": 14000,
     "command descriptions": 6000,
-    "CLAUDE.md": 8500,
+    "CLAUDE.md": 31000,
     "pipeline agent bodies": 43000,
 }
 
+CLAUDE_MD_MULTIPLIER = 4  # main context + 3 pipeline subagent injections
 PIPELINE_AGENTS = ("planner.md", "reviewer.md", "implementer.md")
 
 
@@ -62,7 +69,7 @@ def measure() -> "dict[str, int]":
         sizes["skill descriptions"] += len(description_span(frontmatter(f.read_text())))
     for f in sorted((ROOT / ".claude" / "commands").glob("*.md")):
         sizes["command descriptions"] += len(description_span(frontmatter(f.read_text())))
-    sizes["CLAUDE.md"] = len((ROOT / "CLAUDE.md").read_text())
+    sizes["CLAUDE.md"] = len((ROOT / "CLAUDE.md").read_text()) * CLAUDE_MD_MULTIPLIER
     for name in PIPELINE_AGENTS:
         agent_file = ROOT / ".claude" / "agents" / name
         if agent_file.exists():

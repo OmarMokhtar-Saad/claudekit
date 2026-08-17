@@ -101,6 +101,19 @@ def test_json_reports_not_ok_and_exits_1_when_over_budget(tmp_path):
     assert payload['sizes']['agent descriptions'] > payload['budgets']['agent descriptions']
 
 
+def test_claude_md_is_delivery_weighted():
+    """CLAUDE.md is injected into the main context AND each of the 3 pipeline
+    subagent spawns — the gate must measure delivered cost (chars x4), not
+    file size, or moving content out of CLAUDE.md into a consuming agent
+    would read as a regression."""
+    result = run_gate('--json')
+    assert result.returncode == 0, result.stdout + result.stderr
+    import json as jsonlib
+    payload = jsonlib.loads(result.stdout)
+    file_chars = len(open(os.path.join(REPO_ROOT, 'CLAUDE.md')).read())
+    assert payload['sizes']['CLAUDE.md'] == file_chars * 4
+
+
 def test_gate_covers_pipeline_agent_bodies(tmp_path):
     """Review finding 2026-08-17: the per-spawn floor (planner/reviewer/
     implementer full bodies) grew 4% with nothing failing because only
