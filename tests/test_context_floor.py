@@ -4,6 +4,7 @@ gate actually fails when a description grows past budget, and (c) agent
 frontmatter descriptions stay free of <example> blocks (the 2026-08-17 strip
 saved ~3.9k tokens per context window; this keeps it stripped).
 """
+import json
 import os
 import re
 import subprocess
@@ -59,6 +60,45 @@ def test_gate_fails_when_over_budget(tmp_path):
     assert result.returncode == 1
     assert 'OVER' in result.stdout
     assert 'over budget' in result.stderr
+
+def test_json_output_shape():
+    result = run_gate('--json')
+    assert result.returncode == 0, result.stdout + result.stderr
+    payload = json.loads(result.stdout)
+    assert set(payload) == {'sizes', 'budgets', 'total', 'ok'}
+    assert set(payload['sizes']) == set(payload['budgets'])
+    assert payload['total'] == sum(payload['sizes'].values())
+    assert payload['ok'] is True, payload
+
+
+def test_json_output_is_only_json():
+    result = run_gate('--json')
+    assert 'TOTAL' not in result.stdout
+    assert 'OK:' not in result.stdout
+    assert result.stderr == ''
+
+
+def test_json_reports_not_ok_and_exits_1_when_over_budget(tmp_path):
+    root = tmp_path
+    (root / 'scripts').mkdir()
+    (root / '.claude' / 'agents').mkdir(parents=True)
+    (root / '.claude' / 'skills').mkdir(parents=True)
+    (root / '.claude' / 'commands').mkdir(parents=True)
+    (root / 'CLAUDE.md').write_text('tiny\n')
+    (root / '.claude' / 'agents' / 'huge.md').write_text(
+        '---\ndescription: "' + 'x' * 20000 + '"\n---\nbody\n'
+    )
+    with open(SCRIPT) as f:
+        script_src = f.read()
+    (root / 'scripts' / 'check-context-floor.py').write_text(script_src)
+    result = subprocess.run(
+        [sys.executable, str(root / 'scripts' / 'check-context-floor.py'), '--json', '--check'],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 1, result.stdout + result.stderr
+    payload = json.loads(result.stdout)
+    assert payload['ok'] is False
+    assert payload['sizes']['agent descriptions'] > payload['budgets']['agent descriptions']
 
 
 @pytest.mark.parametrize(

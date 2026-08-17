@@ -8,13 +8,14 @@ same drift-gate pattern as gen-docs.py --check.
 
 Usage:
     python3 scripts/check-context-floor.py            # print the floor table
-    python3 scripts/check-context-floor.py --check    # exit 1 if over budget
+    python3 scripts/check-context-floor.py --check    # exit 1 if over budget    python3 scripts/check-context-floor.py --json     # print JSON instead of the table
 
 Budgets are chars (tokens ~ chars/4). Raise a budget only with owner sign-off —
 the point of this gate is that the floor never silently grows back.
 """
 from __future__ import annotations
 
+import json
 import re
 import sys
 from pathlib import Path
@@ -58,10 +59,17 @@ def measure() -> "dict[str, int]":
 
 
 def main() -> int:
-    check = "--check" in sys.argv[1:]
+    args = sys.argv[1:]
+    check = "--check" in args
     sizes = measure()
     total = sum(sizes.values())
     budget_total = sum(BUDGETS.values())
+
+    if "--json" in args:
+        ok = all(size <= BUDGETS[name] for name, size in sizes.items())
+        payload = {"sizes": sizes, "budgets": BUDGETS, "total": total, "ok": ok}
+        print(json.dumps(payload, indent=2))
+        return 1 if (check and not ok) else 0
 
     print("Always-on context floor (chars; tokens ~ chars/4)")
     print(f"{'source':<24}{'chars':>8}{'budget':>8}  status")
