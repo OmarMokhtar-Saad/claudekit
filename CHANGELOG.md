@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`--json` output for the context-floor gate** (plan:
+  `.claude/plans/plan-floor-json-flag.md`): `python3 scripts/check-context-floor.py --json`
+  prints the measurement as a single JSON object
+  (`{"sizes": {...}, "budgets": {...}, "total": N, "ok": bool}`) instead of the human
+  table, so CI jobs and agents can consume the floor mechanically. Combined with
+  `--check` it still exits 1 when over budget; the default table output is unchanged.
 - **`run_command` operation type** (plan: `.claude/plans/plan-run-command-op.md`): plans
   can now regenerate machine-generatable content (lockfiles, formatter output, codegen)
   instead of hand-transcribing it — 58% of the largest archived ops.json was a
