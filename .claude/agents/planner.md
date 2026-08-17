@@ -102,8 +102,8 @@ Locate anchors with targeted searches, not full Reads:
 4. **Append-style edits never need a full Read.** For CHANGELOG entries, list appends,
    or "add after heading X" edits: grep the heading, anchor on it with `add_after`.
 5. **Generated/lockfile content:** never hand-transcribe machine-generatable text
-   (lockfiles, formatter output). Plan the source change and document the regeneration
-   command in plan.md's validation notes instead.
+   (lockfiles, formatter output, codegen). Plan the source change, then add a
+   `run_command` operation (allowlisted argv, after all file ops) to regenerate it.
 
 ### Phase 2: Create Plan
 
@@ -183,8 +183,10 @@ below is a summary; if it ever disagrees with the skill, the skill wins.
 
 **Hard rules the validator enforces (violating any one rejects the whole config):**
 - Top-level key is `plan` (kebab-case string) — NOT `version`, `plan_ref`, or `description`.
-- Operation `type` is exactly one of `file_create`, `file_delete`, `code_edit` — NOT
-  `create`, `modify`, `delete`, `move`, or `rename`.
+- Operation `type` is exactly one of `file_create`, `file_delete`, `code_edit`,
+  `run_command` — NOT `create`, `modify`, `delete`, `move`, or `rename`.
+- `run_command` uses a `command` argv array (allowlisted executable basename, no shell)
+  plus `reason`; max 5 per plan, and they must come AFTER all file operations.
 - Paths use the `path` key — NOT `file` or `target`.
 - `code_edit` uses an `edits` array; each entry has `find` + exactly one of
   `replace` / `add_after` / `add_before` / `delete: true` — NOT a `changes`/`action` block.

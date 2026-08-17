@@ -43,6 +43,11 @@ There are TWO valid formats — use MODERN for all new plans.
           "replace": "def new_function(x, y=None):"
         }
       ]
+    },
+    {
+      "type": "run_command",
+      "command": ["pip-compile", "requirements.in", "-o", "requirements.txt"],
+      "reason": "Regenerate lockfile after dependency change"
     }
   ]
 }
@@ -97,6 +102,19 @@ Write ops.json using ONLY the canonical types below. Any other type will be reje
 | `file_create` | `path`, `content` | `id`, `description` |
 | `file_delete` | `path`, `reason` (min 10 chars) | `id`, `description` |
 | `code_edit` | `path`, `edits` (array) | `id`, `description` |
+| `run_command` | `command` (argv array), `reason` (min 10 chars) | `id`, `description`, `timeout` (s, max 600) |
+
+#### run_command — never transcribe generated content
+
+Use `run_command` whenever content is machine-generatable — lockfiles, formatter
+output, codegen. NEVER hand-transcribe such text into `file_create`/`code_edit`.
+Constraints (validator GUARDs 30-34, all fail closed):
+
+- `command` is an **argv array** (`["pip-compile", "requirements.in"]`), never a shell string — no shell is ever spawned
+- `command[0]` must be an **allowlisted bare basename**: pip-compile, black, isort, ruff, prettier, gofmt, goimports, rustfmt (projects extend via `CLAUDEKIT_RUN_COMMAND_EXTRA_ALLOW` env, colon-separated)
+- No absolute paths or `..` in arguments; max **5** run_command ops per plan
+- run_command ops must come **AFTER all file operations** — they are not rolled back by the transaction
+- Dry-run prints the command without executing it
 
 **No other types are valid.** Do NOT use `edit`, `create`, `delete`, `move`, `append`, `git_commit`, or any other type — the executor will reject them.
 
@@ -123,7 +141,8 @@ There is no cap on operation count or file size. Split into sequenced files (ops
 
 After creating ops.json, verify:
 - [ ] Top-level key is `plan` (string, kebab-case) — NOT `version` or `description`
-- [ ] All operation types are exactly `file_create`, `file_delete`, or `code_edit`
+- [ ] All operation types are exactly `file_create`, `file_delete`, `code_edit`, or `run_command`
+- [ ] No machine-generatable content is hand-transcribed — lockfiles/formatting/codegen use `run_command` (allowlisted argv, ordered after all file ops)
 - [ ] All paths use `path` key — NOT `target`
 - [ ] Every `file_create` has a non-empty `content` field with full file text
 - [ ] Every `file_delete` has a `reason` field of at least 10 characters
