@@ -31,6 +31,12 @@ Note: claude-kit is pip-installed on this machine (hooks use the module fallback
 
 ## Current project state
 
+- **`ROOT` in tests/test_structure.py MUST stay `os.path.abspath(...)`** (fixed `1d62740`).
+  It was a relative path resolving against the invoker's cwd; running pytest from outside
+  the repo root broke every path assertion. An independent review reproduced failures in
+  its environment; three pre-fix runs from this repo root were green — both observations
+  are consistent with the cwd mechanism. Do not "simplify" it back.
+
 - **2026-08-17 token-efficiency pass landed** (branch `perf/token-efficiency`): planner
   grep-anchor discipline, agent-description example strip, reviewer manifest-first review,
   CLAUDE.md blast-radius tiering, `scripts/check-context-floor.py` gate. See
