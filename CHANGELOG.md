@@ -13,6 +13,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`run_command` operation type** (plan: `.claude/plans/plan-run-command-op.md`): plans
+  can now regenerate machine-generatable content (lockfiles, formatter output, codegen)
+  instead of hand-transcribing it — 58% of the largest archived ops.json was a
+  hand-typed pip lockfile. Fail-closed security contract, enforced by validator GUARDs
+  30–34 and re-checked in the executor: argv array with `shell=False` (no shell ever
+  spawns), allowlisted executable basenames only (pip-compile, black, isort, ruff,
+  prettier, gofmt, goimports, rustfmt; per-project extension via
+  `CLAUDEKIT_RUN_COMMAND_EXTRA_ALLOW`), `reason` required, max 5 per plan, no
+  absolute/`..` arguments, bounded timeout (default 120s, cap 600s), and mandatory
+  ordering after all file operations because commands are not rolled back by the
+  transaction. Dry-run prints without executing. 16 behavioral tests in
+  `tests/test_run_command_ops.py`.
+- **Context-floor CI gate** (`scripts/check-context-floor.py --check`): measures the
+  always-on context injected into every session (agent/skill/command frontmatter
+  descriptions + CLAUDE.md) and fails above per-category char budgets — same drift-gate
+  pattern as `gen-docs.py --check`. Behavioral tests in `tests/test_context_floor.py`,
+  including a regression guard that keeps `<example>` blocks out of agent descriptions
+  (one allowed for the confusable pairs reviewer/code-reviewer, doc-updater/documenter).
+
+### Changed
+- **Token-efficiency pass over the pipeline prompts** (measured, see
+  `.claude/plans/plan-token-efficiency.md`):
+  - Agent frontmatter descriptions: `<example>` blocks stripped (29 files, −14,393 chars
+    ≈ 3.6k tokens off every context window; descriptions 22,046 → 7,566 chars).
+  - `planner.md`: new "Anchor Extraction Discipline" — locate `find` anchors with
+    `grep -n -C3` instead of whole-file Reads (archived plans showed 737 KB ≈ 184k tokens
+    of avoidable full Reads); never hand-transcribe generated content (lockfiles).
+  - `reviewer.md`: new "Token-Efficient Ops Review" — for ops.json >15 KB, score from a
+    grep-built op manifest and spot-check ≤3 highest-risk ops instead of re-reading the
+    full payload the validator already proved.
+  - `CLAUDE.md`: trivial fast-path replaced with 3-tier blast-radius routing (Tier 1
+    single-file/no-risk-surface skips planner+reviewer; Tier 3 security/migrations
+    unchanged full pipeline).
 - **Worktree-per-agent parallel execution.** New `worktree-manager.py` operations script
   (create/list/remove/prune; validated slugs, git-ignored registry at
   `.claude/state/worktrees.json`, atomic lock-protected writes, max 5 concurrent, safe

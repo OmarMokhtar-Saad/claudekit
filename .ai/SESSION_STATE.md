@@ -31,6 +31,17 @@ Note: claude-kit is pip-installed on this machine (hooks use the module fallback
 
 ## Current project state
 
+- **2026-08-17 token-efficiency pass landed** (branch `perf/token-efficiency`): planner
+  grep-anchor discipline, agent-description example strip, reviewer manifest-first review,
+  CLAUDE.md blast-radius tiering, `scripts/check-context-floor.py` gate. See
+  `.claude/plans/plan-token-efficiency.md` and CHANGELOG_AI 2026-08-17 for follow-ups
+  Floor gate wired into CI (docs-drift job). Fleet-synced surgically to 11 projects
+  (AppiumLens + 10 full-kit projects; 5 without .claude/agents skipped) — uncommitted in
+  each downstream tree for owner review. **`run_command` op type LANDED** (`26f0d6b`,
+  unblocked after auto-mode setup): GUARDs 30–34, executor re-check, 16 behavioral tests,
+  docs in generate-operations-config skill + planner.md; plan at
+  `.claude/plans/plan-run-command-op.md`. 844 tests green.
+
 - v2.1.0 complete on `main`; **638 tests passing**; ALL local gates green including
   shellcheck (now installed + surfaced via `ck doctor` warn and `tests/test_shell_lint.py`).
 - Release to PyPI **pending user decision** (tag push triggers release.yml / Trusted Publishing).

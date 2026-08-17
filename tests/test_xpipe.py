@@ -28,6 +28,10 @@ def run(args, brain_dir=None, cursor_bin=None, cwd=None):
     env = dict(os.environ)
     env["XPIPE_BRAIN_DIR"] = str(brain_dir) if brain_dir else "/nonexistent-xpipe-brain"
     env["XPIPE_CURSOR_BIN"] = cursor_bin or "definitely-not-a-real-binary"
+    # xpipe was CLOSED on 2026-08-16 (XPIPE_CLOSED_BY_DEFAULT in xpipe.py): every
+    # real run now resolves to solo. The pipeline code is retained and still under
+    # contract, so the suite opens it explicitly for the duration of each test.
+    env["XPIPE_ENABLED"] = "1"
     return subprocess.run(
         [sys.executable, str(SCRIPT)] + args,
         capture_output=True, text=True, env=env, timeout=60, cwd=str(cwd or REPO),
@@ -121,6 +125,7 @@ class TestModeMatrix:
         env = dict(_os.environ)
         env["XPIPE_BRAIN_DIR"] = str(brain)
         env["XPIPE_CURSOR_BIN"] = str(cursor_unauthed)
+        env["XPIPE_ENABLED"] = "1"  # xpipe CLOSED 2026-08-16 — see run() above
         env.update(env_extra)
         proc = subprocess.run(
             [sys.executable, str(SCRIPT), "--status"],
@@ -271,6 +276,8 @@ exit 0
             "XPIPE_CURSOR_BIN": str(self._cursor_stub(tmp_path)),
             "XPIPE_CLAUDE_BIN": str(self._claude_stub(tmp_path, limited_when)),
             "CLAUDEKIT_PROJECT_ROOT": str(root),
+            # xpipe CLOSED 2026-08-16 — see run() at the top of this file
+            "XPIPE_ENABLED": "1",
         })
         return subprocess.run(
             [sys.executable, str(SCRIPT), "stub task"] + list(extra),
@@ -320,6 +327,7 @@ class TestPreflightQuotaProbe(TestRateLimitFailover):
             "XPIPE_CURSOR_BIN": str(self._cursor_stub(tmp_path)),
             "XPIPE_CLAUDE_BIN": str(self._claude_stub(tmp_path, "brain")),
             "CLAUDEKIT_PROJECT_ROOT": str(root),
+            "XPIPE_ENABLED": "1",  # xpipe CLOSED 2026-08-16
         })
         proc = subprocess.run(
             [sys.executable, str(SCRIPT), "stub task"],
@@ -338,6 +346,7 @@ class TestPreflightQuotaProbe(TestRateLimitFailover):
             "XPIPE_CURSOR_BIN": str(self._cursor_stub(tmp_path)),
             "XPIPE_CLAUDE_BIN": str(self._claude_stub(tmp_path, "hands")),
             "CLAUDEKIT_PROJECT_ROOT": str(root),
+            "XPIPE_ENABLED": "1",  # xpipe CLOSED 2026-08-16
         })
         proc = subprocess.run(
             [sys.executable, str(SCRIPT), "stub task"],

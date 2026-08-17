@@ -8,11 +8,6 @@ description: |
   user: "Review the implementation plan at .claude/plans/plan-add-caching.md"
   assistant: "I'll validate the plan structure, cross-reference ops.json operations, then score across Plan Quality, Architecture, and Security dimensions against the 90/100 threshold."
   </example>
-  <example>
-  Context: A revised plan needs re-evaluation after feedback.
-  user: "The planner updated the plan after your feedback, please re-review"
-  assistant: "I'll re-score the updated plan and ops.json, checking that all Critical findings from the previous review have been addressed."
-  </example>
 model: sonnet
 color: blue
 tools: ["Read", "Grep", "Glob"]
@@ -88,6 +83,29 @@ Before scoring, attempt to refute the plan against the actual repository: verify
 paths, and anchors referenced in ops.json exist (Read/Grep them — never trust the plan's
 prose). A plan claim contradicted by the filesystem is a CRITICAL finding. Ask explicitly:
 what repo state or edge case makes this ops.json fail on execution?
+
+## Token-Efficient Ops Review (manifest-first)
+
+The planner has already run `validate-config-json.py` — schema validity, anchor existence,
+and anchor uniqueness are mechanically proven before the config reaches you. Do not
+re-derive what the validator proves. Your job is judgment: plan↔ops mapping, content
+correctness, architecture, security.
+
+**For ops.json larger than ~15 KB, never Read it whole.** Instead:
+
+1. Build the op manifest with Grep on the ops.json file: match `"type"`, `"path"`,
+   `"description"`, `"reason"` lines (with `-n`). This gives you every operation's
+   identity and target without the content payload.
+2. Score plan↔ops mapping (orphaned operations, phantom steps) from the manifest.
+3. **Spot-check at most 3 operations in full** — pick the highest-risk ones (security
+   surface, deletions, config/auth files, the largest op). Read only their line ranges
+   (Read offset/limit around the Grep line numbers).
+4. Verify spot-checked anchors against target files with Grep, per "Refute Before You
+   Score" below.
+5. Never re-quote ops.json content in your report — reference ops by id/path/line.
+
+Small configs (<15 KB) may be Read whole; the report rule (no content re-quoting)
+still applies.
 
 ## Pre-Validation Check
 

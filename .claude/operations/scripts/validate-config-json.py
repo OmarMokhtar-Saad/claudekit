@@ -7,13 +7,14 @@ Usage: python3 scripts/validate-config-json.py path/to/ops.json
 
 Supports Two Formats:
   - LEGACY: {"plan": "...", "files": [...]} - Code edits only
-  - MODERN: {"plan": "...", "operations": [...]} - file_create, file_delete, code_edit
+  - MODERN: {"plan": "...", "operations": [...]} - file_create, file_delete, code_edit, run_command
 
-Validation Guards: 26 total
+Validation Guards: 31 total
   - 11 guards for code editing
   - 6 guards for file operations (create/delete)
   - 6 guards for backup/restore compatibility
   - 3 guards for security (null bytes, operation type)
+  - 5 guards for run_command (allowlist, argv form, count cap, ordering, path escape)
 """
 
 import argparse
@@ -24,7 +25,7 @@ import sys
 from pathlib import Path
 from typing import List, Tuple
 
-from shared import PROTECTED_PATTERNS, is_protected_file, __version__
+from shared import PROTECTED_PATTERNS, is_protected_file, allowed_run_commands, __version__
 
 try:
     import jsonschema
@@ -37,6 +38,11 @@ except ImportError:
 # batch of file_delete operations is the highest-blast-radius thing a plan can do;
 # a plan that legitimately needs to remove more than this should be split and reviewed.
 MAX_DELETIONS = 3
+
+# GUARD 32: Bound the number of run_command operations per plan. Commands are for
+# regenerating derived artifacts (lockfiles, format churn), not for scripting a
+# build — a plan needing more should be split and reviewed.
+MAX_RUN_COMMANDS = 5
 
 
 def detect_config_format(config: dict) -> str:
@@ -152,6 +158,99 @@ def validate_file_operations(operations: List[dict]) -> Tuple[bool, List[str]]:
 
             if not content:
                 errors.append(f"Operation {i} (file_create): Content cannot be empty")
+
+    return len(errors) == 0, errors
+
+
+def validate_run_commands(operations: List[dict]) -> Tuple[bool, List[str]]:
+    """
+    Validate run_command operations (GUARDs 30-34).
+
+    Guards:
+    - GUARD 30: argv[0] is an allowlisted executable basename (fail closed);
+                bare basename only — no path separators, resolved via PATH
+    - GUARD 31: command is a non-empty array of non-empty strings (argv, no shell);
+                no null bytes or newlines in any element
+    - GUARD 32: at most MAX_RUN_COMMANDS run_command operations per plan
+    - GUARD 33: run_command operations come AFTER all file operations — commands
+                cannot be rolled back by the transaction, so a later file-op
+                failure must never strand command side effects in a rolled-back batch
+    - GUARD 34: no argv element is an absolute path or contains '..' — arguments
+                must not reference files outside the project root
+    - reason required, >= 10 chars (same bar as file_delete)
+    """
+    errors = []
+    allowlist = allowed_run_commands()
+
+    run_indices = [i for i, op in enumerate(operations, 1) if op.get('type') == 'run_command']
+    file_indices = [i for i, op in enumerate(operations, 1)
+                    if op.get('type') in ('file_create', 'file_delete', 'code_edit')]
+
+    # GUARD 32: Cap run_command count per plan
+    if len(run_indices) > MAX_RUN_COMMANDS:
+        errors.append(
+            f"BLOCKED - Too many run_command operations: {len(run_indices)} "
+            f"(maximum {MAX_RUN_COMMANDS}). Split into smaller reviewed batches."
+        )
+
+    # GUARD 33: Commands must come after all file ops (not interleaved)
+    if run_indices and file_indices and min(run_indices) < max(file_indices):
+        errors.append(
+            f"GUARD 33 FAILED: run_command operations must come AFTER all file "
+            f"operations (commands cannot be rolled back; first run_command is "
+            f"operation {min(run_indices)}, last file operation is {max(file_indices)}).\n"
+            f"                  FIX: reorder the operations array"
+        )
+
+    for i, op in enumerate(operations, 1):
+        if op.get('type') != 'run_command':
+            continue
+
+        command = op.get('command')
+        reason = op.get('reason', '')
+
+        # GUARD 31: argv array shape and content
+        if not isinstance(command, list) or not command or \
+                not all(isinstance(a, str) and a for a in command):
+            errors.append(
+                f"Operation {i} (run_command): 'command' must be a non-empty array "
+                f"of non-empty strings (argv form — never a shell string)"
+            )
+            continue
+        bad = [a for a in command if '\x00' in a or '\n' in a]
+        if bad:
+            errors.append(f"Operation {i} (run_command): argv contains null bytes or newlines")
+            continue
+
+        # GUARD 30: allowlisted bare basename
+        executable = command[0]
+        if os.sep in executable or (os.altsep and os.altsep in executable):
+            errors.append(
+                f"Operation {i} (run_command): BLOCKED - executable must be a bare "
+                f"basename resolved via PATH, not a path: {executable!r}"
+            )
+        elif executable not in allowlist:
+            errors.append(
+                f"Operation {i} (run_command): BLOCKED - '{executable}' is not an "
+                f"allowlisted command.\n"
+                f"                  Allowed: {', '.join(sorted(allowlist))}\n"
+                f"                  (extend per-project via CLAUDEKIT_RUN_COMMAND_EXTRA_ALLOW)"
+            )
+
+        # GUARD 34: no absolute paths or parent traversal in any argument
+        for arg in command[1:]:
+            if os.path.isabs(arg) or '..' in arg.split(os.sep):
+                errors.append(
+                    f"Operation {i} (run_command): BLOCKED - argument escapes the "
+                    f"project root: {arg!r} (no absolute paths, no '..')"
+                )
+
+        # reason >= 10 chars (same bar as file_delete)
+        if len(reason) < 10:
+            errors.append(
+                f"Operation {i} (run_command): Reason too short (minimum 10 characters)\n"
+                f"                  Current: \"{reason}\" ({len(reason)} chars)"
+            )
 
     return len(errors) == 0, errors
 
@@ -273,9 +372,10 @@ def validate_against_schema(config: dict, schema_file: str) -> Tuple[bool, List[
                 errors.append("REJECTED: Config contains non-standard fields!")
             errors.append(
                 "Allowed operation fields:\n"
-                "  file_create : type, path, content  (+ optional: id, description)\n"
-                "  file_delete : type, path, reason   (+ optional: id, description)\n"
-                "  code_edit   : type, path, edits    (+ optional: id, description)"
+                "  file_create : type, path, content   (+ optional: id, description)\n"
+                "  file_delete : type, path, reason    (+ optional: id, description)\n"
+                "  code_edit   : type, path, edits     (+ optional: id, description)\n"
+                "  run_command : type, command, reason (+ optional: id, description, timeout)"
             )
         return False, errors
     except SchemaError as e:
@@ -410,8 +510,13 @@ def validate_modern_format(config: dict, errors: List[str]) -> Tuple[bool, List[
     if not file_ops_valid:
         errors.extend(file_ops_errors)
 
+    # Validate run_command operations (GUARDs 30-34)
+    run_cmds_valid, run_cmds_errors = validate_run_commands(operations)
+    if not run_cmds_valid:
+        errors.extend(run_cmds_errors)
+
     # Validate all operations, threading simulated content across ops on the same file
-    valid_types = ['file_create', 'file_delete', 'code_edit']
+    valid_types = ['file_create', 'file_delete', 'code_edit', 'run_command']
     sim_files = {}
     for i, op in enumerate(operations, 1):
         op_type = op.get('type', '')
@@ -421,6 +526,10 @@ def validate_modern_format(config: dict, errors: List[str]) -> Tuple[bool, List[
             errors.append(
                 f"Operation {i}: Unknown type '{op_type}' (must be one of: {valid_types})"
             )
+            continue
+
+        # run_command has no path; its fields are covered by GUARDs 30-34 above
+        if op_type == 'run_command':
             continue
 
         # GUARD 5: Validate path field exists
@@ -700,6 +809,13 @@ Safety Guards (29 total):
     GUARD 25: Null byte rejection in file paths
     GUARD 26: Null byte rejection in content
     GUARD 29: Operation type validation
+
+  Run Commands (5):
+    GUARD 30: Executable allowlisted (bare basename, fail closed)
+    GUARD 31: argv array form (no shell strings, no null bytes/newlines)
+    GUARD 32: At most 5 run_command operations per plan
+    GUARD 33: run_command ordered after all file operations (not rollback-able)
+    GUARD 34: No absolute paths or '..' in arguments
         """
     )
     parser.add_argument('config', help='Path to JSON operations config file')

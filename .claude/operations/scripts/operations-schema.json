@@ -132,6 +132,30 @@
                 }
               },
               {
+                "description": "RUN - Execute an allowlisted generator/formatter command (argv array, no shell)",
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["type", "command", "reason"],
+                "properties": {
+                  "id": {"type": "string", "description": "Optional operation identifier"},
+                  "description": {"type": "string", "description": "Optional human-readable description"},
+                  "type": {"const": "run_command"},
+                  "command": {
+                    "type": "array",
+                    "description": "argv array; argv[0] must be an allowlisted executable basename",
+                    "minItems": 1,
+                    "items": {"type": "string", "minLength": 1}
+                  },
+                  "reason": {"type": "string", "minLength": 10},
+                  "timeout": {
+                    "type": "integer",
+                    "description": "Seconds before the command is killed (default 120, max 600)",
+                    "minimum": 1,
+                    "maximum": 600
+                  }
+                }
+              },
+              {
                 "description": "EDIT - Edit existing file code",
                 "type": "object",
                 "additionalProperties": false,
