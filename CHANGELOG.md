@@ -13,6 +13,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Approval gate enforced inside the ops engine** (plan:
+  `.claude/plans/plan-ops-approval-gate.md`): `execute-json-ops.py` now verifies the
+  reviewer verdict itself before any mutation, instead of relying on a prose step in
+  `/implement` that a direct executor call skipped entirely. Refusal is fail-closed and
+  precedes lock, backup, manifest and every write: `exit 1` with
+  `RESULT-JSON.reason="approval-gate: …"`, `operations: []`, `backup_dir: null`. Gating
+  binds on slug identity (existing record, or a sibling/`.claude/plans` plan document, or
+  a `plans/` parent, or `ECC_OPS_GATE_ALL=1`), so renaming or copying a config no longer
+  sheds it. `--dry-run` is exempt; `--no-approval` is a loudly-bannered escape hatch.
+  13 behavioral tests. Residual: an ad-hoc config with no plan document and no record is
+  still ungated — recorded as an explicit SECURITY limitation with a default-flip path.
+- **Reflection checkpoints — a mechanical circuit breaker for failure loops** (plan:
+  `.claude/plans/plan-reflection-lifecycle-gates.md`): `.claude/hooks/reflection.py` keeps an
+  append-only JSONL ledger OUTSIDE the repo and outside the transcript, so it survives
+  compaction and cannot be committed. Failures are recorded as a digest over six
+  low-cardinality fields (phase, target, failure class, platform, invariant, head); raw error
+  text, absolute paths, and credential-shaped tokens are digested before they can reach disk.
+  Two active failures raise a checkpoint; identical fingerprints raise a deep one. While a
+  checkpoint is pending the `PreToolUse` gate blocks implementation mutation and unchanged
+  test reruns while leaving diagnosis, planning, and receipt creation available. Receipts are
+  HMAC'd with a per-session `0o600`/`O_EXCL` token and bound to a digest of the exact active
+  set, so a checkpoint can only be cleared by the one actually owed — an integrity speed bump
+  against accidental or lazy discharge, **not** an adversarial control (the agent can read the
+  token). Adds the repo's first `PreCompact` hook and makes `Stop`/`SubagentStop` blocking with
+  interrupt-once semantics. 79 behavioral tests.
+- **`verification-gap-lens` skill** (plan: `.claude/plans/plan-review-discipline.md`): asks one
+  question — if the behavior this change produces broke where it is used, would a test fail?
+  Four gap shapes including *unbound check* (a guard that still passes with the thing it
+  protects removed), the Demonstration technique, and the rule that a check in your own diff is
+  proved by mutating the shipped artifact and reading the failure, not by imagining it.
+  Adapted MIT from the chaos-engine subtree of ShaftHQ/SHAFT_ENGINE, itself from bmad-method.
+- **Finding-class ratchet** (`.ai/REVIEW_GUIDE.md`): every finding carries a recurrence
+  `Class`; when a class reaches three entries it earns a mechanical check or a written
+  "cannot be mechanised, and why". Seeded with eight classes evidenced in this repo, each row
+  naming the check that catches it now or an honest "nothing yet".
+- **`tests/test_agent_tool_grant_drift.py`** (plan: `.claude/plans/plan-agent-tool-grants.md`):
+  gates divergence between each agent's frontmatter `tools:` and its documented
+  `--allowedTools` row. Textual, not behavioral — green does not prove enforcement.
+- **`review/tasks/015-e2e-pipeline-flow-tests.md`**: 41-case end-to-end spec for
+  plan→review→implement→verify, split 36 deterministic / 4 live-spawn / 1 hybrid, with an
+  enumerated mutation proof for all nine groups.
 - **`--json` output for the context-floor gate** (plan:
   `.claude/plans/plan-floor-json-flag.md`): `python3 scripts/check-context-floor.py --json`
   prints the measurement as a single JSON object
@@ -39,6 +80,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (one allowed for the confusable pairs reviewer/code-reviewer, doc-updater/documenter).
 
 ### Changed
+- **`code-reviewer` must confirm the revision before writing any finding** (Phase 0): it is
+  handed an exact revision and reads it without touching the shared working tree
+  (`gh pr diff`, `git show <ref>:<path>`, a detached `git worktree`, or — for the common local
+  case — `git rev-parse HEAD` plus `git diff HEAD` **and `git ls-files --others` so newly added
+  files are not invisible**). If it cannot confirm, it reports the new `CANNOT REVIEW` verdict
+  and stops. Previously it inherited whatever the shared tree happened to hold, and a search
+  that missed because the tree was wrong returned a clean no-match — indistinguishable from a
+  real absence.
+- **Per-PR adversarial review floor** (CLAUDE.md, `TOKEN-MODEL-POLICY` block bumped to **v2** so
+  fleet-synced projects receive it — sync is skip-if-marker-present): every PR gets at least one
+  diff review before it merges, by a fresh `code-reviewer` instance, never the author, prompted
+  to refute. Stop at the first round with zero blocking findings; ceiling three rounds; rounds
+  2+ read only the diff since the last verdict. Honest limitation recorded: the floor is inert
+  for direct-commit work, which is much of this repo's own history.
+- **Bounded reads, output spill, and script-first** folded into `token-optimization`, with the
+  static-vs-variable accounting split into `context-budget`. Bound every read; after truncation
+  narrow once; never reread an unchanged input; spill oversized output to disk and forward the
+  path plus the one fact it established. Guard clause: token savings never drop negation,
+  safety, or required attribution.
 - **Token-efficiency pass over the pipeline prompts** (measured, see
   `.claude/plans/plan-token-efficiency.md`):
   - Agent frontmatter descriptions: `<example>` blocks stripped (29 files, −14,393 chars
@@ -90,6 +150,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   still references the skill and will pick up the frontmatter change then).
 
 ### Fixed
+- **Honest framing of agent tool grants** (hard rule 6; plan:
+  `.claude/plans/plan-agent-tool-grants.md`). `_shared/INVOCATION.md` documented scoped
+  `--allowedTools` per role, but agent frontmatter contradicted it in three places and the
+  Task-tool spawn path reads the frontmatter — most seriously `implementer.md`, which declared
+  unrestricted `Bash`, leaving the Iron Law bypassable via `sed -i` / `cat >` /
+  `python3 -c "open(...,'w')"`. Measured on Claude Code 2.1.235 with a differential probe
+  (identical rule, identical permission mode `default`, empty allow list, varying only the
+  declaration site, both arms via `--agent`): a rule honoured through `--allowedTools` is **not
+  applied** when declared in frontmatter. Whether it is stripped at parse time or retained and
+  ignored was not separated, and the untested interactive-Task variant is named as a falsifiable
+  missing arm. INVOCATION.md now states plainly that the interactive implementer holds unscoped
+  Bash and that the Iron Law is **prompt-enforced, not harness-enforced**, there; the
+  implementer's own rule is restated as a general prohibition on any command that writes any
+  path, with examples marked non-exhaustive. `code-reviewer`'s row now grants the git/gh verbs
+  its Phase 0 requires. An allowlist `PreToolUse` hook keyed on `agent_type` (confirmed present
+  in the payload on both spawn paths) is specified and backlogged — that, not this, closes the
+  hole. This release does not claim the hole is closed.
 - **Validator no longer misattributes `oneOf` schema failures** (found by independent
   review 2026-08-17): a run_command with a too-short `reason` used to report
   `unknown field(s): 'command', 'reason'` while listing those fields as allowed. The
