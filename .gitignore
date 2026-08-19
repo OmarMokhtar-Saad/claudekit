@@ -36,6 +36,13 @@ backups/
 # Per-session lock files (concurrent-session detection; runtime state)
 .claude/locks/
 
+# Reflection ledger: sanitized failure fingerprints, session HMAC tokens and
+# post-compaction carry-over notes, plus the project-local receipt inbox
+# (inbox-<session>.json). The ledger itself is written OUTSIDE the repo (OS temp dir)
+# so it survives compaction and can never be committed; this rule is belt-and-braces
+# for a project that points CLAUDEKIT_REFLECTION_DIR at the working tree.
+.claude/reflection/
+
 # Worktree-per-agent runtime state: linked worktrees + the manager's registry
 # (machine-local paths; never shipped — install.sh copies .claude/ wholesale)
 .worktrees/
