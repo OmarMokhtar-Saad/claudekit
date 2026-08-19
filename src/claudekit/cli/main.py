@@ -4,6 +4,7 @@
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -106,6 +107,38 @@ def cmd_init(args):
 
     result = subprocess.run(cmd)
     return result.returncode
+
+
+# Hook references in settings.json that must resolve to an installed file.
+# Deliberately conservative: a token we cannot prove is a script is IGNORED,
+# never required. Failing closed on an unprovable name would make `ck doctor`
+# fail for everyone -- strictly worse than the delivery bug this guards.
+_HOOK_REF_RE = re.compile(r"\.claude/hooks/([A-Za-z0-9._-]+)")
+_HOOK_DENY_NAMES = {"compact-counter.txt", "settings.local.json"}
+_HOOK_DENY_SUFFIXES = (".log", ".pyc", ".orig", ".rej", ".swp", "~")
+_HOOK_SCRIPT_SUFFIXES = (".sh", ".bash", ".zsh", ".py", ".js", ".mjs", ".ts", ".rb", ".pl")
+_HOOK_INTERP_RE = re.compile(
+    r"(?:^|[\s\"'`;|&(])(?:python3|python|bash|sh|zsh|node|ruby|perl)\s+"
+    r"(?:-[A-Za-z-]+\s+)*[\\\"'$]*[^\s\"'`;|&()]*$"
+)
+
+
+def _required_hook_scripts(text):
+    """Names under .claude/hooks/ that ``text`` wires as executable scripts.
+
+    A token counts only if it carries a known script extension or is directly
+    preceded by an interpreter invocation; runtime-state names are subtracted.
+    Hooks wired by absolute or ``~/`` paths are invisible here by design.
+    """
+    names = set()
+    for match in _HOOK_REF_RE.finditer(text):
+        name = match.group(1)
+        if name in _HOOK_DENY_NAMES or name.endswith(_HOOK_DENY_SUFFIXES):
+            continue
+        prefix = text[max(0, match.start() - 80):match.start()]
+        if name.endswith(_HOOK_SCRIPT_SUFFIXES) or _HOOK_INTERP_RE.search(prefix):
+            names.add(name)
+    return names
 
 
 def cmd_doctor(args):
@@ -234,6 +267,31 @@ def cmd_doctor(args):
                 check("settings.json", False, f"Invalid JSON: {e}")
         else:
             check("settings.json", "warn", "No Claude Code hooks configured")
+
+        # Every hook COMMAND in settings.json must resolve to an installed FILE.
+        # This is the mechanical guard for the whole bug class: a wired hook that
+        # was never delivered makes Claude Code run `python3 <missing>`, which
+        # exits 2 -- and exit 2 on PreToolUse blocks every tool call. The older
+        # checks (hardcoded .sh list + "is settings.json valid JSON") reported a
+        # healthy install on a completely blocked project. is_file(), not
+        # exists(): a directory named foo.py is not a runnable hook.
+        if settings.exists():
+            try:
+                settings_text = settings.read_text(encoding="utf-8")
+            except OSError:
+                settings_text = ""
+            wired = _required_hook_scripts(settings_text)
+            unresolved = sorted(n for n in wired if not (hooks_dir / n).is_file())
+            if not wired:
+                check("Wired hooks resolve", "warn",
+                      "settings.json wires no hook scripts")
+            elif unresolved:
+                check(f"Wired hooks resolve ({len(wired)} referenced)", False,
+                      "settings.json references missing hooks: "
+                      + ", ".join(unresolved)
+                      + " - every tool call is blocked. Run: claudekit update")
+            else:
+                check(f"Wired hooks resolve ({len(wired)} referenced)", True)
 
         # Config.json
         config = hooks_dir / "config.json" if hooks_dir.is_dir() else None

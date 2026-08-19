@@ -242,22 +242,102 @@ if [[ "$MODE" == "full" ]]; then
     fi
 
     print_step "Installing hooks..."
-    cp "$CLAUDE_SRC"/hooks/*.sh "$DEST/hooks/" 2>/dev/null || true
-    cp "$CLAUDE_SRC"/hooks/*.json "$DEST/hooks/" 2>/dev/null || true
-    cp "$CLAUDE_SRC"/hooks/*.md "$DEST/hooks/" 2>/dev/null || true
-    # Copy template hooks
-    if [[ -d "$SCRIPT_DIR/templates/hooks" ]]; then
-        cp "$SCRIPT_DIR"/templates/hooks/*.sh "$DEST/hooks/" 2>/dev/null || true
-    fi
-    chmod +x "$DEST"/hooks/*.sh 2>/dev/null || true
-    HOOK_COUNT=$(ls -1 "$DEST/hooks/"*.sh 2>/dev/null | wc -l | tr -d ' ')
-    print_ok "$HOOK_COUNT hooks installed"
+    # Structural copy, NOT an extension allowlist. The old *.sh/*.json/*.md
+    # allowlist silently went stale when Python hooks were added: settings.json
+    # wired reflection-gate.py, the installer never shipped it, and
+    # `python3 <missing>` exits 2 -- which on PreToolUse means BLOCK. A fresh
+    # install produced a project where every Edit, Write and Bash was blocked.
+    # Ship everything; deny only runtime state and editor/merge debris.
+    _copy_hook_assets() {
+        _src_dir="$1"
+        [[ -d "$_src_dir" ]] || return 0
+        for _hook_src in "$_src_dir"/*; do
+            [[ -f "$_hook_src" ]] || continue
+            case "${_hook_src##*/}" in
+                *.log|*.pyc|*.orig|*.rej|*.swp|*~) continue ;;
+                compact-counter.txt|settings.local.json) continue ;;
+            esac
+            cp "$_hook_src" "$DEST/hooks/"
+        done
+    }
+    _copy_hook_assets "$CLAUDE_SRC/hooks"
+    _copy_hook_assets "$SCRIPT_DIR/templates/hooks"
+    # Executability follows the file's own shebang, not its extension, so a hook
+    # written in any language is handled without another list to keep in sync.
+    HOOK_COUNT=0
+    for _hook_f in "$DEST"/hooks/*; do
+        [[ -f "$_hook_f" ]] || continue
+        _hook_line=""
+        IFS= read -r _hook_line < "$_hook_f" || true
+        case "$_hook_line" in
+            "#!"*) chmod +x "$_hook_f"; HOOK_COUNT=$((HOOK_COUNT + 1)) ;;
+        esac
+    done
+    # Counts executables, which legitimately differs from the "wired hooks"
+    # count in the docs: shared libraries (reflection.py, lib.sh) and template
+    # hooks are installed and executable but are not themselves wired.
+    print_ok "$HOOK_COUNT hook scripts installed (executables, including shared libraries)"
 
     # Install settings.json — WITHOUT it, none of the hooks above ever fire.
     # (For years this was omitted, so every install shipped dead hooks.)
     if [[ -f "$CLAUDE_SRC/settings.json" ]]; then
         cp "$CLAUDE_SRC/settings.json" "$DEST/settings.json"
         print_ok "settings.json installed (hooks wired)"
+        # Fail closed on a hook we can PROVE is wired-but-missing: settings.json
+        # references hooks BY PATH, and a missing one makes Claude Code run
+        # `python3 <missing>` -> exit 2 -> every tool call blocked.
+        #
+        # Deliberately conservative in the other direction: a token we cannot
+        # prove is a script is IGNORED, never required. Requiring an unprovable
+        # name would block every install, which is strictly worse than the
+        # delivery bug this guards. Runtime state that hook commands legitimately
+        # write to (e.g. hooks.log) is subtracted for the same reason.
+        MISSING_HOOKS=$(python3 - "$DEST" <<'WIRED_PY'
+import os
+import re
+import sys
+
+dest = sys.argv[1]
+path = os.path.join(dest, "settings.json")
+if not os.path.exists(path):
+    raise SystemExit(0)
+with open(path, encoding="utf-8") as fh:
+    text = fh.read()
+
+DENY_NAMES = {"compact-counter.txt", "settings.local.json"}
+DENY_SUFFIXES = (".log", ".pyc", ".orig", ".rej", ".swp", "~")
+SCRIPT_SUFFIXES = (".sh", ".bash", ".zsh", ".py", ".js", ".mjs", ".ts", ".rb", ".pl")
+INTERP = re.compile(
+    r"(?:^|[\s\"'`;|&(])(?:python3|python|bash|sh|zsh|node|ruby|perl)\s+"
+    r"(?:-[A-Za-z-]+\s+)*[\\\"'$]*[^\s\"'`;|&()]*$"
+)
+
+required = set()
+for m in re.finditer(r"\.claude/hooks/([A-Za-z0-9._-]+)", text):
+    name = m.group(1)
+    if name in DENY_NAMES or name.endswith(DENY_SUFFIXES):
+        continue
+    if name.endswith(SCRIPT_SUFFIXES) or INTERP.search(text[max(0, m.start() - 80):m.start()]):
+        required.add(name)
+
+missing = sorted(n for n in required if not os.path.isfile(os.path.join(dest, "hooks", n)))
+print("\n".join(missing))
+WIRED_PY
+)
+        if [[ -n "$MISSING_HOOKS" ]]; then
+            print_err "settings.json wires hooks that were not installed:"
+            while IFS= read -r _missing_hook; do
+                [[ -n "$_missing_hook" ]] || continue
+                echo "        - $_missing_hook"
+            done <<< "$MISSING_HOOKS"
+            print_err "A wired-but-missing hook blocks every tool call (exit 2)."
+            print_err "Refusing to leave a broken installation behind."
+            # Bash does NOT run the ERR trap for the `exit` builtin, so the
+            # staging dir must be cleaned up explicitly or it litters the project.
+            _cleanup_on_failure
+            exit 1
+        fi
+        print_ok "All wired hooks resolve to installed files"
     else
         print_warn "settings.json not found in source — hooks will not fire"
     fi
