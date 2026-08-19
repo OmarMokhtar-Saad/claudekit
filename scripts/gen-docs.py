@@ -37,6 +37,10 @@ DRIFT_FILES = [
 #   "28 agents", "39 slash commands", "73 domain skills", "18 workflow hooks".
 _DRIFT_RE = re.compile(r"(\d+)\s+(?:[\w-]+\s+)?(agents?|commands?|skills?|hooks?)\b")
 
+# Escape hatch: a line carrying this marker is neither drift-checked nor rewritten
+# (for genuine examples like "add 2 hooks of your own").
+IGNORE_MARKER = "gen-docs:ignore"
+
 
 def count_agents() -> int:
     d = ROOT / ".claude" / "agents"
@@ -52,10 +56,44 @@ def count_skills() -> int:
     return len(list((ROOT / ".claude" / "skills").glob("*/SKILL.md")))
 
 
+# Hooks ship as shell OR python (`reflection-gate.py` is wired in settings.json).
+HOOK_GLOBS = ("*.sh", "*.py")
+
+
+def _hook_files() -> list:
+    d = ROOT / ".claude" / "hooks"
+    return sorted({p for pat in HOOK_GLOBS for p in d.glob(pat)})
+
+
+def _is_helper_module(path, siblings) -> bool:
+    """True when another hook sources/imports `path` (so it is a library, not a hook).
+
+    Structural, not a hard-coded name list: `lib.sh` is sourced by every shell hook
+    and `reflection.py` is imported by `reflection-gate.py`, so both drop out
+    automatically, and a future helper needs no edit here.
+    """
+    if path.suffix == ".sh":
+        # re.M so a line-initial `source "$SCRIPT_DIR/lib.sh"` is detected too; without
+        # it a helper could masquerade as a hook and inflate the published count.
+        pat = re.compile(r"(?:^|[;&|]\s*)(?:\.|source)\s+\S*" + re.escape(path.name), re.M)
+    else:
+        stem = re.escape(path.stem)
+        pat = re.compile(r"^\s*(?:import\s+%s|from\s+%s\s+import)\b" % (stem, stem), re.M)
+    for other in siblings:
+        if other == path:
+            continue
+        try:
+            text = other.read_text(errors="replace")
+        except OSError:
+            continue
+        if pat.search(text):
+            return True
+    return False
+
+
 def count_hooks() -> int:
-    # lib.sh is a sourced helper library, not a hook.
-    return len([p for p in (ROOT / ".claude" / "hooks").glob("*.sh")
-                if p.name != "lib.sh"])
+    files = _hook_files()
+    return len([p for p in files if not _is_helper_module(p, files)])
 
 
 def counts() -> dict:
@@ -97,6 +135,8 @@ def scan_drift(c: dict) -> list:
         if not path.exists():
             continue
         for i, line in enumerate(path.read_text().splitlines(), 1):
+            if IGNORE_MARKER in line:
+                continue
             for m in _DRIFT_RE.finditer(line):
                 found = int(m.group(1))
                 noun = m.group(2).rstrip("s")
@@ -104,6 +144,34 @@ def scan_drift(c: dict) -> list:
                 if found != expected:
                     problems.append((rel, i, line.strip(), found, expected))
     return problems
+
+
+def _fix_line(line: str, c: dict) -> str:
+    def repl(m):
+        expected = c[m.group(2).rstrip("s")]
+        return m.group(0).replace(m.group(1), str(expected), 1)
+    return _DRIFT_RE.sub(repl, line)
+
+
+def fix_drift(c: dict) -> list:
+    """Rewrite stale prose counts in DRIFT_FILES in place; return files changed.
+
+    Counts are generator-owned (CLAUDE.md hard rule 8: never hand-edit them), so
+    prose outside the generated block is corrected here rather than by a human.
+    Only the matched number is replaced; the rest of the line is preserved.
+    """
+    changed = []
+    for rel in DRIFT_FILES:
+        path = ROOT / rel
+        if not path.exists():
+            continue
+        text = path.read_text()
+        new = "".join(line if IGNORE_MARKER in line else _fix_line(line, c)
+                      for line in text.splitlines(keepends=True))
+        if new != text:
+            path.write_text(new)
+            changed.append(rel)
+    return changed
 
 
 def main(argv=None) -> int:
@@ -143,9 +211,14 @@ def main(argv=None) -> int:
     else:
         print("README generated inventory block already current.")
     if drift:
-        print("WARNING: prose still hard-codes stale counts (fix manually):")
-        for rel, ln, txt, found, expected in drift:
-            print(f"  {rel}:{ln}: says {found}, should be {expected}")
+        for rel in fix_drift(c):
+            print(f"Updated stale counts in {rel}.")
+        remaining = scan_drift(c)
+        if remaining:
+            print("ERROR: could not auto-fix these counts:", file=sys.stderr)
+            for rel, ln, txt, found, expected in remaining:
+                print(f"  {rel}:{ln}: says {found}, should be {expected}", file=sys.stderr)
+            return 1
     return 0
 
 

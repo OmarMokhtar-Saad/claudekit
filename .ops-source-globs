@@ -1,0 +1,15 @@
+# Repo-local Iron Law scope (ClaudeKit dogfood).
+#
+# ClaudeKit's deliverable IS the prompt corpus under .claude/, so in THIS
+# checkout those paths are SOURCE, not configuration: ops-enforcement.sh drops
+# its .claude/ and *.md exemptions for anything matching a glob below.
+# Patterns are shell case-globs against the repo-relative path; `*` spans `/`.
+# Absent this file (every installed user project) nothing changes.
+#
+# Never list plans/, reports/, knowledge/ or backups/: the ops engine writes
+# those itself, and claiming them would deadlock the repo.
+.claude/agents/*
+.claude/commands/*
+.claude/skills/*
+.claude/hooks/*
+.claude/operations/*
