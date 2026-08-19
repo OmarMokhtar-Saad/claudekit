@@ -710,7 +710,148 @@ def execute_code_edit(operation: dict, backup_dir: Path, dry_run: bool,
             return False, str(e)
 
 
-def execute_json_config(config_file: str, dry_run: bool = False) -> bool:
+APPROVAL_SCRIPT = Path(__file__).resolve().parent / "review-record.py"
+
+# Directory name that marks an ops.json as a pipeline artifact (/plan writes
+# .claude/plans/<name>.ops.json). Configs there always need a verdict.
+PLANS_DIR_NAMES = ("plans",)
+
+# Opt-in blanket enforcement: gate EVERY config, not just the pipeline-shaped
+# ones. This is the fail-closed default we want; it is not yet the default only
+# because ad-hoc callers (tooling, worktree runs, the executor's own test
+# suites) execute configs that never went through /review. Set this in CI or
+# settings once those callers are updated, then flip the default here.
+GATE_ALL_ENV = "ECC_OPS_GATE_ALL"
+
+
+def _project_plans_dirs() -> List[Path]:
+    """Plans directories to probe for a sibling plan.md, nearest .claude first."""
+    dirs: List[Path] = []
+    cur = Path.cwd()
+    for candidate in (cur, *cur.parents):
+        if (candidate / ".claude").is_dir():
+            dirs.append(candidate / ".claude" / "plans")
+            break
+    return dirs
+
+
+def _approval_slugs(config_file: str, plan_name: str) -> List[str]:
+    """Candidate review-record slugs for an ops.json.
+
+    review-record.py resolves plan.md -> ops.json; the executor is handed the
+    ops.json and must invert that. Every filename form resolve_ops() emits
+    (plan-x.ops.json, ops-x.json, x.ops.json, x.json) is inverted here, and the
+    config's own "plan" field is tried too so renaming or moving the file does not
+    silently detach it from the verdict that approved it.
+    """
+    slugs: List[str] = []
+    name = Path(config_file).name
+    if name.endswith(".ops.json"):
+        base = name[:-len(".ops.json")]
+    elif name.endswith(".json"):
+        base = name[:-len(".json")]
+    else:
+        base = name
+    for candidate in (base, plan_name):
+        text = (candidate or "").strip()
+        for prefix in ("plan-", "ops-"):
+            if text.startswith(prefix):
+                text = text[len(prefix):]
+                break
+        if text and text not in slugs:
+            slugs.append(text)
+    return slugs
+
+
+def _load_review_record():
+    """Import review-record.py by path (its filename is not an importable name).
+
+    Reusing its record_paths/cmd_check keeps ONE implementation of the drift and
+    threshold rules; a second copy here would drift from the source of truth.
+
+    Coupling worth stating: the module is intentionally NOT registered in
+    sys.modules. That is safe only while review-record.py stays stdlib-only and
+    self-contained (it is). Anything that resolves its own module by name (some
+    decorators, dataclasses with string annotations, pickling) would raise here —
+    and the gate then fails CLOSED on every pipeline config, which is loud, not
+    silent, but would need this line revisited.
+    """
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("review_record", str(APPROVAL_SCRIPT))
+    if spec is None or spec.loader is None:
+        return None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _gate_applies(config_file: str, slugs: List[str]) -> Tuple[bool, str]:
+    """Decide whether this config must carry a verdict, and say why.
+
+    Populations gated: everything when ECC_OPS_GATE_ALL=1; configs sitting in a
+    plans/ directory; configs whose slug already has a review record (a copy or
+    rename cannot shed a verdict); and configs whose slug owns a plan.md, either
+    beside the config or in the project's .claude/plans (so writing the config to
+    /tmp does not detach it from the plan it implements).
+    """
+    if os.environ.get(GATE_ALL_ENV) == "1":
+        return True, f"{GATE_ALL_ENV}=1"
+    if Path(config_file).resolve().parent.name in PLANS_DIR_NAMES:
+        return True, "config lives in a plans/ directory"
+    search_dirs = [Path(config_file).resolve().parent, *_project_plans_dirs()]
+    for slug in slugs:
+        for directory in search_dirs:
+            for candidate in (f"plan-{slug}.md", f"{slug}.md"):
+                if (directory / candidate).is_file():
+                    return True, f"a plan document exists for slug '{slug}'"
+    return False, ""
+
+
+def check_approval(config_file: str, plan_name: str) -> Tuple[bool, str]:
+    """Refuse to mutate anything unless this exact ops.json carries an APPROVED verdict.
+
+    Fails CLOSED: an unreadable, missing or unusable review-record.py refuses a
+    gated config rather than waving it through.
+    """
+    slugs = _approval_slugs(config_file, plan_name)
+
+    try:
+        module = _load_review_record()
+    except Exception as e:
+        module = None
+        print(f"  Could not load {APPROVAL_SCRIPT}: {e}")
+    if module is None or not all(hasattr(module, attr)
+                                 for attr in ("record_paths", "cmd_check")):
+        gated, why = _gate_applies(config_file, slugs)
+        if gated:
+            return False, f"approval-gate: review-record.py unusable ({why})"
+        return True, ""
+
+    try:
+        recorded = [s for s in slugs if module.record_paths(s)[0].exists()]
+    except Exception as e:
+        return False, f"approval-gate: record lookup failed: {e}"
+
+    gated, why = _gate_applies(config_file, slugs)
+    if not recorded and not gated:
+        return True, ""
+    if recorded:
+        why = why or f"a review record exists for slug '{recorded[0]}'"
+
+    slug = recorded[0] if recorded else (slugs[0] if slugs else "unknown")
+    try:
+        code = module.cmd_check(argparse.Namespace(plan=f"plan-{slug}.md", ops=config_file))
+    except Exception as e:
+        # Includes an argparse.Namespace shape mismatch if review-record.py's
+        # cmd_check ever grows a required attribute: refuse, never assume.
+        return False, f"approval-gate: check raised: {e}"
+    if code != 0:
+        return False, f"approval-gate: review-record check exit {code} (slug '{slug}'; {why})"
+    return True, ""
+
+
+def execute_json_config(config_file: str, dry_run: bool = False,
+                        require_approval: bool = True) -> bool:
     """
     Execute JSON operations config.
 
@@ -740,6 +881,30 @@ def execute_json_config(config_file: str, dry_run: bool = False) -> bool:
     print(f"Plan: {plan_name}")
     print(f"Format: {config_format}")
     print(f"Operations: {len(operations)}")
+
+    # Approval gate: a reviewer verdict that nothing consults is not a gate. The
+    # check lives here, in the only code path that can mutate the tree, rather
+    # than in prose an agent may skip. Dry-run is exempt: it writes nothing (no
+    # backup dir, no manifest, no edits) and is the pre-review sanity check the
+    # /plan and /implement workflows run before a record can exist.
+    if not require_approval:
+        print("Approval: BYPASSED (--no-approval)")
+        print("!!! APPROVAL GATE BYPASSED (--no-approval): executing an ops.json that no "
+              "reviewer verdict authorises.", file=sys.stderr)
+    elif dry_run:
+        print("Approval: not required for --dry-run (nothing is written)")
+    else:
+        approved, approval_reason = check_approval(config_file, plan_name)
+        if not approved:
+            print("\nAPPROVAL GATE: refusing to execute — this ops.json is not bound to an "
+                  "APPROVED review record.")
+            print(f"  {approval_reason}")
+            print("  Run /review for this plan (or re-run it if the ops.json changed after")
+            print("  approval), then retry. --no-approval bypasses this gate and exists only")
+            print("  for bootstrap and repo-maintenance runs you are authorised to make.")
+            _emit_result(plan_name, dry_run, 'failed', [], reason=approval_reason)
+            return False
+        print("Approval: reviewed verdict verified for this exact ops.json")
 
     # Baseline drift gate: refuse to apply a plan authored against file states
     # that no longer exist. Runs in dry-run too — a drifted dry-run preview is
@@ -989,6 +1154,9 @@ Safety:
     parser.add_argument('config', help='Path to JSON operations config file')
     parser.add_argument('--dry-run', action='store_true', help='Preview changes without applying them')
     parser.add_argument('--verbose', '-v', action='store_true', help='Enable debug logging')
+    parser.add_argument('--no-approval', action='store_true',
+                        help='Bypass the review-record approval gate (loudly logged; '
+                             'bootstrap and maintenance runs only)')
     parser.add_argument('--version', action='version', version=f'%(prog)s {__version__}')
     args = parser.parse_args()
 
@@ -998,7 +1166,8 @@ Safety:
     signal.signal(signal.SIGINT, _signal_handler)
     signal.signal(signal.SIGTERM, _signal_handler)
 
-    success = execute_json_config(args.config, dry_run=args.dry_run)
+    success = execute_json_config(args.config, dry_run=args.dry_run,
+                                  require_approval=not args.no_approval)
     sys.exit(0 if success else 1)
 
 
