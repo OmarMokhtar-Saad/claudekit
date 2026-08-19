@@ -2,7 +2,36 @@
 
 > Update this file at the end of every significant AI working session. It is the resume point.
 
-**Last updated:** 2026-08-09 (later same day) · **By:** Claude (Sonnet 5) — fixed
+**Last updated:** 2026-08-19 · **By:** Claude (Opus 5) — **reflection/review-discipline batch
+landed on `perf/token-efficiency` (uncommitted at this edit).** Seven workstreams, 21 ops,
+19 files, disjoint ownership map with zero collisions, 13 review rounds, every verdict
+hash-bound via `review-record.py`. **945 tests green, all six DoD gates pass.**
+
+Source: a deep read of the `chaos-engine` subtree of ShaftHQ/SHAFT_ENGINE (MIT) against our
+own flow. What landed: the approval gate moved INTO `execute-json-ops.py` (verified live —
+a drifted config is refused before any side effect); an external reflection ledger with
+sanitized fingerprints, HMAC receipts and a PreToolUse checkpoint gate; the first `PreCompact`
+hook and blocking `Stop`/`SubagentStop` with interrupt-once; `code-reviewer` Phase 0 revision
+confirmation + `CANNOT REVIEW`; the `verification-gap-lens` skill and the finding-class
+ratchet; bounded-read/spill rules; a per-PR review floor (marker bumped to **v2** so the 16
+fleet projects receive it); honest framing of the agent tool grants; and
+`review/tasks/015-e2e-pipeline-flow-tests.md` (41 cases).
+
+**Every plan failed its first review** (scores 81–95 on approval). Two fixes introduced worse
+holes than the finding they closed — WS-3's Phase 0 went refuse-everything → blind-to-new-files,
+and WS-2's hook-conflict fix opened a symlink-laundering path that let an arbitrary source write
+pass BOTH the new gate and `ops-enforcement.sh` (the reviewer constructed the exploit). Both
+were caught only because each delta re-review was a FRESH instance told to attack the fix.
+
+**Owner-gated / open:** (1) **Decision 21** — Iron Law scope over `.claude/**` (`.ai/DECISIONS.md`,
+status OPEN, three options steelmanned); (2) the interactive Iron Law hole is **documented, not
+closed** — the allowlist `PreToolUse` hook keyed on `agent_type` is specified in
+`plan-agent-tool-grants.md` Risks and backlogged; (3) `hooks=19` is now **wrong** (repo ships 21;
+`gen-docs.py:55` globs `*.sh` only); (4) the validator does not bind the executor — a config
+`validate-config-json.py` REJECTS still executes, because the executor silently ignores unknown
+edit fields. Full follow-up list: `.ai/BACKLOG.md` §P0.5.
+
+Prior entry, 2026-08-09: Claude (Sonnet 5) — fixed
 AGENTS_KNOWN_ISSUES.md #9 (legacy ops.json schema in `_shared/WORKFLOW_FILE_TEMPLATES.md`)
 on branch `agent/workflow-file-templates-ops-schema` (worktree, **uncommitted at this
 edit** — implementer commits after this note lands). Template now teaches the canonical

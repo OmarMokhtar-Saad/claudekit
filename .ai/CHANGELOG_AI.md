@@ -2,6 +2,55 @@
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
 
+## 2026-08-19 — Claude (Opus 5) — Reflection/review-discipline batch (7 workstreams, owner-approved)
+
+**Scope.** Read the `chaos-engine` subtree of ShaftHQ/SHAFT_ENGINE (MIT) in full — README,
+RESEARCH.md, 3 SKILL.md, ~20 `references/*.md`, `hooks/guard.py` (449 lines), `hooks/reflection.py`
+(557 lines) — and traced it against our flow (settings.json hook graph, 19 hooks, the 5 pipeline
+agents, INVOCATION.md, VERIFICATION_PROTOCOL.md, execute-json-ops.py, review-record.py,
+knowledge-ledger.py, check-context-floor.py). Produced a gap analysis (G1–G7), then executed
+everything the owner approved.
+
+**Method.** Orchestration Protocol v2: one decomposition into 7 workstreams with a disjoint
+file-ownership map (21 ops, 19 files, **zero collisions** — verified mechanically), planners
+fanned out in parallel on opus, reviewers per workstream (opus for security/architecture, sonnet
+otherwise), every verdict hash-bound with `review-record.py`, composition gate = ownership check +
+six sequential dry-runs, execution in dependency order with the approval-gate workstream LAST
+because its own gate closes on every sibling config.
+
+**Outcome.** 945 tests green; ruff, mypy, gen-docs `--check`, gen-registry `--check`,
+check-context-floor `--check`, shellcheck all pass; `ck doctor --strict` 22/25 with 3 pre-existing
+warnings. Product detail in `CHANGELOG.md` `[Unreleased]`.
+
+**What the process actually bought (the honest accounting).** 13 review rounds produced 1 CRITICAL
+and 12 MAJOR. **Every plan failed its first review**; only the smallest cleared 90 on round 1.
+Defects that would otherwise have shipped looking correct: a code-reviewer that refuses every
+review in this repo (no PR/ref exists for a local diff); after that fix, one that reports clean
+while blind to newly added files; an approval gate keyed on directory name (caller-controlled);
+a reflection escape hatch permitting an arbitrary source write past two guards via a symlinked
+inbox; a secrets sanitizer letting bare high-entropy tokens onto disk; "cannot be forged" claimed
+for a token the model can read; mutation proofs asserted for 9 groups and supplied for 4; and an
+invented rationale citing repo vocabulary that does not exist.
+
+**Two fixes introduced worse holes than the finding they closed** (WS-3 Phase 0, WS-2 inbox
+allowance). Both were caught only because each delta re-review was a FRESH instance told to attack
+the fix rather than confirm the finding was addressed. Recorded as the finding class
+`fix-introduces-larger-hole`; with `guard-cannot-express-guarded-case` (2×) and
+`count-asserted-not-derived` (2×), all three are at or past the ratchet's three-entry threshold.
+
+**Found by execution, not by review** (dry-run cannot see these): `add_after` with no leading
+newline concatenates onto the anchor line (hit live on CLAUDE.md, 442-char line); and the validator
+does not bind the executor — `additionalProperties: false` in the schema vs. unknown edit fields
+silently ignored at execution, so a REJECTED config still runs.
+
+**Measured, not inferred:** a frontmatter-declared `Bash(...)` specifier is not applied on the
+interactive path (differential probe, permission mode `default`, empty allow list, both arms via
+`--agent`), so the implementer holds unscoped Bash and the interactive Iron Law is prompt-enforced
+only. Privacy of the reflection ledger verified live: a payload carrying a 40-char token, an
+absolute path and raw stderr produced zero leaks across 5,327 bytes of real ledger data.
+
+**Follow-ups:** `.ai/BACKLOG.md` §P0.5 (10 items) + decision 21 raised to P0.
+
 ## 2026-08-17 — Claude (Fable 5) — Token-efficiency pass (measured, owner-approved)
 
 - Measured the token floors empirically (always-on ~12k tok; per-pipeline ~15k tok; ops.json
