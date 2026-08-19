@@ -58,7 +58,7 @@ Single source is the enforcing agent: reviewer.md (plans ≥90/100; missing ops.
 
 Phase 1 ("Fix What's Broken") merged 2026-07-06; release tag + PyPI publish are **user-gated**. Next: consolidation (008), eval framework (010), context budget (009). Live snapshot: [.ai/STATUS.md](.ai/STATUS.md) · resume point: [.ai/SESSION_STATE.md](.ai/SESSION_STATE.md) · work queue: [.ai/BACKLOG.md](.ai/BACKLOG.md).
 
-<!-- CLAUDEKIT:TOKEN-MODEL-POLICY v1 START -->
+<!-- CLAUDEKIT:TOKEN-MODEL-POLICY v2 START -->
 ## Token & Model Policy (ClaudeKit, 2026-07-23)
 
 - **Web research**: main agent and planner MUST NOT call WebSearch/WebFetch directly. Route by query type, in this order: (1) library/framework/API documentation question -> call the context7 MCP tools DIRECTLY YOURSELF first (resolve-library-id then query-docs; the web-researcher agent has no MCP access, so delegating a docs question wastes a search); (2) context7 miss, or any non-docs web need (repos, errors, news, tool flags) -> delegate to the `web-researcher` agent (haiku). Check `.claude/reports/research/` cache before any new search.
@@ -66,7 +66,8 @@ Phase 1 ("Fix What's Broken") merged 2026-07-06; release tag + PyPI publish are 
   - **Tier 1** — single file, no public API/security/schema/architecture surface (any size: docs, tests, prompts, cosmetic, internal logic) -> create minimal ops.json -> validate -> execute -> compile-verify. SKIP planner/reviewer. Execution fails -> escalate to Tier 2.
   - **Tier 2** — multi-file, no security/schema surface -> planner + ops.json; reviewer ONLY if architecture is touched (new module boundaries, public API, cross-layer changes).
   - **Tier 3** — security-relevant, DB migrations, >15 ops, or >2 phases -> full pipeline (planner -> reviewer -> implementer), unchanged.
+  - **Review floor (all tiers)**: every PR gets >=1 adversarial diff review before it merges — fresh `code-reviewer` instance, never the author, prompted to REFUTE not approve. Stop at the first round with zero blocking findings; ceiling 3 rounds; rounds 2+ read only the diff since the last verdict.
 - **Verifier gate**: the verifier agent NEVER auto-runs after implementation. Stop, ask the user, run only on explicit approval.
 - **Model routing**: planner=opus, reviewer=sonnet (escalate to opus for multi-phase/architecture/security plans), implementer=haiku, explore=haiku, web-researcher=haiku. Session fallback chain sonnet->haiku is configured in user settings — on model limits, degrade and continue, never stop.
 - **Parallel orchestration**: many tasks or plan >15 ops / >2 phases -> `coordinator` agent Orchestration Protocol v2 (decompose with file-ownership map, parallel plan/review, composition gate before execution, disjoint-set parallel execution).
-<!-- CLAUDEKIT:TOKEN-MODEL-POLICY v1 END -->
+<!-- CLAUDEKIT:TOKEN-MODEL-POLICY v2 END -->
