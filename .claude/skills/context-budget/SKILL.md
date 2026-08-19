@@ -155,6 +155,22 @@ Extract repeated instructions into a shared skill:
 
 ---
 
+### Strategy 5: Account for Read and Output Waste
+
+Component overhead is the *floor*. In-session reads and pasted tool output are the
+*variable* cost, and usually the larger one. Audit both -- for the session under
+review, count:
+
+- unbounded reads that an `offset`/`limit` or `head_limit` read would have covered;
+- large tool results pasted into the transcript instead of left on disk with a path;
+- repeated broad searches that one deterministic probe would have answered.
+
+Report these as line items alongside component costs. The behavioral rules that fix
+them -- bounded reads, spill, script-first -- live in the `token-optimization` skill:
+audit here, change behavior there.
+
+---
+
 ## Budget Report Format
 
 ```
