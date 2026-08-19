@@ -24,6 +24,7 @@ High-stakes escalation: `/santa` (dual independent reviewers, both must approve)
 - [ ] Registry, coordinator routing, QUICK_START, INVOCATION rows updated for renames/merges.
 - [ ] No schema/rule duplication — reference the single source (generate-operations-config, INVOCATION.md).
 - [ ] Frontmatter examples intact; tools list still minimal.
+- [ ] Every review finding carries a `Class` (see the recurrence table below).
 - [ ] Doesn't contradict HANDOFF_PROTOCOL / VERIFICATION_PROTOCOL / the Iron Law.
 
 **Hook changes:**
@@ -38,6 +39,40 @@ High-stakes escalation: `/santa` (dual independent reviewers, both must approve)
 
 **Installer changes:**
 - [ ] Staging/backup/atomic-swap preserved; mid-failure test passes; manifest correctness; `settings.local.json` survival.
+
+## Finding format and the recurrence ratchet
+
+Every review finding — plan review, code review, or a maintainer reviewing ClaudeKit itself —
+is one block. A finding that cannot fill `Scenario` and `Evidence` is not confirmed and is not
+written.
+
+```
+F<n>      <one-line claim>
+Verdict:  confirmed | refuted | unproven      (refuted is dropped, not softened)
+Blocking: yes | no                            (yes = wrong behavior ships)
+Where:    <path>:<line>                       repository-relative
+Scenario: <the concrete sequence that produces the wrong result>
+Evidence: <what was run or read, and what it returned>
+Class:    <recurrence class from the table below, or "new: <name>">
+Fix:      patch | ticket | decision_needed | dismiss
+```
+
+`Class` is the load-bearing field and the reason the block exists. **When a class reaches three
+entries it earns a mechanical check, or an explicit written "cannot be mechanised, and here is
+why."** Extend the table; never invent a synonym for a row that already exists. This ratchet is
+what task 010 (eval framework) consumes — findings that live only in a transcript die with the
+session, and the same class gets re-found instead of accumulating into a check.
+
+| Class | Shape | What catches it now |
+|---|---|---|
+| `unconfirmed-revision` | a conclusion drawn from a tree never pinned to the reviewed ref | nothing yet — code-reviewer Phase 0 is prose, not a check |
+| `vacuous-check` | a test or gate that cannot fail (mock-only, no-throw, or the fixture re-declares what the shipped artifact owns) | `verification-gap-lens` (prose); no mechanical check |
+| `hardcoded-count` | a component count typed by hand instead of generated | `scripts/gen-docs.py --check` |
+| `registry-drift` | an agent loads a skill the registry does not list | `scripts/gen-registry.py --check` |
+| `dangling-hook` | `settings.json` references a hook file that does not exist | dangling-hooks CI check |
+| `context-floor-creep` | always-on prompt text grows and nothing fails | `scripts/check-context-floor.py --check` |
+| `prose-verified-claim` | a claim resting on reading prose instead of executing something | `_shared/VERIFICATION_PROTOCOL.md` refutation pass (prose) |
+| `duplicate-asset` | a new near-duplicate agent/skill instead of extending the existing one | nothing yet — task 008 is manual |
 
 ## Review philosophy
 

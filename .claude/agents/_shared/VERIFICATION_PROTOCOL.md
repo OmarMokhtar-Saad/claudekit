@@ -54,6 +54,13 @@ conclusion. Answer three questions:
 If any answer weakens the conclusion, either close the gap (run the missing check) or
 downgrade the claim and say so explicitly. A conclusion that was never challenged is an
 opinion, not a verification.
+**Question 4 (code changes only): would a test fail if this change regressed?** Load
+`verification-gap-lens` and work it.
+
+**Ownership — one source, not two.** This protocol owns the refutation pass and applies to every
+agent, including ones that never touch code. `verification-gap-lens` owns the gap shapes, the
+Demonstration technique, and the mutation proof. Do not restate either inside the other; link.
+
 
 ---
 
