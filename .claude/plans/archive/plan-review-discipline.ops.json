@@ -1,0 +1,99 @@
+{
+  "plan": "review-discipline",
+  "operations": [
+    {
+      "type": "file_create",
+      "path": ".claude/skills/verification-gap-lens/SKILL.md",
+      "description": "Step 1: the verification-gap lens as an on-demand skill",
+      "content": "---\nname: verification-gap-lens\ndescription: Use when judging whether tests would actually catch a regression in a code change — four verification-gap shapes, the Demonstration technique, and proving a check binds by mutating the shipped artifact and reading the failure.\nuser-invocable: false\nallowed-tools: Read, Grep, Glob, Bash\n---\n\n# Verification-Gap Lens\n\nAdapted from SHAFT_ENGINE `chaos-engine/references/verification-gap-lens.md` (MIT), itself\nadapted from bmad-method `src/core-skills/bmad-review/references/lens-verification-gap.md`\n(MIT). Trimmed and reworded to ClaudeKit's scale; the attribution chain is preserved\ndeliberately — do not strip it.\n\n## Core Principle\n\n**One question, and only this one:** if the behavior this change is supposed to produce broke\nwhere it is actually used, would a test fail?\n\nThis is not a general correctness hunt — the review dimensions cover that. This lens measures\nverification coverage only. Its output is a list of places where behavior could break and\nnothing would go red. An empty list is a valid, complete result; say so plainly rather than\npadding with low-confidence noise.\n\n---\n\n## The four gap shapes\n\n1. **Regression gap.** The changed code regresses where it is used, and no test covering that\n   use would fail.\n2. **Missing-adoption gap.** A site that should now use the new behavior does not — it handles\n   the same case its own way, or not at all — and no test flags the omission. This qualifies\n   ONLY when there is a real supersession signal (the change's stated intent, a replaced\n   sibling site, a deleted duplicate) **and** the local site shares the same observable\n   contract. Without both, it is a refactor suggestion, not a gap. Say which it is.\n3. **Broken-verification gap.** A test appears to cover the changed behavior but would not\n   catch a regression: skipped, flaky, not run in the normal path (wrong marker, excluded\n   directory, opt-in job), or too weak to observe the change — mock-only, snapshot-only, or a\n   success/no-throw assertion.\n4. **Unbound-check gap.** The change adds or edits a check, guard, pin, gate or metric that\n   would still pass with the thing it protects removed. Three ways it happens:\n   - the test declares its own copy of a pattern, threshold or clause that the shipped artifact\n     owns, so it verifies the copy and not the artifact;\n   - a metric whose input is absent reports that absence as a value (zero findings because\n     nothing ran looks identical to zero findings because nothing is wrong);\n   - the fix's own mechanism is unguarded, so reverting the fix leaves the suite green.\n\n   In this repo these land as: a hook test that re-declares the deny pattern instead of\n   invoking the hook; a gate whose budget table is duplicated in the test; a coverage number\n   computed over a file set that silently became empty.\n\n---\n\n## The Demonstration technique\n\nFor each candidate site, name the **smallest realistic regression a real consumer would\nobserve**: invert the branch, drop the default, omit the field, return the old error code,\nskip the call, let the guard fall through.\n\n- If you cannot name one, drop the path. Untested downstream code that nothing would actually\n  break is not a finding.\n- If you can, find the relevant test and ask: would the Demonstration make an assertion fail?\n  Yes -> verified, no finding. No -> that is the gap; report it with the shape.\n\n---\n\n## Proving a check binds (your own diff)\n\nImagining the Demonstration is correct for code you are *reviewing*. For a check in your **own\ndiff** it is not, because the mutation is free and revertible:\n\n```\napply the mutation to the SHIPPED artifact -> run the check -> read the failure -> revert\n```\n\nMutate the shipped artifact, never a fixture. A green run after mutating the fixture proves\nonly that the fixture moved.\n\n**Weakening counts as a mutation.** A rule survives deletion and dies by addition: appending\n\"unless time is short\" leaves every pinned word in place while gutting the rule, so mutate by\nqualifying as well as by removing. Make the metric move; a metric that cannot report failure is\nreporting its own absence.\n\n---\n\n## Evidence rules (non-negotiable)\n\n- Read a test before claiming what it covers, runs, asserts, or misses — and re-open it before\n  writing the finding rather than reporting from memory of a glance earlier in the review.\n- Before claiming no test exists, search the repository by symbol and by import reference.\n  Expected file locations alone are not enough.\n- A green build banner proves nothing when the runner writes structured reports. Read the\n  report counts before calling anything green.\n- State what you actually checked and how far you looked (\"none of the tests I read cover\n  this\"). An ungrounded finding is dropped, not softened.\n- Do not assign severity or priority here — the reviewing agent's severity table owns that.\n\n---\n\n## Trimmed review sequence\n\n1. **Screen for behavioral change.** Formatting, renames, type-only, pure docs -> zero\n   findings, stop and say so.\n2. **Name what changed:** output, side effect, branch, error path, schema shape, default,\n   contract.\n3. **Trace consumers:** direct callers, registered entry points, contract consumers. Stop at\n   the nearest boundary where a test would fail, or where the next hop is guesswork.\n4. **Qualify each consumer with the Demonstration, then read its test.**\n\n---\n\n## Finding shape\n\n```\nlocation:             <path>:<line>\ntrigger_condition:    <the gap, one line>\npotential_consequence:<what ships wrong, and why the tests you read would not catch it>\ngap_shape:            regression | missing-adoption | broken-verification | unbound-check | other\nevidence:             <what you actually read or ran, with file:line>\n```\n\n`other` is only for a genuine problem noticed in passing — it is not a bucket for hunches.\nWhen the consuming agent uses recurrence classes, this lens' `gap_shape` maps onto the\n`Class` field (see `.ai/REVIEW_GUIDE.md`).\n\n---\n\n## Anti-Patterns (NEVER DO THESE)\n\n- NEVER claim a test covers something you did not open.\n- NEVER report a gap you cannot attach a Demonstration to.\n- NEVER call a self-written check verified without mutating the shipped artifact and reading\n  the failure.\n- NEVER treat \"the build was green\" as evidence when the runner writes a report file.\n- NEVER promote a refactor suggestion to a missing-adoption gap without a supersession signal\n  AND a shared observable contract.\n"
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/code-reviewer.md",
+      "description": "Steps 2-4: Phase 0 revision confirmation, lens trigger, Class field + ratchet",
+      "edits": [
+        {
+          "find": "- **differential-security-review** — load when reviewing a diff or PR for security regressions",
+          "replace": "- **differential-security-review** — load when reviewing a diff or PR for security regressions\n- **verification-gap-lens** — load when the diff changes behavior and you must judge whether any\n  test would fail if that behavior regressed (dimension 5, and every \"has no test\" claim)"
+        },
+        {
+          "find": "### Phase 1: Scope Assessment",
+          "add_before": "### Phase 0: Confirm the Revision (before any finding)\n\nYou cannot review a revision you have not pinned. A search that misses because the working\ntree holds a different revision returns a clean no-match — indistinguishable from a real\nabsence, and the most confident wrong answer a review can produce. `/worktree` and multi-agent\nworktrees mean the shared tree is routinely NOT the revision under review.\n\nConfirm via ONE of these four paths, and never mutate the shared working tree:\n\n```\na. PR:               gh pr diff <n>   +   gh pr view <n> --json headRefOid\nb. Named ref / SHA:  git diff <base>...<ref>   +   git show <ref>:<path>   per file\nc. Whole-tree search needed: git worktree add --detach <tmpdir> <ref>, search there,\n   then git worktree remove <tmpdir>\nd. LOCAL UNCOMMITTED WORK (the common case, and the default for /review with no argument):\n   git rev-parse HEAD\n   git diff HEAD --stat  +  git diff HEAD --name-only     (tracked, modified)\n   git ls-files --others --exclude-standard               (NEW, untracked files)\n   A dirty tree is CONFIRMABLE, not disqualifying. Report:\n   Revision: <sha> + uncommitted working tree (N files dirty)\n   Caveat: git diff does not list newly added (untracked) files — enumerate them with\n   git ls-files --others --exclude-standard, or state explicitly in the header that new\n   files were not enumerated. In this repo the dominant change shape is ADDING files, so\n   skipping this step hides the change's primary artifact behind a confident header.\n```\n\nNever run git checkout / git switch / git stash / git restore in the shared tree.\n\n**STOP only when the revision is genuinely ambiguous** — the tree is dirty AND the caller named\na different ref, so you cannot tell which one you are reading. Then report\n`VERDICT: CANNOT REVIEW` with what you tried and which two revisions conflict. Never report a\nclean result, an APPROVE, or a \"no match found\" from an unconfirmed tree.\n\n"
+        },
+        {
+          "find": "1. Identify what changed: files added, modified, deleted",
+          "replace": "1. Identify what changed at the CONFIRMED revision from Phase 0 (never from the\n   ambient working tree): files added, modified, deleted"
+        },
+        {
+          "find": "Reviewer: code-reviewer (Opus)",
+          "replace": "Reviewer: code-reviewer (Opus)\nRevision: <confirmed head SHA> (confirmed via <gh pr diff | git show | git worktree | git diff HEAD>)\n          for local uncommitted work use: <sha> + uncommitted working tree (N files dirty)"
+        },
+        {
+          "find": "  Evidence: <exact code snippet showing the issue>\n  Impact: <what goes wrong and how bad>\n  Fix: <specific, actionable fix>",
+          "replace": "  Evidence: <exact code snippet showing the issue>\n  Impact: <what goes wrong and how bad>\n  Class: <recurrence class, or \"new: <name>\">\n  Fix: <specific, actionable fix>"
+        },
+        {
+          "find": "  Evidence: <code snippet>\n  Impact: <consequence>\n  Fix: <fix>",
+          "replace": "  Evidence: <code snippet>\n  Impact: <consequence>\n  Class: <recurrence class, or \"new: <name>\">\n  Fix: <fix>"
+        },
+        {
+          "find": "## Anti-Patterns (NEVER DO THESE)",
+          "add_before": "---\n\n## Finding Classes (the ratchet)\n\nEvery finding carries a `Class` naming its **recurrence class** — the shape of the mistake, not\nits location. Use an existing row from the table in `.ai/REVIEW_GUIDE.md`; if none fits, write\n`new: <kebab-name>`. Never invent a synonym for a row that already exists.\n\n> **When a class reaches three entries it EARNS a mechanical check** — or an explicit, written\n> \"cannot be mechanised, and here is why\". This is the ratchet that converts prose review into\n> enforcement; a class that keeps recurring with no check is the review system failing, not the\n> author.\n\nState the ratchet in the report when a class hits three: name the class, the three entries, and\neither the check you propose or the reason it cannot be mechanised.\n"
+        },
+        {
+          "find": "- NEVER report an issue without a specific file:line reference",
+          "replace": "- NEVER report an issue without a specific file:line reference\n- NEVER write a finding before Phase 0 confirmed the revision\n- NEVER mutate the shared working tree (no checkout/switch/stash/restore) to read a revision\n- NEVER report \"no match\", a clean scan, or APPROVE from a tree whose revision you did not confirm\n- NEVER omit the Class field from a finding"
+        },
+        {
+          "find": "VERDICT: [APPROVE | APPROVE WITH SUGGESTIONS | REQUEST CHANGES | BLOCK]",
+          "replace": "VERDICT: [APPROVE | APPROVE WITH SUGGESTIONS | REQUEST CHANGES | BLOCK | CANNOT REVIEW]"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/verifier.md",
+      "description": "Step 5: lens trigger + Demonstration in test-quality scoring",
+      "edits": [
+        {
+          "find": "- **performance-guidelines** — load when the task involves latency, memory, or throughput",
+          "replace": "- **performance-guidelines** — load when the task involves latency, memory, or throughput\n- **verification-gap-lens** — load when scoring test quality or deciding whether a change is\n  actually covered (Phase 3 step 5); it is the method behind \"meaningful, not trivial\""
+        },
+        {
+          "find": "5. Assess test quality (are new tests meaningful?)",
+          "replace": "5. Assess test quality by applying the verification-gap-lens Demonstration and mutation proof"
+        },
+        {
+          "find": "- NEVER ignore failing tests",
+          "replace": "- NEVER ignore failing tests\n- NEVER score a test as meaningful without naming the regression it would catch\n- NEVER count a check that would still pass with the thing it protects removed (see\n  `verification-gap-lens`, unbound-check)"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/_shared/VERIFICATION_PROTOCOL.md",
+      "description": "Step 6: refutation pass delegates to the lens; ownership stated",
+      "edits": [
+        {
+          "find": "If any answer weakens the conclusion, either close the gap (run the missing check) or\ndowngrade the claim and say so explicitly. A conclusion that was never challenged is an\nopinion, not a verification.",
+          "add_after": "\n**Question 4 (code changes only): would a test fail if this change regressed?** Load\n`verification-gap-lens` and work it.\n\n**Ownership — one source, not two.** This protocol owns the refutation pass and applies to every\nagent, including ones that never touch code. `verification-gap-lens` owns the gap shapes, the\nDemonstration technique, and the mutation proof. Do not restate either inside the other; link.\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".ai/REVIEW_GUIDE.md",
+      "description": "Step 7: seed the recurrence-class table and finding block",
+      "edits": [
+        {
+          "find": "## Review philosophy",
+          "add_before": "## Finding format and the recurrence ratchet\n\nEvery review finding — plan review, code review, or a maintainer reviewing ClaudeKit itself —\nis one block. A finding that cannot fill `Scenario` and `Evidence` is not confirmed and is not\nwritten.\n\n```\nF<n>      <one-line claim>\nVerdict:  confirmed | refuted | unproven      (refuted is dropped, not softened)\nBlocking: yes | no                            (yes = wrong behavior ships)\nWhere:    <path>:<line>                       repository-relative\nScenario: <the concrete sequence that produces the wrong result>\nEvidence: <what was run or read, and what it returned>\nClass:    <recurrence class from the table below, or \"new: <name>\">\nFix:      patch | ticket | decision_needed | dismiss\n```\n\n`Class` is the load-bearing field and the reason the block exists. **When a class reaches three\nentries it earns a mechanical check, or an explicit written \"cannot be mechanised, and here is\nwhy.\"** Extend the table; never invent a synonym for a row that already exists. This ratchet is\nwhat task 010 (eval framework) consumes — findings that live only in a transcript die with the\nsession, and the same class gets re-found instead of accumulating into a check.\n\n| Class | Shape | What catches it now |\n|---|---|---|\n| `unconfirmed-revision` | a conclusion drawn from a tree never pinned to the reviewed ref | nothing yet — code-reviewer Phase 0 is prose, not a check |\n| `vacuous-check` | a test or gate that cannot fail (mock-only, no-throw, or the fixture re-declares what the shipped artifact owns) | `verification-gap-lens` (prose); no mechanical check |\n| `hardcoded-count` | a component count typed by hand instead of generated | `scripts/gen-docs.py --check` |\n| `registry-drift` | an agent loads a skill the registry does not list | `scripts/gen-registry.py --check` |\n| `dangling-hook` | `settings.json` references a hook file that does not exist | dangling-hooks CI check |\n| `context-floor-creep` | always-on prompt text grows and nothing fails | `scripts/check-context-floor.py --check` |\n| `prose-verified-claim` | a claim resting on reading prose instead of executing something | `_shared/VERIFICATION_PROTOCOL.md` refutation pass (prose) |\n| `duplicate-asset` | a new near-duplicate agent/skill instead of extending the existing one | nothing yet — task 008 is manual |\n\n"
+        },
+        {
+          "find": "- [ ] Frontmatter examples intact; tools list still minimal.",
+          "replace": "- [ ] Frontmatter examples intact; tools list still minimal.\n- [ ] Every review finding carries a `Class` (see the recurrence table below)."
+        }
+      ]
+    }
+  ]
+}

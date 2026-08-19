@@ -243,7 +243,7 @@ These files cannot be deleted via operations config:
 
 ## Skills
 
-ClaudeKit includes 75 reusable skills that agents load on-demand:
+ClaudeKit includes 76 reusable skills that agents load on-demand:
 
 | Category | Skills |
 |----------|--------|
@@ -317,7 +317,7 @@ Each project gets a `CONSTITUTION.md` — a governance document that agents enfo
 |-----------|------:|
 | Agents    | 29 |
 | Commands  | 42 |
-| Skills    | 75 |
+| Skills    | 76 |
 | Hooks     | 19 |
 <!-- END GENERATED:inventory -->
 
@@ -339,7 +339,7 @@ claudekit/
 │   │   ├── explore.md
 │   │   └── _shared/                  # Templates and protocols
 │   ├── commands/                     # 42 slash commands
-│   ├── skills/                       # 75 domain skills + registry
+│   ├── skills/                       # 76 domain skills + registry
 │   ├── hooks/                        # 19 workflow hooks + lib.sh
 │   ├── operations/scripts/           # Validate, execute, restore
 │   └── local/                        # CLAUDE.md + CONSTITUTION.md templates
