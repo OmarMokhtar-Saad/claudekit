@@ -1,6 +1,6 @@
 # Hooks
 
-ClaudeKit ships 19 hook scripts (plus `lib.sh`, a shared helper library) wired
+ClaudeKit ships 20 hook scripts (plus `lib.sh`, a shared helper library) wired
 into Claude Code through `.claude/settings.json`. They enforce guardrails,
 capture telemetry, and automate housekeeping around the agent workflow.
 
