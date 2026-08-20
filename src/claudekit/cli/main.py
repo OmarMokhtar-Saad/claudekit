@@ -33,6 +33,13 @@ def _resolve_version() -> str:
 
 __version__ = _resolve_version()
 
+# BEGIN GENERATED:counts - owned by scripts/gen-docs.py; never hand-edit.
+# Regenerate with: python3 scripts/gen-docs.py
+EXPECTED_AGENTS = 29
+EXPECTED_COMMANDS = 42
+EXPECTED_SKILLS = 76
+# END GENERATED:counts
+
 # Colors
 class C:
     RED = '\033[0;31m'
@@ -141,6 +148,42 @@ def _required_hook_scripts(text):
     return names
 
 
+def _check_config_schema(data, check):
+    """Apply the shipped `config.schema.json` to `.claude/hooks/config.json`.
+
+    The schema shipped for weeks without a single executable applying it, so the
+    config drifted out of conformance unnoticed. It is wired here rather than in a
+    hook so it runs wherever `ck doctor` runs. `jsonschema` is an optional extra
+    (`pip install 'claude-kit[validation]'`) because the runtime is dependency-free;
+    when it is absent the check degrades to a warning instead of silently passing.
+    """
+    root = find_claudekit_root()
+    schema_path = (root / "config.schema.json") if root else None
+    label = "Hooks config.json matches config.schema.json"
+    if schema_path is None or not schema_path.is_file():
+        check(label, "warn", "config.schema.json not found in the ClaudeKit install")
+        return
+    try:
+        import jsonschema
+    except ImportError:
+        check(label, "warn",
+              "jsonschema not installed - run: pip install 'claude-kit[validation]'")
+        return
+    try:
+        schema = json.loads(schema_path.read_text())
+    except json.JSONDecodeError as e:
+        check(label, False, f"config.schema.json is invalid JSON: {e}")
+        return
+    errors = sorted(jsonschema.Draft7Validator(schema).iter_errors(data),
+                    key=lambda e: list(e.path))
+    if errors:
+        detail = "; ".join(f"{'/'.join(str(x) for x in e.path) or '<root>'}: {e.message}"
+                           for e in errors[:3])
+        check(label, False, f"{len(errors)} schema violation(s): {detail}")
+    else:
+        check(label, True)
+
+
 def cmd_doctor(args):
     """Run health checks on the current ClaudeKit installation."""
     print(f"\n{C.CYAN}ClaudeKit Doctor v{__version__}{C.NC}\n")
@@ -199,21 +242,21 @@ def cmd_doctor(args):
         agents = list((claude_dir / "agents").glob("*.md")) if (claude_dir / "agents").is_dir() else []
         agent_count = len([a for a in agents if a.name not in ("HANDOFF_PROTOCOL.md", "QUICK_START.md")])
         check(f"Agents installed: {agent_count}",
-              agent_count >= 9,
-              f"Expected ≥9 agents, found {agent_count}")
+              agent_count >= EXPECTED_AGENTS,
+              f"Expected ≥{EXPECTED_AGENTS} agents, found {agent_count}")
 
         # Commands
         commands = list((claude_dir / "commands").glob("*.md")) if (claude_dir / "commands").is_dir() else []
         check(f"Commands installed: {len(commands)}",
-              len(commands) >= 8,
-              f"Expected ≥8 commands, found {len(commands)}")
+              len(commands) >= EXPECTED_COMMANDS,
+              f"Expected ≥{EXPECTED_COMMANDS} commands, found {len(commands)}")
 
         # Skills
         skills_dir = claude_dir / "skills"
         if skills_dir.is_dir():
             skill_dirs = [d for d in skills_dir.iterdir() if d.is_dir() and (d / "SKILL.md").exists()]
-            check(f"Skills installed: {len(skill_dirs)}", len(skill_dirs) >= 27,
-                  f"Expected ≥27 skills, found {len(skill_dirs)}")
+            check(f"Skills installed: {len(skill_dirs)}", len(skill_dirs) >= EXPECTED_SKILLS,
+                  f"Expected ≥{EXPECTED_SKILLS} skills, found {len(skill_dirs)}")
         else:
             check("Skills directory", False, "Missing .claude/skills/")
 
@@ -305,6 +348,7 @@ def cmd_doctor(args):
                         warn(f"  config.json: {cmd_name} not configured")
                         checks_warned += 1
                 check("Hooks config.json valid", True)
+                _check_config_schema(data, check)
             except json.JSONDecodeError as e:
                 check("Hooks config.json", False, f"Invalid JSON: {e}")
 

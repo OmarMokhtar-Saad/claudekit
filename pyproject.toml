@@ -54,4 +54,4 @@ ignore = ["E501"]  # line length handled leniently; docs/tables run long
 [tool.mypy]
 python_version = "3.9"
 ignore_missing_imports = true
-files = ["src/claudekit"]
+files = ["src/claudekit", ".claude/operations/scripts"]

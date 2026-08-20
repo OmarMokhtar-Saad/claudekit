@@ -27,11 +27,26 @@ END = "<!-- END GENERATED:inventory -->"
 # Files whose prose is scanned for stale "<n> <noun>" counts.
 DRIFT_FILES = [
     "README.md",
+    "src/claudekit/cli/main.py",
     "docs/AGENTS.md",
     "docs/ARCHITECTURE.md",
     "docs/SKILLS.md",
     "docs/HOOKS.md",
 ]
+
+# Generated *code* block: `ck doctor` asserts an installed tree carries the full
+# shipped inventory, so its floors are counts and are generator-owned exactly like
+# the README table (CLAUDE.md hard rule 8). Hooks are excluded on purpose: a
+# `--minimal` install legitimately ships a subset.
+PY_BEGIN = "# BEGIN GENERATED:counts"
+PY_END = "# END GENERATED:counts"
+PY_BLOCK_FILE = "src/claudekit/cli/main.py"
+
+# Prose auto-fix rewrites a bare number in place. That is safe in Markdown but not
+# in Python: a literal like `>= 9` in a comparison has no noun beside it, so only
+# its message twin would be rewritten and the check would silently disagree with
+# what it prints. Code counts must move into the generated block by hand instead.
+NO_AUTOFIX = {PY_BLOCK_FILE}
 
 # A number followed by (optionally one adjective) one of the tracked nouns:
 #   "28 agents", "39 slash commands", "73 domain skills", "18 workflow hooks".
@@ -118,8 +133,20 @@ def render_block(c: dict) -> str:
     )
 
 
-def _replace_block(text: str, block: str) -> str:
-    pattern = re.compile(re.escape(BEGIN) + r".*?" + re.escape(END), re.DOTALL)
+def render_py_block(c: dict) -> str:
+    """The CLI's doctor floors, as Python constants. Same contract as the README table."""
+    return (
+        f"{PY_BEGIN} - owned by scripts/gen-docs.py; never hand-edit.\n"
+        f"# Regenerate with: python3 scripts/gen-docs.py\n"
+        f"EXPECTED_AGENTS = {c['agent']}\n"
+        f"EXPECTED_COMMANDS = {c['command']}\n"
+        f"EXPECTED_SKILLS = {c['skill']}\n"
+        f"{PY_END}"
+    )
+
+
+def _replace_block(text: str, block: str, begin: str = BEGIN, end: str = END) -> str:
+    pattern = re.compile(re.escape(begin) + r".*?" + re.escape(end), re.DOTALL)
     if pattern.search(text):
         return pattern.sub(lambda _m: block, text)
     return text  # no markers -> nothing to update
@@ -162,6 +189,8 @@ def fix_drift(c: dict) -> list:
     """
     changed = []
     for rel in DRIFT_FILES:
+        if rel in NO_AUTOFIX:
+            continue
         path = ROOT / rel
         if not path.exists():
             continue
@@ -183,7 +212,16 @@ def main(argv=None) -> int:
     text = readme.read_text()
     new_text = _replace_block(text, render_block(c))
 
+    py_path = ROOT / PY_BLOCK_FILE
+    py_text = py_path.read_text() if py_path.exists() else ""
+    # A missing marker must be an error, not a silent pass: `_replace_block` returns
+    # the text unchanged when it finds no markers, so without this the whole gate
+    # could be disabled by deleting the block it guards.
+    py_missing = PY_BEGIN not in py_text
+    new_py_text = _replace_block(py_text, render_py_block(c), PY_BEGIN, PY_END)
+
     block_stale = new_text != text
+    py_stale = not py_missing and new_py_text != py_text
     drift = scan_drift(c)
 
     print(f"Counts: agents={c['agent']} commands={c['command']} "
@@ -193,6 +231,15 @@ def main(argv=None) -> int:
         rc = 0
         if block_stale:
             print("ERROR: README generated inventory block is out of date. "
+                  "Run: python3 scripts/gen-docs.py", file=sys.stderr)
+            rc = 1
+        if py_missing:
+            print(f"ERROR: {PY_BLOCK_FILE} has no {PY_BEGIN!r} block - the generated "
+                  "count gate is not bound to anything. Restore the block.",
+                  file=sys.stderr)
+            rc = 1
+        elif py_stale:
+            print(f"ERROR: generated counts block in {PY_BLOCK_FILE} is out of date. "
                   "Run: python3 scripts/gen-docs.py", file=sys.stderr)
             rc = 1
         if drift:
@@ -210,6 +257,13 @@ def main(argv=None) -> int:
         print("Updated README generated inventory block.")
     else:
         print("README generated inventory block already current.")
+    if py_missing:
+        print(f"ERROR: {PY_BLOCK_FILE} has no {PY_BEGIN!r} block - nothing to "
+              "regenerate. Restore the block.", file=sys.stderr)
+        return 1
+    if py_stale:
+        py_path.write_text(new_py_text)
+        print(f"Updated generated counts block in {PY_BLOCK_FILE}.")
     if drift:
         for rel in fix_drift(c):
             print(f"Updated stale counts in {rel}.")

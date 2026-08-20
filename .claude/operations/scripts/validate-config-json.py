@@ -23,7 +23,7 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from shared import PROTECTED_PATTERNS, is_protected_file, allowed_run_commands, __version__
 
@@ -468,7 +468,7 @@ def validate_legacy_format(config: dict, errors: List[str]) -> Tuple[bool, List[
     Duplicate paths across entries are threaded through legacy_sim so each edit is
     checked against the content as it will exist when the executor reaches it.
     """
-    legacy_sim = {}
+    legacy_sim: Dict[str, Any] = {}
     if 'files' not in config:
         errors.append("Missing required key: 'files'")
         return False, errors
@@ -548,7 +548,7 @@ def validate_modern_format(config: dict, errors: List[str]) -> Tuple[bool, List[
 
     # Validate all operations, threading simulated content across ops on the same file
     valid_types = ['file_create', 'file_delete', 'code_edit', 'run_command']
-    sim_files = {}
+    sim_files: Dict[str, Any] = {}
     for i, op in enumerate(operations, 1):
         op_type = op.get('type', '')
 
@@ -612,7 +612,7 @@ def validate_modern_format(config: dict, errors: List[str]) -> Tuple[bool, List[
     return len(errors) == 0, errors
 
 
-def validate_backup_compatibility(config_file: str, config: dict = None) -> Tuple[bool, List[str]]:
+def validate_backup_compatibility(config_file: str, config: Optional[dict] = None) -> Tuple[bool, List[str]]:
     """
     Validate backup/restore compatibility (GUARDS 19-24).
 
@@ -712,7 +712,7 @@ def validate_backup_compatibility(config_file: str, config: dict = None) -> Tupl
             )
 
     # GUARD 23: File naming collision detection (warning only — backup uses nested dirs)
-    filename_map = {}
+    filename_map: Dict[str, List[str]] = {}
     for file_path in file_paths:
         filename = os.path.basename(file_path)
         if filename in filename_map and filename_map[filename] != file_path:
