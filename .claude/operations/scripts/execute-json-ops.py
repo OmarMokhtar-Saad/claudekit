@@ -16,6 +16,7 @@ Features:
   - Dry-run mode with diff preview for code edits (state threaded across operations)
   - Fail-closed edits: a missing or ambiguous anchor aborts before any write
   - First-write-wins backups so rollback always restores pristine content
+  - Permission-preserving writes (an edited 0755 script stays 0755)
   - Transactional execution with automatic rollback on failure
   - Machine-readable RESULT-JSON summary line on config load/normalize error, lock contention, manifest failure, operation failure, crash, and signal
   - Execution lock to prevent concurrent runs
@@ -29,6 +30,7 @@ import os
 import re
 import signal
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -58,6 +60,18 @@ LOCK_FILE = ".codemanifest.lock"
 # refused rather than silently corrupting the recovery manifest.
 MANIFEST_NAME = "manifest.json"
 
+# Permission bits for files the engine creates. mkstemp() makes temp files
+# 0600 and os.replace() carries that mode onto the target, so without an
+# explicit chmod every write would narrow the file. New files get what a
+# normal tool (shell redirect, editor) would produce: 0666 masked by the
+# process umask, i.e. 0644 under the default 022. Existing files keep their
+# own mode (see atomic_write). The umask is snapshotted once at import on
+# purpose: the CLI entrypoint never changes it, and a stable default beats a
+# value that could shift mid-run if this module is ever imported and reused.
+_PROCESS_UMASK = os.umask(0)
+os.umask(_PROCESS_UMASK)
+DEFAULT_CREATE_MODE = 0o666 & ~_PROCESS_UMASK
+
 # Global transaction reference for signal handler rollback
 _active_txn: Optional['OperationTransaction'] = None
 
@@ -81,11 +95,31 @@ def _signal_handler(signum, frame):
     sys.exit(130 if signum == signal.SIGINT else 143)
 
 
-def atomic_write(file_path: Path, content: str, encoding: str = 'utf-8'):
-    """Write content to file atomically via temp file + rename."""
+def current_mode(file_path: Path) -> Optional[int]:
+    """Permission bits of an existing path, or None if it does not exist."""
+    try:
+        return stat.S_IMODE(os.stat(str(file_path)).st_mode)
+    except OSError:
+        return None
+
+
+def atomic_write(file_path: Path, content: str, encoding: str = 'utf-8',
+                 mode: Optional[int] = None) -> None:
+    """Write content to file atomically via temp file + rename.
+
+    Permission bits are preserved: an edit of a 0755 script must stay 0755.
+    The target's existing mode wins; a brand-new file gets DEFAULT_CREATE_MODE.
+    stat.S_IMODE keeps the 0o7000 bits, so a setuid/setgid/sticky target has
+    those bits re-applied to the temp file before the rename. That is not an
+    escalation: the temp file has the same owner and its content is already
+    written and fsynced before the chmod.
+    """
     dir_path = file_path.parent
     tmp_path = None
     fd = None
+    target_mode = mode if mode is not None else current_mode(file_path)
+    if target_mode is None:
+        target_mode = DEFAULT_CREATE_MODE
     try:
         fd, tmp_path = tempfile.mkstemp(dir=str(dir_path), suffix='.tmp')
         with os.fdopen(fd, 'w', encoding=encoding) as f:
@@ -93,6 +127,11 @@ def atomic_write(file_path: Path, content: str, encoding: str = 'utf-8'):
             f.write(content)
             f.flush()
             os.fsync(f.fileno())
+        try:
+            os.chmod(tmp_path, target_mode)
+        except (OSError, NotImplementedError):
+            # Platform without working chmod: keep the write, skip the mode.
+            pass
         os.replace(tmp_path, str(file_path))
     except BaseException:
         if fd is not None:
