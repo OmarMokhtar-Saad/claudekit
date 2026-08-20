@@ -250,10 +250,16 @@ post-merge total there is **1216 passed**. `tests/test_gate_scope.py` alone: **1
 `ck doctor --strict` exits **1 both before and after this change**. Cause: three warnings for
 empty `project.build_cmd` / `test_cmd` / `lint_cmd` in `.claude/hooks/config.json`, and
 `--strict` fails on warnings. This is **pre-existing** (measured on the untouched tree) and
-this plan neither causes nor fixes it. It is deliberately *not* fixed here: `install.sh`
+this plan neither causes nor fixes it. **CORRECTION (see `plan-doctor-gate.md`):** the reason
+given below for not fixing it is FALSE and the fix has since landed. `install.sh` does *not*
+copy this file verbatim - `install.sh:482-501` overwrites the whole `project` section with
+language-detected commands on a `--full` install (measured), and that rewrite's failure path
+now blanks the section - or aborts the install - rather than leaving this repo's commands
+behind. Original, incorrect rationale, kept for the record:
+~~`install.sh`
 copies `.claude/hooks/config.json` verbatim into user projects, so populating it with
 ClaudeKit's own `pytest`/`ruff` commands would ship this repo's build commands to every
-user. **Unblocked by:** giving `ck init` a project-local config template, or exempting
+user.~~ **Unblocked by:** giving `ck init` a project-local config template, or exempting
 "unconfigured project commands" from `--strict`. Neither is in this workstream's ownership.
 The non-strict `ck doctor` exits 0, and check counts improve from 23/26 to 24/27.
 

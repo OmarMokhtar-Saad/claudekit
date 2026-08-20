@@ -49,6 +49,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   failure never blocks work.
 
 ### Fixed
+- **A configured-looking command that ran nothing, and a health gate that could not pass**
+  (plan: `.claude/plans/plan-doctor-gate.md`). `install.sh` defaulted every unconfigured
+  project command to a no-op print command, and `templates/generic/config.env` shipped the
+  same placeholder. It exits 0, so `pre-push` "ran the full test suite" and printed
+  `Tests: PASSED` for a project with no tests configured - strictly worse than an empty
+  value, which the hook skips and says so. Unconfigured commands now stay empty; only the
+  rendered `CLAUDE.md`/`CONSTITUTION.md` get a human-readable placeholder.
+  **Deliberate regression, disclosed at install time:** a project whose commands cannot be
+  detected now goes from `ck doctor --strict` exit 0 to exit 1 until you configure them.
+  Empty is the honest state, and a project whose gates run nothing should be told so; the
+  installer now prints exactly that. Relatedly, if the installer cannot rewrite
+  `.claude/hooks/config.json` for your project it blanks the command section, and if that
+  write fails too it aborts and cleans up its staging directory - it will no longer leave
+  ClaudeKit's own `pytest`/`ruff` invocations in your repo to be executed by your next
+  commit.
+- **`ck doctor --strict` failed on a `--minimal` install that was exactly as installed**
+  (same plan). Skills, the skills registry, hooks and `settings.json` are absent there **by
+  design**, and doctor now reads `.claude/.claudekit-manifest.json` to say so through a new
+  `Skipped` result - separate from `Passed`, so a minimal install no longer reports the same
+  verdict as a full one, and separate from `Warnings`, so it does not fail `--strict`. The
+  manifest is unsigned, hand-editable JSON, so `mode` is never trusted alone: the manifest's
+  own file record must also list no skills, hooks or `settings.json`. Flipping `mode` on a
+  half-delivered full install therefore still fails, as does a tree with no manifest - while
+  your own skills and hooks added to a minimal install, never being kit-managed, keep it
+  green. This repo's own `project` commands are populated too (overwritten per project at
+  install time, so nothing leaks to users), which makes `ck doctor --strict` exit 0 here for
+  the first time. `coverage_cmd` requires `pytest-cov`: install `tests/requirements.txt` or
+  `post-implement` will report coverage FAILED (loudly, never as a pass).
 - **Installer shipped `settings.json` but not the Python hooks it references**, so a fresh
   full-mode install blocked every Edit, Write and Bash: `python3 <missing-file>` exits 2, and
   exit 2 on `PreToolUse` means BLOCK. The extension allowlist is replaced with a structural

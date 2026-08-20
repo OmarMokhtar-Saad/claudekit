@@ -53,6 +53,9 @@ class C:
 def info(msg): print(f"{C.BLUE}[*]{C.NC} {msg}")
 def ok(msg): print(f"{C.GREEN}[✓]{C.NC} {msg}")
 def warn(msg): print(f"{C.YELLOW}[!]{C.NC} {msg}")
+# "not applicable to this install" - neither a pass nor a problem. Without it,
+# a mode-aware check has to fake a PASS, inflating the passed count.
+def skip(msg): print(f"{C.CYAN}[-]{C.NC} {msg}")
 def err(msg): print(f"{C.RED}[✗]{C.NC} {msg}", file=sys.stderr)
 
 
@@ -191,12 +194,22 @@ def cmd_doctor(args):
     checks_passed = 0
     checks_failed = 0
     checks_warned = 0
+    checks_skipped = 0
 
     def check(name, condition, fix_hint=""):
-        nonlocal checks_passed, checks_failed, checks_warned
+        """True=pass, "skip"=not applicable to this install, "warn", else fail.
+
+        "skip" is counted separately on purpose: it must not inflate the passed
+        count (a minimal install is not as healthy as a full one) and it must not
+        fail --strict (the absence it reports is by design).
+        """
+        nonlocal checks_passed, checks_failed, checks_warned, checks_skipped
         if condition is True:
             ok(name)
             checks_passed += 1
+        elif condition == "skip":
+            skip(f"{name} — {fix_hint}" if fix_hint else name)
+            checks_skipped += 1
         elif condition == "warn":
             warn(f"{name} — {fix_hint}")
             checks_warned += 1
@@ -238,6 +251,25 @@ def cmd_doctor(args):
           "Run: claudekit init")
 
     if claude_dir.is_dir():
+        # A `--minimal` install ships "agents, commands, and operations only", so no
+        # skills, no hooks and no settings.json is the DESIGNED state there. Excusing
+        # those absences takes two facts, both required:
+        #   1. the manifest says mode == minimal, and
+        #   2. the manifest's own file RECORD lists no skills, hooks or settings.json
+        #      - i.e. this install never delivered them.
+        # (2) is checked against the record, not the working tree, and that choice is
+        # load-bearing in both directions. .claudekit-manifest.json is unsigned,
+        # hand-editable JSON: flipping `mode` from full to minimal leaves `files` still
+        # listing every skill and hook the full install recorded, so a half-delivered
+        # full install stays red (the "shipped settings.json but not the hooks it
+        # references" bug class). Conversely a user's OWN skill or hook dropped into a
+        # minimal install does not revoke the excuse - it was never kit-managed.
+        _manifest = _load_manifest(".") or {}
+        _kit_optional = [rel for rel in (_manifest.get("files") or {})
+                         if rel == "settings.json"
+                         or rel.startswith(("skills/", "hooks/"))]
+        minimal_install = _manifest.get("mode") == "minimal" and not _kit_optional
+
         # Agents
         agents = list((claude_dir / "agents").glob("*.md")) if (claude_dir / "agents").is_dir() else []
         agent_count = len([a for a in agents if a.name not in ("HANDOFF_PROTOCOL.md", "QUICK_START.md")])
@@ -253,8 +285,13 @@ def cmd_doctor(args):
 
         # Skills
         skills_dir = claude_dir / "skills"
-        if skills_dir.is_dir():
-            skill_dirs = [d for d in skills_dir.iterdir() if d.is_dir() and (d / "SKILL.md").exists()]
+        skill_dirs = ([d for d in skills_dir.iterdir()
+                       if d.is_dir() and (d / "SKILL.md").exists()]
+                      if skills_dir.is_dir() else [])
+        if minimal_install and len(skill_dirs) < EXPECTED_SKILLS:
+            check(f"Skills installed: {len(skill_dirs)}", "skip",
+                  "minimal install ships no skills")
+        elif skills_dir.is_dir():
             check(f"Skills installed: {len(skill_dirs)}", len(skill_dirs) >= EXPECTED_SKILLS,
                   f"Expected ≥{EXPECTED_SKILLS} skills, found {len(skill_dirs)}")
         else:
@@ -274,6 +311,8 @@ def cmd_doctor(args):
                 check(f"Skills registry valid: {len(skill_ids)} skills, {len(data.get('agentMapping', {}))} agents", True)
             except (json.JSONDecodeError, KeyError) as e:
                 check("Skills registry", False, f"Invalid JSON: {e}")
+        elif minimal_install:
+            check("Skills registry", "skip", "not shipped in minimal mode")
         else:
             check("Skills registry", False, "Missing skills-registry.json")
 
@@ -297,7 +336,10 @@ def cmd_doctor(args):
                           True if is_exec else "warn",
                           f"Not executable. Run: chmod +x {hook_path}")
                 else:
-                    check(f"Hook: {hook}", "warn", "Not installed (minimal mode?)")
+                    check(f"Hook: {hook}",
+                          "skip" if minimal_install else "warn",
+                          "not shipped in minimal mode" if minimal_install
+                          else "Not installed (minimal mode?)")
 
         # settings.json
         settings = claude_dir / "settings.json"
@@ -309,7 +351,10 @@ def cmd_doctor(args):
             except json.JSONDecodeError as e:
                 check("settings.json", False, f"Invalid JSON: {e}")
         else:
-            check("settings.json", "warn", "No Claude Code hooks configured")
+            check("settings.json",
+                  "skip" if minimal_install else "warn",
+                  "not shipped in minimal mode" if minimal_install
+                  else "No Claude Code hooks configured")
 
         # Every hook COMMAND in settings.json must resolve to an installed FILE.
         # This is the mechanical guard for the whole bug class: a wired hook that
@@ -354,8 +399,10 @@ def cmd_doctor(args):
 
     # Summary
     print(f"\n{'='*40}")
-    total = checks_passed + checks_failed + checks_warned
+    total = checks_passed + checks_failed + checks_warned + checks_skipped
     print(f"  Passed:   {C.GREEN}{checks_passed}{C.NC}/{total}")
+    if checks_skipped:
+        print(f"  Skipped:  {C.CYAN}{checks_skipped}{C.NC}/{total} (not applicable to this install)")
     if checks_warned:
         print(f"  Warnings: {C.YELLOW}{checks_warned}{C.NC}/{total}")
     if checks_failed:
@@ -369,10 +416,18 @@ def cmd_doctor(args):
         if getattr(args, "strict", False):
             err("Warnings present and --strict is set.")
             return 1
-        warn("All checks passed with warnings.")
+        if checks_skipped:
+            warn(f"All applicable checks passed with warnings "
+                 f"({checks_skipped} not applicable to this install).")
+        else:
+            warn("All checks passed with warnings.")
         return 0
     else:
-        ok("All checks passed!")
+        if checks_skipped:
+            ok(f"All applicable checks passed ({checks_skipped} not applicable "
+               "to this install).")
+        else:
+            ok("All checks passed!")
         return 0
 
 

@@ -420,10 +420,22 @@ if [[ -f "$TEMPLATE_DIR/config.env" ]]; then
 fi
 
 # Set defaults from template or fallbacks
-BUILD_CMD="${BUILD_CMD:-echo 'No build command configured'}"
-TEST_CMD="${TEST_CMD:-echo 'No test command configured'}"
-LINT_CMD="${LINT_CMD:-echo 'No lint command configured'}"
-COVERAGE_CMD="${COVERAGE_CMD:-echo 'No coverage command configured'}"
+# An unconfigured command stays EMPTY. The hooks skip an empty command and say so
+# (pre-push.sh:130, post-implement.sh:80); a no-op print command exits 0 instead, so
+# the push gate printed "[pre-push] Tests: PASSED" having run no tests at all.
+BUILD_CMD="${BUILD_CMD:-}"
+TEST_CMD="${TEST_CMD:-}"
+LINT_CMD="${LINT_CMD:-}"
+COVERAGE_CMD="${COVERAGE_CMD:-}"
+
+# Rendered docs (CLAUDE.project.md, CONSTITUTION.md) are read by humans, never
+# executed, so an empty value would render there as an empty backtick pair. Those
+# renders - and only those - get a readable placeholder.
+CMD_UNSET_DOC="(not configured - set it in .claude/hooks/config.json)"
+BUILD_CMD_DOC="${BUILD_CMD:-$CMD_UNSET_DOC}"
+TEST_CMD_DOC="${TEST_CMD:-$CMD_UNSET_DOC}"
+LINT_CMD_DOC="${LINT_CMD:-$CMD_UNSET_DOC}"
+COVERAGE_CMD_DOC="${COVERAGE_CMD:-$CMD_UNSET_DOC}"
 PROJECT_NAME="${PROJECT_NAME:-$(basename "$TARGET_DIR")}"
 
 # Render a {{PLACEHOLDER}} template with LITERAL substitution. Using Python's
@@ -457,10 +469,10 @@ else
     CK_VAR_FRAMEWORK="${FRAMEWORK:-N/A}" \
     CK_VAR_BUILD_SYSTEM="${BUILD_SYSTEM:-N/A}" \
     CK_VAR_TEST_FRAMEWORK="${TEST_FRAMEWORK:-N/A}" \
-    CK_VAR_BUILD_CMD="$BUILD_CMD" \
-    CK_VAR_TEST_CMD="$TEST_CMD" \
-    CK_VAR_LINT_CMD="$LINT_CMD" \
-    CK_VAR_COVERAGE_CMD="$COVERAGE_CMD" \
+    CK_VAR_BUILD_CMD="$BUILD_CMD_DOC" \
+    CK_VAR_TEST_CMD="$TEST_CMD_DOC" \
+    CK_VAR_LINT_CMD="$LINT_CMD_DOC" \
+    CK_VAR_COVERAGE_CMD="$COVERAGE_CMD_DOC" \
     CK_VAR_EXAMPLE_FILE_PATH="${EXAMPLE_FILE:-src/main.py}" \
         render_template "$CLAUDE_SRC/local/CLAUDE.template.md" "$DEST/local/CLAUDE.project.md"
 fi
@@ -471,9 +483,9 @@ print_step "Generating CONSTITUTION.md..."
 CK_VAR_PROJECT_NAME="$PROJECT_NAME" \
 CK_VAR_DATE="$(date +%Y-%m-%d)" \
 CK_VAR_LANGUAGE="$LANGUAGE" \
-CK_VAR_LINT_CMD="$LINT_CMD" \
-CK_VAR_TEST_CMD="$TEST_CMD" \
-CK_VAR_COVERAGE_CMD="$COVERAGE_CMD" \
+CK_VAR_LINT_CMD="$LINT_CMD_DOC" \
+CK_VAR_TEST_CMD="$TEST_CMD_DOC" \
+CK_VAR_COVERAGE_CMD="$COVERAGE_CMD_DOC" \
 CK_VAR_BUILD_TIME_TARGET="< 60 seconds" \
     render_template "$CLAUDE_SRC/local/CONSTITUTION.template.md" "$DEST/local/CONSTITUTION.md"
 print_ok "CONSTITUTION.md generated"
@@ -498,7 +510,36 @@ config['project']['lint_cmd'] = os.environ['CK_LINT_CMD']
 config['project']['coverage_cmd'] = os.environ['CK_COVERAGE_CMD']
 with open(config_path, 'w') as f:
     json.dump(config, f, indent=2)
-" 2>/dev/null && print_ok "Hooks configured" || print_warn "Could not auto-configure hooks (update .claude/hooks/config.json manually)"
+" 2>/dev/null && print_ok "Hooks configured" || CK_CONFIG_REWRITE_FAILED=1
+
+    # The shipped config.json carries CLAUDEKIT'S OWN project commands. Warning and
+    # moving on would leave `python3 -m pytest tests/ -q` and `ruff check src/ tests/
+    # scripts/` in the user's project, to be executed by their next commit or push.
+    # Blank them instead; if even that write fails, refuse to install rather than hand
+    # over a config that runs this repo's gates inside someone else's tree.
+    if [[ "${CK_CONFIG_REWRITE_FAILED:-0}" == "1" ]]; then
+        CK_CONFIG_PATH="$DEST/hooks/config.json" \
+        CK_SOURCE_CONFIG="$CLAUDE_SRC/hooks/config.json" \
+        python3 -c "
+import json, os
+# Read the PRISTINE source, never the destination: the write that just failed
+# opened it with 'w', which truncates before json.dump, so the file may now be
+# invalid JSON and re-reading it would turn a recoverable install into an abort.
+with open(os.environ['CK_SOURCE_CONFIG']) as f:
+    config = json.load(f)
+config['project'] = {k: '' for k in ('build_cmd', 'test_cmd', 'lint_cmd', 'coverage_cmd')}
+with open(os.environ['CK_CONFIG_PATH'], 'w') as f:
+    json.dump(config, f, indent=2)
+" 2>/dev/null \
+            && print_warn "Could not auto-configure hooks; project commands left EMPTY (set them in .claude/hooks/config.json)" \
+            || {
+                print_err "Could not write $DEST/hooks/config.json; refusing to ship a config containing ClaudeKit's own build commands."
+                # Bash does NOT run the ERR trap for the `exit` builtin, so the
+                # staging dir must be cleaned up explicitly or it litters the project.
+                _cleanup_on_failure
+                exit 1
+            }
+    fi
 fi
 
 # Preserve the user's local override across a reinstall. settings.local.json is
@@ -654,6 +695,19 @@ echo "    1. Review .claude/local/CLAUDE.project.md and customize"
 echo "    2. Review .claude/local/CONSTITUTION.md and customize"
 if [[ "$MODE" == "full" ]]; then
     echo "    3. Review .claude/hooks/config.json and update commands"
+fi
+
+# Say it out loud rather than let the user discover it from a red gate. Empty is the
+# honest state for a project whose commands could not be detected, and a project whose
+# gates run nothing SHOULD be told so. The blanked-on-failure path (above) leaves the
+# shell variables populated while the on-disk config is empty, so it is checked too.
+if [[ "$MODE" == "full" ]] && { [[ -z "$BUILD_CMD$TEST_CMD$LINT_CMD" ]] || \
+        [[ "${CK_CONFIG_REWRITE_FAILED:-0}" == "1" ]]; }; then
+    echo ""
+    echo "  NOTE: .claude/hooks/config.json has no build/test/lint command configured,"
+    echo "  so the pre-commit and pre-push hooks will SKIP those steps and say so -"
+    echo "  they will never report a pass for a step they did not run - and"
+    echo "  'ck doctor --strict' will exit 1 until you fill them in. That is deliberate."
 fi
 echo ""
 echo "  Start using ClaudeKit in Claude Code:"

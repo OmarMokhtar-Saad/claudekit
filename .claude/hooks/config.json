@@ -45,9 +45,9 @@
     "maxConcurrentHooks": 3
   },
   "project": {
-    "build_cmd": "",
-    "test_cmd": "",
-    "lint_cmd": "",
-    "coverage_cmd": ""
+    "build_cmd": "python3 -m compileall -q src/claudekit",
+    "test_cmd": "python3 -m pytest tests/ -q",
+    "lint_cmd": "ruff check src/ tests/ scripts/",
+    "coverage_cmd": "python3 -m pytest tests/ -q --cov=src/claudekit/security --cov-report=term-missing --cov-fail-under=85"
   }
 }
