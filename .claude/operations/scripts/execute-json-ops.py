@@ -269,7 +269,7 @@ def validate_path(file_path: str) -> bool:
     return True
 
 
-def normalize_config(config: dict) -> dict:
+def normalize_config(config: dict) -> Optional[dict]:
     """
     Convert legacy format to modern format for unified processing.
 

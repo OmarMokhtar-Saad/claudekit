@@ -5,6 +5,10 @@
   "description": "Configuration schema for .claude/hooks/config.json",
   "type": "object",
   "properties": {
+    "_note": {
+      "type": "string",
+      "description": "Free-text maintainer note. JSON has no comments, so an underscore-prefixed key carries the deprecation notice for this file."
+    },
     "hooks": {
       "type": "object",
       "properties": {

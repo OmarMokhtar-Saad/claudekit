@@ -242,7 +242,7 @@ def print_status(args: argparse.Namespace, state: Dict[str, object]) -> None:
     print(f"  brain  (plan/merge, {brain_dir(args)}): {'ON' if state['brain'] else 'off'}")
     print(f"  cursor (cross-review):                {'ON' if state['cursor'] else 'off'}")
     print("  hands  (review+implement, default account): ON")
-    for note in state["notes"]:  # type: ignore[union-attr]
+    for note in state["notes"]:  # type: ignore[attr-defined]
         print(f"  ! {note}")
     if state["mode"] == "solo":
         print("solo: run the standard in-session pipeline "
@@ -257,12 +257,12 @@ def stage_env(stage: Dict[str, object], base_env: Dict[str, str]) -> Dict[str, s
     env = dict(base_env)
     if stage["runner"] == "hands":
         env.pop("CLAUDE_CONFIG_DIR", None)
-    env.update(stage["env"])  # type: ignore[arg-type]
+    env.update(stage["env"])  # type: ignore[call-overload]
     return env
 
 
 def run_stage(stage: Dict[str, object], plan_path: Optional[str], log_dir: Path) -> "subprocess.CompletedProcess[str]":
-    cmd = [str(c).replace("{PLAN_PATH}", plan_path or "") for c in stage["cmd"]]  # type: ignore[union-attr]
+    cmd = [str(c).replace("{PLAN_PATH}", plan_path or "") for c in stage["cmd"]]  # type: ignore[attr-defined]
     env = stage_env(stage, dict(os.environ))
     proc = subprocess.run(cmd, capture_output=True, text=True, env=env, timeout=STAGE_TIMEOUT)
     log_dir.mkdir(parents=True, exist_ok=True)
@@ -340,7 +340,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             ok, reason = probe_account({"CLAUDE_CONFIG_DIR": str(brain_dir(args))})
             if not ok:
                 state["brain"] = False
-                state["notes"].append(f"brain auto-off (probe): {reason}")  # type: ignore[union-attr]
+                state["notes"].append(f"brain auto-off (probe): {reason}")  # type: ignore[attr-defined]
                 state["mode"] = "no-brain" if state["cursor"] else "solo-claude"
         return probe_account({}, drop_config=True)
 
@@ -348,7 +348,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         if args.probe:
             hands_ok, hands_reason = _apply_probes()
             if not hands_ok:
-                state["notes"].append(f"hands quota problem (probe): {hands_reason}")  # type: ignore[union-attr]
+                state["notes"].append(f"hands quota problem (probe): {hands_reason}")  # type: ignore[attr-defined]
         print_status(args, state)
         return 0
 
@@ -365,7 +365,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         hands_ok, hands_reason = _apply_probes()
         if not hands_ok:
             hands_limited_reason = hands_reason
-        for note in state["notes"]:  # type: ignore[union-attr]
+        for note in state["notes"]:  # type: ignore[attr-defined]
             if "(probe)" in note:
                 print(f"xpipe: {note}", file=sys.stderr)
 
@@ -390,10 +390,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     if args.dry_run:
         print_status(args, state)
         for stage in stages:
-            env = " ".join(f"{k}={v}" for k, v in stage["env"].items())  # type: ignore[union-attr]
+            env = " ".join(f"{k}={v}" for k, v in stage["env"].items())  # type: ignore[attr-defined]
             prefix = f"{env} " if env else ""
             print(f"[{stage['stage']} @ {stage['runner']}] {prefix}" +
-                  " ".join(f"'{c}'" if " " in str(c) else str(c) for c in stage["cmd"]))  # type: ignore[union-attr]
+                  " ".join(f"'{c}'" if " " in str(c) else str(c) for c in stage["cmd"]))  # type: ignore[attr-defined]
         return 0
 
     root = project_root()
