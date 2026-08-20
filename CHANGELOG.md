@@ -49,6 +49,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   failure never blocks work.
 
 ### Fixed
+- **`config.schema.json` constrained only its root object, so typos in nested keys
+  validated clean.** `additionalProperties: false` was set on the root but on none of the
+  nested objects, so `hooks."pre-commit".enabeld = false` passed validation and then read
+  as `enabled: true` at runtime. Every nested object is now closed. Five hook `description`
+  keys and `post-tool-use.tools` were present in the shipped config but undeclared in the
+  schema; they are now declared, so the tightening does not reject a valid config.
+- **The approval gate reported "no review record exists" and "a verdict exists but does
+  not authorise this ops.json" identically.** `execute-json-ops.py` collapsed
+  `review-record.py`'s three distinct exit codes (2 drift / 3 no record / 4 unauthorised
+  verdict) into a single `review-record check exit N` reason in `RESULT-JSON`. The three
+  causes now carry distinct, named reasons; the exit code is retained alongside them.
 - **A configured-looking command that ran nothing, and a health gate that could not pass**
   (plan: `.claude/plans/plan-doctor-gate.md`). `install.sh` defaulted every unconfigured
   project command to a no-op print command, and `templates/generic/config.env` shipped the

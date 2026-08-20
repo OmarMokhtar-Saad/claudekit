@@ -11,54 +11,67 @@
     },
     "hooks": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
         "pre-commit": {
           "type": "object",
+          "additionalProperties": false,
           "properties": {
             "command": { "type": "string" },
             "enabled": { "type": "boolean", "default": true },
             "timeout": { "type": "integer", "minimum": 1000, "maximum": 600000, "default": 30000 },
-            "blocking": { "type": "boolean", "default": true }
+            "blocking": { "type": "boolean", "default": true },
+            "description": { "type": "string", "description": "Human-readable note about what this hook does." }
           }
         },
         "post-implement": {
           "type": "object",
+          "additionalProperties": false,
           "properties": {
             "command": { "type": "string" },
             "enabled": { "type": "boolean", "default": true },
             "timeout": { "type": "integer", "minimum": 1000, "maximum": 600000, "default": 120000 },
-            "blocking": { "type": "boolean", "default": false }
+            "blocking": { "type": "boolean", "default": false },
+            "description": { "type": "string", "description": "Human-readable note about what this hook does." }
           }
         },
         "pre-plan": {
           "type": "object",
+          "additionalProperties": false,
           "properties": {
             "command": { "type": "string" },
             "enabled": { "type": "boolean", "default": true },
             "timeout": { "type": "integer", "minimum": 1000, "maximum": 600000, "default": 5000 },
-            "blocking": { "type": "boolean", "default": false }
+            "blocking": { "type": "boolean", "default": false },
+            "description": { "type": "string", "description": "Human-readable note about what this hook does." }
           }
         },
         "pre-push": {
           "type": "object",
+          "additionalProperties": false,
           "properties": {
             "command": { "type": "string" },
             "enabled": { "type": "boolean", "default": true },
             "timeout": { "type": "integer", "minimum": 1000, "maximum": 600000, "default": 300000 },
-            "blocking": { "type": "boolean", "default": true }
+            "blocking": { "type": "boolean", "default": true },
+            "description": { "type": "string", "description": "Human-readable note about what this hook does." }
           }
         },
         "post-tool-use": {
           "type": "object",
+          "additionalProperties": false,
           "properties": {
             "command": { "type": "string" },
             "enabled": { "type": "boolean", "default": true },
             "timeout": { "type": "integer", "minimum": 1000, "maximum": 600000, "default": 5000 },
-            "blocking": { "type": "boolean", "default": false }
+            "blocking": { "type": "boolean", "default": false },
+            "description": { "type": "string", "description": "Human-readable note about what this hook does." },
+            "tools": { "type": "array", "items": { "type": "string" }, "description": "Tool names this hook reacts to (e.g. Edit, Write, Bash)." }
           }
         },
         "file-guard": {
           "type": "object",
+          "additionalProperties": false,
           "description": "Blocks access to sensitive files matching 195+ patterns (secrets, credentials, keys, certificates)",
           "properties": {
             "command": { "type": "string", "description": "Command to run for file-guard check" },
@@ -70,6 +83,7 @@
         },
         "check-comment-replacement": {
           "type": "object",
+          "additionalProperties": false,
           "description": "Detects when code comments are replaced with implementation stubs or placeholders",
           "properties": {
             "command": { "type": "string", "description": "Command to run for comment replacement check" },
@@ -81,6 +95,7 @@
         },
         "prompt-injection-scanner": {
           "type": "object",
+          "additionalProperties": false,
           "description": "Scans for prompt injection patterns in files and inputs",
           "properties": {
             "command": { "type": "string", "description": "Command to run for prompt injection scanning" },
@@ -92,6 +107,7 @@
         },
         "auto-checkpoint": {
           "type": "object",
+          "additionalProperties": false,
           "description": "Automatically creates checkpoints before significant operations",
           "properties": {
             "command": { "type": "string", "description": "Command to run for auto-checkpoint" },
@@ -105,6 +121,7 @@
     },
     "global": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
         "disabled": { "type": "boolean", "default": false },
         "logLevel": { "type": "string", "enum": ["debug", "info", "warn", "error"], "default": "info" },
@@ -114,6 +131,7 @@
     },
     "project": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
         "build_cmd": { "type": "string", "description": "Build command (e.g., npm run build)" },
         "test_cmd": { "type": "string", "description": "Test command (e.g., pytest)" },
@@ -123,6 +141,7 @@
     },
     "security": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
         "safeMode": { "type": "boolean", "default": true, "description": "Restrict hook commands to allowlist" },
         "allowedCommands": {

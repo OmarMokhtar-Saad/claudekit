@@ -26,6 +26,7 @@ import os
 from pathlib import PurePath
 import shutil
 import sys
+from typing import List
 
 sys.path.insert(0, os.path.dirname(__file__))
 from shared import __version__
@@ -45,7 +46,7 @@ def restore_from_backup(backup_dir, force=False, dry_run=False, post=False):
     Returns:
         True if successful
     """
-    restored_files = []
+    restored_files: List[str] = []
 
     try:
         # GUARD 1: Backup directory exists

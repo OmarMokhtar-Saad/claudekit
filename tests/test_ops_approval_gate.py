@@ -204,3 +204,119 @@ class TestApprovalGateAllows:
         proc = run_executor(project, config)
         assert proc.returncode == 0, proc.stdout + proc.stderr
         assert target_text(project) == PATCHED
+
+
+class TestRefusalCauseIsSpecific:
+    """'No record at all' and 'a verdict exists but does not authorise this file' are
+    different failures with different remedies (run /review vs re-run /review on the
+    delta). review-record.py already separates them -- exit 3 vs 2 vs 4, with distinct
+    stderr -- but execute-json-ops.py collapsed all three into the single machine-readable
+    reason "approval-gate: review-record check exit N". A consumer parsing RESULT-JSON
+    saw one undifferentiated failure. Collapsing the mapping back to one string flips
+    test_refusal_causes_are_distinguishable.
+    """
+
+    SENTINEL = " [review-record exit"
+
+    def _reason(self, proc):
+        return str(result_json(proc.stdout).get("reason", ""))
+
+    def _cause(self, proc):
+        """The cause phrase alone, with the exit code / slug / why suffix stripped.
+
+        Comparing whole reasons pins nothing: the exit code is IN the string, so three
+        reasons stay distinct even if every cause phrase collapses to one constant --
+        and the pre-fix message ("review-record check exit N (slug ...; why)") is three
+        distinct strings too, with an IDENTICAL `why` ("config lives in a plans/
+        directory") measured across all three cases. Asserting the sentinel is present
+        is what makes this test fail against the unfixed executor rather than pass on it.
+        """
+        reason = self._reason(proc)
+        assert self.SENTINEL in reason, f"cause/detail format missing: {reason}"
+        return reason.split(self.SENTINEL)[0]
+
+    def test_missing_record_names_the_missing_record(self, project):
+        config = project / ".claude" / "plans" / "plan-demo.ops.json"
+        _write_ops(config, _ops_payload())
+        proc = run_executor(project, config)
+        assert proc.returncode != 0, proc.stdout + proc.stderr
+        assert "no review record" in self._reason(proc).lower()
+        assert target_text(project) == ORIGINAL
+
+    def test_drift_names_drift_not_absence(self, project):
+        config = project / ".claude" / "plans" / "plan-demo.ops.json"
+        _write_ops(config, _ops_payload())
+        record(project, "demo", config, 95, "APPROVED")
+        payload = _ops_payload()
+        payload["operations"][0]["edits"][0]["replace"] = "VALUE = 1234"
+        _write_ops(config, payload)
+        proc = run_executor(project, config)
+        assert proc.returncode != 0, proc.stdout + proc.stderr
+        reason = self._reason(proc).lower()
+        assert "changed after it was reviewed" in reason
+        assert "no review record" not in reason
+        assert target_text(project) == ORIGINAL
+
+    def test_unauthorised_verdict_names_the_verdict(self, project):
+        config = project / ".claude" / "plans" / "plan-demo.ops.json"
+        _write_ops(config, _ops_payload())
+        record(project, "demo", config, 40, "REJECTED")
+        proc = run_executor(project, config)
+        assert proc.returncode != 0, proc.stdout + proc.stderr
+        reason = self._reason(proc).lower()
+        assert "does not authorise execution" in reason
+        assert "no review record" not in reason
+        # The exit-2 phrase also contains "does not authorise execution", so that
+        # substring alone does not discriminate code 4 from code 2. Pin the difference.
+        assert "drift" not in reason
+        assert target_text(project) == ORIGINAL
+
+    def test_refusal_causes_are_distinguishable(self, project, tmp_path):
+        """The paired assertion: the three CAUSE phrases must all differ.
+
+        Flips to len == 1 under the collapse mutant (one constant `cause`), and flips
+        via _cause's format assertion against the unfixed executor. Verified against
+        all three worlds before this test was written.
+        """
+        reasons = set()
+
+        cfg_a = project / ".claude" / "plans" / "plan-demo.ops.json"
+        _write_ops(cfg_a, _ops_payload())
+        reasons.add(self._cause(run_executor(project, cfg_a)))
+
+        record(project, "demo", cfg_a, 95, "APPROVED")
+        drifted = _ops_payload()
+        drifted["operations"][0]["edits"][0]["replace"] = "VALUE = 4321"
+        _write_ops(cfg_a, drifted)
+        reasons.add(self._cause(run_executor(project, cfg_a)))
+
+        record(project, "demo", cfg_a, 40, "REJECTED")
+        reasons.add(self._cause(run_executor(project, cfg_a)))
+
+        assert len(reasons) == 3, reasons
+
+
+class TestApprovalThresholdBoundary:
+    """E2E-09: the threshold boundary was correct but unpinned by any test.
+
+    Measured on the current tree: APPROVED 88 -> check exit 4, 89 -> 4, 90 -> 0, 91 -> 0.
+    Moving APPROVAL_THRESHOLD to 89 flips test_score_below_threshold_refuses; relaxing
+    `<` to `<=` flips test_score_at_threshold_executes (under `<=`, 89 still refuses).
+    """
+
+    def test_score_below_threshold_refuses(self, project):
+        config = project / ".claude" / "plans" / "plan-demo.ops.json"
+        _write_ops(config, _ops_payload())
+        record(project, "demo", config, 89, "APPROVED")
+        proc = run_executor(project, config)
+        assert proc.returncode != 0, proc.stdout + proc.stderr
+        assert result_json(proc.stdout)["status"] == "failed"
+        assert target_text(project) == ORIGINAL
+
+    def test_score_at_threshold_executes(self, project):
+        config = project / ".claude" / "plans" / "plan-demo.ops.json"
+        _write_ops(config, _ops_payload())
+        record(project, "demo", config, 90, "APPROVED")
+        proc = run_executor(project, config)
+        assert proc.returncode == 0, proc.stdout + proc.stderr
+        assert target_text(project) == PATCHED
