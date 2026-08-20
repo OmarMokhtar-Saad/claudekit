@@ -7,11 +7,15 @@ Priority-ordered. Sources: `review/tasks/` (file-level specs — read them befor
 - [ ] **Tag v2.1.0 + PyPI publish** (recipe: [PLAYBOOK.md](PLAYBOOK.md)). Everything is staged.
 - [ ] Decision: plugin packaging as primary channel (task 007) — approve/defer.
 - [ ] Decision: consolidation merge list sign-off (task 008).
-- [ ] **Decision 21 — Iron Law scope vs. this repo's own product** (`.ai/DECISIONS.md`, status OPEN).
-  `ops-enforcement.sh:47` exempts `.claude/**` and `:50` exempts every `.md`, so the agent +
-  command + skill corpus — this repo's actual deliverable — is outside the Iron Law; `:13`
-  disables the hook entirely under `ECC_HOOK_PROFILE=minimal`, which `CLAUDE.md:11` instructs
-  maintainers to keep set. Three options steelmanned in the memo.
+- [ ] **Decision 21 second half — do maintainers stop defaulting to `ECC_HOOK_PROFILE=minimal`?**
+  Option A shipped 2026-08-19 (`.ai/DECISIONS.md` entry 21, commit `d878496`): `.ops-source-globs`
+  makes `.claude/{agents,commands,skills,hooks,operations}/*` count as SOURCE in this checkout,
+  provably inert for user projects. But it is **dormant under `minimal`**, which `CLAUDE.md:11`
+  still tells maintainers to keep set, so the repo gets no dogfood signal yet. Flipping it means
+  every prompt edit needs an ops.json — real friction on the highest-churn files, and the velocity
+  cost lands on the owner. Pinned dormant by a test, so nothing flips by accident.
+- [ ] **Push `perf/token-efficiency`?** 13 commits. The `TOKEN-MODEL-POLICY` marker went v1 → v2,
+  so the per-PR review floor propagates to all 16 fleet-synced projects on their next sync.
 
 ## P0.5 — landed 2026-08-19, follow-ups from the reflection/review-discipline batch
 
