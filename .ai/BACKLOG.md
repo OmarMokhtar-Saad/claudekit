@@ -24,6 +24,14 @@ defects discovered during execution. See CHANGELOG `[Unreleased]` and the plans 
   new `.claude/hooks/*.py` (`reflection.py`, `reflection-gate.py`) are invisible to the counter.
   The repo ships 21 hooks and documents 19. Fix: extend the glob to `*.py` (preferred), or render
   "19 shell hooks". Must go through the generator — hard rule 8 forbids hand-editing counts.
+- [ ] **`ledger_dir()` falls back to a host-shared temp dir** (`.claude/hooks/reflection.py:189-195`).
+  When `CLAUDEKIT_REFLECTION_DIR` is unset or non-absolute it uses `$TMPDIR/claudekit-reflection`,
+  shared across every session and every project on the machine. Test-side isolation landed (each test
+  gets its own ledger root), but that is containment, not a cure — the product still defaults to a
+  shared location keyed only by `sha256(session_id)[:32]`. Fix in the hook: use a per-invocation
+  subdirectory, or refuse to operate without an explicit ledger root. Note this fallback is the most
+  likely origin of a "flaky CLI test" reported 2026-08-19 that no in-process reproduction could
+  produce — an ambient `CLAUDEKIT_REFLECTION_DIR` in a live session, misattributed to the test.
 - [ ] **Triage `review/code-review.md` — 76 unfixed P2/P3 findings, and one of them just cost real
   damage.** The ops engine's mode-stripping bug was documented there at `:286` as a P2 **with its fix
   already written out** ("Copy the original mode … before replace"), and left unfixed until it

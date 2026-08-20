@@ -19,15 +19,15 @@ import sys
 from pathlib import Path
 
 import pytest
+from conftest import scoped_env
 
 REPO = Path(__file__).resolve().parent.parent
 MODULE_PATH = REPO / ".claude" / "hooks" / "reflection.py"
 
 
-def load_module(tmp_path):
-    """Import reflection.py fresh with the ledger and inbox pointed at a temp dir."""
-    os.environ["CLAUDEKIT_REFLECTION_DIR"] = str(tmp_path)
-    os.environ["CLAUDEKIT_REFLECTION_INBOX"] = str(tmp_path / "inbox")
+def load_module():
+    """Import reflection.py fresh. The ledger and inbox locations come from the
+    `reflection_env` fixture, which restores the caller's values on teardown."""
     spec = importlib.util.spec_from_file_location("ck_reflection", MODULE_PATH)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -35,11 +35,8 @@ def load_module(tmp_path):
 
 
 @pytest.fixture()
-def ref(tmp_path):
-    module = load_module(tmp_path)
-    yield module
-    os.environ.pop("CLAUDEKIT_REFLECTION_DIR", None)
-    os.environ.pop("CLAUDEKIT_REFLECTION_INBOX", None)
+def ref(reflection_env):
+    return load_module()
 
 
 SESSION = "session-under-test-0001"
@@ -67,7 +64,7 @@ BARE_SINGLECASE = "kxrmzqvtpwbsdfhjlncgyaeiuoqzxwvtrpmkjhgf"
 
 
 class TestPrivacy:
-    def test_absolute_path_never_reaches_the_ledger(self, ref, tmp_path):
+    def test_absolute_path_never_reaches_the_ledger(self, ref):
         fail(ref, target=ABSPATH)
         blob = ref.ledger_path(SESSION).read_text(encoding="utf-8")
         assert "/Users/someone" not in blob
@@ -121,7 +118,7 @@ class TestPrivacy:
         with pytest.raises(ValueError):
             ref._safe_text("failedAssumption", "we passed %s as the header" % BARE_HEX)
 
-    def test_ledger_lives_outside_the_repository(self, ref, tmp_path):
+    def test_ledger_lives_outside_the_repository(self, ref):
         assert REPO not in ref.ledger_path(SESSION).parents
 
     def test_session_token_is_owner_only(self, ref):
@@ -342,27 +339,28 @@ class TestLearningLoop:
 
 
 class TestCli:
-    def run(self, tmp_path, *args):
-        env = dict(os.environ, CLAUDEKIT_REFLECTION_DIR=str(tmp_path),
-                   CLAUDEKIT_REFLECTION_INBOX=str(tmp_path / "inbox"))
+    def run(self, *args):
+        # os.environ already carries the per-test ledger/inbox from `reflection_env`;
+        # the child must see exactly the same ledger the parent asserts against.
+        env = dict(os.environ)
         return subprocess.run(
             [sys.executable, str(MODULE_PATH)] + list(args),
             capture_output=True, text=True, env=env, timeout=30,
         )
 
-    def test_status_reports_a_pending_checkpoint(self, ref, tmp_path):
+    def test_status_reports_a_pending_checkpoint(self, ref):
         fail(ref, target="a")
         fail(ref, target="b")
-        proc = self.run(tmp_path, "status", "--session-id", SESSION)
+        proc = self.run("status", "--session-id", SESSION)
         assert proc.returncode == 0, proc.stderr
         assert json.loads(proc.stdout)["checkpoint"]["trigger"] == "second-failure"
 
-    def test_receipt_via_cli_clears_the_checkpoint(self, ref, tmp_path):
+    def test_receipt_via_cli_clears_the_checkpoint(self, ref):
         fail(ref, target="a")
         fail(ref, target="b")
         token = ref.read_session_token(SESSION)
         payload = json.dumps(valid_receipt(ref))
-        proc = self.run(tmp_path, "receipt", "--session-id", SESSION,
+        proc = self.run("receipt", "--session-id", SESSION,
                         "--session-token", token, "--json", payload)
         assert proc.returncode == 0, proc.stderr
         assert ref.pending_checkpoint(SESSION) is None
@@ -378,7 +376,7 @@ class TestCli:
         inbox = ref.inbox_path(SESSION)
         inbox.parent.mkdir(parents=True, exist_ok=True)
         inbox.write_text(json.dumps(payload), encoding="utf-8")
-        proc = self.run(tmp_path, "receipt", "--session-id", SESSION,
+        proc = self.run("receipt", "--session-id", SESSION,
                         "--session-token", token, "--inbox")
         assert proc.returncode == 0, proc.stderr
         assert "subprocess.run" not in " ".join(
@@ -391,8 +389,7 @@ class TestCli:
         fail(ref, target="a")
         fail(ref, target="b")
         token = ref.read_session_token(SESSION)
-        env = dict(os.environ, CLAUDEKIT_REFLECTION_DIR=str(tmp_path),
-                   CLAUDEKIT_REFLECTION_INBOX=str(tmp_path / "inbox"))
+        env = dict(os.environ)
         proc = subprocess.run(
             [sys.executable, str(MODULE_PATH), "receipt", "--session-id", SESSION,
              "--session-token", token, "--json-stdin"],
@@ -402,15 +399,85 @@ class TestCli:
         assert proc.returncode == 0, proc.stderr
         assert ref.pending_checkpoint(SESSION) is None
 
-    def test_cli_refuses_a_bad_receipt_with_exit_2(self, ref, tmp_path):
+    def test_cli_refuses_a_bad_receipt_with_exit_2(self, ref):
         fail(ref, target="a")
         fail(ref, target="b")
-        proc = self.run(tmp_path, "receipt", "--session-id", SESSION,
+        proc = self.run("receipt", "--session-id", SESSION,
                         "--session-token", "bogus-token-value-000000", "--json", "{}")
         assert proc.returncode == 2
         assert "refused" in proc.stderr
 
-    def test_cli_trigger_cannot_forge_the_derived_learning_loop_value(self, ref, tmp_path):
-        proc = self.run(tmp_path, "trigger", "--session-id", SESSION,
+    def test_cli_trigger_cannot_forge_the_derived_learning_loop_value(self, ref):
+        proc = self.run("trigger", "--session-id", SESSION,
                         "--trigger", "learning-loop")
         assert proc.returncode != 0
+
+
+# ------------------------------------------------------------------- isolation
+
+
+class TestIsolation:
+    """BOUND TESTS for the fixture itself. Every assertion above is only meaningful if
+    the ledger a test reads is the ledger that test wrote - these prove it."""
+
+    def test_each_test_starts_from_an_empty_per_test_ledger(self, ref, tmp_path):
+        assert ref.ledger_dir() == tmp_path / "ledger"
+        assert not ref.ledger_path(SESSION).exists()
+        assert ref.pending_checkpoint(SESSION) is None
+
+    def test_the_fixture_restores_an_ambient_ledger_dir(self, tmp_path):
+        """Revert `scoped_env` to a bare `os.environ.pop` and this fails: a later test
+        in the same process would lose the caller's value and fall back to the real,
+        shared OS temp dir."""
+        sentinel = str(tmp_path / "ambient")
+        with scoped_env(CLAUDEKIT_REFLECTION_DIR=sentinel):
+            with scoped_env(CLAUDEKIT_REFLECTION_DIR=str(tmp_path / "inner")):
+                assert os.environ["CLAUDEKIT_REFLECTION_DIR"] == str(tmp_path / "inner")
+            assert os.environ["CLAUDEKIT_REFLECTION_DIR"] == sentinel
+
+    def test_a_reflection_test_does_not_destroy_an_ambient_ledger_dir(self, tmp_path):
+        """REGRESSION BOUND TEST for the defect this file was fixed for.
+
+        The `ref` fixtures here and in test_reflection_gate.py used to end with a bare
+        `os.environ.pop(...)`. That deletes a PROCESS-GLOBAL value: any test running
+        later in the same process with an ambient CLAUDEKIT_REFLECTION_DIR exported
+        would lose it and silently retarget the real, host-shared OS temp ledger. The
+        only way to observe that is from outside the process, so this test runs a real
+        pytest process with the variables exported and asserts a probe collected AFTER a
+        reflection test still sees them. Put the `pop` back in either fixture teardown
+        and this test goes red.
+        """
+        probe = tmp_path / "test_ambient_probe.py"
+        probe.write_text(
+            "import os\n\n\n"
+            "def test_ambient_reflection_env_survives():\n"
+            "    assert os.environ.get('CLAUDEKIT_REFLECTION_DIR') == '/ambient/sentinel/dir'\n"
+            "    assert os.environ.get('CLAUDEKIT_REFLECTION_INBOX') == '/ambient/sentinel/inbox'\n",
+            encoding="utf-8",
+        )
+        # One cheap `ref`-using test from EACH reflection file - never a whole file:
+        # running this file inside itself would recurse. Both fixtures carry the same
+        # defect, so both are guarded.
+        here = Path(__file__)
+        victims = [
+            str(here) + "::TestPrivacy::test_session_token_is_owner_only",
+            str(here.parent / "test_reflection_gate.py") + "::TestFailureRecording::test_failure_is_persisted",
+        ]
+        proc = subprocess.run(
+            [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider"]
+            + victims + [str(probe)],
+            capture_output=True, text=True, timeout=120,
+            env=dict(os.environ,
+                     CLAUDEKIT_REFLECTION_DIR="/ambient/sentinel/dir",
+                     CLAUDEKIT_REFLECTION_INBOX="/ambient/sentinel/inbox",
+                     ECC_HOOK_PROFILE="minimal"),
+        )
+        assert proc.returncode == 0, proc.stdout + proc.stderr
+
+    def test_the_fixture_restores_absence(self, tmp_path):
+        """The other half: a variable the caller did NOT set must not exist afterwards."""
+        marker = "CLAUDEKIT_REFLECTION_DIR_ABSENT_PROBE"
+        assert marker not in os.environ
+        with scoped_env(**{marker: str(tmp_path)}):
+            assert os.environ[marker] == str(tmp_path)
+        assert marker not in os.environ

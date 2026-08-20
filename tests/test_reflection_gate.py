@@ -22,14 +22,16 @@ SESSION = "gate-session-0001"
 
 
 @pytest.fixture()
-def env(tmp_path):
-    """Isolated ledger, isolated hook log, isolated project root, blocking ON."""
+def env(tmp_path, reflection_env):
+    """Isolated ledger, isolated hook log, isolated project root, blocking ON.
+
+    The ledger and inbox come from `reflection_env`, which also puts them in
+    `os.environ` for the in-process `ref` module and restores the caller's values on
+    teardown."""
     project = tmp_path / "project"
     project.mkdir()
     return dict(
         os.environ,
-        CLAUDEKIT_REFLECTION_DIR=str(tmp_path / "ledger"),
-        CLAUDEKIT_REFLECTION_INBOX=str(tmp_path / "inbox"),
         CLAUDEKIT_HOOK_LOG=str(tmp_path / "hooks.log"),
         CLAUDE_PROJECT_DIR=str(project),
         ECC_HOOK_PROFILE="standard",
@@ -38,15 +40,11 @@ def env(tmp_path):
 
 @pytest.fixture()
 def ref(env):
-    os.environ["CLAUDEKIT_REFLECTION_DIR"] = env["CLAUDEKIT_REFLECTION_DIR"]
-    os.environ["CLAUDEKIT_REFLECTION_INBOX"] = env["CLAUDEKIT_REFLECTION_INBOX"]
     spec = importlib.util.spec_from_file_location("ck_reflection_gate_lib",
                                                   HOOKS / "reflection.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    yield module
-    os.environ.pop("CLAUDEKIT_REFLECTION_DIR", None)
-    os.environ.pop("CLAUDEKIT_REFLECTION_INBOX", None)
+    return module
 
 
 def run(event_name, payload, env, raw=None):
