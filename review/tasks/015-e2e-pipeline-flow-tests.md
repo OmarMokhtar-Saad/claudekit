@@ -13,6 +13,63 @@ Every stage of the pipeline is tested in isolation and the *flow* is tested nowh
 ## Root Cause
 Testing followed the module boundaries instead of the product's control flow. Each artifact had an owner who tested their unit; the pipeline itself is an emergent property of prompts + hooks + scripts and has no owner, so it got no suite. Compounding it: the only end-to-end evidence on record is the single manual 2026-07-08 run logged in INVOCATION.md (~$1.86, one task, one path) — an anecdote treated as coverage.
 
+## Reconciliation — LANE A as delivered (2026-08-20)
+
+This catalogue predates several of the things it specifies, and was reconciled against the tree
+before implementation. Read the catalogue below as the ORIGINAL analysis; this section is what
+LANE A actually ships and why the difference is deliberate.
+
+**Landed since the catalogue was written.** `.claude/hooks/iron-law-gate.py` (`f5587b4`) enforces
+the interactive Iron Law and carries 174 of its own cases; the approval gate moved into
+`execute-json-ops.py` (`59d6e27`) with a full matrix in `tests/test_ops_approval_gate.py`;
+`ops-enforcement.sh` was rewritten around the tracked `.ops-source-globs` marker (`d878496`,
+covered by `tests/test_ops_enforcement_scope.py`); the reflection ledger moved to a per-uid,
+per-project-digest directory (`21778c6`); `tests/conftest.py` gained `scoped_env`/`reflection_env`
+(`13a14da`); ops preserves file modes (`4c57198`); the installer ships and verifies `.py` hooks
+(`749e34d`). The hook count is 21 and `.claude/hooks/` is no longer `*.sh`-only.
+
+**Consequences.**
+- The WS-1 and WS-2 dependencies are discharged, so the `xfail(strict=True)` discipline in steps 4
+  and 5 is retired: nothing in LANE A ships xfailed.
+- Groups B (E2E-05..12), E, F, G(32/34), H(35) and I(40-A) are ALREADY-COVERED by existing unit
+  suites and are NOT reimplemented. Duplicating a covered case inflates the count and slows CI
+  without adding signal, which is itself the defect class this task exists to catch.
+- What LANE A ships instead is the COMPOSITION that no unit suite can see: stage N's real artifact
+  consumed as stage N+1's real input; the hooks run through settings.json's own `bash -c` wrapper
+  rather than by file path (an unwired hook passes every existing test and protects nothing); and
+  gate PRECEDENCE — the reflection checkpoint stopping the very ops command that iron-law-gate.py
+  permits.
+- **E2E-33 is rewritten, not withdrawn.** Two executors racing in one tree would be a coin flip
+  dressed as a test, because `ExecutionLock` is project-wide and non-blocking. The deterministic
+  form asserts the property the design HAS: a run that meets a lock HELD BY A CHILD PROCESS refuses
+  with the exact shipped string `Another CodeManifest executor is running (lock: ...)`
+  (`execute-json-ops.py:191`) and mutates nothing. `ExecutionLock` and `.codemanifest.lock` were
+  referenced by NO test before this; E2E-31's "no stale lock left behind that blocks the next run"
+  is asserted in the same case.
+- **E2E-34's hook half lands here.** `test_security.py` and `test_worktree_manager.py` cover the
+  EXECUTOR's path guard only; `ops-enforcement.sh`'s cross-project deny branch was referenced by no
+  test in the suite.
+- **E2E-28 (SIGINT mid-batch) lands narrowed**: the signal is aimed at a `run_command` sleep placed
+  after the file operations, so the asserted invariants (exit 130, one `interrupted` verdict, a
+  rolled-back tree) are timing-independent. Only "consistent at an arbitrary instant" is deferred.
+- **PARTIAL, not covered** (residue named, handed on as follow-ups rather than folded in): E2E-07's
+  stderr must distinguish "verdict does not authorise" from "no record"; E2E-09's 89/90 threshold
+  boundary is unpinned; E2E-16's actual point — this repo's own `minimal` override being VISIBLE and
+  asserted gitignored — is covered by nothing.
+- The fixture is built by copying the LIVE tree's hooks, ops scripts and settings.json at test time.
+  The vendored `tests/fixtures/pipeline/` in the Files section is superseded — a vendored `.claude/`
+  goes stale against the thing it guards. `tests/conftest.py` is left untouched; the factory is
+  module-local.
+
+**Delivered LANE A: 11 tests in one module, `tests/test_pipeline_e2e.py`** — the composed spine
+(E2E-01/02/03), the CONDITIONAL -> revise -> re-approve round trip (E2E-41), the wired-chain profile
+matrix (E2E-13/14/15), the paired Iron Law block-and-allow (E2E-17/18), gate precedence (new, no
+catalogue id), the executor lock (E2E-31/33), the hook's cross-project deny (E2E-34), the narrowed
+SIGINT case (E2E-28) and the payload-reprint corpus lint (E2E-36). Each is bound by a surgical
+mutation proof recorded in `.claude/plans/plan-e2e-lane-a.md`, whose accounting is module-scoped
+with suite-wide collateral measured for the two broadest mutants; measured cost is ~7 s.
+
+
 ## Relationship to tasks 010 and 012 (do not duplicate)
 - **Task 010 (eval framework)** asserts *one agent's* behavior per eval — does the planner emit a valid ops.json, does the reviewer refute. It owns `evals/definitions/*.json` and `scripts/run-evals.py`. This task owns the *composition*: multi-stage flows where the artifact of stage N is the input and the gate of stage N+1. Task 015 extends the existing harness with a `flow` eval kind rather than building a second runner.
 - **Task 012 (behavioral upgrade)** upgrades per-unit tests inside `tests/`. This task adds exactly one new pytest module family (`tests/test_pipeline_e2e.py` + fixtures) for the deterministic lane and never edits task 012's files.
