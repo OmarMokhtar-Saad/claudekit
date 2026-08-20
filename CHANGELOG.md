@@ -12,7 +12,92 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- **The Iron Law is now enforced on the interactive path, not just stated**
+  (`.claude/hooks/iron-law-gate.py`; plan: `.claude/plans/plan-iron-law-enforcement-hook.md`).
+  `implementer.md` grants no Edit/Write but does grant unrestricted `Bash`, and a frontmatter
+  `Bash(...)` specifier was measured NOT to apply on the interactive path — so `sed -i`,
+  `cat >` and `python3 -c "open(...,'w')"` all bypassed hard rule 1. A `PreToolUse` hook keyed
+  on `agent_type == "implementer"` now allowlists the ops engine plus a small verification set
+  and refuses everything else (`exit 2` + stderr), routing the agent to the Verifier handoff.
+  It passes through untouched when `agent_type` is absent or is not the implementer, so the
+  main agent and every other subagent are unaffected.
+  **Flags are default-deny, not denylisted:** three review rounds enumerating forbidden flags
+  never converged (`pytest --log-file/-o/-c/--override-ini`, then `ruff --add-noqa` and
+  `pytest --debug` *in the verbs the previous round claimed to have swept*, then
+  `mypy --install-types` and `@argfile`). An unknown flag is now refused, so a future release
+  cannot add a writer that slips through. **Positionals are checked too** —
+  `git remote add origin <url>` mutates through arguments, not flags. The verb must name a
+  PATH-resolved program, and that check sits above the interpreter dispatch.
+  174 behavioral tests; eight surgical mutants asserting the exact set of cases each one flips.
+  Honest residual: the SAFE tables are audited enumerations of *permitted* arguments — smaller
+  and more stable than enumerating forbidden ones, but not a proof; `pytest` is permitted and
+  executes `conftest.py`.
+- **Reflection ledger scoped per uid and project, untrusted roots refused**
+  (plan: `.claude/plans/plan-reflection-ledger-isolation.md`). The fallback was one
+  `$TMPDIR/claudekit-reflection` shared by every session, project and user of that temp dir.
+  Two checkouts on one machine collided — the universal defect. It is now
+  `<tmp>/claudekit-reflection-u<uid>/<sha256(realpath(project_root))[:16]>`, created `0o700`
+  and re-verified on each use with `os.lstat`.
+  A local integrity issue was reproduced rather than theorised: `Path.mkdir(parents=True,
+  exist_ok=True)` FOLLOWS a symlink planted at the root, so a planted `<key>.jsonl` symlink
+  turned `open("a")` into an append-only write primitive into any file the uid owns; and
+  `O_EXCL` stops the session token being overwritten but not PRE-created, so the loser adopts
+  an attacker-chosen HMAC key. Sized honestly: unreachable on single-user macOS (`TMPDIR` is
+  already a private `/var/folders/.../T`), real only on shared Linux hosts where `TMPDIR` is
+  unset and the parent is world-writable `/tmp`. An untrusted root DEGRADES — bookkeeping
+  failure never blocks work.
+
+### Fixed
+- **Installer shipped `settings.json` but not the Python hooks it references**, so a fresh
+  full-mode install blocked every Edit, Write and Bash: `python3 <missing-file>` exits 2, and
+  exit 2 on `PreToolUse` means BLOCK. The extension allowlist is replaced with a structural
+  denylist, `chmod +x` is driven by shebang rather than extension, and both `install.sh` and
+  `ck doctor` now derive the expected hook set from the installed `settings.json` and verify
+  every wired hook resolves — `ck doctor` previously reported a healthy install on a fully
+  blocked project. The check is deliberately conservative: anything it cannot classify as a
+  script is ignored, never required, after an earlier revision would have blocked installation
+  for everyone the moment a hook logged to `hooks.log`.
+  **User-visible:** existing pre-fix installs will now correctly FAIL `ck doctor --strict`.
+- **The ops engine silently stripped file modes.** `atomic_write` created its temp file with
+  `mkstemp` (0600) and `os.replace` handed that mode to the target, so every edited file came
+  out 0600 — which took `install.sh` to 0600 and shipped `ops-enforcement.sh` and
+  `gen-docs.py` as `100755 => 100644`. Invisible to git for non-executables, since 0600 and
+  0644 both store as `100644`. Fixed with one shared helper across both write paths; backup,
+  rollback and post-state restore were verified unaffected (they use `shutil.copy2`).
+  This was pre-diagnosed at `review/code-review.md:286` **with the fix written out** and left
+  unfixed until it caused damage.
+- **Reflection tests leaked process-global environment.** Both `ref` fixtures ended with
+  `os.environ.pop(...)` — a delete, not a restore — so any later test relying on an ambient
+  value silently retargeted to the shared temp dir. New `tests/conftest.py` provides
+  `scoped_env()` (restores prior values including absence, in a `finally`) and a
+  function-scoped `reflection_env`. Nothing is autouse.
+- **Executable bits restored** on `ops-enforcement.sh` and `gen-docs.py`, stripped by the ops
+  engine before the fix above landed.
+
+### Changed
+- **The Iron Law now covers this repo's own product** (Decision 21, Option A). A tracked
+  `.ops-source-globs` marker makes `.claude/{agents,commands,skills,hooks,operations}/*` count
+  as SOURCE in this checkout, after a hard-coded never-source denylist (plans/reports/knowledge/
+  backups) checked FIRST so the bootstrap cannot deadlock. **User projects are provably
+  unaffected** — with no marker the exemption logic is identical to before, and absent, empty,
+  unreadable, whitespace and CRLF markers all resolve to dormant. Deliberately DORMANT under
+  `ECC_HOOK_PROFILE=minimal`, which this repo still defaults to; that switch is the owner's.
+- **The hook count was wrong, not stale.** `gen-docs.py` globbed `*.sh`, so the Python hooks
+  were invisible. It now counts `*.sh` + `*.py` minus files another hook sources or imports
+  (structural, not a name list), and OWNS the prose count sites instead of telling a human to
+  hand-edit them. `--check` still returns before the fixer runs, so the CI gate stays
+  non-vacuous.
+
 ### Added
+- **`review/code-review-triage.md`** — all 108 findings in `review/code-review.md` triaged:
+  53 LIVE, 49 FIXED, 5 OBSOLETE, 1 UNVERIFIABLE, zero P0 and, on the evidence, zero P1. Of the
+  53 live, only 21 are mechanically catchable and **13 need nothing built** — just an existing
+  gate pointed at code it should already cover (`gen-docs --check` scopes to five docs files;
+  `pyproject.toml:57` limits `mypy` to `src/claudekit` so the operations engine is untyped; no
+  executable references `config.schema.json`, which is why the shipped `config.json` has failed
+  the shipped schema for 46 days). Includes a sampling disclosure naming which verdicts rest on
+  execution versus reading, and retracts two of its own errors in place.
 - **Approval gate enforced inside the ops engine** (plan:
   `.claude/plans/plan-ops-approval-gate.md`): `execute-json-ops.py` now verifies the
   reviewer verdict itself before any mutation, instead of relying on a prose step in

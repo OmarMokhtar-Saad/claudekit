@@ -73,6 +73,39 @@ session, and the same class gets re-found instead of accumulating into a check.
 | `context-floor-creep` | always-on prompt text grows and nothing fails | `scripts/check-context-floor.py --check` |
 | `prose-verified-claim` | a claim resting on reading prose instead of executing something | `_shared/VERIFICATION_PROTOCOL.md` refutation pass (prose) |
 | `duplicate-asset` | a new near-duplicate agent/skill instead of extending the existing one | nothing yet — task 008 is manual |
+| `fix-introduces-larger-hole` | the fix for a finding opens a worse one than it closed | **nothing mechanical, and probably nothing can be** — the only thing that caught all four was a FRESH reviewer told to attack the fix, not to confirm the finding was addressed. Make that the delta-review contract instead. |
+| `guard-cannot-express-guarded-case` | a rule is added in one place while the artifact the model actually fills cannot express it | nothing yet — candidate check: assert every verdict/status token a prompt instructs also appears in that prompt's output template |
+| `count-asserted-not-derived` | a total is restated in prose/metadata instead of re-derived from the thing it counts | `gen-docs.py --check` covers component counts only; in-document totals are ungated |
+| `denylist-inside-an-allowlist` | the outer set is allowlisted but an inner dimension (flags, subcommands, arguments) is denylisted, so the security property collapses to "we thought of the bad ones" | nothing yet — the tell is a review round that finds new members of a class a previous round claimed to have swept |
+| `silent-failure` | an error is swallowed (`\|\| true`, bare `except`, `2>/dev/null`) and the caller reports success | nothing yet — 12 LIVE instances in `review/code-review-triage.md`; the largest class in the repo |
+| `unanchored-pattern` | a pattern matched without anchoring, so it fires on substrings | nothing yet — 6 LIVE |
+| `unwired-artifact` | a file ships that nothing executable references | nothing yet — 4 LIVE; `config.schema.json` went 46 days unapplied |
+| `type-contract-drift` | an annotation disagrees with what the function returns | `mypy` — but `pyproject.toml:57` scopes it to `src/claudekit`, so the operations engine is unchecked |
+| `validator-executor-divergence` | the validator and the thing it gates disagree about what is valid | nothing yet — 2 seams: unknown edit fields (validator rejects, executor ignores) and sequential-edit anchors (validator checks the original file, executor applies in order) |
+
+### What the 2026-08-19/20 batch actually proved about this table
+
+Four classes above crossed the threshold inside a single batch, which is worth reading as a
+result rather than a coincidence.
+
+**`fix-introduces-larger-hole` is the one to design around.** Four instances in two days: a
+reviewer that went from refusing every review to reporting clean while blind to new files; a
+hook-conflict fix that opened an arbitrary source write through a symlinked inbox; an installer
+fail-closed check that would have blocked every installation; and a `PreToolUse` control
+bypassed by dispatch order. Every one was caught by a FRESH reviewer instance told to attack the
+fix. A reviewer asked "did they address the finding? yes" passes all four. That is the delta-review
+contract, and it is worth more than any check we could write.
+
+**Writing a mutant finds defects before the mutant runs.** Three times in this batch, the act of
+trying to disable a rule exposed that the rule did not live where the table implied: `X = () or
+(...)` neutered nothing (it evaluates to the non-empty tuple), `_GIT_OUTPUT_FLAGS` could not be
+disabled because the attached `--output=` form was hardcoded at the call site, and `git remote
+add` turned out to mutate through positionals that no flag rule touched. Heuristic:
+**a guard you cannot disable in one place is a guard whose enforcement you do not understand.**
+
+**Mutants must assert the exact flipped set.** An earlier revision claimed each of eight mutants
+flipped only its own case; the test asserted only that the target flipped, and the claim was false
+for one of them. Declare the collateral per mutant and assert set equality.
 
 ## Review philosophy
 
