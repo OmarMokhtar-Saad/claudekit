@@ -481,3 +481,163 @@ class TestIsolation:
         with scoped_env(**{marker: str(tmp_path)}):
             assert os.environ[marker] == str(tmp_path)
         assert marker not in os.environ
+
+# ------------------------------------------------- fallback root (no env override)
+
+
+class TestFallbackRootIsolation:
+    """BOUND TESTS for the machine-shared temp fallback - the code path the fixture
+    normally hides.
+
+    Every test here deliberately REMOVES CLAUDEKIT_REFLECTION_DIR so `ledger_dir()`'s
+    fallback is the thing under test, and pins TMPDIR inside tmp_path so the developer's
+    real ledger is still never touched. ECC_HOOK_PROFILE stays forced by `reflection_env`.
+    """
+
+    @pytest.fixture()
+    def fallback(self, ref, tmp_path, monkeypatch):
+        monkeypatch.delenv("CLAUDEKIT_REFLECTION_DIR", raising=False)
+        tmp = tmp_path / "tmp"
+        tmp.mkdir()
+        monkeypatch.setenv("TMPDIR", str(tmp))
+        project = tmp_path / "project"
+        project.mkdir()
+        monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(project))
+        return ref
+
+    def test_two_projects_with_the_same_session_id_do_not_collide(
+        self, fallback, tmp_path, monkeypatch
+    ):
+        """THE DEFECT. One flat root keyed only by sha256(session_id) meant two checkouts
+        on one machine appended to the same file."""
+        seen = []
+        for name in ("alpha", "beta"):
+            root = tmp_path / name
+            root.mkdir()
+            monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(root))
+            assert fallback.ensure_ledger_dir() is not None
+            assert fallback.append_entry(SESSION, {"project": name})
+            seen.append((name, fallback.ledger_path(SESSION)))
+        assert seen[0][1] != seen[1][1]
+        for name, path in seen:
+            lines = [ln for ln in path.read_text(encoding="utf-8").splitlines() if ln]
+            assert len(lines) == 1, lines
+            assert json.loads(lines[0])["project"] == name
+
+    def test_a_session_ledger_persists_across_separate_hook_invocations(
+        self, fallback, tmp_path
+    ):
+        """REGRESSION FOR THE CHECKPOINT MECHANISM. The ledger is written by one hook
+        process and read by a LATER one in the same session. Derive the path from
+        anything per-invocation - pid, time, mkdtemp - and this goes red while every
+        in-process test stays green."""
+        env = dict(os.environ)
+        env.pop("CLAUDEKIT_REFLECTION_DIR", None)
+        env.pop("CLAUDEKIT_REFLECTION_INBOX", None)
+        env["TMPDIR"] = str(tmp_path / "tmp")
+        env["CLAUDE_PROJECT_DIR"] = str(tmp_path / "project")
+        env["ECC_HOOK_PROFILE"] = "minimal"
+        write = subprocess.run(
+            [sys.executable, str(MODULE_PATH), "trigger",
+             "--session-id", SESSION, "--trigger", "third-fix"],
+            capture_output=True, text=True, env=env, timeout=60,
+        )
+        assert write.returncode == 0, write.stdout + write.stderr
+        read = subprocess.run(
+            [sys.executable, str(MODULE_PATH), "status", "--session-id", SESSION],
+            capture_output=True, text=True, env=env, timeout=60,
+        )
+        assert read.returncode == 0, read.stdout + read.stderr
+        assert json.loads(read.stdout)["checkpoint"], read.stdout
+
+    def test_the_fallback_root_is_private_to_this_user(self, fallback):
+        path = fallback.ensure_ledger_dir()
+        assert path is not None
+        for component in (path.parent, path):
+            info = os.lstat(str(component))
+            assert stat.S_IMODE(info.st_mode) == 0o700, oct(info.st_mode)
+            assert info.st_uid == os.getuid()
+
+    def test_a_pre_created_world_writable_root_is_refused(self, fallback):
+        """The `/tmp` (mode 1777) case: another uid creates the predictable directory
+        first. `mkdir(exist_ok=True)` accepts it silently; we must not."""
+        hostile = fallback.ledger_dir().parent
+        hostile.mkdir(parents=True)
+        os.chmod(str(hostile), 0o777)
+        assert fallback.ensure_ledger_dir() is None
+        assert fallback.append_entry(SESSION, {"never": "written"}) is False
+
+    def test_a_symlink_planted_at_the_root_is_refused_not_followed(
+        self, fallback, tmp_path
+    ):
+        """`Path.mkdir(exist_ok=True)` follows a symlink to a directory - that is how a
+        predictable temp path becomes an arbitrary-write primitive."""
+        target = tmp_path / "attacker_controlled"
+        target.mkdir()
+        link = fallback.ledger_dir().parent
+        os.symlink(str(target), str(link))
+        assert fallback.ensure_ledger_dir() is None
+        assert fallback.append_entry(SESSION, {"never": "written"}) is False
+        assert list(target.iterdir()) == []
+
+    def test_a_root_owned_by_someone_else_is_refused(self, fallback, monkeypatch):
+        """chown needs root, so the check's own notion of `us` is moved instead: the
+        directory below is ours, and is therefore FOREIGN from the code's point of
+        view."""
+        monkeypatch.setattr(fallback, "_current_uid", lambda: os.getuid() + 1)
+        foreign = fallback.ledger_dir()
+        foreign.mkdir(parents=True)
+        os.chmod(str(foreign), 0o700)
+        os.chmod(str(foreign.parent), 0o700)
+        assert fallback.ensure_ledger_dir() is None
+        assert fallback.append_entry(SESSION, {"never": "written"}) is False
+
+    def test_a_hostile_root_yields_no_entries_and_no_token(self, fallback):
+        """Read side. Without this guard a planted `<key>.token` wins the O_EXCL race and
+        every receipt HMAC becomes forgeable by whoever planted it."""
+        root = fallback.ledger_dir()
+        root.mkdir(parents=True)
+        os.chmod(str(root), 0o777)
+        fallback.ledger_path(SESSION).write_text(
+            json.dumps({"type": "failure", "id": "planted"}) + "\n", encoding="utf-8")
+        fallback.token_path(SESSION).write_text("x" * 40, encoding="utf-8")
+        assert fallback.entries(SESSION) == []
+        assert fallback.read_session_token(SESSION) is None
+
+    def test_a_degraded_root_is_not_silent(self, fallback, capsys):
+        """MINOR-turned-property: reflection may degrade, but it may not degrade QUIETLY -
+        off-and-silent is the exact failure mode that disqualifies "refuse unless
+        configured" in the plan. Once per process, on stderr, never as a block."""
+        root = fallback.ledger_dir()
+        root.mkdir(parents=True)
+        os.chmod(str(root), 0o777)
+        assert fallback.ledger_dir_trusted() is False
+        first = capsys.readouterr().err
+        assert "not private to this user" in first
+        assert fallback.ledger_dir_trusted() is False
+        assert capsys.readouterr().err == ""
+
+    def test_the_inbox_stays_project_local_on_the_fallback(self, fallback, monkeypatch):
+        """The inbox must NOT move with the ledger root: the PreToolUse gate allows a
+        Write to exactly `<project>/.claude/reflection/inbox-<key>.json`."""
+        monkeypatch.delenv("CLAUDEKIT_REFLECTION_INBOX", raising=False)
+        inbox = fallback.inbox_path(SESSION)
+        project = Path(os.environ["CLAUDE_PROJECT_DIR"])
+        assert inbox.parent == project / ".claude" / "reflection"
+        assert fallback.ledger_dir() not in inbox.parents
+
+
+class TestExplicitOverrideUnchanged:
+    def test_an_override_is_used_verbatim_and_is_not_permission_audited(
+        self, ref, tmp_path
+    ):
+        """BOUND TEST for the `reflection_env` contract: no uid or project segment is
+        appended to an explicit root, and its mode is the operator's business."""
+        root = tmp_path / "ledger"
+        assert ref.ledger_dir() == root
+        assert ref.ensure_ledger_dir() == root
+        os.chmod(str(root), 0o755)
+        assert ref.ledger_dir_trusted() is True
+        assert ref.append_entry(SESSION, {"ok": 1})
+        assert len(ref.entries(SESSION)) == 1
+

@@ -309,7 +309,9 @@ def handle_session_start(event: Dict[str, Any], session_id: str) -> int:
         )
     carry = reflection.carryover_path(session_id)
     try:
-        if carry.is_file():
+        # Carry-over text is echoed to stdout, i.e. straight into the model's context, so
+        # never read it out of a ledger root another uid could have written.
+        if reflection.ledger_dir_trusted() and carry.is_file():
             text = carry.read_text(encoding="utf-8").strip()
             if text:
                 lines.append(text)
@@ -400,8 +402,10 @@ def handle_pre_compact(event: Dict[str, Any], session_id: str) -> int:
             + [reflection.receipt_instructions()]
         )
         try:
+            # The ledger root is created and ownership-checked in exactly one place.
+            if reflection.ensure_ledger_dir() is None:
+                raise OSError("reflection ledger root is not private to this user")
             path = reflection.carryover_path(session_id)
-            path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(text + "\n", encoding="utf-8")
         except OSError:
             hlog("WARN", "could not persist compaction carry-over")
