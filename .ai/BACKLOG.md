@@ -105,6 +105,40 @@ defects discovered during execution. See CHANGELOG `[Unreleased]` and the plans 
   from the verdict enum; path (d) absent from the `Revision:` header), and `count-asserted-not-derived`
   (WS-6 lane totals, twice). Each is at or past the three-entry threshold that earns a mechanical check.
 
+## P0.75 — harness findings, 2026-08-20 (from the plan-doctor-gate batch)
+
+Two findings about the harness rather than the product. Neither is fixed; both imply owner-gated
+asset changes, so they are recorded as options with trade-offs.
+
+- [ ] **The `reviewer` agent cannot execute, so plan reviews are structurally static.**
+  `.claude/agents/reviewer.md` grants Read, Grep, Glob — no Bash. Across three review rounds of
+  plan-doctor-gate the reviewer was twice asked to clone the repo, run `execute-json-ops.py` and
+  run the six DoD commands; it correctly reported it could not, and verified by reading instead.
+  Consequence: no test in that plan was executed by any reviewer, the plan's "pre-verified during
+  planning" claims were planner self-reports, and the post-execution DoD run was the first real
+  execution. Why it matters: in that same batch **three of the four defects found were introduced
+  by fixes to earlier findings** — round 1's fix leaked this repo's commands onto the installer's
+  failure path; round 2's fix for that added an `exit 1` that skipped `_cleanup_on_failure` and
+  would have littered `.claude.staging.<pid>` into user projects; round 3 found a `jsonschema` test
+  stub that was inert in CI and fake-green exactly where `test_gate_scope.py` skips. And
+  `.ai/REVIEW_GUIDE.md` asks reviewers to prove a check binds by MUTATING the shipped artifact and
+  reading the failure — which a Read/Grep/Glob agent cannot do, so the guide asks for something its
+  addressee cannot perform. Options, undecided: **(a)** grant the reviewer scoped Bash — this
+  collides with the Iron Law / tool-grant work, and `tests/test_agent_tool_grant_drift.py`
+  established that a frontmatter-declared `Bash(...)` specifier is NOT applied on the interactive
+  path, so a "scoped" grant may silently become unscoped Bash on the review agent, which is the
+  security tension and the reason this is not a free win; **(b)** keep the reviewer read-only and
+  add a separate execute-capable verification step that applies ops in a throwaway clone;
+  **(c)** leave as-is and require the orchestrator to run mutants, documenting in the guide that
+  plan reviews are static.
+- [ ] **`ops-enforcement.sh:43`'s exemption list is broad and worth revisiting.** It exempts
+  `/private/tmp/claude-*`, `/tmp/claude-*`, `/private/var/folders/*` and `/var/folders/*`; anything
+  placed under those prefixes — a fixture, a scratch file, or an entire repo clone — has
+  enforcement silently disabled. Recorded, not proposed: narrowing it is owner-gated and could
+  break the AppiumLens field fix the comment at `ops-enforcement.sh:38-41` cites as the reason the
+  exemption exists. The reviewing lesson (verify clone/fixture location; expected exit 2 arriving
+  as exit 0 is the tell) is generalised in `.ai/REVIEW_GUIDE.md` beside the hook checklist.
+
 ## P1 — high value, unblocked
 
 - [ ] Fix QUICK_START table drift vs frontmatter (issue #6) and the phantom `opensource-forker` references (#8).

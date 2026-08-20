@@ -31,6 +31,7 @@ High-stakes escalation: `/santa` (dual independent reviewers, both must approve)
 - [ ] Blocking = exit 2 + stderr, fail closed; profile-gated correctly.
 - [ ] bash-3.2/macOS-safe; shellcheck clean; behavioral test proves block AND allow paths.
 - [ ] settings.json registration matches (dangling-hooks CI).
+- [ ] Fixture location checked against the hook's exemption prefixes. A gate test that passes by ALLOWING is unverified until you know where its fixture lives (`tests/test_ops_enforcement_scope.py:42` places fixtures beside the repo for exactly this reason).
 
 **Security-layer changes:**
 - [ ] Bypass corpus extended for the new surface; coverage ≥85% holds.
@@ -106,6 +107,24 @@ add` turned out to mutate through positionals that no flag rule touched. Heurist
 **Mutants must assert the exact flipped set.** An earlier revision claimed each of eight mutants
 flipped only its own case; the test asserted only that the target flipped, and the claim was false
 for one of them. Declare the collateral per mutant and assert set equality.
+
+**An exempted prefix disables enforcement for everything under it — including a whole clone.**
+The standing warning was narrow: don't put hook fixtures under `$TMPDIR`. The rule is wider.
+`.claude/hooks/ops-enforcement.sh:43` exempts `/private/tmp/claude-*`, `/tmp/claude-*` and
+`/{private/,}var/folders/*`, and the exemption tests the *target path*, so any tree placed there
+loses enforcement wholesale. Hit from the other direction on 2026-08-20: a fresh clone made inside
+the session scratchpad (under `/private/tmp/claude-*`) produced 15 failures in
+`tests/test_ops_enforcement_scope.py`, because its fixtures live in `REPO.parent`, which for that
+clone was the exempt prefix. Re-cloning to a non-exempt parent: 1227 passed, 0 failed. There was no
+regression and no CI gap (CI clones to `/home/runner/work/...`). **Diagnostic signature: assertions
+expecting exit 2 receive exit 0** — a `vacuous-check` produced by location, not by code. So verify
+where the clone and the fixtures sit before trusting ANY ops-enforcement result, and treat a gate
+test that passes by allowing as suspect until its location is checked.
+
+One caveat on everything above: the `reviewer` agent holds Read, Grep and Glob and cannot execute,
+so it cannot write a mutant, apply an ops.json, or run the DoD commands. Until that is resolved
+(BACKLOG P0.75) the mutation discipline in this section is the ORCHESTRATOR's to run, and a plan
+review should be read as a static read-through, not as evidence that anything was executed.
 
 ## Review philosophy
 
