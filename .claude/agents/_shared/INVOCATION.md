@@ -174,19 +174,30 @@ subagent.
 - **Never write a `Tool(specifier)` form in frontmatter `tools:`.** It reads as enforcement
   and is not — it is silently discarded, leaving the bare, unrestricted tool. A test gates
   this (`tests/test_agent_tool_grant_drift.py`).
-- **On the interactive path the implementer holds UNSCOPED Bash, so the Iron Law is
-  PROMPT-enforced there, not harness-enforced.** Removing `Bash` is not an option: the ops
-  engine is invoked *through* Bash (`python3 .claude/operations/scripts/execute-json-ops.py`),
-  so dropping it would break `/implement` outright. The mechanical fix is a `PreToolUse` hook
-  keyed on `agent_type == "implementer"` that **allowlists** `execute-json-ops.py` plus a
-  named read-only verb set and rejects everything else, failing closed (`exit 2` + stderr).
-  A denylist of mutating commands would not do: `git apply`, `git checkout -- <path>`,
-  `patch`, `ed`, `perl -pi`, `xargs`, `sh -c`, heredocs and `$(...)` all evade pattern
-  lists. The allowlist must reject shell metacharacters and wrappers before matching,
-  match on tokenised argv rather than a prefix, refuse `sed` when any token starts with
-  `-i`, and pass through untouched when `agent_type` is absent or is not `implementer`.
-  **The hook is not in place yet** — do not describe the interactive Iron Law as enforced
-  until it is.
+- **On the interactive path the implementer holds UNSCOPED Bash, so the frontmatter grant
+  enforces nothing.** Removing `Bash` is not an option: the ops engine is invoked *through*
+  Bash (`python3 .claude/operations/scripts/execute-json-ops.py`), so dropping it would break
+  `/implement` outright. **The Iron Law is now harness-enforced by
+  [`.claude/hooks/iron-law-gate.py`](../../hooks/iron-law-gate.py)**, a `PreToolUse` hook keyed
+  on `agent_type == "implementer"` that allowlists the ops engine plus a small verification set
+  and rejects everything else with `exit 2` + stderr. It passes through untouched when
+  `agent_type` is absent or is not `implementer`, so the main agent and every other subagent are
+  unaffected.
+
+  Two design points are load-bearing and should not be "simplified" away. **Flags are
+  default-deny, not denylisted:** an unknown flag is refused, so a future `ruff`/`pytest`
+  release cannot add a writer that slips through. Five review rounds of flag enumeration failed
+  to converge — `pytest --log-file`, `-o`, `-c`, `--override-ini`, then `ruff --add-noqa`,
+  `pytest --debug`, then `mypy --install-types` and `@argfile` — because a denylist inside an
+  allowlist is still a denylist. **Positionals are checked too:** `git remote add origin <url>`
+  mutates through arguments, not flags, and survived three rounds of flag auditing.
+  The verb must also name a PATH-resolved program, and that check sits ABOVE the interpreter
+  dispatch — resolving the *script* is not resolving the *interpreter*.
+
+  Honest residual (hard rule 6): the SAFE tables are audited enumerations of *permitted*
+  arguments, which is a smaller and more stable surface than enumerating forbidden ones, but
+  not a proof. `pytest` is permitted and executes `conftest.py`, i.e. repo code already trusted.
+  See the plan's R7 for the measured surface.
 
 ### Actual frontmatter grants (bare names — the interactive Task path)
 
