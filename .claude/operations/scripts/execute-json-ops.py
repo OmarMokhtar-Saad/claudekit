@@ -885,7 +885,19 @@ def check_approval(config_file: str, plan_name: str) -> Tuple[bool, str]:
         # cmd_check ever grows a required attribute: refuse, never assume.
         return False, f"approval-gate: check raised: {e}"
     if code != 0:
-        return False, f"approval-gate: review-record check exit {code} (slug '{slug}'; {why})"
+        # review-record.py separates the three refusal causes by exit code (2 drift,
+        # 3 no record, 4 unauthorised verdict) and prints a distinct stderr block for
+        # each. Collapsing them into "check exit N" threw that away for anything reading
+        # RESULT-JSON: "no record exists" and "a verdict exists but does not authorise
+        # this ops.json" have different remedies and must not read identically.
+        cause = {
+            2: "ops.json changed after it was reviewed; the recorded verdict does not "
+               "authorise execution of this file (DRIFT)",
+            3: "no review record exists for this plan",
+            4: "a review record exists but its verdict does not authorise execution",
+        }.get(code, f"review-record check failed (exit {code})")
+        return False, (f"approval-gate: {cause} "
+                       f"[review-record exit {code}; slug '{slug}'; {why}]")
     return True, ""
 
 
