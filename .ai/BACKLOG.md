@@ -24,6 +24,17 @@ defects discovered during execution. See CHANGELOG `[Unreleased]` and the plans 
   new `.claude/hooks/*.py` (`reflection.py`, `reflection-gate.py`) are invisible to the counter.
   The repo ships 21 hooks and documents 19. Fix: extend the glob to `*.py` (preferred), or render
   "19 shell hooks". Must go through the generator — hard rule 8 forbids hand-editing counts.
+- [ ] **Triage `review/code-review.md` — 76 unfixed P2/P3 findings, and one of them just cost real
+  damage.** The ops engine's mode-stripping bug was documented there at `:286` as a P2 **with its fix
+  already written out** ("Copy the original mode … before replace"), and left unfixed until it
+  silently shipped `.claude/hooks/ops-enforcement.sh` and `scripts/gen-docs.py` as 100755 => 100644 in
+  `d878496` and took `install.sh` to 0600 in `749e34d`. It was caught only by an incidental
+  `git log --diff-filter=M --summary` audit. Two more from the same block are live: `ExecutionLock`
+  is not a real lock on Windows (`O_CREAT|O_TRUNC` always succeeds) and `release()` unlinks the lock
+  file even if another process now holds it; and the validator checks `find` patterns against the
+  ORIGINAL file while the executor applies edits sequentially. That last one is a **second confirmed
+  instance** of the class below — two entries, one short of the ratchet's three-entry threshold.
+  A stack of known defects with known fixes is worth more attention than the next feature.
 - [ ] **The validator does not bind the executor.** `operations-schema.json` sets
   `additionalProperties: false`, but `execute-json-ops.py` silently IGNORES unknown edit fields.
   A config `validate-config-json.py` REJECTS still executes — and if the unknown field carried
