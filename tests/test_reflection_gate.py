@@ -446,3 +446,92 @@ class TestPreCompact:
         assert ref.pending_checkpoint(SESSION) is not None
         proc = run("Stop", {"hook_event_name": "Stop", "session_id": SESSION}, env)
         assert proc.returncode == 2
+
+class TestUntrustedLedgerRootInTheGate:
+    """BOUND TESTS for the two ledger-root edits in this hook.
+
+    The fallback root is put under tmp_path and made hostile, IN-PROCESS AND IN THE
+    SUBPROCESS ALIKE - the `env` fixture only builds a dict, so without the matching
+    `monkeypatch.setenv` the in-process `ref` would resolve a different project (and
+    `project_root()` would shell out to `git rev-parse` and create directories in the
+    developer's real checkout).
+    """
+
+    @pytest.fixture()
+    def fallback_env(self, env, tmp_path, monkeypatch, ref):
+        tmp = tmp_path / "gate-tmp"
+        tmp.mkdir(exist_ok=True)
+        clean = dict(env)
+        clean.pop("CLAUDEKIT_REFLECTION_DIR", None)
+        clean.pop("CLAUDEKIT_REFLECTION_INBOX", None)
+        clean["TMPDIR"] = str(tmp)
+        # Same resolution in this process as in the hook subprocess.
+        monkeypatch.delenv("CLAUDEKIT_REFLECTION_DIR", raising=False)
+        monkeypatch.delenv("CLAUDEKIT_REFLECTION_INBOX", raising=False)
+        monkeypatch.setenv("TMPDIR", str(tmp))
+        monkeypatch.setenv("CLAUDE_PROJECT_DIR", clean["CLAUDE_PROJECT_DIR"])
+        assert ref.ledger_dir().parent.parent == tmp
+        return clean
+
+    def test_exactly_the_resolved_inbox_is_permitted_on_the_fallback(
+        self, fallback_env, ref
+    ):
+        """The ledger root moved; the inbox did not. Seeding a checkpoint FIRST is what
+        makes this bind: without it `handle_pre_tool_use` returns 0 before it ever
+        reaches `is_receipt_inbox_write()` and both legs pass for the wrong reason."""
+        seed_two_failures(fallback_env)
+        inbox = ref.inbox_path(SESSION)
+        assert inbox.parent == Path(fallback_env["CLAUDE_PROJECT_DIR"]) / ".claude" / "reflection"
+        allowed = run("PreToolUse", {
+            "hook_event_name": "PreToolUse", "session_id": SESSION, "tool_name": "Write",
+            "tool_input": {"file_path": str(inbox), "content": "{}"},
+        }, fallback_env)
+        assert allowed.returncode == 0, allowed.stdout + allowed.stderr
+        sibling = inbox.parent / "not-the-inbox.json"
+        refused = run("PreToolUse", {
+            "hook_event_name": "PreToolUse", "session_id": SESSION, "tool_name": "Write",
+            "tool_input": {"file_path": str(sibling), "content": "{}"},
+        }, fallback_env)
+        assert refused.returncode == 2, refused.stdout + refused.stderr
+
+    def test_session_start_never_echoes_carryover_from_an_untrusted_root(
+        self, fallback_env, ref
+    ):
+        """Carry-over text goes straight to stdout, i.e. into the model's context. A
+        world-writable root means another uid wrote it. Revert the `:312` guard and this
+        goes red."""
+        root = ref.ledger_dir()
+        root.mkdir(parents=True)
+        os.chmod(str(root), 0o777)
+        planted = "PLANTED-CARRYOVER-INJECTION"
+        ref.carryover_path(SESSION).write_text(planted + "\n", encoding="utf-8")
+        proc = run("SessionStart", {
+            "hook_event_name": "SessionStart", "session_id": SESSION, "source": "compact",
+        }, fallback_env)
+        assert proc.returncode == 0, proc.stderr
+        assert planted not in proc.stdout
+        assert planted not in proc.stderr
+
+    def test_pre_compact_writes_no_carryover_into_an_untrusted_root(
+        self, fallback_env, ref
+    ):
+        """Bound to the `:404` guard specifically.
+
+        The duties are seeded while the root is fully private, then only the PARENT is
+        made world-writable. Reads still trust the leaf, so duties are non-empty and the
+        write path is genuinely reached - which is the only way to observe that
+        `ensure_ledger_dir()` (which audits parent AND leaf) refuses where the old
+        `mkdir(parents=True, exist_ok=True)` would have written."""
+        seed_two_failures(fallback_env)
+        run("PostToolUseFailure", failure_payload("pytest -q tests/c.py", "t3"), fallback_env)
+        root = ref.ledger_dir()
+        assert root.is_dir()
+        os.chmod(str(root.parent), 0o777)
+        carry = ref.carryover_path(SESSION)
+        assert not carry.exists()
+        proc = run("PreCompact", {
+            "hook_event_name": "PreCompact", "session_id": SESSION, "trigger": "auto",
+        }, fallback_env)
+        assert proc.returncode == 0, proc.stderr
+        assert not carry.exists(), carry.read_text(encoding="utf-8")
+

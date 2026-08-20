@@ -21,7 +21,16 @@ DESIGN PROPERTIES (each one is load-bearing; do not "simplify" them away)
    requirement, not a nicety - the ledger outlives the transcript.
 3. EXTERNAL, APPEND-ONLY LEDGER. JSONL under the OS temp dir, keyed by sha256(session_id),
    never inside the repo and never inside the transcript - so it survives `/compact`,
-   survives context loss, and can never be committed.
+   survives context loss, and can never be committed. The fallback root is discriminated
+   by uid AND by a hash of the project root, and every component we create is 0o700 and
+   re-verified with `os.lstat` on use. A single shared `$TMPDIR/claudekit-reflection` was
+   both a correctness bug (two checkouts sharing one ledger under colliding session ids)
+   and, where `$TMPDIR` is world-writable `/tmp`, a pre-creation/symlink target: a co-user
+   could plant the directory or a `<key>.jsonl` symlink and turn every append into a write
+   into a file of their choosing, or pre-create `<key>.token` so `O_EXCL` lost and their
+   key was adopted. Honest sizing (hard rule 6): on a single-user macOS host `$TMPDIR` is
+   already a private per-user `/var/folders/.../T`, so that was never reachable there; the
+   exposure was real on shared Linux build hosts and CI runners.
 4. RECEIPTS ARE AN INTEGRITY SPEED BUMP, NOT AN ADVERSARIAL CONTROL. A receipt is
    HMAC-SHA256'd with a per-session token created `O_EXCL` at mode 0o600, and is bound to
    `checkpointDigest` - a digest of the *exact* active failure set it discharges. That
@@ -47,6 +56,7 @@ import math
 import os
 import re
 import secrets
+import stat
 import subprocess
 import sys
 import tempfile
@@ -97,6 +107,14 @@ _SECRET = re.compile(
 
 _ENV_DIR = "CLAUDEKIT_REFLECTION_DIR"
 _ENV_INBOX = "CLAUDEKIT_REFLECTION_INBOX"
+
+#: Basename of the temp-dir fallback root. The uid and project segments appended to it
+#: in `ledger_dir()` are what stop two users, or two checkouts, from sharing a ledger.
+_TMP_ROOT_NAME = "claudekit-reflection"
+#: Per-process memo for `_project_key()`: ((CLAUDE_PROJECT_DIR, cwd), digest).
+_PROJECT_KEY_CACHE = None  # type: Optional[Tuple[Tuple[str, str], str]]
+#: One-shot latch so a degraded host says so ONCE per process instead of silently.
+_WARNED_UNTRUSTED = False
 
 # --- high-entropy secret shapes (keyword-free credentials) -------------------
 # A keyword list alone is not a control: a bare 40-char hex token, an opaque key with no
@@ -178,13 +196,59 @@ def looks_like_credential(raw: str) -> bool:
 # --------------------------------------------------------------------------- paths
 
 
+def _current_uid() -> int:
+    """Our own uid, or -1 where the platform has none.
+
+    Indirected through a function on purpose: it is the only way a test can simulate a
+    directory owned by SOMEONE ELSE without being root to chown one.
+    """
+    getter = getattr(os, "getuid", None)
+    return getter() if getter is not None else -1
+
+
+def _project_key() -> str:
+    """Low-cardinality discriminator for the project this session belongs to.
+
+    Two checkouts on one machine must never share a ledger directory even if their
+    session ids collide. Hashed rather than spelled out, so the path itself records no
+    host path (design property 2). Memoised per process: `project_root()` may shell out
+    to `git rev-parse`, and `ledger_dir()` is called on every ledger operation. The memo
+    key includes the inputs, so a project change inside one process invalidates it.
+    """
+    global _PROJECT_KEY_CACHE
+    try:
+        cwd = os.getcwd()
+    except OSError:
+        cwd = ""
+    cache_key = (os.environ.get("CLAUDE_PROJECT_DIR") or "", cwd)
+    cached = _PROJECT_KEY_CACHE
+    if cached is not None and cached[0] == cache_key:
+        return cached[1]
+    root = os.path.realpath(str(project_root()))
+    digest = hashlib.sha256(root.encode("utf-8")).hexdigest()[:16]
+    _PROJECT_KEY_CACHE = (cache_key, digest)
+    return digest
+
+
+def ledger_root_is_explicit() -> bool:
+    """True when the operator named the ledger root themselves."""
+    override = os.environ.get(_ENV_DIR)
+    return bool(override and os.path.isabs(override))
+
+
 def ledger_dir() -> Path:
     """External ledger root.
 
-    `CLAUDEKIT_REFLECTION_DIR` (tests, and projects that want an explicit location) wins.
+    `CLAUDEKIT_REFLECTION_DIR` (tests, and projects that want an explicit location) wins,
+    and is honoured VERBATIM - no uid or project segment is appended to it.
+
     Otherwise the OS temp dir - deliberately OUTSIDE the repository so the ledger cannot
     be committed, cannot be read back into the transcript wholesale, and survives
-    compaction of the session that produced it.
+    compaction of the session that produced it - narrowed to `<tmp>/claudekit-reflection-
+    u<uid>/<project-key>`. The uid segment keeps two users on one host apart; the project
+    segment keeps two checkouts apart. Neither may depend on anything per-INVOCATION: the
+    ledger is written by one hook process and read by later ones in the same session, and
+    a pid- or time-derived path would silently break every checkpoint.
     """
     override = os.environ.get(_ENV_DIR)
     if override and os.path.isabs(override):
@@ -192,7 +256,106 @@ def ledger_dir() -> Path:
     base = os.environ.get("TMPDIR") or os.environ.get("TEMP") or os.environ.get("TMP")
     if not base or not os.path.isabs(base):
         base = tempfile.gettempdir()
-    return Path(base, "claudekit-reflection")
+    return Path(base, "%s-u%d" % (_TMP_ROOT_NAME, _current_uid()), _project_key())
+
+
+def _is_private_dir(path: Path) -> bool:
+    """True only for a REAL directory owned by us with no group or other access.
+
+    `os.lstat`, never `stat`: a symlink planted at this path must FAIL the check, not be
+    followed to its target's metadata. `Path.mkdir(exist_ok=True)` does follow it - it
+    swallows `FileExistsError` whenever `is_dir()` is true - which is exactly how a
+    predictable name in a world-writable temp dir becomes an arbitrary-write primitive.
+    """
+    try:
+        info = os.lstat(str(path))
+    except OSError:
+        return False
+    if not stat.S_ISDIR(info.st_mode):
+        return False
+    uid = _current_uid()
+    if uid >= 0 and info.st_uid != uid:
+        return False
+    return not (stat.S_IMODE(info.st_mode) & 0o077)
+
+
+def _warn_untrusted_root() -> None:
+    """Say so, ONCE per process, on stderr.
+
+    A degraded host must not be silent: reflection would then be off-and-quiet, which is
+    precisely the failure mode that disqualifies "refuse unless configured" as a design.
+    stderr, not stdout, and never with a non-zero exit - this is advisory, never a block.
+    """
+    global _WARNED_UNTRUSTED
+    if _WARNED_UNTRUSTED:
+        return
+    _WARNED_UNTRUSTED = True
+    try:
+        sys.stderr.write(
+            "reflection: ledger root is not private to this user (wrong owner, "
+            "group/other access, or a symlink) - reflection is degraded. Set "
+            "CLAUDEKIT_REFLECTION_DIR to a directory you own.\n")
+    except (OSError, ValueError):
+        pass
+
+
+def ledger_dir_trusted() -> bool:
+    """Read-side predicate. Creates NOTHING: `reflection-gate.py` calls into the read
+    paths from a blocking PreToolUse hook, which must have no filesystem side effects.
+
+    Audits the LEAF only, while `ensure_ledger_dir()` audits `(parent, leaf)`. That is
+    sufficient here and must stay this way: a private leaf cannot be reached, replaced or
+    have files planted in it by another uid regardless of who owns the parent, because
+    directory entries can only be created inside a directory, and `_is_private_dir`
+    rejects a symlink outright rather than following it. The write path audits both
+    because it CREATES the parent and must not create it inside someone else's symlink.
+    Do not "simplify" either side into the other.
+    """
+    if ledger_root_is_explicit():
+        return True
+    if _is_private_dir(ledger_dir()):
+        return True
+    _warn_untrusted_root()
+    return False
+
+
+def ensure_ledger_dir() -> Optional[Path]:
+    """Create the ledger root if needed and return it, or None if it cannot be trusted.
+
+    Every component WE own is created 0o700 and re-validated on each use, so a co-user
+    can neither pre-create it nor plant symlinked ledger files inside it. Refusing is the
+    right failure: callers degrade (`False` / `None` / `[]`) and the user's tool call is
+    never crashed.
+
+    An explicit `CLAUDEKIT_REFLECTION_DIR` is created but NOT audited - the operator
+    chose that location and owns its permissions. Auditing it would also break every
+    caller that points the kit at a shared or group-readable directory on purpose.
+    """
+    path = ledger_dir()
+    if ledger_root_is_explicit():
+        try:
+            path.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            return None
+        return path
+    # The system temp dir is not ours to audit, but it may legitimately be missing
+    # (a pruned `$TMPDIR`); create it with the platform default before the audited
+    # components, so a missing base degrades reflection to nothing.
+    try:
+        os.makedirs(str(path.parent.parent), exist_ok=True)
+    except OSError:
+        return None
+    for candidate in (path.parent, path):
+        try:
+            os.mkdir(str(candidate), 0o700)
+        except FileExistsError:
+            pass
+        except OSError:
+            return None
+        if not _is_private_dir(candidate):
+            _warn_untrusted_root()
+            return None
+    return path
 
 
 def _session_key(session_id: str) -> str:
@@ -260,9 +423,12 @@ def append_entry(session_id: str, entry: Dict[str, Any]) -> bool:
     cannot write its ledger must degrade, never crash the user's tool call."""
     if not valid_session(session_id):
         return False
+    if ensure_ledger_dir() is None:
+        # Untrusted root (wrong owner, group/other access, or a planted symlink). Losing
+        # a ledger entry is strictly better than appending through someone else's link.
+        return False
     path = ledger_path(session_id)
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(entry, separators=(",", ":"), sort_keys=True) + "\n")
     except (OSError, TypeError, ValueError):
@@ -273,6 +439,9 @@ def append_entry(session_id: str, entry: Dict[str, Any]) -> bool:
 def entries(session_id: str) -> List[Dict[str, Any]]:
     """Read the ledger. A truncated or corrupt final line is skipped, never fatal."""
     if not valid_session(session_id):
+        return []
+    if not ledger_dir_trusted():
+        # Entries from a root another uid can write are attacker-supplied, not history.
         return []
     path = ledger_path(session_id)
     if not path.is_file():
@@ -305,6 +474,11 @@ def now_iso() -> str:
 def read_session_token(session_id: str) -> Optional[str]:
     if not valid_session(session_id):
         return None
+    if not ledger_dir_trusted():
+        # `O_EXCL` stops the token being OVERWRITTEN, not PRE-CREATED: without this the
+        # loser of that race adopts a key the attacker already knows, and every receipt
+        # HMAC becomes forgeable by them.
+        return None
     try:
         token = token_path(session_id).read_text(encoding="utf-8").strip()
     except (OSError, UnicodeDecodeError):
@@ -324,10 +498,11 @@ def ensure_session_token(session_id: str) -> Optional[str]:
     existing = read_session_token(session_id)
     if existing:
         return existing
+    if ensure_ledger_dir() is None:
+        return None
     path = token_path(session_id)
     token = secrets.token_urlsafe(24)
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
         fd = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         with os.fdopen(fd, "w") as handle:
             handle.write(token)
@@ -775,8 +950,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     non.add_argument("--failure-id", required=True)
     non.add_argument("--reason", required=True, choices=sorted(NON_ATTEMPT_REASONS))
 
-    stat = sub.add_parser("status", help="print pending duties for a session")
-    stat.add_argument("--session-id", required=True)
+    # Not named `stat`: that would shadow the `stat` module imported above.
+    stat_p = sub.add_parser("status", help="print pending duties for a session")
+    stat_p.add_argument("--session-id", required=True)
 
     args = parser.parse_args(argv)
     if not args.operation:
