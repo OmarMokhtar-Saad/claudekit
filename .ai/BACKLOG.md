@@ -56,12 +56,24 @@ defects discovered during execution. See CHANGELOG `[Unreleased]` and the plans 
   lacks a leading `\n` is concatenated onto the anchor line. Hit live on `CLAUDE.md` (line grew to
   442 chars, the inserted bullet would have rendered inside the Tier 3 bullet). Dry-run cannot
   detect it. Fix: normalise in the executor, or add a validator GUARD.
-- [ ] **Iron Law hook (option b)** — `agent_type` IS present in the `PreToolUse` payload on both
-  the `--agent` and Task-tool paths (measured). Build the ALLOWLIST hook: permit
-  `execute-json-ops.py` + a named read-only verb set for the implementer, reject everything else;
-  reject shell metacharacters/wrappers before matching; match tokenised argv, not a prefix; reject
-  `sed` if any token starts with `-i`; pass through when `agent_type` is absent. Spec in
-  `plan-agent-tool-grants.md` Risks. This is what actually closes the interactive Iron Law hole.
+- [x] **Iron Law hook (option b) — DONE 2026-08-20**, `.claude/hooks/iron-law-gate.py`. The
+  interactive Iron Law is now harness-enforced, not prompt-enforced. Took five review rounds,
+  each finding a distinct live bypass, and one owner-authorised architectural rework: flags are
+  **default-deny** rather than denylisted, because enumerating forbidden flags never converged
+  (`pytest --log-file/-o/-c/--override-ini`, then `ruff --add-noqa`/`pytest --debug`, then
+  `mypy --install-types`/`@argfile`). Positionals are checked too — `git remote add origin <url>`
+  mutates through arguments and survived three rounds of flag auditing. Residual, stated in R7
+  and the hook header: the SAFE tables are audited enumerations of permitted arguments, and
+  `pytest` executes `conftest.py`.
+- [ ] **Two follow-ups from the hook's final review** — `redact()` inherits
+  `reflection.looks_like_credential`'s disclosed blind spot (single-case non-hex secrets of
+  20–31 chars, or ones containing `_`, passed as a positional or under a non-keyword flag, reach
+  stderr but not the log); and relative positionals are checked textually (`..`, `~`, `isabs`)
+  rather than realpath'd, so a relative symlink inside the repo pointing outside it is readable
+  via an inert verb. Both read-only, and the implementer already holds `Read`.
+- [ ] **Frontmatter/INVOCATION grant drift is only partly gated** — the new drift test covers the
+  10 agents in the `--allowedTools` table; 19 others are ungated, several declaring `Write`+`Edit`+
+  `Bash` (`tester`, `devops`, `database-architect`, `refactor-cleaner`, `tdd-guide`, `doc-updater`;
 - [ ] **Frontmatter/INVOCATION grant drift is only partly gated** — the new drift test covers the
   10 agents in the `--allowedTools` table; 19 others are ungated, several declaring `Write`+`Edit`+
   `Bash` (`tester`, `devops`, `database-architect`, `refactor-cleaner`, `tdd-guide`, `doc-updater`;

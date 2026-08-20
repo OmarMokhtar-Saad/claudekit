@@ -2,6 +2,13 @@
 
 Ops config: `.claude/plans/plan-iron-law-enforcement-hook.ops.json` (3 operations, validator APPROVED)
 
+> **Round-4 note — the three-round review ceiling was waived by the owner** for one
+> specific reason: rounds 2 and 3 each found a new arbitrary-write flag in the *same* class
+> (`pytest --log-file`, `-o`, `-c`; then `ruff --add-noqa`, `pytest --debug`), with round 3
+> finding two of them inside the verbs round 2 had just claimed to sweep. That is not a
+> patchable defect, it is a structural one, so round 4 is an **architectural change**
+> (D5e) rather than another patch. Recorded here per the owner's instruction.
+
 ## Overview
 
 Hard rule 1 (the Iron Law) says implementation flows through `ops.json` and the operations
@@ -120,8 +127,10 @@ prototype:
 
 Every branch terminates. Step 8 is why the allowlist can stay tight without deadlocking: the
 prompt already contains a sanctioned exit for exactly this case. `tests/test_iron_law_hook.py`
-pins steps 2-7 as `SANCTIONED`, 24 commands, and treats any block of them as "the implementer
-is left with no possible action".
+pins steps 2-7 as `SANCTIONED`, **32** commands, and treats any block of them as "the
+implementer is left with no possible action". CLAUDE.md's six mandatory DoD gates are pinned
+separately as `DOD_COMMANDS` (`test_dod_command_is_permitted`), because tightening flags is
+only safe if the commands the project actually *requires* still pass.
 
 ### 4. Delivery is already handled (confirmed, not assumed)
 
@@ -203,9 +212,188 @@ permitted anyway, for three reasons, and the trade is stated in the hook header:
    prompt it replaces, but it is **not a sandbox**. Pretending pytest were inert would be the
    dishonest framing the rule forbids.
 
-Mitigation: pytest's plugin-injection and file-emitting flags are refused (`-p*`, `--pdb`,
-`--pdbcls`, `--junitxml`, `--junit-xml`, `--result-log`, `--basetemp`), pinned by
-`pytest-plugin-injection`. **Named residual #1.**
+Mitigation: pytest's plugin-injection, config-injection and file-writing flags are refused —
+`-p*`, `-o*`, `-c*`, `--pdb`, `--pdbcls`, `--junitxml`, `--junit-xml`, `--result-log`,
+`--basetemp`, `--log-file`, `--log-file-level`, `--override-ini`. **Named residual #1.**
+
+**Review correction (MAJOR 1).** The first revision omitted `--log-file`, `-o` and `-c`, so
+`pytest --log-file=src/claudekit/__init__.py tests/` was ALLOWED — it creates and truncates an
+arbitrary path, destroying a source file with no ops.json, no backup and no approval. That is
+a *different and worse* thing than the residual above: not "runs repo code we already trust"
+but "points pytest's own writer at a path of our choosing". `-o` (ini override) and `-c`
+(arbitrary ini) likewise carry `addopts = -p evil`. `-p`/`-o`/`-c` are matched by PREFIX as
+well as by set membership, because `_decide_flag_guard` only splits on `=` and pytest accepts
+attached forms. The same bypass class was then swept in the sibling verbs: `ruff -o`,
+`--output-file` and `--config`, and `mypy --config-file` (a mypy config may declare `plugins`,
+which is arbitrary code). Pinned by `pytest-log-file`, `pytest-log-file-detached`,
+`pytest-ini-override`, `pytest-alt-ini`, `pytest-override-ini-long`, `ruff-output-file`,
+`ruff-config-injection`, `mypy-config-plugin-injection`.
+
+### D5e — flags are DEFAULT-DENY (round-4 architectural inversion)
+
+**The defect was structural, not a missing entry.** v1 allowlisted VERBS but DENYLISTED
+their FLAGS (one write-flag table per verb). That is exactly the shape hard rule 6 calls a
+speed bump, reappearing one level down *inside* an allowlist. `ruff`, `mypy` and `pytest`
+have large versioned flag surfaces; any release can add a writer, so no enumeration of the
+dangerous set is stable and none can be proven complete. Three rounds found new writers in
+that class and it was not converging — round 2 claimed to have "swept the sibling verbs"
+and round 3 falsified that claim *in the swept verbs*.
+
+**The change.** For every flag-gated verb, a token beginning with `-` is REFUSED unless it
+is in that verb's small explicit SAFE list. The write-flag denylists are **deleted**, not
+merely bypassed — keeping them would falsely signal that the dangerous set is known, which
+is the precise claim three rounds falsified.
+`test_no_flag_denylist_survives_in_the_hook` asserts structurally that none of the six v1
+symbols survives.
+
+**The burden inverts, which is the whole point.** A future `ruff` release that adds a writer
+is denied without anyone noticing it exists. The failure mode of an unknown flag becomes an
+**over-block** — annoying, visible in `hooks.log`, fixable by adding one entry — instead of
+a **bypass**, which is silent, invisible and exploitable.
+`test_invented_flag_is_refused_without_being_enumerated` pins the property with
+`ruff check --totally-new-writer=x src/`, and first asserts that string does not appear in
+the hook so the test cannot be circular. That property is the one thing a denylist could
+never have had.
+
+**Every SAFE list is derived from a command the implementer is actually instructed to run**
+(CLAUDE.md's six DoD gates, implementer.md Steps 1-4, implement.md Phases 1-3), and nothing
+is added for hypothetical convenience:
+
+| Verb | SAFE flags | Derived from |
+|---|---|---|
+| `pytest` | `-q`, `--quiet` | `python3 -m pytest tests/ -q` |
+| `ruff` | `--check`, `--diff` | `ruff check src/ tests/ scripts/`; both exist only so `ruff format` has a non-writing form |
+| `mypy` | *(none)* | `mypy` |
+| `shellcheck` | *(none)* | `shellcheck install.sh .claude/hooks/*.sh` |
+| `ck`/`claudekit` | `--strict`, `--dry-run` | `ck doctor --strict`; `ck execute --dry-run` |
+| `find` | `-name`, `-type`, `-maxdepth`, `-mindepth`, `-path` | implementer.md "Build tool not found → Check common locations" |
+| `git` (reporters) | `--porcelain`, `--short`, `--stat`, `--numstat`, `--name-only`, `--name-status`, `--oneline`, `--cached`, `--staged`, `--show-toplevel`, `-n`, `-<digits>` | `git status`, `git diff --stat`, `git log --oneline -5` |
+| `git branch`/`remote` | `-v`, `-vv`, `--verbose`, `--list`, `--show-current`, `-a`, `--all` | listing only (D5b) |
+| ops scripts | `--dry-run`, `--stamp-baseline` | implementer.md Steps 1-3. `--no-approval` is deliberately absent: implement.md requires explicit user authorization for it. |
+| `scripts/gen-*.py` | `--check` | DoD gates 4-5 (D5d) |
+| `reflection.py` | its argparse flag set | the escape hatch (R2) |
+
+**Cross-cutting rules.**
+
+- **`@argfile` and every response-file syntax is REFUSED for every verb.** It is a flag
+  source the gate cannot inspect, which defeats the entire design — mypy's `@file` would
+  otherwise smuggle `--html-report` straight back in. Pinned by `mypy-response-file`,
+  `ruff-response-file`, `pytest-response-file`.
+- **`--` is REFUSED for every verb.** *Decision, documented rather than defaulted:* not one
+  sanctioned command needs it, and honouring it would add a second parsing mode (post-`--`
+  tokens as positionals) for no gain. Pinned by `double-dash-separator`.
+- **Attached and detached forms are both covered.** Membership is tested on
+  `token.split("=", 1)[0]`, so `--output=x` is judged as `--output`. **A flag therefore
+  only belongs in a SAFE list if it is safe with ANY value** — that is the standing entry
+  criterion, and it replaces the old "audited enumeration" concession in residual 3.
+- **Positionals are path-constrained**: no `..` segment, no `~`, and no absolute path
+  outside the project root. **Globs are not expanded by the gate** — the shell expands them
+  *after* the hook runs, so `.claude/hooks/*.sh` arrives literally and is judged as an
+  ordinary relative path (pinned by the DoD gate-6 case). Exempted: `reflection.py`
+  argument values, because a receipt payload is data rather than a path and over-blocking
+  the one escape hatch is the fatal failure mode.
+- **Two verb classes.** *Flag-inert* (`cat`, `head`, `tail`, `wc`, `ls`, `grep`, `egrep`,
+  `fgrep`) accept any `-` token, because the verb's entire flag surface is write-free on
+  both GNU and BSD. This is **not** a flag denylist: it is a per-verb assertion that must be
+  argued before a verb joins the class. Everything speculative was removed to shrink the
+  surface — `file` (because `file -C -m <name>` writes a `.mgc` and nothing instructs the
+  implementer to run it), plus `stat`, `du`, `nl`, `cut`, `tr`, `column`, `diff`, `rg`,
+  `which`, `basename`, `dirname`, `pwd`.
+- **Extension verbs get NO safe flags**, so `CLAUDEKIT_IMPLEMENTER_EXTRA_VERBS` cannot grant
+  more than a built-in verb (`test_extra_verbs_get_no_safe_flags`).
+
+### D5f — every verb must name a PROGRAM, not a word (round 4, corrected in round 5)
+
+Verb matching was basename-only, so `/tmp/evil/cat`, `/tmp/evil/ruff` and `./shellcheck`
+resolved to allowlisted verbs and ran whatever binary sat at that path. Verbs now require
+`"/" not in tokens[0]` (PATH lookup only). The pre-existing
+`test_extra_verbs_rejects_path_bearing_entries` did **not** cover this — it exercises a
+*non*-allowlisted basename — so `test_allowlisted_verb_given_as_a_path_is_blocked` was added.
+
+**Round-5 correction — the round-4 justification was wrong and the code matched the wrong
+justification.** It read "`_decide_python` already resolved script paths for exactly this
+reason", which **conflates resolving the SCRIPT with resolving the INTERPRETER**. They are
+different controls and both are required. The path check sat BELOW the `_PYTHON_HEADS`
+dispatch, so the interpreter branch returned first and interpreters were exempt from the
+very control this section added:
+
+```
+/tmp/evil/python3 .claude/operations/scripts/execute-json-ops.py p.ops.json   -> ALLOWED
+```
+
+The SCRIPT argument resolved into the ops directory and satisfied `_OPS_SAFE`, and the gate
+then ran an arbitrary binary that merely happened to be named `python3`, with an argv of the
+caller's choosing. The check now runs **above** the dispatch, for every verb including
+interpreters. No `SANCTIONED` or `DOD_COMMANDS` entry uses a path-bearing interpreter, so
+there is no over-block cost. Pinned by `path-bearing-interpreter-ops` and
+`relative-path-bearing-interpreter`, and — critically — both appear in the *declared
+collateral* of the `path-bearing-inert-verb` mutant, which is how the fix is proven bound to
+that specific check rather than to something else.
+
+**Known and accepted (round-5 note, no code change).** The `reflection.py` `path_check=False`
+exemption lets `--file <any readable path>` through. Traced in review to
+`reflection.py:930-946`: `--file` is READ-only and every write stays inside the ledger
+directory, so it is not a write vector. At worst it is an error-message read-leak of a file
+the implementer already holds the `Read` tool for. Recorded rather than closed, because
+narrowing it risks the one fatal failure mode (R2).
+
+### D5b — `git branch` and `git remote` are not read-only (review MAJOR 2)
+
+The first revision listed both in `_GIT_READ_ONLY` under a comment claiming git was
+"permitted only as a reporter". That was inaccurate: `git branch -D feature` and
+`git remote add|remove|set-url|prune` all mutate repository state, destructively in the
+`-D`/`prune` case, by an agent whose entire contract is "no mutation outside the ops engine".
+They are kept — `git branch --show-current` is genuinely useful — but only when **every**
+remaining token is a pure listing flag (`-v`, `-vv`, `--verbose`, `--list`, `--show-current`,
+`-a`, `--all`). **Round-4 correction:** the flag list alone did not stop them, because
+`git remote add origin <url>` mutates through *positionals*, not flags — it was still
+ALLOWED. Positionals are now refused for these two subcommands unless `--list` is present,
+which is the one form that legitimately takes one. That also fixes the round-3 over-block:
+`git branch --list 'feat*'` now passes. Pinned by `git-branch-delete`, `git-branch-move`,
+`git-branch-create-positional`, `git-branch-delete-flagonly`, `git-remote-add`,
+`git-remote-set-url`, `git-remote-prune`, with `git branch --show-current`,
+`git branch --list`, `git branch --list 'feat*'` and `git remote -v` in `SANCTIONED`.
+
+### D5c — the gate must not record the secrets it blocks (review MAJOR 3)
+
+`emit()` writes to `hooks.log` under **both** profiles, and everything it writes has already
+been rejected — so it is precisely the text most likely to carry a credential or a host path.
+The first revision logged the raw head and reason, and the env-assignment reason embedded the
+whole offending token, so a blocked `AWS_SECRET_ACCESS_KEY=<value> python3 …` was recorded
+verbatim, value included. A gate that records the secrets it blocks is worse than the bypass
+it prevents. Three changes: the env-assignment reason now names only
+`tokens[0].split("=", 1)[0]` (the VARIABLE, never the value); every other interpolated token
+goes through `safe()`, which delegates to `reflection.bounded_token` — the sanitizer this repo
+already standardised on (`reflection-gate.py:339`) — with a basename-only fallback if the
+import is unavailable; and `redact()` blanks the value of every `NAME=value` token before the
+command is shown on stderr or logged. **Round-4 extension:** v1 handled only that one
+shape, so `--password=x`, `--token x` (space-separated), `https://user:tok@host` and bare
+high-entropy strings survived into `denial_message()` → stderr, which is persisted in the
+transcript. `hooks.log` was never the exposure (that line is `head=` + `reason=`, both
+`safe()`-digested). `redact()` now covers all three shapes and delegates the bare/embedded
+case to `reflection.looks_like_credential()` — an existing, already-tuned detector in this
+repo that was simply unused — rather than to another regex invented here. Pinned by
+`test_secret_shapes_are_redacted_from_stderr`. The reason sentence itself is **not** digested wholesale:
+its components are already sanitized, and hashing it would destroy the variable name that
+makes the block actionable. Pinned by `test_blocked_secret_value_never_reaches_the_log`
+(both profiles, asserting the VALUE is absent from log *and* stderr while the NAME survives)
+and `test_absolute_host_paths_are_digested_in_the_log`.
+
+### D5d — the two remaining mandatory DoD gates (review MAJOR 4)
+
+CLAUDE.md requires six gates; the first revision blocked two of them, since `_decide_python`
+allowed only the ops-engine scripts and `reflection.py`. `python3 scripts/gen-docs.py --check`
+and `python3 scripts/gen-registry.py --check` are now permitted, matched by resolved parent
+directory (`<root>/scripts`) plus exact basename, and **only when `--check` is present** —
+without it `gen-docs.py` REWRITES the docs, which is exactly the un-transacted mutation this
+gate exists to stop. No deadlock resulted before the fix (the Verifier handoff terminates),
+but every implementer in this repo was permanently unable to complete two mandatory gates,
+a far larger practical cost than R1 admitted. All six gates are now pinned as
+`DOD_COMMANDS` and verified through `decide()` (6/6 permitted). Pinned by two
+`SANCTIONED` entries plus
+`gen-docs-without-check`, `gen-registry-without-check` and
+`other-repo-script-even-with-check` (an unrelated `scripts/*.py` stays blocked even with
+`--check`, so the rule is the basename pair, not the flag).
 
 ### D6 — `ECC_HOOK_PROFILE`: record under `minimal`, block under `standard`/`strict`
 
@@ -247,7 +435,7 @@ Both halves are pinned: `test_minimal_profile_suppresses_blocking` and
 
 ### D8 — Composition with the existing 9-entry `PreToolUse` chain
 
-`.claude/settings.json` already wires, in order: `reflection-gate.py` (`matcher ""`),
+`.claude/settings.json` already wires **ten** `PreToolUse` entries, in order: `reflection-gate.py` (`matcher ""`),
 `ops-enforcement.sh` / `config-protection.sh` / `security-reminder.sh` / `file-guard-gate.sh`
 (Edit/Write matchers), then on `matcher "Bash"`: the `git commit` → `pre-commit.sh` shim,
 `commit-quality.sh`, the `git push` → `pre-push.sh` shim, `block-no-verify.sh`, and
@@ -295,7 +483,7 @@ while providing none — the same lie as a frontmatter `Bash(...)` specifier. Of
 - **File:** `tests/test_iron_law_hook.py`
 - **Action:** Create
 - **Description:** The full matrix, fed as real JSON on stdin to the real hook as a subprocess.
-- **Details:** 24 `SANCTIONED` commands × must-not-block; 55 `BLOCKED` write vectors ×
+- **Details:** 32 `SANCTIONED` + 6 `DOD_COMMANDS` × must-not-block; 93 `BLOCKED` vectors ×
   must-block-with-`IRON LAW`-stderr-and-empty-stdout; agent scoping (absent / planner /
   reviewer / verifier / explore / gitOps / general-purpose all pass through, case-insensitive
   `Implementer` matches); fail-open and fail-closed cases; both profile halves;
@@ -319,21 +507,63 @@ while providing none — the same lie as a frontmatter `Bash(...)` specifier. Of
 
 ### Boundness proof (required by the brief)
 
-`test_every_blocked_command_is_bound_to_the_guard` copies the hook into `tmp_path`, injects
-`return True, ''` as the first statement of `decide()`, and re-runs **all 55** blocked payloads
-against the mutant. Every one must flip to exit 0. Any case that still blocks is reported by
-label as "does not test the guard". The real tree is never modified — same discipline as
-commit `f783c6e` ("install test simulates broken source in a copy, never the real tree").
+Two layers, because the first alone is not sufficient (review MINOR (b)).
+
+**Wholesale.** `test_every_blocked_command_is_bound_to_the_guard` copies the hook into
+`tmp_path`, injects `return True, ''` as the first statement of `decide()`, and re-runs **all
+93** blocked payloads. Every one must flip to exit 0. This proves each case depends on
+`decide()` *at all*.
+
+**Surgical.** That is too weak on its own: it cannot tell whether `git -C /tmp status` is
+caught by a `-C` rule or merely by the generic global-option branch. So
+`test_blocked_case_is_bound_to_its_own_guard` runs **eight** targeted mutants, each
+disabling ONE guard. **Round-5 correction:** the earlier version asserted only that the
+TARGET case flipped, which does not establish "each mutant disables exactly one thing" — a
+claim that was made and was demonstrably false for the path-bearing mutant, which also
+unblocks four sibling cases. Each mutant now declares its `collateral` set and the test
+asserts the flipped set is **exactly** `{target} | collateral` across all 93 blocked cases —
+nothing more, nothing less. That is the honest form: it still pins each case to its own
+guard, and it makes every guard's blast radius measured instead of asserted. The widest is
+the inversion mutant itself (15 collateral cases), and that width IS the value of the
+architecture. The guards are: `cat-redirect` and
+`pipe-to-tee` ← `_METACHARACTERS`; `pytest-log-file` ← `_PYTEST_SAFE`;
+`git-branch-delete-flagonly` ← `_GIT_LIST_SAFE`; `git-remote-add` ← the git positional rule;
+`find-delete` ← `_FIND_SAFE`; `path-bearing-inert-verb` ← the PATH-only verb rule; and
+`invented-flag-refused-by-default` ← **the default-deny branch itself**, the one mutant that
+pins the architecture rather than a table. A ninth mutant,
+`test_absolute_path_digest_is_bound_to_safe`, neuters `safe()` and requires the host path to
+reach the log — without it the digest assertion would be near-vacuous (see below).
+
+Writing these caught four real defects: a mutant written as `X = () or (...)` disabled
+nothing (it evaluates to the non-empty tuple); the git output-flag table could not be
+disabled at all because the attached `--output=` form was hardcoded at the call site;
+`git branch -D x` turned out to be bound to *two* guards, making it a poor surgical target
+(split into a flag-only case and a positional case); and the git positional hole fixed in
+D5b was found by writing the `git-remote-add` mutant.
+
+A fifth defect was found in round 5: `test_absolute_host_paths_are_digested_in_the_log` was
+near-vacuous. Its case (`/Users/.../evilbin --go`) interpolated only `safe(head)`, and `head`
+is already the basename, so the absolute path could never have reached the log even with
+`safe()` deleted. It now uses a **positional-outside-root refusal**, where the full path IS
+the interpolated value, and `test_absolute_path_digest_is_bound_to_safe` mutates `safe()`
+away and requires the path to appear — proving the assertion tests `safe()`.
+
+The real tree is never modified — same discipline as commit `f783c6e` ("install test
+simulates broken source in a copy, never the real tree").
 
 ### Measured results (prototype, run in a mirror repo before writing this plan)
 
 | Measurement | Result |
 |---|---|
 | Repo suite baseline, `ECC_HOOK_PROFILE=minimal python3 -m pytest tests/ -q` | **1017 passed in 100.14s** |
-| `tests/test_iron_law_hook.py` against the prototype | **102 passed in 7.05s** |
-| Sanctioned loop commands allowed | 24 / 24 |
-| Write vectors blocked (incl. every bypass named in the brief) | 55 / 55 |
-| Blocked cases that flip to exit 0 with `decide()` neutered (boundness) | 55 / 55 |
+| `tests/test_iron_law_hook.py` against the prototype | **174 passed in 46.43s** (the exact-blast-radius mutants run 8 x 93 payloads) |
+| Sanctioned loop commands allowed | 32 / 32 |
+| CLAUDE.md DoD gates permitted | 6 / 6 |
+| Write vectors blocked (every bypass from rounds 1-5) | 93 / 93 |
+| Blocked cases that flip to exit 0 with `decide()` neutered (wholesale boundness) | 93 / 93 |
+| Surgical mutants whose flipped set is EXACTLY `{target} \| declared collateral` | 8 / 8 |
+| SAFE-list entries across all verbs (residual surface, R7) | 40 |
+| Invented flag `--totally-new-writer=x` (never enumerated anywhere) | refused, exit 2 |
 | Pass-through cases (absent + 6 other `agent_type`s) | 7 / 7, exit 0, empty stderr |
 | `minimal` profile | exit 0, `WOULD-BLOCK head=sed` in `hooks.log` |
 | Unparsable payload | exit 0, `ERROR … unparsable` logged |
@@ -342,7 +572,7 @@ commit `f783c6e` ("install test simulates broken source in a copy, never the rea
 | Post-edit `.claude/settings.json` | parses as JSON; exactly 1 `iron-law-gate.py` entry wired |
 | `validate-config-json.py <ops.json>` | **APPROVED**, rc 0 |
 
-Expected post-implementation suite total: **1017 + 102 = 1119**, minus any collisions (none —
+Expected post-implementation suite total: **1017 + 174 = 1191**, minus any collisions (none —
 the test module name is new).
 
 ### Verification commands for the implementer
@@ -351,8 +581,14 @@ the test module name is new).
 python3 -m pytest tests/test_iron_law_hook.py -q     # the new matrix
 python3 -m pytest tests/ -q                          # full suite, zero failures tolerated
 ruff check src/ tests/ scripts/                      # tests/ IS linted (line-length 100)
-python3 -c "import json;json.load(open('.claude/settings.json'));print('settings OK')"
+python3 scripts/gen-registry.py --check              # also proves the DoD gates are allowed
 ```
+
+Every command above is one the gate PERMITS. The first revision of this plan listed
+`python3 -c "import json;json.load(open('.claude/settings.json'))"`, which this artifact
+forbids — a plan prescribing a command its own hook blocks. `test_hook_is_wired_on_pretooluse_bash`
+parses `settings.json` inside the suite, so the ad-hoc `python3 -c` check was redundant as
+well as forbidden.
 
 **Honest coverage note:** `pyproject.toml:48` sets `extend-exclude = [".claude", …]` for ruff
 and `files = ["src/claudekit"]` for mypy, so **the hook itself is neither linted nor
@@ -382,18 +618,27 @@ gate for it is `tests/test_iron_law_hook.py`, not `ruff`/`mypy`. `tests/test_iro
 
 ### Low Risk
 
+- **L0 — `find` write actions.** `-delete`, `-exec`, `-execdir`, `-ok`, `-okdir` by exact
+  match plus the entire `-f…` family by PREFIX, so a future `-f<something>` writer cannot
+  escape by not being enumerated (the plan/code drift raised as review MINOR (a); the code
+  now implements the prefix rule the plan described). Pinned by `find-delete`, `find-exec`
+  and `test_find_write_prefix_rule_is_not_a_bare_enumeration`.
 - **L1 — Non-implementer callers.** Explicit `agent_type` pass-through with empty stderr,
   covered by 7 parametrized cases. Structurally the hook returns 0 before reading `tool_input`
   for anyone but the implementer.
 - **L2 — Composition with the other 9 `PreToolUse` entries.** The hook is monotone (blocks
   only, never allows), so it cannot weaken or contradict any existing gate (D8).
+- **L2b — Per-call cost.** `project_root()` runs on every implementer Bash call and forks
+  `git rev-parse` when `CLAUDE_PROJECT_DIR` is unset. It is memoized for the process and its
+  timeout is 2s, not 10s (review MINOR (d)).
 - **L3 — Delivery.** `install.sh` copies hooks structurally and chmods by shebang; the wired-
   hook resolver and `test_hook_delivery.py` fail closed on a missing wired hook (verified, §4).
 
 ### Medium Risk
 
 - **R1 — Over-blocking a legitimate verification command in a downstream project.** In a Node
-  or Go project, `npm test` / `go test` are not on the list. Mitigations, in order: (a)
+  or Go project, `npm test` / `go test` are not on the list. (In THIS repo the gap was real
+  and worse than first stated — two mandatory DoD gates were blocked; fixed under D5d.) Mitigations, in order: (a)
   `implementer.md`'s documented Verifier handoff terminates the loop rather than deadlocking
   it, and the denial text names it; (b) `CLAUDEKIT_IMPLEMENTER_EXTRA_VERBS` widens it opt-in;
   (c) `minimal` degrades to record-only. **Follow-up:** after one dogfood cycle, mine
@@ -417,6 +662,10 @@ gate for it is `tests/test_iron_law_hook.py`, not `ruff`/`mypy`. `tests/test_iro
   this workstream**. **Handoff required:** the docs owner runs `python3 scripts/gen-docs.py`
   (regenerate — never hand-edit counts, hard rule 8) and updates CLAUDE.md's "19 hooks" prose,
   which is *already* stale against the measured 20.
+  **THE COMMIT IS GATED ON THIS HANDOFF.** `python3 scripts/gen-docs.py --check` is one of
+  the six DoD commands and it WILL fail between this plan landing and the regeneration.
+  Nobody may report DoD-green in that window; the Definition of Done is not met until the
+  count is regenerated. The coordinator owns R4 and R5.
 - **R5 — Stale honesty statement, cross-workstream.** `_shared/INVOCATION.md:181-189` and
   `.ai/BACKLOG.md:59` both say "**The hook is not in place yet** — do not describe the
   interactive Iron Law as enforced until it is." Once this lands that sentence is false in the
@@ -430,10 +679,31 @@ gate for it is `tests/test_iron_law_hook.py`, not `ruff`/`mypy`. `tests/test_iro
   catch from inside the repo. **Mitigation:** re-run the `$y` verification on Claude Code
   upgrades, as `.ai/AGENTS_PROTOCOLS.md` already prescribes for the spawn-path spike.
 
+- **R7 — What default-deny does and does not buy.** Stated plainly rather than implied away
+  (hard rule 6). It **closes** the "unknown writing flag" class outright: an unenumerated
+  flag is refused, so no future `ruff`/`pytest`/`mypy` release can open a bypass. What
+  remains is narrower and different in kind: a flag *on* a SAFE list must be safe with **any
+  value**, and that is a property argued per entry, not proven. **Measured: 40 SAFE entries
+  today** — git 11, reflection 8, git-list 7, find 5, pytest 2, ruff 2, ck 2, ops 2,
+  check-only 1, mypy 0, shellcheck 0 — plus one numeric-shorthand rule (`-<digits>`) for the
+  git reporters. An earlier revision of this paragraph said "21", which undercounted by
+  roughly 2x; in the one paragraph whose job is to state the residual attack surface, that
+  is the wrong kind of error, so the number is now generated from the shipped tables rather
+  than recalled. Each entry is traceable to a command the implementer is instructed to run. Mitigation: every
+  SAFE-list addition is a security change requiring a BLOCKED case beside it, the flag-inert
+  verb class requires a per-verb write-free argument before admission, and eight surgical
+  mutants keep each guard load-bearing.
+- **R8 — Over-blocking is now the expected failure mode, by design.** SAFE lists are as small
+  as the DoD gates require, so ordinary variations (`pytest -x`, `pytest -k name`,
+  `git log --graph`) are refused. This is the accepted trade: an over-block is visible in
+  `hooks.log`, terminates via the Verifier handoff, and is fixed by one reviewed entry.
+  Mine `grep WOULD-BLOCK .claude/hooks/hooks.log` after one dogfood cycle and widen from
+  measured data, never speculatively.
+
 ### High Risk
 
 - None identified. The one candidate — "this hook stops implementation entirely" — is
-  eliminated by construction: the 24-command `SANCTIONED` corpus is drawn verbatim from
+  eliminated by construction: the 32-command `SANCTIONED` corpus is drawn verbatim from
   `implementer.md` and `implement.md` and asserted non-blocking, the loop-termination walk in
   §3 covers every branch including the reflection interlock, and the residual branch (an
   unlisted verification command) exits via a handoff the implementer's prompt already
