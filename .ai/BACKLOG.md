@@ -138,6 +138,18 @@ asset changes, so they are recorded as options with trade-offs.
   break the AppiumLens field fix the comment at `ops-enforcement.sh:38-41` cites as the reason the
   exemption exists. The reviewing lesson (verify clone/fixture location; expected exit 2 arriving
   as exit 0 is the tell) is generalised in `.ai/REVIEW_GUIDE.md` beside the hook checklist.
+- [ ] **CI lints a narrower surface than the DoD command claims.** `CLAUDE.md:17` documents the gate
+  as `ruff check src/ tests/ scripts/`, but `.github/workflows/ci.yml:63` runs
+  `ruff check src/claudekit scripts` — `tests/` is never linted in CI. Measured 2026-08-20. A style
+  defect in a test file is caught only if a maintainer runs the DoD command locally. Decide whether
+  CI should widen to match the documented gate, or the doc should narrow to match CI; they should
+  not disagree silently.
+- [ ] **`E302`/`W391` are preview-gated, so they enforce nothing.** Under this repo's
+  `select = ["E","F","W","I"]` (`pyproject.toml:51`), ruff reports *"Selection `E302` has no effect
+  because preview is not enabled"* and passes. Measured 2026-08-20 while reviewing a plan whose
+  `add_after` payload produced one blank line before a class instead of two: the defect was real,
+  the mechanism that was supposed to catch it does not exist. `W292` (missing final newline) IS
+  non-preview and does bind, so the gap is specific to the blank-line rules.
 
 ## P1 — high value, unblocked
 
