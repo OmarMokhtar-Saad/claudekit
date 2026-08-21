@@ -1,0 +1,198 @@
+{
+  "plan": "skill-loading-contract",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/brainstorming/SKILL.md",
+      "description": "Un-flag: an agent declares this an ON-DEMAND load, and a trigger that can never fire reads as a capability the agent does not have.",
+      "edits": [
+        {
+          "find": "disable-model-invocation: true\n",
+          "replace": ""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/context-budget/SKILL.md",
+      "description": "Un-flag: an agent declares this an ON-DEMAND load, and a trigger that can never fire reads as a capability the agent does not have.",
+      "edits": [
+        {
+          "find": "disable-model-invocation: true\n",
+          "replace": ""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/dispatching-parallel-agents/SKILL.md",
+      "description": "Un-flag: an agent declares this an ON-DEMAND load, and a trigger that can never fire reads as a capability the agent does not have.",
+      "edits": [
+        {
+          "find": "disable-model-invocation: true\n",
+          "replace": ""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/execute-operations-config/SKILL.md",
+      "description": "Un-flag: an agent declares this a MANDATORY load, so it must be invocable.",
+      "edits": [
+        {
+          "find": "disable-model-invocation: true\n",
+          "replace": ""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/finishing-a-development-branch/SKILL.md",
+      "description": "Un-flag: an agent declares this an ON-DEMAND load, and a trigger that can never fire reads as a capability the agent does not have.",
+      "edits": [
+        {
+          "find": "disable-model-invocation: true\n",
+          "replace": ""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/generate-operations-config/SKILL.md",
+      "description": "Un-flag: an agent declares this a MANDATORY load, so it must be invocable.",
+      "edits": [
+        {
+          "find": "disable-model-invocation: true\n",
+          "replace": ""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/git-workflow/SKILL.md",
+      "description": "Un-flag: an agent declares this a MANDATORY load, so it must be invocable.",
+      "edits": [
+        {
+          "find": "disable-model-invocation: true\n",
+          "replace": ""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/search-first/SKILL.md",
+      "description": "Un-flag: an agent declares this an ON-DEMAND load, and a trigger that can never fire reads as a capability the agent does not have.",
+      "edits": [
+        {
+          "find": "disable-model-invocation: true\n",
+          "replace": ""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/subagent-driven-development/SKILL.md",
+      "description": "Un-flag: an agent declares this an ON-DEMAND load, and a trigger that can never fire reads as a capability the agent does not have.",
+      "edits": [
+        {
+          "find": "disable-model-invocation: true\n",
+          "replace": ""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/systematic-debugging/SKILL.md",
+      "description": "Un-flag: an agent declares this a MANDATORY load, so it must be invocable.",
+      "edits": [
+        {
+          "find": "disable-model-invocation: true\n",
+          "replace": ""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/test-driven-development/SKILL.md",
+      "description": "Un-flag: declared MANDATORY by some agents and on-demand by others; neither can execute while the skill is model-invisible.",
+      "edits": [
+        {
+          "find": "disable-model-invocation: true\n",
+          "replace": ""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/validate-operations-config/SKILL.md",
+      "description": "Un-flag: an agent declares this a MANDATORY load, so it must be invocable.",
+      "edits": [
+        {
+          "find": "disable-model-invocation: true\n",
+          "replace": ""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/verification-before-completion/SKILL.md",
+      "description": "Un-flag: declared MANDATORY by some agents and on-demand by others; neither can execute while the skill is model-invisible.",
+      "edits": [
+        {
+          "find": "disable-model-invocation: true\n",
+          "replace": ""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/verification-loop/SKILL.md",
+      "description": "Un-flag: an agent declares this an ON-DEMAND load, and a trigger that can never fire reads as a capability the agent does not have.",
+      "edits": [
+        {
+          "find": "disable-model-invocation: true\n",
+          "replace": ""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/writing-plans/SKILL.md",
+      "description": "Un-flag: an agent declares this a MANDATORY load, so it must be invocable.",
+      "edits": [
+        {
+          "find": "disable-model-invocation: true\n",
+          "replace": ""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "scripts/check-context-floor.py",
+      "description": "MEASUREMENT FIX ONLY: stop charging the floor for skills no model can see. Budget unchanged.",
+      "edits": [
+        {
+          "find": "#!/usr/bin/env python3\n\"\"\"Always-on context floor gate.\n\nMeasures the text that is injected into EVERY session's context window before\nany work happens: agent frontmatter descriptions, skill descriptions, command\ndescriptions, and CLAUDE.md. Fails --check when the floor exceeds budget, the\nsame drift-gate pattern as gen-docs.py --check.\n\nUsage:\n    python3 scripts/check-context-floor.py            # print the floor table\n    python3 scripts/check-context-floor.py --check    # exit 1 if over budget    python3 scripts/check-context-floor.py --json     # print JSON instead of the table\n\nBudgets are chars (tokens ~ chars/4). Raise a budget only with owner sign-off —\nthe point of this gate is that the floor never silently grows back.\n\"\"\"\nfrom __future__ import annotations\n\nimport json\nimport re\nimport sys\nfrom pathlib import Path\n\nROOT = Path(__file__).resolve().parent.parent\n\n# Budgets set 2026-08-17 after the example-block strip (measured + ~10% headroom).\n# \"pipeline agent bodies\" is the per-spawn floor: the FULL text of the three\n# pipeline agents, loaded on every plan->review->implement run. Added after\n# review evidence showed this floor grew 4% with nothing failing while only\n# the always-on categories were gated.\n#\n# \"CLAUDE.md\" is DELIVERY-WEIGHTED (chars x CLAUDE_MD_MULTIPLIER): the file is\n# injected into the main context AND re-injected into each of the 3 pipeline\n# subagent spawns, so one char there costs ~4x what a char in a single agent\n# body costs. The gate measures delivered cost, not file size — otherwise\n# moving content out of CLAUDE.md into a consuming agent (a real token win)\n# would look like a regression in the tighter category.\nBUDGETS = {\n    \"agent descriptions\": 10000,\n    \"skill descriptions\": 14000,\n    \"command descriptions\": 6000,\n    \"CLAUDE.md\": 31000,\n    \"pipeline agent bodies\": 43000,\n}\n\nCLAUDE_MD_MULTIPLIER = 4  # main context + 3 pipeline subagent injections\nPIPELINE_AGENTS = (\"planner.md\", \"reviewer.md\", \"implementer.md\")\n\n\ndef frontmatter(text: str) -> str:\n    m = re.match(r\"(?s)\\A---\\n(.*?)\\n---\\n\", text)\n    return m.group(1) if m else \"\"\n\n\ndef description_span(fm: str) -> str:\n    \"\"\"Extract the description value: quoted single-line or block scalar.\"\"\"\n    m = re.search(r'(?m)^description:[ \\t]*[\"\\']?(.*?)[\"\\']?[ \\t]*$', fm)\n    if m and m.group(1) not in (\"\", \"|\", \">\", \"|-\", \">-\"):\n        return m.group(1)\n    # block scalar: indented lines until the next top-level key\n    m = re.search(r\"(?ms)^description:[ \\t]*[|>]-?\\n(.*?)(?=^\\S|\\Z)\", fm)\n    return m.group(1) if m else \"\"\n\n\ndef measure() -> \"dict[str, int]\":\n    sizes = {k: 0 for k in BUDGETS}\n    for f in sorted((ROOT / \".claude\" / \"agents\").glob(\"*.md\")):\n        sizes[\"agent descriptions\"] += len(description_span(frontmatter(f.read_text())))\n    for f in sorted((ROOT / \".claude\" / \"skills\").glob(\"*/SKILL.md\")):\n        sizes[\"skill descriptions\"] += len(description_span(frontmatter(f.read_text())))\n    for f in sorted((ROOT / \".claude\" / \"commands\").glob(\"*.md\")):\n        sizes[\"command descriptions\"] += len(description_span(frontmatter(f.read_text())))\n    sizes[\"CLAUDE.md\"] = len((ROOT / \"CLAUDE.md\").read_text()) * CLAUDE_MD_MULTIPLIER\n    for name in PIPELINE_AGENTS:\n        agent_file = ROOT / \".claude\" / \"agents\" / name\n        if agent_file.exists():\n            sizes[\"pipeline agent bodies\"] += len(agent_file.read_text())\n    return sizes\n\n\ndef main() -> int:\n    args = sys.argv[1:]\n    check = \"--check\" in args\n    sizes = measure()\n    total = sum(sizes.values())\n    budget_total = sum(BUDGETS.values())\n\n    if \"--json\" in args:\n        ok = all(size <= BUDGETS[name] for name, size in sizes.items())\n        payload = {\"sizes\": sizes, \"budgets\": BUDGETS, \"total\": total, \"ok\": ok}\n        print(json.dumps(payload, indent=2))\n        return 1 if (check and not ok) else 0\n\n    print(\"Always-on context floor (chars; tokens ~ chars/4)\")\n    print(f\"{'source':<24}{'chars':>8}{'budget':>8}  status\")\n    failures = []\n    for name, size in sizes.items():\n        budget = BUDGETS[name]\n        ok = size <= budget\n        if not ok:\n            failures.append(name)\n        print(f\"{name:<24}{size:>8}{budget:>8}  {'OK' if ok else 'OVER'}\")\n    print(f\"{'TOTAL':<24}{total:>8}{budget_total:>8}  (~{total // 4} tokens)\")\n\n    if failures:\n        print(\n            f\"\\nFAIL: context floor over budget: {', '.join(failures)}.\\n\"\n            \"Trim descriptions (no <example> blocks in frontmatter) or get owner\\n\"\n            \"sign-off to raise the budget in scripts/check-context-floor.py.\",\n            file=sys.stderr,\n        )\n        return 1 if check else 0\n    print(\"\\nOK: context floor within budget.\")\n    return 0\n\n\nif __name__ == \"__main__\":\n    sys.exit(main())\n",
+          "replace": "#!/usr/bin/env python3\n\"\"\"Always-on context floor gate.\n\nMeasures the text that is injected into EVERY session's context window before\nany work happens: agent frontmatter descriptions, skill descriptions, command\ndescriptions, and CLAUDE.md. Fails --check when the floor exceeds budget, the\nsame drift-gate pattern as gen-docs.py --check.\n\nUsage:\n    python3 scripts/check-context-floor.py            # print the floor table\n    python3 scripts/check-context-floor.py --check    # exit 1 if over budget    python3 scripts/check-context-floor.py --json     # print JSON instead of the table\n\nBudgets are chars (tokens ~ chars/4). Raise a budget only with owner sign-off —\nthe point of this gate is that the floor never silently grows back.\n\"\"\"\nfrom __future__ import annotations\n\nimport json\nimport re\nimport sys\nfrom pathlib import Path\n\nROOT = Path(__file__).resolve().parent.parent\n\n# Budgets set 2026-08-17 after the example-block strip (measured + ~10% headroom).\n# \"pipeline agent bodies\" is the per-spawn floor: the FULL text of the three\n# pipeline agents, loaded on every plan->review->implement run. Added after\n# review evidence showed this floor grew 4% with nothing failing while only\n# the always-on categories were gated.\n#\n# \"CLAUDE.md\" is DELIVERY-WEIGHTED (chars x CLAUDE_MD_MULTIPLIER): the file is\n# injected into the main context AND re-injected into each of the 3 pipeline\n# subagent spawns, so one char there costs ~4x what a char in a single agent\n# body costs. The gate measures delivered cost, not file size — otherwise\n# moving content out of CLAUDE.md into a consuming agent (a real token win)\n# would look like a regression in the tighter category.\nBUDGETS = {\n    \"agent descriptions\": 10000,\n    \"skill descriptions\": 14000,\n    \"command descriptions\": 6000,\n    \"CLAUDE.md\": 31000,\n    \"pipeline agent bodies\": 43000,\n}\n\nCLAUDE_MD_MULTIPLIER = 4  # main context + 3 pipeline subagent injections\nPIPELINE_AGENTS = (\"planner.md\", \"reviewer.md\", \"implementer.md\")\n\n\ndef frontmatter(text: str) -> str:\n    m = re.match(r\"(?s)\\A---\\n(.*?)\\n---\\n\", text)\n    return m.group(1) if m else \"\"\n\n\ndef model_invisible(fm: str) -> bool:\n    \"\"\"True if the model never sees this skill listed.\n\n    `disable-model-invocation: true` keeps a skill out of the Skill tool's\n    listing entirely, so its description costs zero always-on context. Charging\n    for it inflated this floor by ~3.9k chars against skills no model can read -\n    and an inflated floor is not a conservative one, it is a wrong one: it hides\n    real headroom while gating on noise.\n    \"\"\"\n    return bool(re.search(r\"(?m)^disable-model-invocation:[ \\t]*true[ \\t]*$\", fm))\n\n\ndef description_span(fm: str) -> str:\n    \"\"\"Extract the description value: quoted single-line or block scalar.\"\"\"\n    m = re.search(r'(?m)^description:[ \\t]*[\"\\']?(.*?)[\"\\']?[ \\t]*$', fm)\n    if m and m.group(1) not in (\"\", \"|\", \">\", \"|-\", \">-\"):\n        return m.group(1)\n    # block scalar: indented lines until the next top-level key\n    m = re.search(r\"(?ms)^description:[ \\t]*[|>]-?\\n(.*?)(?=^\\S|\\Z)\", fm)\n    return m.group(1) if m else \"\"\n\n\ndef measure() -> \"dict[str, int]\":\n    sizes = {k: 0 for k in BUDGETS}\n    for f in sorted((ROOT / \".claude\" / \"agents\").glob(\"*.md\")):\n        sizes[\"agent descriptions\"] += len(description_span(frontmatter(f.read_text())))\n    for f in sorted((ROOT / \".claude\" / \"skills\").glob(\"*/SKILL.md\")):\n        fm = frontmatter(f.read_text())\n        if model_invisible(fm):\n            continue  # never enters a model's context, so it is not part of the floor\n        sizes[\"skill descriptions\"] += len(description_span(fm))\n    for f in sorted((ROOT / \".claude\" / \"commands\").glob(\"*.md\")):\n        sizes[\"command descriptions\"] += len(description_span(frontmatter(f.read_text())))\n    sizes[\"CLAUDE.md\"] = len((ROOT / \"CLAUDE.md\").read_text()) * CLAUDE_MD_MULTIPLIER\n    for name in PIPELINE_AGENTS:\n        agent_file = ROOT / \".claude\" / \"agents\" / name\n        if agent_file.exists():\n            sizes[\"pipeline agent bodies\"] += len(agent_file.read_text())\n    return sizes\n\n\ndef main() -> int:\n    args = sys.argv[1:]\n    check = \"--check\" in args\n    sizes = measure()\n    total = sum(sizes.values())\n    budget_total = sum(BUDGETS.values())\n\n    if \"--json\" in args:\n        ok = all(size <= BUDGETS[name] for name, size in sizes.items())\n        payload = {\"sizes\": sizes, \"budgets\": BUDGETS, \"total\": total, \"ok\": ok}\n        print(json.dumps(payload, indent=2))\n        return 1 if (check and not ok) else 0\n\n    print(\"Always-on context floor (chars; tokens ~ chars/4)\")\n    print(f\"{'source':<24}{'chars':>8}{'budget':>8}  status\")\n    failures = []\n    for name, size in sizes.items():\n        budget = BUDGETS[name]\n        ok = size <= budget\n        if not ok:\n            failures.append(name)\n        print(f\"{name:<24}{size:>8}{budget:>8}  {'OK' if ok else 'OVER'}\")\n    print(f\"{'TOTAL':<24}{total:>8}{budget_total:>8}  (~{total // 4} tokens)\")\n\n    if failures:\n        print(\n            f\"\\nFAIL: context floor over budget: {', '.join(failures)}.\\n\"\n            \"Trim descriptions (no <example> blocks in frontmatter) or get owner\\n\"\n            \"sign-off to raise the budget in scripts/check-context-floor.py.\",\n            file=sys.stderr,\n        )\n        return 1 if check else 0\n    print(\"\\nOK: context floor within budget.\")\n    return 0\n\n\nif __name__ == \"__main__\":\n    sys.exit(main())\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "scripts/check-context-floor.py",
+      "description": "BUDGET RE-BASELINE ONLY (owner-visible): skill descriptions 14000 -> 9000, valid only because the measurement above changed.",
+      "edits": [
+        {
+          "find": "#!/usr/bin/env python3\n\"\"\"Always-on context floor gate.\n\nMeasures the text that is injected into EVERY session's context window before\nany work happens: agent frontmatter descriptions, skill descriptions, command\ndescriptions, and CLAUDE.md. Fails --check when the floor exceeds budget, the\nsame drift-gate pattern as gen-docs.py --check.\n\nUsage:\n    python3 scripts/check-context-floor.py            # print the floor table\n    python3 scripts/check-context-floor.py --check    # exit 1 if over budget    python3 scripts/check-context-floor.py --json     # print JSON instead of the table\n\nBudgets are chars (tokens ~ chars/4). Raise a budget only with owner sign-off —\nthe point of this gate is that the floor never silently grows back.\n\"\"\"\nfrom __future__ import annotations\n\nimport json\nimport re\nimport sys\nfrom pathlib import Path\n\nROOT = Path(__file__).resolve().parent.parent\n\n# Budgets set 2026-08-17 after the example-block strip (measured + ~10% headroom).\n# \"pipeline agent bodies\" is the per-spawn floor: the FULL text of the three\n# pipeline agents, loaded on every plan->review->implement run. Added after\n# review evidence showed this floor grew 4% with nothing failing while only\n# the always-on categories were gated.\n#\n# \"CLAUDE.md\" is DELIVERY-WEIGHTED (chars x CLAUDE_MD_MULTIPLIER): the file is\n# injected into the main context AND re-injected into each of the 3 pipeline\n# subagent spawns, so one char there costs ~4x what a char in a single agent\n# body costs. The gate measures delivered cost, not file size — otherwise\n# moving content out of CLAUDE.md into a consuming agent (a real token win)\n# would look like a regression in the tighter category.\nBUDGETS = {\n    \"agent descriptions\": 10000,\n    \"skill descriptions\": 14000,\n    \"command descriptions\": 6000,\n    \"CLAUDE.md\": 31000,\n    \"pipeline agent bodies\": 43000,\n}\n\nCLAUDE_MD_MULTIPLIER = 4  # main context + 3 pipeline subagent injections\nPIPELINE_AGENTS = (\"planner.md\", \"reviewer.md\", \"implementer.md\")\n\n\ndef frontmatter(text: str) -> str:\n    m = re.match(r\"(?s)\\A---\\n(.*?)\\n---\\n\", text)\n    return m.group(1) if m else \"\"\n\n\ndef model_invisible(fm: str) -> bool:\n    \"\"\"True if the model never sees this skill listed.\n\n    `disable-model-invocation: true` keeps a skill out of the Skill tool's\n    listing entirely, so its description costs zero always-on context. Charging\n    for it inflated this floor by ~3.9k chars against skills no model can read -\n    and an inflated floor is not a conservative one, it is a wrong one: it hides\n    real headroom while gating on noise.\n    \"\"\"\n    return bool(re.search(r\"(?m)^disable-model-invocation:[ \\t]*true[ \\t]*$\", fm))\n\n\ndef description_span(fm: str) -> str:\n    \"\"\"Extract the description value: quoted single-line or block scalar.\"\"\"\n    m = re.search(r'(?m)^description:[ \\t]*[\"\\']?(.*?)[\"\\']?[ \\t]*$', fm)\n    if m and m.group(1) not in (\"\", \"|\", \">\", \"|-\", \">-\"):\n        return m.group(1)\n    # block scalar: indented lines until the next top-level key\n    m = re.search(r\"(?ms)^description:[ \\t]*[|>]-?\\n(.*?)(?=^\\S|\\Z)\", fm)\n    return m.group(1) if m else \"\"\n\n\ndef measure() -> \"dict[str, int]\":\n    sizes = {k: 0 for k in BUDGETS}\n    for f in sorted((ROOT / \".claude\" / \"agents\").glob(\"*.md\")):\n        sizes[\"agent descriptions\"] += len(description_span(frontmatter(f.read_text())))\n    for f in sorted((ROOT / \".claude\" / \"skills\").glob(\"*/SKILL.md\")):\n        fm = frontmatter(f.read_text())\n        if model_invisible(fm):\n            continue  # never enters a model's context, so it is not part of the floor\n        sizes[\"skill descriptions\"] += len(description_span(fm))\n    for f in sorted((ROOT / \".claude\" / \"commands\").glob(\"*.md\")):\n        sizes[\"command descriptions\"] += len(description_span(frontmatter(f.read_text())))\n    sizes[\"CLAUDE.md\"] = len((ROOT / \"CLAUDE.md\").read_text()) * CLAUDE_MD_MULTIPLIER\n    for name in PIPELINE_AGENTS:\n        agent_file = ROOT / \".claude\" / \"agents\" / name\n        if agent_file.exists():\n            sizes[\"pipeline agent bodies\"] += len(agent_file.read_text())\n    return sizes\n\n\ndef main() -> int:\n    args = sys.argv[1:]\n    check = \"--check\" in args\n    sizes = measure()\n    total = sum(sizes.values())\n    budget_total = sum(BUDGETS.values())\n\n    if \"--json\" in args:\n        ok = all(size <= BUDGETS[name] for name, size in sizes.items())\n        payload = {\"sizes\": sizes, \"budgets\": BUDGETS, \"total\": total, \"ok\": ok}\n        print(json.dumps(payload, indent=2))\n        return 1 if (check and not ok) else 0\n\n    print(\"Always-on context floor (chars; tokens ~ chars/4)\")\n    print(f\"{'source':<24}{'chars':>8}{'budget':>8}  status\")\n    failures = []\n    for name, size in sizes.items():\n        budget = BUDGETS[name]\n        ok = size <= budget\n        if not ok:\n            failures.append(name)\n        print(f\"{name:<24}{size:>8}{budget:>8}  {'OK' if ok else 'OVER'}\")\n    print(f\"{'TOTAL':<24}{total:>8}{budget_total:>8}  (~{total // 4} tokens)\")\n\n    if failures:\n        print(\n            f\"\\nFAIL: context floor over budget: {', '.join(failures)}.\\n\"\n            \"Trim descriptions (no <example> blocks in frontmatter) or get owner\\n\"\n            \"sign-off to raise the budget in scripts/check-context-floor.py.\",\n            file=sys.stderr,\n        )\n        return 1 if check else 0\n    print(\"\\nOK: context floor within budget.\")\n    return 0\n\n\nif __name__ == \"__main__\":\n    sys.exit(main())\n",
+          "replace": "#!/usr/bin/env python3\n\"\"\"Always-on context floor gate.\n\nMeasures the text that is injected into EVERY session's context window before\nany work happens: agent frontmatter descriptions, skill descriptions, command\ndescriptions, and CLAUDE.md. Fails --check when the floor exceeds budget, the\nsame drift-gate pattern as gen-docs.py --check.\n\nUsage:\n    python3 scripts/check-context-floor.py            # print the floor table\n    python3 scripts/check-context-floor.py --check    # exit 1 if over budget    python3 scripts/check-context-floor.py --json     # print JSON instead of the table\n\nBudgets are chars (tokens ~ chars/4). Raise a budget only with owner sign-off —\nthe point of this gate is that the floor never silently grows back.\n\"\"\"\nfrom __future__ import annotations\n\nimport json\nimport re\nimport sys\nfrom pathlib import Path\n\nROOT = Path(__file__).resolve().parent.parent\n\n# Budgets set 2026-08-17 after the example-block strip (measured + ~10% headroom).\n# \"skill descriptions\" re-baselined 2026-08-21 (14000 -> 9000) when the category\n# stopped charging for model-invisible skills. This is a TIGHTENING, not a raise:\n# the old number gated a measurement that counted 3.9k chars of descriptions no\n# model can see. Real value at re-baseline was 7811 of 9000.\n# \"pipeline agent bodies\" is the per-spawn floor: the FULL text of the three\n# pipeline agents, loaded on every plan->review->implement run. Added after\n# review evidence showed this floor grew 4% with nothing failing while only\n# the always-on categories were gated.\n#\n# \"CLAUDE.md\" is DELIVERY-WEIGHTED (chars x CLAUDE_MD_MULTIPLIER): the file is\n# injected into the main context AND re-injected into each of the 3 pipeline\n# subagent spawns, so one char there costs ~4x what a char in a single agent\n# body costs. The gate measures delivered cost, not file size — otherwise\n# moving content out of CLAUDE.md into a consuming agent (a real token win)\n# would look like a regression in the tighter category.\nBUDGETS = {\n    \"agent descriptions\": 10000,\n    \"skill descriptions\": 9000,\n    \"command descriptions\": 6000,\n    \"CLAUDE.md\": 31000,\n    \"pipeline agent bodies\": 43000,\n}\n\nCLAUDE_MD_MULTIPLIER = 4  # main context + 3 pipeline subagent injections\nPIPELINE_AGENTS = (\"planner.md\", \"reviewer.md\", \"implementer.md\")\n\n\ndef frontmatter(text: str) -> str:\n    m = re.match(r\"(?s)\\A---\\n(.*?)\\n---\\n\", text)\n    return m.group(1) if m else \"\"\n\n\ndef model_invisible(fm: str) -> bool:\n    \"\"\"True if the model never sees this skill listed.\n\n    `disable-model-invocation: true` keeps a skill out of the Skill tool's\n    listing entirely, so its description costs zero always-on context. Charging\n    for it inflated this floor by ~3.9k chars against skills no model can read -\n    and an inflated floor is not a conservative one, it is a wrong one: it hides\n    real headroom while gating on noise.\n    \"\"\"\n    return bool(re.search(r\"(?m)^disable-model-invocation:[ \\t]*true[ \\t]*$\", fm))\n\n\ndef description_span(fm: str) -> str:\n    \"\"\"Extract the description value: quoted single-line or block scalar.\"\"\"\n    m = re.search(r'(?m)^description:[ \\t]*[\"\\']?(.*?)[\"\\']?[ \\t]*$', fm)\n    if m and m.group(1) not in (\"\", \"|\", \">\", \"|-\", \">-\"):\n        return m.group(1)\n    # block scalar: indented lines until the next top-level key\n    m = re.search(r\"(?ms)^description:[ \\t]*[|>]-?\\n(.*?)(?=^\\S|\\Z)\", fm)\n    return m.group(1) if m else \"\"\n\n\ndef measure() -> \"dict[str, int]\":\n    sizes = {k: 0 for k in BUDGETS}\n    for f in sorted((ROOT / \".claude\" / \"agents\").glob(\"*.md\")):\n        sizes[\"agent descriptions\"] += len(description_span(frontmatter(f.read_text())))\n    for f in sorted((ROOT / \".claude\" / \"skills\").glob(\"*/SKILL.md\")):\n        fm = frontmatter(f.read_text())\n        if model_invisible(fm):\n            continue  # never enters a model's context, so it is not part of the floor\n        sizes[\"skill descriptions\"] += len(description_span(fm))\n    for f in sorted((ROOT / \".claude\" / \"commands\").glob(\"*.md\")):\n        sizes[\"command descriptions\"] += len(description_span(frontmatter(f.read_text())))\n    sizes[\"CLAUDE.md\"] = len((ROOT / \"CLAUDE.md\").read_text()) * CLAUDE_MD_MULTIPLIER\n    for name in PIPELINE_AGENTS:\n        agent_file = ROOT / \".claude\" / \"agents\" / name\n        if agent_file.exists():\n            sizes[\"pipeline agent bodies\"] += len(agent_file.read_text())\n    return sizes\n\n\ndef main() -> int:\n    args = sys.argv[1:]\n    check = \"--check\" in args\n    sizes = measure()\n    total = sum(sizes.values())\n    budget_total = sum(BUDGETS.values())\n\n    if \"--json\" in args:\n        ok = all(size <= BUDGETS[name] for name, size in sizes.items())\n        payload = {\"sizes\": sizes, \"budgets\": BUDGETS, \"total\": total, \"ok\": ok}\n        print(json.dumps(payload, indent=2))\n        return 1 if (check and not ok) else 0\n\n    print(\"Always-on context floor (chars; tokens ~ chars/4)\")\n    print(f\"{'source':<24}{'chars':>8}{'budget':>8}  status\")\n    failures = []\n    for name, size in sizes.items():\n        budget = BUDGETS[name]\n        ok = size <= budget\n        if not ok:\n            failures.append(name)\n        print(f\"{name:<24}{size:>8}{budget:>8}  {'OK' if ok else 'OVER'}\")\n    print(f\"{'TOTAL':<24}{total:>8}{budget_total:>8}  (~{total // 4} tokens)\")\n\n    if failures:\n        print(\n            f\"\\nFAIL: context floor over budget: {', '.join(failures)}.\\n\"\n            \"Trim descriptions (no <example> blocks in frontmatter) or get owner\\n\"\n            \"sign-off to raise the budget in scripts/check-context-floor.py.\",\n            file=sys.stderr,\n        )\n        return 1 if check else 0\n    print(\"\\nOK: context floor within budget.\")\n    return 0\n\n\nif __name__ == \"__main__\":\n    sys.exit(main())\n"
+        }
+      ]
+    },
+    {
+      "type": "file_create",
+      "path": "tests/test_skill_loading_contract.py",
+      "description": "Mechanical A6 gate covering mandatory AND on-demand declared loads.",
+      "content": "\"\"\"A sentence in the entrypoint is not a load.\n\nChaosEngine's lifecycle rule, made mechanical: if a behaviour is mandatory at a\nlifecycle moment, the mechanism must actually register it. Prose in a prompt is\nnot enforcement.\n\nThe concrete failure this pins was live in the corpus until 2026-08-21. Fifteen\nskills carried `disable-model-invocation: true`, which removes them from the\nSkill tool's listing entirely, while agents' \"Skill Loading\" sections named them\nanyway: **8 as mandatory** (including `execute-operations-config`, the\nimplementer's Iron Law mechanism, and `validate-operations-config`, the\nreviewer's) and **7 as on-demand** (five of them the coordinator's adaptive\naids). Every one of those loads was dead prose.\n\nBoth classes are enforced, deliberately. A mandatory load that cannot execute\nbreaks a stated contract; an on-demand \"load when the trigger fires\" that can\nnever fire is arguably worse, because the prompt reads as a capability the\nagent does not have. The failure message names the class so a regression is\nactionable rather than merely detected.\n\"\"\"\nimport os\nimport re\nimport unittest\n\nROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))\nAGENTS_DIR = os.path.join(ROOT, \".claude\", \"agents\")\nSKILLS_DIR = os.path.join(ROOT, \".claude\", \"skills\")\n\nSECTION_RE = re.compile(\n    r\"## (?:Skill Loading|Mandatory Skill Loading)\\n(.*?)(?=\\n## |\\n---)\", re.S)\n# Bolded subsection headers inside that section. The corpus writes\n# \"**Mandatory (load before any work, in order):**\" and\n# \"**On demand (load when the trigger fires ...):**\" -- note the SPACE in\n# \"On demand\". An earlier version of this analysis matched \"On-demand\" with a\n# hyphen, matched nothing, and silently classified every skill as mandatory.\n# A parser that cannot fail loudly produces a confident wrong answer.\nHEADER_RE = re.compile(r\"^\\*\\*(.+?)\\*\\*\\s*$\", re.M)\nSKILL_RE = re.compile(r\"\\*\\*([a-z0-9][a-z0-9-]*)\\*\\*\")\nINVISIBLE_RE = re.compile(r\"(?m)^disable-model-invocation:[ \\t]*true[ \\t]*$\")\n\n\ndef model_invisible_skills():\n    \"\"\"Skills the Skill tool will not list, so no agent can invoke them.\"\"\"\n    invisible = set()\n    for name in sorted(os.listdir(SKILLS_DIR)):\n        path = os.path.join(SKILLS_DIR, name, \"SKILL.md\")\n        if not os.path.isfile(path):\n            continue\n        with open(path, encoding=\"utf-8\") as handle:\n            head = handle.read()\n        match = re.match(r\"(?s)\\A---\\n(.*?)\\n---\\n\", head)\n        if match and INVISIBLE_RE.search(match.group(1)):\n            invisible.add(name)\n    return invisible\n\n\ndef load_class(header):\n    if header.lower().startswith(\"mandatory\"):\n        return \"mandatory\"\n    return \"on-demand\" if \"demand\" in header.lower() else \"unclassified\"\n\n\ndef declared_loads():\n    \"\"\"(agent, skill, class) for every skill an agent's prompt tells it to load.\"\"\"\n    pairs = []\n    for fname in sorted(os.listdir(AGENTS_DIR)):\n        path = os.path.join(AGENTS_DIR, fname)\n        if not fname.endswith(\".md\") or not os.path.isfile(path):\n            continue\n        with open(path, encoding=\"utf-8\") as handle:\n            text = handle.read()\n        if not text.startswith(\"---\\n\"):\n            continue\n        section = SECTION_RE.search(text)\n        if not section:\n            continue\n        body = section.group(1)\n        headers = list(HEADER_RE.finditer(body))\n        if not headers:\n            for skill in sorted(set(SKILL_RE.findall(body))):\n                pairs.append((fname[:-3], skill, \"unclassified\"))\n            continue\n        for index, header in enumerate(headers):\n            end = headers[index + 1].start() if index + 1 < len(headers) else len(body)\n            segment = body[header.end():end]\n            for skill in sorted(set(SKILL_RE.findall(segment))):\n                pairs.append((fname[:-3], skill, load_class(header.group(1))))\n    return pairs\n\n\nclass DeclaredLoadsMustBeExecutable(unittest.TestCase):\n    def test_no_agent_is_told_to_load_a_skill_it_cannot_invoke(self):\n        invisible = model_invisible_skills()\n        dead = [\"%s -> %s (%s)\" % (agent, skill, klass)\n                for agent, skill, klass in declared_loads() if skill in invisible]\n        self.assertEqual(dead, [], \"\\n\".join(\n            [\"agents instructed to load skills that are not in the Skill tool's \"\n             \"listing (`disable-model-invocation: true`). Either un-flag the \"\n             \"skill or delete the instruction — a load that cannot happen is \"\n             \"worse than no instruction, because the prompt reads as if it did:\"]\n            + dead))\n\n    def test_every_declared_load_names_a_skill_that_exists(self):\n        \"\"\"The adjacent failure: an instruction to load something deleted.\"\"\"\n        missing = [\"%s -> %s\" % (agent, skill) for agent, skill, _k in declared_loads()\n                   if not os.path.isfile(os.path.join(SKILLS_DIR, skill, \"SKILL.md\"))]\n        self.assertEqual(missing, [])\n\n    def test_the_check_actually_has_a_corpus_to_check(self):\n        \"\"\"Guards the vacuous case: a regex that silently stops matching turns\n        this whole file green while enforcing nothing.\"\"\"\n        loads = declared_loads()\n        self.assertGreater(len(loads), 20)\n        classes = {klass for _a, _s, klass in loads}\n        self.assertIn(\"mandatory\", classes)\n        self.assertIn(\"on-demand\", classes,\n                      \"the subsection parser matched nothing — see HEADER_RE's note\")\n        self.assertGreater(len(model_invisible_skills()), 0,\n                           \"if nothing is flagged the invariant is untested, not satisfied\")\n\n\nclass TheFloorChargesOnlyForWhatEntersContext(unittest.TestCase):\n    \"\"\"The measurement bug found alongside the contradiction.\n\n    `check-context-floor.py` charged for all 76 skill descriptions, including\n    the ~33 no model can see — inflating that category by ~3.9k chars. An\n    inflated floor is not a conservative one; it gates on noise while hiding\n    real headroom, which matters because CLAUDE.md is at its own limit.\n    \"\"\"\n\n    def test_invisible_skills_are_excluded_from_the_floor(self):\n        import importlib.util\n        spec = importlib.util.spec_from_file_location(\n            \"check_context_floor\", os.path.join(ROOT, \"scripts\", \"check-context-floor.py\"))\n        module = importlib.util.module_from_spec(spec)\n        spec.loader.exec_module(module)\n\n        invisible = model_invisible_skills()\n        self.assertTrue(invisible, \"no flagged skills — nothing to exclude\")\n        sample = os.path.join(SKILLS_DIR, sorted(invisible)[0], \"SKILL.md\")\n        with open(sample, encoding=\"utf-8\") as handle:\n            frontmatter = module.frontmatter(handle.read())\n        self.assertTrue(module.model_invisible(frontmatter))\n\n        visible_total = module.measure()[\"skill descriptions\"]\n        every_description = 0\n        for name in sorted(os.listdir(SKILLS_DIR)):\n            path = os.path.join(SKILLS_DIR, name, \"SKILL.md\")\n            if not os.path.isfile(path):\n                continue\n            with open(path, encoding=\"utf-8\") as handle:\n                every_description += len(\n                    module.description_span(module.frontmatter(handle.read())))\n        self.assertLess(visible_total, every_description,\n                        \"the floor must not charge for skills no model can see\")\n\n\nif __name__ == \"__main__\":\n    unittest.main()\n"
+    }
+  ]
+}

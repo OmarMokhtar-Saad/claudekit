@@ -1,7 +1,6 @@
 ---
 name: git-workflow
 description: "Use when performing git operations - branching, committing, PRs, releases"
-disable-model-invocation: true
 ---
 
 # Git Workflow

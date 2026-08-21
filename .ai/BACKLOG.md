@@ -35,6 +35,15 @@ enforcement-runtime lane owns. Do not start either before those land.
   failures with *different* fingerprints → task reflection; two with the *same* fingerprint → deep
   reflection. Today `loop-operator` does this by prompt judgement, which is neither deterministic
   nor testable. **Depends on:** the hook dispatcher.
+- [ ] **OWNER DECISION: record the first eval cassettes.** `evals/cassettes/` ships empty because
+  recording costs real API money (~$0.2–1.5 per eval, 4 evals). Until then `--replay` fails closed
+  and CI is deliberately not wired to it — same call `check-silent-failure.py` made. Run
+  `python3 scripts/run-evals.py --record`, then wire `--replay` into `.github/workflows/ci.yml` in
+  the same change. `--inject` already gives CI-safe value with no recordings.
+- [ ] **Skill-description budget was LOWERED 14000 → 9000** (2026-08-21) alongside a fix that
+  stopped the floor charging for model-invisible skills. A lowering can only make the gate
+  stricter, so it was not treated as the owner-gated "raise" the script warns about — but the
+  re-baseline is a judgement call worth confirming. Real value now 7,719 of 9,000.
 - [ ] **OWNER DECISION: `/review` spawns the reviewer on the most-capable tier for every plan.**
   `.claude/commands/review.md:89` passes `--model opus`, which beats frontmatter, while
   `model-policy.json` gives `reviewer` the `balanced` tier with most-capable reachable only via
@@ -217,7 +226,12 @@ asset changes, so they are recorded as options with trade-offs.
 
 ## P2 — important, larger
 
-- [ ] **Corpus-wide `disable-model-invocation` vs loader-instruction contradiction** — ~30 skills carry the flag while agent/command prompts instruct agents to load them (found 2026-08-09 while fixing `using-git-worktrees`; that one skill was fixed, rest untouched). Resolve together with task 009, which *prescribes* the flag for niche skills to cut the routing tax — needs a per-skill decision: un-flag it or delete the loader instruction. Note: the worktree work added +1 skill/+1 command/1 un-flagged skill to the routing surface (accepted cost, recorded in plan-worktree-multi-agent.md).
+- [x] **Corpus-wide `disable-model-invocation` vs loader-instruction contradiction — RESOLVED
+  2026-08-21** (`plan-skill-loading-contract`). Measured, not estimated: 15 of the 33 flagged
+  skills were declared loads (8 mandatory, 7 on-demand), all un-flagged after a per-skill decision;
+  `tests/test_skill_loading_contract.py` prevents recurrence. The 18 flagged-but-never-declared
+  skills are correctly left alone. Superseded description below.
+- [ ] ~~**Corpus-wide `disable-model-invocation` vs loader-instruction contradiction**~~ — ~30 skills carry the flag while agent/command prompts instruct agents to load them (found 2026-08-09 while fixing `using-git-worktrees`; that one skill was fixed, rest untouched). Resolve together with task 009, which *prescribes* the flag for niche skills to cut the routing tax — needs a per-skill decision: un-flag it or delete the loader instruction. Note: the worktree work added +1 skill/+1 command/1 un-flagged skill to the routing surface (accepted cost, recorded in plan-worktree-multi-agent.md).
 - [ ] `ck doctor`: consider adding `worktree-manager.py` to the ops-script manifest check (reviewer note, plan-worktree-multi-agent.md).
 
 - [ ] Task 009 context budget: one hook dispatcher per event; ≤2 mandatory skill loads; stop registry double-loading.

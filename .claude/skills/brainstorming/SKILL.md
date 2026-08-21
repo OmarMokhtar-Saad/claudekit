@@ -1,7 +1,6 @@
 ---
 name: brainstorming
 description: "Use when exploring solution approaches before creating an implementation plan - creative design exploration"
-disable-model-invocation: true
 argument-hint: "<topic>"
 context: fork
 ---

@@ -23,6 +23,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 # Budgets set 2026-08-17 after the example-block strip (measured + ~10% headroom).
+# "skill descriptions" re-baselined 2026-08-21 (14000 -> 9000) when the category
+# stopped charging for model-invisible skills. This is a TIGHTENING, not a raise:
+# the old number gated a measurement that counted 3.9k chars of descriptions no
+# model can see. Real value at re-baseline was 7811 of 9000.
 # "pipeline agent bodies" is the per-spawn floor: the FULL text of the three
 # pipeline agents, loaded on every plan->review->implement run. Added after
 # review evidence showed this floor grew 4% with nothing failing while only
@@ -36,7 +40,7 @@ ROOT = Path(__file__).resolve().parent.parent
 # would look like a regression in the tighter category.
 BUDGETS = {
     "agent descriptions": 10000,
-    "skill descriptions": 14000,
+    "skill descriptions": 9000,
     "command descriptions": 6000,
     "CLAUDE.md": 31000,
     "pipeline agent bodies": 43000,
@@ -49,6 +53,18 @@ PIPELINE_AGENTS = ("planner.md", "reviewer.md", "implementer.md")
 def frontmatter(text: str) -> str:
     m = re.match(r"(?s)\A---\n(.*?)\n---\n", text)
     return m.group(1) if m else ""
+
+
+def model_invisible(fm: str) -> bool:
+    """True if the model never sees this skill listed.
+
+    `disable-model-invocation: true` keeps a skill out of the Skill tool's
+    listing entirely, so its description costs zero always-on context. Charging
+    for it inflated this floor by ~3.9k chars against skills no model can read -
+    and an inflated floor is not a conservative one, it is a wrong one: it hides
+    real headroom while gating on noise.
+    """
+    return bool(re.search(r"(?m)^disable-model-invocation:[ \t]*true[ \t]*$", fm))
 
 
 def description_span(fm: str) -> str:
@@ -66,7 +82,10 @@ def measure() -> "dict[str, int]":
     for f in sorted((ROOT / ".claude" / "agents").glob("*.md")):
         sizes["agent descriptions"] += len(description_span(frontmatter(f.read_text())))
     for f in sorted((ROOT / ".claude" / "skills").glob("*/SKILL.md")):
-        sizes["skill descriptions"] += len(description_span(frontmatter(f.read_text())))
+        fm = frontmatter(f.read_text())
+        if model_invisible(fm):
+            continue  # never enters a model's context, so it is not part of the floor
+        sizes["skill descriptions"] += len(description_span(fm))
     for f in sorted((ROOT / ".claude" / "commands").glob("*.md")):
         sizes["command descriptions"] += len(description_span(frontmatter(f.read_text())))
     sizes["CLAUDE.md"] = len((ROOT / "CLAUDE.md").read_text()) * CLAUDE_MD_MULTIPLIER

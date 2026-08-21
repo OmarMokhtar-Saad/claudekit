@@ -1,7 +1,6 @@
 ---
 name: context-budget
 description: "Use when auditing token consumption across agents, skills, hooks, and MCP servers — identify context bloat and optimize"
-disable-model-invocation: true
 allowed-tools: Read, Glob, Bash
 ---
 
