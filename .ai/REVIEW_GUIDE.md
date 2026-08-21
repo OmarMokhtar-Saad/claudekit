@@ -84,6 +84,7 @@ session, and the same class gets re-found instead of accumulating into a check.
 | `unwired-artifact` | a file ships that nothing executable references | nothing yet — 4 LIVE; `config.schema.json` went 46 days unapplied |
 | `type-contract-drift` | an annotation disagrees with what the function returns | `mypy` — but `pyproject.toml:57` scopes it to `src/claudekit`, so the operations engine is unchecked |
 | `validator-executor-divergence` | the validator and the thing it gates disagree about what is valid | **`scripts/check-validator-vs-bash.py`** for the `command_validator.py` seam: every payload the validator ALLOWS is executed under `bash` with `rm`/`sudo`/`chmod`/`curl`/`dd` shadowed by marker functions, and a marker is a divergence. This is the oracle that found all five fail-opens in the 2026-08-21 batch by hand. Blind spots, stated: `PATH` is emptied for containment, so wrapper-argument divergence (`xargs eval ...`) is NOT observable, and fork-bomb/loop shapes are refused rather than run. The other 2 seams — unknown edit fields (validator rejects, executor ignores) and sequential-edit anchors (validator checks the original file, executor applies in order) — still have nothing. |
+| `unreviewed-expansion` | a shell security control is assembled by string interpolation and reviewed at its SOURCE line, which reads correctly, while the value it EXPANDS to is wrong | nothing yet — 1 LIVE, fixed in `8cfdb6e` (see "`unreviewed-expansion`: read the value, not the line" below). Cheap diagnostic: run the block under `bash -x`, or print the constructed value before it is used, and compare it against what you believe you shipped |
 
 ### What the 2026-08-19/20 batch actually proved about this table
 
@@ -121,6 +122,21 @@ regression and no CI gap (CI clones to `/home/runner/work/...`). **Diagnostic si
 expecting exit 2 receive exit 0** — a `vacuous-check` produced by location, not by code. So verify
 where the clone and the fixtures sit before trusting ANY ops-enforcement result, and treat a gate
 test that passes by allowing as suspect until its location is checked.
+
+**`unreviewed-expansion`: read the value, not the line.** `.claude/hooks/pre-commit.sh`
+assembled its secret patterns by interpolation — `"api_key\\s*[:=]\\s*${q}${nq}{8}"` —
+where `q`/`nq` were meant to come from `lib.sh`'s `ERE_QUOTE_CLASS` /
+`ERE_NOT_QUOTE_CLASS`. Those were never exported and the hook never sourced `lib.sh`, so
+the `${:-}` defaults applied; and the defaults were themselves broken, because a `'`
+inside a double-quoted `${:-}` default opens a quote context. `nq` expanded to EMPTY, so
+the shipped pattern demanded eight consecutive QUOTE characters and seven value-bearing
+patterns could not fire. Three review rounds read that source line and found nothing wrong
+with it — because nothing is wrong with it. The defect exists only after expansion. Fixed
+in `8cfdb6e`. The diagnostic costs one command: run the block under `bash -x`, or echo the
+constructed value, and compare it against the pattern you believe you shipped. This
+generalises past patterns to anything built from variables: allowlists, `find` expressions,
+`grep` arguments, `case` globs. **Heuristic: a control you have not seen EXPANDED is a
+control you have not reviewed.**
 
 One caveat on everything above: the `reviewer` agent holds Read, Grep and Glob and cannot execute,
 so it cannot write a mutant, apply an ops.json, or run the DoD commands. Until that is resolved

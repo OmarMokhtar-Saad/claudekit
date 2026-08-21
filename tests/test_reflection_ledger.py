@@ -49,6 +49,40 @@ def fail(ref, target="target-a", failure_class="tool-failure", observation=None)
     )
 
 
+def receipt_diagnostic(ref, proc, env):
+    """Evidence for the UNEXPLAINED intermittent tracked in .ai/BACKLOG.md:
+    test_receipt_via_json_stdin_clears_the_checkpoint has failed three times with the CLI
+    itself exiting 0, and has never reproduced on demand. This builds the capture the
+    BACKLOG entry asks for and hands it to the assertion as its message, so a CI red
+    carries its own evidence and nobody has to reproduce it.
+
+    There is no separate checkpoint file: pending_checkpoint() is a pure reduction over
+    active_entries(), which reads the ledger JSONL - so the ledger bytes, the derived
+    active set and the returned checkpoint are all dumped.
+
+    Records state only. It claims NO cause, it is not a retry, and it must never become
+    one."""
+    ledger = ref.ledger_path(SESSION)
+    inbox = ref.inbox_path(SESSION)
+    try:
+        raw = ledger.read_text(encoding="utf-8")
+    except OSError as exc:
+        raw = "<unreadable: %s>" % exc
+    return "\n".join([
+        "",
+        "ledger_dir:     %s" % ref.ledger_dir(),
+        "ledger_path:    %s (exists=%s)" % (ledger, ledger.exists()),
+        "child env dir:  %r" % env.get("CLAUDEKIT_REFLECTION_DIR"),
+        "inbox_path:     %s (exists=%s)" % (inbox, inbox.exists()),
+        "ledger bytes:   %s" % raw,
+        "active entries: %s" % json.dumps(ref.active_entries(SESSION), indent=2),
+        "pending:        %s" % json.dumps(ref.pending_checkpoint(SESSION), indent=2),
+        "cli returncode: %s" % proc.returncode,
+        "cli stdout:     %s" % proc.stdout,
+        "cli stderr:     %s" % proc.stderr,
+    ])
+
+
 # --------------------------------------------------------------------- privacy
 
 SECRET = "api_key=AKIAIOSFODNN7EXAMPLE"
@@ -396,8 +430,9 @@ class TestCli:
             input=json.dumps(valid_receipt(ref)), capture_output=True, text=True,
             env=env, timeout=30,
         )
-        assert proc.returncode == 0, proc.stderr
-        assert ref.pending_checkpoint(SESSION) is None
+        assert proc.returncode == 0, receipt_diagnostic(ref, proc, env)
+        assert ref.pending_checkpoint(SESSION) is None, receipt_diagnostic(
+            ref, proc, env)
 
     def test_cli_refuses_a_bad_receipt_with_exit_2(self, ref):
         fail(ref, target="a")
