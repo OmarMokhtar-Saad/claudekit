@@ -1,0 +1,74 @@
+{
+  "plan": "validator-base-normalisation",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "src/claudekit/security/command_validator.py",
+      "description": "M1/M2: fd-prefix stripping (adjacent, unquoted, position-bound) and empty-expansion base normalisation on the deny side only",
+      "edits": [
+        {
+          "find": "_REDIRECTS = {\">\", \">>\", \"<\", \"<<\", \"<<<\", \"<>\", \">&\", \"&>\", \"&>>\"}",
+          "replace": "_REDIRECTS = {\">\", \">>\", \"<\", \"<<\", \"<<<\", \"<>\", \">&\", \"&>\", \"&>>\"}\n\n# Characters that can wrap or adjoin a command name without being part of it. An EMPTY\n# expansion is removed by bash before the command is resolved, so `` `` ``, `$()`, `$''` and\n# `$\"\"` glued to a name were invisible to the shell and to the blocklist alike: ``rm -rf /`\n# was ALLOW with safeMode off, and bash really did delete the file. A list of literal\n# empty-expansion spellings is the same losing game as an env-name denylist - review added\n# `$''` and `$\"\"` to a set that started as backticks and `$()` - so this is a character class.\n_EXPANSION_PUNCT = \"`$()\"\n\n\ndef _strip_adjacent_fds(command: str) -> str:\n    \"\"\"Remove file-descriptor numbers that are ADJACENT to a redirect, outside quotes.\n\n    `2>/dev/null rm -rf /` segmented to base command `2`, so the blocklisted `rm` was never\n    checked: ALLOW with safeMode off, confirmed against bash. Three constraints make removing\n    the digit safe, and the first two were each a rejected design:\n\n      * Adjacency. `2 > log` with a space runs a command NAMED `2` in bash. Dropping the digit\n        there erased a real command name and let `2 > f; ls` through in the default mode.\n      * Position, not value. Tracking \"which digit strings appear adjacent somewhere\" and then\n        testing tokens by value let a quoted `'x 2>y'` elsewhere in the line poison the set and\n        silently erase a genuine `2 > f` segment. Working on the raw string keeps each\n        occurrence bound to its own position.\n      * Quotes. `echo \"a 2>b\"` is an argument, not a redirect.\n\n    Anything not matching all three is left exactly as it was, so a digit stays a base command\n    whenever bash would treat it as one.\n    \"\"\"\n    out: List[str] = []\n    in_single = in_double = False\n    i, n = 0, len(command)\n    while i < n:\n        ch = command[i]\n        if ch == \"\\\\\" and not in_single and i + 1 < n:\n            out.append(ch)\n            out.append(command[i + 1])\n            i += 2\n            continue\n        if ch == \"'\" and not in_double:\n            in_single = not in_single\n        elif ch == '\"' and not in_single:\n            in_double = not in_double\n        elif (ch.isdigit() and not in_single and not in_double\n              and (not out or out[-1].isspace())):\n            end = i\n            while end < n and command[end].isdigit():\n                end += 1\n            if end < n and command[end] in \"<>\":\n                i = end\n                continue\n        out.append(ch)\n        i += 1\n    return \"\".join(out)\n\n\ndef _expansion_stripped_base(parts: List[str]) -> str:\n    \"\"\"The base command with expansion punctuation removed - for DENY checks only.\n\n    Never feed this to the allowlist. Measured on the first attempt at this fix, which used it\n    everywhere: 5,118 REJECT -> ALLOW transitions over a 168,400-payload fuzz, because `$ls`\n    and `` `ls` `` normalise to the allowlisted `ls`. A command substitution in command\n    position is not `ls`; it is \"run whatever this prints\". Normalisation may only ever ADD\n    rejections.\n    \"\"\"\n    for tok in parts:\n        stripped = \"\".join(ch for ch in tok if ch not in _EXPANSION_PUNCT)\n        if stripped:\n            return stripped.split(\"/\")[-1].strip(\"\\\\\")\n    return \"\""
+        },
+        {
+          "find": "        lex = shlex.shlex(command, posix=True, punctuation_chars=True)",
+          "replace": "        lex = shlex.shlex(_strip_adjacent_fds(command), posix=True,\n                          punctuation_chars=True)"
+        },
+        {
+          "find": "        # Before the blocklist_only early return, so `$(eval ...)` is covered too.\n        if base in _SHELL_BUILTIN_DENY:",
+          "replace": "        # The expansion-stripped spelling is checked against the deny lists FIRST and\n        # separately: `$()rm` and ``rm` are `rm` to bash, whatever the token looks like here.\n        deny_base = _expansion_stripped_base(parts)\n        if deny_base in _SHELL_BUILTIN_DENY:\n            return False, f\"Dangerous pattern ({deny_base})\"\n        if deny_base in self.blocklist:\n            return False, f\"Blocked command: {deny_base}\"\n\n        # Before the blocklist_only early return, so `$(eval ...)` is covered too.\n        if base in _SHELL_BUILTIN_DENY:"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_validator_segmentation.py",
+      "description": "FD_PREFIXED + EMPTY_EXPANSION in both modes; pin allowlist non-normalisation, adjacency, and the value-vs-position defect",
+      "edits": [
+        {
+          "find": "from claudekit.security.command_validator import (\n    CommandValidator,\n    _split_unquoted_newlines,\n)",
+          "replace": "from claudekit.security.command_validator import (\n    CommandValidator,\n    _split_unquoted_newlines,\n    _strip_adjacent_fds,\n)"
+        },
+        {
+          "find": "MUST_REJECT = (BUILTIN_COMMAND_POSITION + NEWLINE_SEPARATED + ENV_OVERRIDES",
+          "replace": "# DISCRIMINATOR, both modes. Two shapes that put a blocklisted command out of the blocklist's\n# reach, reported by review round 1 of the segmentation change as pre-existing and deferred\n# there with their repro strings rather than silently carried. A leading file-descriptor number\n# landed in command position because the segmenter drops a redirect and its target but not the\n# digit before it; an EMPTY expansion glued to the name is removed by bash before the command\n# is resolved but was matched literally here. Both were ALLOW with safeMode off, confirmed\n# against a bash oracle.\nFD_PREFIXED = [\n    \"2>/dev/null rm -rf /\",\n    \"2>&1 sudo rm -rf /\",\n    \"3>&1 rm -rf /\",\n    \"0<in rm -rf /\",\n    \"2>/dev/null eval rm -rf /\",\n    \"2>/dev/null\",           # digit + redirect + target and nothing else: the segment\n                             # collapses, which must fail closed rather than validate OK\n]\n\nEMPTY_EXPANSION = [\n    \"``rm -rf /\",\n    \"rm`` -rf /\",\n    \"rm$() -rf /\",\n    \"$()rm -rf /\",\n    \"$''rm -rf /\",\n    '$\"\"rm -rf /',\n]\n\nMUST_REJECT = (BUILTIN_COMMAND_POSITION + NEWLINE_SEPARATED + ENV_OVERRIDES"
+        },
+        {
+          "find": "               + COMMENT_WITH_UNBALANCED_QUOTE + COMMENT_ESCAPED_NEWLINE\n               + COMMENT_HIDDEN_COMMAND)",
+          "replace": "               + COMMENT_WITH_UNBALANCED_QUOTE + COMMENT_ESCAPED_NEWLINE\n               + COMMENT_HIDDEN_COMMAND + FD_PREFIXED + EMPTY_EXPANSION)"
+        },
+        {
+          "find": "                      + COMMENT_ESCAPED_NEWLINE + COMMENT_HIDDEN_COMMAND)",
+          "replace": "                      + COMMENT_ESCAPED_NEWLINE + COMMENT_HIDDEN_COMMAND\n                      # Unsafe mode is where these two were actually exploitable - in safe\n                      # mode they were rejected, but for the wrong reason (an unallowlisted\n                      # base) rather than by the blocklist.\n                      + FD_PREFIXED + EMPTY_EXPANSION)"
+        },
+        {
+          "find": "    def test_pip_is_not_allowlisted(self):",
+          "replace": "    def test_the_allowlist_is_not_normalised(self):\n        \"\"\"The design constraint that keeps expansion-stripping fail-closed. Feeding the\n        stripped base to the ALLOWLIST as well measured 5,118 REJECT -> ALLOW transitions over\n        a 168,400-payload fuzz: `$ls` and backtick-ls normalise to the allowlisted `ls`, but a\n        command substitution in command position runs whatever it prints, which is not `ls`.\"\"\"\n        ok, reason = SAFE.validate(\"$ls\")\n        assert not ok and \"$ls\" in reason, reason\n\n    def test_a_digit_is_a_command_name_unless_it_touches_the_redirect(self):\n        \"\"\"Two rejected designs, one test. `2 files` and `2 > log` are commands NAMED `2` -\n        bash treats a digit as a file descriptor only when it touches the operator, and the\n        first attempt at this fix dropped it from `2 > f; ls`, running a digit-named executable\n        unchecked. The last case is the second attempt's defect: adjacency tracked by VALUE\n        rather than position, so an adjacent `2>` inside an unrelated quoted argument poisoned\n        the set and erased a genuine `2 > ...` segment elsewhere in the line.\"\"\"\n        for spaced in (\"2 files\", \"2 > /dev/null\", \"2 > f; ls\", \"ls; 2 > f\",\n                       \"2 > /dev/null; echo 'x 2>y'\", \"echo \\\" 2>x\\\"; 2 > f\"):\n            ok, reason = SAFE.validate(spaced)\n            assert not ok and \"2\" in reason, (spaced, reason)\n\n    def test_a_quoted_redirect_is_an_argument(self):\n        \"\"\"`echo \"a 2>b\"` redirects nothing; stripping inside quotes would corrupt arguments.\n\n        The second case is a digit run broken by a quote toggle: bash reads `2\"a\"3` as the\n        single word `2a3`, so nothing here is a file descriptor and nothing may be stripped.\n        Review round 3 asked for this to be mechanical rather than argued from the control\n        flow.\"\"\"\n        assert SAFE.validate('echo \"a 2>b\"')[0]\n        assert _strip_adjacent_fds('2\"a\"3>x') == '2\"a\"3>x'\n        ok, reason = SAFE.validate('2\"a\"3>x')\n        assert not ok and \"2a3\" in reason, reason\n\n    def test_pip_is_not_allowlisted(self):"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "description": "Disclose the fix, its constraints and its widening",
+      "edits": [
+        {
+          "find": "- **A newline was not treated as a command separator, bypassing the blocklist.**\n  `_SEPARATORS` listed `\"\\n\"`, but `shlex` only ever emitted that token for an *escaped*\n  newline; with `whitespace_split` a BARE newline was swallowed as whitespace. So\n  `ls\\nrm -rf /` validated as base command `ls` and was **allowed** \u2014 while `rm` is on the\n  blocklist. Multi-line strings are the normal case for the Bash-tool guard. `validate()`\n  now splits on newlines and validates each line, *below* the whole-string pattern checks\n  (those use `[^;&|]*`, which spans newlines, and are all that remains when\n  `security.safeMode` is false).\n  The split is **quote-aware**: a newline inside quotes belongs to an argument, so\n  `git commit -m \"subject<newline><newline>Co-Authored-By: \u2026\"` keeps working, and a\n  backslash line-continuation is untouched. Quoted text was already treated as an argument\n  rather than a command, so honouring quotes here hides nothing that was previously caught.\n  Scope of \"bypass closed\", stated precisely: newline-separated commands are refused in both\n  `safeMode` states \u2014 bare newlines, newlines behind a trailing comment, and comment-hidden\n  separators. Argument-position `eval`/`exec`, and wrapper arguments with `safeMode` off, are\n  *not* covered and are disclosed below.",
+          "replace": "- **A newline was not treated as a command separator, bypassing the blocklist.**\n  `_SEPARATORS` listed `\"\\n\"`, but `shlex` only ever emitted that token for an *escaped*\n  newline; with `whitespace_split` a BARE newline was swallowed as whitespace. So\n  `ls\\nrm -rf /` validated as base command `ls` and was **allowed** \u2014 while `rm` is on the\n  blocklist. Multi-line strings are the normal case for the Bash-tool guard. `validate()`\n  now splits on newlines and validates each line, *below* the whole-string pattern checks\n  (those use `[^;&|]*`, which spans newlines, and are all that remains when\n  `security.safeMode` is false).\n  The split is **quote-aware**: a newline inside quotes belongs to an argument, so\n  `git commit -m \"subject<newline><newline>Co-Authored-By: \u2026\"` keeps working, and a\n  backslash line-continuation is untouched. Quoted text was already treated as an argument\n  rather than a command, so honouring quotes here hides nothing that was previously caught.\n  Scope of \"bypass closed\", stated precisely: newline-separated commands are refused in both\n  `safeMode` states \u2014 bare newlines, newlines behind a trailing comment, and comment-hidden\n  separators. Argument-position `eval`/`exec`, and wrapper arguments with `safeMode` off, are\n  *not* covered and are disclosed below.\n- **Two token shapes put a blocklisted command out of the blocklist's reach**, both of them\n  falsifying that list's own documented promise (\"never allowed, even in unsafe mode\"). A\n  leading file-descriptor number landed in command position, because the segmenter dropped a\n  redirect and its target but not the digit before it \u2014 `2>/dev/null rm -rf /` was **allowed\n  with `safeMode` off**, and bash really does delete the file. And an *empty* expansion glued\n  to a command name (`` ``rm ``, `rm$()`, `$''rm`, `$\"\"rm`) is removed by bash before the\n  command is resolved but was matched literally here, so it too was allowed. Both are closed.\n  The digit is removed only when it is **adjacent** to the redirect, **outside quotes**, at\n  **its own position** \u2014 `2 files` and `2 > log` are commands *named* `2` in bash, `echo\n  \"a 2>b\"` redirects nothing, and a `2>` inside one argument must not erase a `2 > \u2026` command\n  elsewhere in the line. The command name is additionally matched with expansion punctuation\n  stripped, and that stripped spelling feeds the **deny** checks only, never the allowlist:\n  using it for both measured 5,118 new ALLOWs, because `$ls` normalises to the allowlisted\n  `ls` while actually meaning \"run whatever this prints\". **Disclosed widening:** in the\n  default mode `2> log echo hi` and similar now validate `echo` instead of being rejected as\n  \"Command not in allowlist: 2\", which was an accident of the same defect."
+        }
+      ]
+    },
+    {
+      "type": "run_command",
+      "command": [
+        "ruff",
+        "check",
+        "src/",
+        "tests/",
+        "scripts/"
+      ],
+      "reason": "Lint gate for the edited module and test file; line-length 100.",
+      "description": "lint"
+    }
+  ]
+}
