@@ -13,6 +13,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **`ck uninstall` deleted files it did not own.** The install manifest records a sha256 per
+  file, but uninstall removed every path it *listed* without comparing a single digest — so a
+  prompt a user had spent a week tuning was removed as readily as an untouched one. Uninstall
+  now acts only on files whose digest still matches, and **fails closed** when any managed
+  file has local modifications, naming them and offering two explicit ways forward:
+  `--keep-modified` (remove only what the receipt still owns) and `--force` (remove them too,
+  backed up first). Neither hides behind `--yes`, which only skips a prompt. When files are
+  kept the manifest is rewritten to describe exactly what is still kit-owned.
+- **The manifest recorded files that are the user's by definition.** `settings.local.json`
+  became kit-owned on any re-install, so `ck update` would overwrite a project's own
+  permission allowlist and `ck uninstall` would delete it. It, `hooks.log` and `.pyc` files
+  are now never recorded.
+
+### Fixed
 - **15 skill-load instructions could never execute.** 33 of 76 skills carried
   `disable-model-invocation: true`, which removes a skill from the Skill tool's listing
   entirely — yet 15 of them were named in agents' "Skill Loading" sections: 8 as mandatory
@@ -59,6 +73,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   present.
 
 ### Added
+- **Installs record their source commit.** The manifest gains
+  `source: {commit, pinned, dirty}`, so an installed tree is traceable to an immutable
+  40-char SHA rather than to a mutable version string. A source checkout with uncommitted
+  changes records `pinned: false` — it does not correspond to its own commit, and claiming a
+  pin would imply a reproducibility the artifact does not have.
 - **The eval suite can run without an API key.** `scripts/run-evals.py` gains
   record-once/replay-many cassettes (`--record` / `--replay`). A cassette is bound to a
   fingerprint of everything the model saw — the agent's own prompt file, the skills the

@@ -6,7 +6,13 @@
 landed on `perf/token-efficiency`.** Four plans, 20 ops; every plan was rejected on its first review round, hash-bound via
 `review-record.py`. All six DoD gates pass, plus a new seventh: `gen-model-policy.py --check`.
 
-**Resume point.** Wave-2 **phase 3 is not started** — SHA-256 install receipts with fail-closed
+**Resume point.** **All three wave-2 phases have landed.** What remains is one blocked task and one
+structural follow-up: record the first eval cassettes (needs a session with API quota — attempted
+and blocked on a weekly limit, `.ai/BACKLOG.md`), then wire `--replay` into CI in the same change;
+and move CLAUDE.md content into the agents that consume it, since headroom is 492 of 31,000 budget
+units and the file is charged ×4.
+
+**Superseded resume note.** Wave-2 phase 3 was not started — SHA-256 install receipts with fail-closed
 uninstall, and commit-pinned installs (`plan` it from the handoff's PHASE 3). **Phase 2 landed**:
 the eval suite now records and replays keyless with fail-closed invalidation, `--inject` proves its
 checks bind, and the 15 dead skill-load instructions are fixed with a mechanical gate against

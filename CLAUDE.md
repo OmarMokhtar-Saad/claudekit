@@ -1,10 +1,10 @@
 # CLAUDE.md — Working on ClaudeKit Itself
 
-You are working **on** ClaudeKit (the multi-agent orchestration kit for Claude Code), not *with* it in a user project. Maintainer knowledge lives in [`.ai/`](.ai/README.md) — start at [MODEL_ONBOARDING](.ai/MODEL_ONBOARDING.md). User-project templates (`.claude/local/CLAUDE.template.md`, `templates/*/CLAUDE.md`) are **product artifacts**, not instructions for you.
+You are working **on** ClaudeKit, not *with* it in a user project. Maintainer knowledge: [`.ai/`](.ai/README.md), start at [MODEL_ONBOARDING](.ai/MODEL_ONBOARDING.md). User-project templates (`.claude/local/CLAUDE.template.md`, `templates/*/CLAUDE.md`) are **product artifacts**, not instructions for you.
 
 ## What this repo is
 
-Prompt corpus (29 agents · 42 commands · 75 skills in `.claude/`) + enforcement layer (19 hooks, `src/claudekit/security/`) + operations engine (`.claude/operations/scripts/`) + delivery shell (`src/claudekit/cli/`, `install.sh`, CI). Version 2.1.0 (unreleased tag); PyPI name `claude-kit`; CLI `claudekit`/`ck`; zero runtime dependencies.
+Prompt corpus in `.claude/` + enforcement layer (`src/claudekit/security/`, hooks) + operations engine (`.claude/operations/scripts/`) + delivery shell (`src/claudekit/cli/`, `install.sh`, CI). Component counts live in `docs/` and are generator-owned — `python3 scripts/gen-docs.py --check` (hard rule 8). PyPI name `claude-kit`; CLI `claudekit`/`ck`; zero runtime dependencies.
 
 ## Session setup gotcha (read first)
 
@@ -13,14 +13,15 @@ This repo runs its own enforcement hooks on itself. If Edit/Write is blocked by 
 ## Commands
 
 ```bash
-python3 -m pytest tests/ -q               # full suite — zero failures tolerated
-ruff check src/ tests/ scripts/           # lint (line-length 100)
-mypy                                      # types (py3.9 target)
-python3 scripts/gen-docs.py --check       # docs-drift gate (counts)
-python3 scripts/gen-registry.py --check   # registry-drift gate (agentMapping ↔ agent files)
-python3 scripts/gen-model-policy.py --check # model-policy gate (tiers ↔ agent frontmatter)
-shellcheck install.sh .claude/hooks/*.sh  # shell lint
-ck doctor --strict                        # installed-tree health
+python3 -m pytest tests/ -q                 # full suite — zero failures tolerated
+ruff check src/ tests/ scripts/             # lint (line-length 100)
+mypy                                        # types (py3.9 target)
+python3 scripts/gen-docs.py --check         # docs-drift gate (counts)
+python3 scripts/gen-registry.py --check     # registry-drift gate
+python3 scripts/gen-model-policy.py --check # model-policy gate (tiers ↔ frontmatter)
+python3 scripts/check-context-floor.py      # always-on context budget
+shellcheck install.sh .claude/hooks/*.sh    # shell lint
+ck doctor --strict                          # installed-tree health
 ```
 
 ## How to work
@@ -50,15 +51,15 @@ ck doctor --strict                        # installed-tree health
 
 ## Definition of Done
 
-All six commands above pass · behavioral test coverage for the change · CHANGELOG + docs updated · conventional commit · evidence recorded. Full checklists: [.ai/CHECKLISTS.md](.ai/CHECKLISTS.md).
+Every command above passes · behavioral coverage for the change · CHANGELOG + docs updated · conventional commit · evidence recorded. Checklists: [.ai/CHECKLISTS.md](.ai/CHECKLISTS.md).
 
 ## Quality gates (the product's own)
 
-Single source is the enforcing agent: reviewer.md (plans ≥90/100; missing ops.json = AUTO-REJECT) · verifier.md (≥80/100) · security coverage ≥85% (CI). Prompt-enforced until task 010 makes them mechanical — don't overstate in docs.
+Single source is the enforcing agent: reviewer.md (plans ≥90/100; no ops.json = AUTO-REJECT) · verifier.md (≥80/100) · security coverage ≥85% (CI). Prompt-enforced — don't overstate in docs.
 
 ## Current state & priorities
 
-Release tag + PyPI publish are **user-gated**. Next: consolidation (008), eval framework (010), context budget (009). Snapshot: [STATUS](.ai/STATUS.md) · resume: [SESSION_STATE](.ai/SESSION_STATE.md) · queue: [BACKLOG](.ai/BACKLOG.md).
+Release tag + PyPI publish are **user-gated**. [STATUS](.ai/STATUS.md) · [SESSION_STATE](.ai/SESSION_STATE.md) · [BACKLOG](.ai/BACKLOG.md).
 
 <!-- CLAUDEKIT:TOKEN-MODEL-POLICY v3 START -->
 ## Token & Model Policy (ClaudeKit, 2026-07-23)

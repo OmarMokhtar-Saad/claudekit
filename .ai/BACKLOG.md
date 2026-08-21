@@ -35,24 +35,15 @@ enforcement-runtime lane owns. Do not start either before those land.
   failures with *different* fingerprints → task reflection; two with the *same* fingerprint → deep
   reflection. Today `loop-operator` does this by prompt judgement, which is neither deterministic
   nor testable. **Depends on:** the hook dispatcher.
-- [ ] **OWNER DECISION: record the first eval cassettes.** `evals/cassettes/` ships empty because
-  recording costs real API money (~$0.2–1.5 per eval, 4 evals). Until then `--replay` fails closed
-  and CI is deliberately not wired to it — same call `check-silent-failure.py` made. Run
-  `python3 scripts/run-evals.py --record`, then wire `--replay` into `.github/workflows/ci.yml` in
-  the same change. `--inject` already gives CI-safe value with no recordings.
-- [ ] **Skill-description budget was LOWERED 14000 → 9000** (2026-08-21) alongside a fix that
-  stopped the floor charging for model-invisible skills. A lowering can only make the gate
-  stricter, so it was not treated as the owner-gated "raise" the script warns about — but the
-  re-baseline is a judgement call worth confirming. Real value now 7,719 of 9,000.
-- [ ] **OWNER DECISION: `/review` spawns the reviewer on the most-capable tier for every plan.**
-  `.claude/commands/review.md:89` passes `--model opus`, which beats frontmatter, while
-  `model-policy.json` gives `reviewer` the `balanced` tier with most-capable reachable only via
-  `escalate_when` (multi-phase / architecture / security). Found by adversarial review of the
-  capability-tiers change. **Recorded rather than changed** — repointing a quality gate is
-  user-visible and Golden-Rule-gated. Either accept it (and say why every plan review earns
-  most-capable, making `escalate_when` decorative for this role) or repoint it to the tier.
-  Recorded meanwhile in `callsite_overrides` and pinned by
-  `test_model_policy.py::EveryHandWrittenModelNameIsAccountedFor`.
+- [ ] **Record the first eval cassettes — BLOCKED ON QUOTA, not on a decision.** Attempted
+  2026-08-21; the `claude` CLI here routes through `xpipe` and the available account had hit its
+  weekly limit, so no recording was possible. The mechanism is complete and waiting: run
+  `python3 scripts/run-evals.py --record` from a session with quota (4 evals, ~$0.2–1.5 each),
+  then wire `--replay` into `.github/workflows/ci.yml` in the same change. `--inject` already gives
+  CI-safe value with no recordings. Cassettes go stale if the corpus changes first, so record
+  close to when CI is wired.
+- [x] **Skill-description budget lowered 14000 → 9000 — CONFIRMED 2026-08-21.** A tightening
+  alongside the fix that stopped charging for model-invisible skills. Real value 7,719 of 9,000.
 - [ ] **Command invocation sites are the remaining vendor-name surface — 8 literals in 6 files**,
   not the 2 first recorded here: `review.md:89`, `refine.md:161,180`, `plan.md:67`,
   `gan-build.md:85`, `santa.md:64,68` (and `model-router.md:103`, since rewritten into a tier
@@ -66,11 +57,14 @@ enforcement-runtime lane owns. Do not start either before those land.
   expected literal from the table. **Decision needed:** either ship a resolver under
   `.claude/operations/scripts/` (installed, so callable downstream) or accept the literal and keep
   the pin. Do not "fix" it by hand-editing the command files.
-- [ ] **`CLAUDE.md` is at its context-floor capacity: 30,992 of 31,000 budgeted chars — 8 spare.**
-  Landing the evidence precedence ladder required trimming six unrelated lines to fit
-  (`scripts/check-context-floor.py`). The next addition of any size cannot land without either
-  moving content into a consuming agent (the real token win the script's own comment names) or
-  owner sign-off to raise the budget. Flagging before someone discovers it mid-change.
+- [ ] **`CLAUDE.md` headroom is improved but not solved: 30,508 of 31,000** (was 30,992 of 31,000).
+  Bought 2026-08-21 by deleting stale hand-written counts, which was a drift surface hard rule 8
+  forbids anyway. That is ~123 chars of future text. **The budget was deliberately not raised** —
+  `check-context-floor.py` offers that escape with owner sign-off, but raising a ceiling because a
+  file is near it is how a gate stops meaning anything. The structural fix is the one the script's
+  own comment names: move content into the agents that consume it, since CLAUDE.md is charged ×4
+  (main context + 3 pipeline subagent injections). Candidates: the blast-radius tiering block and
+  parts of "How to work" that only the pipeline agents act on.
 - [ ] **Add `gen-model-policy.py` to `iron-law-gate.py`'s `_CHECK_ONLY_SCRIPTS`** (one line, at
   `.claude/hooks/iron-law-gate.py:265`). Until then the implementer agent cannot run the new DoD
   gate — maintainers and CI can. Deliberately left to the lane that owns `.claude/hooks/**`.
