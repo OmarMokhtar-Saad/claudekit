@@ -13,6 +13,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Security
+- **The secrets scanner could not detect any credential value. Seven of its thirteen
+  patterns never matched anything.** `pre-commit.sh` does not source `lib.sh`, so
+  `ERE_QUOTE_CLASS` / `ERE_NOT_QUOTE_CLASS` were always unset and the inline `${:-}`
+  defaults always applied — and those defaults put a `'` inside a double-quoted default,
+  which opens a single-quote context. Bash reported `bad substitution`, the two statements
+  merged, and the negated-quote class ended up **empty**. The pattern the hook actually ran
+  was `api_key\s*[:=]\s*["']{8}` — eight consecutive *quote characters* — which no real
+  credential matches. **Staged credentials matching `api_key`, `apikey`, `api_secret`,
+  `password`, `passwd`, `secret_key` or `access_token` were not being detected**, and
+  `private_key` was left over-broad (no quote required). Measured on a fresh `--full`
+  install: 0 of 7 planted real credentials detected; the hook exited 0 and logged "No
+  secrets detected in staged files". Both mirrors were affected
+  (`.claude/hooks/pre-commit.sh`, `.codex/hooks/pre-commit.sh`). The defaults are now built
+  without a quote inside an expansion and are correct standalone, so the hook no longer
+  depends on `lib.sh` for them. Only the five `BEGIN ... PRIVATE KEY` literals, which use
+  no quote class, ever worked — which is why the scanner's self-matching bug was visible
+  while this one was not. This remains a denylist speed bump, not a sandbox: it raises the
+  cost of committing a credential by accident and does not stop a determined author.
 - **The Iron Law is now enforced on the interactive path, not just stated**
   (`.claude/hooks/iron-law-gate.py`; plan: `.claude/plans/plan-iron-law-enforcement-hook.md`).
   `implementer.md` grants no Edit/Write but does grant unrestricted `Bash`, and a frontmatter
@@ -49,6 +67,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   failure never blocks work.
 
 ### Fixed
+- **A new user's first commit was blocked twice over on a fresh `--full` install**
+  (plan: `.claude/plans/plan-day-one-blockers.md`).
+  1. `templates/python/config.env` shipped `BUILD_CMD="pip install -e ."`. `pip` is not in
+     `DEFAULT_ALLOWLIST`, and `pre-commit.sh` *executes* `build_cmd`, so the blocking hook
+     returned 1 on any staged `src/*.py`. It is now `python3 -m compileall -q -x ... .` —
+     it installs nothing and is PEP 668-safe. (It is not side-effect free: `compileall`
+     writes `__pycache__` by design.) It is scoped to `.` rather than `src` because
+     `compileall -q src` **exits 0** on a project with no `src/` directory, compiling
+     nothing and reporting success. Trade-off, stated because it is a real one: a
+     pre-existing unparseable `.py` anywhere outside the excluded directories now fails
+     the commit. Override `project.build_cmd` in `.claude/hooks/config.json` if that is
+     wrong for your tree.
+  2. The secrets scanner matched its own pattern definitions, flagging
+     `.claude/hooks/pre-commit.sh`, `.claude/agents/opensource-sanitizer.md` and
+     `.claude/skills/insecure-defaults/SKILL.md` — files the installer places in the user's
+     repo — while the failure message forbids `--no-verify`. Pattern literals are now
+     written `PRIVATE[ ]KEY` (identical ERE semantics), so **no new exclusion is added**
+     and a real key planted in the hook itself is still caught. The failure message now
+     names a sanctioned way forward. The pre-existing skip of `*.lock`, binaries and any
+     path ending `config.json` / `config.template` / `.example` (`pre-commit.sh:167-172`)
+     is **unchanged** and remains a real gap: a key committed to `config.json` still ships
+     silently. It is bound by an `xfail(strict=True)` test and tracked as a follow-up.
+- `tests/test_doctor_gate.py::test_build_cmd_does_not_mutate_the_environment` bound only
+  `.claude/hooks/config.json`, which `install.sh` overwrites from the templates — so it
+  read green while the shipped path was broken. It now binds the templates too, and is
+  renamed `test_build_cmd_does_not_install_packages` to describe what it actually checks.
 - **`config.schema.json` constrained only its root object, so typos in nested keys
   validated clean.** `additionalProperties: false` was set on the root but on none of the
   nested objects, so `hooks."pre-commit".enabeld = false` passed validation and then read
@@ -113,6 +157,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   function-scoped `reflection_env`. Nothing is autouse.
 - **Executable bits restored** on `ops-enforcement.sh` and `gen-docs.py`, stripped by the ops
   engine before the fix above landed.
+
+### Known limitation
+- An audit of all ten language templates against `CommandValidator` found **19 of 40**
+  non-empty commands rejected by the screen — meaning `pre-commit`/`pre-push`/
+  `post-implement` refuse to run them. This release fixes the Python one. The other 18
+  (go LINT; all four java; all four kotlin; php LINT and COVERAGE; ruby TEST, LINT and
+  COVERAGE; all four swift) need `CommandValidator` changes and are tracked in
+  `.claude/plans/plan-validator-segmentation.md`. Each is bound by an `xfail(strict=True)`
+  case in `tests/test_day_one_blockers.py`, so closing them cannot go unnoticed.
 
 ### Changed
 - **The Iron Law now covers this repo's own product** (Decision 21, Option A). A tracked

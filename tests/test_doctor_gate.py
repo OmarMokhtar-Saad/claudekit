@@ -128,20 +128,40 @@ class TestRepoProjectCommandsAreConfigured:
                               cwd=str(REPO), capture_output=True, text=True, env=ENV, timeout=60)
         assert proc.returncode == 0, f"{key}={cmd!r} rejected: {proc.stdout}{proc.stderr}"
 
-    def test_build_cmd_does_not_mutate_the_environment(self):
+    def _assert_does_not_install(self, source, build):
+        assert build, f"{source}: build_cmd is empty, this guard would pass vacuously"
+        for forbidden in ("pip install", "pip3 install", "setup.py install", "npm install"):
+            assert forbidden not in build, (
+                f"{source}: build_cmd installs on every commit: {build!r}")
+
+    def test_build_cmd_does_not_install_packages(self):
         """pre-commit.sh:199-243 EXECUTES build_cmd whenever a non-doc source file is staged
         - it is screened, not skipped. An installing build command would write to
         site-packages on every commit and hard-fail under PEP 668.
 
-        Scope caveat, stated because it is easy to over-read: this binds THIS repo's
-        config only. `templates/*/config.env` ship the same class of command and are not
-        covered here (see the follow-ups in plan-doctor-gate.md). The non-empty assertion
-        matters for the same reason as in the screen test above: `"pip install" not in ""`
-        is trivially true, so without it this guard goes vacuous if op 1 is reverted."""
-        build = json.loads(HOOKS_CONFIG.read_text())["project"]["build_cmd"]
-        assert build, "build_cmd is empty: this guard would pass vacuously"
-        for forbidden in ("pip install", "pip3 install", "setup.py install", "npm install"):
-            assert forbidden not in build, f"build_cmd installs on every commit: {build!r}"
+        Named "does not install", not "does not mutate": the replacement build command is
+        `compileall`, which DOES write __pycache__. What must never happen on a commit is
+        package installation.
+
+        Scope: this used to bind THIS repo's config.json only, while install.sh overwrites
+        that section from templates/<lang>/config.env - so it read green for a year while
+        templates/python/config.env shipped `pip install -e .` and blocked every new user's
+        first commit. It now binds the templates too. The non-empty assertion matters for
+        the same reason as in the screen test above: `"pip install" not in ""` is trivially
+        true, so without it this guard goes vacuous if the value is reverted to empty."""
+        self._assert_does_not_install(
+            "hooks/config.json",
+            json.loads(HOOKS_CONFIG.read_text())["project"]["build_cmd"])
+
+        templates = sorted((REPO / "templates").glob("*/config.env"))
+        assert len(templates) >= 10, f"template glob broke: {templates}"
+        for cfg in templates:
+            for line in cfg.read_text().splitlines():
+                if not line.startswith("BUILD_CMD="):
+                    continue
+                value = line.strip()[len("BUILD_CMD="):].strip('"')
+                if value:  # `generic` ships an intentionally empty command
+                    self._assert_does_not_install(str(cfg.relative_to(REPO)), value)
 
     def test_doctor_strict_exits_zero_on_this_repo(self, strict_env):
         proc = _doctor(REPO, "--strict", env=strict_env)
