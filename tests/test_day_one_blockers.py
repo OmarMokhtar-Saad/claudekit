@@ -101,8 +101,12 @@ _BASELINE_BLOCKED = frozenset({
     ("swift", "LINT_CMD"), ("swift", "COVERAGE_CMD"),
 })
 
-# Entries leave this as Plan B lands. Nothing may ever join it.
-STILL_BLOCKED = frozenset(_BASELINE_BLOCKED)
+# Entries leave this as Plan B lands. Nothing may ever join it. Plan B
+# (plan-validator-segmentation.md) landed and unblocked all 18, re-measured by the
+# 40-command audit below rather than assumed: the set is now empty, and
+# test_the_blocked_set_is_not_silently_growing keeps it a subset of the baseline
+# forever, so a future regression cannot re-enter it under an xfail marker.
+STILL_BLOCKED = frozenset()
 
 
 def _screen_params():

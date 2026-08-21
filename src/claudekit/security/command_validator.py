@@ -22,6 +22,14 @@ DEFAULT_ALLOWLIST = {
     "ruff", "mypy", "eslint", "prettier", "rubocop", "phpstan",
     "tsc", "javac", "gcc", "rustc", "swiftc",
     "docker", "kubectl",
+    # Build/test/lint entry points with no non-mutating substitute: refusing them
+    # ships a language template whose gate can never run. Same class as cargo /
+    # dotnet / composer / bundle / npm above; none is a shell, generic exec wrapper
+    # or network fetcher, and `./vendor/bin/phpunit` already passes, so "repo-local
+    # script" is not a new property. `pip` is deliberately NOT here - needing it was
+    # a config defect (a mutating install used as a build check), not a policy gap.
+    "gradle", "gradlew", "mvn", "mvnw", "golangci-lint",
+    "swift", "swiftlint", "php-cs-fixer",
     "echo", "cat", "head", "tail", "wc", "grep", "find", "ls", "test",
 }
 # NOTE: bash/sh/env/xargs are deliberately NOT allowlisted. Each lets a caller
@@ -51,8 +59,12 @@ DANGEROUS_PATTERNS = [
     (r'>\s*/sys/', "redirect into /sys"),
     (r'>\s*/proc/', "redirect into /proc"),
     (r'\$\{?IFS', "IFS whitespace-evasion"),
-    (r'(?:^|[\s;&|(])eval\b', "eval"),
-    (r'(?:^|[\s;&|(])exec\b', "exec"),
+    # eval/exec are NOT here: as whole-string regexes they fired on any bare word,
+    # rejecting `bundle exec rspec`. They are shell builtins, dangerous only in
+    # command position, so they are checked per segment in _validate_segment().
+    # Cost of that precision, measured and accepted: `eval`/`exec` inside an
+    # ARGUMENT no longer trip anything, so `python3 -c "...eval(payload)"` and
+    # `git commit -m "then exec the thing"` now pass. Disclosed in CHANGELOG.
     (r'\bfind\b[^;&|]*\s-delete\b', "find -delete"),
     (r'\bfind\b[^;&|]*\s-exec\b', "find -exec"),
     (r'\bos\.system\s*\(', "python os.system()"),
@@ -85,10 +97,108 @@ def _git_restore_violation(command: str) -> bool:
     # restore back into the working tree.
     return "--staged" not in args or "--worktree" in args or re.search(r'\s-[a-zA-Z]*W', args) is not None
 
+# Shell builtins that smuggle a payload past base-command inspection. Checked in
+# command position per segment, which still catches `exec rm -rf /` and
+# `git status && eval x` without matching `exec` inside an argument list.
+_SHELL_BUILTIN_DENY = {"eval", "exec"}
+
+# `VAR=value cmd` is a standard shell prefix; without this the validator read
+# `XDEBUG_MODE=coverage` as the base command and rejected it. This is an ALLOWLIST,
+# not a denylist, and the polarity is the whole point: a denylist of dangerous
+# names can never be complete, and the misses grant execution to commands this
+# module allowlists (RUBYOPT+bundle, JAVA_TOOL_OPTIONS/GRADLE_OPTS/MAVEN_OPTS+
+# gradlew/mvn, CLASSPATH+javac, GIT_CONFIG_COUNT/GIT_SSH_COMMAND+git,
+# NODE_OPTIONS+node, GEM_HOME, PYTHONHOME, npm_config_*). Anything not listed is
+# refused by name. LANG/LC_ALL/TZ grant no execution but do steer locale and
+# output; they are kept because build gates legitimately set them. Extend this set
+# only with an argument that the variable cannot influence which code runs.
+_ENV_ASSIGN_RE = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*=')
+_SAFE_ENV_ASSIGN_NAMES = {
+    "CI", "COVERAGE", "XDEBUG_MODE", "NODE_ENV", "RAILS_ENV", "RACK_ENV",
+    "RUST_BACKTRACE", "TZ", "LANG", "LC_ALL", "NO_COLOR", "FORCE_COLOR",
+}
+
 # Token strings shlex emits for command separators (with punctuation_chars).
+# NOTE: "\n" is unreachable AFTER the per-line split in validate() - shlex only
+# ever emitted it for an escaped newline, and those lines are now split first. It
+# stays so that _split_segments() remains correct if called directly.
 _SEPARATORS = {";", "&&", "||", "|", "&", "|&", "\n"}
 # Redirect operators: skip the operator and its target token when segmenting.
 _REDIRECTS = {">", ">>", "<", "<<", "<<<", "<>", ">&", "&>", "&>>"}
+
+
+def _split_unquoted_newlines(command: str) -> List[str]:
+    """Split a command on newlines that are OUTSIDE quotes and not backslash-escaped.
+
+    Three shapes this must get right, each verified by a case in
+    tests/test_validator_segmentation.py:
+
+      * `ls\nrm -rf /`            -> two commands. A bare newline IS a separator, and
+                                      missing that allowed a blocklisted `rm`.
+      * `git commit -m "a\n\nb"`   -> ONE command. The newlines are inside an argument;
+                                      splitting here rejects every trailer-bearing commit.
+      * `ls \\\n -la`               -> ONE line, untouched. A backslash-escaped newline is a
+                                      line continuation, and shlex already segments it the
+                                      way it always has.
+
+    An unterminated quote means the newline is treated as quoted, the line stays whole, and
+    shlex then reports the quoting error - rejecting, which is the intended fail-closed
+    outcome rather than an accident.
+
+    A backslash inside a `#` comment does NOT escape the newline, and getting that wrong was
+    a live fail-open: bash gives a backslash no special meaning in a comment, so
+    `echo #<backslash><newline>rm -rf /` runs `rm` - while this splitter, applying
+    line-continuation semantics unconditionally, swallowed the newline and handed shlex one
+    line in which the comment glued itself to the next word, leaving `rm` out of command
+    position. ALLOW in BOTH modes, measured. `in_comment` suppresses the escape for the rest
+    of the line, and so do the quote characters: the comment body is INERT, exactly as bash
+    treats it.
+
+    Making only the escape inert was tried first and was itself a fail-open, caught by
+    adversarial review: with `'` still toggling, `echo # don<backslash>'t<newline>rm -rf /`
+    lost its escape pair, the apostrophe opened a quote, the newline read as quoted and the
+    blocklisted `rm` was ALLOWED in both modes - 21 exploitable regressions over a 48k-payload
+    differential fuzz. Escape state and quote state are not independent: suppressing one
+    changes the parity of the other. A balanced quote in a comment (`echo #'<newline>rm -rf
+    /<newline>#'`) hid a command the same way. Both are closed by making the whole comment
+    body inert here. shlex still SEES the comment (commenters is disabled there), so an
+    unbalanced quote in it is still reported as malformed and still fails closed.
+
+    Two known over-approximations, unchanged by this round and stated so the next reader does
+    not have to re-derive them: `#` starts a comment here at ANY unquoted position, including
+    mid-word (`a#b`) and inside a heredoc body, where bash would not. Both can only cause MORE
+    splitting or a malformed report, never less, so they err closed. And the differential fuzz
+    behind this state machine covered `#`, quotes, backslashes and newlines only - NOT `;`,
+    `|`, `&&`, `$()`, backticks, ANSI-C `$'...'` or heredocs. Zero regressions there is
+    evidence about this alphabet, not a proof about the parser.
+    """
+    lines: List[str] = []
+    buf: List[str] = []
+    in_single = in_double = in_comment = False
+    i, n = 0, len(command)
+    while i < n:
+        ch = command[i]
+        if ch == "\\" and not in_single and not in_comment and i + 1 < n:
+            buf.append(ch)
+            buf.append(command[i + 1])
+            i += 2
+            continue
+        if ch == "'" and not in_double and not in_comment:
+            in_single = not in_single
+        elif ch == '"' and not in_single and not in_comment:
+            in_double = not in_double
+        elif ch == "#" and not in_single and not in_double:
+            in_comment = True
+        elif ch == "\n" and not in_single and not in_double:
+            lines.append("".join(buf))
+            buf = []
+            in_comment = False
+            i += 1
+            continue
+        buf.append(ch)
+        i += 1
+    lines.append("".join(buf))
+    return lines
 
 
 class CommandValidator:
@@ -120,19 +230,48 @@ class CommandValidator:
                            "only pure --staged unstaging is allowed — commit/stash first, "
                            "or the user runs it manually)")
 
-        # 2. Validate every command-substitution payload against the blocklist
-        #    only, so legitimate `$(date)` passes but `$(rm -rf /)` does not.
+        # 2/3. Newlines separate commands, and shlex does not report a BARE one: with
+        #      whitespace_split its default whitespace (" \t\r\n") swallows it, so
+        #      `ls\nrm -rf /` collapsed into ONE segment with base `ls` and was ALLOWED -
+        #      a blocklist bypass. (The "\n" entry in _SEPARATORS was NOT dead code: posix
+        #      shlex does emit a literal "\n" token for an ESCAPED newline, which is how
+        #      line-continued commands segmented. It is unreachable only after this change;
+        #      see the note beside it.) Validate each line separately.
+        #
+        #      The split is QUOTE-AWARE: a newline inside quotes belongs to an ARGUMENT,
+        #      not a new command. `git commit -m "subject\n\nCo-Authored-By: ..."` is the
+        #      everyday case - a naive command.split("\n") rejects it, because line 2's
+        #      base command is `Co-Authored-By:`. Quoted content was already treated as an
+        #      argument before this change, so honouring quotes here hides nothing new.
+        #
+        #      This loop MUST stay below the whole-string checks above. Those patterns are
+        #      whole-string by construction - `[^;&|]*` spans a newline - and they are the
+        #      ONLY thing standing between `git reset\n--hard` and ALLOW when
+        #      safe_mode=False, where the allowlist check is skipped entirely.
+        for line in _split_unquoted_newlines(command):
+            if not line.strip():
+                continue
+            ok, reason = self._validate_line(line)
+            if not ok:
+                return ok, reason
+
+        return True, "OK"
+
+    def _validate_line(self, command: str) -> Tuple[bool, str]:
+        """Substitution scan + segmentation for a single newline-free line."""
+        # Command-substitution payloads: blocklist only, so `$(date)` passes.
         for inner in self._command_substitutions(command):
             ok, reason = self._validate_segment(inner, blocklist_only=True)
             if not ok:
                 return False, f"In command substitution: {reason}"
 
-        # 3. Split the command into segments on shell separators and validate
-        #    each segment's base command.
         try:
             segments = self._split_segments(command)
-        except ValueError:
-            return False, "Malformed command (unmatched quotes)"
+        except ValueError as exc:
+            # Report the cause shlex actually gave. The old text always said "unmatched
+            # quotes", which is wrong for a trailing backslash (`No escaped character`) -
+            # a security control should not assert a cause it did not check.
+            return False, f"Malformed command ({exc})"
 
         if not segments:
             return False, "Empty command after parsing"
@@ -141,7 +280,6 @@ class CommandValidator:
             ok, reason = self._validate_segment(seg)
             if not ok:
                 return False, reason
-
         return True, "OK"
 
     # -- internals ---------------------------------------------------------
@@ -159,9 +297,22 @@ class CommandValidator:
 
         Redirect operators and their targets are dropped so a redirect target
         is never mistaken for a command. Raises ValueError on unmatched quotes.
+
+        `commenters` is disabled deliberately. shlex defaults to treating `#` as a
+        comment and DISCARDING the rest of the line - which made it disagree with
+        _split_unquoted_newlines() about where quotes are, and the disagreement was
+        FAIL-OPEN. In `make test # don't rebuild\nrm -rf /` the splitter sees the
+        apostrophe, treats the newline as quoted and passes the whole string through as
+        one line; shlex then throws away `# don't rebuild`, never sees that apostrophe,
+        finds no separator token, and reports a single segment with base `make` - so the
+        blocklisted `rm` was ALLOWED, in both modes. Two parsers that must agree about
+        quoting is the bug; disabling comment-stripping removes the disagreement at its
+        source, and the same input now raises ValueError -> "Malformed command", which is
+        the direction a security control must fail. A `#` inside quotes is unaffected.
         """
         lex = shlex.shlex(command, posix=True, punctuation_chars=True)
         lex.whitespace_split = True
+        lex.commenters = ""
         tokens = list(lex)
 
         segments: List[List[str]] = []
@@ -198,11 +349,24 @@ class CommandValidator:
         if not parts:
             return True, "OK"
 
+        while parts and _ENV_ASSIGN_RE.match(parts[0]):
+            name = parts[0].split("=", 1)[0]
+            if name not in _SAFE_ENV_ASSIGN_NAMES:
+                return False, f"Dangerous pattern (environment override: {name})"
+            parts = parts[1:]
+        if not parts:
+            # A bare assignment (`CI=1`) runs no command.
+            return True, "OK"
+
         base = parts[0].split("/")[-1].strip("\\")
         # Versioned interpreters (`python3.12`, Homebrew's `python3.14`) are the
         # same tool as `python3` for allow/block purposes; multi-Python machines
         # otherwise get spurious "not in allowlist" rejections per interpreter.
         normalized = re.sub(r'^(python|pip)3\.\d+$', r'\g<1>3', base)
+
+        # Before the blocklist_only early return, so `$(eval ...)` is covered too.
+        if base in _SHELL_BUILTIN_DENY:
+            return False, f"Dangerous pattern ({base})"
 
         if base in self.blocklist or normalized in self.blocklist:
             return False, f"Blocked command: {base}"

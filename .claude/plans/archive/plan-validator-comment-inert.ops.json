@@ -1,0 +1,66 @@
+{
+  "plan": "validator-comment-inert",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "src/claudekit/security/command_validator.py",
+      "description": "R2-C1/R2-C2: make the comment body inert to quotes as well as escapes",
+      "edits": [
+        {
+          "find": "    of the line. Quote toggling deliberately stays ACTIVE inside a comment: that keeps an\n    unbalanced quote behind a `#` reaching shlex and failing closed, which is the direction\n    a security control must err in.\n    \"\"\"",
+          "replace": "    of the line, and so do the quote characters: the comment body is INERT, exactly as bash\n    treats it.\n\n    Making only the escape inert was tried first and was itself a fail-open, caught by\n    adversarial review: with `'` still toggling, `echo # don<backslash>'t<newline>rm -rf /`\n    lost its escape pair, the apostrophe opened a quote, the newline read as quoted and the\n    blocklisted `rm` was ALLOWED in both modes - 21 exploitable regressions over a 48k-payload\n    differential fuzz. Escape state and quote state are not independent: suppressing one\n    changes the parity of the other. A balanced quote in a comment (`echo #'<newline>rm -rf\n    /<newline>#'`) hid a command the same way. Both are closed by making the whole comment\n    body inert here. shlex still SEES the comment (commenters is disabled there), so an\n    unbalanced quote in it is still reported as malformed and still fails closed.\n\n    Two known over-approximations, unchanged by this round and stated so the next reader does\n    not have to re-derive them: `#` starts a comment here at ANY unquoted position, including\n    mid-word (`a#b`) and inside a heredoc body, where bash would not. Both can only cause MORE\n    splitting or a malformed report, never less, so they err closed. And the differential fuzz\n    behind this state machine covered `#`, quotes, backslashes and newlines only - NOT `;`,\n    `|`, `&&`, `$()`, backticks, ANSI-C `$'...'` or heredocs. Zero regressions there is\n    evidence about this alphabet, not a proof about the parser.\n    \"\"\""
+        },
+        {
+          "find": "        if ch == \"'\" and not in_double:\n            in_single = not in_single\n        elif ch == '\"' and not in_single:\n            in_double = not in_double",
+          "replace": "        if ch == \"'\" and not in_double and not in_comment:\n            in_single = not in_single\n        elif ch == '\"' and not in_single and not in_comment:\n            in_double = not in_double"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_validator_segmentation.py",
+      "description": "R2-M1: bind the split and the blocklist reason, not just the boolean",
+      "edits": [
+        {
+          "find": "from claudekit.security.command_validator import CommandValidator",
+          "replace": "from claudekit.security.command_validator import (\n    CommandValidator,\n    _split_unquoted_newlines,\n)"
+        },
+        {
+          "find": "COMMENT_ESCAPED_NEWLINE = [",
+          "replace": "# DISCRIMINATOR. Round 2 of the adversarial review, and the reason the comment body is\n# INERT rather than merely escape-suppressed. The first fix left quote toggling active\n# inside comments, which lost the `\\'` escape pair and let the apostrophe open a quote -\n# so the newline read as quoted and the blocklisted command was ALLOWED in both modes,\n# a regression of the exact class the fix was written to close. The balanced-quote form\n# (`#'` ... `#'`) hid a command the same way and was ALLOW even before that fix. None of\n# these has a trailing backslash on line 1, so unlike COMMENT_ESCAPED_NEWLINE below they\n# exercise the blocklist path rather than the malformed-quote path.\nCOMMENT_HIDDEN_COMMAND = [\n    \"echo # don\\\\'t\\nrm -rf /\",\n    \"ls # it\\\\'s ok\\nsudo -s\",\n    \"echo #'\\nrm -rf /\\n#'\",\n    'make build # say \"hi\\nsudo -s\\n# say \"hi',\n]\n\nCOMMENT_ESCAPED_NEWLINE = ["
+        },
+        {
+          "find": "               + COMMENT_WITH_UNBALANCED_QUOTE + COMMENT_ESCAPED_NEWLINE)",
+          "replace": "               + COMMENT_WITH_UNBALANCED_QUOTE + COMMENT_ESCAPED_NEWLINE\n               + COMMENT_HIDDEN_COMMAND)"
+        },
+        {
+          "find": "    def test_a_backslash_in_a_comment_does_not_swallow_the_newline(self):\n        \"\"\"C1 from the adversarial review of the segmentation change, named so that\n        reverting the `in_comment` flag fails a test which states the payload. Both modes:\n        the blocklist is not gated on safe_mode, and this was ALLOW in both.\"\"\"\n        for validator in (SAFE, UNSAFE):\n            ok, reason = validator.validate('echo #\\\\\\nrm -rf /')\n            assert not ok, f\"comment + line continuation hid a blocked command ({reason})\"\n\n",
+          "replace": "    def test_a_backslash_in_a_comment_does_not_swallow_the_newline(self):\n        \"\"\"C1 from the adversarial review, named so that reverting the comment handling\n        fails a test which states the payload. Asserts the SPLIT, not just the verdict:\n        round 2 proved `assert not ok` alone is vacuous here - a mutant carrying the\n        byte-identical unfixed splitter passed it, because these payloads reject on line 1's\n        trailing backslash (`No escaped character`) and line 2 is never reached.\"\"\"\n        assert _split_unquoted_newlines(\"echo #\\\\\\nrm -rf /\") == [\"echo #\\\\\", \"rm -rf /\"]\n        for validator in (SAFE, UNSAFE):\n            ok, reason = validator.validate(\"echo #\\\\\\nrm -rf /\")\n            assert not ok, f\"comment + line continuation hid a blocked command ({reason})\"\n\n    def test_a_quote_in_a_comment_cannot_swallow_the_newline(self):\n        \"\"\"Round 2: the first C1 fix suppressed only the escape and left quote toggling on,\n        which opened a NEW fail-open. These reject via the BLOCKLIST - asserted by reason,\n        so the test still binds if the split mechanism changes.\"\"\"\n        for payload, blocked in ((\"echo # don\\\\'t\\nrm -rf /\", \"rm\"),\n                                 (\"ls # it\\\\'s ok\\nsudo -s\", \"sudo\")):\n            for validator in (SAFE, UNSAFE):\n                ok, reason = validator.validate(payload)\n                assert not ok and blocked in reason, (payload, reason)\n\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "description": "Disclose the intermediate fix's hole rather than quietly correcting it",
+      "edits": [
+        {
+          "find": "  inside a comment, but the splitter applied line-continuation semantics\n  unconditionally, so a commented line ending in `\\` swallowed the newline and the\n  command on the next line was **allowed in both modes**. Closed in the same release.",
+          "replace": "  inside a comment, but the splitter applied line-continuation semantics\n  unconditionally, so a commented line ending in `\\` swallowed the newline and the\n  command on the next line was **allowed in both modes**. A comment body is now inert to\n  quotes and escapes alike, as it is in bash \u2014 an intermediate fix that suppressed only the\n  escape re-opened the hole through quote parity (`echo # don\\'t` + newline + `rm -rf /`),\n  and a balanced quote in a comment had always hidden the following line. All three are\n  closed in this release."
+        }
+      ]
+    },
+    {
+      "type": "run_command",
+      "command": [
+        "ruff",
+        "check",
+        "src/",
+        "tests/",
+        "scripts/"
+      ],
+      "reason": "Lint gate for the edited module and test file; line-length 100.",
+      "description": "lint"
+    }
+  ]
+}
