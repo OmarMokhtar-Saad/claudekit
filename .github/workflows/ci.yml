@@ -49,6 +49,11 @@ jobs:
           pip install --require-hashes -r tests/requirements.txt
       - name: No change may turn a REJECT into an ALLOW
         run: python3 scripts/check-validator-differential.py --baseline auto --max-len 3 --require-baseline
+      # Executes fuzzed shell payloads on purpose - contained (empty PATH, shadowed dangerous
+      # commands, temp cwd, per-child ulimits, refused fork-bomb shapes) and on an ephemeral
+      # runner. Shorter corpus than the differential gate: this one spawns a shell per payload.
+      - name: bash must not reach a blocked command the validator allowed
+        run: python3 scripts/check-validator-vs-bash.py --max-len 2 --allow-execution
       - name: Enforce security-module coverage
         run: |
           python -m pytest tests/ -q \

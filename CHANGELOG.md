@@ -158,6 +158,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   regression gate, not a soundness proof, and not a validator-versus-bash oracle: a payload both
   versions wrongly allow is invisible to it. Intended widenings are **declared** in
   `DISCLOSED_WIDENINGS`, narrowed by the exact verdict the old validator gave.
+- **`scripts/check-validator-vs-bash.py`** — the second gate, and the one that covers the class
+  the first cannot. The differential gate compares `CommandValidator` against *itself* at
+  another commit, so a payload **both** versions wrongly allow is invisible to it — and that is
+  precisely the shape of every fail-open found in this release. This one asks bash: each payload
+  the validator ALLOWS is executed with `rm`, `sudo`, `chmod`, `curl`, `dd` and friends replaced
+  by shell functions that print a marker and do nothing, and a marker is a divergence. It is
+  contained deliberately — empty `PATH`, throwaway cwd and `HOME`, per-child CPU/memory/file
+  limits, `noclobber`, and fork-bomb, loop and **absolute-path redirect** shapes refused before
+  execution and *counted* rather than passed. That last one was a real escape found in review:
+  `echo x > /etc/hosts` is in the corpus as a dangerous-pattern probe, and redirection is bash's
+  own parser rather than anything `PATH` controls, so the first validator that allowed it would
+  have written to the real path — as root, on a CI runner. The containment is also the blind
+  spot: with no `PATH` there is no `xargs`, and refused shapes are not observed. Stated in the
+  script, not just here.
 - **A quote inside a trailing comment could hide a whole command, in both modes.** `shlex`
   strips `#`-comments by default and discards the rest of the line, so in
   `make test # don't rebuild<newline>rm -rf /` the apostrophe never reached the tokenizer, no
