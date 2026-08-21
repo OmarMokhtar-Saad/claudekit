@@ -14,8 +14,57 @@ Priority-ordered. Sources: `review/tasks/` (file-level specs — read them befor
   still tells maintainers to keep set, so the repo gets no dogfood signal yet. Flipping it means
   every prompt edit needs an ops.json — real friction on the highest-churn files, and the velocity
   cost lands on the owner. Pinned dormant by a test, so nothing flips by accident.
+- [ ] **Fleet-sync the `TOKEN-MODEL-POLICY` v3 block to the 16 kitted projects.** The block now
+  states routing in capability tiers instead of vendor model names (2026-08-21). The marker was
+  bumped v2 → v3 precisely so the sync is not skipped as "already present"; until the sync runs,
+  downstream copies still read vendor names. Owner decides when.
 - [ ] **Push `perf/token-efficiency`?** 13 commits. The `TOKEN-MODEL-POLICY` marker went v1 → v2,
   so the per-PR review floor propagates to all 16 fleet-synced projects on their next sync.
+
+## P0.7 — wave-2 adoption, blocked on the enforcement-runtime lane (2026-08-21)
+
+Verdicts and reasoning: [RESEARCH.md](RESEARCH.md). These are **Retained — blocked**: both need a
+durable typed event log and a single hook dispatcher per event, which the concurrent
+enforcement-runtime lane owns. Do not start either before those land.
+
+- [ ] **Mechanical Definition-of-Done at the `Stop` hook** (ChaosEngine `guard.py`, ~470 lines of
+  stdlib Python). Block session end until verification, independent review, delivery status, and
+  the learning loop are complete. Closes the gap `CLAUDE.md` currently admits ("Prompt-enforced
+  until task 010 makes them mechanical"). **Depends on:** durable receipts to check against.
+- [ ] **Failure-fingerprint circuit breaker** (ChaosEngine `reflection-checkpoints.md`). Two
+  failures with *different* fingerprints → task reflection; two with the *same* fingerprint → deep
+  reflection. Today `loop-operator` does this by prompt judgement, which is neither deterministic
+  nor testable. **Depends on:** the hook dispatcher.
+- [ ] **OWNER DECISION: `/review` spawns the reviewer on the most-capable tier for every plan.**
+  `.claude/commands/review.md:89` passes `--model opus`, which beats frontmatter, while
+  `model-policy.json` gives `reviewer` the `balanced` tier with most-capable reachable only via
+  `escalate_when` (multi-phase / architecture / security). Found by adversarial review of the
+  capability-tiers change. **Recorded rather than changed** — repointing a quality gate is
+  user-visible and Golden-Rule-gated. Either accept it (and say why every plan review earns
+  most-capable, making `escalate_when` decorative for this role) or repoint it to the tier.
+  Recorded meanwhile in `callsite_overrides` and pinned by
+  `test_model_policy.py::EveryHandWrittenModelNameIsAccountedFor`.
+- [ ] **Command invocation sites are the remaining vendor-name surface — 8 literals in 6 files**,
+  not the 2 first recorded here: `review.md:89`, `refine.md:161,180`, `plan.md:67`,
+  `gan-build.md:85`, `santa.md:64,68` (and `model-router.md:103`, since rewritten into a tier
+  lookup). The three `--agent planner --model opus` sites auto-resolve against the planner's tier;
+  the rest are recorded overrides. `santa.md`'s pair is legitimate and should stay — the
+  santa-method deliberately uses two different models so neither reviewer anchors on the other.
+  Not an oversight:
+  `install.sh:203` copies only `.claude/operations/scripts/*.py` into user projects, so repo-root
+  `scripts/gen-model-policy.py` does not exist where those commands run and cannot resolve a tier.
+  Pinned against drift by `test_plan_command_spawns_planner_on_the_planner_tier`, which derives the
+  expected literal from the table. **Decision needed:** either ship a resolver under
+  `.claude/operations/scripts/` (installed, so callable downstream) or accept the literal and keep
+  the pin. Do not "fix" it by hand-editing the command files.
+- [ ] **`CLAUDE.md` is at its context-floor capacity: 30,992 of 31,000 budgeted chars — 8 spare.**
+  Landing the evidence precedence ladder required trimming six unrelated lines to fit
+  (`scripts/check-context-floor.py`). The next addition of any size cannot land without either
+  moving content into a consuming agent (the real token win the script's own comment names) or
+  owner sign-off to raise the budget. Flagging before someone discovers it mid-change.
+- [ ] **Add `gen-model-policy.py` to `iron-law-gate.py`'s `_CHECK_ONLY_SCRIPTS`** (one line, at
+  `.claude/hooks/iron-law-gate.py:265`). Until then the implementer agent cannot run the new DoD
+  gate — maintainers and CI can. Deliberately left to the lane that owns `.claude/hooks/**`.
 
 ## P0.5 — landed 2026-08-19, follow-ups from the reflection/review-discipline batch
 

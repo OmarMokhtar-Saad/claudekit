@@ -5,6 +5,7 @@ persistence, verification, adversarial self-check, evidence integrity, ...)
 at specific high-leverage points. These tests pin the anchors so later edits
 can't silently regress them. Each test names the pattern it guards.
 """
+import json
 import os
 import re
 import subprocess
@@ -111,38 +112,78 @@ class TestEvidenceIntegrity:
 
 
 class TestModelRouting:
-    """Routing corollary: judgment-dense roles on opus; gates never on haiku.
+    """Routing corollary: judgment-dense roles earn the most-capable tier; gates
+    never run on the fast tier.
 
-    Revised 2026-07-30 (plan-model-routing-token-orchestration): the reviewer
-    gate defaults to sonnet for token economy and escalates to opus per-call for
-    multi-phase / architecture / security plans. The invariant that survives is
-    "a gate is never on haiku" — not "the reviewer is always opus"."""
+    Revised 2026-08-21 (plan-capability-tiers): routing policy is expressed in
+    CAPABILITY TIERS resolved from `.claude/model-policy.json`, never in vendor
+    product names. These tests therefore assert against the policy table — the
+    single source of truth — so a model rename cannot silently break them, and
+    a *tier* demotion still can. `gen-model-policy.py --check` separately proves
+    the agent frontmatter agrees with the table."""
 
-    GATE_AGENTS = ("planner.md", "reviewer.md", "verifier.md")
+    GATE_AGENTS = ("planner", "reviewer", "verifier")
 
-    def test_planner_is_opus(self):
-        assert _frontmatter_field(os.path.join(AGENTS, "planner.md"), "model") == "opus"
+    @staticmethod
+    def _policy():
+        with open(os.path.join(ROOT, ".claude", "model-policy.json"), encoding="utf-8") as fh:
+            return json.load(fh)
 
-    def test_verifier_is_sonnet(self):
-        assert _frontmatter_field(os.path.join(AGENTS, "verifier.md"), "model") == "sonnet"
+    def _tier_of(self, role):
+        return self._policy()["roles"][role]["tier"]
 
-    def test_reviewer_defaults_to_sonnet(self):
-        assert _frontmatter_field(os.path.join(AGENTS, "reviewer.md"), "model") == "sonnet"
+    def test_planner_earns_the_most_capable_tier(self):
+        assert self._tier_of("planner") == "most-capable"
 
-    def test_no_gate_agent_runs_on_haiku(self):
-        for name in self.GATE_AGENTS:
-            model = _frontmatter_field(os.path.join(AGENTS, name), "model")
-            assert model != "haiku", f"{name} is a quality gate and must not run on haiku"
+    def test_verifier_earns_the_balanced_tier(self):
+        assert self._tier_of("verifier") == "balanced"
 
-    def test_reviewer_opus_escalation_is_documented(self):
-        """A sonnet default is only safe if the escalation path is written down."""
+    def test_reviewer_defaults_to_the_balanced_tier(self):
+        assert self._tier_of("reviewer") == "balanced"
+
+    def test_no_gate_agent_runs_on_the_fast_tier(self):
+        for role in self.GATE_AGENTS:
+            assert self._tier_of(role) != "fast", \
+                f"{role} is a quality gate and must not run on the fast tier"
+
+    def test_reviewer_escalation_is_recorded_where_it_can_be_read(self):
+        """A balanced default is only safe if the escalation path is written down.
+
+        It used to live in CLAUDE.md prose ("escalate to opus"), which bound
+        policy to a vendor name and could drift from the corpus silently. It is
+        now a structured field on the role, so it is machine-readable and the
+        coordinator's prose can be checked against it."""
+        reviewer = self._policy()["roles"]["reviewer"]
+        assert reviewer["escalate_to"] == "most-capable"
+        assert reviewer["escalate_when"].strip(), "an escalation with no trigger is not a path"
         coordinator = _read(AGENTS, "coordinator.md")
-        assert "ESCALATE reviewer to opus" in coordinator
-        assert "escalate to opus" in _read(ROOT, "CLAUDE.md")
+        assert "ESCALATE reviewer to the most-capable tier" in coordinator
+        # The old class asserted this against CLAUDE.md prose. Keep an anchor there
+        # too: without it, deleting the routing bullet's escalation clause is silent.
+        routing = [ln for ln in _read(ROOT, "CLAUDE.md").splitlines()
+                   if ln.startswith("- **Model routing**")][0]
+        assert "escalate_to" in routing and "escalate_when" in routing
 
-    def test_plan_command_spawns_planner_on_opus(self):
-        assert "--agent planner --model opus" in _read(COMMANDS, "plan.md")
-        assert "--agent planner --model opus" in _read(COMMANDS, "refine.md")
+    def test_routing_policy_names_no_vendor_model(self):
+        """The regression this whole change exists to prevent."""
+        routing = [ln for ln in _read(ROOT, "CLAUDE.md").splitlines()
+                   if ln.startswith("- **Model routing**")]
+        assert len(routing) == 1
+        for vendor in ("opus", "sonnet", "haiku"):
+            assert vendor not in routing[0], \
+                f"routing policy must name capability tiers, not {vendor!r}"
+
+    def test_plan_command_spawns_planner_on_the_planner_tier(self):
+        """Command invocation sites still carry a concrete model: they ship to
+        user projects, where repo-root `scripts/` does not exist (install.sh:203
+        copies only `.claude/operations/scripts/*.py`), so they cannot resolve a
+        tier at run time. Pinned here so the two cannot drift: the literal must
+        match whatever the planner's tier currently resolves to."""
+        policy = self._policy()
+        model = policy["capability_tiers"][self._tier_of("planner")]["model"]
+        for command in ("plan.md", "refine.md"):
+            assert f"--agent planner --model {model}" in _read(COMMANDS, command), \
+                f"{command} disagrees with the planner's tier in model-policy.json"
 
 
 class TestAgentRegistration:

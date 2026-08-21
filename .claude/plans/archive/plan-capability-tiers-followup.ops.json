@@ -1,0 +1,42 @@
+{
+  "plan": "capability-tiers-followup",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_behavior_spec.py",
+      "description": "TestModelRouting reads the policy table, so the module needs json.",
+      "edits": [
+        {
+          "find": "import os\nimport re\nimport subprocess\nimport sys\n",
+          "replace": "import json\nimport os\nimport re\nimport subprocess\nimport sys\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_behavior_spec.py",
+      "description": "Rewrite TestModelRouting against the policy table instead of vendor model names.",
+      "edits": [
+        {
+          "find": "class TestModelRouting:\n    \"\"\"Routing corollary: judgment-dense roles on opus; gates never on haiku.\n\n    Revised 2026-07-30 (plan-model-routing-token-orchestration): the reviewer\n    gate defaults to sonnet for token economy and escalates to opus per-call for\n    multi-phase / architecture / security plans. The invariant that survives is\n    \"a gate is never on haiku\" — not \"the reviewer is always opus\".\"\"\"\n\n    GATE_AGENTS = (\"planner.md\", \"reviewer.md\", \"verifier.md\")\n\n    def test_planner_is_opus(self):\n        assert _frontmatter_field(os.path.join(AGENTS, \"planner.md\"), \"model\") == \"opus\"\n\n    def test_verifier_is_sonnet(self):\n        assert _frontmatter_field(os.path.join(AGENTS, \"verifier.md\"), \"model\") == \"sonnet\"\n\n    def test_reviewer_defaults_to_sonnet(self):\n        assert _frontmatter_field(os.path.join(AGENTS, \"reviewer.md\"), \"model\") == \"sonnet\"\n\n    def test_no_gate_agent_runs_on_haiku(self):\n        for name in self.GATE_AGENTS:\n            model = _frontmatter_field(os.path.join(AGENTS, name), \"model\")\n            assert model != \"haiku\", f\"{name} is a quality gate and must not run on haiku\"\n\n    def test_reviewer_opus_escalation_is_documented(self):\n        \"\"\"A sonnet default is only safe if the escalation path is written down.\"\"\"\n        coordinator = _read(AGENTS, \"coordinator.md\")\n        assert \"ESCALATE reviewer to opus\" in coordinator\n        assert \"escalate to opus\" in _read(ROOT, \"CLAUDE.md\")\n\n    def test_plan_command_spawns_planner_on_opus(self):\n        assert \"--agent planner --model opus\" in _read(COMMANDS, \"plan.md\")\n        assert \"--agent planner --model opus\" in _read(COMMANDS, \"refine.md\")\n\n\n",
+          "replace": "class TestModelRouting:\n    \"\"\"Routing corollary: judgment-dense roles earn the most-capable tier; gates\n    never run on the fast tier.\n\n    Revised 2026-08-21 (plan-capability-tiers): routing policy is expressed in\n    CAPABILITY TIERS resolved from `.claude/model-policy.json`, never in vendor\n    product names. These tests therefore assert against the policy table — the\n    single source of truth — so a model rename cannot silently break them, and\n    a *tier* demotion still can. `gen-model-policy.py --check` separately proves\n    the agent frontmatter agrees with the table.\"\"\"\n\n    GATE_AGENTS = (\"planner\", \"reviewer\", \"verifier\")\n\n    @staticmethod\n    def _policy():\n        with open(os.path.join(ROOT, \".claude\", \"model-policy.json\"), encoding=\"utf-8\") as fh:\n            return json.load(fh)\n\n    def _tier_of(self, role):\n        return self._policy()[\"roles\"][role][\"tier\"]\n\n    def test_planner_earns_the_most_capable_tier(self):\n        assert self._tier_of(\"planner\") == \"most-capable\"\n\n    def test_verifier_earns_the_balanced_tier(self):\n        assert self._tier_of(\"verifier\") == \"balanced\"\n\n    def test_reviewer_defaults_to_the_balanced_tier(self):\n        assert self._tier_of(\"reviewer\") == \"balanced\"\n\n    def test_no_gate_agent_runs_on_the_fast_tier(self):\n        for role in self.GATE_AGENTS:\n            assert self._tier_of(role) != \"fast\", \\\n                f\"{role} is a quality gate and must not run on the fast tier\"\n\n    def test_reviewer_escalation_is_recorded_where_it_can_be_read(self):\n        \"\"\"A balanced default is only safe if the escalation path is written down.\n\n        It used to live in CLAUDE.md prose (\"escalate to opus\"), which bound\n        policy to a vendor name and could drift from the corpus silently. It is\n        now a structured field on the role, so it is machine-readable and the\n        coordinator's prose can be checked against it.\"\"\"\n        reviewer = self._policy()[\"roles\"][\"reviewer\"]\n        assert reviewer[\"escalate_to\"] == \"most-capable\"\n        assert reviewer[\"escalate_when\"].strip(), \"an escalation with no trigger is not a path\"\n        coordinator = _read(AGENTS, \"coordinator.md\")\n        assert \"ESCALATE reviewer to the most-capable tier\" in coordinator\n\n    def test_routing_policy_names_no_vendor_model(self):\n        \"\"\"The regression this whole change exists to prevent.\"\"\"\n        routing = [ln for ln in _read(ROOT, \"CLAUDE.md\").splitlines()\n                   if ln.startswith(\"- **Model routing**\")]\n        assert len(routing) == 1\n        for vendor in (\"opus\", \"sonnet\", \"haiku\"):\n            assert vendor not in routing[0], \\\n                f\"routing policy must name capability tiers, not {vendor!r}\"\n\n    def test_plan_command_spawns_planner_on_the_planner_tier(self):\n        \"\"\"Command invocation sites still carry a concrete model: they ship to\n        user projects, where repo-root `scripts/` does not exist (install.sh:203\n        copies only `.claude/operations/scripts/*.py`), so they cannot resolve a\n        tier at run time. Pinned here so the two cannot drift: the literal must\n        match whatever the planner's tier currently resolves to.\"\"\"\n        policy = self._policy()\n        model = policy[\"capability_tiers\"][self._tier_of(\"planner\")][\"model\"]\n        for command in (\"plan.md\", \"refine.md\"):\n            assert f\"--agent planner --model {model}\" in _read(COMMANDS, command), \\\n                f\"{command} disagrees with the planner's tier in model-policy.json\"\n\n\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/coordinator.md",
+      "description": "Coordinator routing prose stated in capability tiers.",
+      "edits": [
+        {
+          "find": "- Reviewer runs on sonnet by default. ESCALATE reviewer to opus (model override on the Agent call) when the plan is multi-phase, architecture-touching, or security-relevant.",
+          "replace": "- Reviewer runs on its default `balanced` tier. ESCALATE reviewer to the most-capable tier (model override on the Agent call) when the plan is multi-phase, architecture-touching, or security-relevant — the trigger is recorded as `escalate_when` on the role in `.claude/model-policy.json`."
+        },
+        {
+          "find": "- Coordinator/decomposition: sonnet. Planners: opus ONLY for architecture-heavy sub-plans, else sonnet (consult model-router when unsure). Reviewers: sonnet (opus escalation per Section 2). Implementers: haiku. Research: web-researcher (haiku).\n- Session fallback chain (user settings fallbackModel) degrades sonnet -> haiku on limits: keep flows running, never stall a half-finished fan-out.",
+          "replace": "- Every role's tier comes from `.claude/model-policy.json`; never pick a vendor model name by hand. Coordinator/decomposition and reviewers run `balanced`; planners run `most-capable` for architecture-heavy sub-plans and `balanced` otherwise (consult model-router when unsure); implementers and research run `fast`.\n- Session fallback chain (user settings fallbackModel) degrades one tier on limits: keep flows running, never stall a half-finished fan-out."
+        }
+      ]
+    }
+  ]
+}
