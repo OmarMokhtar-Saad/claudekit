@@ -149,6 +149,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `ls` while actually meaning "run whatever this prints". **Disclosed widening:** in the
   default mode `2> log echo hi` and similar now validate `echo` instead of being rejected as
   "Command not in allowlist: 2", which was an accident of the same defect.
+- **`scripts/check-validator-differential.py`** — a CI gate that fails a change to
+  `CommandValidator` which turns a REJECT into an ALLOW **for its generated corpus**. It fuzzes
+  shell metacharacters through the baseline and the working-tree validator in both `safeMode`
+  states, seeded with every blocklisted command and one trigger per dangerous-pattern rule,
+  because combinatorics alone reached 3 of 27 blocklisted commands and 1 of 17 patterns — so an
+  earlier draft reported "no protection removed" while a mutant deleted 46 of them. It is a
+  regression gate, not a soundness proof, and not a validator-versus-bash oracle: a payload both
+  versions wrongly allow is invisible to it. Intended widenings are **declared** in
+  `DISCLOSED_WIDENINGS`, narrowed by the exact verdict the old validator gave.
 - **A quote inside a trailing comment could hide a whole command, in both modes.** `shlex`
   strips `#`-comments by default and discards the rest of the line, so in
   `make test # don't rebuild<newline>rm -rf /` the apostrophe never reached the tokenizer, no
