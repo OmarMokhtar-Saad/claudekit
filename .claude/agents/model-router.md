@@ -88,7 +88,7 @@ Scoring:
   ─────────────────────
   Total:           N/12
 
-Recommendation: [HAIKU | SONNET | OPUS]
+Recommendation: [most-capable | balanced | fast]   <- a TIER, never a vendor name
 Override applied: [none | security | code-review | docs]
 
 Reasoning:
@@ -99,8 +99,8 @@ Cost estimate (relative):
   Sonnet: 5x  ← recommended
   Opus:   15x
 
-To use this model in a command:
-  --model sonnet (or haiku/opus)
+Resolve the tier to a model before spawning: read `.claude/model-policy.json`
+(`capability_tiers.<tier>.model`). Do not hand-pick a vendor name.
 ```
 
 ---

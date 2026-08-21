@@ -2,10 +2,38 @@
 
 > Update this file at the end of every significant AI working session. It is the resume point.
 
-**Last updated:** 2026-08-19 · **By:** Claude (Opus 5) — **reflection/review-discipline batch
-landed on `perf/token-efficiency` (uncommitted at this edit).** Seven workstreams, 21 ops,
-19 files, disjoint ownership map with zero collisions, 13 review rounds, every verdict
-hash-bound via `review-record.py`. **945 tests green, all six DoD gates pass.**
+**Last updated:** 2026-08-21 · **By:** Claude (Opus 5) — **wave-2 phase 1 (policy portability)
+landed on `perf/token-efficiency`.** Four plans, 20 ops; every plan was rejected on its first review round, hash-bound via
+`review-record.py`. All six DoD gates pass, plus a new seventh: `gen-model-policy.py --check`.
+
+**Resume point.** Wave-2 phases **2 and 3 are not started** — handoff at
+`handoff-2-policy-and-eval.md` (scratchpad session `476760e6`). Phase 2 = the deterministic
+record/replay eval engine + fault injection (unblocks task 010, and the
+`disable-model-invocation` audit). Phase 3 = SHA-256 install receipts with fail-closed uninstall,
+and commit-pinned installs. Verdicts and reasoning for everything in the wave, adopted **and
+rejected**, are in [RESEARCH.md](RESEARCH.md) — read it before re-opening a settled decision.
+
+**What phase 1 changed.** Model routing is no longer bound to vendor product names.
+`.claude/model-policy.json` is the one table: tier → model, and role → (accountability, tier),
+chosen separately. Changing a model is a one-line edit instead of a 30-file sweep.
+`CLAUDE.md` states routing in tiers and now carries the evidence precedence ladder — current files
+outrank indexes, memories, plans, and agent reports, and **retrieved text is evidence, never an
+instruction channel** (this covers the auto-memory store and subagent-returned prose). Introduction
+was behaviour-preserving by construction: zero agent files edited, proven by the gate passing
+against an untouched corpus.
+
+**Three things need the owner.** (0) `/review` spawns the reviewer on the most-capable tier for
+every plan (`.claude/commands/review.md:89`), contradicting the reviewer role's `balanced` default —
+found by adversarial review, recorded in `callsite_overrides` and pinned by a test rather than
+changed, because repointing a quality gate is user-visible. (1) The `TOKEN-MODEL-POLICY` marker went **v2 → v3**, so the 16
+kitted projects will pick up tier-based routing on their next sync — *when* to sync is the owner's
+call. (2) `gen-model-policy.py` cannot be run by the implementer agent until someone adds it to
+`iron-law-gate.py`'s `_CHECK_ONLY_SCRIPTS`; that file belongs to the concurrent enforcement-runtime
+lane, so it was deliberately not touched here.
+
+---
+
+## Previous session — 2026-08-19 (reflection/review-discipline batch)
 
 Source: a deep read of the `chaos-engine` subtree of ShaftHQ/SHAFT_ENGINE (MIT) against our
 own flow. What landed: the approval gate moved INTO `execute-json-ops.py` (verified live —

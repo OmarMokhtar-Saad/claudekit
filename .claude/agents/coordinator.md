@@ -424,7 +424,7 @@ If an agent fails unexpectedly:
 ### 2. Fan out read-only stages (PARALLEL)
 - Spawn planner agents for ALL sub-plans in a single message (parallel) — planning is read-only + report-writing, no conflict risk.
 - Spawn reviewer agents for all completed plans in parallel.
-- Reviewer runs on sonnet by default. ESCALATE reviewer to opus (model override on the Agent call) when the plan is multi-phase, architecture-touching, or security-relevant.
+- Reviewer runs on its default `balanced` tier. ESCALATE reviewer to the most-capable tier (model override on the Agent call) when the plan is multi-phase, architecture-touching, or security-relevant — the trigger is recorded as `escalate_when` on the role in `.claude/model-policy.json`.
 
 ### 3. Composition gate (BARRIER — before ANY execution)
 - Dry-run/simulate ALL approved ops.json files TOGETHER (simulate-sequential-ops.py where available) to catch cross-plan anchor collisions before anything touches the tree.
@@ -472,5 +472,5 @@ nested review rounds) and display as finished while incomplete.
 - After implementer(s) report, STOP and ask the user: "Implementation complete. Run verifier?" Run verifier ONLY on explicit user approval.
 
 ### 6. Model economy
-- Coordinator/decomposition: sonnet. Planners: opus ONLY for architecture-heavy sub-plans, else sonnet (consult model-router when unsure). Reviewers: sonnet (opus escalation per Section 2). Implementers: haiku. Research: web-researcher (haiku).
-- Session fallback chain (user settings fallbackModel) degrades sonnet -> haiku on limits: keep flows running, never stall a half-finished fan-out.
+- Every role's tier comes from `.claude/model-policy.json`; never pick a vendor model name by hand. Coordinator/decomposition and reviewers run `balanced`; planners run `most-capable` for architecture-heavy sub-plans and `balanced` otherwise (consult model-router when unsure); implementers and research run `fast`.
+- Session fallback chain (user settings fallbackModel) degrades one tier on limits: keep flows running, never stall a half-finished fan-out.

@@ -28,6 +28,15 @@ invalid — wrong causality.)
 claude -p --agent <agent-name> --model <model> --allowedTools "<scoped,tool,list>"
 ```
 
+`<model>` is **not** a free choice. Resolve it: look the agent up in `.claude/model-policy.json`,
+take its `tier`, and read that tier's `model`. Use `escalate_to` only when the invocation meets
+the role's stated `escalate_when`. Never write a vendor model name into **policy prose** or into
+an agent's `model:` frontmatter — `scripts/gen-model-policy.py --check` gates those 29 files
+against the table. Command invocation sites are the recorded exception: they ship to user
+projects, which have no tier resolver, so each `--model` literal must appear in the table's
+`callsite_overrides` with a reason, or resolve to its own role's tier. Both arms are enforced by
+`tests/test_model_policy.py::EveryHandWrittenModelNameIsAccountedFor`.
+
 - `--agent <name>` loads `.claude/agents/<name>.md` as the system prompt.
 - The prompt is passed on **stdin** (`echo "$MSG" | claude -p ...`); the result is on **stdout**.
 - `--allowedTools` scopes the sub-agent to exactly the tools its role needs.
