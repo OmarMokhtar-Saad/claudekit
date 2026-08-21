@@ -26,6 +26,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the new format. Profiles *declare*, and are gate-bound to what the hooks actually do; they do not
   yet control them, and `.claude/profiles/README.md` says so rather than implying otherwise.
 
+### Removed
+- **The `.codex/` mirror (53 files).** A Codex-CLI corpus copy that nothing installed, packaged or
+  referenced; its own `config.toml` set `ECC_HOOK_PROFILE=minimal` so every enforcement hook it wired
+  stood down, and its `hooks.json` hardcoded 20 absolute paths to one developer's home directory. It
+  had been a stale copy of `.claude/hooks/` since 2026-07-30, never adapted for Codex — the hooks
+  still wrote into `.claude/`. **If you were running Codex CLI against a clone of this repo, that
+  corpus is gone**; the `.agents/` skills mirror is unaffected. Removed rather than gated, because
+  gating it would have bought permanent two-tree maintenance for something with no consumer.
+
 ### Fixed
 - **`format-typecheck.sh` ran for any unrecognised `ECC_HOOK_PROFILE` value.** Its guard was a
   positive list (`= minimal`, `= standard`) sitting directly under a comment reading "runs in strict

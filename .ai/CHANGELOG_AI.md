@@ -2,6 +2,37 @@
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
 
+## 2026-08-21 — Claude (Opus 5) — `.codex/` removed, and a finding of mine corrected
+
+**Scope.** Investigated the P1 mirror-drift item filed hours earlier in `f5eb927`, and resolved it by
+deleting `.codex/` (53 files) rather than by building the gate that entry proposed. Owner approved the
+removal against a costed keep-and-gate alternative.
+
+**Every premise for keeping it failed a check.** Nothing installs or packages it (`grep -c codex
+install.sh` → 0). Its own `config.toml` set `ECC_HOOK_PROFILE=minimal`, standing down every
+enforcement hook it wired. Its `hooks.json` carried 20 hardcoded `/Users/omarmokhtar/...` paths where
+`.claude/settings.json` has zero. Eight shell hooks were stale since 2026-07-30 and every diff was
+`.claude` being ahead. Its README was byte-identical to `.claude`'s, including `chmod +x
+.claude/hooks/*.sh` — it had never been adapted for Codex; the hooks still wrote into `.claude/`.
+
+**A correction I owe.** The original entry called the drift "security-relevant". That was wrong, and I
+wrote it without reading the config file sitting next to the drifted hook: under the `minimal` that
+`.codex` forced, those hooks never ran, and the file I cited is strict-only besides. The drift was
+real; the security framing was mine and unfounded. Hard rule 6 is about the honesty of security
+claims, and it binds my own findings, not only the product's docs. Rewritten in place rather than
+deleted along with the directory.
+
+**The MAX_DELETIONS tension, named rather than routed around.** DECISIONS 7 caps deletions at 3/plan
+and says large removals need multiple reviewed plans; 53 files is 18 plans, which honours the letter
+and defeats the purpose. Done as one `git rm -r` under owner sign-off, recorded as DECISIONS 22.
+**No flag was added and the cap is unchanged** — what got recorded is the real gap: the ops engine
+models per-file deletes and has no directory-removal operation.
+
+**An honest mutant that does not flip.** Removing `.codex` from `SCAN_ROOTS` was needed for accuracy,
+but *not* removing it would have failed nothing: the secrets self-scan iterates `git ls-files -- <root>`
+and an empty root yields no files. `SCAN_ROOTS` has no missing-root guard. Written into the test's own
+comment instead of being left as a silent property.
+
 ## 2026-08-21 — Claude (Opus 5) — Layered profiles: `ck profile`, and one guard that was wrong
 
 **Scope.** `handoff-4-profiles.md` Phase 2, executed as one ops config

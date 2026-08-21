@@ -322,7 +322,11 @@ class TestFreshInstallFirstCommit:
 VALUE_BEARING = ("api_key", "apikey", "api_secret", "password", "passwd",
                  "secret_key", "access_token")
 
-HOOK_MIRRORS = (".claude/hooks/pre-commit.sh", ".codex/hooks/pre-commit.sh")
+# One entry since 2026-08-21, when `.codex/` was removed (DECISIONS.md 22).
+# RENAMED from HOOK_MIRRORS deliberately: a one-element tuple still called
+# "mirrors" would assert a mirror relationship that no longer exists, and the
+# name shows up in every parametrisation id this class emits.
+SECRET_PATTERN_HOOKS = (".claude/hooks/pre-commit.sh",)
 
 
 def _built_patterns(hook_path):
@@ -341,14 +345,14 @@ def _built_patterns(hook_path):
 
 
 class TestSecretPatternConstruction:
-    @pytest.mark.parametrize("hook", HOOK_MIRRORS)
+    @pytest.mark.parametrize("hook", SECRET_PATTERN_HOOKS)
     def test_building_the_patterns_emits_no_shell_error(self, hook):
         """The shipped hook printed `bad substitution: no closing '}'` here. A blocking
         security hook must not build its ruleset out of a shell parse error."""
         _, stderr = _built_patterns(REPO / hook)
         assert stderr.strip() == "", stderr
 
-    @pytest.mark.parametrize("hook", HOOK_MIRRORS)
+    @pytest.mark.parametrize("hook", SECRET_PATTERN_HOOKS)
     @pytest.mark.parametrize("name", VALUE_BEARING)
     def test_value_pattern_requires_a_quote_then_non_quote_run(self, hook, name):
         """Each value-bearing pattern must be `<name> <sep> <quote> <non-quotes>{n}`. The
@@ -362,7 +366,7 @@ class TestSecretPatternConstruction:
             f"credential: {pattern!r}")
         assert "{" in pattern.split("[^\"']")[-1], f"{name}: no repetition count: {pattern!r}"
 
-    @pytest.mark.parametrize("hook", HOOK_MIRRORS)
+    @pytest.mark.parametrize("hook", SECRET_PATTERN_HOOKS)
     def test_private_key_pattern_still_requires_a_quote(self, hook):
         """The same defect left `private_key\\s*[:=]\\s*` with NO quote class - not dead
         but over-broad, firing on any `private_key =` line. Detection and precision are both
@@ -376,9 +380,13 @@ class TestSecretPatternConstruction:
 # BUG 2
 # ---------------------------------------------------------------------------
 
-# The roots this suite is responsible for: everything install.sh ships, the .codex/.agents
-# mirrors, the code and plan artifacts, and - since 2026-08-21 - the committed review
-# records and the user docs.
+# The roots this suite is responsible for: everything install.sh ships, the .agents
+# mirror, the code and plan artifacts, and - since 2026-08-21 - the committed review
+# records and the user docs. `.codex` was a root here until it was removed the same
+# day (DECISIONS.md 22); note that its removal alone would NOT have reddened this
+# suite, because a root with no tracked files yields no files to scan. There is no
+# missing-root guard, and adding one is a separate change - recorded in
+# plan-remove-codex-mirror.md rather than left as a silent property.
 #
 # `review` could join once the three lines that matched the live api-key pattern were
 # retyped: review/code-review.md:219, review/security-review.md:90, and
@@ -393,7 +401,7 @@ class TestSecretPatternConstruction:
 # under .claude/plans/archive/), so an ops config whose `find` anchor carried a bare
 # pattern literal would block the archiving commit with no sanctioned exit. The anchors in
 # plan-day-one-blockers.ops.json are chosen to avoid that; this root is what enforces it.
-SCAN_ROOTS = (".claude", "templates", ".codex", ".agents", "tests", "scripts", "src",
+SCAN_ROOTS = (".claude", "templates", ".agents", "tests", "scripts", "src",
               "review", "docs")
 
 

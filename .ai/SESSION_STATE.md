@@ -18,11 +18,13 @@ unrecognised value ran an expensive Stop hook. The handoff's ground truth ("two 
 was also wrong: three values, eleven hooks, four guard forms, and `reflection-gate` under `minimal`
 is *advisory*, not off. Deviations, limits and the zero asset-count delta: `.ai/PROFILES.md`.
 
-**Resume point.** **Nothing is in flight; the working tree is clean.** The next unblocked
-piece of work is the `.codex/hooks/` mirror drift filed at P1 in `.ai/BACKLOG.md` (found while
-mirroring the `format-typecheck` fix; security-relevant, and nothing gates it). Phases 3–5 of
-`handoff-4-profiles.md` (skill/MCP generators, memory store, `ck adapt`) now have their dependency
-and can start. Three items remain owner-gated and none of them is a code change:
+**Resume point.** **Nothing is in flight; the working tree is clean.** `.codex/` was removed
+2026-08-21 (DECISIONS.md 22) — the P1 drift item is closed by deletion, and the entry carries a
+correction: I had called that drift "security-relevant" without checking that `.codex/config.toml`
+forced `minimal`, under which those hooks never ran. Next: hooks reading profiles at runtime (eleven
+fail-closed scripts, its own plan), then Phases 3–5 of `handoff-4-profiles.md` (skill/MCP
+generators, memory store, `ck adapt`), now unblocked. Three items remain owner-gated and none of
+them is a code change:
 (1) **push / PR the branch** — outward-facing;
 (2) **do the two CI gates ship enabled?** Both are wired into the coverage job. The differential
 gate can block merges; the bash oracle **executes fuzzed shell payloads on the runner**. Their

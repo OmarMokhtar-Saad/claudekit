@@ -228,14 +228,36 @@ asset changes, so they are recorded as options with trade-offs.
 
 ## P1 — high value, unblocked
 
-- [ ] **`.codex/hooks/` has drifted from `.claude/hooks/`, and nothing checks it.** Found 2026-08-21
-  while mirroring the `format-typecheck.sh` guard fix: `.codex/hooks/format-typecheck.sh` is missing
-  the leading-dash argument-injection anchor (`case "$filepath" in -*) filepath="./$filepath" ;;`)
-  that `.claude/hooks/format-typecheck.sh` carries. That is a **security-relevant** divergence in a
-  mirror that is maintained by hand, so the real item is not this one file — it is that no gate
-  compares the two trees. Fix is a test that diffs every shared basename and requires either
-  equality or a declared, reasoned exception. Not fixed inside the profiles batch: it has its own
-  cause and its own blast radius, and riding along would have hidden it.
+- [ ] **`AGENTS.md` is a mechanical `.claude` -> `.Codex` sed of `CLAUDE.md`, and most of it is
+  wrong.** Found 2026-08-21 by the reviewer of `plan-remove-codex-mirror` (my own grep missed
+  it: I searched case-sensitively for `.codex` and the file writes `.Codex`). The sed also
+  rewrote prose it should not have: PyPI name reads **`Codex-kit`** (it is `claude-kit`),
+  the tagline reads "orchestration kit for Codex", and `.Codex/local/Codex.template.md`
+  should be `CLAUDE.template.md`. Counts are stale too: it claims `29 agents · 42 commands · 75 skills` and
+  `19 hooks`, against `python3 scripts/gen-docs.py --check` measured 2026-08-21 ->
+  `Counts: agents=29 commands=42 skills=76 hooks=21`. Skills and hooks are both wrong;
+  AGENTS.md is not generator-owned, which is why nothing caught it. **Three of its four `.Codex/` paths already did not exist**
+  before the `.codex/` removal (`settings.local.json`, `agents/_shared/INVOCATION.md`,
+  `operations/scripts/shared.py`); only `.Codex/hooks/*.sh` resolved, and only because
+  macOS is case-insensitive. That one line was fixed in the removal batch because the
+  deletion would have made its shellcheck glob silently match zero files; the rest is
+  pre-existing decay in the file other tools read as their instruction standard, and it
+  needs its own pass. Same class applies to `.agents/skills/*/SKILL.md`, which carry ~100
+  `.Codex/...` paths pointing at a layout that never fully existed.
+
+- [x] **RESOLVED 2026-08-21 by removing `.codex/` entirely (owner-approved; DECISIONS.md 22).**
+  Filed the same day as a P1 drift item, then resolved by deletion rather than by the gate the
+  entry proposed — investigating it found the mirror was unshipped, unreferenced, self-disabled
+  and machine-specific, so gating it would have bought maintenance of a copy nobody consumed.
+  **One correction I owe on the original entry: I called the drift "security-relevant", and that
+  was wrong.** `.codex/config.toml` set `ECC_HOOK_PROFILE=minimal`, under which the enforcement
+  hooks it wired stood down entirely — and the specific file I cited, `format-typecheck.sh`, is
+  strict-only, so it could not have run there under any profile. I wrote the claim without
+  checking the config next to the file. The drift was real; the security framing was mine and
+  unfounded, and hard rule 6 applies to my own findings, not just the product's docs.
+  **The durable lesson, which survives the deletion:** a hand-maintained mirror with no gate
+  drifts silently — measured at 8 stale shell hooks and three weeks — and the right question was
+  "should this exist" before "how do we gate it".
 
 - [ ] Fix QUICK_START table drift vs frontmatter (issue #6) and the phantom `opensource-forker` references (#8).
 - [ ] Task 008 prep (no deletions yet): draft the migration table for owner review.
