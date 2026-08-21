@@ -228,6 +228,15 @@ asset changes, so they are recorded as options with trade-offs.
 
 ## P1 — high value, unblocked
 
+- [ ] **`.codex/hooks/` has drifted from `.claude/hooks/`, and nothing checks it.** Found 2026-08-21
+  while mirroring the `format-typecheck.sh` guard fix: `.codex/hooks/format-typecheck.sh` is missing
+  the leading-dash argument-injection anchor (`case "$filepath" in -*) filepath="./$filepath" ;;`)
+  that `.claude/hooks/format-typecheck.sh` carries. That is a **security-relevant** divergence in a
+  mirror that is maintained by hand, so the real item is not this one file — it is that no gate
+  compares the two trees. Fix is a test that diffs every shared basename and requires either
+  equality or a declared, reasoned exception. Not fixed inside the profiles batch: it has its own
+  cause and its own blast radius, and riding along would have hidden it.
+
 - [ ] Fix QUICK_START table drift vs frontmatter (issue #6) and the phantom `opensource-forker` references (#8).
 - [ ] Task 008 prep (no deletions yet): draft the migration table for owner review.
 - [ ] Task 010 eval framework skeleton: `evals/` + one fixture repo + golden ops.json for planner + `ck eval` stub.

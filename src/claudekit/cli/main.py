@@ -397,6 +397,32 @@ def cmd_doctor(args):
             except json.JSONDecodeError as e:
                 check("Hooks config.json", False, f"Invalid JSON: {e}")
 
+    # Profiles: is the declaration still true of the hooks that shipped with it?
+    # Absent profiles is a SKIP (a pre-profile or --minimal install is not
+    # unhealthy); a present-but-drifted set is a failure, so --strict reddens.
+    profiles_root = Path(".")
+    if not (claude_dir / "profiles").is_dir():
+        check("Profile declarations", "skip",
+              "no .claude/profiles/ — this install predates layered profiles")
+    else:
+        from claudekit import profiles as _prof
+        _names = _prof.list_profiles(profiles_root)
+        if not _names:
+            check("Profile declarations", False,
+                  f"{claude_dir / 'profiles'} exists but holds no profile.json")
+        else:
+            try:
+                _problems = _prof.check_declarations(profiles_root)
+            except _prof.ProfileError as exc:
+                _problems = [str(exc)]
+            if _problems:
+                check("Profile declarations match hook guards", False,
+                      "; ".join(_problems[:3]))
+            else:
+                check(f"Profile declarations match hook guards "
+                      f"({len(_names)} profiles, active: {_prof.select_name(profiles_root)})",
+                      True)
+
     # Summary
     print(f"\n{'='*40}")
     total = checks_passed + checks_failed + checks_warned + checks_skipped
@@ -892,6 +918,72 @@ def cmd_config(args):
     return 0
 
 
+def cmd_profile(args):
+    """Inspect hook/asset profiles: what is installed, and what actually resolves.
+
+    Fail-closed: any ProfileError is printed with its named cause and exits 1.
+    There is no permissive fallback, because a resolver that guessed would put
+    "which profile is actually active" back into the guesswork this verb ends.
+    """
+    from claudekit import profiles as prof
+
+    root = Path(".")
+    if not prof.profiles_dir(root).is_dir():
+        err("No profiles installed — .claude/profiles/ is missing. "
+            "Run `claudekit update` to install them.")
+        return 1
+
+    if args.action == "list":
+        names = prof.list_profiles(root)
+        if not names:
+            err(f"{prof.profiles_dir(root)} exists but contains no profile.json")
+            return 1
+        active = prof.select_name(root)
+        for name in names:
+            try:
+                doc = prof.load_profile(root, name)
+            except prof.ProfileError as exc:
+                err(str(exc))
+                return 1
+            marker = f" {C.GREEN}(active){C.NC}" if name == active else ""
+            print(f"  {C.CYAN}{name}{C.NC}{marker}")
+            print(f"      {doc.get('description', '')}")
+        print(f"\n  Active selection: {active} "
+              f"({prof.PROFILE_ENV}={os.environ.get(prof.PROFILE_ENV) or '<unset>'}, "
+              f"default {prof.DEFAULT_PROFILE})")
+        return 0
+
+    # show
+    overrides = list(getattr(args, "set", None) or [])
+    try:
+        if not args.resolved and not args.json:
+            name = prof.select_name(root, args.name)
+            doc = prof.load_profile(root, name)
+            print(json.dumps(doc, indent=2))
+            return 0
+        resolved = prof.resolve(root, args.name, overrides=overrides)
+    except prof.ProfileError as exc:
+        err(f"profile: {exc}")
+        return 1
+
+    if args.json:
+        print(json.dumps(resolved.as_dict(), indent=2))
+        return 0
+
+    print(f"\n{C.CYAN}Profile: {resolved.name}{C.NC}   "
+          f"(layers: {' -> '.join(prof.LAYERS)})\n")
+    for section in prof.SECTIONS:
+        rows = resolved.section(section)
+        if not rows:
+            continue
+        print(f"  {section}")
+        for row_id, row in sorted(rows.items()):
+            value = "null" if row.value is None else str(row.value)
+            print(f"    {row_id:<24} {value:<52} {C.YELLOW}{row.layer}{C.NC}")
+        print("")
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="claudekit",
@@ -985,6 +1077,20 @@ def main():
     p = sub.add_parser("config", help="Show or query configuration")
     p.add_argument("key", nargs="?", help="Config key (dot notation, e.g. project.build_cmd)")
 
+    # profile
+    p = sub.add_parser("profile",
+                       help="Inspect layered hook/asset profiles")
+    p.add_argument("action", choices=["list", "show"],
+                   help="list: installed profiles; show: one profile")
+    p.add_argument("name", nargs="?",
+                   help="Profile name (default: the active one)")
+    p.add_argument("--resolved", action="store_true",
+                   help="Print the composed result with each row's winning layer")
+    p.add_argument("--json", action="store_true",
+                   help="Print the resolved result as JSON")
+    p.add_argument("--set", action="append", metavar="SECTION.ID=VALUE",
+                   help="Override-layer row (repeatable)")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -1005,6 +1111,7 @@ def main():
         "check-command": cmd_check_command,
         "check-path": cmd_check_path,
         "config": cmd_config,
+        "profile": cmd_profile,
     }
 
     return commands[args.command](args)

@@ -2,6 +2,48 @@
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
 
+## 2026-08-21 — Claude (Opus 5) — Layered profiles: `ck profile`, and one guard that was wrong
+
+**Scope.** `handoff-4-profiles.md` Phase 2, executed as one ops config
+(`plan-hook-profiles.ops.json`, 17 ops) on `perf/token-efficiency`. New: `src/claudekit/profiles.py`,
+`.claude/profiles/` (4 profiles + README), `ck profile list|show`, one `ck doctor` check,
+`tests/test_profiles.py`, `.ai/PROFILES.md`.
+
+**The handoff's ground truth was wrong, and the correction mattered.** It described
+`ECC_HOOK_PROFILE` as "one env var with two effective values (`minimal` / full)". Measured at
+`1a15f36`: **three** values (`minimal`, `standard`, `strict` — `full` is an *install mode*), read by
+**eleven** hooks in **four** guard forms, and `reflection-gate` under `minimal` is neither on nor off
+but advisory (it runs; it cannot block). Deliverable 4 asked for behaviour-preserving mappings of
+what the variable does today — which two profiles cannot express. Four ship, and the deviation is
+declared in `.ai/PROFILES.md` rather than quietly absorbed.
+
+**What the gate found on its first run.** `format-typecheck.sh` guarded with a positive list
+(`= minimal`, `= standard`) directly beneath a comment reading `runs in strict only`, so every other
+value fell through and ran an expensive Stop-time hook — while both sibling strict-only gates use
+the negative form. Three review rounds of the hook batch had read that file and found nothing,
+because neither line is wrong in isolation. Writing down what the profiles were *supposed* to be and
+checking it mechanically surfaced it immediately. Normalised to `!= strict`: identical on all three
+real values.
+
+**What was deliberately not built, and is said out loud.** Hooks do not read profiles — that is
+eleven fail-closed enforcement scripts and needs its own plan, and *not* touching them is precisely
+why `ECC_HOOK_PROFILE=minimal` keeps working by construction. The `agents`/`commands`/`mcp`/`stack`
+sections are declarative only; no shipped profile claims a selector that does not exist. Net
+asset-count delta: **zero**.
+
+**The binding, and why `unrecognised` is the load-bearing half.** `scan_hook_guards()` re-derives
+each hook's per-profile mode from the hook's own text (regex for shell, `ast` for Python, so
+docstrings that merely name the variable cannot be mistaken for guards) and **reports** any guard
+shape it does not model instead of ignoring it. That is the added-clause recurrence class from
+`REVIEW_GUIDE.md` applied before it could bite: a mirror that only notices a CHANGED clause goes
+quietly wrong the first time someone ADDS one. Two tests mutate the shipped artifact — flip a
+declared row, add an unmodelled guard — and require the failure.
+
+**The review caught the binding lying about itself.** Round 1 (88.7/100, REJECTED) found that the shell candidate test was a substring check for `${ECC_HOOK_PROFILE`, so a brace-less `[ "$ECC_HOOK_PROFILE" = ... ]` guard was skipped *without* being recorded as unknown — neither recognised nor reported, in the one mechanism whose entire purpose is that nothing slips through. The M2 mutant passed because it exercised one unmodelled *shape* rather than the *class*. Fixed to a regex, plus M7/M8. Round 2 (88.8/100, REJECTED) then found the SAME hole one alternative to the right — the alias pattern demanded quotes, so an unquoted `$PROFILE` was skipped just as silently. M9 covers it, and neither alternative requires quotes now. Two instances of one class in two rounds is the real lesson: a candidate filter and a recogniser are different jobs, and both bugs were the filter quietly doing the recogniser's. Worth recording as its own instance of `unreviewed-expansion`: the source line read correctly, and only what it actually matched was wrong.
+
+**Follow-ups.** `.codex/hooks/` has drifted from `.claude/hooks/` with nothing gating it (P1, filed);
+hooks reading profiles at runtime; Phases 3–5 of the handoff.
+
 ## 2026-08-21 — Claude (Opus 5) — Validator security batch: three bypasses, two CI gates
 
 **Scope.** Executed the queued `plan-validator-segmentation` and everything its reviews forced:

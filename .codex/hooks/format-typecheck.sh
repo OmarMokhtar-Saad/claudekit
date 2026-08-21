@@ -4,9 +4,13 @@
 # Batches Prettier/Biome format and tsc typecheck across ALL JS/TS files
 # edited in this response. Runs ONCE at Stop, not after every Edit.
 # =============================================================================
-# ECC_HOOK_PROFILE: runs in strict only (expensive operation)
-[ "${ECC_HOOK_PROFILE:-standard}" = "minimal"  ] && exit 0
-[ "${ECC_HOOK_PROFILE:-standard}" = "standard" ] && exit 0
+# ECC_HOOK_PROFILE: strict only (expensive operation). Written as a NEGATIVE
+# guard, like its sibling strict-only gates file-guard-gate.sh and
+# injection-scan-gate.sh, so an unrecognised profile value stands the hook
+# down instead of silently running it. The old positive list (= minimal,
+# = standard) let every other value through, contradicting the "strict only"
+# line directly above it. Identical on all three real values.
+[ "${ECC_HOOK_PROFILE:-standard}" != "strict" ] && exit 0
 
 LOG=".claude/hooks/hooks.log"
 # Files actually edited this response come from post-tool-use.sh (Edit/Write

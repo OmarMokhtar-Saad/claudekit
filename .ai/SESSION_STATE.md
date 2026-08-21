@@ -2,12 +2,27 @@
 
 > Update this file at the end of every significant AI working session. It is the resume point.
 
-**Last updated:** 2026-08-21 · **By:** Claude (Opus 5) — **the validator security batch
-landed on `perf/token-efficiency`** (`ecb3b2b`, `0b97efc`, `4cf1e42`). All eight DoD gates pass;
-1,646 tests green.
+**Last updated:** 2026-08-21 · **By:** Claude (Opus 5) — **layered profiles landed on
+`perf/token-efficiency`**, on top of the validator security batch (`ecb3b2b`, `0b97efc`,
+`4cf1e42`, `1a15f36`). All eight DoD gates pass.
 
-**Resume point.** **Nothing is in flight; the working tree is clean.** Three items are
-owner-gated and none of them is a code change:
+**Profiles, in one paragraph.** `.claude/profiles/` + `src/claudekit/profiles.py` + `ck profile
+list|show --resolved` replace the flat `ECC_HOOK_PROFILE` switch with four declared profiles
+composed through `base -> profile -> project-local -> override`, every resolved row attributed to
+the layer that won it. **No hook reads the new format** — `ECC_HOOK_PROFILE` still selects, and
+that is exactly why `minimal` keeps working by construction. What binds the declaration to reality
+is `ck doctor`: it re-derives each hook's real per-profile mode from the shipped hook file and
+fails if a profile disagrees. On its first run that gate found a real defect —
+`format-typecheck.sh` guarded with a positive list under a comment saying "strict only", so any
+unrecognised value ran an expensive Stop hook. The handoff's ground truth ("two effective values")
+was also wrong: three values, eleven hooks, four guard forms, and `reflection-gate` under `minimal`
+is *advisory*, not off. Deviations, limits and the zero asset-count delta: `.ai/PROFILES.md`.
+
+**Resume point.** **Nothing is in flight; the working tree is clean.** The next unblocked
+piece of work is the `.codex/hooks/` mirror drift filed at P1 in `.ai/BACKLOG.md` (found while
+mirroring the `format-typecheck` fix; security-relevant, and nothing gates it). Phases 3–5 of
+`handoff-4-profiles.md` (skill/MCP generators, memory store, `ck adapt`) now have their dependency
+and can start. Three items remain owner-gated and none of them is a code change:
 (1) **push / PR the branch** — outward-facing;
 (2) **do the two CI gates ship enabled?** Both are wired into the coverage job. The differential
 gate can block merges; the bash oracle **executes fuzzed shell payloads on the runner**. Their
