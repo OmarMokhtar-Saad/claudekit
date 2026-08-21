@@ -3,13 +3,17 @@
 > Update this file at the end of every significant AI working session. It is the resume point.
 
 **Last updated:** 2026-08-21 · **By:** Claude (Opus 5) — **the validator security batch
-landed on `perf/token-efficiency`** (`0b97efc`). All eight DoD gates pass; 1,623 tests green.
+landed on `perf/token-efficiency`** (`ecb3b2b`, `0b97efc`, `4cf1e42`). All eight DoD gates pass;
+1,646 tests green.
 
-**Resume point.** **Nothing is in flight; the working tree is clean and the branch is 67 commits
-ahead of `origin/main`.** Three items are owner-gated and none of them is a code change:
-(1) **push / PR the branch** — 67 commits, outward-facing;
-(2) **does the CI differential gate ship enabled?** It is wired into the coverage job with
-`--require-baseline` and `fetch-depth: 0`, so it is a new gate that can block merges;
+**Resume point.** **Nothing is in flight; the working tree is clean.** Three items are
+owner-gated and none of them is a code change:
+(1) **push / PR the branch** — outward-facing;
+(2) **do the two CI gates ship enabled?** Both are wired into the coverage job. The differential
+gate can block merges; the bash oracle **executes fuzzed shell payloads on the runner**. Their
+behaviour is no longer a question — all three checkout shapes were verified in a real clone
+(evidence below) — but *accepting* execution in CI is a judgement call, and the only filesystem
+argument left after review round 6 is that the runner is ephemeral and discarded;
 (3) **record the first eval cassettes** — still blocked on API quota (see below).
 
 **What the validator batch changed.** `CommandValidator` had three consecutive review rounds each
@@ -33,6 +37,40 @@ rule is `\$\{?IFS` and needs a literal `$IFS`/`${IFS}`, so the pattern had never
 regressions in **both** modes, which that mutant cannot produce: safe mode still rejects an
 un-blocklisted `rm` as unallowlisted, so the loss is visible only with safeMode off. Each mode is
 now asserted where it is actually observable.
+
+**The second gate, and why the first is not enough.** `check-validator-differential.py` compares
+the validator against **itself** at another commit, so a payload *both* versions wrongly allow is
+invisible to it — and that is the shape of every fail-open in this batch. `4cf1e42` adds
+`scripts/check-validator-vs-bash.py`: each payload the validator ALLOWS is executed under bash
+with `rm`/`sudo`/`chmod`/`curl`/`dd` shadowed by marker functions, and a marker is a divergence.
+It took **six review rounds, five of them rejections, every one a real containment defect in a
+script whose job is executing fuzzed shell** — and the pattern is worth reading, because four of
+the five were the same shape: a lexical rule that did not model a shell feature.
+`echo x > /etc/hosts` was **in the corpus as a probe**, and redirection is bash's own parser
+rather than anything `PATH` controls; the denylist fix was walked around by `> "/etc/hosts"`,
+`> $HOME/../../etc/x`, `> ${x}/etc/x`; then `cd /etc && echo x > passwd`, where the target is
+safe in isolation and the escape is the cwd; then `PATH=/usr/bin python3 -c …`, because the
+empty-`PATH` premise holds only at lookup time. The fifth was mine and worse: I claimed
+`unshare --mount --map-root-user` was a filesystem boundary, and it is not — an unshared mount
+table that nothing mounts into resolves `/etc` to the same inode. **That claim is withdrawn, not
+repaired.** What ships is deliberately unconfident: local runs need `--allow-execution`, a
+starved run (refusal ratio > 0.5) FAILS, a validator that raises on everything FAILS rather than
+reporting clean, and the blind spots — wrapper arguments, `command rm`, every refused shape —
+are written into the script.
+
+**Both CI gates were verified in a real clone, because "it should work in CI" is the kind of
+claim this batch keeps punishing.** Three checkout shapes, measured:
+
+| shape | result |
+|---|---|
+| shallow clone (`fetch-depth: 1`, the CI default) | differential gate **exits 1**: "the baseline resolves to HEAD itself". This is why the workflow sets `fetch-depth: 0` — without it the gate would have compared the tree with a copy of itself and passed forever |
+| full clone on a branch (PR shape) | **exits 0**, 9,801 payloads vs the merge base, 625 disclosed widenings, 0 undisclosed |
+| `origin/main` pointing at HEAD (push shape) | **exits 0** via the `HEAD~1 (origin/main is at HEAD - push, not PR)` fallback — the permanent-red build review round 1 of that gate found, confirmed fixed end to end |
+
+The oracle in the same clone: `--allow-execution` → exits 0, "bash actually ran 207 of the ones
+the validator allowed and reached no shadowed command"; without the flag → SKIP, exit 0. After
+both runs the clone's working tree was **clean** and no `validator-oracle-*` sandbox survived in
+`/tmp`, which is the containment claim checked rather than asserted.
 
 **Superseded resume point.** **All three wave-2 phases have landed.** What remains is one blocked task and one
 structural follow-up: record the first eval cassettes (needs a session with API quota — attempted
