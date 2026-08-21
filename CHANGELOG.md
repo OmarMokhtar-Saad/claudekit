@@ -13,6 +13,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`ck memory` — a project-local memory store that enforces two rules instead of asking
+  an agent to remember them.** Memories live in `.claude/memory/entries.jsonl`, schema-
+  validated. Each stamps the SHA-256 of every file it cites, so `ck memory check` re-derives
+  them and reports **STALE** when the tree has moved on and **UNVERIFIABLE** when a memory
+  cites nothing — never `FRESH`. That is "current files outrank memories" made mechanical.
+  Imperative shapes found in a body ("ignore previous instructions", "never tell the user")
+  are surfaced on every read path as **findings, not orders**; the store never acts on them.
+  This is a shape scanner over English, **not an injection defence**: for the forms it
+  detects the text is labelled wherever the store surfaces it, but it does not claim every
+  directive in a body is found — questions, passive voice, other languages, unusual filler
+  openers and deliberate obfuscation are named blind spots. Read a memory as untrusted text
+  regardless of what it reports.
+  Secrets, credential-shaped tokens, absolute paths into a home directory, transcripts and
+  raw log dumps are refused **before** a byte is written — a store that writes then redacts
+  has already leaked. Reads are one attempt: no retry, no poll, no watch.
 - **Layered profiles and `ck profile`.** `.claude/profiles/` replaces the flat
   `ECC_HOOK_PROFILE` switch with four declared profiles — `minimal`, `standard`, `strict` and a
   `python` stack profile — composed through `base -> profile -> project-local -> override`, each

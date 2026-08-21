@@ -18,13 +18,26 @@ unrecognised value ran an expensive Stop hook. The handoff's ground truth ("two 
 was also wrong: three values, eleven hooks, four guard forms, and `reflection-gate` under `minimal`
 is *advisory*, not off. Deviations, limits and the zero asset-count delta: `.ai/PROFILES.md`.
 
-**Resume point.** **Nothing is in flight; the working tree is clean.** `.codex/` was removed
-2026-08-21 (DECISIONS.md 22) — the P1 drift item is closed by deletion, and the entry carries a
-correction: I had called that drift "security-relevant" without checking that `.codex/config.toml`
-forced `minimal`, under which those hooks never ran. Next: hooks reading profiles at runtime (eleven
-fail-closed scripts, its own plan), then Phases 3–5 of `handoff-4-profiles.md` (skill/MCP
-generators, memory store, `ck adapt`), now unblocked. Three items remain owner-gated and none of
-them is a code change:
+**Two other sessions are active on this branch.** Check `git status` before touching
+`.claude/hooks/**`, `src/claudekit/security/**`, or `src/claudekit/{context_floor,skills,mcp}.py`.
+Agent A has `plan-enforcement-runtime` (Phase 0 — event log, dispatcher, most-restrictive merge,
+spill, advisory tier) planned and unexecuted; Agent B has `plan-generators-that-cannot-drift`
+(Phase 3 — `ck skill new`, `ck mcp add`, registry gate; 14 ops, validator APPROVED) awaiting owner
+approval. **Both are untracked files — do not commit them, and do not edit the anchors they
+depend on.** The `.codex` removal broke one of Agent B's CHANGELOG anchors once; it was fixed on
+our side by reordering our own entry, never by editing their file.
+
+**Resume point.** **Nothing of ours is in flight; the working tree is clean.** Landed since the
+validator batch: layered profiles + `ck profile` (`f5eb927`), the `.codex/` removal (`6fab8c1`,
+DECISIONS.md 22 — its backlog entry carries a correction, I had called that drift
+"security-relevant" without checking that `.codex/config.toml` forced `minimal`, under which those
+hooks never ran), and Phase 4's memory store + `ck memory`.
+
+**What is left, and why it is not ours to start.** Hooks reading profiles at runtime is deferred by
+owner decision: it would edit the same eleven hooks and `lib.sh` that Agent A's dispatcher replaces,
+and re-invent the `advisory` tier that Phase 0.4 also defines. Phase 3 belongs to Agent B. Phase 5
+(`ck adapt`) sits behind Phase 3 in the handoff's dependency chain. Three items remain owner-gated
+and none of them is a code change:
 (1) **push / PR the branch** — outward-facing;
 (2) **do the two CI gates ship enabled?** Both are wired into the coverage job. The differential
 gate can block merges; the bash oracle **executes fuzzed shell payloads on the runner**. Their
