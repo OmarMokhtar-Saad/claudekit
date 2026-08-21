@@ -1,7 +1,6 @@
 ---
 name: verification-before-completion
 description: "Use when about to claim work is complete or passing - requires running verification commands before making success claims"
-disable-model-invocation: true
 ---
 
 # Verification Before Completion

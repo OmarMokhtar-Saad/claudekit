@@ -6,7 +6,15 @@
 landed on `perf/token-efficiency`.** Four plans, 20 ops; every plan was rejected on its first review round, hash-bound via
 `review-record.py`. All six DoD gates pass, plus a new seventh: `gen-model-policy.py --check`.
 
-**Resume point.** Wave-2 phases **2 and 3 are not started** — handoff at
+**Resume point.** Wave-2 **phase 3 is not started** — SHA-256 install receipts with fail-closed
+uninstall, and commit-pinned installs (`plan` it from the handoff's PHASE 3). **Phase 2 landed**:
+the eval suite now records and replays keyless with fail-closed invalidation, `--inject` proves its
+checks bind, and the 15 dead skill-load instructions are fixed with a mechanical gate against
+recurrence. Two owner items came out of phase 2: **record the first cassettes** (costs real API
+money; `evals/cassettes/` ships empty and CI is deliberately unwired until then), and the skill
+budget was **lowered** 14000 → 9000 alongside a measurement fix.
+
+**Superseded resume note.** Wave-2 phases 2 and 3 were not started — handoff at
 `handoff-2-policy-and-eval.md` (scratchpad session `476760e6`). Phase 2 = the deterministic
 record/replay eval engine + fault injection (unblocks task 010, and the
 `disable-model-invocation` audit). Phase 3 = SHA-256 install receipts with fail-closed uninstall,

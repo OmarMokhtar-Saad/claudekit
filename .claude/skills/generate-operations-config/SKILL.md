@@ -1,7 +1,6 @@
 ---
 name: generate-operations-config
 description: "Use when making ANY code change - generates ops.json config for structured execution"
-disable-model-invocation: true
 allowed-tools: Read, Grep, Glob
 ---
 

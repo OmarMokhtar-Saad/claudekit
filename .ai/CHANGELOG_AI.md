@@ -58,6 +58,34 @@ the new registry-decay test would have gone red on the first CI run. The registr
 author before execution is the strongest evidence it works — and the reason the evidence in this
 entry is mutation output rather than assertion.
 
+## Wave-2 phase 2 (same session)
+
+**2.1 — the eval engine.** `run-evals.py` gains record-once/replay-many cassettes and four
+injectable faults, so the suite can run keyless. Caching was easy; **invalidation was the design**:
+`prompt_surface()` fingerprints everything the model saw — the agent's own `.md`, the skills the
+registry maps to it, the operations-scripts tree, resolved model, tool grants, prompt, fixture tree,
+setup files — and replay refuses on mismatch, naming what moved. `--inject` is mutation testing for
+the eval suite with an **inverted exit code**; verified live with no API key, all 4 evals reject all
+4 faults. Two of the four evals were also found to be running the wrong agent entirely
+(implementer on sonnet, reviewer on opus). Review 83.5 → 92. **Round 1 caught a live false-PASS
+path:** the operations scripts were outside the fingerprint, yet two evals grant Bash on them and
+instruct the agent to self-validate — so they run during generation and their stdout shapes the
+answer.
+
+**2.2 — a sentence in the entrypoint is not a load.** 15 skill-load instructions could never
+execute. Review 65.5 → 90.2, and **round 1 refuted the plan's central factual claim**: I asserted
+all 15 were mandatory; 7 were on-demand. The cause is the transferable lesson — the classifier
+matched `On-demand` with a hyphen while the corpus writes `On demand` with a space, so the header
+never matched and everything defaulted into the mandatory bucket. A parser that cannot fail loudly
+produced a confident wrong answer, and it reached a plan as fact. The shipped gate now asserts both
+classes are observed, so the same silent miss fails loudly.
+
+**Method note.** Across both phases, three of four plans were rejected on first review, and in every
+case the finding was one static reading caught that execution would not have: a false-PASS path, a
+false premise, a self-invalidating registry entry. Also worth recording: one of my own mutation
+checks appeared to show a guard was unnecessary, and that was a `-k` filter selecting the wrong
+test. Re-running by hand showed `0/0 passed` with exit 0. Verify the verification.
+
 **Follow-ups.**
 - `TOKEN-MODEL-POLICY` marker bumped **v2 → v3** so the 16 kitted projects do not skip the new
   block as "already present". The precedent is `CHANGELOG.md:328` (v1 → v2). **Owner decides when

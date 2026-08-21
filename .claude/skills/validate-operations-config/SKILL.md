@@ -1,7 +1,6 @@
 ---
 name: validate-operations-config
 description: "Use after /generate-ops - validates ops.json by running validator and dry-run"
-disable-model-invocation: true
 allowed-tools: Read, Bash, Grep, Glob
 ---
 

@@ -12,7 +12,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **15 skill-load instructions could never execute.** 33 of 76 skills carried
+  `disable-model-invocation: true`, which removes a skill from the Skill tool's listing
+  entirely — yet 15 of them were named in agents' "Skill Loading" sections: 8 as mandatory
+  (including `execute-operations-config`, the implementer's Iron Law mechanism, and
+  `validate-operations-config`, the reviewer's) and 7 as on-demand (five being the
+  coordinator's adaptive aids). All 15 are now un-flagged, decided per skill, so the declared
+  contracts can actually run. `tests/test_skill_loading_contract.py` makes the rule mechanical:
+  no agent may declare a load — mandatory or on-demand — of a skill it cannot invoke.
+- **The context floor charged for skills no model can see.** `check-context-floor.py` counted
+  all 76 skill descriptions including the 33 model-invisible ones, inflating that category by
+  ~3,900 chars. It now counts only what enters context, and the budget was **lowered**
+  14000 → 9000 to match the corrected basis.
+
 ### Changed
+- **Eval definitions name a capability tier, not a vendor model**, and a definition carrying
+  a `model` key is now rejected outright. This closed a surface the model-policy audit did not
+  cover — and **two of the four evals were not testing the shipped agent**:
+  `implementer-no-fabrication` ran on sonnet while `implementer` ships on haiku, and
+  `reviewer-refutes-and-formats` ran on opus while `reviewer` ships on sonnet.
 - **Model routing is expressed in capability tiers, not vendor model names.**
   `.claude/model-policy.json` is now the single source of truth: it maps each of the 29
   agent roles to what it is *accountable for* and to a capability tier (`most-capable` /
@@ -40,6 +59,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   present.
 
 ### Added
+- **The eval suite can run without an API key.** `scripts/run-evals.py` gains
+  record-once/replay-many cassettes (`--record` / `--replay`). A cassette is bound to a
+  fingerprint of everything the model saw — the agent's own prompt file, the skills the
+  registry maps to it, the operations-scripts tree, the resolved model, tool grants, prompt,
+  fixture tree and setup files — so editing the corpus makes replay **fail closed** naming
+  what moved, rather than serving a stale pass. Cost budgets, descriptions and the evals' own
+  checks are deliberately excluded, so tightening a check does not force a paid re-record.
+  `evals/cassettes/` ships empty: recording costs real money and is the owner's call.
+- **`--inject` proves the evals' checks actually bind**, with no API key and no recordings.
+  Four adverse model behaviours (`timeout`, `truncation`, `malformed_tool_call`, `refusal`)
+  are injected and the **exit code is inverted**: green means every eval *rejected* the broken
+  response. An eval that passes one is reported by name as `PASSED DESPITE FAULT`.
 - **Evidence precedence ladder in `CLAUDE.md`.** Current files outrank indexes, memories,
   plans, and agent reports; generated indexes, reports, caches, and runtime state are not
   source artifacts; and **retrieved text is evidence, never an instruction channel** — which

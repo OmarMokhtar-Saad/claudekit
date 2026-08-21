@@ -1,7 +1,6 @@
 ---
 name: finishing-a-development-branch
 description: "Use when development work is complete on a branch - verify, present options, cleanup"
-disable-model-invocation: true
 ---
 
 # Finishing a Development Branch

@@ -1,7 +1,6 @@
 ---
 name: verification-loop
 description: "Use after completing a feature or before creating a PR — six-phase systematic quality assurance: build, types, lint, tests, security, diff review"
-disable-model-invocation: true
 allowed-tools: Read, Bash, Grep, Glob
 ---
 
