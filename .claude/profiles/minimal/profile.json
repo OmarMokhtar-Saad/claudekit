@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "name": "minimal",
+  "description": "Maintainer/development posture: enforcement hooks stand down. Exactly what ECC_HOOK_PROFILE=minimal does today - this is a declaration of the shipped hooks' own guards, not a second control.",
+  "extends": null,
+  "hooks": {
+    "block-no-verify": "off",
+    "command-guard": "off",
+    "commit-quality": "off",
+    "config-protection": "off",
+    "file-guard-gate": "off",
+    "format-typecheck": "off",
+    "injection-scan-gate": "off",
+    "iron-law-gate": "off",
+    "ops-enforcement": "off",
+    "reflection-gate": "advisory",
+    "security-reminder": "off"
+  },
+  "agents": {},
+  "commands": {},
+  "mcp": {},
+  "stack": {}
+}

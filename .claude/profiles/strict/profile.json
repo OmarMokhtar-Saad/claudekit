@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "name": "strict",
+  "description": "Every profile-guarded hook on, including the three that stand down under standard. Declares no hook rows at all: strict IS the base posture, and saying so with an empty section is the honest way to say it.",
+  "extends": null,
+  "hooks": {},
+  "agents": {},
+  "commands": {},
+  "mcp": {},
+  "stack": {}
+}

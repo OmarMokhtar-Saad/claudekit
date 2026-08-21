@@ -232,6 +232,28 @@ if [[ "$MODE" == "full" ]]; then
     SKILL_COUNT=$(find "$DEST/skills" -name "SKILL.md" 2>/dev/null | wc -l | tr -d ' ')
     print_ok "$SKILL_COUNT skills installed"
 
+    # Profiles. Full mode only: they DECLARE the hook set, and hooks are a
+    # full-mode component. The manifest walks the destination tree, so these
+    # are receipted (and therefore uninstallable and `ck diff`-visible) with
+    # no manifest change.
+    print_step "Installing profiles..."
+    # Created HERE, not in the unconditional mkdir above: profiles declare the
+    # hook set, hooks are full-mode only, and an empty profiles/ in a --minimal
+    # install is a `ck doctor` failure rather than a designed absence.
+    mkdir -p "$DEST/profiles"
+    for profile_dir in "$CLAUDE_SRC"/profiles/*/; do
+        if [[ -d "$profile_dir" ]]; then
+            profile_name=$(basename "$profile_dir")
+            mkdir -p "$DEST/profiles/$profile_name"
+            cp "$profile_dir"profile.json "$DEST/profiles/$profile_name/"
+        fi
+    done
+    if [[ -f "$CLAUDE_SRC/profiles/README.md" ]]; then
+        cp "$CLAUDE_SRC/profiles/README.md" "$DEST/profiles/"
+    fi
+    PROFILE_COUNT=$(find "$DEST/profiles" -name "profile.json" 2>/dev/null | wc -l | tr -d ' ')
+    print_ok "$PROFILE_COUNT profiles installed"
+
     # Copy the issue-ledger entry-format contract. The ledger directory and its
     # entries self-materialize on the first `record`, but the README is the
     # documented entry format, so a full install must ship it.
@@ -678,6 +700,7 @@ ENTRIES=(
     "# ClaudeKit"
     ".claude/reports/"
     ".claude/hooks/hooks.log"
+    ".claude/profiles/local.json"
     ".claude/locks/"
     ".claude-core.lock"
     "backups/"

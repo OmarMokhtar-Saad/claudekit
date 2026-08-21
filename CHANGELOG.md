@@ -12,7 +12,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Layered profiles and `ck profile`.** `.claude/profiles/` replaces the flat
+  `ECC_HOOK_PROFILE` switch with four declared profiles — `minimal`, `standard`, `strict` and a
+  `python` stack profile — composed through `base -> profile -> project-local -> override`, each
+  layer replacing rows by id. `ck profile list` names what is installed and which is active;
+  `ck profile show <name> --resolved` prints the composed result with **each row attributed to the
+  layer that won it**, which is the half that was missing: resolution nobody can inspect is
+  resolution nobody can trust. A malformed or unknown profile fails closed with a named cause —
+  there is no permissive fallback — and `ck doctor` re-derives every hook's real per-profile mode
+  from the shipped hook file, so a profile that has drifted from the hooks is a health failure.
+  **`ECC_HOOK_PROFILE` is unchanged and keeps working**: it selects the profile, and no hook reads
+  the new format. Profiles *declare*, and are gate-bound to what the hooks actually do; they do not
+  yet control them, and `.claude/profiles/README.md` says so rather than implying otherwise.
+
 ### Fixed
+- **`format-typecheck.sh` ran for any unrecognised `ECC_HOOK_PROFILE` value.** Its guard was a
+  positive list (`= minimal`, `= standard`) sitting directly under a comment reading "runs in strict
+  only", so a typo — or any new profile name — fell through and started an expensive Stop-time
+  format + typecheck. Now a negative guard (`!= strict`), matching its two sibling strict-only
+  gates. Identical behaviour on all three real values; found by the new profile gate on its first run.
 - **`ck uninstall` deleted files it did not own.** The install manifest records a sha256 per
   file, but uninstall removed every path it *listed* without comparing a single digest — so a
   prompt a user had spent a week tuning was removed as readily as an untouched one. Uninstall

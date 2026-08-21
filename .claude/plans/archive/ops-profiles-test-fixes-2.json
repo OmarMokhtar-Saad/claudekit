@@ -1,0 +1,15 @@
+{
+  "plan": "profiles-test-fixes-2",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_profiles.py",
+      "edits": [
+        {
+          "find": "def tree(tmp_path):@pytest.fixture()\ndef tree(tmp_path):",
+          "replace": "def tree(tmp_path):"
+        }
+      ]
+    }
+  ]
+}
