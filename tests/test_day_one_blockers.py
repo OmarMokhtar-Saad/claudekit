@@ -376,18 +376,25 @@ class TestSecretPatternConstruction:
 # BUG 2
 # ---------------------------------------------------------------------------
 
-# The roots this plan is responsible for: everything install.sh ships, the .codex/.agents
-# mirrors, and the code and plan artifacts this change itself adds. NOT the whole
-# repository - `review/` and `docs/` are committed too but are out of scope here, and
-# review/tasks/003-fix-hook-bugs-and-fail-closed.md:49 already contains a line matching a
-# live pattern, so adding `review` would red this suite for a pre-existing reason
-# unrelated to this change. Tracked as a follow-up, not silently ignored.
+# The roots this suite is responsible for: everything install.sh ships, the .codex/.agents
+# mirrors, the code and plan artifacts, and - since 2026-08-21 - the committed review
+# records and the user docs.
+#
+# `review` could join once the three lines that matched the live api-key pattern were
+# retyped: review/code-review.md:219, review/security-review.md:90, and
+# review/tasks/003-fix-hook-bugs-and-fail-closed.md:49. Each was documentation quoting an
+# example assignment, not a secret, so each was fixed by breaking the name/separator/quote
+# adjacency the pattern needs - three adjacent markdown inline-code spans - leaving the
+# finding text, severity and line references untouched. `docs` joined for FREE: it had
+# zero matches against all 13 live patterns before this change and nothing in it was
+# edited. Enumerated, not assumed: git ls-files over both roots x every expanded pattern.
 #
 # `.claude/plans` is deliberately included: plans and their ops configs ARE committed (18
 # under .claude/plans/archive/), so an ops config whose `find` anchor carried a bare
 # pattern literal would block the archiving commit with no sanctioned exit. The anchors in
 # plan-day-one-blockers.ops.json are chosen to avoid that; this root is what enforces it.
-SCAN_ROOTS = (".claude", "templates", ".codex", ".agents", "tests", "scripts", "src")
+SCAN_ROOTS = (".claude", "templates", ".codex", ".agents", "tests", "scripts", "src",
+              "review", "docs")
 
 
 def _scanner_patterns():
@@ -433,12 +440,33 @@ def _hook_skips(path):
     return bool(_SKIP_SUFFIX_RE.search(path))
 
 
+def _check_secrets_block():
+    """The BODY of check_secrets(), so its skip clauses can be COUNTED and not merely
+    matched. Fails loudly if the function is renamed rather than returning an empty
+    string that would trivially count zero clauses."""
+    text = PRE_COMMIT.read_text()
+    block = re.search(r"^check_secrets\(\) \{\n(.*?)\n\}$", text, re.S | re.M)
+    assert block, "check_secrets() not found in pre-commit.sh; update this mirror"
+    return block.group(1)
+
+
 def test_skip_mirror_matches_the_hook():
-    """If the hook's skip list changes, this test must be updated with it."""
+    """If the hook's skip list changes, this test must be updated with it.
+
+    Two literal tokens catch a CHANGED clause but not an ADDED one: a third
+    continue-guarded clause in check_secrets leaves both tokens present while making
+    _SKIP_SUFFIX_RE STRICTER than the control it mirrors. That surfaces as a spurious red
+    in test_no_committed_file_matches_a_live_pattern - a file the hook now skips is still
+    scanned here - instead of failing where the fix belongs. So the clause COUNT is
+    asserted too."""
     text = PRE_COMMIT.read_text()
     for token in ("lock|png|jpg|jpeg|gif|ico|woff|woff2|ttf|eot|pdf",
                   "config\\.json|config\\.template|\\.example"):
         assert token in text, f"pre-commit.sh skip list changed; update _SKIP_SUFFIX_RE ({token})"
+    clauses = re.findall(r'\[\[ "\$file" =~', _check_secrets_block())
+    assert len(clauses) == 2, (
+        f"check_secrets() has {len(clauses)} skip clauses but _SKIP_SUFFIX_RE mirrors 2; "
+        "add the new clause to _SKIP_SUFFIX_RE, or remove it from pre-commit.sh")
 
 
 class TestSelfScanIsClean:

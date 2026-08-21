@@ -46,7 +46,7 @@ Medium. Turning enforcement **on** for the first time will surface false positiv
 - An Edit targeting `eslint.config.js` without approved ops.json is actually blocked in a live Claude Code session.
 - `pre-commit.sh` validates a staged `foo.ops.json` (nonzero match count in hooks.log).
 - Malformed stdin JSON to any blocking guard ⇒ exit 2.
-- `api_key = 'abcdef123456'` (single quotes) staged ⇒ commit blocked.
+- `api_key` `=` `'abcdef123456'` (single quotes) staged ⇒ commit blocked.
 - cost-tracker prints a session summary with TOOL_CALLS > 0 after one Edit.
 - All hooks pass `bash -n` + ShellCheck; hooks run clean on macOS bash 3.2.
 

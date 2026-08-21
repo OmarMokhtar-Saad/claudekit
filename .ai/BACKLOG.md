@@ -99,8 +99,18 @@ defects discovered during execution. See CHANGELOG `[Unreleased]` and the plans 
   `reflection_env` fixture, `ref` depends on that fixture, and propagating the scoped values into
   the child is deliberate. The env is scoped; a live session's hook should not be able to reach
   that ledger. Do not close this by asserting the entry above is the explanation — that link is
-  unproven. Next step is capture, not theory: on failure, dump the resolved ledger path, the
-  checkpoint file contents, and the CLI's stdout/stderr.
+  unproven. THIRD sighting 2026-08-21 at `64088a5`: one failure in a fresh process at the same
+  assertion, then two consecutive clean full runs (1,646 passed each). That run's output was
+  redirected to /dev/null and the evidence was LOST - precisely the mistake this item exists
+  to prevent. **Capture is now in place** (`receipt_diagnostic()`,
+  `tests/test_reflection_ledger.py`): on failure the assertion message carries the ledger
+  dir, the resolved ledger path and its raw bytes, the `CLAUDEKIT_REFLECTION_DIR` the CHILD
+  process received, the inbox path, the derived active entries, the returned checkpoint, and
+  the CLI's returncode/stdout/stderr. Note there is no separate checkpoint file: the
+  checkpoint is a pure reduction over the ledger JSONL, so the ledger bytes ARE the
+  "checkpoint contents" this entry asked for. **Still no cause is claimed**; no retry was
+  added and the assertion itself is unchanged. Do not close this until a CAPTURED failure
+  explains it.
 - [ ] **Triage `review/code-review.md` — 76 unfixed P2/P3 findings, and one of them just cost real
   damage.** The ops engine's mode-stripping bug was documented there at `:286` as a P2 **with its fix
   already written out** ("Copy the original mode … before replace"), and left unfixed until it
