@@ -2,6 +2,55 @@
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
 
+## 2026-08-21 — Claude (Opus 5) — Validator security batch: three bypasses, two CI gates
+
+**Scope.** Executed the queued `plan-validator-segmentation` and everything its reviews forced:
+six ops configs, three commits (`ecb3b2b`, `0b97efc`, `4cf1e42`), all on `perf/token-efficiency`.
+
+**What was actually broken.** `ls\nrm -rf /` was **ALLOW in the shipped product**: `_SEPARATORS`
+listed `"\n"` but shlex swallowed a bare newline as whitespace, so only the first line's base
+command was ever checked. Two more shapes hid a blocked command from the blocklist — a leading
+file-descriptor digit (`2>/dev/null rm -rf /` → base `2`) and an empty expansion glued to the
+name (`` ``rm ``, `rm$()`, `$''rm`) — both falsifying `BLOCKLIST`'s own docstring ("never
+allowed, even in unsafe mode"). Also: `eval`/`exec` matched as bare words anywhere, which is what
+rejected `bundle exec rspec`; env-assignment prefixes rejected wholesale; eight build tools
+missing from the allowlist. The 18-entry `STILL_BLOCKED` ratchet is now empty.
+
+**Method, and the number that matters.** Nine review rounds across the batch (three plan reviews,
+six adversarial diff reviews), and **reading the diff found nothing** — every defect that
+mattered was found by executing payloads. Twice a *fix for a finding* opened a hole bigger than
+the one it closed: suppressing a backslash escape inside a comment changed quote parity so
+`echo # don\'t` swallowed the newline (21 exploitable regressions over a 48k fuzz), and a guard
+added to close a false PASS in the new CI gate made every push to `main` permanently red.
+
+**A suite can prove a property it never tested.** All four `COMMENT_ESCAPED_NEWLINE` payloads
+rejected on line 1's *trailing backslash*, so line 2's blocklist was never reached — and a mutant
+carrying the **byte-identical unfixed splitter** passed every assertion about them. `assert not
+ok` was vacuous. Tests now bind the split itself and the reason string.
+
+**Two gates, and the honest boundary between them.**
+`scripts/check-validator-differential.py` fails any change that moves a payload REJECT → ALLOW,
+with widenings **declared** rather than forbidden. Its own review found the corpus reached 3 of
+27 blocklisted commands and 1 of 17 dangerous patterns — so a mutant deleting 46 protections
+reported clean. Seeded now, with tests that fail when the seed falls behind the module.
+`scripts/check-validator-vs-bash.py` covers what the first structurally cannot: it compares the
+validator against *itself*, so a payload both versions wrongly allow is invisible. The oracle
+executes what the validator allows, with dangerous commands shadowed. Six rounds, five
+rejections, every one a containment defect — including one where **I claimed `unshare --mount`
+was a filesystem boundary and it was not**. Claim withdrawn; execution is opt-in locally.
+
+**Ratchet.** `fix-introduces-larger-hole` gained its fourth instance and now has a partial
+mechanical check. `validator-executor-divergence` has its first real oracle, scoped honestly to
+one seam — the other two still have nothing. `unsafe-mode-matrix-gap` reached three entries and is now a row in that table rather
+than a claim about one — review caught it being cited as tracked when it was not.
+
+**Verification.** 1,646 tests green (measured at the time of writing; a second session
+is committing to this branch concurrently, so the number moves); all eight DoD gates; `command_validator.py` coverage 97%.
+Both CI gates exercised in a real clone across shallow / PR / push-to-main checkout shapes.
+
+**Owner-gated.** Whether the two gates ship enabled — the second executes fuzzed shell on the
+runner, and after round 6 the only filesystem argument left is that the runner is ephemeral.
+
 ## 2026-08-21 — Claude (Opus 5) — Wave-2 phase 1: policy portability (capability tiers)
 
 **Scope.** First of three phases from the wave-2 adoption handoff, sourced from a direct read of
