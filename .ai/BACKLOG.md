@@ -88,6 +88,19 @@ defects discovered during execution. See CHANGELOG `[Unreleased]` and the plans 
   subdirectory, or refuse to operate without an explicit ledger root. Note this fallback is the most
   likely origin of a "flaky CLI test" reported 2026-08-19 that no in-process reproduction could
   produce — an ambient `CLAUDEKIT_REFLECTION_DIR` in a live session, misattributed to the test.
+- [ ] **UNEXPLAINED intermittent: `test_receipt_via_json_stdin_clears_the_checkpoint`**
+  (`tests/test_reflection_ledger.py:388`). Observed 2026-08-21 on `perf/token-efficiency` at
+  `7f25746`: one full-suite run failed at `:399` — `assert ref.pending_checkpoint(SESSION) is None`
+  — with the CLI itself exiting 0. It did **not** reproduce standalone, running the whole file,
+  pairing with `test_pipeline_e2e.py` or `test_reflection_gate.py`, or on an immediate second full
+  run (1,646 passed). **No cause is claimed.** The obvious hypothesis — that this test's
+  `dict(os.environ)` picks up an ambient ledger — was checked and **ruled out**: `TestCli.run`
+  documents at `:341` that `os.environ` already carries the per-test ledger from the
+  `reflection_env` fixture, `ref` depends on that fixture, and propagating the scoped values into
+  the child is deliberate. The env is scoped; a live session's hook should not be able to reach
+  that ledger. Do not close this by asserting the entry above is the explanation — that link is
+  unproven. Next step is capture, not theory: on failure, dump the resolved ledger path, the
+  checkpoint file contents, and the CLI's stdout/stderr.
 - [ ] **Triage `review/code-review.md` — 76 unfixed P2/P3 findings, and one of them just cost real
   damage.** The ops engine's mode-stripping bug was documented there at `:286` as a P2 **with its fix
   already written out** ("Copy the original mode … before replace"), and left unfixed until it
