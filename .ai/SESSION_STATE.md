@@ -2,11 +2,39 @@
 
 > Update this file at the end of every significant AI working session. It is the resume point.
 
-**Last updated:** 2026-08-21 · **By:** Claude (Opus 5) — **wave-2 phase 1 (policy portability)
-landed on `perf/token-efficiency`.** Four plans, 20 ops; every plan was rejected on its first review round, hash-bound via
-`review-record.py`. All six DoD gates pass, plus a new seventh: `gen-model-policy.py --check`.
+**Last updated:** 2026-08-21 · **By:** Claude (Opus 5) — **the validator security batch
+landed on `perf/token-efficiency`** (`0b97efc`). All eight DoD gates pass; 1,623 tests green.
 
-**Resume point.** **All three wave-2 phases have landed.** What remains is one blocked task and one
+**Resume point.** **Nothing is in flight; the working tree is clean and the branch is 67 commits
+ahead of `origin/main`.** Three items are owner-gated and none of them is a code change:
+(1) **push / PR the branch** — 67 commits, outward-facing;
+(2) **does the CI differential gate ship enabled?** It is wired into the coverage job with
+`--require-baseline` and `fetch-depth: 0`, so it is a new gate that can block merges;
+(3) **record the first eval cassettes** — still blocked on API quota (see below).
+
+**What the validator batch changed.** `CommandValidator` had three consecutive review rounds each
+find a fail-open, and twice a *fix for a finding* opened a hole bigger than the one it closed.
+Reading the diff caught none of them; executing payloads caught all of them in seconds. So the
+technique is now mechanical: `scripts/check-validator-differential.py` builds the validator from a
+git baseline and from the working tree, runs one generated corpus through both in **both** safeMode
+states, and fails the build on any payload that moved REJECT → ALLOW. Widenings are not forbidden,
+they are **declared** — a `DISCLOSED_WIDENINGS` entry carries a payload pattern, the exact baseline
+verdict it applies to, and a written reason. The gate's own adversarial review was the harshest of
+the batch and correct twice over: the first version reported a clean PASS while a mutant had removed
+46 of 44 protections (the corpus reached 3 of 27 blocklist entries and 1 of 17 dangerous patterns),
+and the guard added to close that false PASS then turned every push to `main` permanently red.
+Both are fixed and **measured**: gutted blocklist → 75 regressions, emptied patterns → 31, gate
+itself green across 9,800 payloads with zero undisclosed widenings.
+
+**Two test-side defects, and the tests were right both times.** The probe-completeness test failed by
+name because `IFS=$'\n' ls` trips `environment override: IFS`, not `IFS whitespace-evasion` — that
+rule is `\$\{?IFS` and needs a literal `$IFS`/`${IFS}`, so the pattern had never been reached;
+`cat${IFS}/etc/passwd` now reaches it. And `test_a_removed_blocklist_entry_is_reported` demanded
+regressions in **both** modes, which that mutant cannot produce: safe mode still rejects an
+un-blocklisted `rm` as unallowlisted, so the loss is visible only with safeMode off. Each mode is
+now asserted where it is actually observable.
+
+**Superseded resume point.** **All three wave-2 phases have landed.** What remains is one blocked task and one
 structural follow-up: record the first eval cassettes (needs a session with API quota — attempted
 and blocked on a weekly limit, `.ai/BACKLOG.md`), then wire `--replay` into CI in the same change;
 and move CLAUDE.md content into the agents that consume it, since headroom is 492 of 31,000 budget
