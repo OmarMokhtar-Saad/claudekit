@@ -86,6 +86,45 @@ false premise, a self-invalidating registry entry. Also worth recording: one of 
 checks appeared to show a guard was unnecessary, and that was a `-k` filter selecting the wrong
 test. Re-running by hand showed `0/0 passed` with exit 0. Verify the verification.
 
+## Wave-2 phase 3 + open issues (same session)
+
+**Phase 3 — the manifest is an ownership receipt, not an inventory.** `ck uninstall` deleted every
+path the manifest *listed* without comparing a single sha256, while `_classify_manifest()` — which
+returns exactly the split needed — already existed and was used by `ck update` and `ck diff` but not
+here. Uninstall now acts only on receipt-owned files and fails closed on mixed ownership.
+Also closed the standing `settings.local.json` defect, reproduced against the pre-fix installer.
+Review 93/100, one round.
+
+**On handoff 3.2, the mechanism was rejected and the invariant adopted.** There is no downloader to
+commit-pin — `install.sh:13-17` refuses `curl|bash` — and adding a fetcher would add the network
+surface this repo has avoided. So the manifest records `source: {commit, pinned, dirty}` instead,
+and the sibling invariant ("a failed install leaves the last verified one unchanged") was **verified
+rather than reimplemented**: the installer already stages and swaps atomically under an ERR trap.
+
+**A mutation that failed to bind was the most useful result of the phase.** Restoring
+`settings.local.json` to the manifest changed nothing, because the tests created it after a *fresh*
+install where it does not exist at manifest time. The defect only appears on the **second** install,
+once the preserve step has restored it. Same lesson as the phase-2 `-k` misread, from the other
+direction: a mutation that does not turn a test red is a finding about the test.
+
+**Open issues closed.** `/review` no longer contradicts the policy it was shipped alongside — and
+the fix that matters is deleting its `callsite_overrides` entry, so the audit test binds the literal
+to the table. CLAUDE.md headroom went 8 → 492 by deleting stale hand-written counts (a hard-rule-8
+violation that was also the space), and the file gained a documented gate while getting smaller.
+**The budget was deliberately not raised**, though the script offers that escape.
+
+**Two regressions, both found by running the suite rather than reading the diff.** A non-git source
+aborted the install (rc=128, no manifest): provenance uses two git calls, and while `rev-parse` was
+guarded, `git status --porcelain | head -1` is a PIPELINE — under `pipefail` a failing upstream
+fails it, and under `set -e` that killed the installer. **The review probed exactly this case and
+cleared it**, having checked the other line. And `ck uninstall` raised `AttributeError` for any
+caller building its own `Namespace`, which `tests/test_cli.py` does. The transferable point: static
+review is excellent at finding what a diff *says* and blind to what an environment *does* — the
+kit-copy fixture that exposed defect 1 already existed and had to be executed to matter.
+
+**Still blocked, not dropped:** recording the first eval cassettes. Attempted; the CLI here routes
+through `xpipe` and the available account had hit its weekly limit. The mechanism is complete.
+
 **Follow-ups.**
 - `TOKEN-MODEL-POLICY` marker bumped **v2 → v3** so the 16 kitted projects do not skip the new
   block as "already present". The precedent is `CHANGELOG.md:328` (v1 → v2). **Owner decides when

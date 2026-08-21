@@ -674,7 +674,20 @@ def cmd_diff(args):
 
 
 def cmd_uninstall(args):
-    """Remove ClaudeKit-managed files (per the manifest), backing them up first."""
+    """Remove ClaudeKit-managed files, acting ONLY on files the receipt owns.
+
+    The manifest records a sha256 per installed file. That receipt is what makes
+    ownership decidable: a file whose digest still matches is ours and ours only,
+    so removing it destroys nothing the user wrote. A file whose digest has
+    changed is MIXED ownership - our text plus their edits - and a file that is
+    not in the manifest at all is theirs.
+
+    Before this, uninstall deleted every path the manifest LISTED without ever
+    comparing a digest, so a prompt a user had spent a week tuning was removed as
+    readily as an untouched one. Deleting on unverified ownership is the failure
+    mode the receipt exists to prevent, and it fails closed here: mixed ownership
+    stops the whole operation rather than guessing.
+    """
     import datetime
     target = Path(args.target or ".").resolve()
     manifest = _load_manifest(target)
@@ -682,29 +695,59 @@ def cmd_uninstall(args):
         err(f"No {MANIFEST_NAME} found in {target}. Nothing to uninstall.")
         return 1
 
-    files = sorted(manifest.get("files", {}).keys())
-    if not files:
+    listed = sorted(manifest.get("files", {}).keys())
+    if not listed:
         warn("Manifest lists no files.")
         return 0
 
+    modified, missing, unchanged = _classify_manifest(target, manifest)
+
     if args.dry_run:
-        info(f"[dry-run] Would remove {len(files)} managed files from {target}:")
-        for rel in files:
+        info(f"[dry-run] {target}")
+        info(f"  {len(unchanged)} receipt-owned file(s) would be removed")
+        for rel in unchanged:
             print(f"    {rel}")
+        if modified:
+            info(f"  {len(modified)} locally-modified file(s) would be KEPT")
+            for rel in modified:
+                print(f"    {rel}")
+        if missing:
+            info(f"  {len(missing)} manifest file(s) already absent")
         return 0
 
+    # Fail closed on mixed ownership. --force is the only way past it, and it is
+    # named for what it does rather than hidden behind --yes, which merely skips
+    # a prompt.
+    # getattr, not attribute access: cmd_* take a Namespace that callers build by
+    # hand as well as one argparse builds, and a missing new flag must not raise.
+    force = getattr(args, "force", False)
+    keep_modified = getattr(args, "keep_modified", False)
+
+    if modified and not (force or keep_modified):
+        err(f"Refusing to uninstall: {len(modified)} managed file(s) have local "
+            f"modifications, so they are no longer solely ClaudeKit's to delete:")
+        for rel in modified:
+            print(f"    {rel}")
+        info("Choose explicitly:")
+        info("  --keep-modified   remove only the files the receipt still owns")
+        info("  --force           remove them too (your edits are backed up first)")
+        return 1
+
+    removable = list(unchanged) if not force else [
+        rel for rel in listed if (_manifest_base(target) / rel).exists()]
+
     if not args.yes:
-        resp = input(f"Remove {len(files)} ClaudeKit files from {target}? [y/N] ")
+        extra = " (including locally-modified files)" if force and modified else ""
+        resp = input(f"Remove {len(removable)} ClaudeKit files from {target}{extra}? [y/N] ")
         if resp.strip().lower() not in ("y", "yes"):
             info("Aborted.")
             return 0
 
-    # Back up managed files before removing (recoverable).
     base = _manifest_base(target)
     stamp = args.stamp or datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     backup = target / "backups" / f"uninstall-{stamp}"
     removed = 0
-    for rel in files:
+    for rel in removable:
         path = base / rel
         if not path.exists():
             continue
@@ -716,8 +759,20 @@ def cmd_uninstall(args):
         except OSError as e:
             warn(f"could not remove {rel}: {e}")
 
-    # Remove the manifest and any now-empty managed directories.
-    (base / MANIFEST_NAME).unlink(missing_ok=True)
+    kept = [rel for rel in modified if (base / rel).exists()]
+    if kept:
+        # The manifest must not outlive the files it describes as removed, but a
+        # kept file with no receipt would read as user-authored on the next
+        # install. Rewrite the receipt to cover exactly what is still ours.
+        remaining = {rel: manifest["files"][rel] for rel in kept}
+        manifest["files"] = remaining
+        try:
+            (base / MANIFEST_NAME).write_text(json.dumps(manifest, indent=2))
+        except OSError as e:
+            warn(f"could not rewrite manifest: {e}")
+    else:
+        (base / MANIFEST_NAME).unlink(missing_ok=True)
+
     if base.exists():
         for root, _dirs, _files in os.walk(base, topdown=False):
             try:
@@ -726,7 +781,11 @@ def cmd_uninstall(args):
             except OSError:
                 pass
 
-    ok(f"Removed {removed} files. Backup at {backup}")
+    ok(f"Removed {removed} file(s). Backup at {backup}")
+    if kept:
+        info(f"Kept {len(kept)} locally-modified file(s):")
+        for rel in kept:
+            print(f"    {rel}")
     return 0
 
 
@@ -896,6 +955,12 @@ def main():
     p.add_argument("--yes", "--non-interactive", dest="yes", action="store_true",
                    help="Assume yes to prompts")
     p.add_argument("--dry-run", action="store_true", help="List files without removing")
+    p.add_argument("--keep-modified", action="store_true",
+                   help="Remove only files the manifest receipt still owns, "
+                        "leaving locally-modified ones in place")
+    p.add_argument("--force", action="store_true",
+                   help="Remove managed files even where local modifications mean "
+                        "ClaudeKit no longer solely owns them (backed up first)")
     p.add_argument("--stamp", help=argparse.SUPPRESS)  # deterministic backup name (tests)
 
     # eval

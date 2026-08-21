@@ -58,6 +58,9 @@ python3 scripts/run-evals.py --inject malformed_tool_call
 python3 scripts/run-evals.py --inject timeout
 ```
 
+`--list` is the one mode that makes no pass/fail claim at all: it enumerates definitions and
+exits 0 even when there are none. Every other mode treats an empty set as an error.
+
 The exit code is inverted on purpose. Green means every eval **rejected** a
 deliberately broken response. An eval that passes one of these is reported by
 name as `PASSED DESPITE FAULT`.

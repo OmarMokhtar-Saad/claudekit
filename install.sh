@@ -560,27 +560,62 @@ mv "$STAGING" "$FINAL_DEST"
 DEST="$FINAL_DEST"
 trap - ERR   # past the destructive phase; nothing left to clean up
 
-# ---- Install manifest (records version + per-file sha256 for `ck update`) ----
-CLAUDEKIT_VERSION="$VERSION" python3 - "$FINAL_DEST" "$MODE" "$LANGUAGE" <<'MANIFEST_PY' && print_ok "Install manifest written" || print_warn "Manifest generation failed"
+# ---- Install manifest (the receipt: what the kit owns, and which commit it came from) ----
+# The manifest is an ownership RECEIPT, not an inventory. `ck uninstall` removes
+# only files whose sha256 still matches, so anything recorded here is something
+# the kit claims the right to delete later. Two consequences:
+#   1. Files that are the USER's by definition must never be recorded (below).
+#   2. The source commit is recorded so an install is traceable to an immutable
+#      40-char SHA rather than to a mutable branch name.
+CLAUDEKIT_SOURCE_COMMIT="$(git -C "$SCRIPT_DIR" rev-parse HEAD 2>/dev/null || echo "")"
+# `|| true` on BOTH lines, and note the second is a PIPELINE: under `set -o
+# pipefail` a failing `git` upstream of `head` fails the whole pipeline, which
+# under `set -e` aborts the install. Installing from a non-git source (a tarball,
+# or the temp kit copy the delivery tests build) is a supported case, not an error.
+CLAUDEKIT_SOURCE_DIRTY="$(git -C "$SCRIPT_DIR" status --porcelain 2>/dev/null | head -1 || true)"
+CLAUDEKIT_VERSION="$VERSION" \
+CK_SRC_COMMIT="$CLAUDEKIT_SOURCE_COMMIT" \
+CK_SRC_DIRTY="$CLAUDEKIT_SOURCE_DIRTY" \
+python3 - "$FINAL_DEST" "$MODE" "$LANGUAGE" <<'MANIFEST_PY' && print_ok "Install manifest written" || print_warn "Manifest generation failed"
 import hashlib, json, os, sys, datetime
+
+# Local-only by definition: the user's own settings, and runtime output. Recording
+# these would make `ck update` overwrite a per-project permission allowlist and
+# `ck uninstall` delete a log - which is exactly what happened before, and cost a
+# hand-preservation pass across 17 projects during the 2026-07-31 rollout.
+# Must stay in step with SKIP_NAMES in the preserve block below.
+NEVER_MANAGED = {"hooks.log", "settings.local.json", ".claudekit-manifest.json"}
+
 dest, mode, lang = sys.argv[1], sys.argv[2], sys.argv[3]
 files = {}
 for root, _, names in os.walk(dest):
     for n in names:
         path = os.path.join(root, n)
         rel = os.path.relpath(path, dest)
-        if rel == ".claudekit-manifest.json":
+        if n in NEVER_MANAGED or n.endswith(".pyc"):
             continue
         try:
             with open(path, "rb") as fh:
                 files[rel] = hashlib.sha256(fh.read()).hexdigest()
         except OSError:
             pass
+
+# An unpinnable source is recorded as unpinnable. Fabricating a commit - or
+# omitting the field so a reader assumes one - would make provenance a guess.
+commit = os.environ.get("CK_SRC_COMMIT") or None
+source = {"commit": commit, "pinned": bool(commit)}
+if commit and os.environ.get("CK_SRC_DIRTY"):
+    # A dirty checkout does not correspond to its own commit, so the pin is a
+    # nearest-ancestor, not an identity. Say so rather than imply reproducibility.
+    source["dirty"] = True
+    source["pinned"] = False
+
 manifest = {
     "version": os.environ.get("CLAUDEKIT_VERSION", "unknown"),
     "installed_at": datetime.datetime.now().isoformat(timespec="seconds"),
     "mode": mode,
     "language": lang,
+    "source": source,
     "files": files,
 }
 with open(os.path.join(dest, ".claudekit-manifest.json"), "w") as fh:
@@ -606,6 +641,7 @@ if os.path.exists(mpath):
     except (ValueError, OSError):
         old_manifest = None
 ASSET_DIRS = ("agents", "commands", "skills")
+# Must stay in step with NEVER_MANAGED in the manifest block above.
 SKIP_NAMES = {"hooks.log", "settings.local.json", ".claudekit-manifest.json"}
 restored = []
 for root, dirs, names in os.walk(backup):

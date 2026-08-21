@@ -156,13 +156,6 @@
     "_why": "Commands ship to user projects, where repo-root scripts/ does not exist (install.sh:203 copies only .claude/operations/scripts/*.py), so an invocation cannot resolve a tier at run time. Rather than leave the literals unguarded, every one is enumerated: the audit test derives the expected value from the table for ordinary sites and demands a reason for the rest. Note: a site is registered only if the literal SURVIVES this change. model-router.md's example was rewritten into a tier lookup instead, so it needs no entry - registering one would have failed the registry-decay test immediately.",
     "sites": [
       {
-        "path": ".claude/commands/review.md",
-        "line_hint": 89,
-        "model": "opus",
-        "role": "reviewer",
-        "reason": "UNRESOLVED CONTRADICTION, recorded rather than silently changed. This spawns the reviewer on the most-capable tier for EVERY plan, while the reviewer role defaults to `balanced` and reaches most-capable only via `escalate_when`. Changing it is a user-visible behaviour change to /review and needs owner approval; leaving it undocumented was the actual defect. Owner decision tracked in .ai/BACKLOG.md."
-      },
-      {
         "path": ".claude/commands/santa.md",
         "line_hint": 64,
         "model": "opus",
