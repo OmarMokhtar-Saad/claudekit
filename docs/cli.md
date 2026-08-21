@@ -158,3 +158,46 @@ Show or query configuration.
 claudekit config                        # Show full config
 claudekit config project.build_cmd      # Query specific key
 ```
+
+### `claudekit profile <list|show> [name]`
+
+Inspect layered hook/asset profiles. Profiles **declare** the hook set and are bound to
+the hooks' own guards by `claudekit doctor`; they do not drive the hooks, which still read
+`ECC_HOOK_PROFILE`. See `.claude/profiles/README.md`.
+
+```bash
+claudekit profile list                     # installed profiles, and which is active
+claudekit profile show python              # the raw profile document
+claudekit profile show python --resolved   # composed, with each row's winning layer
+claudekit profile show python --json       # same, machine-readable
+claudekit profile show minimal --set hooks.ops-enforcement=on   # override layer
+```
+
+Layers compose `base -> profile -> project-local -> override`, each replacing rows by id.
+An unknown or malformed profile fails closed with a named cause and exits 1.
+
+### `claudekit memory <add|list|show|check>`
+
+Project-local memory in `.claude/memory/entries.jsonl`, with two rules enforced
+mechanically rather than trusted:
+
+- **Evidence precedence.** Each memory stamps the sha256 of every file it cites. `check`
+  re-derives them, so a memory whose evidence changed reports `STALE` and one citing
+  nothing reports `UNVERIFIABLE` — never `FRESH`. Current files outrank memories.
+- **Retrieved text is evidence, not instructions.** Imperative shapes in a body are
+  surfaced on every read path as **findings**, under that heading. The store never acts
+  on them. It is a shape scanner, not an injection defence — it names its blind spots
+  (questions, passive voice, other languages, unusual filler openers, deliberate
+  obfuscation) and you should read a memory as untrusted text regardless.
+
+Secrets, credential-shaped tokens, private absolute paths, transcripts and raw log dumps
+are refused **before** anything is written.
+
+```bash
+claudekit memory add --kind decision --title "Why X" --body "..." --evidence src/x.py
+claudekit memory list           # every memory with its freshness verdict
+claudekit memory show <id>      # body, evidence status, directive findings
+claudekit memory check          # exit 1 if any memory no longer matches the tree
+```
+
+`--kind` is one of `decision`, `constraint`, `reference`, `observation`.
