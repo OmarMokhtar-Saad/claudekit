@@ -140,8 +140,18 @@ check_secrets() {
     # Quote classes come from lib.sh (ERE_QUOTE_CLASS = ["'] , negation = [^"']).
     # The previous inline `["\x27]` was NOT decoded by grep -E, so single-quoted
     # secrets slipped through entirely.
-    local q="${ERE_QUOTE_CLASS:-[\"']}"
-    local nq="${ERE_NOT_QUOTE_CLASS:-[^\"']}"
+    # Built WITHOUT a `'` inside a double-quoted ${:-} default: that form opens a
+    # single-quote context, bash reports `bad substitution`, the two statements merge and
+    # `nq` ends up EMPTY - which shipped `api_key\\s*[:=]\\s*["']{8}`, i.e. eight
+    # consecutive QUOTES. All seven value-bearing patterns were dead (measured: 0 of 7
+    # planted credentials detected) and `private_key` was left over-broad.
+    # `if` rather than `[ -z ... ] && ...` because this file runs under `set -e`.
+    # Correct standalone: pre-commit.sh does not source lib.sh, so these defaults are the
+    # only values that ever apply here.
+    local q="${ERE_QUOTE_CLASS:-}"
+    if [ -z "$q" ]; then q='["'"'"']'; fi
+    local nq="${ERE_NOT_QUOTE_CLASS:-}"
+    if [ -z "$nq" ]; then nq='[^"'"'"']'; fi
     local patterns=(
         "api_key\\s*[:=]\\s*${q}${nq}{8}"
         "apikey\\s*[:=]\\s*${q}${nq}{8}"
@@ -151,11 +161,13 @@ check_secrets() {
         "secret_key\\s*[:=]\\s*${q}${nq}{8}"
         "access_token\\s*[:=]\\s*${q}${nq}{8}"
         "private_key\\s*[:=]\\s*${q}"
-        'BEGIN RSA PRIVATE KEY'
-        'BEGIN OPENSSH PRIVATE KEY'
-        'BEGIN EC PRIVATE KEY'
-        'BEGIN DSA PRIVATE KEY'
-        'BEGIN PGP PRIVATE KEY'
+        # `[ ]` matches one space, so detection is unchanged while this file's own
+        # text no longer matches the pattern. See .claude/hooks/pre-commit.sh.
+        'BEGIN RSA PRIVATE[ ]KEY'
+        'BEGIN OPENSSH PRIVATE[ ]KEY'
+        'BEGIN EC PRIVATE[ ]KEY'
+        'BEGIN DSA PRIVATE[ ]KEY'
+        'BEGIN PGP PRIVATE[ ]KEY'
     )
 
     while IFS= read -r file; do
