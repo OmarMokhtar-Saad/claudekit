@@ -133,6 +133,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `safeMode` states — bare newlines, newlines behind a trailing comment, and comment-hidden
   separators. Argument-position `eval`/`exec`, and wrapper arguments with `safeMode` off, are
   *not* covered and are disclosed below.
+- **Two token shapes put a blocklisted command out of the blocklist's reach**, both of them
+  falsifying that list's own documented promise ("never allowed, even in unsafe mode"). A
+  leading file-descriptor number landed in command position, because the segmenter dropped a
+  redirect and its target but not the digit before it — `2>/dev/null rm -rf /` was **allowed
+  with `safeMode` off**, and bash really does delete the file. And an *empty* expansion glued
+  to a command name (`` ``rm ``, `rm$()`, `$''rm`, `$""rm`) is removed by bash before the
+  command is resolved but was matched literally here, so it too was allowed. Both are closed.
+  The digit is removed only when it is **adjacent** to the redirect, **outside quotes**, at
+  **its own position** — `2 files` and `2 > log` are commands *named* `2` in bash, `echo
+  "a 2>b"` redirects nothing, and a `2>` inside one argument must not erase a `2 > …` command
+  elsewhere in the line. The command name is additionally matched with expansion punctuation
+  stripped, and that stripped spelling feeds the **deny** checks only, never the allowlist:
+  using it for both measured 5,118 new ALLOWs, because `$ls` normalises to the allowlisted
+  `ls` while actually meaning "run whatever this prints". **Disclosed widening:** in the
+  default mode `2> log echo hi` and similar now validate `echo` instead of being rejected as
+  "Command not in allowlist: 2", which was an accident of the same defect.
 - **A quote inside a trailing comment could hide a whole command, in both modes.** `shlex`
   strips `#`-comments by default and discards the rest of the line, so in
   `make test # don't rebuild<newline>rm -rf /` the apostrophe never reached the tokenizer, no

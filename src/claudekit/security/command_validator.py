@@ -126,6 +126,75 @@ _SEPARATORS = {";", "&&", "||", "|", "&", "|&", "\n"}
 # Redirect operators: skip the operator and its target token when segmenting.
 _REDIRECTS = {">", ">>", "<", "<<", "<<<", "<>", ">&", "&>", "&>>"}
 
+# Characters that can wrap or adjoin a command name without being part of it. An EMPTY
+# expansion is removed by bash before the command is resolved, so `` `` ``, `$()`, `$''` and
+# `$""` glued to a name were invisible to the shell and to the blocklist alike: ``rm -rf /`
+# was ALLOW with safeMode off, and bash really did delete the file. A list of literal
+# empty-expansion spellings is the same losing game as an env-name denylist - review added
+# `$''` and `$""` to a set that started as backticks and `$()` - so this is a character class.
+_EXPANSION_PUNCT = "`$()"
+
+
+def _strip_adjacent_fds(command: str) -> str:
+    """Remove file-descriptor numbers that are ADJACENT to a redirect, outside quotes.
+
+    `2>/dev/null rm -rf /` segmented to base command `2`, so the blocklisted `rm` was never
+    checked: ALLOW with safeMode off, confirmed against bash. Three constraints make removing
+    the digit safe, and the first two were each a rejected design:
+
+      * Adjacency. `2 > log` with a space runs a command NAMED `2` in bash. Dropping the digit
+        there erased a real command name and let `2 > f; ls` through in the default mode.
+      * Position, not value. Tracking "which digit strings appear adjacent somewhere" and then
+        testing tokens by value let a quoted `'x 2>y'` elsewhere in the line poison the set and
+        silently erase a genuine `2 > f` segment. Working on the raw string keeps each
+        occurrence bound to its own position.
+      * Quotes. `echo "a 2>b"` is an argument, not a redirect.
+
+    Anything not matching all three is left exactly as it was, so a digit stays a base command
+    whenever bash would treat it as one.
+    """
+    out: List[str] = []
+    in_single = in_double = False
+    i, n = 0, len(command)
+    while i < n:
+        ch = command[i]
+        if ch == "\\" and not in_single and i + 1 < n:
+            out.append(ch)
+            out.append(command[i + 1])
+            i += 2
+            continue
+        if ch == "'" and not in_double:
+            in_single = not in_single
+        elif ch == '"' and not in_single:
+            in_double = not in_double
+        elif (ch.isdigit() and not in_single and not in_double
+              and (not out or out[-1].isspace())):
+            end = i
+            while end < n and command[end].isdigit():
+                end += 1
+            if end < n and command[end] in "<>":
+                i = end
+                continue
+        out.append(ch)
+        i += 1
+    return "".join(out)
+
+
+def _expansion_stripped_base(parts: List[str]) -> str:
+    """The base command with expansion punctuation removed - for DENY checks only.
+
+    Never feed this to the allowlist. Measured on the first attempt at this fix, which used it
+    everywhere: 5,118 REJECT -> ALLOW transitions over a 168,400-payload fuzz, because `$ls`
+    and `` `ls` `` normalise to the allowlisted `ls`. A command substitution in command
+    position is not `ls`; it is "run whatever this prints". Normalisation may only ever ADD
+    rejections.
+    """
+    for tok in parts:
+        stripped = "".join(ch for ch in tok if ch not in _EXPANSION_PUNCT)
+        if stripped:
+            return stripped.split("/")[-1].strip("\\")
+    return ""
+
 
 def _split_unquoted_newlines(command: str) -> List[str]:
     """Split a command on newlines that are OUTSIDE quotes and not backslash-escaped.
@@ -310,7 +379,8 @@ class CommandValidator:
         source, and the same input now raises ValueError -> "Malformed command", which is
         the direction a security control must fail. A `#` inside quotes is unaffected.
         """
-        lex = shlex.shlex(command, posix=True, punctuation_chars=True)
+        lex = shlex.shlex(_strip_adjacent_fds(command), posix=True,
+                          punctuation_chars=True)
         lex.whitespace_split = True
         lex.commenters = ""
         tokens = list(lex)
@@ -363,6 +433,14 @@ class CommandValidator:
         # same tool as `python3` for allow/block purposes; multi-Python machines
         # otherwise get spurious "not in allowlist" rejections per interpreter.
         normalized = re.sub(r'^(python|pip)3\.\d+$', r'\g<1>3', base)
+
+        # The expansion-stripped spelling is checked against the deny lists FIRST and
+        # separately: `$()rm` and ``rm` are `rm` to bash, whatever the token looks like here.
+        deny_base = _expansion_stripped_base(parts)
+        if deny_base in _SHELL_BUILTIN_DENY:
+            return False, f"Dangerous pattern ({deny_base})"
+        if deny_base in self.blocklist:
+            return False, f"Blocked command: {deny_base}"
 
         # Before the blocklist_only early return, so `$(eval ...)` is covered too.
         if base in _SHELL_BUILTIN_DENY:
