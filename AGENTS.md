@@ -18,7 +18,7 @@ ruff check src/ tests/ scripts/           # lint (line-length 100)
 mypy                                      # types (py3.9 target)
 python3 scripts/gen-docs.py --check       # docs-drift gate (counts)
 python3 scripts/gen-registry.py --check   # registry-drift gate (agentMapping ↔ agent files)
-shellcheck install.sh .Codex/hooks/*.sh  # shell lint
+shellcheck install.sh .claude/hooks/*.sh  # shell lint
 ck doctor --strict                        # installed-tree health
 ```
 

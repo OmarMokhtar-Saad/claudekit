@@ -65,7 +65,8 @@ Stop-time format + typecheck. Its two sibling strict-only gates,
 `file-guard-gate.sh` and `injection-scan-gate.sh`, both use the negative form.
 Normalised to `!= "strict"`, which is **identical on all three real values**
 (`minimal` off, `standard` off, `strict` on) and stands the hook down for
-everything else. Mirrored into `.codex/hooks/`.
+everything else. It was mirrored into `.codex/hooks/` at the time; that tree was
+removed later the same day (DECISIONS.md 22), so the fix now lives in one place.
 
 This is the argument for the whole phase in one paragraph: three review rounds of
 the hook batch read that file and found nothing, because nothing is wrong with
