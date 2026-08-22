@@ -1099,6 +1099,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   stable stash SHA. Wired the dormant `file-guard`/`prompt-injection-scanner` as advisory hooks.
   Fixed the latently-red shellcheck CI job (`.shellcheckrc`).
 
+### Changed
+- **The review loop now ends when it should, and stops re-deriving what it already settled.**
+  `CLAUDE.md` had said since the token-efficiency pass that a code review stops at the first
+  round with zero blocking findings and that later rounds read only the delta — but that policy
+  lived solely in the orchestrator's context and never reached `code-reviewer`'s own prompt, so
+  fresh instances re-reviewed whole artifacts and returned sub-90 scores with zero blockers,
+  which read as rejections and invited another round. `code-reviewer` now carries the exit rule
+  (verdict is a blocking-finding count, never a score), a round-scope contract, and an
+  INHERITED FINDINGS section that makes each prior finding be discharged with evidence or
+  restated as open. `CLAUDE.md` gains the reviewer-vs-code-reviewer routing rule (only
+  `code-reviewer` has Bash, so only it can prove a gate binds) and a pre-ops design precheck for
+  Tier 2/3. New `scripts/check-plan-artifacts.py` mechanises the plan/config drift finding that
+  three consecutive rounds raised by hand.
+
 ## [2.1.0] — 2026-04-11
 
 ### Added

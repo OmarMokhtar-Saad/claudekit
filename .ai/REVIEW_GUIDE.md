@@ -9,8 +9,35 @@
 | Object | `plan-*.md` + ops.json | diffs, files, PRs |
 | Gate | ≥90/100: Plan Quality 40% + Architecture 30% + Security 30% | findings ranked by severity; APPROVE/REQUEST_CHANGES/BLOCK |
 | Auto-reject | plan without ops.json → score 0 | — |
+| Tools | Read/Grep/Glob — **no Bash**, cannot execute | Read/Grep/Glob/**Bash** — can run a mutation proof |
+| Ends when | score ≥90 | Critical + High both zero; Medium/Low become follow-ups |
+| Rounds 2+ | re-score the delta | read only `git diff <last-verdict-sha>`, inherit prior findings with a status |
 
 High-stakes escalation: `/santa` (dual independent reviewers, both must approve). Language-specific: python-reviewer / typescript-reviewer (merge candidates into code-reviewer, task 008).
+
+## Routing: which reviewer, and when a round ends
+
+`reviewer` reviews **plans** and has **no Bash** — it cannot execute, so it cannot prove a gate
+binds. `code-reviewer` reviews **code** and **has Bash**. Any verdict that depends on running the
+artifact (a mutation proof, "the gate binds", "that test would fail if this regressed") goes to
+`code-reviewer`; routing it to `reviewer` buys a confident opinion with no evidence under it.
+
+**A code review ends at the first round with zero Critical and zero High findings.** Medium and
+Low become follow-ups — they never justify another round, and code review emits no numeric score
+(a number invites a round over findings that do not block). Ceiling 3 rounds; reaching it with
+blockers open is an owner escalation, not a fourth round.
+
+**Rounds 2+** read only `git diff <last-verdict-sha>` and carry every prior finding forward with
+a status — `discharged` (with the evidence that settled it), `open`, or `superseded`. The ledger
+is the previous round's report, kept under `.claude/reports/reviews/` (gitignored runtime state).
+Re-deriving a settled finding is the single largest source of wasted review tokens here.
+
+## Pre-ops design precheck (Tier 2/3)
+
+Before authoring ops.json, write one paragraph naming **the ownership/data model the change
+assumes** and **the files that actually carry its value**. If those files fall outside the model,
+the design is wrong, and implementation review will only surface it after a whole build cycle has
+been spent — which is exactly how the Phase 1a sidecar and the Phase 2 ownership model failed.
 
 ## Reviewing changes to ClaudeKit itself (maintainer checklist)
 
