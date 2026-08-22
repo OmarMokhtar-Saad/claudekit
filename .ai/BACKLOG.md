@@ -364,6 +364,25 @@ needs a redaction story and a per-project provenance field before it can be cons
 Filed by the adversarial diff review after lanes A and B landed. Ranked.
 
 - [ ] **[HIGH] A tool payload over ~1 MB is blocked, with a misleading cause.** `.claude/hooks/dispatch.sh:254` passes the payload to the resolver through the ENVIRONMENT, so once it crosses `ARG_MAX` (1048576) `execve` returns `E2BIG`, the resolver fails, and the registry-resolution branch exits 2. Measured: 1000.1KB -> rc 0; 1020.1KB -> rc 2 `BLOCKED: could not resolve hook handlers for PreToolUse`. Before the wiring addendum, PreToolUse hooks received the payload on stdin and had no such limit, so this is introduced by that change. Fail-CLOSED, so not a safety hole — but a real functional regression on a realistic operation (writing a >1 MB file), and the message names neither the size nor the cause. Fix: write the payload to the already-available `ck_mktemp` file and pass the PATH in `CK_PAYLOAD_FILE`, or move the resolver body to a `.py` file beside `dispatch.sh` so stdin is free (the heredoc currently occupies it). Add a regression test asserting a 2 MB `Write` payload returns 0.
+  **UPDATE 2026-08-22 — the obvious fix is WRONG; do not repeat it.** An attempt to spill the
+  payload to a `ck_mktemp` file and pass `CK_PAYLOAD_FILE` was planned, reviewed twice and
+  ABANDONED (scores 82 then 61, six MAJORs). Measured by the round-2 reviewer, private TMPDIR,
+  `ulimit -f 100`, 2 MB payload: unpatched -> **rc 2** (fail-closed, correct); patched -> **rc -25
+  (SIGXFSZ)**; patched with the cleanup removed -> **rc -25** as well. Three things that attempt
+  taught, all verified by execution:
+  (a) `printf '%s' "$PAYLOAD" > "$file"` is the first payload-sized write in `dispatch.sh` and
+      creates a new RLIMIT_FSIZE kill surface. A signal-killed hook emits neither 0 nor 2, which
+      breaks hard rule 2, and the host plausibly treats it as NON-blocking — so the cure converts
+      a fail-CLOSED usability bug into a possible fail-OPEN safety bug.
+  (b) The `|| { rm -f ...; }` cleanup never fires on the disk-full route at all: the shell dies
+      before the `||` is evaluated, and the pre-existing EXIT trap already removes the file. The
+      round-1 claim of a 102,400-byte leak did NOT reproduce.
+  (c) Regression tests that force the partial write with `ulimit -f` SKIP on macOS and on Linux
+      CI, because SIGXFSZ is default-fatal on both. A proof that skips binds nowhere.
+  Any real fix must (1) make the write error observable rather than fatal — a subshell, or
+  `trap '' XFSZ` — (2) assert rc in {0,2} under `ulimit -f`, (3) force the failure by a route
+  that yields a real write error (unwritable target dir), not a fatal signal, and (4) archive its
+  own spent config, or `test_queued_ops_configs_validate_against_head` turns the suite red.
 - [ ] **[MEDIUM] `decisions.merge()` is dead code with zero coverage, while `dispatch.sh:48-49` claims it is parity-tested.** Mutating `worst = ALLOW` -> `worst = DENY` (making every merge return DENY) leaves the suite green; `grep -rnE "(decisions\.merge|[^_a-z]merge)\("` over src/tests/scripts returns nothing. Only `from_exit_code`, `to_exit_code` and `clamp_advisory` have shell<->Python parity tests. The live merge is the bash one and IS mutation-proven, so no live risk — but the file most likely to be trusted as canonical is the one nothing checks. Fix: add a parity test driving both merges over the 4^n decision tuples (n<=3), OR delete `merge` and narrow the dispatch.sh sentence to the three functions genuinely covered.
 - [ ] **[LOW] `printf: write error: Broken pipe` leaks to hook stderr on payloads >=100 KB.** `.claude/hooks/dispatch.sh:346` — a handler that exits before draining stdin SIGPIPEs the writer. Verdict unaffected. Fix: `2>/dev/null` on that printf, or redirect into hooks.log.
 - [ ] **[LOW] `stderr_preview` persists up to 512 bytes of handler stderr to disk.** `.claude/hooks/lib.sh` `ck_emit_hook_decision`. A guard that blocks a secret-bearing write and echoes the offending text would land it in `.claude/runtime/events/*.jsonl`. Mitigated: that directory is gitignored and advisory stdout is not captured. Fix: one-line note in docs/HOOKS.md that the event log may contain guard stderr.
