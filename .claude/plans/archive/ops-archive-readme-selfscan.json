@@ -1,0 +1,19 @@
+{
+  "plan": "archive-readme-selfscan",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/plans/archive/README.md",
+      "edits": [
+        {
+          "find": "the literal `api_key = \"sk-live-...\"` appeared inline three times (240/257/438)",
+          "replace": "the assignment literal (the key name, then `=`, then a quoted `sk-live-` value -- not written out here, see below) appeared inline three times (240/257/438)"
+        },
+        {
+          "find": "That test's own docstring records the same thing happening once before",
+          "replace": "This row deliberately does NOT spell the pattern out: the first draft of it did, which put the match straight back into a tracked file and re-reddened the very gate the fix had just closed -- occurrence three. That test's own docstring records the same thing happening once before"
+        }
+      ]
+    }
+  ]
+}
