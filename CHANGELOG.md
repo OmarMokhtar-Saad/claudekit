@@ -12,6 +12,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`claudekit doctor` now grades an install, not just passes it.** Doctor already
+  tallied passed/warned/failed/skipped checks and then threw the ratio away, so every
+  project that cleared the floor reported identically green and there was no way to
+  tell a bare install from a fully configured one — or to give `/adapt` a numeric exit
+  condition. Runs now end with `Readiness: NN/100` (a pass is full credit, a warning
+  half, and checks that do not apply to the install are excluded from the denominator
+  rather than counted against it), and `--min-score N` turns that number into a gate.
+  The floor is evaluated last and can only add a failure: an install with a failing
+  check still exits 1 no matter what floor is set.
+- **`claudekit eject` — leave kit management without losing a file.** There was no step
+  between `update` (re-adopt) and `uninstall` (remove), so a project that wanted to keep
+  its assets but stop tracking the kit had to either keep drifting under a manifest that
+  no longer described it or delete the assets to be rid of it. `eject` removes exactly
+  one file, the manifest, after copying its full contents — every path and digest — into
+  `.claude/.claudekit-ejected.json` in its place. Local modifications are preserved by
+  design, `ck diff` falls back to source comparison, and `ck update` re-adopts the
+  project, so the operation is reversible. Supports `--dry-run` and `--yes`.
+
 ### Fixed
 - **Writes larger than ~1 MB are no longer refused.** The dispatcher passed the tool
   payload to its handler-resolver through the environment, so once the payload crossed

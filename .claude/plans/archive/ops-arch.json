@@ -1,0 +1,16 @@
+{
+  "plan": "archive-doctor-score-eject-rows",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/plans/archive/README.md",
+      "description": "archive rows for the four spent configs from the doctor-score/eject session",
+      "edits": [
+        {
+          "find": "| `ops-review-loop-3.json` |",
+          "add_before": "| `ops-doctor-score-eject.json` | Spent \u2014 executed 2026-08-23 (RESULT-JSON: 7/7 ops success), APPROVED **95/100** bound to base `14cf45e`. Adds `ck doctor`'s readiness score + `--min-score` gate and the new `ck eject` command (manifest \u2192 `.claude/.claudekit-ejected.json` receipt, no asset touched); plan: `plan-doctor-score-eject.md`. |\n| `ops-doctor-score-test-nit.json` | Spent \u2014 executed 2026-08-23 with `--no-approval` (1/1). Tier 1, test-only: round 2's single MINOR, a vacuous `assertEqual(f(x), f(x))`, replaced with a signature assertion that actually binds the \"skipped never reaches the score\" contract. |\n| `ops-eject-update-mode.json` | Spent \u2014 executed 2026-08-23 with `--no-approval` (2/2). Tier 1 follow-up for a defect **both review rounds missed and mutation testing found**: `cmd_update` treats a missing manifest as a legacy pre-manifest install and falls through to `mode or \"full\"`, so re-adopting an ejected `--minimal` project silently reinstalled it as `full` \u2014 a round trip advertised as reversible changing what the project ships. `cmd_update` now reads mode/language back from the eject record. Test fails when the fallback is reverted. |\n| `ops-eject-revert-inert.json` | Spent \u2014 executed 2026-08-23 with `--no-approval` (2/2). **Reverts a change two review rounds demanded on a false premise.** Round 1 raised as MAJOR that `install.sh`'s `NEVER_MANAGED`/`SKIP_NAMES` must exclude `.claudekit-ejected.json` or `ck update` would fold the receipt into the new manifest; round 2 verified the fix and called the test binding. Mutation proved both wrong: reverting each set independently left every test green. The manifest walk runs **before** backup restoration, and restoration only covers `ASSET_DIRS` (agents, commands, skills) while the receipt sits at the `.claude/` root \u2014 neither set can ever see it. **The lesson is the archive's recurring one from the other side:** a reviewer's confident mechanism trace is not evidence, and two rounds agreeing does not make it so. Only reverting the fix and watching the test still pass settled it. Shipped as a revert rather than dead defensive code. |\n"
+        }
+      ]
+    }
+  ]
+}

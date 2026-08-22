@@ -217,6 +217,21 @@ def _check_config_schema(data, check):
         check(label, True)
 
 
+def _readiness_score(passed, warned, failed):
+    """Grade an install 0-100 from doctor's own tallies.
+
+    Skipped checks are NOT passed in and never reach the denominator: a check
+    that does not apply to this install (see cmd_doctor.check) must neither
+    inflate the score nor depress it. A warning is half credit -- a real
+    deficiency that is nonetheless not a broken install, so it has to move the
+    number without zeroing it.
+    """
+    total = passed + warned + failed
+    if total == 0:
+        return 100
+    return round(100 * (passed + 0.5 * warned) / total)
+
+
 def cmd_doctor(args):
     """Run health checks on the current ClaudeKit installation."""
     print(f"\n{C.CYAN}ClaudeKit Doctor v{__version__}{C.NC}\n")
@@ -294,7 +309,15 @@ def cmd_doctor(args):
         # full install stays red (the "shipped settings.json but not the hooks it
         # references" bug class). Conversely a user's OWN skill or hook dropped into a
         # minimal install does not revoke the excuse - it was never kit-managed.
-        _manifest = _load_manifest(".") or {}
+        # An ejected install has no manifest, but the eject record preserves both
+        # facts verbatim - `mode` and the same `files` map - so the excuse has to
+        # survive the ejection. Without this fallback, ejecting a --minimal
+        # install turns every excused absence into a hard FAILURE in the very run
+        # that reports the ejection as healthy by design.
+        _manifest = _load_manifest(".")
+        if _manifest is None:
+            _manifest = _load_eject_record(".")
+        _manifest = _manifest or {}
         _kit_optional = [rel for rel in (_manifest.get("files") or {})
                          if rel == "settings.json"
                          or rel.startswith(("skills/", "hooks/"))]
@@ -490,6 +513,14 @@ def cmd_doctor(args):
                       f"({len(_names)} profiles, active: {_prof.select_name(profiles_root)})",
                       True)
 
+    # An ejected install is self-managed by design: no manifest, every asset
+    # kept. That is healthy, so it reports as a skip and cannot redden --strict.
+    if (claude_dir / EJECT_NAME).is_file() and not (claude_dir / MANIFEST_NAME).is_file():
+        _ej = _load_eject_record(".") or {}
+        check("Install ejected (self-managed, no kit manifest)", "skip",
+              f"ejected from v{_ej.get('ejected_from_version', '?')} "
+              f"on {_ej.get('ejected_utc', '?')} — `ck update` re-adopts it")
+
     # Summary
     print(f"\n{'='*40}")
     total = checks_passed + checks_failed + checks_warned + checks_skipped
@@ -500,6 +531,8 @@ def cmd_doctor(args):
         print(f"  Warnings: {C.YELLOW}{checks_warned}{C.NC}/{total}")
     if checks_failed:
         print(f"  Failed:   {C.RED}{checks_failed}{C.NC}/{total}")
+    score = _readiness_score(checks_passed, checks_warned, checks_failed)
+    print(f"  Readiness: {score}/100")
     print(f"{'='*40}\n")
 
     if checks_failed:
@@ -514,14 +547,21 @@ def cmd_doctor(args):
                  f"({checks_skipped} not applicable to this install).")
         else:
             warn("All checks passed with warnings.")
-        return 0
     else:
         if checks_skipped:
             ok(f"All applicable checks passed ({checks_skipped} not applicable "
                "to this install).")
         else:
             ok("All checks passed!")
-        return 0
+
+    # The floor is checked LAST and can only ADD a failure. Every hard failure
+    # above has already returned on its own message, so a --min-score that the
+    # install clears can never mask one.
+    min_score = getattr(args, "min_score", None)
+    if min_score is not None and score < min_score:
+        err(f"Readiness {score}/100 is below the required minimum of {min_score}.")
+        return 1
+    return 0
 
 
 def cmd_validate(args):
@@ -605,6 +645,9 @@ def cmd_agents(args):
 
 
 MANIFEST_NAME = ".claudekit-manifest.json"
+# Written by `ck eject` in the manifest's place: the receipt that this project
+# was once kit-managed, kept so the provenance survives the manifest's removal.
+EJECT_NAME = ".claudekit-ejected.json"
 
 # Kit-managed asset locations inside .claude/ (what installs create and what
 # diff-without-a-manifest may safely compare against the kit source tree).
@@ -638,6 +681,26 @@ def _load_manifest(target):
     try:
         return json.loads(mpath.read_text())
     except (json.JSONDecodeError, OSError):
+        return None
+
+
+def _load_eject_record(target):
+    """Load a project's eject receipt, or return None.
+
+    A present-but-unreadable receipt is NOT the same state as an absent one:
+    returning None for it makes cmd_update treat an ejected project as a legacy
+    pre-manifest install and reinstall it as `full`, and makes doctor withdraw a
+    --minimal install's excuse. Both are silent downgrades, so the read failure
+    is announced even though the caller still degrades to None.
+    """
+    epath = _manifest_base(target) / EJECT_NAME
+    if not epath.exists():
+        return None
+    try:
+        return json.loads(epath.read_text())
+    except (json.JSONDecodeError, OSError) as e:
+        warn(f"{EJECT_NAME} is present but unreadable ({e}); treating this "
+             "project as if it had never been ejected")
         return None
 
 
@@ -766,6 +829,105 @@ def cmd_diff(args):
     return 0
 
 
+def cmd_eject(args):
+    """Stop managing this project as part of the kit, without touching a file.
+
+    `init`/`update` adopt, `uninstall` removes -- there was nothing in between,
+    so a project that wanted to keep its assets but leave the fleet had to
+    either keep drifting under a manifest that no longer described it, or
+    delete the assets to be rid of the manifest.
+
+    Eject removes exactly one file, the manifest, after copying its full
+    contents into the eject record written in its place. No asset is read,
+    rewritten, or deleted, and local modifications are preserved by
+    construction: preserving them is the point, so unlike uninstall this
+    command has no reason to refuse on mixed ownership.
+
+    It is reversible -- `ck init`/`ck update` write a fresh manifest and
+    re-adopt the project -- and recoverable by hand, because the record it
+    leaves carries every path and digest the manifest held.
+    """
+    import datetime
+    target = Path(args.target or ".").resolve()
+    base = _manifest_base(target)
+    manifest = _load_manifest(target)
+
+    if manifest is None:
+        if (base / EJECT_NAME).is_file():
+            err(f"{target} is already ejected ({EJECT_NAME} present, no manifest).")
+            info("Run `claudekit update` to re-adopt it into kit management.")
+            return 1
+        err(f"No {MANIFEST_NAME} found in {target}. Nothing to eject.")
+        return 1
+
+    modified, missing, unchanged = _classify_manifest(target, manifest)
+    listed = sorted(manifest.get("files", {}).keys())
+
+    print(f"\n{C.CYAN}ClaudeKit eject{C.NC} — installed v{manifest.get('version', '?')} "
+          f"({manifest.get('mode', '?')} mode)\n")
+    info(f"  {len(listed)} managed file(s) stay exactly where they are")
+    info(f"  {len(unchanged)} unchanged, {len(modified)} locally modified, "
+         f"{len(missing)} already absent")
+    info(f"  {MANIFEST_NAME} is replaced by {EJECT_NAME}")
+
+    if getattr(args, "dry_run", False):
+        info("[dry-run] nothing written.")
+        return 0
+
+    if not getattr(args, "yes", False):
+        try:
+            resp = input(f"Eject {target} from ClaudeKit management? [y/N] ")
+        except EOFError:
+            # No stdin (a pipeline, a CI step): the safe reading of "no answer"
+            # for a state change is no, not a traceback.
+            resp = ""
+        if resp.strip().lower() not in ("y", "yes"):
+            info("Aborted.")
+            return 0
+
+    stamp = getattr(args, "stamp", None) or datetime.datetime.now(
+        datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    record = {
+        "ejected_from_version": manifest.get("version"),
+        "mode": manifest.get("mode"),
+        # `language` sits beside `mode` for the same reason: cmd_update reads
+        # both back to reinstall the project as it was. Leaving it only inside
+        # `manifest` below made the round trip silently reinstall a
+        # `--language rust` project as `generic`, because install.sh applies a
+        # language template -- the same field-dropped-on-round-trip bug as mode,
+        # one field over.
+        "language": manifest.get("language"),
+        "ejected_utc": stamp,
+        "file_count": len(listed),
+        "files": manifest.get("files", {}),
+        "modified_at_eject": modified,
+        "missing_at_eject": missing,
+        # The whole receipt verbatim, not a summary of it. The convenience keys
+        # above cover what doctor and this command read; this covers everything
+        # else the installer wrote (installed_at, language, the source commit
+        # pin), so "reconstruct the manifest by hand from the record" is
+        # literally true rather than true of the fields we happened to pick.
+        "manifest": manifest,
+    }
+    try:
+        (base / EJECT_NAME).write_text(json.dumps(record, indent=2) + "\n")
+    except OSError as e:
+        err(f"could not write {EJECT_NAME}: {e}")
+        return 1
+
+    # Only now, with the provenance already on disk, does the manifest go.
+    try:
+        (base / MANIFEST_NAME).unlink()
+    except OSError as e:
+        err(f"wrote {EJECT_NAME} but could not remove the manifest: {e}")
+        return 1
+
+    ok(f"Ejected. {len(listed)} file(s) kept; provenance in {base / EJECT_NAME}")
+    info("`claudekit diff` now compares against the kit source, not a receipt.")
+    info("`claudekit update` re-adopts this project if you change your mind.")
+    return 0
+
+
 def cmd_uninstall(args):
     """Remove ClaudeKit-managed files, acting ONLY on files the receipt owns.
 
@@ -886,6 +1048,11 @@ def cmd_update(args):
     """Re-install ClaudeKit over an existing project, preserving local edits via backup."""
     target = Path(args.target or ".").resolve()
     manifest = _load_manifest(target)
+    # An ejected project has no manifest but is NOT a legacy install: its receipt
+    # records the mode and language it was installed with. Without this,
+    # re-adopting an ejected --minimal project silently reinstalls it as `full`
+    # (the `or "full"` default below), quietly changing what the project ships.
+    ejected = _load_eject_record(target) if manifest is None else None
     if manifest is None and not (_manifest_base(target)).is_dir():
         err(f"No .claude/ directory in {target}. Use `claudekit init` for a fresh install.")
         return 1
@@ -899,7 +1066,11 @@ def cmd_update(args):
         err(f"install.sh not found at {install_script}")
         return 1
 
-    if manifest is None:
+    if manifest is None and ejected is not None:
+        info(f"Re-adopting an ejected project (ejected from "
+             f"v{ejected.get('ejected_from_version', '?')}); restoring "
+             f"{ejected.get('mode', 'full')} mode.")
+    elif manifest is None:
         warn(f"No {MANIFEST_NAME} in {target} — pre-manifest (legacy) install.")
         info("The installer will back up the existing .claude/ and write a fresh "
              "install (full mode) with a manifest; custom agents/commands/skills "
@@ -922,9 +1093,14 @@ def cmd_update(args):
                     info("Aborted.")
                     return 0
 
-    mode = (manifest.get("mode") if manifest else None) or "full"
+    _receipt = manifest or ejected or {}
+    # An eject record written before `language` was promoted to the top level
+    # still carries it verbatim inside `manifest`, so fall through to that
+    # rather than silently reinstalling an older ejection as `generic`.
+    _nested = _receipt.get("manifest") or {}
+    mode = _receipt.get("mode") or _nested.get("mode") or "full"
     cmd = ["bash", str(install_script), str(target), f"--{mode}", "--force", "--yes"]
-    lang = manifest.get("language") if manifest else None
+    lang = _receipt.get("language") or _nested.get("language")
     if lang and lang != "auto":
         cmd.extend(["--language", lang])
     result = subprocess.run(cmd)
@@ -1298,6 +1474,9 @@ def main():
     p = sub.add_parser("doctor", help="Run health checks on installation")
     p.add_argument("--strict", action="store_true",
                    help="Treat warnings as failures (exit 1)")
+    p.add_argument("--min-score", type=int, metavar="N",
+                   help="Exit 1 if the readiness score is below N "
+                        "(a floor above 100 always fails, by design)")
 
     # validate
     p = sub.add_parser("validate", help="Validate an ops.json config")
@@ -1323,6 +1502,16 @@ def main():
     # diff
     p = sub.add_parser("diff", help="Show local edits to managed files (vs. manifest)")
     p.add_argument("target", nargs="?", default=".", help="Project directory (default: .)")
+
+    # eject
+    p = sub.add_parser("eject",
+                       help="Leave kit management, keeping every file (manifest -> receipt)")
+    p.add_argument("target", nargs="?", default=".", help="Project directory (default: .)")
+    p.add_argument("--yes", "--non-interactive", dest="yes", action="store_true",
+                   help="Assume yes to prompts")
+    p.add_argument("--dry-run", action="store_true", help="Report without writing")
+    # Test-only determinism hook: a public command should not advertise it.
+    p.add_argument("--stamp", help=argparse.SUPPRESS)
 
     # update
     p = sub.add_parser("update", help="Re-install over an existing project (backs up first)")
@@ -1447,6 +1636,7 @@ def main():
         "diff": cmd_diff,
         "update": cmd_update,
         "uninstall": cmd_uninstall,
+        "eject": cmd_eject,
         "eval": cmd_eval,
         "check-command": cmd_check_command,
         "check-path": cmd_check_path,

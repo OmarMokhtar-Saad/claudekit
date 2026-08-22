@@ -33,11 +33,27 @@ claudekit init . --force                  # Overwrite existing installation
 Run health checks on the current ClaudeKit installation.
 
 ```bash
-claudekit doctor            # exit 0 on pass/warn, 1 on failure
-claudekit doctor --strict   # treat warnings as failures (exit 1)
+claudekit doctor                  # exit 0 on pass/warn, 1 on failure
+claudekit doctor --strict         # treat warnings as failures (exit 1)
+claudekit doctor --min-score 90   # exit 1 if the readiness score is below 90
 ```
 
 Checks: Python version, Bash, Git, agents, commands, skills, hooks, registry integrity, config validity.
+
+Every run ends with a **readiness score** out of 100, so two healthy installs
+are still comparable — a bare install and a fully configured one no longer read
+identically green:
+
+```
+  Readiness: 94/100
+```
+
+A passing check is full credit and a warning is half; checks that do not apply
+to your install (`Skipped`) are left out of the score entirely, so a
+`--minimal` install is not penalised for what it was never meant to have.
+`--min-score N` turns the number into a gate — useful as the exit condition for
+`/adapt` or as a fleet-wide floor in CI. It can only *add* a failure: an install
+with a failing check still exits 1 regardless of the floor you set.
 
 ### `claudekit diff [target]`
 
@@ -84,6 +100,30 @@ Remove ClaudeKit-managed files (per the manifest), moving them to a timestamped
 claudekit uninstall --dry-run   # list what would be removed
 claudekit uninstall --yes       # remove (non-interactive)
 ```
+
+### `claudekit eject [target]`
+
+Leave ClaudeKit management while keeping every file. `init`/`update` adopt a
+project and `uninstall` removes the kit from it; `eject` is the step in
+between, for a project that wants to keep its assets and stop tracking the kit.
+
+```bash
+claudekit eject --dry-run   # report what would change
+claudekit eject --yes       # eject (non-interactive)
+```
+
+It removes exactly one file — the manifest — after writing its full contents
+into `.claude/.claudekit-ejected.json` in its place. No asset is rewritten or
+deleted, and local modifications are preserved by design (unlike `uninstall`,
+eject has no reason to refuse on them). Afterwards:
+
+- `claudekit diff` compares against the kit source rather than a receipt,
+  because provenance is genuinely unknown once the receipt is gone.
+- `claudekit uninstall` reports that there is nothing kit-owned to remove.
+- `claudekit update` re-adopts the project, so ejecting is reversible.
+
+The eject record keeps every path and digest the manifest held, so the
+provenance survives even though the manifest does not.
 
 ### `claudekit eval`
 

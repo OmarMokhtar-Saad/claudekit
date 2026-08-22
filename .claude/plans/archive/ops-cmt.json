@@ -1,0 +1,16 @@
+{
+  "plan": "eject-test-comment",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_eject.py",
+      "description": "state precisely what the score assertion binds",
+      "edits": [
+        {
+          "find": "        # Binds the SCORE CALL SITE, not just the helper's signature: an ejected\n        # minimal install is all passes and skips, so folding skipped into the\n        # denominator (or the numerator) would move this number off 100.",
+          "replace": "        # Binds the SCORE CALL SITE, not just the helper's signature: an ejected\n        # minimal install is all passes and skips, so letting skipped DEPRESS the\n        # score (counting it toward the denominator) moves this off 100 and fails\n        # here -- verified by mutation. The mirror mutation, folding skipped into\n        # the numerator as well, is arithmetically inert while warned and failed\n        # are both zero, so no assertion on this tree can detect it; the helper's\n        # signature test is what closes that half."
+        }
+      ]
+    }
+  ]
+}

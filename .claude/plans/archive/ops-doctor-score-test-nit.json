@@ -1,0 +1,20 @@
+{
+  "plan": "doctor-score-test-nit",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_doctor_score.py",
+      "description": "reviewer MINOR: replace the vacuous self-comparison with a binding assertion",
+      "edits": [
+        {
+          "find": "import os\nimport subprocess",
+          "replace": "import inspect\nimport os\nimport subprocess"
+        },
+        {
+          "find": "    def test_skipped_checks_never_reach_the_score(self):\n        # The caller passes only passed/warned/failed. This documents the\n        # contract that makes a --minimal install score the same as a full one\n        # when both are equally healthy.\n        self.assertEqual(_readiness_score(3, 0, 0), _readiness_score(3, 0, 0))",
+          "replace": "    def test_skipped_checks_cannot_reach_the_score(self):\n        # The contract is structural, not arithmetic: a check that does not apply\n        # to this install must be unable to influence the number at all, and the\n        # only way to guarantee that is for the function to have nowhere to put\n        # it. Asserting on values would be vacuous -- there is no skipped input\n        # to vary -- so this pins the signature that makes the guarantee.\n        params = list(inspect.signature(_readiness_score).parameters)\n        self.assertEqual([\"passed\", \"warned\", \"failed\"], params)"
+        }
+      ]
+    }
+  ]
+}
