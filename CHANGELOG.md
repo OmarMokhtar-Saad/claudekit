@@ -12,6 +12,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **The approval gate can now service a plan with more than one ops config.** Review
+  records were keyed by the *plan* filename while the executor's gate resolved candidates
+  from the *ops* filename, so an addendum named differently from its plan could not be
+  approved through the sanctioned path at all, and two configs under one plan collapsed
+  onto one record where the second verdict silently destroyed the first. Records now key
+  on the ops config's own identity, which is the same inversion the executor already
+  performed — the two agree by construction rather than by coincidence. Records written
+  under the old key stay readable through a read-only fallback, so nothing on disk needs
+  migrating. A related guard stops `review-record.py diff` rendering a delta against an
+  unrelated config's approved snapshot.
+- **`review-record.py`'s DRIFT refusal now names the likely cause.** "ops.json changed
+  after it was reviewed" was accurate and useless: the usual cause is running
+  `--stamp-baseline` *after* recording the verdict, which rewrites the bytes the record
+  hashes. Stamping first, then recording, then executing needs no other change. The
+  message says so.
+
+### Changed
+- **The reviewer agent's verdict block is now mandatory.** `reviewer.md` previously
+  deferred to the caller ("if the caller specifies such a format, it wins"), so a caller
+  who did not spell out the `=== REVIEW ===` block got prose that the approval tooling
+  could not consume — a flawless review that records no verdict. The block is now
+  specified inline and always required, with a placeholder form that cannot itself parse
+  as a real score. The agent also no longer demands mutation proofs it cannot run: it has
+  no Bash, so reviews that must prove a gate binds are routed to `code-reviewer`.
+
 ### Added
 - **Generators that cannot drift: `ck skill new`, `ck mcp add`, and a registry gate that
   sees the filesystem.** Creating a skill and registering it are now one act — `ck skill new`

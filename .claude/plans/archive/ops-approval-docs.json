@@ -1,0 +1,41 @@
+{
+  "plan": "approval-docs",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".ai/BACKLOG.md",
+      "edits": [
+        {
+          "find": "- [ ] **[HIGH] The record slug is derived from the PLAN filename, but the executor's gate derives it from the OPS filename.**",
+          "replace": "- [x] **[HIGH] The record slug is derived from the PLAN filename, but the executor's gate derives it from the OPS filename.** FIXED 2026-08-22 (`ops-approval-machinery.json`): records key on `ops_slug()`, the same inversion `_approval_slugs()` performs, so the two sides agree by construction. **Does NOT retroactively rescue `ops-mcp-probe.json`** \u2014 its verdict was recorded under a *different plan's* slug (`generators-that-cannot-drift`), which neither the ops key nor the legacy plan-slug fallback reaches; verified still `NO RECORD` rc 3 after the fix. It needs a fresh review record, which is a review decision, not a machinery one."
+        },
+        {
+          "find": "- [ ] **[HIGH] `validate-config-json.py --stamp-baseline` breaks the approval binding it coexists with.**",
+          "replace": "- [x] **[HIGH] `validate-config-json.py --stamp-baseline` breaks the approval binding it coexists with.** MISDIAGNOSED \u2014 this is a SEQUENCING defect, not a code defect, and no code was changed. Measured on unmodified HEAD: stamp -> record -> execute works (`Baseline: verified`, `Successful: 1`); only record -> stamp gives DRIFT. Re-stamping after approval SHOULD force re-review, since the artifact changed. Closed 2026-08-22 by making the DRIFT refusal name `--stamp-baseline` as the likely cause and pinning both orders with tests. **A sidecar redesign was drafted and CUT after two rejections (82, then 62 with five MAJORs) \u2014 do not retry it:** requiring a `baseline_sidecar` declaration made `--stamp-baseline` reject every config the repo's own generator emits (`implementer.md:83` runs it unconditionally, non-zero = STOP); it restored tamper-evidence only against deletion (re-stamping after drift, or swapping in a baseline computed over an unrelated file, both still reported `Baseline: verified`); and `echo '{}' > <config>.baseline.json` disabled the drift gate at rc 0, the exact outcome its own docstring called \"strictly worse than having no gate\"."
+        },
+        {
+          "find": "- [ ] **[MEDIUM] Records key by plan slug, so a plan with a core config AND an addendum can hold only one \u2014 the second silently overwrites the first.**",
+          "replace": "- [x] **[MEDIUM] Records key by plan slug, so a plan with a core config AND an addendum can hold only one \u2014 the second silently overwrites the first.** FIXED 2026-08-22 \u2014 same root cause as the slug HIGH above, same one-line fix; bound by a test asserting the first record survives byte-identical."
+        },
+        {
+          "find": "- [ ] **[MEDIUM] Nothing in the reviewer prompt chain asks for the `=== REVIEW ===` block that `review-record.py --from-review` parses.**",
+          "replace": "- [x] **[MEDIUM] Nothing in the reviewer prompt chain asks for the `=== REVIEW ===` block that `review-record.py --from-review` parses.** FIXED 2026-08-22 \u2014 and the row was slightly imprecise: `reviewer.md:242` was not silent, it deferred to the caller (\"if the caller specifies such a format, it wins\"), so a caller who did not spell it out still got prose. The block is now MANDATORY and specified inline, with a placeholder form that cannot parse as a real verdict, bound by a test that extracts the template from the prompt and feeds it to `parse_verdict`."
+        },
+        {
+          "find": "- [ ] **[MEDIUM] `subagent_type: reviewer` has no Bash, so it cannot run the mutation proofs its own prompt demands.**",
+          "replace": "- [ ] **[MEDIUM] `subagent_type: reviewer` has no Bash, so it cannot run the mutation proofs its own prompt demands.** PARTIALLY ADDRESSED 2026-08-22: `reviewer.md` no longer demands proofs it cannot run and routes gate-binding review to `code-reviewer`. The tool grant itself is left OPEN and owner-gated \u2014 granting Bash to a plan-review agent widens a tool surface to fix a prompt inconsistency, which is the more expensive of the two options the row offers."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".ai/BACKLOG.md",
+      "edits": [
+        {
+          "find": "Windows support \u00b7 MCP server for the ops engine \u00b7 `ck cost`/`ck trace` observability \u00b7 team features \u00b7 README translations refresh policy (i18n/ currently drifts silently \u2014 no CI check).",
+          "replace": "## Findings from the approval-machinery repair (2026-08-22)\n\nFiled by round-3 adversarial review of `ops-approval-machinery.json`, which APPROVED at\n90/100. None is blocking; all three were left rather than patched, because the review\nceiling is three rounds and changing the ops.json would have invalidated the verdict bound\nto its bytes.\n\n- [ ] **[LOW] The new DRIFT text names `--stamp-baseline` unconditionally, so it misdiagnoses the legacy-fallback path.** Measured: a config resolved through the legacy plan-slug fallback, never stamped and carrying no `baseline` key, still printed `Most likely cause: --stamp-baseline was run AFTER the verdict was recorded` \u2014 the real cause was a cross-config legacy borrow. Fails closed and the trailing \"Otherwise re-run /review\" line still applies, but it reproduces the misdiagnosis shape the edit exists to cure, in a different branch. Fix: gate the five lines on `\"baseline\" in current_config`, or suppress them when the record was resolved via the fallback.\n- [ ] **[LOW] `cmd_diff`'s legacy fallback resolves silently.** `cmd_check` prints `NOTE: ... using the legacy plan-slug record '<key>'` and its test asserts that line (\"the operator cannot tell which key satisfied the lookup\"); `cmd_diff` adopts the same fallback with no NOTE. Fix: emit the same line.\n- [ ] **[MEDIUM] The executor's legacy-record path \u2014 the actual production back-compat surface \u2014 has no test.** `TestLegacyRecordFallback` drives `review-record.py check`, never `execute-json-ops.py` on the ACCEPTING path. Verified working by hand (legacy key `core`, config `ops-addendum.json` with a matching `plan` field -> `Approval: reviewed verdict verified`, `Successful: 1`; non-matching -> fails closed exit 3). So a future change to `_approval_slugs` or the fallback could detach every record already on disk with the suite green \u2014 the same verification gap that produced the two `vacuous-check` instances this plan closed. Fix: one case asserting the verdict is consumed through the executor for a legacy-keyed record.\n- [ ] **[LOW] `parse_verdict` accepts a verdict with no anchored block at all.** `review-record.py:137-138` falls back to `body = text` when `_BLOCK_RE` finds nothing, so loose reviewer prose containing `SCORE: 93` and `DECISION: APPROVED` on their own lines records as a real verdict. Pre-existing; the now-mandatory block makes it less likely to be hit, never worse. Fix: require the block, or state that the bare form is intentional.\n- [ ] **[LOW] `reviewer.md`'s human report template omits `REVISE`.** It offers `DECISION: APPROVED | CONDITIONAL | REJECTED` while `VALID_DECISIONS` accepts four. Pre-existing, unchanged text.\n- [ ] **[LOW] Degenerate ops filenames collide onto record key `_`.** `.json`, `.ops.json`, `plan-.json`, `ops-.json` all key as `_` under `ops_slug()` while `_approval_slugs()` returns `[]`. The disagreement direction is fail-CLOSED (NO RECORD), so it is a curiosity rather than a hole.\n\nWindows support \u00b7 MCP server for the ops engine \u00b7 `ck cost`/`ck trace` observability \u00b7 team features \u00b7 README translations refresh policy (i18n/ currently drifts silently \u2014 no CI check)."
+        }
+      ]
+    }
+  ]
+}

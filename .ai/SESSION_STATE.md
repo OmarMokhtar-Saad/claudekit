@@ -2,7 +2,31 @@
 
 > Update this file at the end of every significant AI working session. It is the resume point.
 
-**Last updated:** 2026-08-21 · **By:** Claude (Opus 5) — **layered profiles landed on
+**Last updated:** 2026-08-22 · **By:** Claude (Opus 5) — **Phase 1a landed on `main`:
+the approval path can now service a multi-config plan.** `ops-approval-machinery.json`
+(3 ops / 9 edits) APPROVED 90/100 round 3, executed, archived. Suite `1938 passed,
+1 xfailed`; all eight gates green.
+
+**In one paragraph.** Review records now key on the ops config's identity instead of the
+plan filename, which is the same inversion `execute-json-ops.py:_approval_slugs()` already
+performed — three filed defects (two HIGH, one MEDIUM) were that single disagreement.
+`reviewer.md`'s `=== REVIEW ===` block is mandatory rather than caller-dependent, and
+gate-binding reviews route to `code-reviewer` because `reviewer` has no Bash. The other
+HIGH (`--stamp-baseline` vs the approval hash) was **misdiagnosed in the backlog**: it is a
+sequencing problem, fixed by ordering stamp -> record -> execute and by a refusal message
+that says so. A sidecar redesign for it was drafted, rejected twice (82, then 62) and CUT —
+it broke `--stamp-baseline` for every generator-emitted config and left two ways to
+neutralise the drift gate. Do not retry it; the archive row and BACKLOG carry the measurements.
+
+**Next.** Phase 1b is planned but NOT executed: `.claude/plans/plan-dispatcher-payload.md`
+(ARG_MAX resolver-to-stdin, `decisions.merge` delete, two LOWs, advisory-clamp test). Its
+load-bearing constraint is already found: extracting the resolver to a `.py` beside
+`dispatch.sh` would inflate `gen-docs`' hook count 22 -> 23, because `_is_helper_module`
+only recognises a Python helper that a sibling *imports*, and a subdirectory is not an
+option since `install.sh:_copy_hook_assets` copies only regular files. The generator needs
+to learn that a shell-invoked `.py` is a helper. Phase 2 (`ck adapt`) is untouched.
+
+**Superseded (2026-08-21):** layered profiles landed on
 `perf/token-efficiency`**, on top of the validator security batch (`ecb3b2b`, `0b97efc`,
 `4cf1e42`, `1a15f36`). All eight DoD gates pass.
 

@@ -239,11 +239,37 @@ Total Score = (Plan Quality x 0.40) + (Architecture x 0.30) + (Security x 0.30)
 
 ## Output Format
 
-**When the caller specifies an exact response format (for example a `=== REVIEW ===`
-block with `SCORE:` and `DECISION:` lines), that format wins — emit it verbatim and
-nothing else.** Tooling parses those lines to bind your verdict to the artifact you
-scored; a REVIEW REPORT emitted instead of the requested block records no verdict at
-all. The template below is the default only when no format was requested.
+**Always end your response with the machine-readable verdict block below. It is
+mandatory, not conditional on the caller asking for it.** `review-record.py
+--from-review` parses it with strict anchored patterns to bind your verdict to the
+exact artifact you scored. A REVIEW REPORT with no block records NO verdict, and
+execution stalls behind an approval that was never captured — five review rounds were
+lost to exactly that. If the caller requests a different exact format, emit that one
+instead, verbatim and nothing else.
+
+```
+=== REVIEW ===
+SCORE: <integer 0-100>
+DECISION: APPROVED | CONDITIONAL | REVISE | REJECTED
+- [CRITICAL] <finding — one per line; omit the list entirely if there are none>
+- [MAJOR] <finding>
+- [MINOR] <finding>
+=== END REVIEW ===
+```
+
+Substitute real values: `SCORE:` must be bare digits alone on the line, and
+`DECISION:` exactly one of the four words alone on the line, or the parser records
+nothing. The placeholder forms above are deliberately unparseable, so this template
+can never be consumed as a real verdict.
+
+**A review that must PROVE a gate binds is not this agent's job.** This agent has no
+Bash and cannot execute anything, so it cannot run a mutation proof — and rounds that
+scored plans without executing anything found nothing that mattered. Route any review
+whose verdict depends on running the artifact to `code-reviewer`, which can. Score
+what is readable, and state plainly which claims you could not verify by execution
+rather than implying you did.
+
+The template below is the human-facing report that accompanies the block.
 
 ```
 REVIEW REPORT
@@ -399,3 +425,5 @@ Recommendation: <suggested path forward>
 - NEVER score subjectively (use the criteria tables)
 - NEVER skip the security review, even for "simple" changes
 - NEVER auto-approve because the planner is "probably right"
+- NEVER omit the `=== REVIEW ===` block — a verdict the tooling cannot parse is no verdict
+- NEVER claim a gate binds, or a proof passes, without having executed it; you cannot execute

@@ -58,6 +58,33 @@ def plan_slug(plan_path: str) -> str:
     return stem[5:] if stem.startswith("plan-") else stem
 
 
+def ops_slug(ops_path) -> str:
+    """Record key derived from the OPS config's own filename.
+
+    Records used to be keyed by the plan slug, but the executor's approval gate is
+    handed an ops.json and resolves candidates from ITS filename
+    (execute-json-ops.py _approval_slugs). The two disagreed whenever an ops file
+    was named differently from its plan, so an addendum could not be approved
+    through the sanctioned path at all, and two configs under one plan collapsed
+    onto one record path where the second write destroyed the first. Both were hit
+    live on approved Tier 3 plans.
+
+    Keying by ops identity makes the two sides agree by construction. This inverts
+    exactly the filename forms resolve_ops() emits, so plan-x.ops.json, ops-x.json,
+    x.ops.json and x.json all key as "x".
+    """
+    name = Path(ops_path).name
+    for suffix in (".ops.json", ".json"):
+        if name.endswith(suffix):
+            name = name[:-len(suffix)]
+            break
+    for prefix in ("plan-", "ops-"):
+        if name.startswith(prefix):
+            name = name[len(prefix):]
+            break
+    return name or "_"
+
+
 def resolve_ops(plan_path: str):
     """Find the ops.json a plan owns, across every naming convention in use.
 
@@ -202,12 +229,13 @@ def cmd_write(args) -> int:
             print(f"Error: invalid score/decision: {score} {decision}", file=sys.stderr)
             return 1
 
-    slug = plan_slug(args.plan)
+    slug = ops_slug(ops_path)
     rec_path, snap_path = record_paths(slug)
     rec_path.parent.mkdir(parents=True, exist_ok=True)
 
     record = {
         "plan": os.path.relpath(args.plan),
+        "slug": slug,
         "ops_path": os.path.relpath(str(ops_path)),
         "ops_sha256": sha256_of(ops_path),
         "score": score,
@@ -231,10 +259,42 @@ def cmd_write(args) -> int:
     return 0
 
 
+def _record_covers(rec_path: Path, ops_path: Path) -> bool:
+    """Whether a record was written FOR this ops file, by recorded path.
+
+    Used to keep the legacy read path from lending one config's snapshot to
+    another. Identity here is by path, not hash: a drifted-but-correct config must
+    still resolve, so that `check` can report DRIFT rather than NO RECORD.
+    """
+    try:
+        record = json.loads(rec_path.read_text(encoding="utf-8"))
+    except Exception:
+        return False
+    recorded = record.get("ops_path")
+    if not recorded:
+        return False
+    try:
+        return Path(recorded).resolve() == ops_path.resolve()
+    except OSError:
+        return str(recorded) == str(ops_path)
+
+
 def cmd_check(args) -> int:
     ops_path = Path(args.ops)
-    slug = plan_slug(args.plan)
+    slug = ops_slug(ops_path)
     rec_path, _ = record_paths(slug)
+
+    if not rec_path.exists():
+        # Records written before keying moved to ops identity live under the plan
+        # slug. The legacy path is READ-only: nothing writes it any more, so it
+        # drains as plans are archived instead of needing a migration step. A miss
+        # on both keys still fails CLOSED below.
+        legacy = plan_slug(args.plan)
+        legacy_path, _ = record_paths(legacy)
+        if legacy_path.exists():
+            print(f"NOTE: no record under ops key '{slug}'; using the legacy "
+                  f"plan-slug record '{legacy}'.", file=sys.stderr)
+            slug, rec_path = legacy, legacy_path
 
     if not rec_path.exists():
         print(f"NO RECORD: no review record for '{slug}'.", file=sys.stderr)
@@ -256,7 +316,15 @@ def cmd_check(args) -> int:
         print(f"       approved: {str(record.get('ops_sha256'))[:16]}...", file=sys.stderr)
         print(f"       current:  {sha256_of(ops_path)[:16]}...", file=sys.stderr)
         print("       The recorded score does not apply to this file.", file=sys.stderr)
-        print("       Re-run /review (it scores only the delta), then retry.", file=sys.stderr)
+        print("       Most likely cause: --stamp-baseline was run AFTER the verdict",
+              file=sys.stderr)
+        print("       was recorded. Stamping writes a 'baseline' key into the config,",
+              file=sys.stderr)
+        print("       and this binding is over raw bytes. Stamp FIRST, then record,",
+              file=sys.stderr)
+        print("       then execute — that order needs no other change.", file=sys.stderr)
+        print("       Otherwise re-run /review (it scores only the delta), then retry.",
+              file=sys.stderr)
         return 2
 
     score = record.get("score")
@@ -290,8 +358,18 @@ def _normalized(path: Path):
 
 def cmd_diff(args) -> int:
     ops_path = Path(args.ops)
-    slug = plan_slug(args.plan)
+    slug = ops_slug(ops_path)
     rec_path, snap_path = record_paths(slug)
+
+    if not (rec_path.exists() and snap_path.exists()):
+        legacy = plan_slug(args.plan)
+        legacy_rec, legacy_snap = record_paths(legacy)
+        # Only adopt a legacy record that is bound to THIS config. Without the
+        # ops_path check the fallback happily rendered a delta against an unrelated
+        # config's approved snapshot, labelled "approved/<slug>.json" — a diff that
+        # invites a reviewer to score the wrong artifact.
+        if legacy_rec.exists() and legacy_snap.exists() and _record_covers(legacy_rec, ops_path):
+            slug, rec_path, snap_path = legacy, legacy_rec, legacy_snap
 
     if not rec_path.exists() or not snap_path.exists():
         print(f"NO RECORD: no approved snapshot for '{slug}'", file=sys.stderr)
