@@ -45,8 +45,17 @@
 #   payload rule below is only safe while such a row cannot block: an
 #   invariant the code depends on and does not enforce IS the defect.
 # max() is commutative and associative, so no ordering can change the outcome.
-# The identical table lives in src/claudekit/enforcement/decisions.py and
-# tests/test_dispatch_merge.py fails if the two disagree on any input.
+# src/claudekit/enforcement/decisions.py carries the same codec and the same
+# most-restrictive rule, and tests/test_dispatch_merge.py fails if the two disagree
+# on any input -- for from_exit_code, to_exit_code and clamp_advisory, which are the
+# three functions under shell<->Python parity test.
+#
+# `decisions.merge` is NOT one of them, and the distinction is worth stating: the
+# merge that actually runs is the bash arithmetic below, and it is mutation-proven
+# by test_dispatch_merge.py (flipping this comparison must make a block vanish).
+# The Python `merge` is re-exported public API with no caller in this repo, so it
+# is covered directly over the decision tuples rather than by parity against a
+# shell function that does not exist -- the shell side is inline here, not callable.
 #
 # NO PYTHON DEPENDENCY FOR THE DECISION. Python is used to read the registry and
 # to append the event-log record; the merge itself is bash-3.2 arithmetic, so the
@@ -190,14 +199,15 @@ TOOL_NAME=$(extract_json_field "$PAYLOAD" tool_name) || TOOL_NAME=""
 
 # --- resolve the handler list -------------------------------------------------
 # One tab-separated line per applicable handler: id, file, runner, tier.
-# --- RESOLVER RATIONALE (kept OUT of the heredoc on purpose) -----------------
-# `scripts/check-silent-failure.py` skips heredoc bodies but caps the skip at
-# MAX_JOIN_LINES=80 and then abandons it, which makes its scan of this file
-# INCOMPLETE and reds tests/test_silent_failure_lint.py. Measured in a
-# worktree at 5f3e322 + this config applied: with these blocks inline the body
-# was 103 lines and two lint tests failed. Every sentence below is verbatim
-# from where it used to sit; only its position moved, so a security-relevant
-# file stays fully lintable.
+# --- RESOLVER RATIONALE (the code is in dispatch_resolve.py) -----------------
+# The resolver body lives in `.claude/hooks/dispatch_resolve.py`, invoked below.
+# Its long-form rationale stays HERE, beside the invocation, and the resolver's
+# own comments point back at it -- one copy, at the call site a reader reaches
+# first. An earlier revision kept this text out of a `<<'PY'` heredoc because
+# `scripts/check-silent-failure.py` caps its heredoc skip at MAX_JOIN_LINES=80
+# and abandoned the scan of this file. The resolver heredoc is gone (the `done <<EOF`
+# further down is a different one), so that constraint is gone with it and only the
+# placement it produced remains.
 #
 # --- REGISTRY INVARIANT: a precondition only on an advisory row ---------------
 # The NOT-APPLICABLE skip rule below is safe only because a command_matcher row
@@ -218,7 +228,7 @@ TOOL_NAME=$(extract_json_field "$PAYLOAD" tool_name) || TOOL_NAME=""
 # any non-zero rc here lands in dispatch.sh's registry-resolution branch, which
 # prints BLOCKED and exits 2 on a blocking event and 0 elsewhere. The hook
 # boundary still only ever emits 0 or 2 (CLAUDE.md hard rule 2). The message
-# goes to hooks.log (the heredoc's stderr is appended there); the user-facing
+# goes to hooks.log (the resolver's stderr is appended there); the user-facing
 # stderr line is the dispatcher's own BLOCKED line.
 #
 # THE TOOL MATCHER DOES NOT FILTER AN UNREADABLE PAYLOAD. Caught by executing
@@ -251,73 +261,31 @@ TOOL_NAME=$(extract_json_field "$PAYLOAD" tool_name) || TOOL_NAME=""
 # test_a_command_matcher_handler_is_not_applicable_on_an_unreadable_payload
 # plus its mutant, and by the real-registry termination test.
 # ----------------------------------------------------------------------------
-HANDLERS=$(EVENT="$EVENT" TOOL_NAME="${TOOL_NAME:-}" CK_PAYLOAD="$PAYLOAD" \
-    python3 - "$REGISTRY" <<'PY' 2>>"$LOG_FILE"
-import json, os, re, sys
-try:
-    reg = json.load(open(sys.argv[1]))
-except Exception as exc:
-    sys.stderr.write("registry parse failure: %s\n" % exc)
-    sys.exit(3)
-event = os.environ["EVENT"]
-tool = os.environ.get("TOOL_NAME", "")
-
-# Command text for `command_matcher`. settings.json wrappers read a TOP-LEVEL
-# "command" while the documented payload nests it under tool_input, so both are
-# accepted. `None` means "payload unreadable" and is deliberately distinct from
-# "" ("no command"): an unreadable payload must NOT filter a guard out. Running a
-# guard that did not need to run is a wasted subprocess; skipping one that did is
-# the failure mode this whole phase exists to remove.
-try:
-    payload = json.loads(os.environ.get("CK_PAYLOAD") or "")
-    if not isinstance(payload, dict):
-        raise ValueError("payload is not an object")
-    readable = True
-    command = payload.get("tool_input", {}).get("command")
-    if command is None:
-        command = payload.get("command")
-    command = "" if command is None else str(command)
-    tool = payload.get("tool_name") or payload.get("name") or tool
-except Exception:
-    readable, command = False, ""
-
-# REGISTRY INVARIANT (rationale above the invocation): a command_matcher may
-# appear ONLY on an `advisory` row. Anything else -> exit 3 -> fail closed.
-for _ev, _rows in sorted(reg.get("events", {}).items()):
-    for _r in (_rows if isinstance(_rows, list) else []):
-        if isinstance(_r, dict) and (_r.get("command_matcher") or "") and \
-                _r.get("tier", "advisory") != "advisory":
-            sys.stderr.write("illegal registry row %r on %s: tier=%r declares a "
-                             "command_matcher; only advisory rows may carry a "
-                             "precondition\n" % (_r.get("id"), _ev, _r.get("tier")))
-            sys.exit(3)
-
-for row in reg.get("events", {}).get(event, []):
-
-    # RELEVANCE FILTER -- rationale above the invocation, not inline (linter cap).
-    matcher = row.get("matcher") or ""
-    if readable and matcher and not re.search(matcher, tool or ""):
-        continue
-
-    # PRECONDITION -- rationale above the invocation, not inline (linter cap).
-    cmd_matcher = row.get("command_matcher") or ""
-    if cmd_matcher and (not readable or not re.search(cmd_matcher, command)):
-        continue
-    args = row.get("args") or []
-    if any((" " in a or "\t" in a or "\n" in a) for a in args):
-        sys.stderr.write("handler %s: args may not contain whitespace\n" % row["id"])
-        sys.exit(3)
-    sys.stdout.write("\t".join([
-        row["id"], row["file"], row.get("runner", "bash"), row.get("tier", "advisory"),
-        " ".join(args),
-    ]) + "\n")
-PY
-)
+# The payload travels on STDIN, not the environment. Through the environment it
+# hit ARG_MAX (1048576): execve returned E2BIG, the resolver never started, and a
+# blocking event exited 2 -- so writing a >1 MB file was refused. The resolver body
+# moved to dispatch_resolve.py precisely so stdin is free; a pipe has neither an
+# ARG_MAX nor a file-size limit and writes nothing to disk. Spilling to a temp file
+# was the other candidate and is WRONG: it adds an RLIMIT_FSIZE kill surface, so the
+# boundary emits rc -25 (SIGXFSZ) instead of a fail-closed rc 2, which breaks hard
+# rule 2 and plausibly reads as NON-blocking.
+# 2>>"$LOG_FILE" on the WRITER: draining stdin first only helps when the resolver
+# actually starts. A missing resolver, a syntax error, or a resolver that is a
+# directory all die before reading, which SIGPIPEs this printf and leaked
+# `printf: write error: Broken pipe` onto user-visible stderr, directly above the
+# BLOCKED line, on payloads past the pipe buffer. The verdict was never affected;
+# the noise displaced the actual reason. It goes to the log, not /dev/null, so a
+# real write failure stays recoverable.
+HANDLERS=$(printf '%s' "$PAYLOAD" 2>>"$LOG_FILE" \
+    | EVENT="$EVENT" TOOL_NAME="${TOOL_NAME:-}" \
+      python3 "$SCRIPT_DIR/dispatch_resolve.py" "$REGISTRY" 2>>"$LOG_FILE")
 REG_RC=$?
 if [ "$REG_RC" -ne 0 ]; then
     hlog "ERROR" "registry resolution failed rc=$REG_RC (event=$EVENT)"
     if [ "$EVENT_BLOCKING" -eq 1 ]; then
-        printf 'BLOCKED: could not resolve hook handlers for %s; failing closed.\n' "$EVENT" >&2
+        printf 'BLOCKED: could not resolve hook handlers for %s (resolver rc=%s, payload %s chars); failing closed.\n' \
+            "$EVENT" "$REG_RC" "${#PAYLOAD}" >&2
+        printf '  The resolver is .claude/hooks/dispatch_resolve.py; see hooks.log for its stderr.\n' >&2
         CK_RENDERED=1
         exit 2
     fi
@@ -343,7 +311,14 @@ while IFS="$(printf '\t')" read -r H_ID H_FILE H_RUNNER H_TIER H_ARGS; do
         START=$(ck_now_ms)
         # shellcheck disable=SC2086  # H_ARGS is registry-controlled argv, split on purpose;
         # the resolver rejects any arg containing whitespace, so this cannot re-split a value.
-        printf '%s' "$PAYLOAD" | "$H_RUNNER" "$H_PATH" ${H_ARGS:-} >"$H_OUT" 2>"$H_ERR"
+        # A handler that decides without reading its input exits while this printf
+        # is still writing, which SIGPIPEs the writer and leaked
+        # `printf: write error: Broken pipe` onto HOOK stderr on payloads >=100 KB.
+        # The verdict was never affected, but on a blocking event that text is shown
+        # to the user as if it were the reason. Its stderr goes to the log instead of
+        # /dev/null so a real write failure is still recoverable from hooks.log.
+        printf '%s' "$PAYLOAD" 2>>"$LOG_FILE" | "$H_RUNNER" "$H_PATH" ${H_ARGS:-} \
+            >"$H_OUT" 2>"$H_ERR"
         RC=$?
         END=$(ck_now_ms)
     fi

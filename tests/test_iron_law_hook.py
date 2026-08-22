@@ -230,6 +230,65 @@ def run(body, tmp_path, profile="standard", hook=None, **extra):
                           capture_output=True, text=True, env=env, timeout=60)
 
 
+def run_bytes(body: bytes, tmp_path, profile="standard", **extra):
+    """Drive the hook with RAW BYTES, so an undecodable payload can be exercised.
+
+    `run` above passes `text=True` with a `str`, which cannot express a payload that
+    is not valid UTF-8 — the exact input this covers.
+    """
+    env = dict(os.environ,
+               CLAUDEKIT_HOOK_LOG=str(tmp_path / "hooks.log"),
+               CLAUDE_PROJECT_DIR=str(REPO),
+               ECC_HOOK_PROFILE=profile,
+               LC_ALL="en_US.UTF-8", LANG="en_US.UTF-8")
+    env.pop("CLAUDEKIT_IMPLEMENTER_EXTRA_VERBS", None)
+    env.update(extra)
+    return subprocess.run([sys.executable, str(HOOK)], input=body,
+                          capture_output=True, env=env, timeout=60)
+
+
+# ------------------------------------------------- an undecodable payload is judged,
+# ------------------------------------------------- not waved through
+
+def test_an_invalid_utf8_implementer_command_is_still_blocked(tmp_path):
+    """A byte must not be a passthrough key for the Iron Law allowlist.
+
+    `read_payload` catches ValueError, and UnicodeDecodeError is a subclass of it, so
+    an undecodable payload used to return None and reach `main`'s documented FAIL OPEN
+    branch — passing an implementer command through without ever consulting the
+    allowlist. Decoding with surrogateescape makes it readable so the gate decides.
+    """
+    body = json.dumps({
+        "hook_event_name": "PreToolUse",
+        "tool_name": "Bash",
+        # The implementer is identified by this payload field, not by an env var —
+        # which is the whole reason an undecodable payload used to be a passthrough:
+        # unreadable payload, unknown agent, fail open.
+        "agent_type": "implementer",
+        "tool_input": {"command": "rm -rf /tmp/ck-probe-XX"},
+    }).encode("utf-8").replace(b"XX", b"\xff\xfe")
+    result = run_bytes(body, tmp_path)
+    assert result.returncode == 2, (
+        "an undecodable implementer command was passed through: rc=%s\n%s"
+        % (result.returncode, result.stderr.decode("utf-8", "replace")))
+    assert b"IMPLEMENTER" in result.stderr or b"Iron Law" in result.stderr, \
+        result.stderr.decode("utf-8", "replace")
+
+
+def test_an_invalid_utf8_allowed_command_still_passes(tmp_path):
+    """The tightening must not turn every odd byte into a refusal."""
+    body = json.dumps({
+        "hook_event_name": "PreToolUse",
+        "tool_name": "Bash",
+        "agent_type": "implementer",
+        "tool_input": {"command": "git status # XX"},
+    }).encode("utf-8").replace(b"XX", b"\xff\xfe")
+    result = run_bytes(body, tmp_path)
+    assert result.returncode == 0, (
+        "an allowed command was refused for carrying an invalid byte: rc=%s\n%s"
+        % (result.returncode, result.stderr.decode("utf-8", "replace")))
+
+
 # --------------------------------------------------------------- the hook must exist
 
 def test_hook_exists_and_is_a_python_hook():

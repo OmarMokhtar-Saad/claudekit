@@ -371,3 +371,72 @@ class TestUnconfiguredCommandsStayEmpty:
         text = (generic_project / ".claude" / "local" / "CONSTITUTION.md").read_text()
         assert "not configured" in text, text
         assert "{{" not in text, text
+
+# ---------------------------------------------------------------------------
+# Defect 4: a helper a hook invokes by path was invisible to every doctor check
+# ---------------------------------------------------------------------------
+
+
+class TestInvokedHelpersAreCheckedNotAssumed:
+    """`dispatch.sh` invokes `dispatch_resolve.py`, which settings.json never wires.
+
+    Before this check, deleting only the resolver left `ck doctor --strict` reporting
+    25/26 green while every PreToolUse call was blocked - the exact "healthy install on
+    a completely blocked project" that the wired-hook check was written to end,
+    re-entered through a file that check cannot see.
+
+    All three directions are asserted, because the negative alone would be satisfied by
+    a doctor that fails for any reason at all: the healthy install reports the check as
+    a pass, the damaged install FAILS and names the missing file, and the damaged
+    install really is blocked (proving doctor fails because the tree is broken, not
+    merely because a file is absent).
+    """
+
+    @pytest.fixture(scope="class")
+    def full_project(self, tmp_path_factory):
+        target = tmp_path_factory.mktemp("full-install-helpers")
+        result = _install(target, "--full", "--yes")
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert (target / ".claude" / "hooks" / "dispatch_resolve.py").is_file(), \
+            "the resolver did not ship; every hook would fail closed"
+        return target
+
+    def _damaged(self, source, destination):
+        shutil.copytree(source, destination)
+        (destination / ".claude" / "hooks" / "dispatch_resolve.py").unlink()
+        return destination
+
+    def test_a_healthy_install_reports_the_helper_check_as_a_pass(self, full_project):
+        """Asserted on the check's own line rather than the exit code: a full install
+        into an empty temp dir configures no project commands, so the overall --strict
+        verdict is not this check's to own."""
+        proc = _doctor(full_project)
+        assert "Hook helper scripts resolve (1 invoked)" in proc.stdout, proc.stdout
+        assert "invoke missing helpers" not in proc.stdout, proc.stdout
+        assert "may have stopped matching" not in proc.stdout, proc.stdout
+
+    def test_doctor_fails_when_an_invoked_helper_is_missing(self, full_project, tmp_path):
+        """Read BOTH streams: doctor's `ok()` prints to stdout but `err()` prints to
+        stderr, so a stdout-only assertion here passes against a doctor that failed for
+        some entirely different reason - it never sees the line it means to check."""
+        damaged = self._damaged(full_project, tmp_path / "damaged")
+        proc = _doctor(damaged)
+        out = proc.stdout + proc.stderr
+        assert proc.returncode != 0, out
+        assert "Hook helper scripts resolve" in out, out
+        assert "dispatch_resolve.py" in out, out
+        assert "every tool call is blocked" in out, out
+
+    def test_the_dispatcher_really_is_blocked_without_the_helper(self, full_project,
+                                                                tmp_path):
+        """The premise behind the failure above, driven rather than assumed."""
+        damaged = self._damaged(full_project, tmp_path / "blocked")
+        payload = json.dumps({"tool_name": "Read",
+                              "tool_input": {"file_path": "/tmp/ck-doctor-probe.txt"}})
+        proc = subprocess.run(
+            ["bash", str(damaged / ".claude" / "hooks" / "dispatch.sh"), "PreToolUse"],
+            input=payload, capture_output=True, text=True, timeout=300,
+            cwd=str(damaged), env=dict(ENV, ECC_HOOK_PROFILE="standard"))
+        assert proc.returncode == 2, proc.stdout + proc.stderr
+        assert "could not resolve hook handlers" in proc.stderr, proc.stderr
+

@@ -645,8 +645,25 @@ def denial_message(command: str, reason: str) -> str:
 
 
 def read_payload() -> Optional[Dict]:
+    # .buffer + surrogateescape, and the reason is NOT that a decode error escaped:
+    # UnicodeDecodeError is a subclass of ValueError, so the `except` below already
+    # caught it and this hook already returned None. Measured on the unpatched hook
+    # under LC_ALL=en_US.UTF-8 with an invalid byte: rc 0, no traceback.
+    #
+    # The point is WHICH branch that None reached. `main()` treats an unreadable
+    # payload as FAIL OPEN by design (see "FAIL DIRECTIONS" in the header): it cannot
+    # tell whose command it is, so it passes through and relies on reflection-gate.py
+    # failing closed on the same event. That made a byte a passthrough key — an
+    # implementer command carrying one invalid byte skipped the Iron Law allowlist
+    # entirely. Decoding with surrogateescape cannot raise, so the payload becomes
+    # READABLE and the gate decides on its merits instead of waving it through.
+    #
+    # This is a deliberate TIGHTENING, and it flips a verdict: an implementer
+    # `rm -rf` with an invalid byte goes rc 0 -> rc 2. Both directions are covered in
+    # tests/test_iron_law_hook.py; a block/allow flip in a hard-rule-1 hook does not
+    # ship on a comment's word.
     try:
-        event = json.loads(sys.stdin.read())
+        event = json.loads(sys.stdin.buffer.read().decode("utf-8", "surrogateescape"))
     except ValueError:
         return None
     return event if isinstance(event, dict) else None

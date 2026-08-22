@@ -50,6 +50,15 @@ stdout) does **not** block. ClaudeKit's blocking hooks use the `deny` helper in
 **fail closed**: an unparseable tool payload is treated as a block, never a
 silent allow.
 
+> **The event log may contain guard stderr.** When a hook decision is recorded,
+> up to 512 bytes of the handler's stderr is kept as `stderr_preview` in
+> `.claude/runtime/events/*.jsonl`. A guard that blocks a secret-bearing write and
+> echoes the offending text back as its reason will therefore land that text on
+> disk. The directory is gitignored and advisory stdout is not captured, so this
+> is a local-disk disclosure rather than a leak into version control — but a hook
+> author should quote the *rule* that was violated, not the value that violated
+> it.
+
 ## `ECC_HOOK_PROFILE` — enforcement level
 
 A single environment variable controls how aggressively hooks enforce:

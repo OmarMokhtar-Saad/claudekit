@@ -92,8 +92,46 @@ def _is_helper_module(path, siblings) -> bool:
         # it a helper could masquerade as a hook and inflate the published count.
         pat = re.compile(r"(?:^|[;&|]\s*)(?:\.|source)\s+\S*" + re.escape(path.name), re.M)
     else:
+        # A Python helper is reached two ways: imported by another hook
+        # (`reflection.py` <- `reflection-gate.py`), or INVOKED BY PATH from a SHELL
+        # hook (`dispatch_resolve.py` <- `dispatch.sh`). Recognising only the import
+        # form counted an invoked helper as a hook and inflated the published count.
+        #
+        # Two false-positive shapes were measured before this settled, both of which
+        # silently took the count 22 -> 21 while every test stayed green:
+        #   1. matching the bare filename anywhere -- `iron-law-gate.py` discusses
+        #      `reflection-gate.py` in five comments, so a real hook became a helper;
+        #   2. requiring an interpreter on the same line -- still matched PROSE, in a
+        #      comment or docstring, that happened to write `python3 <name>.py`.
+        # Hence: the invoker must be a *.sh sibling (Python prose lives in .py), and
+        # the line must not be commented. `test_dispatch_payload.py` asserts the
+        # converse too -- every registered hook must still classify AS a hook.
         stem = re.escape(path.stem)
-        pat = re.compile(r"^\s*(?:import\s+%s|from\s+%s\s+import)\b" % (stem, stem), re.M)
+        import_pat = re.compile(
+            r"^\s*(?:import\s+%s|from\s+%s\s+import)\b" % (stem, stem), re.M)
+        # The invoker must write the interpreter as a LITERAL `python3` on the SAME
+        # line as the filename. `"$PYTHON" "$SCRIPT_DIR/dispatch_resolve.py"`, or a
+        # line-wrapped invocation, silently makes the helper a hook again. The failure
+        # is loud rather than silent: `gen-docs.py --check` reds at 23. `ck doctor`'s
+        # helper check is derived in the same SPIRIT but not by the same pattern -- it
+        # additionally requires a literal `$SCRIPT_DIR/` -- so a change to the
+        # invocation form can break one without the other. Measured: `${SCRIPT_DIR}/`
+        # keeps this generator green at 22 while doctor drops to its warn branch. That
+        # warn branch, which reds --strict, is the net under both.
+        invoke_pat = re.compile(
+            r"^[^#\n]*\bpython3?\b[^\n]*" + re.escape(path.name), re.M)
+        for other in siblings:
+            if other == path:
+                continue
+            try:
+                text = other.read_text(errors="replace")
+            except OSError:
+                continue
+            if import_pat.search(text):
+                return True
+            if other.suffix == ".sh" and invoke_pat.search(text):
+                return True
+        return False
     for other in siblings:
         if other == path:
             continue

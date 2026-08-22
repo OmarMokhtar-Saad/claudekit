@@ -5,6 +5,8 @@
 - [ ] `python3 -m pytest tests/ -q` → 516+ pass, 0 fail
 - [ ] `ruff check src/ tests/ scripts/` clean · `mypy` clean
 - [ ] `python3 scripts/gen-docs.py --check` clean
+- [ ] `python3 scripts/check-plan-artifacts.py` clean (every path a config
+      writes is named in its plan; CI runs it too)
 - [ ] `shellcheck install.sh .claude/hooks/*.sh` clean (if shell touched)
 - [ ] CHANGELOG `[Unreleased]` entry (user-visible changes)
 - [ ] Affected docs updated (README/docs/ for users; `.ai/` for maintainers)

@@ -13,6 +13,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Writes larger than ~1 MB are no longer refused.** The dispatcher passed the tool
+  payload to its handler-resolver through the environment, so once the payload crossed
+  `ARG_MAX` (1048576) the resolver could not start and a guarded event failed closed —
+  writing a >1 MB file was blocked, with a message naming neither the size nor the
+  cause. The resolver now lives in `.claude/hooks/dispatch_resolve.py` and the payload
+  arrives on stdin, which has no such limit and writes nothing to disk. Measured: 2 MB
+  refused before, allowed after, with every fail-closed path still returning `exit 2` —
+  including the guard's own block on a 2 MB write to a protected file. A refusal now
+  names the resolver's exit code and the payload size. The old transport's one virtue
+  is preserved: a payload containing invalid UTF-8 still cannot disarm resolution, so
+  an unreadable payload continues to mean "every guard runs and decides for itself".
+- No more `printf: write error: Broken pipe` on hook stderr when a handler exits before
+  draining a large payload (whenever `hooks.log` is writable).
+- **The reflection gate now blocks correctly on an unparseable payload.** It exited 1
+  with a Python traceback, which is neither 0 nor 2 and is read as non-blocking; it
+  now exits 2 with a reason.
+- **The Iron Law gate no longer treats an undecodable payload as a passthrough.** An
+  unreadable payload reaches its documented fail-open branch, so an implementer
+  command carrying a single invalid byte skipped the allowlist. Such a payload is now
+  decoded and judged on its merits — a deliberate tightening: a command that was
+  allowed through by malformed bytes is now blocked.
+- **`ck doctor` now checks the helper scripts hooks invoke by path.** Its hook check
+  was derived from `settings.json` alone, so a helper no entry mentions was invisible:
+  an install that lost only `dispatch_resolve.py` blocked every tool call while not one
+  doctor check failed. The invoked set is derived from the installed hooks themselves,
+  so a future helper needs no change here.
 - **The approval gate can now service a plan with more than one ops config.** Review
   records were keyed by the *plan* filename while the executor's gate resolved candidates
   from the *ops* filename, so an addendum named differently from its plan could not be
