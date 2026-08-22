@@ -1,0 +1,199 @@
+{
+  "plan": "gate-scope",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "pyproject.toml",
+      "description": "Widen the mypy DoD gate to the operations engine (~4.7k shipped lines).",
+      "edits": [
+        {
+          "find": "files = [\"src/claudekit\"]",
+          "replace": "files = [\"src/claudekit\", \".claude/operations/scripts\"]"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "scripts/gen-docs.py",
+      "description": "Make gen-docs own the CLI's count floors and drift-scan main.py.",
+      "edits": [
+        {
+          "find": "DRIFT_FILES = [\n    \"README.md\",\n    \"docs/AGENTS.md\",",
+          "replace": "DRIFT_FILES = [\n    \"README.md\",\n    \"src/claudekit/cli/main.py\",\n    \"docs/AGENTS.md\","
+        },
+        {
+          "find": "# A number followed by (optionally one adjective) one of the tracked nouns:",
+          "replace": "# Generated *code* block: `ck doctor` asserts an installed tree carries the full\n# shipped inventory, so its floors are counts and are generator-owned exactly like\n# the README table (CLAUDE.md hard rule 8). Hooks are excluded on purpose: a\n# `--minimal` install legitimately ships a subset.\nPY_BEGIN = \"# BEGIN GENERATED:counts\"\nPY_END = \"# END GENERATED:counts\"\nPY_BLOCK_FILE = \"src/claudekit/cli/main.py\"\n\n# Prose auto-fix rewrites a bare number in place. That is safe in Markdown but not\n# in Python: a literal like `>= 9` in a comparison has no noun beside it, so only\n# its message twin would be rewritten and the check would silently disagree with\n# what it prints. Code counts must move into the generated block by hand instead.\nNO_AUTOFIX = {PY_BLOCK_FILE}\n\n# A number followed by (optionally one adjective) one of the tracked nouns:"
+        },
+        {
+          "find": "def _replace_block(text: str, block: str) -> str:\n    pattern = re.compile(re.escape(BEGIN) + r\".*?\" + re.escape(END), re.DOTALL)",
+          "replace": "def render_py_block(c: dict) -> str:\n    \"\"\"The CLI's doctor floors, as Python constants. Same contract as the README table.\"\"\"\n    return (\n        f\"{PY_BEGIN} - owned by scripts/gen-docs.py; never hand-edit.\\n\"\n        f\"# Regenerate with: python3 scripts/gen-docs.py\\n\"\n        f\"EXPECTED_AGENTS = {c['agent']}\\n\"\n        f\"EXPECTED_COMMANDS = {c['command']}\\n\"\n        f\"EXPECTED_SKILLS = {c['skill']}\\n\"\n        f\"{PY_END}\"\n    )\n\n\ndef _replace_block(text: str, block: str, begin: str = BEGIN, end: str = END) -> str:\n    pattern = re.compile(re.escape(begin) + r\".*?\" + re.escape(end), re.DOTALL)"
+        },
+        {
+          "find": "    changed = []\n    for rel in DRIFT_FILES:\n        path = ROOT / rel",
+          "replace": "    changed = []\n    for rel in DRIFT_FILES:\n        if rel in NO_AUTOFIX:\n            continue\n        path = ROOT / rel"
+        },
+        {
+          "find": "    block_stale = new_text != text\n    drift = scan_drift(c)",
+          "replace": "    py_path = ROOT / PY_BLOCK_FILE\n    py_text = py_path.read_text() if py_path.exists() else \"\"\n    # A missing marker must be an error, not a silent pass: `_replace_block` returns\n    # the text unchanged when it finds no markers, so without this the whole gate\n    # could be disabled by deleting the block it guards.\n    py_missing = PY_BEGIN not in py_text\n    new_py_text = _replace_block(py_text, render_py_block(c), PY_BEGIN, PY_END)\n\n    block_stale = new_text != text\n    py_stale = not py_missing and new_py_text != py_text\n    drift = scan_drift(c)"
+        },
+        {
+          "find": "        if drift:\n            print(\"ERROR: stale component counts in docs:\", file=sys.stderr)",
+          "replace": "        if py_missing:\n            print(f\"ERROR: {PY_BLOCK_FILE} has no {PY_BEGIN!r} block - the generated \"\n                  \"count gate is not bound to anything. Restore the block.\",\n                  file=sys.stderr)\n            rc = 1\n        elif py_stale:\n            print(f\"ERROR: generated counts block in {PY_BLOCK_FILE} is out of date. \"\n                  \"Run: python3 scripts/gen-docs.py\", file=sys.stderr)\n            rc = 1\n        if drift:\n            print(\"ERROR: stale component counts in docs:\", file=sys.stderr)"
+        },
+        {
+          "find": "    else:\n        print(\"README generated inventory block already current.\")\n    if drift:",
+          "replace": "    else:\n        print(\"README generated inventory block already current.\")\n    if py_missing:\n        print(f\"ERROR: {PY_BLOCK_FILE} has no {PY_BEGIN!r} block - nothing to \"\n              \"regenerate. Restore the block.\", file=sys.stderr)\n        return 1\n    if py_stale:\n        py_path.write_text(new_py_text)\n        print(f\"Updated generated counts block in {PY_BLOCK_FILE}.\")\n    if drift:"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "src/claudekit/cli/main.py",
+      "description": "Generator-owned count floors; wire config.schema.json into doctor.",
+      "edits": [
+        {
+          "find": "__version__ = _resolve_version()\n",
+          "replace": "__version__ = _resolve_version()\n\n# BEGIN GENERATED:counts - owned by scripts/gen-docs.py; never hand-edit.\n# Regenerate with: python3 scripts/gen-docs.py\nEXPECTED_AGENTS = 29\nEXPECTED_COMMANDS = 42\nEXPECTED_SKILLS = 76\n# END GENERATED:counts\n"
+        },
+        {
+          "find": "\ndef cmd_doctor(args):",
+          "replace": "\ndef _check_config_schema(data, check):\n    \"\"\"Apply the shipped `config.schema.json` to `.claude/hooks/config.json`.\n\n    The schema shipped for weeks without a single executable applying it, so the\n    config drifted out of conformance unnoticed. It is wired here rather than in a\n    hook so it runs wherever `ck doctor` runs. `jsonschema` is an optional extra\n    (`pip install 'claude-kit[validation]'`) because the runtime is dependency-free;\n    when it is absent the check degrades to a warning instead of silently passing.\n    \"\"\"\n    root = find_claudekit_root()\n    schema_path = (root / \"config.schema.json\") if root else None\n    label = \"Hooks config.json matches config.schema.json\"\n    if schema_path is None or not schema_path.is_file():\n        check(label, \"warn\", \"config.schema.json not found in the ClaudeKit install\")\n        return\n    try:\n        import jsonschema\n    except ImportError:\n        check(label, \"warn\",\n              \"jsonschema not installed - run: pip install 'claude-kit[validation]'\")\n        return\n    try:\n        schema = json.loads(schema_path.read_text())\n    except json.JSONDecodeError as e:\n        check(label, False, f\"config.schema.json is invalid JSON: {e}\")\n        return\n    errors = sorted(jsonschema.Draft7Validator(schema).iter_errors(data),\n                    key=lambda e: list(e.path))\n    if errors:\n        detail = \"; \".join(f\"{'/'.join(str(x) for x in e.path) or '<root>'}: {e.message}\"\n                           for e in errors[:3])\n        check(label, False, f\"{len(errors)} schema violation(s): {detail}\")\n    else:\n        check(label, True)\n\n\ndef cmd_doctor(args):"
+        },
+        {
+          "find": "              agent_count >= 9,\n              f\"Expected ≥9 agents, found {agent_count}\")",
+          "replace": "              agent_count >= EXPECTED_AGENTS,\n              f\"Expected ≥{EXPECTED_AGENTS} agents, found {agent_count}\")"
+        },
+        {
+          "find": "              len(commands) >= 8,\n              f\"Expected ≥8 commands, found {len(commands)}\")",
+          "replace": "              len(commands) >= EXPECTED_COMMANDS,\n              f\"Expected ≥{EXPECTED_COMMANDS} commands, found {len(commands)}\")"
+        },
+        {
+          "find": "            check(f\"Skills installed: {len(skill_dirs)}\", len(skill_dirs) >= 27,\n                  f\"Expected ≥27 skills, found {len(skill_dirs)}\")",
+          "replace": "            check(f\"Skills installed: {len(skill_dirs)}\", len(skill_dirs) >= EXPECTED_SKILLS,\n                  f\"Expected ≥{EXPECTED_SKILLS} skills, found {len(skill_dirs)}\")"
+        },
+        {
+          "find": "                check(\"Hooks config.json valid\", True)",
+          "replace": "                check(\"Hooks config.json valid\", True)\n                _check_config_schema(data, check)"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "config.schema.json",
+      "description": "Admit the `_note` deprecation key the shipped config has always carried.",
+      "edits": [
+        {
+          "find": "  \"type\": \"object\",\n  \"properties\": {\n    \"hooks\": {",
+          "replace": "  \"type\": \"object\",\n  \"properties\": {\n    \"_note\": {\n      \"type\": \"string\",\n      \"description\": \"Free-text maintainer note. JSON has no comments, so an underscore-prefixed key carries the deprecation notice for this file.\"\n    },\n    \"hooks\": {"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/project-graph.py",
+      "description": "Type annotations only; narrows Optionals the code already guards.",
+      "edits": [
+        {
+          "find": "from typing import Dict, List, Optional, Tuple",
+          "replace": "from typing import Any, Deque, Dict, List, Optional, Tuple"
+        },
+        {
+          "find": "    data, error = read_input(args.input)\n    if error:\n        err(error)\n        return 2",
+          "replace": "    data, error = read_input(args.input)\n    if error or data is None:\n        err(error or \"build: input produced no graph data\")\n        return 2"
+        },
+        {
+          "find": "    ranked = sorted(nodes, key=lambda i: (-(fan_in[i] + fan_out[i]), i))[:args.top]\n    rows = []",
+          "replace": "    ranked = sorted(nodes, key=lambda i: (-(fan_in[i] + fan_out[i]), i))[:args.top]\n    rows: List[Dict[str, Any]] = []"
+        },
+        {
+          "find": "    adjacency: Dict[str, List[dict]] = {}\n    for edge in graph.get(\"edges\", []):\n        adjacency.setdefault(edge[\"from\"], []).append(edge)\n    queue = deque([(src, [])])",
+          "replace": "    if src is None or dst is None:  # unreachable: the loop above already returned\n        return 3\n    adjacency: Dict[str, List[dict]] = {}\n    for edge in graph.get(\"edges\", []):\n        adjacency.setdefault(edge[\"from\"], []).append(edge)\n    queue: Deque[Tuple[str, List[dict]]] = deque([(src, [])])"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/validate-config-json.py",
+      "description": "Type annotations only; implicit-Optional default made explicit.",
+      "edits": [
+        {
+          "find": "from typing import List, Tuple",
+          "replace": "from typing import Any, Dict, List, Optional, Tuple"
+        },
+        {
+          "find": "    legacy_sim = {}",
+          "replace": "    legacy_sim: Dict[str, Any] = {}"
+        },
+        {
+          "find": "    sim_files = {}",
+          "replace": "    sim_files: Dict[str, Any] = {}"
+        },
+        {
+          "find": "def validate_backup_compatibility(config_file: str, config: dict = None)",
+          "replace": "def validate_backup_compatibility(config_file: str, config: Optional[dict] = None)"
+        },
+        {
+          "find": "    filename_map = {}",
+          "replace": "    filename_map: Dict[str, List[str]] = {}"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/execute-json-ops.py",
+      "description": "Annotate normalize_config as Optional, which its own docstring already states.",
+      "edits": [
+        {
+          "find": "def normalize_config(config: dict) -> dict:",
+          "replace": "def normalize_config(config: dict) -> Optional[dict]:"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/xpipe.py",
+      "description": "Correct stale mypy error codes on eight existing suppressions.",
+      "edits": [
+        {
+          "find": "    print(\"  hands  (review+implement, default account): ON\")\n    for note in state[\"notes\"]:  # type: ignore[union-attr]",
+          "replace": "    print(\"  hands  (review+implement, default account): ON\")\n    for note in state[\"notes\"]:  # type: ignore[attr-defined]"
+        },
+        {
+          "find": "    env.update(stage[\"env\"])  # type: ignore[arg-type]",
+          "replace": "    env.update(stage[\"env\"])  # type: ignore[call-overload]"
+        },
+        {
+          "find": "    cmd = [str(c).replace(\"{PLAN_PATH}\", plan_path or \"\") for c in stage[\"cmd\"]]  # type: ignore[union-attr]",
+          "replace": "    cmd = [str(c).replace(\"{PLAN_PATH}\", plan_path or \"\") for c in stage[\"cmd\"]]  # type: ignore[attr-defined]"
+        },
+        {
+          "find": "                state[\"notes\"].append(f\"brain auto-off (probe): {reason}\")  # type: ignore[union-attr]",
+          "replace": "                state[\"notes\"].append(f\"brain auto-off (probe): {reason}\")  # type: ignore[attr-defined]"
+        },
+        {
+          "find": "                state[\"notes\"].append(f\"hands quota problem (probe): {hands_reason}\")  # type: ignore[union-attr]",
+          "replace": "                state[\"notes\"].append(f\"hands quota problem (probe): {hands_reason}\")  # type: ignore[attr-defined]"
+        },
+        {
+          "find": "        for note in state[\"notes\"]:  # type: ignore[union-attr]",
+          "replace": "        for note in state[\"notes\"]:  # type: ignore[attr-defined]"
+        },
+        {
+          "find": "            env = \" \".join(f\"{k}={v}\" for k, v in stage[\"env\"].items())  # type: ignore[union-attr]",
+          "replace": "            env = \" \".join(f\"{k}={v}\" for k, v in stage[\"env\"].items())  # type: ignore[attr-defined]"
+        },
+        {
+          "find": "                  \" \".join(f\"'{c}'\" if \" \" in str(c) else str(c) for c in stage[\"cmd\"]))  # type: ignore[union-attr]",
+          "replace": "                  \" \".join(f\"'{c}'\" if \" \" in str(c) else str(c) for c in stage[\"cmd\"]))  # type: ignore[attr-defined]"
+        }
+      ]
+    },
+    {
+      "type": "file_create",
+      "path": "tests/test_gate_scope.py",
+      "description": "Red/green behavioral proof that each widened gate can fail.",
+      "content": "\"\"\"Behavioral tests for the three gates that were scoped past the code they cover.\n\nEach gate is proven the same way: point it at real drift and assert it goes red,\nremove the drift and assert it goes green. A gate that cannot fail is a\n`vacuous-check`, which is the class of defect this module exists to prevent.\n\nNothing here mutates the real tree: the gen-docs case runs against a `tmp_path`\nmirror whose heavyweight asset directories are symlinks back to the repo, and the\ndoctor case builds a throwaway project + fake install root.\n\"\"\"\n\nimport json\nimport os\nimport re\nimport shutil\nimport subprocess\nimport sys\nfrom pathlib import Path\n\nimport pytest\n\nREPO = Path(__file__).resolve().parents[1]\nGEN_DOCS = REPO / \"scripts\" / \"gen-docs.py\"\nMAIN_PY = REPO / \"src\" / \"claudekit\" / \"cli\" / \"main.py\"\nSCHEMA = REPO / \"config.schema.json\"\nHOOKS_CONFIG = REPO / \".claude\" / \"hooks\" / \"config.json\"\n\n# The hook profile is read from the environment by every ClaudeKit entry point;\n# tests pin it so a developer's `.claude/settings.local.json` cannot change results.\nENV = dict(os.environ, ECC_HOOK_PROFILE=\"minimal\")\n\n# doctor prints colourised status marks; match the verdict line, not the exit code.\nOK_MARK = \"\\033[0;32m[\\u2713]\\033[0m\"\nFAIL_MARK = \"\\033[0;31m[\\u2717]\\033[0m\"\nSCHEMA_LABEL = \"Hooks config.json matches config.schema.json\"\n\n\ndef _run(args, cwd, env=None):\n    return subprocess.run([sys.executable, *args], cwd=str(cwd), capture_output=True,\n                          text=True, timeout=300, env=env or ENV)\n\n\n# --------------------------------------------------------------------------\n# Gate 1: mypy must cover .claude/operations/scripts/, not just src/claudekit\n# --------------------------------------------------------------------------\n\nclass TestMypyScope:\n    def test_config_lists_the_operations_scripts(self):\n        text = (REPO / \"pyproject.toml\").read_text()\n        block = text.split(\"[tool.mypy]\", 1)[1]\n        files = re.search(r\"files\\s*=\\s*\\[(.*?)\\]\", block, re.DOTALL).group(1)\n        assert \"src/claudekit\" in files\n        assert \".claude/operations/scripts\" in files, (\n            \"the operations engine is ~4.7k lines of shipped Python; leaving it out \"\n            \"of `files` makes the mypy DoD gate vacuous\"\n        )\n\n    def test_gate_is_green_and_actually_reaches_the_ops_scripts(self):\n        pytest.importorskip(\"mypy\")\n        proc = _run([\"-m\", \"mypy\"], REPO)\n        assert proc.returncode == 0, proc.stdout + proc.stderr\n        checked = re.search(r\"in (\\d+) source files?\", proc.stdout)\n        assert checked and int(checked.group(1)) >= 18, (\n            \"mypy reported %s - the ops scripts are not in scope\" % proc.stdout.strip()\n        )\n\n    def test_gate_fails_on_a_type_error_in_an_ops_script(self, tmp_path):\n        \"\"\"Red arm: a type error planted in the widened path must break the gate.\"\"\"\n        pytest.importorskip(\"mypy\")\n        scripts = tmp_path / \".claude\" / \"operations\" / \"scripts\"\n        scripts.mkdir(parents=True)\n        (scripts / \"planted.py\").write_text(\"def f() -> int:\\n    return 'not an int'\\n\")\n        cfg = tmp_path / \"pyproject.toml\"\n        cfg.write_text('[tool.mypy]\\npython_version = \"3.9\"\\n'\n                       'ignore_missing_imports = true\\n'\n                       'files = [\".claude/operations/scripts\"]\\n')\n        proc = _run([\"-m\", \"mypy\", \"--config-file\", str(cfg)], tmp_path)\n        assert proc.returncode != 0\n        assert \"planted.py\" in proc.stdout\n\n\n# --------------------------------------------------------------------------\n# Gate 2: gen-docs must own the count floors baked into the CLI\n# --------------------------------------------------------------------------\n\ndef _mirror(tmp_path):\n    \"\"\"A writable repo mirror: real assets by symlink, gated files by copy.\"\"\"\n    root = tmp_path / \"mirror\"\n    (root / \"scripts\").mkdir(parents=True)\n    (root / \"src\" / \"claudekit\" / \"cli\").mkdir(parents=True)\n    for name in (\"docs\", \"config.schema.json\"):\n        os.symlink(REPO / name, root / name)\n    (root / \".claude\").mkdir()\n    for name in (\"agents\", \"commands\", \"skills\", \"hooks\", \"settings.json\"):\n        os.symlink(REPO / \".claude\" / name, root / \".claude\" / name)\n    shutil.copy(REPO / \"README.md\", root / \"README.md\")\n    shutil.copy(GEN_DOCS, root / \"scripts\" / \"gen-docs.py\")\n    shutil.copy(MAIN_PY, root / \"src\" / \"claudekit\" / \"cli\" / \"main.py\")\n    return root\n\n\nclass TestGenDocsCoversTheCli:\n    def test_cli_carries_no_hand_written_count(self):\n        assert \"# BEGIN GENERATED:counts\" in MAIN_PY.read_text()\n        for literal in (\"≥9 agents\", \"≥8 commands\", \"≥27 skills\"):\n            assert literal not in MAIN_PY.read_text(), (\n                \"hard rule 8: %r is a hand-edited component count\" % literal\n            )\n\n    def test_check_is_green_on_the_real_tree(self):\n        \"\"\"Couples the suite to the live asset inventory on purpose: that is the gate.\"\"\"\n        proc = _run([str(GEN_DOCS), \"--check\"], REPO)\n        assert proc.returncode == 0, (\n            \"docs-drift gate is red - run `python3 scripts/gen-docs.py` to regenerate, \"\n            \"then re-run.\\n\" + proc.stdout + proc.stderr\n        )\n\n    def test_check_fails_when_the_generated_block_goes_stale(self, tmp_path):\n        root = _mirror(tmp_path)\n        main = root / \"src\" / \"claudekit\" / \"cli\" / \"main.py\"\n        main.write_text(re.sub(r\"EXPECTED_AGENTS = \\d+\", \"EXPECTED_AGENTS = 1\",\n                               main.read_text()))\n        red = _run([str(root / \"scripts\" / \"gen-docs.py\"), \"--check\"], root)\n        assert red.returncode == 1, red.stdout + red.stderr\n        assert \"main.py\" in red.stderr\n\n        fix = _run([str(root / \"scripts\" / \"gen-docs.py\")], root)\n        assert fix.returncode == 0, fix.stdout + fix.stderr\n        green = _run([str(root / \"scripts\" / \"gen-docs.py\"), \"--check\"], root)\n        assert green.returncode == 0, green.stdout + green.stderr\n\n    def test_check_fails_on_a_hardcoded_count_in_cli_prose(self, tmp_path):\n        root = _mirror(tmp_path)\n        main = root / \"src\" / \"claudekit\" / \"cli\" / \"main.py\"\n        main.write_text(main.read_text() + \"\\n# drift probe: 5 agents\\n\")\n        red = _run([str(root / \"scripts\" / \"gen-docs.py\"), \"--check\"], root)\n        assert red.returncode == 1\n        assert \"says 5, should be\" in red.stderr\n\n    def test_check_fails_when_the_generated_block_is_deleted(self, tmp_path):\n        \"\"\"The gate must not be disableable by deleting the marker it keys on.\n\n        `_replace_block` returns text unchanged when it finds no markers, so without an\n        explicit missing-marker error the whole count gate degrades to a silent pass -\n        the exact `vacuous-check` class this module exists to prevent.\n        \"\"\"\n        root = _mirror(tmp_path)\n        main = root / \"src\" / \"claudekit\" / \"cli\" / \"main.py\"\n        main.write_text(re.sub(r\"# BEGIN GENERATED:counts.*?# END GENERATED:counts\\n\", \"\",\n                               main.read_text(), flags=re.DOTALL))\n        assert \"# BEGIN GENERATED:counts\" not in main.read_text()\n        red = _run([str(root / \"scripts\" / \"gen-docs.py\"), \"--check\"], root)\n        assert red.returncode == 1, red.stdout + red.stderr\n        assert \"has no\" in red.stderr and \"BEGIN GENERATED:counts\" in red.stderr\n\n        # A plain run cannot regenerate a block that is not there either: refuse loudly.\n        fix = _run([str(root / \"scripts\" / \"gen-docs.py\")], root)\n        assert fix.returncode == 1\n        assert \"nothing to regenerate\" in fix.stderr\n\n    def test_code_counts_are_never_auto_rewritten(self, tmp_path):\n        \"\"\"A bare number in Python has no safe in-place fix: report, never rewrite.\"\"\"\n        root = _mirror(tmp_path)\n        main = root / \"src\" / \"claudekit\" / \"cli\" / \"main.py\"\n        main.write_text(main.read_text() + \"\\n# drift probe: 5 agents\\n\")\n        proc = _run([str(root / \"scripts\" / \"gen-docs.py\")], root)\n        assert proc.returncode == 1\n        assert \"could not auto-fix\" in proc.stderr\n        assert \"# drift probe: 5 agents\" in main.read_text()\n\n\n# --------------------------------------------------------------------------\n# Gate 3: ck doctor must apply the shipped config.schema.json\n# --------------------------------------------------------------------------\n\ndef _fake_install(tmp_path, config):\n    \"\"\"A project dir plus an install root holding the schema, wired via CLAUDEKIT_HOME.\"\"\"\n    home = tmp_path / \"install\"\n    (home / \".claude\" / \"agents\").mkdir(parents=True)\n    shutil.copy(SCHEMA, home / \"config.schema.json\")\n    proj = tmp_path / \"proj\"\n    (proj / \".claude\" / \"hooks\").mkdir(parents=True)\n    (proj / \".claude\" / \"hooks\" / \"config.json\").write_text(json.dumps(config, indent=2))\n    env = dict(ENV, CLAUDEKIT_HOME=str(home))\n    return proj, env\n\n\nclass TestDoctorAppliesConfigSchema:\n    def test_shipped_config_satisfies_shipped_schema(self):\n        \"\"\"Regression for the 46-day drift: nothing had ever run this pairing.\"\"\"\n        jsonschema = pytest.importorskip(\"jsonschema\")\n        errors = list(jsonschema.Draft7Validator(\n            json.loads(SCHEMA.read_text())).iter_errors(json.loads(HOOKS_CONFIG.read_text())))\n        assert errors == [], [e.message for e in errors]\n\n    def test_doctor_passes_the_shipped_config(self, tmp_path):\n        \"\"\"GREEN control for the test below: same skeleton project, valid config.\"\"\"\n        pytest.importorskip(\"jsonschema\")\n        proj, env = _fake_install(tmp_path, json.loads(HOOKS_CONFIG.read_text()))\n        proc = _run([\"-m\", \"claudekit.cli.main\", \"doctor\"], proj, env=env)\n        combined = proc.stdout + proc.stderr\n        assert f\"{OK_MARK} {SCHEMA_LABEL}\" in combined, combined\n        assert \"schema violation\" not in combined\n\n    def test_doctor_fails_on_a_schema_violation(self, tmp_path):\n        \"\"\"The skeleton project fails doctor for other reasons too, so the exit code\n        proves nothing here. Assert the schema check's own verdict line instead.\"\"\"\n        pytest.importorskip(\"jsonschema\")\n        config = json.loads(HOOKS_CONFIG.read_text())\n        config[\"global\"][\"logLevel\"] = \"verbose\"      # not in the enum\n        config[\"totally_unknown_section\"] = {}        # additionalProperties: false\n        proj, env = _fake_install(tmp_path, config)\n        proc = _run([\"-m\", \"claudekit.cli.main\", \"doctor\"], proj, env=env)\n        combined = proc.stdout + proc.stderr\n        assert f\"{FAIL_MARK} {SCHEMA_LABEL}\" in combined, combined\n        assert \"2 schema violation(s)\" in combined, combined\n        assert f\"{OK_MARK} {SCHEMA_LABEL}\" not in combined\n"
+    }
+  ]
+}

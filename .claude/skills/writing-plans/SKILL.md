@@ -1,7 +1,6 @@
 ---
 name: writing-plans
 description: "Use when creating implementation plans - ensures bite-sized tasks, operations config, and structured approach"
-disable-model-invocation: true
 argument-hint: "<task-description>"
 ---
 

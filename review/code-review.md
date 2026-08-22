@@ -216,7 +216,7 @@ Consequences:
 
 ### pre-commit.sh
 - **P1** `line 91`: `find .claude/plans/ -name "ops-*.json"` matches nothing (§4) — the "validate ops configs" step has never validated a file.
-- **P2** `lines 115-128`: secret patterns embed `\x27` inside `grep -E` character classes. POSIX ERE/GNU grep does **not** support `\xNN` escapes; inside `[..."\x27]` the class becomes the literal characters `" \ x 2 7`. Net effect: single-quoted secrets (`api_key = 'abcd1234...'`) are only "caught" if by luck, and the intent is silently broken. Fix: use `grep -P` where available or write the quote directly: `pattern="api_key\\s*[:=]\\s*[\"'][^\"']{8}"` (bash double-quoted string can contain a single quote via `"'"` concatenation, or build patterns in the python helper).
+- **P2** `lines 115-128`: secret patterns embed `\x27` inside `grep -E` character classes. POSIX ERE/GNU grep does **not** support `\xNN` escapes; inside `[..."\x27]` the class becomes the literal characters `" \ x 2 7`. Net effect: single-quoted secrets (`api_key` `=` `'abcd1234...'`) are only "caught" if by luck, and the intent is silently broken. Fix: use `grep -P` where available or write the quote directly: `pattern="api_key\\s*[:=]\\s*[\"'][^\"']{8}"` (bash double-quoted string can contain a single quote via `"'"` concatenation, or build patterns in the python helper).
 - **P2** `line 141`: runs the full pattern set with `git show :$file | grep` per file per pattern — O(files × patterns) subprocesses; a single `git diff --cached -U0 | grep -iE "$combined"` is one pass.
 - **P3** suggests `git commit --no-verify` as the false-positive escape hatch (line 153) while a sibling hook exists specifically to block `--no-verify`. The two hooks are at war.
 

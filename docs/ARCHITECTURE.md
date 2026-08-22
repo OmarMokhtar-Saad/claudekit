@@ -46,7 +46,7 @@ claudekit/
 │   │   ├── devops.md
 │   │   └── database-architect.md
 │   ├── commands/         # 42 slash commands
-│   ├── skills/           # 75 skill modules + registry
+│   ├── skills/           # 76 skill modules + registry
 │   │   ├── skills-registry.json
 │   │   └── <skill-name>/SKILL.md
 │   ├── hooks/            # Lifecycle hooks
@@ -472,7 +472,7 @@ Skills are markdown documents with YAML frontmatter, organized as self-contained
 ├── golden-rule/SKILL.md          # Mandatory: no code changes without approval
 ├── writing-plans/SKILL.md        # Planner: plan structure and ops.json
 ├── systematic-debugging/SKILL.md # Debugger: 4-phase investigation
-├── ...                           # 75 skills total
+├── ...                           # 76 skills total
 ```
 
 ### Registry Structure

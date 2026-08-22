@@ -1,6 +1,6 @@
 ---
 name: token-optimization
-description: "Use when you need to reduce token consumption by 40-70% -- covers compression levels, abbreviated output, code-only responses, and efficient formatting techniques."
+description: "Use when you need to reduce token consumption by 40-70% -- covers compression levels, abbreviated output, bounded reads, and spilling large tool results."
 ---
 
 # Token Optimization
@@ -128,6 +128,61 @@ After:
 
 ---
 
+## Bounded Reads and Evidence Sufficiency
+
+Compression shrinks what you *write*. Bounding shrinks what you *read* -- usually the
+larger share. Gather only evidence that can change the next decision, and stop
+exploring once that decision is supported.
+
+- Bound every read: `offset`/`limit` on Read, `head_limit` on Grep/Glob, ripgrep
+  context flags (`-C`) instead of whole files.
+- After a truncated result, narrow ONCE. Never rerun the same broad query with
+  different wording.
+- Never reread an unchanged input.
+- Prefer a path plus a discriminating excerpt over a full dump.
+- On failure, change the premise or the discriminating observation -- do not repeat
+  the same action reworded.
+
+---
+
+## Spilling Large Tool Results
+
+When a tool result is larger than the decision needs:
+
+1. Keep the head and tail that prove the outcome.
+2. Leave (or write) the full artifact on disk.
+3. Tell the next step the path plus the one fact the result established.
+
+Never paste multi-thousand-line logs, HAR files, or report HTML into the transcript
+unless the user asked for the raw body. A subagent returns a distillate -- what
+changed, what was proved, what remains -- never its transcript.
+
+For agent handoffs specifically, `.claude/agents/_shared/INVOCATION.md` is
+authoritative ("paths, never payloads"): apply it, do not restate it. Measured cost
+of ignoring this: `.claude/plans/plan-token-waste-workflow-fixes.md` records an
+80.3M-token session burn caused by reprinting payloads.
+
+---
+
+## Script-First Investigation
+
+When an investigation would otherwise become a long chain of overlapping tool calls
+-- the same search with slightly different arguments, parsing a large log by hand,
+the same mechanical edit across several files -- write ONE deterministic probe instead.
+
+1. Name the question the probe must answer, or the transform it must apply.
+2. Write the smallest runnable probe (standard library, tools already in the project),
+   or use an existing test.
+3. Run it once and read the result.
+4. Delete a throwaway probe that has no lasting value.
+
+Do not invent a script for a single obvious line, and do not add a dependency to avoid
+a few lines. Do not replace an owned test with an untracked scratch file when that test
+is the proof the task needs. A broken harness is not evidence about the product -- fix
+the setup before reading the output.
+
+---
+
 ## Measurement
 
 Track token savings by comparing:
@@ -148,3 +203,17 @@ Do NOT compress:
 - **Verification evidence** — executed command output, exit codes, pass/fail counts, and
   agent handoff blocks are ALWAYS quoted verbatim (VERIFICATION_PROTOCOL.md outranks this
   skill); compression never applies to the evidence layer
+---
+
+## Guard Clause
+
+**Token savings never drop negation, safety, or required attribution.** If a
+compression, a read bound, or a spill would remove a "not"/"never", a safety warning,
+an irreversible-action confirmation, or an attribution line, do not apply it. None of
+these rules authorize skipping an observed check.
+
+---
+
+Bounded-read, spill, and script-first guidance adapted from the `chaos-engine`
+reference notes (`context-economy.md`, `script-first.md`) in the chaos-engine subtree
+of ShaftHQ/SHAFT_ENGINE, MIT License, Copyright (c) 2026 ChaosEngine contributors.

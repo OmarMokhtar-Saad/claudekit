@@ -1,0 +1,31 @@
+{
+  "plan": "profiles-test-fixes",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_profiles.py",
+      "edits": [
+        {
+          "find": "@pytest.fixture()\ndef tree(tmp_path):",
+          "add_before": "def add_guard(hook, line):\n    \"\"\"Insert a guard line into a hook, and PROVE the insertion landed.\n\n    `str.replace` on an absent anchor is a silent no-op, so a mutation test built\n    on one asserts against an unmutated file and passes for the wrong reason. That\n    is a `vacuous-check`, and it is exactly what happened on the first run of the\n    three mutant tests below: the anchor was `set -uo pipefail`, which\n    commit-quality.sh does not contain. The `!=` assertion here is the fix, and it\n    belongs in the helper so no future mutant can reintroduce the same hole.\n    \"\"\"\n    before = hook.read_text(encoding=\"utf-8\")\n    anchor = 'HOOK_NAME=\"commit-quality\"'\n    assert anchor in before, f\"anchor {anchor!r} absent from {hook.name}\"\n    after = before.replace(anchor, anchor + \"\\n\" + line, 1)\n    assert after != before, \"mutation did not change the file\"\n    hook.write_text(after, encoding=\"utf-8\")\n\n\n@pytest.fixture()\ndef tree(tmp_path):"
+        },
+        {
+          "find": "    hook = tree / \".claude\" / \"hooks\" / \"commit-quality.sh\"\n    text = hook.read_text()\n    hook.write_text(text.replace(\n        'set -uo pipefail',\n        'case \"${ECC_HOOK_PROFILE:-standard}\" in fancy) exit 0 ;; esac\\nset -uo pipefail',\n        1))\n    _modes, unknown = prof.scan_hook_guards(hook, ENV_VALUES)",
+          "replace": "    hook = tree / \".claude\" / \"hooks\" / \"commit-quality.sh\"\n    add_guard(hook, 'case \"${ECC_HOOK_PROFILE:-standard}\" in fancy) exit 0 ;; esac')\n    _modes, unknown = prof.scan_hook_guards(hook, ENV_VALUES)"
+        },
+        {
+          "find": "    hook = tree / \".claude\" / \"hooks\" / \"commit-quality.sh\"\n    hook.write_text(hook.read_text().replace(\n        'set -uo pipefail',\n        '[ \"$ECC_HOOK_PROFILE\" = \"minimal\" ] && exit 0\\nset -uo pipefail', 1))\n    _modes, unknown = prof.scan_hook_guards(hook, ENV_VALUES)",
+          "replace": "    hook = tree / \".claude\" / \"hooks\" / \"commit-quality.sh\"\n    add_guard(hook, '[ \"$ECC_HOOK_PROFILE\" = \"minimal\" ] && exit 0')\n    _modes, unknown = prof.scan_hook_guards(hook, ENV_VALUES)"
+        },
+        {
+          "find": "    hook = tree / \".claude\" / \"hooks\" / \"commit-quality.sh\"\n    hook.write_text(hook.read_text().replace(\n        'set -uo pipefail',\n        '[ \"${ECC_HOOK_PROFILE}\" = \"minimal\" ] && exit 0\\nset -uo pipefail', 1))\n    _modes, unknown = prof.scan_hook_guards(hook, ENV_VALUES)",
+          "replace": "    hook = tree / \".claude\" / \"hooks\" / \"commit-quality.sh\"\n    add_guard(hook, '[ \"${ECC_HOOK_PROFILE}\" = \"minimal\" ] && exit 0')\n    _modes, unknown = prof.scan_hook_guards(hook, ENV_VALUES)"
+        },
+        {
+          "find": "@pytest.mark.parametrize(\"name,cause\", [\n    (\"nope\", \"unknown profile\"),\n    (\"Bad Name\", \"invalid profile name\"),\n    (\"\", \"invalid profile name\"),\n])\ndef test_unknown_profile_names_fail_closed(name, cause):\n    with pytest.raises(prof.ProfileError) as exc:\n        prof.resolve(ROOT, name or \"\", env={})\n    assert cause in str(exc.value)",
+          "replace": "@pytest.mark.parametrize(\"name,cause\", [\n    (\"nope\", \"unknown profile\"),\n    (\"Bad Name\", \"invalid profile name\"),\n    (\"../etc\", \"invalid profile name\"),\n    (\"\", \"invalid profile name\"),\n])\ndef test_bad_profile_names_fail_closed(name, cause):\n    \"\"\"Asserted against load_profile, which is where name validation lives.\n\n    Routing the empty name through resolve() would prove nothing: `select_name`\n    treats \"\" as \"no explicit choice\" and falls back to the default, so the\n    original version of this case passed an empty string and never reached a\n    validator at all \u2014 green for the wrong reason.\n    \"\"\"\n    with pytest.raises(prof.ProfileError) as exc:\n        prof.load_profile(ROOT, name)\n    assert cause in str(exc.value)\n\n\ndef test_an_unknown_name_fails_closed_through_resolve_too():\n    with pytest.raises(prof.ProfileError) as exc:\n        prof.resolve(ROOT, \"nope\", env={})\n    assert \"unknown profile\" in str(exc.value)"
+        }
+      ]
+    }
+  ]
+}

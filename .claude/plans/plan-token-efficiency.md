@@ -49,7 +49,19 @@ above a budget — same pattern as gen-docs drift gate. Slots into task 010.
 
 ### Dropped
 - Plan/ops duplication validator: measured only 10/257 anchors duplicated (4%), false-positive risk inverts cost/benefit.
-- CLAUDE.md split by consumer: defer; hard rules must stay global, realistic saving ~half the claim.
+
+### Approach 4 — CLOSED 2026-08-17 (investigated, mostly inapplicable)
+The premise ("move role-specific CLAUDE.md sections into the consuming agent") largely
+does not apply here: CLAUDE.md is injected into ALL agents unconditionally (no per-agent
+exclusion mechanism exists), and audit showed its content is maintainer/main-agent
+guidance — there is no main-agent-only delivery vehicle to move it to, and almost no
+subagent-only content to move out. What WAS actionable:
+1. Quality-gates section deduplicated (score weights restated from reviewer.md/verifier.md
+   → now a pointer to the enforcing agents, the single source).
+2. The gate now measures CLAUDE.md at DELIVERED cost (chars ×4: main + 3 pipeline spawns),
+   so future trims are rewarded and growth is charged honestly (budget 31,000 delivered).
+Remaining lever for the tight pipeline-bodies category (91%): trim the pipeline agent
+bodies themselves (verbose templates in reviewer.md/planner.md) — belongs to task 009.
 
 ## Order of execution
 1 → 2 (independent, low-risk, prompt/frontmatter only) → 4 → 5 → 6 → 3 (own plan).

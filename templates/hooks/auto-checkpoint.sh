@@ -106,6 +106,7 @@ for cp in pruned:
         pos=$(git stash list --format='%gd %H' 2>/dev/null \
               | awk -v s="$stash_ref" '$2==s || index($2,s)==1 {print $1; exit}')
         if [ -n "$pos" ]; then
+            # silent-ok: dropping an already-pruned stash is not an error
             git stash drop "$pos" 2>/dev/null || true
             log "INFO" "Pruned old checkpoint stash: $pos ($stash_ref)"
         else
@@ -161,8 +162,26 @@ create_checkpoint() {
     local stash_sha
     stash_sha=$(git rev-parse "stash@{0}" 2>/dev/null || echo "")
 
-    # Immediately restore working state (checkpoint is non-destructive)
-    git stash apply 2>/dev/null || true
+    # Immediately restore working state (checkpoint is non-destructive).
+    # `git stash apply` exits 1 when the restore conflicts with the working tree, and the
+    # stash SURVIVES (verified: `git stash list` still lists it). So the failure mode is a
+    # silent SUCCESS, not data loss -- but the user's work then lives only in the stash and
+    # NOT in the tree, so say so loudly and name the recovery command.
+    #
+    # git's stderr goes to a temp file, not a command substitution: `$(git stash apply 2>&1)`
+    # would swallow git's stdout summary. The file is replayed to stderr (terminal) AND into
+    # hooks.log, which CLAUDE.md makes the first debugging step.
+    local restore_note="" stash_err
+    stash_err="$(mktemp "${TMPDIR:-/tmp}/auto-checkpoint-stash.XXXXXX")"
+    if ! git stash apply 2>"$stash_err"; then
+        restore_note=" -- WORKING TREE NOT RESTORED"
+        log "ERROR" "Checkpoint stash created, but re-applying it to the working tree failed: $(tr '\n' ' ' < "$stash_err")"
+        log "ERROR" "Work is preserved in the stash. Recover with: git stash apply ${stash_sha:-stash@{0}}"
+        printf '%s\n' "[$HOOK_NAME] working tree NOT restored after checkpoint." >&2
+        printf '%s\n' "[$HOOK_NAME] recover with: git stash apply ${stash_sha:-stash@{0}}" >&2
+    fi
+    cat "$stash_err" >&2
+    rm -f "$stash_err"
 
     # Record the stable SHA as the ref; prune resolves it back to a position.
     local stash_ref="$stash_sha"
@@ -202,7 +221,7 @@ with open(registry_path, 'w') as f:
 " "$REGISTRY_FILE" "$cp_id" "$cp_name" "$reason" "$stash_ref" "$timestamp" "$branch" "$short_hash" "$files_changed" "$files_list" 2>/dev/null
 
     log "INFO" "Checkpoint created: $cp_id ($cp_name) - $files_changed files, branch: $branch"
-    echo "[$HOOK_NAME] Checkpoint saved: $cp_name ($files_changed files)" >&2
+    echo "[$HOOK_NAME] Checkpoint saved: $cp_name ($files_changed files)$restore_note" >&2
 
     return 0
 }

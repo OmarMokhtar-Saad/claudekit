@@ -1,7 +1,6 @@
 ---
 name: execute-operations-config
 description: "Use after /validate-ops - executes approved ops.json via execute-json-ops.py with backup and rollback"
-disable-model-invocation: true
 allowed-tools: Read, Bash, Grep, Glob
 ---
 

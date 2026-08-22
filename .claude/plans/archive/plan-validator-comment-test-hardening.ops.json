@@ -1,0 +1,34 @@
+{
+  "plan": "validator-comment-test-hardening",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_validator_segmentation.py",
+      "description": "Round 3 M1/L1/L2: assert both comment families in unsafe mode, bind the full blocklist reason, correct a comment that claimed a mechanism the suite does not have",
+      "edits": [
+        {
+          "find": "UNSAFE_MUST_REJECT = UNSAFE_WHOLE_STRING + UNSAFE_BUILTINS + UNSAFE_OTHER",
+          "replace": "UNSAFE_MUST_REJECT = (UNSAFE_WHOLE_STRING + UNSAFE_BUILTINS + UNSAFE_OTHER\n                      # Both comment families were ALLOW in BOTH modes, so asserting them\n                      # only in safe mode leaves the guard absent exactly where the\n                      # original regression hid. Review round 3, class\n                      # `unsafe-mode-matrix-gap` - third instance, ratchet reached.\n                      + COMMENT_ESCAPED_NEWLINE + COMMENT_HIDDEN_COMMAND)"
+        },
+        {
+          "find": "        for payload, blocked in ((\"echo # don\\\\'t\\nrm -rf /\", \"rm\"),\n                                 (\"ls # it\\\\'s ok\\nsudo -s\", \"sudo\")):",
+          "replace": "        for payload, blocked in ((\"echo # don\\\\'t\\nrm -rf /\", \"Blocked command: rm\"),\n                                 (\"ls # it\\\\'s ok\\nsudo -s\", \"Blocked command: sudo\")):"
+        },
+        {
+          "find": "# these has a trailing backslash on line 1, so unlike COMMENT_ESCAPED_NEWLINE below they\n# exercise the blocklist path rather than the malformed-quote path.",
+          "replace": "# these has a trailing backslash on line 1. Mechanism, measured rather than assumed (review\n# round 3 caught the earlier version of this comment claiming it for all four): the first two\n# reject via the BLOCKLIST on line 2, the last two via the malformed quote left on their\n# trailing `#'` line. Both mechanisms are killed by reverting the fix, which is what matters."
+        }
+      ]
+    },
+    {
+      "type": "run_command",
+      "command": [
+        "ruff",
+        "check",
+        "tests/"
+      ],
+      "reason": "Lint the edited test module.",
+      "description": "lint"
+    }
+  ]
+}

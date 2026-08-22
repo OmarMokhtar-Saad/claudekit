@@ -28,6 +28,15 @@ invalid — wrong causality.)
 claude -p --agent <agent-name> --model <model> --allowedTools "<scoped,tool,list>"
 ```
 
+`<model>` is **not** a free choice. Resolve it: look the agent up in `.claude/model-policy.json`,
+take its `tier`, and read that tier's `model`. Use `escalate_to` only when the invocation meets
+the role's stated `escalate_when`. Never write a vendor model name into **policy prose** or into
+an agent's `model:` frontmatter — `scripts/gen-model-policy.py --check` gates those 29 files
+against the table. Command invocation sites are the recorded exception: they ship to user
+projects, which have no tier resolver, so each `--model` literal must appear in the table's
+`callsite_overrides` with a reason, or resolve to its own role's tier. Both arms are enforced by
+`tests/test_model_policy.py::EveryHandWrittenModelNameIsAccountedFor`.
+
 - `--agent <name>` loads `.claude/agents/<name>.md` as the system prompt.
 - The prompt is passed on **stdin** (`echo "$MSG" | claude -p ...`); the result is on **stdout**.
 - `--allowedTools` scopes the sub-agent to exactly the tools its role needs.
@@ -97,15 +106,130 @@ lands. It is not present today.
 | explore               | `Read,Grep,Glob`                                                | Read-only codebase search.                           |
 | debugger              | `Read,Grep,Glob,Bash(git log *),Bash(git diff *)`               | Read-only diagnosis; history inspection.             |
 | verifier              | `Read,Grep,Glob,Bash`                                           | Must execute build/test/lint to produce evidence.    |
-| implementer           | `Read,Grep,Glob,Bash(python3 .claude/operations/scripts/*)`     | Iron Law: changes flow through the ops engine only — never Edit/Write. |
+| implementer           | `Read,Grep,Glob,Bash(python3 .claude/operations/scripts/*)`     | Iron Law: changes flow through the ops engine only — never Edit/Write. **(headless only — see "Frontmatter `tools:` CANNOT scope Bash" below; the interactive Task path grants unscoped Bash and this scoping is NOT applied there.)** |
 | security-scanner      | `Read,Grep,Glob`                                                | Read-only scanning.                                  |
 | silent-failure-hunter | `Read,Grep,Glob`                                                | Read-only scanning.                                  |
-| code-reviewer         | `Read,Grep,Glob`                                                | Read-only review; findings need file:line.           |
+| code-reviewer         | `Read,Grep,Glob,Bash(git show *),Bash(git diff *),Bash(git rev-parse *),Bash(git ls-files *),Bash(git worktree *),Bash(gh pr *)` | Phase 0 must pin the revision under review before any finding: `gh pr diff/view`, `git diff <base>...<ref>`, `git show <ref>:<path>`, `git rev-parse HEAD`, `git ls-files --others` for untracked files, and a detached `git worktree` for whole-tree search. Non-mutating with respect to the repository under review — `git worktree` writes only to a detached tmpdir; no commit, no checkout of the shared tree. (Space-form specifiers verified honoured on this path, 2026-08-19.) |
 | gitOps                | `Read,Bash(git *)`                                              | Git operations only.                                 |
 
 Never grant unrestricted `Bash` to planner/reviewer or any read-only role — planner's Bash is
 scoped to the ops validator script, nothing else. Add a row here before wiring a new agent —
 do not invent a tool list at the call site.
+
+---
+
+## Frontmatter `tools:` CANNOT scope Bash (measured 2026-08-19, Claude Code 2.1.235)
+
+**The table above is the headless `claude -p --allowedTools` contract, where scoping is real.
+It does NOT describe the interactive Task-tool path.** That path reads
+`.claude/agents/<name>.md` frontmatter instead, and frontmatter accepts **bare tool names
+only**.
+
+### How this was established
+
+Fixture projects, `permissions: {"allow": [], "deny": []}` (**no allow rule, no deny rule**),
+observed `permission_mode: "default"` read straight from the `PreToolUse` payload for the
+command in question, no permission-bypass flag.
+
+**Primary evidence — a differential test with the spawn path held constant.** The same
+rule `Bash(python3 *)` was given the same write command (`python3 -c "open(...,'w')..."`),
+with **both arms loaded through `--agent`** so the spawn path is not a variable:
+
+| Arm | How the agent was configured | Result |
+|---|---|---|
+| frontmatter | frontmatter `tools: ["Read", "Bash(python3 *)"]` | **approval demanded**, no file — rule NOT applied |
+| CLI | bare frontmatter `tools: ["Read", "Bash"]` + `--allowedTools "Read,Bash(python3 *)"` | ran **unapproved**, file written — rule APPLIED |
+
+The only variable is where the rule was declared. An allow-rule IS honoured by an
+agent-loaded session; the identical rule in frontmatter is not. Write-based, so no safe
+read-only auto-approval explains it, and it relies on no self-report.
+
+**What this establishes, and what it does not — do not overstate this sentence.** It
+establishes that the **frontmatter-declared specifier is not applied**. It does NOT separate
+*why*: whether the specifier is stripped at parse time or retained but ignored by the
+permission layer was not distinguished, and the interactive **Task-tool** subagent path was
+not isolated (both arms used `--agent`), so the hypothesis "the Task path applies no
+allow-rule to subagents at all" remains untested there. Missing arm, so this stays
+falsifiable: trust a fixture workspace, put `Bash(python3 *)` in `.claude/settings.json`
+`permissions.allow`, and spawn via the Task tool; if the write still demands approval, that
+hypothesis holds. (Attempted 2026-08-19, blocked by the workspace trust dialog.)
+
+**The operational conclusion is unaffected and keeps high confidence:** frontmatter cannot
+scope Bash, so the interactive implementer effectively holds unscoped Bash. Every hypothesis
+above predicts that.
+
+**Control.** Under `--allowedTools "Read,Bash(python3 *)"`, a `perl` write **required
+approval** while the `python3` write ran freely — `--allowedTools` scoping is genuine
+enforcement, which is what makes the differential meaningful.
+
+**Corroborating only (weak instruments, not load-bearing).** An agent declaring
+`tools: ["Read", "Bash(git status:*)"]` self-reported its tools as exactly `Read` and `Bash`;
+`uname -s && whoami` ran unapproved under it. The first is an LLM narrating its own
+registration; the second involves safe read-only commands `default` mode may auto-approve
+regardless. Neither is used to carry the conclusion.
+
+**Specifier syntax — both forms parse.** On the `--allowedTools` path, `Bash(python3 *)`
+(space) and `Bash(python3:*)` (colon) were BOTH honoured, with no
+`Ignoring --allowedTools rule` diagnostic for either. The space form used in the table above
+is therefore live, not silently dropped.
+
+**Hooks.** `agent_type` IS present in the `PreToolUse` payload on BOTH the `--agent` and the
+Task-tool (`subagent_type`) paths, alongside `tool_name`, `tool_input.command`,
+`permission_mode`, `cwd`, and `tool_use_id`. A hook CAN attribute a Bash call to the calling
+subagent.
+
+### Consequences, stated honestly (hard rule 6)
+
+- **Never write a `Tool(specifier)` form in frontmatter `tools:`.** It reads as enforcement
+  and is not — it is silently discarded, leaving the bare, unrestricted tool. A test gates
+  this (`tests/test_agent_tool_grant_drift.py`).
+- **On the interactive path the implementer holds UNSCOPED Bash, so the frontmatter grant
+  enforces nothing.** Removing `Bash` is not an option: the ops engine is invoked *through*
+  Bash (`python3 .claude/operations/scripts/execute-json-ops.py`), so dropping it would break
+  `/implement` outright. **The Iron Law is now harness-enforced by
+  [`.claude/hooks/iron-law-gate.py`](../../hooks/iron-law-gate.py)**, a `PreToolUse` hook keyed
+  on `agent_type == "implementer"` that allowlists the ops engine plus a small verification set
+  and rejects everything else with `exit 2` + stderr. It passes through untouched when
+  `agent_type` is absent or is not `implementer`, so the main agent and every other subagent are
+  unaffected.
+
+  Two design points are load-bearing and should not be "simplified" away. **Flags are
+  default-deny, not denylisted:** an unknown flag is refused, so a future `ruff`/`pytest`
+  release cannot add a writer that slips through. Five review rounds of flag enumeration failed
+  to converge — `pytest --log-file`, `-o`, `-c`, `--override-ini`, then `ruff --add-noqa`,
+  `pytest --debug`, then `mypy --install-types` and `@argfile` — because a denylist inside an
+  allowlist is still a denylist. **Positionals are checked too:** `git remote add origin <url>`
+  mutates through arguments, not flags, and survived three rounds of flag auditing.
+  The verb must also name a PATH-resolved program, and that check sits ABOVE the interpreter
+  dispatch — resolving the *script* is not resolving the *interpreter*.
+
+  Honest residual (hard rule 6): the SAFE tables are audited enumerations of *permitted*
+  arguments, which is a smaller and more stable surface than enumerating forbidden ones, but
+  not a proof. `pytest` is permitted and executes `conftest.py`, i.e. repo code already trusted.
+  See the plan's R7 for the measured surface.
+
+### Actual frontmatter grants (bare names — the interactive Task path)
+
+This table records what the harness will really grant, not what we wish it granted. Narrowing
+the wide rows is owned by each agent's maintainer.
+
+| Agent | frontmatter `tools:` |
+|-----------------------|--------------------------------|
+| planner | `Read, Grep, Glob, Write, Bash` |
+| reviewer | `Read, Grep, Glob` |
+| explore | `Read, Grep, Glob, Bash` |
+| debugger | `Read, Grep, Glob, Bash` |
+| verifier | `Read, Bash, Grep, Glob` |
+| implementer | `Read, Bash, Grep, Glob` |
+| security-scanner | `Read, Bash, Grep, Glob` |
+| silent-failure-hunter | `Read, Grep, Glob, Bash` |
+| code-reviewer | `Read, Grep, Glob, Bash` |
+| gitOps | `Read, Bash, Grep, Glob` |
+
+**Wider than their documented role (known drift, not yet narrowed):** `explore`,
+`security-scanner`, and `silent-failure-hunter` are documented above as read-only
+`Read,Grep,Glob` but each declares `Bash` in frontmatter. `planner` declares bare `Bash`
+where the headless row scopes it to the ops validator. Recorded rather than hidden.
 
 ---
 

@@ -232,6 +232,28 @@ if [[ "$MODE" == "full" ]]; then
     SKILL_COUNT=$(find "$DEST/skills" -name "SKILL.md" 2>/dev/null | wc -l | tr -d ' ')
     print_ok "$SKILL_COUNT skills installed"
 
+    # Profiles. Full mode only: they DECLARE the hook set, and hooks are a
+    # full-mode component. The manifest walks the destination tree, so these
+    # are receipted (and therefore uninstallable and `ck diff`-visible) with
+    # no manifest change.
+    print_step "Installing profiles..."
+    # Created HERE, not in the unconditional mkdir above: profiles declare the
+    # hook set, hooks are full-mode only, and an empty profiles/ in a --minimal
+    # install is a `ck doctor` failure rather than a designed absence.
+    mkdir -p "$DEST/profiles"
+    for profile_dir in "$CLAUDE_SRC"/profiles/*/; do
+        if [[ -d "$profile_dir" ]]; then
+            profile_name=$(basename "$profile_dir")
+            mkdir -p "$DEST/profiles/$profile_name"
+            cp "$profile_dir"profile.json "$DEST/profiles/$profile_name/"
+        fi
+    done
+    if [[ -f "$CLAUDE_SRC/profiles/README.md" ]]; then
+        cp "$CLAUDE_SRC/profiles/README.md" "$DEST/profiles/"
+    fi
+    PROFILE_COUNT=$(find "$DEST/profiles" -name "profile.json" 2>/dev/null | wc -l | tr -d ' ')
+    print_ok "$PROFILE_COUNT profiles installed"
+
     # Copy the issue-ledger entry-format contract. The ledger directory and its
     # entries self-materialize on the first `record`, but the README is the
     # documented entry format, so a full install must ship it.
@@ -242,22 +264,102 @@ if [[ "$MODE" == "full" ]]; then
     fi
 
     print_step "Installing hooks..."
-    cp "$CLAUDE_SRC"/hooks/*.sh "$DEST/hooks/" 2>/dev/null || true
-    cp "$CLAUDE_SRC"/hooks/*.json "$DEST/hooks/" 2>/dev/null || true
-    cp "$CLAUDE_SRC"/hooks/*.md "$DEST/hooks/" 2>/dev/null || true
-    # Copy template hooks
-    if [[ -d "$SCRIPT_DIR/templates/hooks" ]]; then
-        cp "$SCRIPT_DIR"/templates/hooks/*.sh "$DEST/hooks/" 2>/dev/null || true
-    fi
-    chmod +x "$DEST"/hooks/*.sh 2>/dev/null || true
-    HOOK_COUNT=$(ls -1 "$DEST/hooks/"*.sh 2>/dev/null | wc -l | tr -d ' ')
-    print_ok "$HOOK_COUNT hooks installed"
+    # Structural copy, NOT an extension allowlist. The old *.sh/*.json/*.md
+    # allowlist silently went stale when Python hooks were added: settings.json
+    # wired reflection-gate.py, the installer never shipped it, and
+    # `python3 <missing>` exits 2 -- which on PreToolUse means BLOCK. A fresh
+    # install produced a project where every Edit, Write and Bash was blocked.
+    # Ship everything; deny only runtime state and editor/merge debris.
+    _copy_hook_assets() {
+        _src_dir="$1"
+        [[ -d "$_src_dir" ]] || return 0
+        for _hook_src in "$_src_dir"/*; do
+            [[ -f "$_hook_src" ]] || continue
+            case "${_hook_src##*/}" in
+                *.log|*.pyc|*.orig|*.rej|*.swp|*~) continue ;;
+                compact-counter.txt|settings.local.json) continue ;;
+            esac
+            cp "$_hook_src" "$DEST/hooks/"
+        done
+    }
+    _copy_hook_assets "$CLAUDE_SRC/hooks"
+    _copy_hook_assets "$SCRIPT_DIR/templates/hooks"
+    # Executability follows the file's own shebang, not its extension, so a hook
+    # written in any language is handled without another list to keep in sync.
+    HOOK_COUNT=0
+    for _hook_f in "$DEST"/hooks/*; do
+        [[ -f "$_hook_f" ]] || continue
+        _hook_line=""
+        IFS= read -r _hook_line < "$_hook_f" || true
+        case "$_hook_line" in
+            "#!"*) chmod +x "$_hook_f"; HOOK_COUNT=$((HOOK_COUNT + 1)) ;;
+        esac
+    done
+    # Counts executables, which legitimately differs from the "wired hooks"
+    # count in the docs: shared libraries (reflection.py, lib.sh) and template
+    # hooks are installed and executable but are not themselves wired.
+    print_ok "$HOOK_COUNT hook scripts installed (executables, including shared libraries)"
 
     # Install settings.json — WITHOUT it, none of the hooks above ever fire.
     # (For years this was omitted, so every install shipped dead hooks.)
     if [[ -f "$CLAUDE_SRC/settings.json" ]]; then
         cp "$CLAUDE_SRC/settings.json" "$DEST/settings.json"
         print_ok "settings.json installed (hooks wired)"
+        # Fail closed on a hook we can PROVE is wired-but-missing: settings.json
+        # references hooks BY PATH, and a missing one makes Claude Code run
+        # `python3 <missing>` -> exit 2 -> every tool call blocked.
+        #
+        # Deliberately conservative in the other direction: a token we cannot
+        # prove is a script is IGNORED, never required. Requiring an unprovable
+        # name would block every install, which is strictly worse than the
+        # delivery bug this guards. Runtime state that hook commands legitimately
+        # write to (e.g. hooks.log) is subtracted for the same reason.
+        MISSING_HOOKS=$(python3 - "$DEST" <<'WIRED_PY'
+import os
+import re
+import sys
+
+dest = sys.argv[1]
+path = os.path.join(dest, "settings.json")
+if not os.path.exists(path):
+    raise SystemExit(0)
+with open(path, encoding="utf-8") as fh:
+    text = fh.read()
+
+DENY_NAMES = {"compact-counter.txt", "settings.local.json"}
+DENY_SUFFIXES = (".log", ".pyc", ".orig", ".rej", ".swp", "~")
+SCRIPT_SUFFIXES = (".sh", ".bash", ".zsh", ".py", ".js", ".mjs", ".ts", ".rb", ".pl")
+INTERP = re.compile(
+    r"(?:^|[\s\"'`;|&(])(?:python3|python|bash|sh|zsh|node|ruby|perl)\s+"
+    r"(?:-[A-Za-z-]+\s+)*[\\\"'$]*[^\s\"'`;|&()]*$"
+)
+
+required = set()
+for m in re.finditer(r"\.claude/hooks/([A-Za-z0-9._-]+)", text):
+    name = m.group(1)
+    if name in DENY_NAMES or name.endswith(DENY_SUFFIXES):
+        continue
+    if name.endswith(SCRIPT_SUFFIXES) or INTERP.search(text[max(0, m.start() - 80):m.start()]):
+        required.add(name)
+
+missing = sorted(n for n in required if not os.path.isfile(os.path.join(dest, "hooks", n)))
+print("\n".join(missing))
+WIRED_PY
+)
+        if [[ -n "$MISSING_HOOKS" ]]; then
+            print_err "settings.json wires hooks that were not installed:"
+            while IFS= read -r _missing_hook; do
+                [[ -n "$_missing_hook" ]] || continue
+                echo "        - $_missing_hook"
+            done <<< "$MISSING_HOOKS"
+            print_err "A wired-but-missing hook blocks every tool call (exit 2)."
+            print_err "Refusing to leave a broken installation behind."
+            # Bash does NOT run the ERR trap for the `exit` builtin, so the
+            # staging dir must be cleaned up explicitly or it litters the project.
+            _cleanup_on_failure
+            exit 1
+        fi
+        print_ok "All wired hooks resolve to installed files"
     else
         print_warn "settings.json not found in source — hooks will not fire"
     fi
@@ -340,10 +442,22 @@ if [[ -f "$TEMPLATE_DIR/config.env" ]]; then
 fi
 
 # Set defaults from template or fallbacks
-BUILD_CMD="${BUILD_CMD:-echo 'No build command configured'}"
-TEST_CMD="${TEST_CMD:-echo 'No test command configured'}"
-LINT_CMD="${LINT_CMD:-echo 'No lint command configured'}"
-COVERAGE_CMD="${COVERAGE_CMD:-echo 'No coverage command configured'}"
+# An unconfigured command stays EMPTY. The hooks skip an empty command and say so
+# (pre-push.sh:130, post-implement.sh:80); a no-op print command exits 0 instead, so
+# the push gate printed "[pre-push] Tests: PASSED" having run no tests at all.
+BUILD_CMD="${BUILD_CMD:-}"
+TEST_CMD="${TEST_CMD:-}"
+LINT_CMD="${LINT_CMD:-}"
+COVERAGE_CMD="${COVERAGE_CMD:-}"
+
+# Rendered docs (CLAUDE.project.md, CONSTITUTION.md) are read by humans, never
+# executed, so an empty value would render there as an empty backtick pair. Those
+# renders - and only those - get a readable placeholder.
+CMD_UNSET_DOC="(not configured - set it in .claude/hooks/config.json)"
+BUILD_CMD_DOC="${BUILD_CMD:-$CMD_UNSET_DOC}"
+TEST_CMD_DOC="${TEST_CMD:-$CMD_UNSET_DOC}"
+LINT_CMD_DOC="${LINT_CMD:-$CMD_UNSET_DOC}"
+COVERAGE_CMD_DOC="${COVERAGE_CMD:-$CMD_UNSET_DOC}"
 PROJECT_NAME="${PROJECT_NAME:-$(basename "$TARGET_DIR")}"
 
 # Render a {{PLACEHOLDER}} template with LITERAL substitution. Using Python's
@@ -377,10 +491,10 @@ else
     CK_VAR_FRAMEWORK="${FRAMEWORK:-N/A}" \
     CK_VAR_BUILD_SYSTEM="${BUILD_SYSTEM:-N/A}" \
     CK_VAR_TEST_FRAMEWORK="${TEST_FRAMEWORK:-N/A}" \
-    CK_VAR_BUILD_CMD="$BUILD_CMD" \
-    CK_VAR_TEST_CMD="$TEST_CMD" \
-    CK_VAR_LINT_CMD="$LINT_CMD" \
-    CK_VAR_COVERAGE_CMD="$COVERAGE_CMD" \
+    CK_VAR_BUILD_CMD="$BUILD_CMD_DOC" \
+    CK_VAR_TEST_CMD="$TEST_CMD_DOC" \
+    CK_VAR_LINT_CMD="$LINT_CMD_DOC" \
+    CK_VAR_COVERAGE_CMD="$COVERAGE_CMD_DOC" \
     CK_VAR_EXAMPLE_FILE_PATH="${EXAMPLE_FILE:-src/main.py}" \
         render_template "$CLAUDE_SRC/local/CLAUDE.template.md" "$DEST/local/CLAUDE.project.md"
 fi
@@ -391,9 +505,9 @@ print_step "Generating CONSTITUTION.md..."
 CK_VAR_PROJECT_NAME="$PROJECT_NAME" \
 CK_VAR_DATE="$(date +%Y-%m-%d)" \
 CK_VAR_LANGUAGE="$LANGUAGE" \
-CK_VAR_LINT_CMD="$LINT_CMD" \
-CK_VAR_TEST_CMD="$TEST_CMD" \
-CK_VAR_COVERAGE_CMD="$COVERAGE_CMD" \
+CK_VAR_LINT_CMD="$LINT_CMD_DOC" \
+CK_VAR_TEST_CMD="$TEST_CMD_DOC" \
+CK_VAR_COVERAGE_CMD="$COVERAGE_CMD_DOC" \
 CK_VAR_BUILD_TIME_TARGET="< 60 seconds" \
     render_template "$CLAUDE_SRC/local/CONSTITUTION.template.md" "$DEST/local/CONSTITUTION.md"
 print_ok "CONSTITUTION.md generated"
@@ -418,7 +532,36 @@ config['project']['lint_cmd'] = os.environ['CK_LINT_CMD']
 config['project']['coverage_cmd'] = os.environ['CK_COVERAGE_CMD']
 with open(config_path, 'w') as f:
     json.dump(config, f, indent=2)
-" 2>/dev/null && print_ok "Hooks configured" || print_warn "Could not auto-configure hooks (update .claude/hooks/config.json manually)"
+" 2>/dev/null && print_ok "Hooks configured" || CK_CONFIG_REWRITE_FAILED=1
+
+    # The shipped config.json carries CLAUDEKIT'S OWN project commands. Warning and
+    # moving on would leave `python3 -m pytest tests/ -q` and `ruff check src/ tests/
+    # scripts/` in the user's project, to be executed by their next commit or push.
+    # Blank them instead; if even that write fails, refuse to install rather than hand
+    # over a config that runs this repo's gates inside someone else's tree.
+    if [[ "${CK_CONFIG_REWRITE_FAILED:-0}" == "1" ]]; then
+        CK_CONFIG_PATH="$DEST/hooks/config.json" \
+        CK_SOURCE_CONFIG="$CLAUDE_SRC/hooks/config.json" \
+        python3 -c "
+import json, os
+# Read the PRISTINE source, never the destination: the write that just failed
+# opened it with 'w', which truncates before json.dump, so the file may now be
+# invalid JSON and re-reading it would turn a recoverable install into an abort.
+with open(os.environ['CK_SOURCE_CONFIG']) as f:
+    config = json.load(f)
+config['project'] = {k: '' for k in ('build_cmd', 'test_cmd', 'lint_cmd', 'coverage_cmd')}
+with open(os.environ['CK_CONFIG_PATH'], 'w') as f:
+    json.dump(config, f, indent=2)
+" 2>/dev/null \
+            && print_warn "Could not auto-configure hooks; project commands left EMPTY (set them in .claude/hooks/config.json)" \
+            || {
+                print_err "Could not write $DEST/hooks/config.json; refusing to ship a config containing ClaudeKit's own build commands."
+                # Bash does NOT run the ERR trap for the `exit` builtin, so the
+                # staging dir must be cleaned up explicitly or it litters the project.
+                _cleanup_on_failure
+                exit 1
+            }
+    fi
 fi
 
 # Preserve the user's local override across a reinstall. settings.local.json is
@@ -439,27 +582,62 @@ mv "$STAGING" "$FINAL_DEST"
 DEST="$FINAL_DEST"
 trap - ERR   # past the destructive phase; nothing left to clean up
 
-# ---- Install manifest (records version + per-file sha256 for `ck update`) ----
-CLAUDEKIT_VERSION="$VERSION" python3 - "$FINAL_DEST" "$MODE" "$LANGUAGE" <<'MANIFEST_PY' && print_ok "Install manifest written" || print_warn "Manifest generation failed"
+# ---- Install manifest (the receipt: what the kit owns, and which commit it came from) ----
+# The manifest is an ownership RECEIPT, not an inventory. `ck uninstall` removes
+# only files whose sha256 still matches, so anything recorded here is something
+# the kit claims the right to delete later. Two consequences:
+#   1. Files that are the USER's by definition must never be recorded (below).
+#   2. The source commit is recorded so an install is traceable to an immutable
+#      40-char SHA rather than to a mutable branch name.
+CLAUDEKIT_SOURCE_COMMIT="$(git -C "$SCRIPT_DIR" rev-parse HEAD 2>/dev/null || echo "")"
+# `|| true` on BOTH lines, and note the second is a PIPELINE: under `set -o
+# pipefail` a failing `git` upstream of `head` fails the whole pipeline, which
+# under `set -e` aborts the install. Installing from a non-git source (a tarball,
+# or the temp kit copy the delivery tests build) is a supported case, not an error.
+CLAUDEKIT_SOURCE_DIRTY="$(git -C "$SCRIPT_DIR" status --porcelain 2>/dev/null | head -1 || true)"
+CLAUDEKIT_VERSION="$VERSION" \
+CK_SRC_COMMIT="$CLAUDEKIT_SOURCE_COMMIT" \
+CK_SRC_DIRTY="$CLAUDEKIT_SOURCE_DIRTY" \
+python3 - "$FINAL_DEST" "$MODE" "$LANGUAGE" <<'MANIFEST_PY' && print_ok "Install manifest written" || print_warn "Manifest generation failed"
 import hashlib, json, os, sys, datetime
+
+# Local-only by definition: the user's own settings, and runtime output. Recording
+# these would make `ck update` overwrite a per-project permission allowlist and
+# `ck uninstall` delete a log - which is exactly what happened before, and cost a
+# hand-preservation pass across 17 projects during the 2026-07-31 rollout.
+# Must stay in step with SKIP_NAMES in the preserve block below.
+NEVER_MANAGED = {"hooks.log", "settings.local.json", ".claudekit-manifest.json"}
+
 dest, mode, lang = sys.argv[1], sys.argv[2], sys.argv[3]
 files = {}
 for root, _, names in os.walk(dest):
     for n in names:
         path = os.path.join(root, n)
         rel = os.path.relpath(path, dest)
-        if rel == ".claudekit-manifest.json":
+        if n in NEVER_MANAGED or n.endswith(".pyc"):
             continue
         try:
             with open(path, "rb") as fh:
                 files[rel] = hashlib.sha256(fh.read()).hexdigest()
         except OSError:
             pass
+
+# An unpinnable source is recorded as unpinnable. Fabricating a commit - or
+# omitting the field so a reader assumes one - would make provenance a guess.
+commit = os.environ.get("CK_SRC_COMMIT") or None
+source = {"commit": commit, "pinned": bool(commit)}
+if commit and os.environ.get("CK_SRC_DIRTY"):
+    # A dirty checkout does not correspond to its own commit, so the pin is a
+    # nearest-ancestor, not an identity. Say so rather than imply reproducibility.
+    source["dirty"] = True
+    source["pinned"] = False
+
 manifest = {
     "version": os.environ.get("CLAUDEKIT_VERSION", "unknown"),
     "installed_at": datetime.datetime.now().isoformat(timespec="seconds"),
     "mode": mode,
     "language": lang,
+    "source": source,
     "files": files,
 }
 with open(os.path.join(dest, ".claudekit-manifest.json"), "w") as fh:
@@ -485,6 +663,7 @@ if os.path.exists(mpath):
     except (ValueError, OSError):
         old_manifest = None
 ASSET_DIRS = ("agents", "commands", "skills")
+# Must stay in step with NEVER_MANAGED in the manifest block above.
 SKIP_NAMES = {"hooks.log", "settings.local.json", ".claudekit-manifest.json"}
 restored = []
 for root, dirs, names in os.walk(backup):
@@ -521,6 +700,7 @@ ENTRIES=(
     "# ClaudeKit"
     ".claude/reports/"
     ".claude/hooks/hooks.log"
+    ".claude/profiles/local.json"
     ".claude/locks/"
     ".claude-core.lock"
     "backups/"
@@ -574,6 +754,19 @@ echo "    1. Review .claude/local/CLAUDE.project.md and customize"
 echo "    2. Review .claude/local/CONSTITUTION.md and customize"
 if [[ "$MODE" == "full" ]]; then
     echo "    3. Review .claude/hooks/config.json and update commands"
+fi
+
+# Say it out loud rather than let the user discover it from a red gate. Empty is the
+# honest state for a project whose commands could not be detected, and a project whose
+# gates run nothing SHOULD be told so. The blanked-on-failure path (above) leaves the
+# shell variables populated while the on-disk config is empty, so it is checked too.
+if [[ "$MODE" == "full" ]] && { [[ -z "$BUILD_CMD$TEST_CMD$LINT_CMD" ]] || \
+        [[ "${CK_CONFIG_REWRITE_FAILED:-0}" == "1" ]]; }; then
+    echo ""
+    echo "  NOTE: .claude/hooks/config.json has no build/test/lint command configured,"
+    echo "  so the pre-commit and pre-push hooks will SKIP those steps and say so -"
+    echo "  they will never report a pass for a step they did not run - and"
+    echo "  'ck doctor --strict' will exit 1 until you fill them in. That is deliberate."
 fi
 echo ""
 echo "  Start using ClaudeKit in Claude Code:"

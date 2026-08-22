@@ -193,22 +193,39 @@ class TestInstallSafety:
     def test_mid_failure_preserves_existing_claude(self):
         # The core data-loss guarantee: a mid-install failure must NOT delete the
         # user's existing .claude (the old ERR trap did `rm -rf $DEST`).
+        #
+        # The broken source is simulated in a throwaway COPY of the repo, never by
+        # mutating the real working tree: an earlier version moved the real
+        # CONSTITUTION.template.md aside and restored it in a finally, so any
+        # interrupted run (Ctrl-C, CI timeout) left the tree broken and cascaded
+        # failures into every later install/structure test.
         import shutil
         repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        template = os.path.join(repo, '.claude', 'local', 'CONSTITUTION.template.md')
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with tempfile.TemporaryDirectory() as srcdir, \
+                tempfile.TemporaryDirectory() as tmpdir:
+            shutil.copy(os.path.join(repo, 'install.sh'), srcdir)
+            for tree in ('.claude', 'templates'):
+                src_tree = os.path.join(repo, tree)
+                if os.path.isdir(src_tree):
+                    shutil.copytree(
+                        src_tree, os.path.join(srcdir, tree),
+                        ignore=shutil.ignore_patterns('hooks.log', 'backups',
+                                                      '__pycache__', '.worktrees'),
+                    )
+            os.remove(os.path.join(srcdir, '.claude', 'local',
+                                   'CONSTITUTION.template.md'))
+
             claude = os.path.join(tmpdir, '.claude', 'local')
             os.makedirs(claude)
             sentinel = os.path.join(claude, 'CONSTITUTION.md')
             with open(sentinel, 'w') as f:
                 f.write('USER CUSTOM CONTENT')
-            moved = template + '.hidden'
-            shutil.move(template, moved)
-            try:
-                r = self._install(tmpdir, '--full', '--yes', '--force')
-            finally:
-                shutil.move(moved, template)
-            assert r.returncode != 0, "expected install to fail with the template hidden"
+            r = subprocess.run(
+                ['bash', os.path.join(srcdir, 'install.sh'), tmpdir,
+                 '--full', '--yes', '--force'],
+                capture_output=True, text=True, timeout=90, stdin=subprocess.DEVNULL,
+            )
+            assert r.returncode != 0, "expected install to fail with the template missing"
             # The user's file must still be there, unchanged.
             assert os.path.isfile(sentinel)
             assert open(sentinel).read() == 'USER CUSTOM CONTENT'

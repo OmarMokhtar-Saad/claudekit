@@ -1,0 +1,15 @@
+{
+  "plan": "memory-bounded-test-fix",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_memory.py",
+      "edits": [
+        {
+          "find": "    source = (ROOT / \"src\" / \"claudekit\" / \"memory.py\").read_text(encoding=\"utf-8\")\n    body = source[source.index(\"def entries(\"):source.index(\"def get(\")]\n    for banned in (\"sleep\", \"retry\", \"while \", \"poll\", \"watch\", \"backoff\"):\n        assert banned not in body, f\"entries() contains {banned!r}\"",
+          "replace": "    import ast\n\n    source = (ROOT / \"src\" / \"claudekit\" / \"memory.py\").read_text(encoding=\"utf-8\")\n    tree = ast.parse(source)\n    func = next(n for n in tree.body\n                if isinstance(n, ast.FunctionDef) and n.name == \"entries\")\n    # Drop the docstring before scanning. The first version of this test sliced raw\n    # source text and failed instantly: entries()' OWN docstring says \"no retry, no\n    # poll, no watch\", so the sentence promising the property tripped the check for\n    # it. Reading code as text when the module ships an AST parser was the mistake.\n    statements = func.body\n    if (statements and isinstance(statements[0], ast.Expr)\n            and isinstance(statements[0].value, ast.Constant)\n            and isinstance(statements[0].value.value, str)):\n        statements = statements[1:]\n    code = \"\\n\".join(ast.dump(node) for node in statements)\n    for banned in (\"sleep\", \"retry\", \"poll\", \"watch\", \"backoff\"):\n        assert banned not in code.lower(), f\"entries() references {banned!r}\"\n    assert not any(isinstance(n, (ast.While, ast.Try))\n                   for stmt in statements for n in ast.walk(stmt)), (\n        \"entries() contains a loop-or-catch construct that could hide a retry\")"
+        }
+      ]
+    }
+  ]
+}

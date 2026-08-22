@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "name": "standard",
+  "description": "The out-of-box posture and the value every hook falls back to. Enforcement on; the three strict-only gates stand down. Rows not named here survive from the base layer.",
+  "extends": null,
+  "hooks": {
+    "file-guard-gate": "off",
+    "format-typecheck": "off",
+    "injection-scan-gate": "off"
+  },
+  "agents": {},
+  "commands": {},
+  "mcp": {},
+  "stack": {}
+}

@@ -1,7 +1,6 @@
 ---
 name: search-first
 description: "Use before writing custom code — systematically search npm/PyPI, MCP servers, GitHub, and existing skills for existing solutions"
-disable-model-invocation: true
 allowed-tools: Read, Bash, WebFetch, WebSearch
 ---
 

@@ -21,8 +21,8 @@ Search for these patterns across the entire codebase:
 
 | Pattern | Example | Risk |
 |---|---|---|
-| Literal password assignment | `password = "admin123"` | Critical - credential in source |
-| Default API key | `api_key = "test-key-12345"` | Critical - key in source control |
+| Literal password assignment | `password` assigned `"admin123"` | Critical - credential in source |
+| Default API key | `api_key` assigned `"test-key-12345"` | Critical - key in source control |
 | Connection string with creds | `postgres://user:pass@host/db` | Critical - database access |
 | Bearer token literal | `Authorization: Bearer sk-...` | Critical - token in source |
 | Base64-encoded secrets | `dXNlcjpwYXNzd29yZA==` | High - obfuscated, not encrypted |

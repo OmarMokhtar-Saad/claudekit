@@ -1,0 +1,38 @@
+{
+  "plan": "harness-findings",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".ai/REVIEW_GUIDE.md",
+      "description": "Hook-review checklist: confirm fixture/clone location before trusting an enforcement assertion",
+      "edits": [
+        {
+          "find": "- [ ] settings.json registration matches (dangling-hooks CI).",
+          "add_after": "\n- [ ] Fixture location checked against the hook's exemption prefixes. A gate test that passes by ALLOWING is unverified until you know where its fixture lives (`tests/test_ops_enforcement_scope.py:42` places fixtures beside the repo for exactly this reason)."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".ai/REVIEW_GUIDE.md",
+      "description": "Generalise the exempted-prefix lesson and note the reviewer cannot run mutants",
+      "edits": [
+        {
+          "find": "for one of them. Declare the collateral per mutant and assert set equality.",
+          "add_after": "\n\n**An exempted prefix disables enforcement for everything under it — including a whole clone.**\nThe standing warning was narrow: don't put hook fixtures under `$TMPDIR`. The rule is wider.\n`.claude/hooks/ops-enforcement.sh:43` exempts `/private/tmp/claude-*`, `/tmp/claude-*` and\n`/{private/,}var/folders/*`, and the exemption tests the *target path*, so any tree placed there\nloses enforcement wholesale. Hit from the other direction on 2026-08-20: a fresh clone made inside\nthe session scratchpad (under `/private/tmp/claude-*`) produced 15 failures in\n`tests/test_ops_enforcement_scope.py`, because its fixtures live in `REPO.parent`, which for that\nclone was the exempt prefix. Re-cloning to a non-exempt parent: 1227 passed, 0 failed. There was no\nregression and no CI gap (CI clones to `/home/runner/work/...`). **Diagnostic signature: assertions\nexpecting exit 2 receive exit 0** — a `vacuous-check` produced by location, not by code. So verify\nwhere the clone and the fixtures sit before trusting ANY ops-enforcement result, and treat a gate\ntest that passes by allowing as suspect until its location is checked.\n\nOne caveat on everything above: the `reviewer` agent holds Read, Grep and Glob and cannot execute,\nso it cannot write a mutant, apply an ops.json, or run the DoD commands. Until that is resolved\n(BACKLOG P0.75) the mutation discipline in this section is the ORCHESTRATOR's to run, and a plan\nreview should be read as a static read-through, not as evidence that anything was executed."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".ai/BACKLOG.md",
+      "description": "New P0.75 section recording the two 2026-08-20 harness findings",
+      "edits": [
+        {
+          "find": "## P1 — high value, unblocked",
+          "add_before": "## P0.75 — harness findings, 2026-08-20 (from the plan-doctor-gate batch)\n\nTwo findings about the harness rather than the product. Neither is fixed; both imply owner-gated\nasset changes, so they are recorded as options with trade-offs.\n\n- [ ] **The `reviewer` agent cannot execute, so plan reviews are structurally static.**\n  `.claude/agents/reviewer.md` grants Read, Grep, Glob — no Bash. Across three review rounds of\n  plan-doctor-gate the reviewer was twice asked to clone the repo, run `execute-json-ops.py` and\n  run the six DoD commands; it correctly reported it could not, and verified by reading instead.\n  Consequence: no test in that plan was executed by any reviewer, the plan's \"pre-verified during\n  planning\" claims were planner self-reports, and the post-execution DoD run was the first real\n  execution. Why it matters: in that same batch **three of the four defects found were introduced\n  by fixes to earlier findings** — round 1's fix leaked this repo's commands onto the installer's\n  failure path; round 2's fix for that added an `exit 1` that skipped `_cleanup_on_failure` and\n  would have littered `.claude.staging.<pid>` into user projects; round 3 found a `jsonschema` test\n  stub that was inert in CI and fake-green exactly where `test_gate_scope.py` skips. And\n  `.ai/REVIEW_GUIDE.md` asks reviewers to prove a check binds by MUTATING the shipped artifact and\n  reading the failure — which a Read/Grep/Glob agent cannot do, so the guide asks for something its\n  addressee cannot perform. Options, undecided: **(a)** grant the reviewer scoped Bash — this\n  collides with the Iron Law / tool-grant work, and `tests/test_agent_tool_grant_drift.py`\n  established that a frontmatter-declared `Bash(...)` specifier is NOT applied on the interactive\n  path, so a \"scoped\" grant may silently become unscoped Bash on the review agent, which is the\n  security tension and the reason this is not a free win; **(b)** keep the reviewer read-only and\n  add a separate execute-capable verification step that applies ops in a throwaway clone;\n  **(c)** leave as-is and require the orchestrator to run mutants, documenting in the guide that\n  plan reviews are static.\n- [ ] **`ops-enforcement.sh:43`'s exemption list is broad and worth revisiting.** It exempts\n  `/private/tmp/claude-*`, `/tmp/claude-*`, `/private/var/folders/*` and `/var/folders/*`; anything\n  placed under those prefixes — a fixture, a scratch file, or an entire repo clone — has\n  enforcement silently disabled. Recorded, not proposed: narrowing it is owner-gated and could\n  break the AppiumLens field fix the comment at `ops-enforcement.sh:38-41` cites as the reason the\n  exemption exists. The reviewing lesson (verify clone/fixture location; expected exit 2 arriving\n  as exit 0 is the tell) is generalised in `.ai/REVIEW_GUIDE.md` beside the hook checklist.\n\n"
+        }
+      ]
+    }
+  ]
+}

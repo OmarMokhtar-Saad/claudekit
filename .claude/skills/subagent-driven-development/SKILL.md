@@ -1,7 +1,6 @@
 ---
 name: subagent-driven-development
 description: "Use when executing a plan by dispatching fresh subagent per task with two-stage review"
-disable-model-invocation: true
 ---
 
 # Subagent-Driven Development
