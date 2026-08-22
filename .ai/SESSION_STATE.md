@@ -143,6 +143,23 @@ lane, so it was deliberately not touched here.
 
 ---
 
+**Enforcement runtime (Agent A, Phase 0), 2026-08-21.** `caa96f7` was verified docs-only, so this
+lane was genuinely unbuilt: no dispatcher, no event log, no spill, no merge rule anywhere in
+`src/`, `.claude/hooks/` or `tests/`. Now built and proven by execution: `src/claudekit/enforcement/`
+(codec + typed JSONL event log + spill/prune) and `.claude/hooks/dispatch.sh` with
+`dispatch-registry.json`. The rule is `ALLOW < ADVISE < ERROR < DENY`, outcome = max, and the
+codec fails closed — the live defect it fixes is real and was re-measured in a clean environment:
+`echo '' | env -i PATH=/nonexistent /bin/bash ops-enforcement.sh` returns **0**, not a crash code,
+and 0 is ALLOW, so a broken guard let the edit through. (An earlier `PATH=/nonexistent bash ...`
+reading of 127 measured the interpreter lookup, not the hook.)
+Two corrections to the handoff's ground truth: blocking-capable hooks are **7**, not 6
+(`reflection-gate.py` and `iron-law-gate.py` block too), and `file-guard-gate`,
+`injection-scan-gate` and `security-reminder` cannot block at all despite their names.
+**The dispatcher is not yet wired into `.claude/settings.json`** — that rewire (26 registrations
+across 8 events -> 16; `PreToolUse`'s 11 become 1) is a deliberate owner-gated Phase 0b, kept separate because `settings.json`
+is shared with Agent B and because holding it back makes this commit revertible with zero
+behaviour change. Asset delta: +1 hook (21 -> 22).
+
 ## Previous session — 2026-08-19 (reflection/review-discipline batch)
 
 Source: a deep read of the `chaos-engine` subtree of ShaftHQ/SHAFT_ENGINE (MIT) against our
