@@ -35,6 +35,37 @@ Single-quoted secrets in diffs (`\x27` regex class) · commit messages via `-m` 
 
 Path resolution after layout moves (`find_claudekit_root` → `src/` bug) · registry/dangling references when renaming skills · sed template rendering with special chars in values · stale hardcoded expectations in `doctor` when counts change · Python-version matrix issues (setuptools absent on py3.12+ — `0c9223b`).
 
+### The dominant class: **an operation that reports success while doing nothing** (2026-08-22)
+
+Eight review rounds on one change produced four defects of one shape, and it is worth naming
+because reading never catches it — only mutating the artifact does.
+
+- **A gate that passes because it isn't checking.** `check-plan-artifacts.py` matched a
+  target path by SUBSTRING, so `scripts/gen-docs.py` was satisfied by a plan naming
+  `templates/scripts/gen-docs.py` — a different file. A declared `plan` value was joined to
+  the config's parent, so `../x` aimed the gate at any file that mentioned the paths. One of
+  two slug prefixes was stripped, so `"plan": "ops-foo"` resolved to nothing and passed.
+- **A green test certifying a property it does not check.** The worst of the four:
+  `test_a_basename_inside_a_longer_filename_does_not_count` passed while the sibling branch
+  stayed open, so the suite became *evidence against a defect it did not cover*. A test like
+  that is worse than no test, because it stops the next person looking.
+- **A gate that reports failure and returns success.** `check-context-floor.py` gated its
+  EXIT CODE on `--check`, and `CLAUDE.md` prescribed the bare form — so the documented way
+  to run it was the one way it could not fail.
+- **The mirror image, equally bad:** over-tightening the same matcher rejected ordinary
+  sentence-final prose, which 17 occurrences across 12 of 67 plan documents already used. A
+  gate that cries wolf gets routed around by the next author.
+
+**`str.replace` and the ops engine's `find`/`replace` have exactly this shape.** A Python
+`str.replace` whose anchor does not match is a SILENT no-op; two plan fixes were reported as
+landed in this session when neither had applied. Guard every anchored edit with an assert
+before writing, and verify the result by reading the file back — never by the edit's own
+say-so. The ops engine does report `Pattern not found`, which is why it is the safer path.
+
+**The habit to break:** writing the assertion you intend instead of proving it can fail.
+Every one of these surfaced by mutating the shipped artifact and reading the failure; none
+surfaced by review-by-reading.
+
 ## Things future models must NEVER change
 
 1. The Iron Law (ops.json mandatory; implementer has no Edit/Write).
