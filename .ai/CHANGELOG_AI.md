@@ -1,6 +1,45 @@
 # AI Session Changelog
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
+## 2026-08-22 — Claude (Opus 5) — Phase 1b: the >1 MB payload refusal, and four gates that could not fail
+
+**Scope.** The ranked `[HIGH]` in `.ai/BACKLOG.md`: a tool payload over ~1 MB was blocked
+with a misleading cause. One config, `ops-dispatcher-payload.json` (18 ops / 25 edits),
+APPROVED 94/100 bound to `726d3b9`, across eight review rounds (79, 80, 85, 91, 94, 90, 85,
+94).
+
+**What shipped.** The handler-resolver left its `<<'PY'` heredoc for
+`.claude/hooks/dispatch_resolve.py` so the payload travels on stdin — a pipe has no
+`ARG_MAX` and writes nothing to disk. The temp-file alternative was measured WRONG and must
+not be retried: it adds an `RLIMIT_FSIZE` kill surface, so the boundary emits `rc -25`
+(SIGXFSZ) instead of a fail-closed `rc 2`, breaking hard rule 2. Two hook fixes travelled
+with it — `reflection-gate.py`'s `rc 1` traceback (a hard-rule-2 violation read as
+non-blocking) and `iron-law-gate.py`'s undecodable-payload passthrough past the implementer
+allowlist. `ck doctor` learned to check helper scripts a hook invokes by path, derived from
+the installed hooks themselves rather than a hard-coded name.
+
+**The finding worth keeping.** Three of the four defects I introduced while fixing the
+plan/config drift class were the same shape: the check passed because it wasn't checking.
+Tightening one branch of a matcher while a green test certified the whole class closed; a
+declared `plan` value escaping its directory via `../` so the gate could be aimed at any
+file; one of two prefixes stripped, so a config resolved to nothing and passed. The fourth
+was the mirror — over-tightening that rejected ordinary sentence-final prose used by 17
+occurrences across 12 of 67 plan documents. All four surfaced under mutation, none under
+review-by-reading.
+
+**Process note.** The plan/config floor was implemented twice on the same day by two
+sessions from the same three-round recurrence. Ours was dropped and folded into theirs
+(`scripts/check-plan-artifacts.py`), which is now wired into CI and the DoD; two
+implementations of one gate is exactly task 008's class. Local `main` moved mid-session
+(`54f82c8` -> `726d3b9`), so the record binds to the later commit.
+
+**Follow-ups filed.** `check-context-floor.py:88` returns 1 only under `--check`, so the
+no-flag form CLAUDE.md prescribes can never fail (its own commit, same day). The drift
+matcher rejects `./`-prefixed mentions (5 occurrences across 5 documents). A
+`VERDICT:`/`DECISION:` contract mismatch between every reviewer prompt and
+`review-record.py`. The `test_pipeline_e2e.py` SIGINT intermittent, as its own row. The
+fleet-sync marker co-ownership debt.
+
 ## 2026-08-22 — Claude (Opus 5) — Phase 1a: repairing the approval path, and cutting a redesign that was worse than the bug
 
 **Scope.** The `## Approval-machinery defects` section of `.ai/BACKLOG.md`, lifted ahead of

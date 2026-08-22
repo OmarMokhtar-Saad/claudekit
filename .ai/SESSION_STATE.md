@@ -2,7 +2,35 @@
 
 > Update this file at the end of every significant AI working session. It is the resume point.
 
-**Last updated:** 2026-08-22 · **By:** Claude (Opus 5) — **Phase 1a landed on `main`:
+**Last updated:** 2026-08-22 · **By:** Claude (Opus 5) — **Phase 1b landed on `main`:
+the >1 MB payload refusal is fixed, and three gates that could not fail now can.**
+`ops-dispatcher-payload.json` (18 ops / 25 edits) APPROVED 94/100 bound to `726d3b9`,
+executed, archived. Suite `1979 passed, 1 xfailed`; all nine gates green (the ninth,
+`check-plan-artifacts.py`, is newly wired into CI and the DoD).
+
+**In one paragraph.** `dispatch.sh`'s resolver moved out of a `<<'PY'` heredoc into
+`.claude/hooks/dispatch_resolve.py` so the payload can travel on stdin, which is what
+`ARG_MAX` had blocked. Two hooks changed with it: `reflection-gate.py` exited **1** with a
+traceback on an unparseable payload — neither 0 nor 2, so the host read a crash as
+non-blocking — and `iron-law-gate.py` treated an undecodable payload as a documented
+fail-open, making one invalid byte a passthrough past the implementer allowlist. Both now
+fail closed, the iron-law tightening bounded in both directions by test. `ck doctor` gained
+a helper-script check: this change created the first file every `PreToolUse` call depends on
+that `settings.json` never mentions, and deleting only it left **no doctor check failing
+while every tool call was blocked**. The plan/config drift floor was folded into
+`scripts/check-plan-artifacts.py`, which another session landed the same day — the same
+floor from the same three-round recurrence — rather than shipped twice.
+
+**The transferable lesson, worth more than the change.** Eight review rounds; of the defects
+introduced while fixing this class, three were "the check passed because it wasn't checking"
+and one was its mirror, "the check failed although nothing was wrong". A partial fix with a
+green test certifying it complete is worse than no fix, because the test stops the next
+person looking. Every one was caught by MUTATING the shipped artifact; none by reading it.
+The habit to break is writing the assertion you intend instead of proving it can fail.
+
+---
+
+**Previous:** **Phase 1a landed on `main`:
 the approval path can now service a multi-config plan.** `ops-approval-machinery.json`
 (3 ops / 9 edits) APPROVED 90/100 round 3, executed, archived. Suite `1938 passed,
 1 xfailed`; all eight gates green.

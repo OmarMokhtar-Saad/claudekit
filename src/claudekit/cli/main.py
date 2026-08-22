@@ -151,6 +151,36 @@ def _required_hook_scripts(text):
     return names
 
 
+# A helper INVOKED BY PATH by a shell hook is invisible to _required_hook_scripts:
+# nothing in settings.json mentions it. The `$SCRIPT_DIR/` form is the discriminator
+# and it is load-bearing -- five NON-comment lines in `ops-enforcement.sh` print
+# `python3 .claude/operations/scripts/execute-json-ops.py` inside a user-facing
+# remediation message, and a bare-filename match would demand those live under
+# .claude/hooks/ and so fail every healthy install.
+_HOOK_INVOKE_RE = re.compile(
+    r"^[^#\n]*\bpython3?\b[^\n]*?\$(?:SCRIPT_DIR|HOOK_DIR)/"
+    r"([A-Za-z0-9_][A-Za-z0-9_.-]*\.py)",
+    re.M,
+)
+
+
+def _invoked_sibling_scripts(hooks_dir):
+    """Names of `.py` helpers that a shell hook in ``hooks_dir`` invokes by path.
+
+    Derived from the installed hook files themselves -- the same structural approach
+    as `scripts/gen-docs.py:_is_helper_module` -- so a new helper needs no edit here
+    and this cannot rot into a stale hard-coded name list.
+    """
+    names = set()
+    for shell_hook in sorted(hooks_dir.glob("*.sh")):
+        try:
+            text = shell_hook.read_text(errors="replace")
+        except OSError:
+            continue
+        names.update(m.group(1) for m in _HOOK_INVOKE_RE.finditer(text))
+    return names
+
+
 def _check_config_schema(data, check):
     """Apply the shipped `config.schema.json` to `.claude/hooks/config.json`.
 
@@ -388,6 +418,35 @@ def cmd_doctor(args):
                       + " - every tool call is blocked. Run: claudekit update")
             else:
                 check(f"Wired hooks resolve ({len(wired)} referenced)", True)
+
+        # Every helper a hook INVOKES BY PATH must be installed too. The check above is
+        # derived from settings.json, so it sees only what Claude Code calls directly --
+        # and `dispatch.sh` calls `dispatch_resolve.py`, which settings.json never
+        # mentions. An install that lost only the resolver blocks EVERY PreToolUse call
+        # (the dispatcher fails closed when the registry cannot be resolved) while every
+        # settings.json-derived check still passes: measured with the resolver deleted,
+        # NO check failed at all. That is the same "healthy install on a completely
+        # blocked project" the wired-hook check above exists to end, re-entered through
+        # a file that check cannot see.
+        if hooks_dir.is_dir():
+            shell_hooks = sorted(hooks_dir.glob("*.sh"))
+            invoked = _invoked_sibling_scripts(hooks_dir)
+            missing_helpers = sorted(n for n in invoked if not (hooks_dir / n).is_file())
+            if not shell_hooks:
+                check("Hook helper scripts resolve", "skip",
+                      "no shell hooks installed")
+            elif not invoked:
+                # Never silently green: a derivation that stops matching would make
+                # this check vacuous, which is worse than not having it.
+                check("Hook helper scripts resolve", "warn",
+                      f"{len(shell_hooks)} shell hook(s) installed but none invokes a "
+                      "sibling helper - the derivation may have stopped matching")
+            elif missing_helpers:
+                check(f"Hook helper scripts resolve ({len(invoked)} invoked)", False,
+                      "hooks invoke missing helpers: " + ", ".join(missing_helpers)
+                      + " - every tool call is blocked. Run: claudekit update")
+            else:
+                check(f"Hook helper scripts resolve ({len(invoked)} invoked)", True)
 
         # Config.json
         config = hooks_dir / "config.json" if hooks_dir.is_dir() else None

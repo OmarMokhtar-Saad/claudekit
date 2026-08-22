@@ -88,6 +88,8 @@ jobs:
         run: python3 scripts/gen-model-policy.py --check
       - name: Always-on context floor within budget
         run: python3 scripts/check-context-floor.py --check
+      - name: Every path an ops config writes is named in its plan
+        run: python3 scripts/check-plan-artifacts.py --check
 
   dangling-hooks:
     runs-on: ubuntu-latest

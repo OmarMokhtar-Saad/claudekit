@@ -105,7 +105,15 @@ def blocking_enabled() -> bool:
 
 
 def read_event() -> Tuple[Optional[Dict[str, Any]], str]:
-    raw = sys.stdin.read()
+    # .buffer + surrogateescape: text-mode stdin decodes with errors='strict' under a
+    # normal user locale, so ONE invalid UTF-8 byte raised UnicodeDecodeError out of
+    # this function. Nothing here catches it, so the hook died with a traceback and
+    # emitted rc 1 -- which is neither 0 nor 2, breaks hard rule 2, and is read by the
+    # host as NON-blocking. Measured on the unpatched hook: rc 1 + traceback; after:
+    # rc 2 with "the reflection gate could not parse the tool payload".
+    # surrogateescape cannot raise, so the payload reaches the existing unparseable
+    # branch, which is what the fail-closed contract is actually written against.
+    raw = sys.stdin.buffer.read().decode("utf-8", "surrogateescape")
     try:
         event = json.loads(raw)
     except ValueError:

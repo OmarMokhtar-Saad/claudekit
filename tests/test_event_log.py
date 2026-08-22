@@ -144,6 +144,13 @@ def test_dispatcher_actually_emits_a_conforming_record(tmp_path):
     shutil.copy(os.path.join(HOOKS_DIR, "dispatch.sh"),
                 os.path.join(directory, "dispatch.sh"))
     shutil.copy(os.path.join(HOOKS_DIR, "lib.sh"), os.path.join(directory, "lib.sh"))
+    # The dispatcher invokes `python3 "$SCRIPT_DIR/dispatch_resolve.py"`, so a
+    # sandbox without it resolves no handlers, emits no decision record, and this
+    # test fails with "model-visible but not logged" — which is the fail-closed path
+    # working, not a logging bug. Whatever ships beside the dispatcher has to be
+    # sandboxed beside it.
+    shutil.copy(os.path.join(HOOKS_DIR, "dispatch_resolve.py"),
+                os.path.join(directory, "dispatch_resolve.py"))
     handler = os.path.join(directory, "denier.sh")
     with open(handler, "w", encoding="utf-8") as fh:
         fh.write("#!/usr/bin/env bash\ncat >/dev/null\necho 'BLOCKED: nope' >&2\nexit 2\n")

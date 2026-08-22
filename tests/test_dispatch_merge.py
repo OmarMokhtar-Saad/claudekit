@@ -52,10 +52,20 @@ def _handler(directory, name, exit_code, stderr="", stdout=""):
 
 
 def _sandbox(tmp_path, dispatch_src=DISPATCH, lib_src=LIB):
-    """A hooks dir holding the shipped dispatcher and lib (or a mutant of either)."""
+    """A hooks dir holding the shipped dispatcher and lib (or a mutant of either).
+
+    `dispatch_resolve.py` must come too. The dispatcher invokes it as
+    `python3 "$SCRIPT_DIR/dispatch_resolve.py"`, so a sandbox without it resolves no
+    handlers and every blocking event exits 2 — which is the correct fail-closed
+    behaviour, and is exactly how 21 tests here failed when the resolver was first
+    extracted from the heredoc. Whatever ships beside the dispatcher has to be
+    sandboxed beside it.
+    """
     directory = str(tmp_path)
     shutil.copy(dispatch_src, os.path.join(directory, "dispatch.sh"))
     shutil.copy(lib_src, os.path.join(directory, "lib.sh"))
+    shutil.copy(os.path.join(HOOKS_DIR, "dispatch_resolve.py"),
+                os.path.join(directory, "dispatch_resolve.py"))
     return directory
 
 
@@ -769,15 +779,21 @@ def test_reverting_the_not_applicable_rule_reintroduces_the_hang(tmp_path):
     cannot read runs a handler whose precondition we cannot evaluate, and the
     dispatch does not return -- exactly the round-2 hang, reproduced on demand.
     """
-    source = open(DISPATCH, encoding="utf-8").read()
+    # The rule now lives in dispatch_resolve.py, not in a heredoc inside
+    # dispatch.sh, so the mutant is applied to the RESOLVER and the sandbox's copy
+    # of it is overwritten. When the resolver was extracted this assertion fired
+    # ("mutation anchor not found"), which is the intended behaviour of an anchored
+    # mutant test: it fails loudly instead of silently proving nothing.
+    resolver = os.path.join(HOOKS_DIR, "dispatch_resolve.py")
+    source = open(resolver, encoding="utf-8").read()
     mutated = source.replace(
         "    if cmd_matcher and (not readable or not re.search(cmd_matcher, command)):",
         "    if readable and cmd_matcher and not re.search(cmd_matcher, command):")
     assert mutated != source, "mutation anchor not found -- update this test"
-    mutant_path = os.path.join(str(tmp_path), "mutant-dispatch.sh")
-    with open(mutant_path, "w", encoding="utf-8") as fh:
+    directory = _not_applicable_registry(tmp_path)
+    with open(os.path.join(directory, "dispatch_resolve.py"), "w",
+              encoding="utf-8") as fh:
         fh.write(mutated)
-    directory = _not_applicable_registry(tmp_path, dispatch_src=mutant_path)
     with pytest.raises(subprocess.TimeoutExpired):
         _run(directory, payload="not json", timeout=8)
 
