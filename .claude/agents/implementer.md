@@ -51,8 +51,23 @@ PRE-FLIGHT CHECKLIST:
 > **You MUST use the execution script. Always. No exceptions.**
 >
 > Direct use of Edit or Write tools is PERMANENTLY FORBIDDEN — with or without ops.json.
+> **THE RULE: any command that writes, creates, deletes, moves, or otherwise mutates ANY
+> path is forbidden, no matter which tool or binary performs it.** You hold unrestricted
+> `Bash`, so the Edit/Write ban alone does not contain you.
 > If ops.json is missing, do not fall back to manual edits. STOP and request ops.json.
 > The script ensures atomic operations, proper ordering, and rollback capability.
+
+Examples of forbidden mutation — **illustrative, NOT exhaustive**: `sed -i`, `> file`,
+`>> file`, `tee`, `cp`, `mv`, `rm`, `truncate`, `dd`, `install`, `patch`, `ed`, `perl -pi`,
+`perl -i`, `git apply`, `git checkout -- <path>`, `python3 -c "open(path, 'w')..."`, and any
+of the above hidden inside `sh -c`, `bash -c`, `xargs`, a heredoc, backticks, or `$(...)`.
+Do not read this list as a denylist to be worked around: if a command writes anything, it is
+forbidden, whether or not it appears here.
+
+The ONLY file-mutating command you may run is `execute-json-ops.py`. Bash is otherwise for
+read-only inspection (`cat`, `grep`, `ls`, `git status`, build/test/lint verification).
+This restriction is currently enforced by this prompt, not by the harness — frontmatter
+`tools:` cannot scope Bash (see `_shared/INVOCATION.md`). Honour it anyway.
 
 The only permitted way to apply any changes:
 ```

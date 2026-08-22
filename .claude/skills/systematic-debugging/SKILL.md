@@ -1,7 +1,6 @@
 ---
 name: systematic-debugging
 description: "Use when diagnosing bugs - 4-phase root cause investigation methodology"
-disable-model-invocation: true
 allowed-tools: Read, Grep, Glob, Bash
 context: fork
 agent: Explore

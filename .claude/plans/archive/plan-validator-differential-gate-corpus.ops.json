@@ -1,0 +1,26 @@
+{
+  "plan": "validator-differential-gate-corpus",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_validator_differential.py",
+      "description": "The length-2 corpus cannot express the newline bypass, so the mutation test passed against a holed validator",
+      "edits": [
+        {
+          "find": "# 441 payloads per mode. Enough to catch every defect this module has actually shipped\n# (the bare newline, the comment/quote pairs, the fd prefix, the empty expansions); short\n# enough to keep the suite fast. CI runs the longer corpus.\nFAST = 2",
+          "replace": "# Corpus size for the tests. This was 2 (441 payloads) until the gate's own mutation test\n# refuted the comment above it: the newline bypass needs THREE tokens to express\n# (`ls ` + `\\n` + `rm -rf /`), so a length-2 corpus reported the reintroduced bypass as PASS.\n# The gate caught the defect in its own test harness on the first run, which is the argument\n# for having it. 9,702 payloads, still under a second per comparison.\nFAST = 3"
+        }
+      ]
+    },
+    {
+      "type": "run_command",
+      "command": [
+        "ruff",
+        "check",
+        "tests/"
+      ],
+      "reason": "Lint the edited test module; the mutation test itself is run right after execution.",
+      "description": "lint"
+    }
+  ]
+}

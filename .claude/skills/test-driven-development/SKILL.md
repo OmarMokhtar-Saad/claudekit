@@ -1,7 +1,6 @@
 ---
 name: test-driven-development
 description: "Use when implementing features or fixing bugs - RED/GREEN/REFACTOR workflow ensures test coverage"
-disable-model-invocation: true
 allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 ---
 

@@ -1,0 +1,115 @@
+{
+  "plan": "remove-codex-mirror",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_day_one_blockers.py",
+      "edits": [
+        {
+          "find": "HOOK_MIRRORS = (\".claude/hooks/pre-commit.sh\", \".codex/hooks/pre-commit.sh\")",
+          "replace": "# One entry since 2026-08-21, when `.codex/` was removed (DECISIONS.md 22).\n# RENAMED from HOOK_MIRRORS deliberately: a one-element tuple still called\n# \"mirrors\" would assert a mirror relationship that no longer exists, and the\n# name shows up in every parametrisation id this class emits.\nSECRET_PATTERN_HOOKS = (\".claude/hooks/pre-commit.sh\",)"
+        },
+        {
+          "find": "    @pytest.mark.parametrize(\"hook\", HOOK_MIRRORS)\n    def test_building_the_patterns_emits_no_shell_error(self, hook):",
+          "replace": "    @pytest.mark.parametrize(\"hook\", SECRET_PATTERN_HOOKS)\n    def test_building_the_patterns_emits_no_shell_error(self, hook):"
+        },
+        {
+          "find": "    @pytest.mark.parametrize(\"hook\", HOOK_MIRRORS)\n    @pytest.mark.parametrize(\"name\", VALUE_BEARING)",
+          "replace": "    @pytest.mark.parametrize(\"hook\", SECRET_PATTERN_HOOKS)\n    @pytest.mark.parametrize(\"name\", VALUE_BEARING)"
+        },
+        {
+          "find": "# The roots this suite is responsible for: everything install.sh ships, the .codex/.agents\n# mirrors, the code and plan artifacts, and - since 2026-08-21 - the committed review\n# records and the user docs.",
+          "replace": "# The roots this suite is responsible for: everything install.sh ships, the .agents\n# mirror, the code and plan artifacts, and - since 2026-08-21 - the committed review\n# records and the user docs. `.codex` was a root here until it was removed the same\n# day (DECISIONS.md 22); note that its removal alone would NOT have reddened this\n# suite, because a root with no tracked files yields no files to scan. There is no\n# missing-root guard, and adding one is a separate change - recorded in\n# plan-remove-codex-mirror.md rather than left as a silent property."
+        },
+        {
+          "find": "SCAN_ROOTS = (\".claude\", \"templates\", \".codex\", \".agents\", \"tests\", \"scripts\", \"src\",",
+          "replace": "SCAN_ROOTS = (\".claude\", \"templates\", \".agents\", \"tests\", \"scripts\", \"src\","
+        },
+        {
+          "find": "    @pytest.mark.parametrize(\"hook\", HOOK_MIRRORS)\n    def test_private_key_pattern_still_requires_a_quote",
+          "replace": "    @pytest.mark.parametrize(\"hook\", SECRET_PATTERN_HOOKS)\n    def test_private_key_pattern_still_requires_a_quote"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".ai/PROFILES.md",
+      "edits": [
+        {
+          "find": "everything else. Mirrored into `.codex/hooks/`.",
+          "replace": "everything else. It was mirrored into `.codex/hooks/` at the time; that tree was\nremoved later the same day (DECISIONS.md 22), so the fix now lives in one place."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".ai/BACKLOG.md",
+      "edits": [
+        {
+          "find": "- [ ] **`.codex/hooks/` has drifted from `.claude/hooks/`, and nothing checks it.** Found 2026-08-21\n  while mirroring the `format-typecheck.sh` guard fix: `.codex/hooks/format-typecheck.sh` is missing\n  the leading-dash argument-injection anchor (`case \"$filepath\" in -*) filepath=\"./$filepath\" ;;`)\n  that `.claude/hooks/format-typecheck.sh` carries. That is a **security-relevant** divergence in a\n  mirror that is maintained by hand, so the real item is not this one file \u2014 it is that no gate\n  compares the two trees. Fix is a test that diffs every shared basename and requires either\n  equality or a declared, reasoned exception. Not fixed inside the profiles batch: it has its own\n  cause and its own blast radius, and riding along would have hidden it.\n",
+          "replace": "- [x] **RESOLVED 2026-08-21 by removing `.codex/` entirely (owner-approved; DECISIONS.md 22).**\n  Filed the same day as a P1 drift item, then resolved by deletion rather than by the gate the\n  entry proposed \u2014 investigating it found the mirror was unshipped, unreferenced, self-disabled\n  and machine-specific, so gating it would have bought maintenance of a copy nobody consumed.\n  **One correction I owe on the original entry: I called the drift \"security-relevant\", and that\n  was wrong.** `.codex/config.toml` set `ECC_HOOK_PROFILE=minimal`, under which the enforcement\n  hooks it wired stood down entirely \u2014 and the specific file I cited, `format-typecheck.sh`, is\n  strict-only, so it could not have run there under any profile. I wrote the claim without\n  checking the config next to the file. The drift was real; the security framing was mine and\n  unfounded, and hard rule 6 applies to my own findings, not just the product's docs.\n  **The durable lesson, which survives the deletion:** a hand-maintained mirror with no gate\n  drifts silently \u2014 measured at 8 stale shell hooks and three weeks \u2014 and the right question was\n  \"should this exist\" before \"how do we gate it\".\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".ai/DECISIONS.md",
+      "edits": [
+        {
+          "find": "|---|----------|---------|----------------------|-------------|\n",
+          "add_after": "| 22 | **`.codex/` mirror REMOVED** (owner-approved 2026-08-21) | Created by `bb9a2c5` as a Codex-CLI corpus mirror; 53 tracked files. Investigated after a drift item was filed and every premise for keeping it failed a check: `grep -c codex install.sh` \u2192 0, absent from `pyproject.toml` and `MANIFEST.in`, referenced by exactly two test constants; `.codex/config.toml` set `ECC_HOOK_PROFILE=minimal`, standing down every enforcement hook it wired; `.codex/hooks.json` carried **20** hardcoded `/Users/omarmokhtar/...` paths where `.claude/settings.json` has 0 (it resolves `$ROOT`); 8 shell hooks were stale since 2026-07-30, every diff `.claude` being ahead; and `.codex/hooks/README.md` was byte-identical to `.claude`'s, telling the reader to `chmod +x \\u0060.claude/hooks/*.sh\\u0060` \u2014 never adapted for Codex at all. | **Keep + add a mirror gate**: sync the 9 stale files, fix the 20 absolute paths, add a byte-equality test with declared exceptions \u2014 rejected because it buys permanent two-tree maintenance for a corpus nothing consumes. **Fix the path leak only, defer** \u2014 rejected as deferring the actual question. | `.agents/` (skills-only, independent, zero `.codex` references) is untouched. **On GUARD 26 / decision 7:** 53 files is 18 three-deletion plans, which honours the cap's letter and defeats its purpose (review). The removal was done as one `git rm -r .codex` under owner sign-off; `MAX_DELETIONS` stays 3, **no flag or escape hatch was added**, and the ops engine remains the only path for edits. What this records is a gap: the engine models per-file deletes and has no directory-removal operation. |\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "edits": [
+        {
+          "find": "## [Unreleased]\n\n### Added\n",
+          "replace": "## [Unreleased]\n\n### Removed\n- **The `.codex/` mirror (53 files).** A Codex-CLI corpus copy that nothing installed, packaged or\n  referenced; its own `config.toml` set `ECC_HOOK_PROFILE=minimal` so every enforcement hook it wired\n  stood down, and its `hooks.json` hardcoded 20 absolute paths to one developer's home directory. It\n  had been a stale copy of `.claude/hooks/` since 2026-07-30, never adapted for Codex \u2014 the hooks\n  still wrote into `.claude/`. **If you were running Codex CLI against a clone of this repo, that\n  corpus is gone**; the `.agents/` skills mirror is unaffected. Removed rather than gated, because\n  gating it would have bought permanent two-tree maintenance for something with no consumer.\n\n### Added\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".ai/SESSION_STATE.md",
+      "edits": [
+        {
+          "find": "**Resume point.** **Nothing is in flight; the working tree is clean.** The next unblocked\npiece of work is the `.codex/hooks/` mirror drift filed at P1 in `.ai/BACKLOG.md` (found while\nmirroring the `format-typecheck` fix; security-relevant, and nothing gates it). Phases 3\u20135 of\n`handoff-4-profiles.md` (skill/MCP generators, memory store, `ck adapt`) now have their dependency\nand can start. Three items remain owner-gated and none of them is a code change:",
+          "replace": "**Resume point.** **Nothing is in flight; the working tree is clean.** `.codex/` was removed\n2026-08-21 (DECISIONS.md 22) \u2014 the P1 drift item is closed by deletion, and the entry carries a\ncorrection: I had called that drift \"security-relevant\" without checking that `.codex/config.toml`\nforced `minimal`, under which those hooks never ran. Next: hooks reading profiles at runtime (eleven\nfail-closed scripts, its own plan), then Phases 3\u20135 of `handoff-4-profiles.md` (skill/MCP\ngenerators, memory store, `ck adapt`), now unblocked. Three items remain owner-gated and none of\nthem is a code change:"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".ai/CHANGELOG_AI.md",
+      "edits": [
+        {
+          "find": "## 2026-08-21 \u2014 Claude (Opus 5) \u2014 Layered profiles: `ck profile`, and one guard that was wrong\n",
+          "add_before": "## 2026-08-21 \u2014 Claude (Opus 5) \u2014 `.codex/` removed, and a finding of mine corrected\n\n**Scope.** Investigated the P1 mirror-drift item filed hours earlier in `f5eb927`, and resolved it by\ndeleting `.codex/` (53 files) rather than by building the gate that entry proposed. Owner approved the\nremoval against a costed keep-and-gate alternative.\n\n**Every premise for keeping it failed a check.** Nothing installs or packages it (`grep -c codex\ninstall.sh` \u2192 0). Its own `config.toml` set `ECC_HOOK_PROFILE=minimal`, standing down every\nenforcement hook it wired. Its `hooks.json` carried 20 hardcoded `/Users/omarmokhtar/...` paths where\n`.claude/settings.json` has zero. Eight shell hooks were stale since 2026-07-30 and every diff was\n`.claude` being ahead. Its README was byte-identical to `.claude`'s, including `chmod +x\n.claude/hooks/*.sh` \u2014 it had never been adapted for Codex; the hooks still wrote into `.claude/`.\n\n**A correction I owe.** The original entry called the drift \"security-relevant\". That was wrong, and I\nwrote it without reading the config file sitting next to the drifted hook: under the `minimal` that\n`.codex` forced, those hooks never ran, and the file I cited is strict-only besides. The drift was\nreal; the security framing was mine and unfounded. Hard rule 6 is about the honesty of security\nclaims, and it binds my own findings, not only the product's docs. Rewritten in place rather than\ndeleted along with the directory.\n\n**The MAX_DELETIONS tension, named rather than routed around.** DECISIONS 7 caps deletions at 3/plan\nand says large removals need multiple reviewed plans; 53 files is 18 plans, which honours the letter\nand defeats the purpose. Done as one `git rm -r` under owner sign-off, recorded as DECISIONS 22.\n**No flag was added and the cap is unchanged** \u2014 what got recorded is the real gap: the ops engine\nmodels per-file deletes and has no directory-removal operation.\n\n**An honest mutant that does not flip.** Removing `.codex` from `SCAN_ROOTS` was needed for accuracy,\nbut *not* removing it would have failed nothing: the secrets self-scan iterates `git ls-files -- <root>`\nand an empty root yields no files. `SCAN_ROOTS` has no missing-root guard. Written into the test's own\ncomment instead of being left as a silent property.\n\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "AGENTS.md",
+      "edits": [
+        {
+          "find": "shellcheck install.sh .Codex/hooks/*.sh  # shell lint",
+          "replace": "shellcheck install.sh .claude/hooks/*.sh  # shell lint"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".ai/BACKLOG.md",
+      "edits": [
+        {
+          "find": "## P1 \u2014 high value, unblocked\n\n",
+          "add_after": "- [ ] **`AGENTS.md` is a mechanical `.claude` -> `.Codex` sed of `CLAUDE.md`, and most of it is\n  wrong.** Found 2026-08-21 by the reviewer of `plan-remove-codex-mirror` (my own grep missed\n  it: I searched case-sensitively for `.codex` and the file writes `.Codex`). The sed also\n  rewrote prose it should not have: PyPI name reads **`Codex-kit`** (it is `claude-kit`),\n  the tagline reads \"orchestration kit for Codex\", and `.Codex/local/Codex.template.md`\n  should be `CLAUDE.template.md`. Counts are stale too: it claims `29 agents \u00b7 42 commands \u00b7 75 skills` and\n  `19 hooks`, against `python3 scripts/gen-docs.py --check` measured 2026-08-21 ->\n  `Counts: agents=29 commands=42 skills=76 hooks=21`. Skills and hooks are both wrong;\n  AGENTS.md is not generator-owned, which is why nothing caught it. **Three of its four `.Codex/` paths already did not exist**\n  before the `.codex/` removal (`settings.local.json`, `agents/_shared/INVOCATION.md`,\n  `operations/scripts/shared.py`); only `.Codex/hooks/*.sh` resolved, and only because\n  macOS is case-insensitive. That one line was fixed in the removal batch because the\n  deletion would have made its shellcheck glob silently match zero files; the rest is\n  pre-existing decay in the file other tools read as their instruction standard, and it\n  needs its own pass. Same class applies to `.agents/skills/*/SKILL.md`, which carry ~100\n  `.Codex/...` paths pointing at a layout that never fully existed.\n\n"
+        }
+      ]
+    }
+  ]
+}

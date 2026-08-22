@@ -23,7 +23,7 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from shared import PROTECTED_PATTERNS, is_protected_file, allowed_run_commands, __version__
 
@@ -348,7 +348,38 @@ def validate_against_schema(config: dict, schema_file: str) -> Tuple[bool, List[
     except ValidationError as e:
         msg = getattr(e, 'message', str(e))
 
-        # For oneOf/anyOf failures, dig into sub-errors for the most actionable message.
+        # oneOf failures report every variant's mismatch; naively picking the first
+        # "Additional properties" sub-error attributes the failure to the WRONG
+        # variant (e.g. a run_command with a short reason gets "unknown field(s):
+        # 'command', 'reason'"). When the failing instance declares a known type,
+        # report that variant's own deepest sub-error instead.
+        instance = getattr(e, 'instance', None)
+        if e.context and isinstance(instance, dict) and 'type' in instance:
+            try:
+                variants = (schema.get('oneOf', [{}, {}])[1]
+                            .get('properties', {}).get('operations', {})
+                            .get('items', {}).get('oneOf', []))
+                type_to_index = {
+                    v.get('properties', {}).get('type', {}).get('const'): idx
+                    for idx, v in enumerate(variants)
+                }
+                idx = type_to_index.get(instance.get('type'))
+                if idx is not None:
+                    matching = [sub for sub in e.context
+                                if next(iter(sub.schema_path), None) == idx]
+                    if matching:
+                        best = max(matching, key=lambda s: len(list(s.absolute_path)))
+                        loc = ".".join(str(p) for p in e.absolute_path) or "operation"
+                        field = ".".join(str(p) for p in best.absolute_path)
+                        where = f" (field: {field})" if field else ""
+                        return False, [
+                            f"Schema validation failed at {loc}: "
+                            f"{instance['type']} operation invalid{where}: {best.message}"
+                        ]
+            except (AttributeError, IndexError, TypeError):
+                pass  # fall through to the generic reporting below
+
+        # For other oneOf/anyOf failures, dig into sub-errors for the most actionable message.
         additional_props_msg = None
         if e.context:
             for sub in e.context:
@@ -437,7 +468,7 @@ def validate_legacy_format(config: dict, errors: List[str]) -> Tuple[bool, List[
     Duplicate paths across entries are threaded through legacy_sim so each edit is
     checked against the content as it will exist when the executor reaches it.
     """
-    legacy_sim = {}
+    legacy_sim: Dict[str, Any] = {}
     if 'files' not in config:
         errors.append("Missing required key: 'files'")
         return False, errors
@@ -517,7 +548,7 @@ def validate_modern_format(config: dict, errors: List[str]) -> Tuple[bool, List[
 
     # Validate all operations, threading simulated content across ops on the same file
     valid_types = ['file_create', 'file_delete', 'code_edit', 'run_command']
-    sim_files = {}
+    sim_files: Dict[str, Any] = {}
     for i, op in enumerate(operations, 1):
         op_type = op.get('type', '')
 
@@ -581,7 +612,7 @@ def validate_modern_format(config: dict, errors: List[str]) -> Tuple[bool, List[
     return len(errors) == 0, errors
 
 
-def validate_backup_compatibility(config_file: str, config: dict = None) -> Tuple[bool, List[str]]:
+def validate_backup_compatibility(config_file: str, config: Optional[dict] = None) -> Tuple[bool, List[str]]:
     """
     Validate backup/restore compatibility (GUARDS 19-24).
 
@@ -681,7 +712,7 @@ def validate_backup_compatibility(config_file: str, config: dict = None) -> Tupl
             )
 
     # GUARD 23: File naming collision detection (warning only — backup uses nested dirs)
-    filename_map = {}
+    filename_map: Dict[str, List[str]] = {}
     for file_path in file_paths:
         filename = os.path.basename(file_path)
         if filename in filename_map and filename_map[filename] != file_path:

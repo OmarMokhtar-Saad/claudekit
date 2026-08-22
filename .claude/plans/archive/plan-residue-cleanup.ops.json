@@ -1,0 +1,98 @@
+{
+  "plan": "residue-cleanup",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "review/code-review.md",
+      "description": "ITEM 1: break the name/separator/quote adjacency in the P2 finding's quoted example. Anchor truncated below the pattern's 8-char threshold so this ops config cannot match the live pattern itself.",
+      "edits": [
+        {
+          "find": "(`api_key = 'abcd12",
+          "replace": "(`api_key` `=` `'abcd12"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "review/security-review.md",
+      "description": "ITEM 1: same retyping for the 5.2 prose reference to the intentional bad example.",
+      "edits": [
+        {
+          "find": "`api_key = \"test-k",
+          "replace": "`api_key` `=` `\"test-k"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "review/tasks/003-fix-hook-bugs-and-fail-closed.md",
+      "description": "ITEM 1: same retyping for the acceptance-criterion test case.",
+      "edits": [
+        {
+          "find": "- `api_key = 'abcdef",
+          "replace": "- `api_key` `=` `'abcdef"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_day_one_blockers.py",
+      "description": "ITEM 1 step 1.2 (add review+docs to SCAN_ROOTS, rewrite the stale out-of-scope comment) and ITEM 2 (count the skip clauses so an ADDED clause fails here).",
+      "edits": [
+        {
+          "find": "# The roots this plan is responsible for: everything install.sh ships, the .codex/.agents\n# mirrors, and the code and plan artifacts this change itself adds. NOT the whole\n# repository - `review/` and `docs/` are committed too but are out of scope here, and\n# review/tasks/003-fix-hook-bugs-and-fail-closed.md:49 already contains a line matching a\n# live pattern, so adding `review` would red this suite for a pre-existing reason\n# unrelated to this change. Tracked as a follow-up, not silently ignored.\n#\n# `.claude/plans` is deliberately included: plans and their ops configs ARE committed (18\n# under .claude/plans/archive/), so an ops config whose `find` anchor carried a bare\n# pattern literal would block the archiving commit with no sanctioned exit. The anchors in\n# plan-day-one-blockers.ops.json are chosen to avoid that; this root is what enforces it.\nSCAN_ROOTS = (\".claude\", \"templates\", \".codex\", \".agents\", \"tests\", \"scripts\", \"src\")",
+          "replace": "# The roots this suite is responsible for: everything install.sh ships, the .codex/.agents\n# mirrors, the code and plan artifacts, and - since 2026-08-21 - the committed review\n# records and the user docs.\n#\n# `review` could join once the three lines that matched the live api-key pattern were\n# retyped: review/code-review.md:219, review/security-review.md:90, and\n# review/tasks/003-fix-hook-bugs-and-fail-closed.md:49. Each was documentation quoting an\n# example assignment, not a secret, so each was fixed by breaking the name/separator/quote\n# adjacency the pattern needs - three adjacent markdown inline-code spans - leaving the\n# finding text, severity and line references untouched. `docs` joined for FREE: it had\n# zero matches against all 13 live patterns before this change and nothing in it was\n# edited. Enumerated, not assumed: git ls-files over both roots x every expanded pattern.\n#\n# `.claude/plans` is deliberately included: plans and their ops configs ARE committed (18\n# under .claude/plans/archive/), so an ops config whose `find` anchor carried a bare\n# pattern literal would block the archiving commit with no sanctioned exit. The anchors in\n# plan-day-one-blockers.ops.json are chosen to avoid that; this root is what enforces it.\nSCAN_ROOTS = (\".claude\", \"templates\", \".codex\", \".agents\", \"tests\", \"scripts\", \"src\",\n              \"review\", \"docs\")"
+        },
+        {
+          "find": "def test_skip_mirror_matches_the_hook():\n    \"\"\"If the hook's skip list changes, this test must be updated with it.\"\"\"",
+          "replace": "def _check_secrets_block():\n    \"\"\"The BODY of check_secrets(), so its skip clauses can be COUNTED and not merely\n    matched. Fails loudly if the function is renamed rather than returning an empty\n    string that would trivially count zero clauses.\"\"\"\n    text = PRE_COMMIT.read_text()\n    block = re.search(r\"^check_secrets\\(\\) \\{\\n(.*?)\\n\\}$\", text, re.S | re.M)\n    assert block, \"check_secrets() not found in pre-commit.sh; update this mirror\"\n    return block.group(1)\n\n\ndef test_skip_mirror_matches_the_hook():\n    \"\"\"If the hook's skip list changes, this test must be updated with it.\n\n    Two literal tokens catch a CHANGED clause but not an ADDED one: a third\n    continue-guarded clause in check_secrets leaves both tokens present while making\n    _SKIP_SUFFIX_RE STRICTER than the control it mirrors. That surfaces as a spurious red\n    in test_no_committed_file_matches_a_live_pattern - a file the hook now skips is still\n    scanned here - instead of failing where the fix belongs. So the clause COUNT is\n    asserted too.\"\"\""
+        },
+        {
+          "find": "        assert token in text, f\"pre-commit.sh skip list changed; update _SKIP_SUFFIX_RE ({token})\"",
+          "add_after": "\n    clauses = re.findall(r'\\[\\[ \"\\$file\" =~', _check_secrets_block())\n    assert len(clauses) == 2, (\n        f\"check_secrets() has {len(clauses)} skip clauses but _SKIP_SUFFIX_RE mirrors 2; \"\n        \"add the new clause to _SKIP_SUFFIX_RE, or remove it from pre-commit.sh\")"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".ai/REVIEW_GUIDE.md",
+      "description": "ITEM 3: new recurrence-class row plus its prose entry. Count is 1 LIVE - measured, not invented.",
+      "edits": [
+        {
+          "find": "sequential-edit anchors (validator checks the original file, executor applies in order) — still have nothing. |",
+          "add_after": "\n| `unreviewed-expansion` | a shell security control is assembled by string interpolation and reviewed at its SOURCE line, which reads correctly, while the value it EXPANDS to is wrong | nothing yet — 1 LIVE, fixed in `8cfdb6e` (see \"`unreviewed-expansion`: read the value, not the line\" below). Cheap diagnostic: run the block under `bash -x`, or print the constructed value before it is used, and compare it against what you believe you shipped |"
+        },
+        {
+          "find": "One caveat on everything above:",
+          "add_before": "**`unreviewed-expansion`: read the value, not the line.** `.claude/hooks/pre-commit.sh`\nassembled its secret patterns by interpolation — `\"api_key\\\\s*[:=]\\\\s*${q}${nq}{8}\"` —\nwhere `q`/`nq` were meant to come from `lib.sh`'s `ERE_QUOTE_CLASS` /\n`ERE_NOT_QUOTE_CLASS`. Those were never exported and the hook never sourced `lib.sh`, so\nthe `${:-}` defaults applied; and the defaults were themselves broken, because a `'`\ninside a double-quoted `${:-}` default opens a quote context. `nq` expanded to EMPTY, so\nthe shipped pattern demanded eight consecutive QUOTE characters and seven value-bearing\npatterns could not fire. Three review rounds read that source line and found nothing wrong\nwith it — because nothing is wrong with it. The defect exists only after expansion. Fixed\nin `8cfdb6e`. The diagnostic costs one command: run the block under `bash -x`, or echo the\nconstructed value, and compare it against the pattern you believe you shipped. This\ngeneralises past patterns to anything built from variables: allowlists, `find` expressions,\n`grep` arguments, `case` globs. **Heuristic: a control you have not seen EXPANDED is a\ncontrol you have not reviewed.**\n\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_reflection_ledger.py",
+      "description": "ITEM 4: capture-on-failure for the documented intermittent. Adds no assertion, changes no asserted expression, adds no retry.",
+      "edits": [
+        {
+          "find": "# --------------------------------------------------------------------- privacy",
+          "add_before": "def receipt_diagnostic(ref, proc, env):\n    \"\"\"Evidence for the UNEXPLAINED intermittent tracked in .ai/BACKLOG.md:\n    test_receipt_via_json_stdin_clears_the_checkpoint has failed three times with the CLI\n    itself exiting 0, and has never reproduced on demand. This builds the capture the\n    BACKLOG entry asks for and hands it to the assertion as its message, so a CI red\n    carries its own evidence and nobody has to reproduce it.\n\n    There is no separate checkpoint file: pending_checkpoint() is a pure reduction over\n    active_entries(), which reads the ledger JSONL - so the ledger bytes, the derived\n    active set and the returned checkpoint are all dumped.\n\n    Records state only. It claims NO cause, it is not a retry, and it must never become\n    one.\"\"\"\n    ledger = ref.ledger_path(SESSION)\n    inbox = ref.inbox_path(SESSION)\n    try:\n        raw = ledger.read_text(encoding=\"utf-8\")\n    except OSError as exc:\n        raw = \"<unreadable: %s>\" % exc\n    return \"\\n\".join([\n        \"\",\n        \"ledger_dir:     %s\" % ref.ledger_dir(),\n        \"ledger_path:    %s (exists=%s)\" % (ledger, ledger.exists()),\n        \"child env dir:  %r\" % env.get(\"CLAUDEKIT_REFLECTION_DIR\"),\n        \"inbox_path:     %s (exists=%s)\" % (inbox, inbox.exists()),\n        \"ledger bytes:   %s\" % raw,\n        \"active entries: %s\" % json.dumps(ref.active_entries(SESSION), indent=2),\n        \"pending:        %s\" % json.dumps(ref.pending_checkpoint(SESSION), indent=2),\n        \"cli returncode: %s\" % proc.returncode,\n        \"cli stdout:     %s\" % proc.stdout,\n        \"cli stderr:     %s\" % proc.stderr,\n    ])\n\n\n"
+        },
+        {
+          "find": "        assert proc.returncode == 0, proc.stderr\n        assert ref.pending_checkpoint(SESSION) is None\n\n    def test_cli_refuses_a_bad_receipt_with_exit_2(self, ref):",
+          "replace": "        assert proc.returncode == 0, receipt_diagnostic(ref, proc, env)\n        assert ref.pending_checkpoint(SESSION) is None, receipt_diagnostic(\n            ref, proc, env)\n\n    def test_cli_refuses_a_bad_receipt_with_exit_2(self, ref):"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".ai/BACKLOG.md",
+      "description": "ITEM 4: record the third sighting and that capture is now in place. Item stays open; no cause claimed.",
+      "edits": [
+        {
+          "find": "Next step is capture, not theory: on failure, dump the resolved ledger path, the\n  checkpoint file contents, and the CLI's stdout/stderr.",
+          "replace": "THIRD sighting 2026-08-21 at `64088a5`: one failure in a fresh process at the same\n  assertion, then two consecutive clean full runs (1,646 passed each). That run's output was\n  redirected to /dev/null and the evidence was LOST - precisely the mistake this item exists\n  to prevent. **Capture is now in place** (`receipt_diagnostic()`,\n  `tests/test_reflection_ledger.py`): on failure the assertion message carries the ledger\n  dir, the resolved ledger path and its raw bytes, the `CLAUDEKIT_REFLECTION_DIR` the CHILD\n  process received, the inbox path, the derived active entries, the returned checkpoint, and\n  the CLI's returncode/stdout/stderr. Note there is no separate checkpoint file: the\n  checkpoint is a pure reduction over the ledger JSONL, so the ledger bytes ARE the\n  \"checkpoint contents\" this entry asked for. **Still no cause is claimed**; no retry was\n  added and the assertion itself is unchanged. Do not close this until a CAPTURED failure\n  explains it."
+        }
+      ]
+    }
+  ]
+}

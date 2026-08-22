@@ -13,6 +13,538 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Generators that cannot drift: `ck skill new`, `ck mcp add`, and a registry gate that
+  sees the filesystem.** Creating a skill and registering it are now one act — `ck skill new`
+  scaffolds `SKILL.md`, writes the `skills-registry.json` entry in the same call, and removes
+  the scaffold again if that write fails, so "a skill exists but is unregistered" is no longer
+  a reachable state. It refuses, with current/added/projected/budget numbers, a description
+  that would push the always-on context floor over budget. `ck mcp add` registers a server
+  against the active profile's `mcp.max_servers` / `mcp.max_tools` and refuses over-budget
+  additions naming current vs limit — an MCP server's tool schemas are injected into every
+  session, so adding one is an always-on cost. `scripts/gen-registry.py --check` now reconciles
+  the registry against the filesystem in both directions: a hand-created skill directory, and a
+  hand-created agent file that declares no skills, both fail the gate (they passed it in silence
+  before), while a registry row whose directory is gone is reported and never auto-removed,
+  because deleting an asset is owner-gated. That gate now also runs in CI, which it never did.
+  The context-floor measurement moved into `claudekit.context_floor` so the number CI gates on
+  and the number the generator refuses on are the same number by construction.
+  A server that Claude Code (or a human) already put in `.mcp.json` is **adopted** by
+  `ck mcp add <name> --tools N` — the count is recorded, no configuration is touched —
+  so the fail-closed "projected total is unknown" refusal now has a remedy that works,
+  and `ck mcp list` shows those servers with an `unknown` count instead of hiding them.
+  `ck skill new` warns about, rather than refuses on, context-floor categories the new
+  skill did not cause, and closes by naming `python3 scripts/gen-docs.py`, which owns the
+  component counts a new skill changes.
+- **`ck memory` — a project-local memory store that enforces two rules instead of asking
+  an agent to remember them.** Memories live in `.claude/memory/entries.jsonl`, schema-
+  validated. Each stamps the SHA-256 of every file it cites, so `ck memory check` re-derives
+  them and reports **STALE** when the tree has moved on and **UNVERIFIABLE** when a memory
+  cites nothing — never `FRESH`. That is "current files outrank memories" made mechanical.
+  Imperative shapes found in a body ("ignore previous instructions", "never tell the user")
+  are surfaced on every read path as **findings, not orders**; the store never acts on them.
+  This is a shape scanner over English, **not an injection defence**: for the forms it
+  detects the text is labelled wherever the store surfaces it, but it does not claim every
+  directive in a body is found — questions, passive voice, other languages, unusual filler
+  openers and deliberate obfuscation are named blind spots. Read a memory as untrusted text
+  regardless of what it reports.
+  Secrets, credential-shaped tokens, absolute paths into a home directory, transcripts and
+  raw log dumps are refused **before** a byte is written — a store that writes then redacts
+  has already leaked. Reads are one attempt: no retry, no poll, no watch.
+- **Layered profiles and `ck profile`.** `.claude/profiles/` replaces the flat
+  `ECC_HOOK_PROFILE` switch with four declared profiles — `minimal`, `standard`, `strict` and a
+  `python` stack profile — composed through `base -> profile -> project-local -> override`, each
+  layer replacing rows by id. `ck profile list` names what is installed and which is active;
+  `ck profile show <name> --resolved` prints the composed result with **each row attributed to the
+  layer that won it**, which is the half that was missing: resolution nobody can inspect is
+  resolution nobody can trust. A malformed or unknown profile fails closed with a named cause —
+  there is no permissive fallback — and `ck doctor` re-derives every hook's real per-profile mode
+  from the shipped hook file, so a profile that has drifted from the hooks is a health failure.
+  **`ECC_HOOK_PROFILE` is unchanged and keeps working**: it selects the profile, and no hook reads
+  the new format. Profiles *declare*, and are gate-bound to what the hooks actually do; they do not
+  yet control them, and `.claude/profiles/README.md` says so rather than implying otherwise.
+- **Enforcement runtime: one dispatcher per event, a most-restrictive merge rule, a typed event
+  log, and spill — landed, and deliberately NOT yet wired.** `.claude/hooks/dispatch.sh` +
+  `dispatch-registry.json` give every hook event a single dispatcher with an explicit precedence
+  rule — `ALLOW < ADVISE < ERROR < DENY`, outcome is the maximum — so an outcome can no longer
+  depend on a registration order nobody chose. Its exit-code codec fails closed: `0 -> ALLOW`,
+  `2 -> DENY`, and *anything else* is `ERROR`, which renders as a block. The **advisory** tier
+  (the same word `profile.json` already uses) is clamped before the merge, so advisory output can
+  neither override a block nor create one; its text still surfaces, it just is not a decision. One registry
+  invariant is **enforced rather than documented**: a handler may declare a command precondition
+  (`command_matcher`) only if its tier is `advisory`. A row that could block *and* carried a
+  precondition would be skipped when the payload cannot be parsed, so malformed input would
+  silently remove a guard; the dispatcher rejects such a registry and fails closed instead.
+  `src/claudekit/enforcement/` adds a durable typed JSONL event log with a pure replay projection
+  and a runtime assertion for "model-visible means logged", plus spill (bounded preview +
+  retrievable, digest-verified locator) and a deterministic **model-free** pruner that runs
+  *before* any paid summarization. `.claude/hooks/hooks.log` keeps its prose shape and existing
+  debugging workflows are untouched. Stdlib only; `ECC_HOOK_PROFILE=minimal` is unaffected.
+- **Still open: a hook that breaks still fails open in the live path.** `.claude/settings.json`
+  is **not** rewired onto the dispatcher in this release, so the measured defect stands. Measured
+  in a clean environment, so the shell's own interpreter lookup is not mistaken for the hook's
+  exit code: `echo '' | env -i PATH=/nonexistent /bin/bash .claude/hooks/ops-enforcement.sh`
+  exits **0** — not a crash code. `dirname`, `cat` and even `deny` are command-not-found, so the
+  guard emits nothing and ends successfully, and **0 is exactly what Claude Code reads as
+  "allow"**: it honours only `exit 2` as a block, so the guarded operation proceeds. The
+  dispatcher's codec fixes every failure it can *observe* (a handler that cannot start, crashes,
+  or is signalled); a handler that degrades to 0 by itself is not observable and is tracked
+  separately. There is also **no per-handler timeout** — the dispatcher does not implement one and
+  does not claim one. The fix exists and is proven by
+  execution against the shipped artifacts, but it is not load-bearing until the rewire lands. It
+  is stated here rather than omitted because a changelog that reads as if the hole were closed is
+  worse than one that says it is open.
+
+- **Update, superseding the two entries above: `PreToolUse` is now wired onto the dispatcher.**
+  All 11 `PreToolUse` registrations run through `dispatch.sh`, so the fail-open defect described
+  in the entry above is **closed on the one event where Claude Code honours `exit 2`**. Read the
+  two entries above as the state before this change and this one as the state that shipped: the
+  dispatcher landed unwired, and the wiring landed afterwards. Under the dispatcher a broken
+  environment is *observable*: the handler process cannot start (`bash`/`python3` unresolvable ->
+  exit 127), 127 decodes as `ERROR`, and `ERROR` renders as a block instead of being ignored. An
+  outcome no longer depends on the order of the `PreToolUse` list. **Still not closed, stated
+  plainly:** a hook that degrades to `exit 0` while doing nothing — which is what
+  `echo '' | env -i PATH=/nonexistent /bin/bash .claude/hooks/ops-enforcement.sh` actually does —
+  is indistinguishable from a hook that allowed, and no exit-code codec can fix that; there is
+  also no per-handler timeout. Both stay tracked in the backlog rather than implied away. The
+  other seven events are unchanged: they are advisory, `exit 2` is not honoured there, and several
+  of their hooks are backgrounded with `&`, which the dispatcher does not model. Nothing was
+  dropped in the move — `test_registry_covers_every_settings_registration` fails if any handler
+  the entries above name is missing from the registry, and the registry keeps each handler's tool
+  matcher, the `git commit` / `git push` command conditions, and reflection-gate's `--event`
+  argument.
+
+### Removed
+- **The `.codex/` mirror (53 files).** A Codex-CLI corpus copy that nothing installed, packaged or
+  referenced; its own `config.toml` set `ECC_HOOK_PROFILE=minimal` so every enforcement hook it wired
+  stood down, and its `hooks.json` hardcoded 20 absolute paths to one developer's home directory. It
+  had been a stale copy of `.claude/hooks/` since 2026-07-30, never adapted for Codex — the hooks
+  still wrote into `.claude/`. **If you were running Codex CLI against a clone of this repo, that
+  corpus is gone**; the `.agents/` skills mirror is unaffected. Removed rather than gated, because
+  gating it would have bought permanent two-tree maintenance for something with no consumer.
+
+### Fixed
+- **`format-typecheck.sh` ran for any unrecognised `ECC_HOOK_PROFILE` value.** Its guard was a
+  positive list (`= minimal`, `= standard`) sitting directly under a comment reading "runs in strict
+  only", so a typo — or any new profile name — fell through and started an expensive Stop-time
+  format + typecheck. Now a negative guard (`!= strict`), matching its two sibling strict-only
+  gates. Identical behaviour on all three real values; found by the new profile gate on its first run.
+- **`ck uninstall` deleted files it did not own.** The install manifest records a sha256 per
+  file, but uninstall removed every path it *listed* without comparing a single digest — so a
+  prompt a user had spent a week tuning was removed as readily as an untouched one. Uninstall
+  now acts only on files whose digest still matches, and **fails closed** when any managed
+  file has local modifications, naming them and offering two explicit ways forward:
+  `--keep-modified` (remove only what the receipt still owns) and `--force` (remove them too,
+  backed up first). Neither hides behind `--yes`, which only skips a prompt. When files are
+  kept the manifest is rewritten to describe exactly what is still kit-owned.
+- **The manifest recorded files that are the user's by definition.** `settings.local.json`
+  became kit-owned on any re-install, so `ck update` would overwrite a project's own
+  permission allowlist and `ck uninstall` would delete it. It, `hooks.log` and `.pyc` files
+  are now never recorded.
+
+### Fixed
+- **15 skill-load instructions could never execute.** 33 of 76 skills carried
+  `disable-model-invocation: true`, which removes a skill from the Skill tool's listing
+  entirely — yet 15 of them were named in agents' "Skill Loading" sections: 8 as mandatory
+  (including `execute-operations-config`, the implementer's Iron Law mechanism, and
+  `validate-operations-config`, the reviewer's) and 7 as on-demand (five being the
+  coordinator's adaptive aids). All 15 are now un-flagged, decided per skill, so the declared
+  contracts can actually run. `tests/test_skill_loading_contract.py` makes the rule mechanical:
+  no agent may declare a load — mandatory or on-demand — of a skill it cannot invoke.
+- **The context floor charged for skills no model can see.** `check-context-floor.py` counted
+  all 76 skill descriptions including the 33 model-invisible ones, inflating that category by
+  ~3,900 chars. It now counts only what enters context, and the budget was **lowered**
+  14000 → 9000 to match the corrected basis.
+
+### Changed
+- **Eval definitions name a capability tier, not a vendor model**, and a definition carrying
+  a `model` key is now rejected outright. This closed a surface the model-policy audit did not
+  cover — and **two of the four evals were not testing the shipped agent**:
+  `implementer-no-fabrication` ran on sonnet while `implementer` ships on haiku, and
+  `reviewer-refutes-and-formats` ran on opus while `reviewer` ships on sonnet.
+- **Model routing is expressed in capability tiers, not vendor model names.**
+  `.claude/model-policy.json` is now the single source of truth: it maps each of the 29
+  agent roles to what it is *accountable for* and to a capability tier (`most-capable` /
+  `balanced` / `fast`), and maps each tier to a concrete model in one place. Changing which
+  model a tier means is a one-line edit instead of a sweep through 30 files.
+  `scripts/gen-model-policy.py` projects the table onto the agent frontmatter and
+  `--check` is a new drift gate with its own CI step beside `gen-docs`/`gen-registry`.
+  **No agent's model changed:**
+  the seeded tiers resolve to exactly the models every agent already shipped, which is what
+  the gate proves. A malformed policy fails closed and writes nothing.
+- **Role and capability are now chosen separately.** Each role declares only its
+  accountability; the tier it earns is a separate field, with optional `escalate_to` /
+  `escalate_when` replacing the prose "escalate to opus for architecture plans" rule.
+
+- **Every hand-written `--model` literal is now accounted for.** Commands ship to user
+  projects, which have no tier resolver, so they keep concrete model names. Each one must
+  either resolve to its own role's tier or appear in `model-policy.json`'s
+  `callsite_overrides` with a reason; the registry holds exactly one entry per literal, so
+  it cannot decay into a file-level allowlist. **Known contradiction, recorded not changed:**
+  `/review` spawns the reviewer on `opus` for every plan, while the reviewer role defaults to
+  `balanced` and escalates conditionally. Repointing it is a user-visible behaviour change to
+  a quality gate and awaits owner approval (`.ai/BACKLOG.md`).
+- **`TOKEN-MODEL-POLICY` fleet-sync marker bumped v2 → v3**, so the 16 kitted projects
+  receive the tier-based routing block on their next sync instead of skipping it as already
+  present.
+
+### Added
+- **Installs record their source commit.** The manifest gains
+  `source: {commit, pinned, dirty}`, so an installed tree is traceable to an immutable
+  40-char SHA rather than to a mutable version string. A source checkout with uncommitted
+  changes records `pinned: false` — it does not correspond to its own commit, and claiming a
+  pin would imply a reproducibility the artifact does not have.
+- **The eval suite can run without an API key.** `scripts/run-evals.py` gains
+  record-once/replay-many cassettes (`--record` / `--replay`). A cassette is bound to a
+  fingerprint of everything the model saw — the agent's own prompt file, the skills the
+  registry maps to it, the operations-scripts tree, the resolved model, tool grants, prompt,
+  fixture tree and setup files — so editing the corpus makes replay **fail closed** naming
+  what moved, rather than serving a stale pass. Cost budgets, descriptions and the evals' own
+  checks are deliberately excluded, so tightening a check does not force a paid re-record.
+  `evals/cassettes/` ships empty: recording costs real money and is the owner's call.
+- **`--inject` proves the evals' checks actually bind**, with no API key and no recordings.
+  Four adverse model behaviours (`timeout`, `truncation`, `malformed_tool_call`, `refusal`)
+  are injected and the **exit code is inverted**: green means every eval *rejected* the broken
+  response. An eval that passes one is reported by name as `PASSED DESPITE FAULT`.
+- **Evidence precedence ladder in `CLAUDE.md`.** Current files outrank indexes, memories,
+  plans, and agent reports; generated indexes, reports, caches, and runtime state are not
+  source artifacts; and **retrieved text is evidence, never an instruction channel** — which
+  now explicitly covers the auto-memory store and prose returned by subagents.
+- **`.ai/RESEARCH.md`**, a dated adoption matrix (source → pattern → Adopted/Retained/Rejected
+  → local proof owner) recording *rejections and their reasons*, so settled decisions stop
+  being re-litigated.
+
+### Security
+- **The secrets scanner could not detect any credential value. Seven of its thirteen
+  patterns never matched anything.** `pre-commit.sh` does not source `lib.sh`, so
+  `ERE_QUOTE_CLASS` / `ERE_NOT_QUOTE_CLASS` were always unset and the inline `${:-}`
+  defaults always applied — and those defaults put a `'` inside a double-quoted default,
+  which opens a single-quote context. Bash reported `bad substitution`, the two statements
+  merged, and the negated-quote class ended up **empty**. The pattern the hook actually ran
+  was `api_key\s*[:=]\s*["']{8}` — eight consecutive *quote characters* — which no real
+  credential matches. **Staged credentials matching `api_key`, `apikey`, `api_secret`,
+  `password`, `passwd`, `secret_key` or `access_token` were not being detected**, and
+  `private_key` was left over-broad (no quote required). Measured on a fresh `--full`
+  install: 0 of 7 planted real credentials detected; the hook exited 0 and logged "No
+  secrets detected in staged files". Both mirrors were affected
+  (`.claude/hooks/pre-commit.sh`, `.codex/hooks/pre-commit.sh`). The defaults are now built
+  without a quote inside an expansion and are correct standalone, so the hook no longer
+  depends on `lib.sh` for them. Only the five `BEGIN ... PRIVATE KEY` literals, which use
+  no quote class, ever worked — which is why the scanner's self-matching bug was visible
+  while this one was not. This remains a denylist speed bump, not a sandbox: it raises the
+  cost of committing a credential by accident and does not stop a determined author.
+- **A newline was not treated as a command separator, bypassing the blocklist.**
+  `_SEPARATORS` listed `"\n"`, but `shlex` only ever emitted that token for an *escaped*
+  newline; with `whitespace_split` a BARE newline was swallowed as whitespace. So
+  `ls\nrm -rf /` validated as base command `ls` and was **allowed** — while `rm` is on the
+  blocklist. Multi-line strings are the normal case for the Bash-tool guard. `validate()`
+  now splits on newlines and validates each line, *below* the whole-string pattern checks
+  (those use `[^;&|]*`, which spans newlines, and are all that remains when
+  `security.safeMode` is false).
+  The split is **quote-aware**: a newline inside quotes belongs to an argument, so
+  `git commit -m "subject<newline><newline>Co-Authored-By: …"` keeps working, and a
+  backslash line-continuation is untouched. Quoted text was already treated as an argument
+  rather than a command, so honouring quotes here hides nothing that was previously caught.
+  Scope of "bypass closed", stated precisely: newline-separated commands are refused in both
+  `safeMode` states — bare newlines, newlines behind a trailing comment, and comment-hidden
+  separators. Argument-position `eval`/`exec`, and wrapper arguments with `safeMode` off, are
+  *not* covered and are disclosed below.
+- **Two token shapes put a blocklisted command out of the blocklist's reach**, both of them
+  falsifying that list's own documented promise ("never allowed, even in unsafe mode"). A
+  leading file-descriptor number landed in command position, because the segmenter dropped a
+  redirect and its target but not the digit before it — `2>/dev/null rm -rf /` was **allowed
+  with `safeMode` off**, and bash really does delete the file. And an *empty* expansion glued
+  to a command name (`` ``rm ``, `rm$()`, `$''rm`, `$""rm`) is removed by bash before the
+  command is resolved but was matched literally here, so it too was allowed. Both are closed.
+  The digit is removed only when it is **adjacent** to the redirect, **outside quotes**, at
+  **its own position** — `2 files` and `2 > log` are commands *named* `2` in bash, `echo
+  "a 2>b"` redirects nothing, and a `2>` inside one argument must not erase a `2 > …` command
+  elsewhere in the line. The command name is additionally matched with expansion punctuation
+  stripped, and that stripped spelling feeds the **deny** checks only, never the allowlist:
+  using it for both measured 5,118 new ALLOWs, because `$ls` normalises to the allowlisted
+  `ls` while actually meaning "run whatever this prints". **Disclosed widening:** in the
+  default mode `2> log echo hi` and similar now validate `echo` instead of being rejected as
+  "Command not in allowlist: 2", which was an accident of the same defect.
+- **`scripts/check-validator-differential.py`** — a CI gate that fails a change to
+  `CommandValidator` which turns a REJECT into an ALLOW **for its generated corpus**. It fuzzes
+  shell metacharacters through the baseline and the working-tree validator in both `safeMode`
+  states, seeded with every blocklisted command and one trigger per dangerous-pattern rule,
+  because combinatorics alone reached 3 of 27 blocklisted commands and 1 of 17 patterns — so an
+  earlier draft reported "no protection removed" while a mutant deleted 46 of them. It is a
+  regression gate, not a soundness proof, and not a validator-versus-bash oracle: a payload both
+  versions wrongly allow is invisible to it. Intended widenings are **declared** in
+  `DISCLOSED_WIDENINGS`, narrowed by the exact verdict the old validator gave.
+- **`scripts/check-validator-vs-bash.py`** — the second gate, and the one that covers the class
+  the first cannot. The differential gate compares `CommandValidator` against *itself* at
+  another commit, so a payload **both** versions wrongly allow is invisible to it — and that is
+  precisely the shape of every fail-open found in this release. This one asks bash: each payload
+  the validator ALLOWS is executed with `rm`, `sudo`, `chmod`, `curl`, `dd` and friends replaced
+  by shell functions that print a marker and do nothing, and a marker is a divergence. It is
+  contained deliberately — empty `PATH`, throwaway cwd and `HOME`, per-child CPU/memory/file
+  limits, `noclobber`, and fork-bomb, loop and **absolute-path redirect** shapes refused before
+  execution and *counted* rather than passed. That last one was a real escape found in review:
+  `echo x > /etc/hosts` is in the corpus as a dangerous-pattern probe, and redirection is bash's
+  own parser rather than anything `PATH` controls, so the first validator that allowed it would
+  have written to the real path — as root, on a CI runner. The containment is also the blind
+  spot: with no `PATH` there is no `xargs`, and refused shapes are not observed. Stated in the
+  script, not just here.
+- **A quote inside a trailing comment could hide a whole command, in both modes.** `shlex`
+  strips `#`-comments by default and discards the rest of the line, so in
+  `make test # don't rebuild<newline>rm -rf /` the apostrophe never reached the tokenizer, no
+  separator was produced, and the command validated as a single segment with base `make` —
+  **allowing the blocklisted `rm`**. Comment stripping is now disabled in the tokenizer, so
+  the tokenizer and the newline splitter no longer disagree about where quotes are, and
+  that input is refused as malformed. A backslash before the newline was a second,
+  separate route into the same fail-open - bash gives a backslash no special meaning
+  inside a comment, but the splitter applied line-continuation semantics
+  unconditionally, so a commented line ending in `\` swallowed the newline and the
+  command on the next line was **allowed in both modes**. A comment body is now inert to
+  quotes and escapes alike, as it is in bash — an intermediate fix that suppressed only the
+  escape re-opened the hole through quote parity (`echo # don\'t` + newline + `rm -rf /`),
+  and a balanced quote in a comment had always hidden the following line. All three are
+  closed in this release. **Cost, disclosed:** a comment containing an
+  *unbalanced* quote is no longer discarded, so a benign `echo hi # don't` is now refused —
+  it fails closed, where the old behaviour failed open. Comments without an unbalanced quote,
+  and any `#` inside quotes, are unaffected; no `#` appears in any shipped template command.
+- `CommandValidator`: `eval`/`exec` are now matched in **command position** per segment
+  rather than as bare words anywhere in the string, so `bundle exec rspec` is no longer
+  rejected as shell `exec`. **Measured costs of that precision, all previously rejected and
+  now accepted:** `python3 -c "import x; eval(payload)"` and
+  `git commit -m "then exec the thing"` in the default mode; and with `safeMode` **false**,
+  `ls | xargs eval $PAYLOAD` — nothing inspects a wrapper's argument once the allowlist is
+  off, since `xargs` is not blocklisted. Command-position `eval`/`exec` is still refused in
+  both modes. Closing the wrapper case needs argument inspection for
+  `xargs`/`env`/`nohup`/`timeout`, which is tracked separately rather than folded in here.
+- **Heredoc bodies are now validated as commands.** This catches a blocklisted command
+  inside a heredoc, and it also **rejects a benign one**: `cat <<EOF` / `hello world` / `EOF`
+  was accepted before and is refused now, because a body line's first word is read as a base
+  command. Quote-aware splitting does not help — a heredoc body is not quoted. Skipping
+  bodies would require modelling delimiters, `<<-` and quoted delimiters, and any error in
+  that model becomes a bypass, so this fails closed deliberately.
+- The malformed-command message now reports the error shlex actually raised instead of
+  always claiming "unmatched quotes" — a security control should not assert a cause it did
+  not check.
+- `VAR=value cmd` prefixes are now parsed as the shell does, with the assignment name
+  checked against a small **allowlist** (`CI`, `COVERAGE`, `XDEBUG_MODE`, `NODE_ENV`, …).
+  This is a **widening** relative to the previous behaviour, which rejected every such
+  prefix. The allowlist polarity is deliberate: a denylist of dangerous names cannot be
+  complete, and its misses (`RUBYOPT`, `JAVA_TOOL_OPTIONS`, `GRADLE_OPTS`, `MAVEN_OPTS`,
+  `CLASSPATH`, `GIT_CONFIG_COUNT`, `GEM_HOME`, `PYTHONHOME`, …) grant execution to
+  commands this same change allowlists. The check is **not** gated on `safeMode`, so it is
+  also a tightening in the other direction: `FOO=bar mycmd` was accepted with safe mode off
+  and is now refused by name.
+- `DEFAULT_ALLOWLIST` gains eight build/test/lint entry points — `gradle`, `gradlew`,
+  `mvn`, `mvnw`, `golangci-lint`, `swift`, `swiftlint`, `php-cs-fixer` — the same class as
+  the existing `cargo`/`dotnet`/`composer`/`npm` entries, and the only way the go, java,
+  kotlin, php and swift templates can run their configured gate. Measured after this change:
+  all 40 non-empty template commands pass the screen, 0 rejected. `pip` was deliberately
+  **not** added: needing it was a config defect, not a policy gap. This remains a denylist
+  speed bump, not a sandbox.
+- **The Iron Law is now enforced on the interactive path, not just stated**
+  (`.claude/hooks/iron-law-gate.py`; plan: `.claude/plans/plan-iron-law-enforcement-hook.md`).
+  `implementer.md` grants no Edit/Write but does grant unrestricted `Bash`, and a frontmatter
+  `Bash(...)` specifier was measured NOT to apply on the interactive path — so `sed -i`,
+  `cat >` and `python3 -c "open(...,'w')"` all bypassed hard rule 1. A `PreToolUse` hook keyed
+  on `agent_type == "implementer"` now allowlists the ops engine plus a small verification set
+  and refuses everything else (`exit 2` + stderr), routing the agent to the Verifier handoff.
+  It passes through untouched when `agent_type` is absent or is not the implementer, so the
+  main agent and every other subagent are unaffected.
+  **Flags are default-deny, not denylisted:** three review rounds enumerating forbidden flags
+  never converged (`pytest --log-file/-o/-c/--override-ini`, then `ruff --add-noqa` and
+  `pytest --debug` *in the verbs the previous round claimed to have swept*, then
+  `mypy --install-types` and `@argfile`). An unknown flag is now refused, so a future release
+  cannot add a writer that slips through. **Positionals are checked too** —
+  `git remote add origin <url>` mutates through arguments, not flags. The verb must name a
+  PATH-resolved program, and that check sits above the interpreter dispatch.
+  174 behavioral tests; eight surgical mutants asserting the exact set of cases each one flips.
+  Honest residual: the SAFE tables are audited enumerations of *permitted* arguments — smaller
+  and more stable than enumerating forbidden ones, but not a proof; `pytest` is permitted and
+  executes `conftest.py`.
+- **Reflection ledger scoped per uid and project, untrusted roots refused**
+  (plan: `.claude/plans/plan-reflection-ledger-isolation.md`). The fallback was one
+  `$TMPDIR/claudekit-reflection` shared by every session, project and user of that temp dir.
+  Two checkouts on one machine collided — the universal defect. It is now
+  `<tmp>/claudekit-reflection-u<uid>/<sha256(realpath(project_root))[:16]>`, created `0o700`
+  and re-verified on each use with `os.lstat`.
+  A local integrity issue was reproduced rather than theorised: `Path.mkdir(parents=True,
+  exist_ok=True)` FOLLOWS a symlink planted at the root, so a planted `<key>.jsonl` symlink
+  turned `open("a")` into an append-only write primitive into any file the uid owns; and
+  `O_EXCL` stops the session token being overwritten but not PRE-created, so the loser adopts
+  an attacker-chosen HMAC key. Sized honestly: unreachable on single-user macOS (`TMPDIR` is
+  already a private `/var/folders/.../T`), real only on shared Linux hosts where `TMPDIR` is
+  unset and the parent is world-writable `/tmp`. An untrusted root DEGRADES — bookkeeping
+  failure never blocks work.
+
+### Fixed
+- **A new user's first commit was blocked twice over on a fresh `--full` install**
+  (plan: `.claude/plans/plan-day-one-blockers.md`).
+  1. `templates/python/config.env` shipped `BUILD_CMD="pip install -e ."`. `pip` is not in
+     `DEFAULT_ALLOWLIST`, and `pre-commit.sh` *executes* `build_cmd`, so the blocking hook
+     returned 1 on any staged `src/*.py`. It is now `python3 -m compileall -q -x ... .` —
+     it installs nothing and is PEP 668-safe. (It is not side-effect free: `compileall`
+     writes `__pycache__` by design.) It is scoped to `.` rather than `src` because
+     `compileall -q src` **exits 0** on a project with no `src/` directory, compiling
+     nothing and reporting success. Trade-off, stated because it is a real one: a
+     pre-existing unparseable `.py` anywhere outside the excluded directories now fails
+     the commit. Override `project.build_cmd` in `.claude/hooks/config.json` if that is
+     wrong for your tree.
+  2. The secrets scanner matched its own pattern definitions, flagging
+     `.claude/hooks/pre-commit.sh`, `.claude/agents/opensource-sanitizer.md` and
+     `.claude/skills/insecure-defaults/SKILL.md` — files the installer places in the user's
+     repo — while the failure message forbids `--no-verify`. Pattern literals are now
+     written `PRIVATE[ ]KEY` (identical ERE semantics), so **no new exclusion is added**
+     and a real key planted in the hook itself is still caught. The failure message now
+     names a sanctioned way forward. The pre-existing skip of `*.lock`, binaries and any
+     path ending `config.json` / `config.template` / `.example` (`pre-commit.sh:167-172`)
+     is **unchanged** and remains a real gap: a key committed to `config.json` still ships
+     silently. It is bound by an `xfail(strict=True)` test and tracked as a follow-up.
+- `tests/test_doctor_gate.py::test_build_cmd_does_not_mutate_the_environment` bound only
+  `.claude/hooks/config.json`, which `install.sh` overwrites from the templates — so it
+  read green while the shipped path was broken. It now binds the templates too, and is
+  renamed `test_build_cmd_does_not_install_packages` to describe what it actually checks.
+- **`config.schema.json` constrained only its root object, so typos in nested keys
+  validated clean.** `additionalProperties: false` was set on the root but on none of the
+  nested objects, so `hooks."pre-commit".enabeld = false` passed validation and then read
+  as `enabled: true` at runtime. Every nested object is now closed. Five hook `description`
+  keys and `post-tool-use.tools` were present in the shipped config but undeclared in the
+  schema; they are now declared, so the tightening does not reject a valid config.
+- **The approval gate reported "no review record exists" and "a verdict exists but does
+  not authorise this ops.json" identically.** `execute-json-ops.py` collapsed
+  `review-record.py`'s three distinct exit codes (2 drift / 3 no record / 4 unauthorised
+  verdict) into a single `review-record check exit N` reason in `RESULT-JSON`. The three
+  causes now carry distinct, named reasons; the exit code is retained alongside them.
+- **A configured-looking command that ran nothing, and a health gate that could not pass**
+  (plan: `.claude/plans/plan-doctor-gate.md`). `install.sh` defaulted every unconfigured
+  project command to a no-op print command, and `templates/generic/config.env` shipped the
+  same placeholder. It exits 0, so `pre-push` "ran the full test suite" and printed
+  `Tests: PASSED` for a project with no tests configured - strictly worse than an empty
+  value, which the hook skips and says so. Unconfigured commands now stay empty; only the
+  rendered `CLAUDE.md`/`CONSTITUTION.md` get a human-readable placeholder.
+  **Deliberate regression, disclosed at install time:** a project whose commands cannot be
+  detected now goes from `ck doctor --strict` exit 0 to exit 1 until you configure them.
+  Empty is the honest state, and a project whose gates run nothing should be told so; the
+  installer now prints exactly that. Relatedly, if the installer cannot rewrite
+  `.claude/hooks/config.json` for your project it blanks the command section, and if that
+  write fails too it aborts and cleans up its staging directory - it will no longer leave
+  ClaudeKit's own `pytest`/`ruff` invocations in your repo to be executed by your next
+  commit.
+- **`ck doctor --strict` failed on a `--minimal` install that was exactly as installed**
+  (same plan). Skills, the skills registry, hooks and `settings.json` are absent there **by
+  design**, and doctor now reads `.claude/.claudekit-manifest.json` to say so through a new
+  `Skipped` result - separate from `Passed`, so a minimal install no longer reports the same
+  verdict as a full one, and separate from `Warnings`, so it does not fail `--strict`. The
+  manifest is unsigned, hand-editable JSON, so `mode` is never trusted alone: the manifest's
+  own file record must also list no skills, hooks or `settings.json`. Flipping `mode` on a
+  half-delivered full install therefore still fails, as does a tree with no manifest - while
+  your own skills and hooks added to a minimal install, never being kit-managed, keep it
+  green. This repo's own `project` commands are populated too (overwritten per project at
+  install time, so nothing leaks to users), which makes `ck doctor --strict` exit 0 here for
+  the first time. `coverage_cmd` requires `pytest-cov`: install `tests/requirements.txt` or
+  `post-implement` will report coverage FAILED (loudly, never as a pass).
+- **Installer shipped `settings.json` but not the Python hooks it references**, so a fresh
+  full-mode install blocked every Edit, Write and Bash: `python3 <missing-file>` exits 2, and
+  exit 2 on `PreToolUse` means BLOCK. The extension allowlist is replaced with a structural
+  denylist, `chmod +x` is driven by shebang rather than extension, and both `install.sh` and
+  `ck doctor` now derive the expected hook set from the installed `settings.json` and verify
+  every wired hook resolves — `ck doctor` previously reported a healthy install on a fully
+  blocked project. The check is deliberately conservative: anything it cannot classify as a
+  script is ignored, never required, after an earlier revision would have blocked installation
+  for everyone the moment a hook logged to `hooks.log`.
+  **User-visible:** existing pre-fix installs will now correctly FAIL `ck doctor --strict`.
+- **The ops engine silently stripped file modes.** `atomic_write` created its temp file with
+  `mkstemp` (0600) and `os.replace` handed that mode to the target, so every edited file came
+  out 0600 — which took `install.sh` to 0600 and shipped `ops-enforcement.sh` and
+  `gen-docs.py` as `100755 => 100644`. Invisible to git for non-executables, since 0600 and
+  0644 both store as `100644`. Fixed with one shared helper across both write paths; backup,
+  rollback and post-state restore were verified unaffected (they use `shutil.copy2`).
+  This was pre-diagnosed at `review/code-review.md:286` **with the fix written out** and left
+  unfixed until it caused damage.
+- **Reflection tests leaked process-global environment.** Both `ref` fixtures ended with
+  `os.environ.pop(...)` — a delete, not a restore — so any later test relying on an ambient
+  value silently retargeted to the shared temp dir. New `tests/conftest.py` provides
+  `scoped_env()` (restores prior values including absence, in a `finally`) and a
+  function-scoped `reflection_env`. Nothing is autouse.
+- **Executable bits restored** on `ops-enforcement.sh` and `gen-docs.py`, stripped by the ops
+  engine before the fix above landed.
+
+### Known limitation
+- An audit of all ten language templates against `CommandValidator` found **19 of 40**
+  non-empty commands rejected by the screen — meaning `pre-commit`/`pre-push`/
+  `post-implement` refuse to run them. This release fixes the Python one. The other 18
+  (go LINT; all four java; all four kotlin; php LINT and COVERAGE; ruby TEST, LINT and
+  COVERAGE; all four swift) need `CommandValidator` changes and are tracked in
+  `.claude/plans/plan-validator-segmentation.md`. Each is bound by an `xfail(strict=True)`
+  case in `tests/test_day_one_blockers.py`, so closing them cannot go unnoticed.
+
+### Changed
+- **The Iron Law now covers this repo's own product** (Decision 21, Option A). A tracked
+  `.ops-source-globs` marker makes `.claude/{agents,commands,skills,hooks,operations}/*` count
+  as SOURCE in this checkout, after a hard-coded never-source denylist (plans/reports/knowledge/
+  backups) checked FIRST so the bootstrap cannot deadlock. **User projects are provably
+  unaffected** — with no marker the exemption logic is identical to before, and absent, empty,
+  unreadable, whitespace and CRLF markers all resolve to dormant. Deliberately DORMANT under
+  `ECC_HOOK_PROFILE=minimal`, which this repo still defaults to; that switch is the owner's.
+- **The hook count was wrong, not stale.** `gen-docs.py` globbed `*.sh`, so the Python hooks
+  were invisible. It now counts `*.sh` + `*.py` minus files another hook sources or imports
+  (structural, not a name list), and OWNS the prose count sites instead of telling a human to
+  hand-edit them. `--check` still returns before the fixer runs, so the CI gate stays
+  non-vacuous.
+
+### Added
+- **`review/code-review-triage.md`** — all 108 findings in `review/code-review.md` triaged:
+  53 LIVE, 49 FIXED, 5 OBSOLETE, 1 UNVERIFIABLE, zero P0 and, on the evidence, zero P1. Of the
+  53 live, only 21 are mechanically catchable and **13 need nothing built** — just an existing
+  gate pointed at code it should already cover (`gen-docs --check` scopes to five docs files;
+  `pyproject.toml:57` limits `mypy` to `src/claudekit` so the operations engine is untyped; no
+  executable references `config.schema.json`, which is why the shipped `config.json` has failed
+  the shipped schema for 46 days). Includes a sampling disclosure naming which verdicts rest on
+  execution versus reading, and retracts two of its own errors in place.
+- **Approval gate enforced inside the ops engine** (plan:
+  `.claude/plans/plan-ops-approval-gate.md`): `execute-json-ops.py` now verifies the
+  reviewer verdict itself before any mutation, instead of relying on a prose step in
+  `/implement` that a direct executor call skipped entirely. Refusal is fail-closed and
+  precedes lock, backup, manifest and every write: `exit 1` with
+  `RESULT-JSON.reason="approval-gate: …"`, `operations: []`, `backup_dir: null`. Gating
+  binds on slug identity (existing record, or a sibling/`.claude/plans` plan document, or
+  a `plans/` parent, or `ECC_OPS_GATE_ALL=1`), so renaming or copying a config no longer
+  sheds it. `--dry-run` is exempt; `--no-approval` is a loudly-bannered escape hatch.
+  13 behavioral tests. Residual: an ad-hoc config with no plan document and no record is
+  still ungated — recorded as an explicit SECURITY limitation with a default-flip path.
+- **Reflection checkpoints — a mechanical circuit breaker for failure loops** (plan:
+  `.claude/plans/plan-reflection-lifecycle-gates.md`): `.claude/hooks/reflection.py` keeps an
+  append-only JSONL ledger OUTSIDE the repo and outside the transcript, so it survives
+  compaction and cannot be committed. Failures are recorded as a digest over six
+  low-cardinality fields (phase, target, failure class, platform, invariant, head); raw error
+  text, absolute paths, and credential-shaped tokens are digested before they can reach disk.
+  Two active failures raise a checkpoint; identical fingerprints raise a deep one. While a
+  checkpoint is pending the `PreToolUse` gate blocks implementation mutation and unchanged
+  test reruns while leaving diagnosis, planning, and receipt creation available. Receipts are
+  HMAC'd with a per-session `0o600`/`O_EXCL` token and bound to a digest of the exact active
+  set, so a checkpoint can only be cleared by the one actually owed — an integrity speed bump
+  against accidental or lazy discharge, **not** an adversarial control (the agent can read the
+  token). Adds the repo's first `PreCompact` hook and makes `Stop`/`SubagentStop` blocking with
+  interrupt-once semantics. 79 behavioral tests.
+- **`verification-gap-lens` skill** (plan: `.claude/plans/plan-review-discipline.md`): asks one
+  question — if the behavior this change produces broke where it is used, would a test fail?
+  Four gap shapes including *unbound check* (a guard that still passes with the thing it
+  protects removed), the Demonstration technique, and the rule that a check in your own diff is
+  proved by mutating the shipped artifact and reading the failure, not by imagining it.
+  Adapted MIT from the chaos-engine subtree of ShaftHQ/SHAFT_ENGINE, itself from bmad-method.
+- **Finding-class ratchet** (`.ai/REVIEW_GUIDE.md`): every finding carries a recurrence
+  `Class`; when a class reaches three entries it earns a mechanical check or a written
+  "cannot be mechanised, and why". Seeded with eight classes evidenced in this repo, each row
+  naming the check that catches it now or an honest "nothing yet".
+- **`tests/test_agent_tool_grant_drift.py`** (plan: `.claude/plans/plan-agent-tool-grants.md`):
+  gates divergence between each agent's frontmatter `tools:` and its documented
+  `--allowedTools` row. Textual, not behavioral — green does not prove enforcement.
+- **`review/tasks/015-e2e-pipeline-flow-tests.md`**: 41-case end-to-end spec for
+  plan→review→implement→verify, split 36 deterministic / 4 live-spawn / 1 hybrid, with an
+  enumerated mutation proof for all nine groups.
+- **`--json` output for the context-floor gate** (plan:
+  `.claude/plans/plan-floor-json-flag.md`): `python3 scripts/check-context-floor.py --json`
+  prints the measurement as a single JSON object
+  (`{"sizes": {...}, "budgets": {...}, "total": N, "ok": bool}`) instead of the human
+  table, so CI jobs and agents can consume the floor mechanically. Combined with
+  `--check` it still exits 1 when over budget; the default table output is unchanged.
 - **`run_command` operation type** (plan: `.claude/plans/plan-run-command-op.md`): plans
   can now regenerate machine-generatable content (lockfiles, formatter output, codegen)
   instead of hand-transcribing it — 58% of the largest archived ops.json was a
@@ -33,6 +565,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (one allowed for the confusable pairs reviewer/code-reviewer, doc-updater/documenter).
 
 ### Changed
+- **`code-reviewer` must confirm the revision before writing any finding** (Phase 0): it is
+  handed an exact revision and reads it without touching the shared working tree
+  (`gh pr diff`, `git show <ref>:<path>`, a detached `git worktree`, or — for the common local
+  case — `git rev-parse HEAD` plus `git diff HEAD` **and `git ls-files --others` so newly added
+  files are not invisible**). If it cannot confirm, it reports the new `CANNOT REVIEW` verdict
+  and stops. Previously it inherited whatever the shared tree happened to hold, and a search
+  that missed because the tree was wrong returned a clean no-match — indistinguishable from a
+  real absence.
+- **Per-PR adversarial review floor** (CLAUDE.md, `TOKEN-MODEL-POLICY` block bumped to **v2** so
+  fleet-synced projects receive it — sync is skip-if-marker-present): every PR gets at least one
+  diff review before it merges, by a fresh `code-reviewer` instance, never the author, prompted
+  to refute. Stop at the first round with zero blocking findings; ceiling three rounds; rounds
+  2+ read only the diff since the last verdict. Honest limitation recorded: the floor is inert
+  for direct-commit work, which is much of this repo's own history.
+- **Bounded reads, output spill, and script-first** folded into `token-optimization`, with the
+  static-vs-variable accounting split into `context-budget`. Bound every read; after truncation
+  narrow once; never reread an unchanged input; spill oversized output to disk and forward the
+  path plus the one fact it established. Guard clause: token savings never drop negation,
+  safety, or required attribution.
 - **Token-efficiency pass over the pipeline prompts** (measured, see
   `.claude/plans/plan-token-efficiency.md`):
   - Agent frontmatter descriptions: `<example>` blocks stripped (29 files, −14,393 chars
@@ -84,6 +635,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   still references the skill and will pick up the frontmatter change then).
 
 ### Fixed
+- **Honest framing of agent tool grants** (hard rule 6; plan:
+  `.claude/plans/plan-agent-tool-grants.md`). `_shared/INVOCATION.md` documented scoped
+  `--allowedTools` per role, but agent frontmatter contradicted it in three places and the
+  Task-tool spawn path reads the frontmatter — most seriously `implementer.md`, which declared
+  unrestricted `Bash`, leaving the Iron Law bypassable via `sed -i` / `cat >` /
+  `python3 -c "open(...,'w')"`. Measured on Claude Code 2.1.235 with a differential probe
+  (identical rule, identical permission mode `default`, empty allow list, varying only the
+  declaration site, both arms via `--agent`): a rule honoured through `--allowedTools` is **not
+  applied** when declared in frontmatter. Whether it is stripped at parse time or retained and
+  ignored was not separated, and the untested interactive-Task variant is named as a falsifiable
+  missing arm. INVOCATION.md now states plainly that the interactive implementer holds unscoped
+  Bash and that the Iron Law is **prompt-enforced, not harness-enforced**, there; the
+  implementer's own rule is restated as a general prohibition on any command that writes any
+  path, with examples marked non-exhaustive. `code-reviewer`'s row now grants the git/gh verbs
+  its Phase 0 requires. An allowlist `PreToolUse` hook keyed on `agent_type` (confirmed present
+  in the payload on both spawn paths) is specified and backlogged — that, not this, closes the
+  hole. This release does not claim the hole is closed.
+- **Validator no longer misattributes `oneOf` schema failures** (found by independent
+  review 2026-08-17): a run_command with a too-short `reason` used to report
+  `unknown field(s): 'command', 'reason'` while listing those fields as allowed. The
+  validator now maps the failing operation's declared `type` to its schema variant and
+  reports that variant's actual error (e.g. `'short12' is too short` at
+  `operations.0.reason`).
+- **Context-floor gate now budgets the per-spawn pipeline floor** (review finding: the
+  planner/reviewer/implementer body total grew 4% with nothing failing while only
+  always-on categories were gated). New `pipeline agent bodies` category, budget 43,000
+  chars, with a regression test.
+- **Install test no longer mutates the real working tree** (found by independent
+  review): `test_mid_failure_preserves_existing_claude` moved the repo's actual
+  `CONSTITUTION.template.md` aside and restored it in a `finally` — an interrupted run
+  (Ctrl-C, CI timeout) left the tree broken and cascaded failures into every later
+  install/structure test until a complete run happened to restore it. The broken source
+  is now simulated in a throwaway copy of the repo; the working tree is never touched.
+- **`tests/test_structure.py` is cwd-independent**: `ROOT` was a relative path that
+  resolved against the invoker's working directory, so running pytest from outside the
+  repo root broke every path-existence assertion. Now `os.path.abspath`.
 - **Shared agent template no longer teaches an ops.json schema the validator rejects.**
   `_shared/WORKFLOW_FILE_TEMPLATES.md` documented `version`/`plan_ref`/`file`/`changes`/
   `type: create|modify|delete|move|rename` — every one of which `validate-config-json.py`

@@ -16,6 +16,7 @@ Features:
   - Dry-run mode with diff preview for code edits (state threaded across operations)
   - Fail-closed edits: a missing or ambiguous anchor aborts before any write
   - First-write-wins backups so rollback always restores pristine content
+  - Permission-preserving writes (an edited 0755 script stays 0755)
   - Transactional execution with automatic rollback on failure
   - Machine-readable RESULT-JSON summary line on config load/normalize error, lock contention, manifest failure, operation failure, crash, and signal
   - Execution lock to prevent concurrent runs
@@ -29,6 +30,7 @@ import os
 import re
 import signal
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -58,6 +60,18 @@ LOCK_FILE = ".codemanifest.lock"
 # refused rather than silently corrupting the recovery manifest.
 MANIFEST_NAME = "manifest.json"
 
+# Permission bits for files the engine creates. mkstemp() makes temp files
+# 0600 and os.replace() carries that mode onto the target, so without an
+# explicit chmod every write would narrow the file. New files get what a
+# normal tool (shell redirect, editor) would produce: 0666 masked by the
+# process umask, i.e. 0644 under the default 022. Existing files keep their
+# own mode (see atomic_write). The umask is snapshotted once at import on
+# purpose: the CLI entrypoint never changes it, and a stable default beats a
+# value that could shift mid-run if this module is ever imported and reused.
+_PROCESS_UMASK = os.umask(0)
+os.umask(_PROCESS_UMASK)
+DEFAULT_CREATE_MODE = 0o666 & ~_PROCESS_UMASK
+
 # Global transaction reference for signal handler rollback
 _active_txn: Optional['OperationTransaction'] = None
 
@@ -81,11 +95,31 @@ def _signal_handler(signum, frame):
     sys.exit(130 if signum == signal.SIGINT else 143)
 
 
-def atomic_write(file_path: Path, content: str, encoding: str = 'utf-8'):
-    """Write content to file atomically via temp file + rename."""
+def current_mode(file_path: Path) -> Optional[int]:
+    """Permission bits of an existing path, or None if it does not exist."""
+    try:
+        return stat.S_IMODE(os.stat(str(file_path)).st_mode)
+    except OSError:
+        return None
+
+
+def atomic_write(file_path: Path, content: str, encoding: str = 'utf-8',
+                 mode: Optional[int] = None) -> None:
+    """Write content to file atomically via temp file + rename.
+
+    Permission bits are preserved: an edit of a 0755 script must stay 0755.
+    The target's existing mode wins; a brand-new file gets DEFAULT_CREATE_MODE.
+    stat.S_IMODE keeps the 0o7000 bits, so a setuid/setgid/sticky target has
+    those bits re-applied to the temp file before the rename. That is not an
+    escalation: the temp file has the same owner and its content is already
+    written and fsynced before the chmod.
+    """
     dir_path = file_path.parent
     tmp_path = None
     fd = None
+    target_mode = mode if mode is not None else current_mode(file_path)
+    if target_mode is None:
+        target_mode = DEFAULT_CREATE_MODE
     try:
         fd, tmp_path = tempfile.mkstemp(dir=str(dir_path), suffix='.tmp')
         with os.fdopen(fd, 'w', encoding=encoding) as f:
@@ -93,6 +127,11 @@ def atomic_write(file_path: Path, content: str, encoding: str = 'utf-8'):
             f.write(content)
             f.flush()
             os.fsync(f.fileno())
+        try:
+            os.chmod(tmp_path, target_mode)
+        except (OSError, NotImplementedError):
+            # Platform without working chmod: keep the write, skip the mode.
+            pass
         os.replace(tmp_path, str(file_path))
     except BaseException:
         if fd is not None:
@@ -230,7 +269,7 @@ def validate_path(file_path: str) -> bool:
     return True
 
 
-def normalize_config(config: dict) -> dict:
+def normalize_config(config: dict) -> Optional[dict]:
     """
     Convert legacy format to modern format for unified processing.
 
@@ -710,7 +749,160 @@ def execute_code_edit(operation: dict, backup_dir: Path, dry_run: bool,
             return False, str(e)
 
 
-def execute_json_config(config_file: str, dry_run: bool = False) -> bool:
+APPROVAL_SCRIPT = Path(__file__).resolve().parent / "review-record.py"
+
+# Directory name that marks an ops.json as a pipeline artifact (/plan writes
+# .claude/plans/<name>.ops.json). Configs there always need a verdict.
+PLANS_DIR_NAMES = ("plans",)
+
+# Opt-in blanket enforcement: gate EVERY config, not just the pipeline-shaped
+# ones. This is the fail-closed default we want; it is not yet the default only
+# because ad-hoc callers (tooling, worktree runs, the executor's own test
+# suites) execute configs that never went through /review. Set this in CI or
+# settings once those callers are updated, then flip the default here.
+GATE_ALL_ENV = "ECC_OPS_GATE_ALL"
+
+
+def _project_plans_dirs() -> List[Path]:
+    """Plans directories to probe for a sibling plan.md, nearest .claude first."""
+    dirs: List[Path] = []
+    cur = Path.cwd()
+    for candidate in (cur, *cur.parents):
+        if (candidate / ".claude").is_dir():
+            dirs.append(candidate / ".claude" / "plans")
+            break
+    return dirs
+
+
+def _approval_slugs(config_file: str, plan_name: str) -> List[str]:
+    """Candidate review-record slugs for an ops.json.
+
+    review-record.py resolves plan.md -> ops.json; the executor is handed the
+    ops.json and must invert that. Every filename form resolve_ops() emits
+    (plan-x.ops.json, ops-x.json, x.ops.json, x.json) is inverted here, and the
+    config's own "plan" field is tried too so renaming or moving the file does not
+    silently detach it from the verdict that approved it.
+    """
+    slugs: List[str] = []
+    name = Path(config_file).name
+    if name.endswith(".ops.json"):
+        base = name[:-len(".ops.json")]
+    elif name.endswith(".json"):
+        base = name[:-len(".json")]
+    else:
+        base = name
+    for candidate in (base, plan_name):
+        text = (candidate or "").strip()
+        for prefix in ("plan-", "ops-"):
+            if text.startswith(prefix):
+                text = text[len(prefix):]
+                break
+        if text and text not in slugs:
+            slugs.append(text)
+    return slugs
+
+
+def _load_review_record():
+    """Import review-record.py by path (its filename is not an importable name).
+
+    Reusing its record_paths/cmd_check keeps ONE implementation of the drift and
+    threshold rules; a second copy here would drift from the source of truth.
+
+    Coupling worth stating: the module is intentionally NOT registered in
+    sys.modules. That is safe only while review-record.py stays stdlib-only and
+    self-contained (it is). Anything that resolves its own module by name (some
+    decorators, dataclasses with string annotations, pickling) would raise here —
+    and the gate then fails CLOSED on every pipeline config, which is loud, not
+    silent, but would need this line revisited.
+    """
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("review_record", str(APPROVAL_SCRIPT))
+    if spec is None or spec.loader is None:
+        return None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _gate_applies(config_file: str, slugs: List[str]) -> Tuple[bool, str]:
+    """Decide whether this config must carry a verdict, and say why.
+
+    Populations gated: everything when ECC_OPS_GATE_ALL=1; configs sitting in a
+    plans/ directory; configs whose slug already has a review record (a copy or
+    rename cannot shed a verdict); and configs whose slug owns a plan.md, either
+    beside the config or in the project's .claude/plans (so writing the config to
+    /tmp does not detach it from the plan it implements).
+    """
+    if os.environ.get(GATE_ALL_ENV) == "1":
+        return True, f"{GATE_ALL_ENV}=1"
+    if Path(config_file).resolve().parent.name in PLANS_DIR_NAMES:
+        return True, "config lives in a plans/ directory"
+    search_dirs = [Path(config_file).resolve().parent, *_project_plans_dirs()]
+    for slug in slugs:
+        for directory in search_dirs:
+            for candidate in (f"plan-{slug}.md", f"{slug}.md"):
+                if (directory / candidate).is_file():
+                    return True, f"a plan document exists for slug '{slug}'"
+    return False, ""
+
+
+def check_approval(config_file: str, plan_name: str) -> Tuple[bool, str]:
+    """Refuse to mutate anything unless this exact ops.json carries an APPROVED verdict.
+
+    Fails CLOSED: an unreadable, missing or unusable review-record.py refuses a
+    gated config rather than waving it through.
+    """
+    slugs = _approval_slugs(config_file, plan_name)
+
+    try:
+        module = _load_review_record()
+    except Exception as e:
+        module = None
+        print(f"  Could not load {APPROVAL_SCRIPT}: {e}")
+    if module is None or not all(hasattr(module, attr)
+                                 for attr in ("record_paths", "cmd_check")):
+        gated, why = _gate_applies(config_file, slugs)
+        if gated:
+            return False, f"approval-gate: review-record.py unusable ({why})"
+        return True, ""
+
+    try:
+        recorded = [s for s in slugs if module.record_paths(s)[0].exists()]
+    except Exception as e:
+        return False, f"approval-gate: record lookup failed: {e}"
+
+    gated, why = _gate_applies(config_file, slugs)
+    if not recorded and not gated:
+        return True, ""
+    if recorded:
+        why = why or f"a review record exists for slug '{recorded[0]}'"
+
+    slug = recorded[0] if recorded else (slugs[0] if slugs else "unknown")
+    try:
+        code = module.cmd_check(argparse.Namespace(plan=f"plan-{slug}.md", ops=config_file))
+    except Exception as e:
+        # Includes an argparse.Namespace shape mismatch if review-record.py's
+        # cmd_check ever grows a required attribute: refuse, never assume.
+        return False, f"approval-gate: check raised: {e}"
+    if code != 0:
+        # review-record.py separates the three refusal causes by exit code (2 drift,
+        # 3 no record, 4 unauthorised verdict) and prints a distinct stderr block for
+        # each. Collapsing them into "check exit N" threw that away for anything reading
+        # RESULT-JSON: "no record exists" and "a verdict exists but does not authorise
+        # this ops.json" have different remedies and must not read identically.
+        cause = {
+            2: "ops.json changed after it was reviewed; the recorded verdict does not "
+               "authorise execution of this file (DRIFT)",
+            3: "no review record exists for this plan",
+            4: "a review record exists but its verdict does not authorise execution",
+        }.get(code, f"review-record check failed (exit {code})")
+        return False, (f"approval-gate: {cause} "
+                       f"[review-record exit {code}; slug '{slug}'; {why}]")
+    return True, ""
+
+
+def execute_json_config(config_file: str, dry_run: bool = False,
+                        require_approval: bool = True) -> bool:
     """
     Execute JSON operations config.
 
@@ -740,6 +932,30 @@ def execute_json_config(config_file: str, dry_run: bool = False) -> bool:
     print(f"Plan: {plan_name}")
     print(f"Format: {config_format}")
     print(f"Operations: {len(operations)}")
+
+    # Approval gate: a reviewer verdict that nothing consults is not a gate. The
+    # check lives here, in the only code path that can mutate the tree, rather
+    # than in prose an agent may skip. Dry-run is exempt: it writes nothing (no
+    # backup dir, no manifest, no edits) and is the pre-review sanity check the
+    # /plan and /implement workflows run before a record can exist.
+    if not require_approval:
+        print("Approval: BYPASSED (--no-approval)")
+        print("!!! APPROVAL GATE BYPASSED (--no-approval): executing an ops.json that no "
+              "reviewer verdict authorises.", file=sys.stderr)
+    elif dry_run:
+        print("Approval: not required for --dry-run (nothing is written)")
+    else:
+        approved, approval_reason = check_approval(config_file, plan_name)
+        if not approved:
+            print("\nAPPROVAL GATE: refusing to execute — this ops.json is not bound to an "
+                  "APPROVED review record.")
+            print(f"  {approval_reason}")
+            print("  Run /review for this plan (or re-run it if the ops.json changed after")
+            print("  approval), then retry. --no-approval bypasses this gate and exists only")
+            print("  for bootstrap and repo-maintenance runs you are authorised to make.")
+            _emit_result(plan_name, dry_run, 'failed', [], reason=approval_reason)
+            return False
+        print("Approval: reviewed verdict verified for this exact ops.json")
 
     # Baseline drift gate: refuse to apply a plan authored against file states
     # that no longer exist. Runs in dry-run too — a drifted dry-run preview is
@@ -989,6 +1205,9 @@ Safety:
     parser.add_argument('config', help='Path to JSON operations config file')
     parser.add_argument('--dry-run', action='store_true', help='Preview changes without applying them')
     parser.add_argument('--verbose', '-v', action='store_true', help='Enable debug logging')
+    parser.add_argument('--no-approval', action='store_true',
+                        help='Bypass the review-record approval gate (loudly logged; '
+                             'bootstrap and maintenance runs only)')
     parser.add_argument('--version', action='version', version=f'%(prog)s {__version__}')
     args = parser.parse_args()
 
@@ -998,7 +1217,8 @@ Safety:
     signal.signal(signal.SIGINT, _signal_handler)
     signal.signal(signal.SIGTERM, _signal_handler)
 
-    success = execute_json_config(args.config, dry_run=args.dry_run)
+    success = execute_json_config(args.config, dry_run=args.dry_run,
+                                  require_approval=not args.no_approval)
     sys.exit(0 if success else 1)
 
 

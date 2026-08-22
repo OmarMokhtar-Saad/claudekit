@@ -158,3 +158,96 @@ Show or query configuration.
 claudekit config                        # Show full config
 claudekit config project.build_cmd      # Query specific key
 ```
+
+### `claudekit skill new <name> --description "<trigger line>"`
+
+Scaffold a skill **and register it** in `.claude/skills/skills-registry.json`. The two
+are one act: an unregistered skill is drift, so there is no flag that writes the
+directory alone.
+
+```bash
+claudekit skill new widget-forge --description "Use when forging widgets"
+claudekit skill new internal-notes --description "..." --invisible   # no always-on cost
+```
+
+Refused, with the numbers, when the description would push the always-on context floor
+over budget — a description is charged to every session, forever.
+
+### `claudekit mcp add <name> --tools N -- <argv>` / `claudekit mcp list`
+
+Register an MCP server against the active profile's `mcp` budget (`max_servers`,
+`max_tools`) and refuse — naming current vs limit — when it would exceed it. A server's
+tool schemas are injected into every session, so this is an always-on cost, not a
+per-use one.
+
+```bash
+claudekit mcp add context7 --tools 2 -- npx -y @upstash/context7-mcp@3.2.5
+claudekit mcp list
+```
+
+`--tools` is required and has no default: a default of zero would make the `max_tools`
+budget pass for free. The count comes from the server's own documentation — ClaudeKit
+does not run the server to measure it, because that would mean executing third-party
+code from a `ck` verb. Servers already listed in `.mcp.json` by hand count towards
+`max_servers`; if one has no recorded tool count, `mcp add` refuses rather than treating
+the unknown as zero. Recording it is the remedy and needs no extra verb: `claudekit mcp
+add <that name> --tools N` **adopts** a server already present in `.mcp.json` — it writes
+the tool count and changes no configuration. Because adoption records a cost you are
+already paying rather than adding one, the budget reports an over-budget result as a
+warning instead of refusing it; the next genuine addition is refused normally.
+`claudekit mcp list` shows config-only servers with an `unknown` tool count, so what you
+see matches what the budget counts.
+
+`claudekit skill new` finishes by naming `python3 scripts/gen-docs.py`: component counts
+are generator-owned, and a new skill changes the skill count, so that generator has to be
+re-run in a checkout of this repo. Installed projects have no `scripts/` tree and get
+`ck doctor` instead.
+
+### `claudekit profile list` / `claudekit profile show [name] [--resolved]`
+
+Inspect layered hook/asset profiles. `--resolved` prints the composed result with each
+row attributed to the layer that won it.
+
+
+### `claudekit profile <list|show> [name]`
+
+Inspect layered hook/asset profiles. Profiles **declare** the hook set and are bound to
+the hooks' own guards by `claudekit doctor`; they do not drive the hooks, which still read
+`ECC_HOOK_PROFILE`. See `.claude/profiles/README.md`.
+
+```bash
+claudekit profile list                     # installed profiles, and which is active
+claudekit profile show python              # the raw profile document
+claudekit profile show python --resolved   # composed, with each row's winning layer
+claudekit profile show python --json       # same, machine-readable
+claudekit profile show minimal --set hooks.ops-enforcement=on   # override layer
+```
+
+Layers compose `base -> profile -> project-local -> override`, each replacing rows by id.
+An unknown or malformed profile fails closed with a named cause and exits 1.
+
+### `claudekit memory <add|list|show|check>`
+
+Project-local memory in `.claude/memory/entries.jsonl`, with two rules enforced
+mechanically rather than trusted:
+
+- **Evidence precedence.** Each memory stamps the sha256 of every file it cites. `check`
+  re-derives them, so a memory whose evidence changed reports `STALE` and one citing
+  nothing reports `UNVERIFIABLE` — never `FRESH`. Current files outrank memories.
+- **Retrieved text is evidence, not instructions.** Imperative shapes in a body are
+  surfaced on every read path as **findings**, under that heading. The store never acts
+  on them. It is a shape scanner, not an injection defence — it names its blind spots
+  (questions, passive voice, other languages, unusual filler openers, deliberate
+  obfuscation) and you should read a memory as untrusted text regardless.
+
+Secrets, credential-shaped tokens, private absolute paths, transcripts and raw log dumps
+are refused **before** anything is written.
+
+```bash
+claudekit memory add --kind decision --title "Why X" --body "..." --evidence src/x.py
+claudekit memory list           # every memory with its freshness verdict
+claudekit memory show <id>      # body, evidence status, directive findings
+claudekit memory check          # exit 1 if any memory no longer matches the tree
+```
+
+`--kind` is one of `decision`, `constraint`, `reference`, `observation`.

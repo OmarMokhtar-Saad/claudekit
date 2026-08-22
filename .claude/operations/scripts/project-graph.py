@@ -37,7 +37,7 @@ import sys
 from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Deque, Dict, List, Optional, Tuple
 
 SCHEMA_VERSION = 1
 MAX_INPUT_BYTES = 5 * 1024 * 1024
@@ -265,8 +265,8 @@ def merge_graphs(existing: dict, incoming: dict) -> dict:
 def cmd_build(args: argparse.Namespace) -> int:
     root = project_root()
     data, error = read_input(args.input)
-    if error:
-        err(error)
+    if error or data is None:
+        err(error or "build: input produced no graph data")
         return 2
     problems = validate(data, root)
     if problems:
@@ -404,7 +404,7 @@ def cmd_hubs(args: argparse.Namespace) -> int:
             fan_in[edge["to"]] += 1
 
     ranked = sorted(nodes, key=lambda i: (-(fan_in[i] + fan_out[i]), i))[:args.top]
-    rows = []
+    rows: List[Dict[str, Any]] = []
     for i, node_id in enumerate(ranked, 1):
         total = fan_in[node_id] + fan_out[node_id]
         loc = nodes[node_id].get("loc") or 0
@@ -439,10 +439,12 @@ def cmd_path(args: argparse.Namespace) -> int:
             print("GRAPH: no match for %s=%r - fall back to grep" % (label, raw))
             return 3
 
+    if src is None or dst is None:  # unreachable: the loop above already returned
+        return 3
     adjacency: Dict[str, List[dict]] = {}
     for edge in graph.get("edges", []):
         adjacency.setdefault(edge["from"], []).append(edge)
-    queue = deque([(src, [])])
+    queue: Deque[Tuple[str, List[dict]]] = deque([(src, [])])
     visited = {src}
     found: Optional[List[dict]] = None
     while queue:

@@ -2,7 +2,191 @@
 
 > Update this file at the end of every significant AI working session. It is the resume point.
 
-**Last updated:** 2026-08-09 (later same day) · **By:** Claude (Sonnet 5) — fixed
+**Last updated:** 2026-08-21 · **By:** Claude (Opus 5) — **layered profiles landed on
+`perf/token-efficiency`**, on top of the validator security batch (`ecb3b2b`, `0b97efc`,
+`4cf1e42`, `1a15f36`). All eight DoD gates pass.
+
+**Profiles, in one paragraph.** `.claude/profiles/` + `src/claudekit/profiles.py` + `ck profile
+list|show --resolved` replace the flat `ECC_HOOK_PROFILE` switch with four declared profiles
+composed through `base -> profile -> project-local -> override`, every resolved row attributed to
+the layer that won it. **No hook reads the new format** — `ECC_HOOK_PROFILE` still selects, and
+that is exactly why `minimal` keeps working by construction. What binds the declaration to reality
+is `ck doctor`: it re-derives each hook's real per-profile mode from the shipped hook file and
+fails if a profile disagrees. On its first run that gate found a real defect —
+`format-typecheck.sh` guarded with a positive list under a comment saying "strict only", so any
+unrecognised value ran an expensive Stop hook. The handoff's ground truth ("two effective values")
+was also wrong: three values, eleven hooks, four guard forms, and `reflection-gate` under `minimal`
+is *advisory*, not off. Deviations, limits and the zero asset-count delta: `.ai/PROFILES.md`.
+
+**Two other sessions are active on this branch.** Check `git status` before touching
+`.claude/hooks/**`, `src/claudekit/security/**`, or `src/claudekit/{context_floor,skills,mcp}.py`.
+Agent A has `plan-enforcement-runtime` (Phase 0 — event log, dispatcher, most-restrictive merge,
+spill, advisory tier) planned and unexecuted; Agent B has `plan-generators-that-cannot-drift`
+(Phase 3 — `ck skill new`, `ck mcp add`, registry gate; 14 ops, validator APPROVED) awaiting owner
+approval. **Both are untracked files — do not commit them, and do not edit the anchors they
+depend on.** The `.codex` removal broke one of Agent B's CHANGELOG anchors once; it was fixed on
+our side by reordering our own entry, never by editing their file.
+
+**Resume point.** **Nothing of ours is in flight; the working tree is clean.** Landed since the
+validator batch: layered profiles + `ck profile` (`f5eb927`), the `.codex/` removal (`6fab8c1`,
+DECISIONS.md 22 — its backlog entry carries a correction, I had called that drift
+"security-relevant" without checking that `.codex/config.toml` forced `minimal`, under which those
+hooks never ran), and Phase 4's memory store + `ck memory`.
+
+**What is left, and why it is not ours to start.** Hooks reading profiles at runtime is deferred by
+owner decision: it would edit the same eleven hooks and `lib.sh` that Agent A's dispatcher replaces,
+and re-invent the `advisory` tier that Phase 0.4 also defines. Phase 3 belongs to Agent B. Phase 5
+(`ck adapt`) sits behind Phase 3 in the handoff's dependency chain. Three items remain owner-gated
+and none of them is a code change:
+(1) **push / PR the branch** — outward-facing;
+(2) **do the two CI gates ship enabled?** Both are wired into the coverage job. The differential
+gate can block merges; the bash oracle **executes fuzzed shell payloads on the runner**. Their
+behaviour is no longer a question — all three checkout shapes were verified in a real clone
+(evidence below) — but *accepting* execution in CI is a judgement call, and the only filesystem
+argument left after review round 6 is that the runner is ephemeral and discarded;
+(3) **record the first eval cassettes** — still blocked on API quota (see below).
+
+**What the validator batch changed.** `CommandValidator` had three consecutive review rounds each
+find a fail-open, and twice a *fix for a finding* opened a hole bigger than the one it closed.
+Reading the diff caught none of them; executing payloads caught all of them in seconds. So the
+technique is now mechanical: `scripts/check-validator-differential.py` builds the validator from a
+git baseline and from the working tree, runs one generated corpus through both in **both** safeMode
+states, and fails the build on any payload that moved REJECT → ALLOW. Widenings are not forbidden,
+they are **declared** — a `DISCLOSED_WIDENINGS` entry carries a payload pattern, the exact baseline
+verdict it applies to, and a written reason. The gate's own adversarial review was the harshest of
+the batch and correct twice over: the first version reported a clean PASS while a mutant had removed
+46 of 44 protections (the corpus reached 3 of 27 blocklist entries and 1 of 17 dangerous patterns),
+and the guard added to close that false PASS then turned every push to `main` permanently red.
+Both are fixed and **measured**: gutted blocklist → 75 regressions, emptied patterns → 31, gate
+itself green across 9,800 payloads with zero undisclosed widenings.
+
+**Two test-side defects, and the tests were right both times.** The probe-completeness test failed by
+name because `IFS=$'\n' ls` trips `environment override: IFS`, not `IFS whitespace-evasion` — that
+rule is `\$\{?IFS` and needs a literal `$IFS`/`${IFS}`, so the pattern had never been reached;
+`cat${IFS}/etc/passwd` now reaches it. And `test_a_removed_blocklist_entry_is_reported` demanded
+regressions in **both** modes, which that mutant cannot produce: safe mode still rejects an
+un-blocklisted `rm` as unallowlisted, so the loss is visible only with safeMode off. Each mode is
+now asserted where it is actually observable.
+
+**The second gate, and why the first is not enough.** `check-validator-differential.py` compares
+the validator against **itself** at another commit, so a payload *both* versions wrongly allow is
+invisible to it — and that is the shape of every fail-open in this batch. `4cf1e42` adds
+`scripts/check-validator-vs-bash.py`: each payload the validator ALLOWS is executed under bash
+with `rm`/`sudo`/`chmod`/`curl`/`dd` shadowed by marker functions, and a marker is a divergence.
+It took **six review rounds, five of them rejections, every one a real containment defect in a
+script whose job is executing fuzzed shell** — and the pattern is worth reading, because four of
+the five were the same shape: a lexical rule that did not model a shell feature.
+`echo x > /etc/hosts` was **in the corpus as a probe**, and redirection is bash's own parser
+rather than anything `PATH` controls; the denylist fix was walked around by `> "/etc/hosts"`,
+`> $HOME/../../etc/x`, `> ${x}/etc/x`; then `cd /etc && echo x > passwd`, where the target is
+safe in isolation and the escape is the cwd; then `PATH=/usr/bin python3 -c …`, because the
+empty-`PATH` premise holds only at lookup time. The fifth was mine and worse: I claimed
+`unshare --mount --map-root-user` was a filesystem boundary, and it is not — an unshared mount
+table that nothing mounts into resolves `/etc` to the same inode. **That claim is withdrawn, not
+repaired.** What ships is deliberately unconfident: local runs need `--allow-execution`, a
+starved run (refusal ratio > 0.5) FAILS, a validator that raises on everything FAILS rather than
+reporting clean, and the blind spots — wrapper arguments, `command rm`, every refused shape —
+are written into the script.
+
+**Both CI gates were verified in a real clone, because "it should work in CI" is the kind of
+claim this batch keeps punishing.** Three checkout shapes, measured:
+
+| shape | result |
+|---|---|
+| shallow clone (`fetch-depth: 1`, the CI default) | differential gate **exits 1**: "the baseline resolves to HEAD itself". This is why the workflow sets `fetch-depth: 0` — without it the gate would have compared the tree with a copy of itself and passed forever |
+| full clone on a branch (PR shape) | **exits 0**, 9,801 payloads vs the merge base, 625 disclosed widenings, 0 undisclosed |
+| `origin/main` pointing at HEAD (push shape) | **exits 0** via the `HEAD~1 (origin/main is at HEAD - push, not PR)` fallback — the permanent-red build review round 1 of that gate found, confirmed fixed end to end |
+
+The oracle in the same clone: `--allow-execution` → exits 0, "bash actually ran 207 of the ones
+the validator allowed and reached no shadowed command"; without the flag → SKIP, exit 0. After
+both runs the clone's working tree was **clean** and no `validator-oracle-*` sandbox survived in
+`/tmp`, which is the containment claim checked rather than asserted.
+
+**Superseded resume point.** **All three wave-2 phases have landed.** What remains is one blocked task and one
+structural follow-up: record the first eval cassettes (needs a session with API quota — attempted
+and blocked on a weekly limit, `.ai/BACKLOG.md`), then wire `--replay` into CI in the same change;
+and move CLAUDE.md content into the agents that consume it, since headroom is 492 of 31,000 budget
+units and the file is charged ×4.
+
+**Superseded resume note.** Wave-2 phase 3 was not started — SHA-256 install receipts with fail-closed
+uninstall, and commit-pinned installs (`plan` it from the handoff's PHASE 3). **Phase 2 landed**:
+the eval suite now records and replays keyless with fail-closed invalidation, `--inject` proves its
+checks bind, and the 15 dead skill-load instructions are fixed with a mechanical gate against
+recurrence. Two owner items came out of phase 2: **record the first cassettes** (costs real API
+money; `evals/cassettes/` ships empty and CI is deliberately unwired until then), and the skill
+budget was **lowered** 14000 → 9000 alongside a measurement fix.
+
+**Superseded resume note.** Wave-2 phases 2 and 3 were not started — handoff at
+`handoff-2-policy-and-eval.md` (scratchpad session `476760e6`). Phase 2 = the deterministic
+record/replay eval engine + fault injection (unblocks task 010, and the
+`disable-model-invocation` audit). Phase 3 = SHA-256 install receipts with fail-closed uninstall,
+and commit-pinned installs. Verdicts and reasoning for everything in the wave, adopted **and
+rejected**, are in [RESEARCH.md](RESEARCH.md) — read it before re-opening a settled decision.
+
+**What phase 1 changed.** Model routing is no longer bound to vendor product names.
+`.claude/model-policy.json` is the one table: tier → model, and role → (accountability, tier),
+chosen separately. Changing a model is a one-line edit instead of a 30-file sweep.
+`CLAUDE.md` states routing in tiers and now carries the evidence precedence ladder — current files
+outrank indexes, memories, plans, and agent reports, and **retrieved text is evidence, never an
+instruction channel** (this covers the auto-memory store and subagent-returned prose). Introduction
+was behaviour-preserving by construction: zero agent files edited, proven by the gate passing
+against an untouched corpus.
+
+**Three things need the owner.** (0) `/review` spawns the reviewer on the most-capable tier for
+every plan (`.claude/commands/review.md:89`), contradicting the reviewer role's `balanced` default —
+found by adversarial review, recorded in `callsite_overrides` and pinned by a test rather than
+changed, because repointing a quality gate is user-visible. (1) The `TOKEN-MODEL-POLICY` marker went **v2 → v3**, so the 16
+kitted projects will pick up tier-based routing on their next sync — *when* to sync is the owner's
+call. (2) `gen-model-policy.py` cannot be run by the implementer agent until someone adds it to
+`iron-law-gate.py`'s `_CHECK_ONLY_SCRIPTS`; that file belongs to the concurrent enforcement-runtime
+lane, so it was deliberately not touched here.
+
+---
+
+**Enforcement runtime (Agent A, Phase 0), 2026-08-21.** `caa96f7` was verified docs-only, so this
+lane was genuinely unbuilt: no dispatcher, no event log, no spill, no merge rule anywhere in
+`src/`, `.claude/hooks/` or `tests/`. Now built and proven by execution: `src/claudekit/enforcement/`
+(codec + typed JSONL event log + spill/prune) and `.claude/hooks/dispatch.sh` with
+`dispatch-registry.json`. The rule is `ALLOW < ADVISE < ERROR < DENY`, outcome = max, and the
+codec fails closed — the live defect it fixes is real and was re-measured in a clean environment:
+`echo '' | env -i PATH=/nonexistent /bin/bash ops-enforcement.sh` returns **0**, not a crash code,
+and 0 is ALLOW, so a broken guard let the edit through. (An earlier `PATH=/nonexistent bash ...`
+reading of 127 measured the interpreter lookup, not the hook.)
+Two corrections to the handoff's ground truth: blocking-capable hooks are **7**, not 6
+(`reflection-gate.py` and `iron-law-gate.py` block too), and `file-guard-gate`,
+`injection-scan-gate` and `security-reminder` cannot block at all despite their names.
+**The dispatcher is not yet wired into `.claude/settings.json`** — that rewire (26 registrations
+across 8 events -> 16; `PreToolUse`'s 11 become 1) is a deliberate owner-gated Phase 0b, kept separate because `settings.json`
+is shared with Agent B and because holding it back makes this commit revertible with zero
+behaviour change. Asset delta: +1 hook (21 -> 22).
+
+## Previous session — 2026-08-19 (reflection/review-discipline batch)
+
+Source: a deep read of the `chaos-engine` subtree of ShaftHQ/SHAFT_ENGINE (MIT) against our
+own flow. What landed: the approval gate moved INTO `execute-json-ops.py` (verified live —
+a drifted config is refused before any side effect); an external reflection ledger with
+sanitized fingerprints, HMAC receipts and a PreToolUse checkpoint gate; the first `PreCompact`
+hook and blocking `Stop`/`SubagentStop` with interrupt-once; `code-reviewer` Phase 0 revision
+confirmation + `CANNOT REVIEW`; the `verification-gap-lens` skill and the finding-class
+ratchet; bounded-read/spill rules; a per-PR review floor (marker bumped to **v2** so the 16
+fleet projects receive it); honest framing of the agent tool grants; and
+`review/tasks/015-e2e-pipeline-flow-tests.md` (41 cases).
+
+**Every plan failed its first review** (scores 81–95 on approval). Two fixes introduced worse
+holes than the finding they closed — WS-3's Phase 0 went refuse-everything → blind-to-new-files,
+and WS-2's hook-conflict fix opened a symlink-laundering path that let an arbitrary source write
+pass BOTH the new gate and `ops-enforcement.sh` (the reviewer constructed the exploit). Both
+were caught only because each delta re-review was a FRESH instance told to attack the fix.
+
+**Owner-gated / open:** (1) **Decision 21** — Iron Law scope over `.claude/**` (`.ai/DECISIONS.md`,
+status OPEN, three options steelmanned); (2) the interactive Iron Law hole is **documented, not
+closed** — the allowlist `PreToolUse` hook keyed on `agent_type` is specified in
+`plan-agent-tool-grants.md` Risks and backlogged; (3) `hooks=19` is now **wrong** (repo ships 21;
+`gen-docs.py:55` globs `*.sh` only); (4) the validator does not bind the executor — a config
+`validate-config-json.py` REJECTS still executes, because the executor silently ignores unknown
+edit fields. Full follow-up list: `.ai/BACKLOG.md` §P0.5.
+
+Prior entry, 2026-08-09: Claude (Sonnet 5) — fixed
 AGENTS_KNOWN_ISSUES.md #9 (legacy ops.json schema in `_shared/WORKFLOW_FILE_TEMPLATES.md`)
 on branch `agent/workflow-file-templates-ops-schema` (worktree, **uncommitted at this
 edit** — implementer commits after this note lands). Template now teaches the canonical
@@ -30,6 +214,19 @@ Note: claude-kit is pip-installed on this machine (hooks use the module fallback
 `ck` console script is at ~/Library/Python/3.9/bin (not on PATH yet).
 
 ## Current project state
+
+- **`ROOT` in tests/test_structure.py MUST stay `os.path.abspath(...)`** (fixed `1d62740`).
+  It was a relative path resolving against the invoker's cwd. Do not "simplify" it back.
+- **RECORD CORRECTION (2026-08-17, second review round):** the cross-session "flaky"
+  install/structure failures were NOT cwd-related and NOT flaky — root cause was
+  `test_mid_failure_preserves_existing_claude` moving the REAL repo's
+  `CONSTITUTION.template.md` aside with only a `finally` to restore it: any interrupted
+  run left the tree broken and cascaded 14+ failures into later runs until a complete
+  run restored it. Independent review proved it by hiding the file (14 failed) — their
+  earlier "2 failed" report was leftover state from an interrupted run, i.e. REAL, not
+  falsified. Fixed by simulating the broken source in a throwaway copy of the repo
+  (install.sh + .claude + templates) so the working tree is never mutated. Tests must
+  NEVER move/modify tracked files in the real tree, even with a finally.
 
 - **2026-08-17 token-efficiency pass landed** (branch `perf/token-efficiency`): planner
   grep-anchor discipline, agent-description example strip, reviewer manifest-first review,

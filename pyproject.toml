@@ -54,4 +54,16 @@ ignore = ["E501"]  # line length handled leniently; docs/tables run long
 [tool.mypy]
 python_version = "3.9"
 ignore_missing_imports = true
-files = ["src/claudekit"]
+files = ["src/claudekit", ".claude/operations/scripts"]
+# Without this, mypy SKIPS the body of every unannotated function -- a large blind spot
+# in a repo whose DoD gate is `mypy`. Measured: enabling it surfaced 3 errors, no more.
+check_untyped_defs = true
+
+[[tool.mypy.overrides]]
+# TICKETED FOLLOW-UP (owner-gated, .ai/BACKLOG.md P0.5): src/claudekit/cli/main.py:581
+# needs annotations on `identical` and `differs` in the manifest-diff helper. That file
+# is owned by a parallel workstream in this batch, so it is scoped out here rather than
+# edited under two owners. Remove this override once those two annotations land; it is
+# the only thing standing between this repo and check_untyped_defs everywhere.
+module = "claudekit.cli.main"
+check_untyped_defs = false

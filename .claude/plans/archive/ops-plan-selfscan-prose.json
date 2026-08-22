@@ -1,0 +1,19 @@
+{
+  "plan": "plan-selfscan-prose",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/plans/plan-generators-that-cannot-drift.md",
+      "edits": [
+        {
+          "find": "fails against `tests/test_memory.py` (lines 240, 257, 438 \u2014 literal `api_key = \"sk-live-...\"`",
+          "replace": "fails against `tests/test_memory.py` (lines 240, 257, 438 \u2014 a literal secret-shaped assignment (key name, `=`, quoted `sk-live-` value; not spelled out here, see below)"
+        },
+        {
+          "find": "  `api_key = \"sk-live-abcdefghijklmnop\"` secret-shaped fixtures. Owned by the **memory lane**;",
+          "replace": "  secret-shaped fixtures (same assignment form, deliberately not written out). Owned by the **memory lane**;"
+        }
+      ]
+    }
+  ]
+}

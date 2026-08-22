@@ -1,0 +1,27 @@
+{
+  "plan": "review-floor-and-iron-law-scope",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "CLAUDE.md",
+      "description": "G6: add a tier-independent per-PR adversarial diff-review floor after the Tier 3 line (+301 raw chars = +1204 delivery-weighted; CLAUDE.md 29264 -> 30468 of 31000).",
+      "edits": [
+        {
+          "find": "  - **Tier 3** — security-relevant, DB migrations, >15 ops, or >2 phases -> full pipeline (planner -> reviewer -> implementer), unchanged.",
+          "add_after": "  - **Review floor (all tiers)**: every PR gets >=1 adversarial diff review before it merges — fresh `code-reviewer` instance, never the author, prompted to REFUTE not approve. Stop at the first round with zero blocking findings; ceiling 3 rounds; rounds 2+ read only the diff since the last verdict."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".ai/DECISIONS.md",
+      "description": "G1: record the .claude/** Iron-Law exemption asymmetry as decision 21, status OPEN, at the top of the table per the file's own convention.",
+      "edits": [
+        {
+          "find": "| 20 | **Publish under PyPI name `claude-kit`; keep CLI `claudekit`/`ck`**",
+          "add_before": "| 21 | **OPEN — Iron Law scope vs. this repo's own product (the `.claude/**` prompt corpus)** — awaiting owner sign-off (2026-08) | `.claude/hooks/ops-enforcement.sh:47` exempts `$ROOT/.claude/**`; `:50` exempts every `.md`/`.txt`/`.rst`/`.adoc` anywhere; `:13` short-circuits the whole hook under `ECC_HOOK_PROFILE=minimal`, which `CLAUDE.md:11` tells maintainers to keep set (and `settings.local.json` has it here). Our deliverable IS the agent + command + skill corpus, all `.md` under `.claude/` — so #8 covers `src/claudekit/**` and exempts the actual product: prompt edits get no ops.json, no review record, no backup, no rollback, and under `minimal` no enforcement at all. | **A (recommended, scoped narrowly): repo-local override treating `.claude/**` as source in THIS repo only** — case for: #8's rationale applies most to the corpus (prompt drift is the named risk in #1) and it restores the only honest test of our primary gate; cost: a plan+ops+execute cycle on the highest-churn files, and it is inert unless maintainers also stop defaulting to `minimal` (#17) — that half is the real expense. **B: leave the exemption, accept no dogfooding, document the gap** — case for: the exemption is right for user projects, #17 exists because the kit blocked its own developers, and git + gen-docs/gen-registry + review already cover much of the benefit; cost: we ship a gate we never run, so its ergonomic failures surface in user projects, and \"Iron Law\" is claimed broader than enforced — a honesty-of-claims gap, which our own ordering ranks above convenience. **C (named, not primary): narrow `:50` so it stops swallowing `.claude/{agents,commands,skills}/**`** — cheaper than A, still inert under `minimal`. | **Not decided — OPEN.** Do-nothing is a slow leak, not a fault: no rollback path for a bad prompt edit beyond git; no review record for changes to the product itself; zero dogfood signal, so ops-engine ergonomic regressions are found by users; and a gap between the stated and the enforced Iron Law. Recommendation: A, scoped narrowly, bundled with an explicit decision on whether maintainers stop defaulting to `minimal`. Owner decides (the velocity cost lands on the owner); revisit alongside task 010. |"
+        }
+      ]
+    }
+  ]
+}

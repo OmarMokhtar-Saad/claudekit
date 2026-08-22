@@ -27,15 +27,34 @@ END = "<!-- END GENERATED:inventory -->"
 # Files whose prose is scanned for stale "<n> <noun>" counts.
 DRIFT_FILES = [
     "README.md",
+    "src/claudekit/cli/main.py",
     "docs/AGENTS.md",
     "docs/ARCHITECTURE.md",
     "docs/SKILLS.md",
     "docs/HOOKS.md",
 ]
 
+# Generated *code* block: `ck doctor` asserts an installed tree carries the full
+# shipped inventory, so its floors are counts and are generator-owned exactly like
+# the README table (CLAUDE.md hard rule 8). Hooks are excluded on purpose: a
+# `--minimal` install legitimately ships a subset.
+PY_BEGIN = "# BEGIN GENERATED:counts"
+PY_END = "# END GENERATED:counts"
+PY_BLOCK_FILE = "src/claudekit/cli/main.py"
+
+# Prose auto-fix rewrites a bare number in place. That is safe in Markdown but not
+# in Python: a literal like `>= 9` in a comparison has no noun beside it, so only
+# its message twin would be rewritten and the check would silently disagree with
+# what it prints. Code counts must move into the generated block by hand instead.
+NO_AUTOFIX = {PY_BLOCK_FILE}
+
 # A number followed by (optionally one adjective) one of the tracked nouns:
 #   "28 agents", "39 slash commands", "73 domain skills", "18 workflow hooks".
 _DRIFT_RE = re.compile(r"(\d+)\s+(?:[\w-]+\s+)?(agents?|commands?|skills?|hooks?)\b")
+
+# Escape hatch: a line carrying this marker is neither drift-checked nor rewritten
+# (for genuine examples like "add 2 hooks of your own").
+IGNORE_MARKER = "gen-docs:ignore"
 
 
 def count_agents() -> int:
@@ -52,10 +71,44 @@ def count_skills() -> int:
     return len(list((ROOT / ".claude" / "skills").glob("*/SKILL.md")))
 
 
+# Hooks ship as shell OR python (`reflection-gate.py` is wired in settings.json).
+HOOK_GLOBS = ("*.sh", "*.py")
+
+
+def _hook_files() -> list:
+    d = ROOT / ".claude" / "hooks"
+    return sorted({p for pat in HOOK_GLOBS for p in d.glob(pat)})
+
+
+def _is_helper_module(path, siblings) -> bool:
+    """True when another hook sources/imports `path` (so it is a library, not a hook).
+
+    Structural, not a hard-coded name list: `lib.sh` is sourced by every shell hook
+    and `reflection.py` is imported by `reflection-gate.py`, so both drop out
+    automatically, and a future helper needs no edit here.
+    """
+    if path.suffix == ".sh":
+        # re.M so a line-initial `source "$SCRIPT_DIR/lib.sh"` is detected too; without
+        # it a helper could masquerade as a hook and inflate the published count.
+        pat = re.compile(r"(?:^|[;&|]\s*)(?:\.|source)\s+\S*" + re.escape(path.name), re.M)
+    else:
+        stem = re.escape(path.stem)
+        pat = re.compile(r"^\s*(?:import\s+%s|from\s+%s\s+import)\b" % (stem, stem), re.M)
+    for other in siblings:
+        if other == path:
+            continue
+        try:
+            text = other.read_text(errors="replace")
+        except OSError:
+            continue
+        if pat.search(text):
+            return True
+    return False
+
+
 def count_hooks() -> int:
-    # lib.sh is a sourced helper library, not a hook.
-    return len([p for p in (ROOT / ".claude" / "hooks").glob("*.sh")
-                if p.name != "lib.sh"])
+    files = _hook_files()
+    return len([p for p in files if not _is_helper_module(p, files)])
 
 
 def counts() -> dict:
@@ -80,8 +133,20 @@ def render_block(c: dict) -> str:
     )
 
 
-def _replace_block(text: str, block: str) -> str:
-    pattern = re.compile(re.escape(BEGIN) + r".*?" + re.escape(END), re.DOTALL)
+def render_py_block(c: dict) -> str:
+    """The CLI's doctor floors, as Python constants. Same contract as the README table."""
+    return (
+        f"{PY_BEGIN} - owned by scripts/gen-docs.py; never hand-edit.\n"
+        f"# Regenerate with: python3 scripts/gen-docs.py\n"
+        f"EXPECTED_AGENTS = {c['agent']}\n"
+        f"EXPECTED_COMMANDS = {c['command']}\n"
+        f"EXPECTED_SKILLS = {c['skill']}\n"
+        f"{PY_END}"
+    )
+
+
+def _replace_block(text: str, block: str, begin: str = BEGIN, end: str = END) -> str:
+    pattern = re.compile(re.escape(begin) + r".*?" + re.escape(end), re.DOTALL)
     if pattern.search(text):
         return pattern.sub(lambda _m: block, text)
     return text  # no markers -> nothing to update
@@ -97,6 +162,8 @@ def scan_drift(c: dict) -> list:
         if not path.exists():
             continue
         for i, line in enumerate(path.read_text().splitlines(), 1):
+            if IGNORE_MARKER in line:
+                continue
             for m in _DRIFT_RE.finditer(line):
                 found = int(m.group(1))
                 noun = m.group(2).rstrip("s")
@@ -104,6 +171,36 @@ def scan_drift(c: dict) -> list:
                 if found != expected:
                     problems.append((rel, i, line.strip(), found, expected))
     return problems
+
+
+def _fix_line(line: str, c: dict) -> str:
+    def repl(m):
+        expected = c[m.group(2).rstrip("s")]
+        return m.group(0).replace(m.group(1), str(expected), 1)
+    return _DRIFT_RE.sub(repl, line)
+
+
+def fix_drift(c: dict) -> list:
+    """Rewrite stale prose counts in DRIFT_FILES in place; return files changed.
+
+    Counts are generator-owned (CLAUDE.md hard rule 8: never hand-edit them), so
+    prose outside the generated block is corrected here rather than by a human.
+    Only the matched number is replaced; the rest of the line is preserved.
+    """
+    changed = []
+    for rel in DRIFT_FILES:
+        if rel in NO_AUTOFIX:
+            continue
+        path = ROOT / rel
+        if not path.exists():
+            continue
+        text = path.read_text()
+        new = "".join(line if IGNORE_MARKER in line else _fix_line(line, c)
+                      for line in text.splitlines(keepends=True))
+        if new != text:
+            path.write_text(new)
+            changed.append(rel)
+    return changed
 
 
 def main(argv=None) -> int:
@@ -115,7 +212,16 @@ def main(argv=None) -> int:
     text = readme.read_text()
     new_text = _replace_block(text, render_block(c))
 
+    py_path = ROOT / PY_BLOCK_FILE
+    py_text = py_path.read_text() if py_path.exists() else ""
+    # A missing marker must be an error, not a silent pass: `_replace_block` returns
+    # the text unchanged when it finds no markers, so without this the whole gate
+    # could be disabled by deleting the block it guards.
+    py_missing = PY_BEGIN not in py_text
+    new_py_text = _replace_block(py_text, render_py_block(c), PY_BEGIN, PY_END)
+
     block_stale = new_text != text
+    py_stale = not py_missing and new_py_text != py_text
     drift = scan_drift(c)
 
     print(f"Counts: agents={c['agent']} commands={c['command']} "
@@ -125,6 +231,15 @@ def main(argv=None) -> int:
         rc = 0
         if block_stale:
             print("ERROR: README generated inventory block is out of date. "
+                  "Run: python3 scripts/gen-docs.py", file=sys.stderr)
+            rc = 1
+        if py_missing:
+            print(f"ERROR: {PY_BLOCK_FILE} has no {PY_BEGIN!r} block - the generated "
+                  "count gate is not bound to anything. Restore the block.",
+                  file=sys.stderr)
+            rc = 1
+        elif py_stale:
+            print(f"ERROR: generated counts block in {PY_BLOCK_FILE} is out of date. "
                   "Run: python3 scripts/gen-docs.py", file=sys.stderr)
             rc = 1
         if drift:
@@ -142,10 +257,22 @@ def main(argv=None) -> int:
         print("Updated README generated inventory block.")
     else:
         print("README generated inventory block already current.")
+    if py_missing:
+        print(f"ERROR: {PY_BLOCK_FILE} has no {PY_BEGIN!r} block - nothing to "
+              "regenerate. Restore the block.", file=sys.stderr)
+        return 1
+    if py_stale:
+        py_path.write_text(new_py_text)
+        print(f"Updated generated counts block in {PY_BLOCK_FILE}.")
     if drift:
-        print("WARNING: prose still hard-codes stale counts (fix manually):")
-        for rel, ln, txt, found, expected in drift:
-            print(f"  {rel}:{ln}: says {found}, should be {expected}")
+        for rel in fix_drift(c):
+            print(f"Updated stale counts in {rel}.")
+        remaining = scan_drift(c)
+        if remaining:
+            print("ERROR: could not auto-fix these counts:", file=sys.stderr)
+            for rel, ln, txt, found, expected in remaining:
+                print(f"  {rel}:{ln}: says {found}, should be {expected}", file=sys.stderr)
+            return 1
     return 0
 
 

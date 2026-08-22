@@ -1,0 +1,15 @@
+{
+  "plan": "memory-unused-import",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "src/claudekit/memory.py",
+      "edits": [
+        {
+          "find": "from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple",
+          "replace": "from typing import Any, Dict, List, Optional, Sequence, Tuple"
+        }
+      ]
+    }
+  ]
+}

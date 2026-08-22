@@ -1,0 +1,57 @@
+{
+  "plan": "floor-json-flag",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "scripts/check-context-floor.py",
+      "description": "Document --json in the usage docstring and import the json module",
+      "edits": [
+        {
+          "find": "    python3 scripts/check-context-floor.py --check    # exit 1 if over budget",
+          "add_after": "    python3 scripts/check-context-floor.py --json     # print JSON instead of the table"
+        },
+        {
+          "find": "import re\nimport sys",
+          "replace": "import json\nimport re\nimport sys"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "scripts/check-context-floor.py",
+      "description": "Add the --json early-return branch to main() without touching the table path",
+      "edits": [
+        {
+          "find": "def main() -> int:\n    check = \"--check\" in sys.argv[1:]\n    sizes = measure()\n    total = sum(sizes.values())\n    budget_total = sum(BUDGETS.values())\n\n    print(\"Always-on context floor (chars; tokens ~ chars/4)\")",
+          "replace": "def main() -> int:\n    args = sys.argv[1:]\n    check = \"--check\" in args\n    sizes = measure()\n    total = sum(sizes.values())\n    budget_total = sum(BUDGETS.values())\n\n    if \"--json\" in args:\n        ok = all(size <= BUDGETS[name] for name, size in sizes.items())\n        payload = {\"sizes\": sizes, \"budgets\": BUDGETS, \"total\": total, \"ok\": ok}\n        print(json.dumps(payload, indent=2))\n        return 1 if (check and not ok) else 0\n\n    print(\"Always-on context floor (chars; tokens ~ chars/4)\")"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_context_floor.py",
+      "description": "Behavioral tests for the --json output shape, purity, and --check interaction",
+      "edits": [
+        {
+          "find": "import os\nimport re",
+          "replace": "import json\nimport os\nimport re"
+        },
+        {
+          "find": "    assert 'over budget' in result.stderr",
+          "add_after": "\n\ndef test_json_output_shape():\n    result = run_gate('--json')\n    assert result.returncode == 0, result.stdout + result.stderr\n    payload = json.loads(result.stdout)\n    assert set(payload) == {'sizes', 'budgets', 'total', 'ok'}\n    assert set(payload['sizes']) == set(payload['budgets'])\n    assert payload['total'] == sum(payload['sizes'].values())\n    assert payload['ok'] is True, payload\n\n\ndef test_json_output_is_only_json():\n    result = run_gate('--json')\n    assert 'TOTAL' not in result.stdout\n    assert 'OK:' not in result.stdout\n    assert result.stderr == ''\n\n\ndef test_json_reports_not_ok_and_exits_1_when_over_budget(tmp_path):\n    root = tmp_path\n    (root / 'scripts').mkdir()\n    (root / '.claude' / 'agents').mkdir(parents=True)\n    (root / '.claude' / 'skills').mkdir(parents=True)\n    (root / '.claude' / 'commands').mkdir(parents=True)\n    (root / 'CLAUDE.md').write_text('tiny\\n')\n    (root / '.claude' / 'agents' / 'huge.md').write_text(\n        '---\\ndescription: \"' + 'x' * 20000 + '\"\\n---\\nbody\\n'\n    )\n    with open(SCRIPT) as f:\n        script_src = f.read()\n    (root / 'scripts' / 'check-context-floor.py').write_text(script_src)\n    result = subprocess.run(\n        [sys.executable, str(root / 'scripts' / 'check-context-floor.py'), '--json', '--check'],\n        capture_output=True, text=True,\n    )\n    assert result.returncode == 1, result.stdout + result.stderr\n    payload = json.loads(result.stdout)\n    assert payload['ok'] is False\n    assert payload['sizes']['agent descriptions'] > payload['budgets']['agent descriptions']"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "description": "Record the new flag under [Unreleased] > Added",
+      "edits": [
+        {
+          "find": "## [Unreleased]\n\n### Added\n",
+          "replace": "## [Unreleased]\n\n### Added\n- **`--json` output for the context-floor gate** (plan:\n  `.claude/plans/plan-floor-json-flag.md`): `python3 scripts/check-context-floor.py --json`\n  prints the measurement as a single JSON object\n  (`{\"sizes\": {...}, \"budgets\": {...}, \"total\": N, \"ok\": bool}`) instead of the human\n  table, so CI jobs and agents can consume the floor mechanically. Combined with\n  `--check` it still exits 1 when over budget; the default table output is unchanged.\n"
+        }
+      ]
+    }
+  ]
+}

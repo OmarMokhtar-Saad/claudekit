@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "name": "python",
+  "description": "Stack profile: inherits the standard hook posture and adds Python stack facts plus an MCP budget. Demonstrates that a stack profile is a diff, not a fork - it declares no hook rows of its own.",
+  "extends": "standard",
+  "hooks": {},
+  "agents": {},
+  "commands": {},
+  "mcp": {
+    "max_servers": 3,
+    "max_tools": 40
+  },
+  "stack": {
+    "build_cmd": "python3 -m compileall -q src",
+    "test_cmd": "python3 -m pytest -q",
+    "lint_cmd": "ruff check .",
+    "coverage_cmd": "python3 -m pytest -q --cov --cov-report=term-missing"
+  }
+}

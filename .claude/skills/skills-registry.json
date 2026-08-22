@@ -732,7 +732,31 @@
       "mandatory": false,
       "usedBy": [],
       "description": "3-stage hard-gated pipeline for safely open-sourcing private code"
+    },
+    {
+      "id": "verification-gap-lens",
+      "name": "Verification Gap Lens",
+      "path": "skills/verification-gap-lens/SKILL.md",
+      "mandatory": false,
+      "usedBy": [
+        "code-reviewer",
+        "verifier"
+      ],
+      "description": "Judge whether tests would actually catch a regression \u2014 four gap shapes, the Demonstration, and proving a check binds by mutation"
     }
+  ],
+  "agentsWithoutSkills": [
+    "code-simplifier",
+    "doc-updater",
+    "harness-optimizer",
+    "model-router",
+    "performance-optimizer",
+    "python-reviewer",
+    "refactor-cleaner",
+    "silent-failure-hunter",
+    "tdd-guide",
+    "typescript-reviewer",
+    "web-researcher"
   ],
   "agentMapping": {
     "build-error-resolver": [
@@ -743,7 +767,8 @@
       "differential-security-review",
       "golden-rule",
       "security-checklist",
-      "using-superpowers"
+      "using-superpowers",
+      "verification-gap-lens"
     ],
     "coordinator": [
       "autonomous-loop",
@@ -861,7 +886,8 @@
       "performance-guidelines",
       "test-driven-development",
       "using-superpowers",
-      "verification-before-completion"
+      "verification-before-completion",
+      "verification-gap-lens"
     ]
   }
 }

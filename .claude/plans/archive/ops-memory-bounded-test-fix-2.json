@@ -1,0 +1,15 @@
+{
+  "plan": "memory-bounded-test-fix-2",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_memory.py",
+      "edits": [
+        {
+          "find": "    assert not any(isinstance(n, (ast.While, ast.Try))\n                   for stmt in statements for n in ast.walk(stmt)), (\n        \"entries() contains a loop-or-catch construct that could hide a retry\")",
+          "replace": "    # Ban only what a RETRY actually needs. An earlier version of this assertion also\n    # banned `ast.Try`, which was wrong twice over: entries() needs try/except to\n    # report a named cause (that IS the fail-closed design), and a `for` over the\n    # file's own lines is bounded by the file. Overreaching here would have forced\n    # the module to get worse to keep a test green.\n    assert not any(isinstance(n, ast.While)\n                   for stmt in statements for n in ast.walk(stmt)), (\n        \"entries() contains a while loop, which is how a retry would be spelled\")\n    reads = [n for stmt in statements for n in ast.walk(stmt)\n             if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)\n             and n.func.attr in (\"read_text\", \"read_bytes\", \"open\", \"readlines\")]\n    assert len(reads) == 1, (\n        f\"entries() performs {len(reads)} reads; 'one attempt' means exactly one\")"
+        }
+      ]
+    }
+  ]
+}

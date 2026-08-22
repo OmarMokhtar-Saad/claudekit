@@ -1,0 +1,53 @@
+{
+  "plan": "context-economy-rules",
+  "operations": [
+    {
+      "type": "code_edit",
+      "id": "shorten-token-opt-description",
+      "description": "Shrink token-optimization frontmatter description 178 -> 168 chars while naming bounded reads and spill",
+      "path": ".claude/skills/token-optimization/SKILL.md",
+      "edits": [
+        {
+          "find": "description: \"Use when you need to reduce token consumption by 40-70% -- covers compression levels, abbreviated output, code-only responses, and efficient formatting techniques.\"",
+          "replace": "description: \"Use when you need to reduce token consumption by 40-70% -- covers compression levels, abbreviated output, bounded reads, and spilling large tool results.\""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "id": "add-bounded-reads-spill-script-first",
+      "description": "Add bounded reads, spill, and script-first sections to token-optimization body",
+      "path": ".claude/skills/token-optimization/SKILL.md",
+      "edits": [
+        {
+          "find": "## Measurement",
+          "add_before": "## Bounded Reads and Evidence Sufficiency\n\nCompression shrinks what you *write*. Bounding shrinks what you *read* -- usually the\nlarger share. Gather only evidence that can change the next decision, and stop\nexploring once that decision is supported.\n\n- Bound every read: `offset`/`limit` on Read, `head_limit` on Grep/Glob, ripgrep\n  context flags (`-C`) instead of whole files.\n- After a truncated result, narrow ONCE. Never rerun the same broad query with\n  different wording.\n- Never reread an unchanged input.\n- Prefer a path plus a discriminating excerpt over a full dump.\n- On failure, change the premise or the discriminating observation -- do not repeat\n  the same action reworded.\n\n---\n\n## Spilling Large Tool Results\n\nWhen a tool result is larger than the decision needs:\n\n1. Keep the head and tail that prove the outcome.\n2. Leave (or write) the full artifact on disk.\n3. Tell the next step the path plus the one fact the result established.\n\nNever paste multi-thousand-line logs, HAR files, or report HTML into the transcript\nunless the user asked for the raw body. A subagent returns a distillate -- what\nchanged, what was proved, what remains -- never its transcript.\n\nFor agent handoffs specifically, `.claude/agents/_shared/INVOCATION.md` is\nauthoritative (\"paths, never payloads\"): apply it, do not restate it. Measured cost\nof ignoring this: `.claude/plans/plan-token-waste-workflow-fixes.md` records an\n80.3M-token session burn caused by reprinting payloads.\n\n---\n\n## Script-First Investigation\n\nWhen an investigation would otherwise become a long chain of overlapping tool calls\n-- the same search with slightly different arguments, parsing a large log by hand,\nthe same mechanical edit across several files -- write ONE deterministic probe instead.\n\n1. Name the question the probe must answer, or the transform it must apply.\n2. Write the smallest runnable probe (standard library, tools already in the project),\n   or use an existing test.\n3. Run it once and read the result.\n4. Delete a throwaway probe that has no lasting value.\n\nDo not invent a script for a single obvious line, and do not add a dependency to avoid\na few lines. Do not replace an owned test with an untracked scratch file when that test\nis the proof the task needs. A broken harness is not evidence about the product -- fix\nthe setup before reading the output.\n\n---\n\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "id": "add-guard-clause-and-attribution",
+      "description": "Append the safety guard clause and MIT attribution to token-optimization",
+      "path": ".claude/skills/token-optimization/SKILL.md",
+      "edits": [
+        {
+          "find": "skill); compression never applies to the evidence layer",
+          "add_after": "\n---\n\n## Guard Clause\n\n**Token savings never drop negation, safety, or required attribution.** If a\ncompression, a read bound, or a spill would remove a \"not\"/\"never\", a safety warning,\nan irreversible-action confirmation, or an attribution line, do not apply it. None of\nthese rules authorize skipping an observed check.\n\n---\n\nBounded-read, spill, and script-first guidance adapted from the `chaos-engine`\nreference notes (`context-economy.md`, `script-first.md`) in the chaos-engine subtree\nof ShaftHQ/SHAFT_ENGINE, MIT License, Copyright (c) 2026 ChaosEngine contributors."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "id": "add-read-output-waste-accounting",
+      "description": "Add Strategy 5 to context-budget covering variable in-session read and output cost",
+      "path": ".claude/skills/context-budget/SKILL.md",
+      "edits": [
+        {
+          "find": "## Budget Report Format",
+          "add_before": "### Strategy 5: Account for Read and Output Waste\n\nComponent overhead is the *floor*. In-session reads and pasted tool output are the\n*variable* cost, and usually the larger one. Audit both -- for the session under\nreview, count:\n\n- unbounded reads that an `offset`/`limit` or `head_limit` read would have covered;\n- large tool results pasted into the transcript instead of left on disk with a path;\n- repeated broad searches that one deterministic probe would have answered.\n\nReport these as line items alongside component costs. The behavioral rules that fix\nthem -- bounded reads, spill, script-first -- live in the `token-optimization` skill:\naudit here, change behavior there.\n\n---\n\n"
+        }
+      ]
+    }
+  ]
+}

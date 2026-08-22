@@ -1,0 +1,27 @@
+{
+  "plan": "validator-differential-test-fixes",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_validator_differential.py",
+      "description": "Un-blocklisting `rm` only regresses in unsafe mode; safe mode still rejects it as unallowlisted. Assert the unsafe-mode sweep ran, not that both modes regress.",
+      "edits": [
+        {
+          "find": "        # BOTH modes, or a refactor that stops sweeping safe_mode=False leaves this green -\n        # and unsafe mode is where this module's bypasses were actually exploitable.\n        assert {item[\"safe_mode\"] for item in report[\"regressions\"]} == {True, False}",
+          "replace": "        # Unsafe mode is where this module's bypasses were actually exploitable, and it is the\n        # only mode a removed blocklist entry regresses in: safe mode still rejects `rm` as\n        # unallowlisted. Asserting False is present keeps a refactor that stops sweeping\n        # safe_mode=False from leaving this green.\n        assert False in {item[\"safe_mode\"] for item in report[\"regressions\"]}"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "scripts/check-validator-differential.py",
+      "description": "`IFS=$'\\n' ls` trips `environment override: IFS`, not `IFS whitespace-evasion` (pattern is \\$\\{?IFS, needing $IFS/${IFS}). Add a probe that reaches the evasion rule; keep the old one, which is the only probe for the env-override label.",
+      "edits": [
+        {
+          "find": "    \"IFS=$'\\\\n' ls\",",
+          "replace": "    \"IFS=$'\\\\n' ls\",\n    \"cat${IFS}/etc/passwd\","
+        }
+      ]
+    }
+  ]
+}

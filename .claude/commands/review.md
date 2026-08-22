@@ -5,7 +5,9 @@ model: opus
 
 # Reviewer Command
 
-Spawns the local `reviewer` agent — Task tool (`subagent_type: "reviewer"`, model opus) in
+Spawns the local `reviewer` agent on its **`balanced` capability tier** (`.claude/model-policy.json`;
+escalate to `most-capable` per the role's `escalate_when` — multi-phase, architecture, or security
+plans) — Task tool (`subagent_type: "reviewer"`) in
 interactive sessions (default; no cold boot); `claude -p --agent reviewer` for scripted/CI
 paths. Same `REVIEWER_MSG` and output contract either way.
 Verified mechanism: `--agent <name>` loads `.claude/agents/<name>.md` as system prompt.
@@ -86,7 +88,7 @@ CONDITIONAL = score 70-89 OR CRITICAL_MAJOR_COUNT > 0
 REVISE = score < 70
 REJECTED = no ops.json, invalid ops.json, destructive ops without rollback$DELTA_BLOCK"
 
-review_output=$(echo "$REVIEWER_MSG" | claude -p --agent reviewer --model opus --allowedTools "Read,Grep,Glob")
+review_output=$(echo "$REVIEWER_MSG" | claude -p --agent reviewer --model sonnet --allowedTools "Read,Grep,Glob")
 EXIT_CODE=$?
 
 if [ $EXIT_CODE -ne 0 ]; then

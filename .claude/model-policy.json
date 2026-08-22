@@ -1,0 +1,181 @@
+{
+  "_readme": [
+    "THE single source of truth for which capability tier each agent role earns.",
+    "Policy is written in TIER names everywhere else in this repo (CLAUDE.md, agent",
+    "prompts, .ai/ docs). Concrete vendor model ids appear ONLY in capability_tiers",
+    "below, so a model release is a one-line edit here instead of a corpus-wide sweep.",
+    "Role and capability are chosen SEPARATELY: `accountable_for` says what the role",
+    "owns, `tier` says how much intelligence the assignment earns.",
+    "Regenerate/verify agent frontmatter with: python3 scripts/gen-model-policy.py [--check]",
+    "`callsite_overrides` records every place a concrete model is written by hand. A",
+    "site is legitimate only if it appears here with a reason; the audit test refuses",
+    "any `--model` literal that is neither a role's resolved tier nor a listed override."
+  ],
+  "version": 1,
+  "capability_tiers": {
+    "most-capable": {
+      "model": "opus",
+      "use_when": "Novel design, adversarial review, security reasoning, or root-cause work where a wrong answer is expensive and hard to detect."
+    },
+    "balanced": {
+      "model": "sonnet",
+      "use_when": "Bounded judgement against a written standard: scoring, specialist review, refactors, test authoring, orchestration."
+    },
+    "fast": {
+      "model": "haiku",
+      "use_when": "Mechanical or retrieval work with a checkable output: executing an approved ops.json, searching, summarising, formatting."
+    }
+  },
+  "roles": {
+    "build-error-resolver": {
+      "accountable_for": "Smallest possible diff that clears a build or type error.",
+      "tier": "balanced"
+    },
+    "code-reviewer": {
+      "accountable_for": "Adversarial review of an implementation diff; refute, do not approve.",
+      "tier": "most-capable"
+    },
+    "code-simplifier": {
+      "accountable_for": "Clarity and consistency of already-working code, behaviour preserved.",
+      "tier": "balanced"
+    },
+    "coordinator": {
+      "accountable_for": "Decomposition, file-ownership maps, and handoffs between agents.",
+      "tier": "balanced",
+      "escalate_to": "most-capable",
+      "escalate_when": "Blast-radius Tier 3: security surface, schema migrations, >15 ops, or >2 phases."
+    },
+    "database-architect": {
+      "accountable_for": "Schema design and migration safety.",
+      "tier": "balanced",
+      "escalate_to": "most-capable",
+      "escalate_when": "Destructive or non-reversible migrations on live data."
+    },
+    "debugger": {
+      "accountable_for": "Root-cause diagnosis, read-only.",
+      "tier": "most-capable"
+    },
+    "devops": {
+      "accountable_for": "CI/CD, container, and deployment configuration.",
+      "tier": "balanced"
+    },
+    "doc-updater": {
+      "accountable_for": "Syncing existing docs and docstrings with code that changed.",
+      "tier": "fast"
+    },
+    "documenter": {
+      "accountable_for": "Authoring new reference documentation from source.",
+      "tier": "fast"
+    },
+    "explore": {
+      "accountable_for": "Locating files and answering architecture questions, read-only.",
+      "tier": "fast"
+    },
+    "gitOps": {
+      "accountable_for": "Branching, committing, pushing, and PR mechanics.",
+      "tier": "fast"
+    },
+    "harness-optimizer": {
+      "accountable_for": "Reliability and cost of the local agent harness configuration.",
+      "tier": "balanced"
+    },
+    "implementer": {
+      "accountable_for": "Executing an approved ops.json through the operations engine. Never edits.",
+      "tier": "fast"
+    },
+    "loop-operator": {
+      "accountable_for": "Supervising autonomous loops; pause on stagnation or error spirals.",
+      "tier": "balanced"
+    },
+    "model-router": {
+      "accountable_for": "Scoring a task and naming the capability tier it earns.",
+      "tier": "fast"
+    },
+    "opensource-packager": {
+      "accountable_for": "Generating open-source packaging for an already-sanitized repo.",
+      "tier": "fast"
+    },
+    "opensource-sanitizer": {
+      "accountable_for": "PASS/FAIL secret, PII, and internal-reference scan before publication.",
+      "tier": "balanced",
+      "escalate_to": "most-capable",
+      "escalate_when": "The repo has handled production credentials or customer data."
+    },
+    "performance-optimizer": {
+      "accountable_for": "Latency, memory, and throughput analysis and fixes.",
+      "tier": "balanced"
+    },
+    "planner": {
+      "accountable_for": "Implementation plans plus a machine-executable ops.json.",
+      "tier": "most-capable"
+    },
+    "python-reviewer": {
+      "accountable_for": "Python-specific correctness, typing, and idiom review.",
+      "tier": "balanced"
+    },
+    "refactor-cleaner": {
+      "accountable_for": "Dead code and duplicate removal, behaviour preserved.",
+      "tier": "balanced"
+    },
+    "reviewer": {
+      "accountable_for": "Scoring a plan + ops.json against the 90/100 threshold.",
+      "tier": "balanced",
+      "escalate_to": "most-capable",
+      "escalate_when": "The plan is multi-phase, changes architecture, or touches a security surface."
+    },
+    "security-scanner": {
+      "accountable_for": "Active SAST, CVE, secret, and hardening audit.",
+      "tier": "most-capable"
+    },
+    "silent-failure-hunter": {
+      "accountable_for": "Swallowed errors, bad fallbacks, and missing propagation.",
+      "tier": "balanced"
+    },
+    "tdd-guide": {
+      "accountable_for": "Enforcing RED/GREEN/REFACTOR order and coverage discipline.",
+      "tier": "balanced"
+    },
+    "tester": {
+      "accountable_for": "Authoring behavioural tests for existing code.",
+      "tier": "balanced"
+    },
+    "typescript-reviewer": {
+      "accountable_for": "TypeScript-specific type-safety and idiom review.",
+      "tier": "balanced"
+    },
+    "verifier": {
+      "accountable_for": "Running the gates and scoring against the 80/100 threshold.",
+      "tier": "balanced"
+    },
+    "web-researcher": {
+      "accountable_for": "The only agent that calls WebSearch/WebFetch; returns a distilled answer.",
+      "tier": "fast"
+    }
+  },
+  "callsite_overrides": {
+    "_why": "Commands ship to user projects, where repo-root scripts/ does not exist (install.sh:203 copies only .claude/operations/scripts/*.py), so an invocation cannot resolve a tier at run time. Rather than leave the literals unguarded, every one is enumerated: the audit test derives the expected value from the table for ordinary sites and demands a reason for the rest. Note: a site is registered only if the literal SURVIVES this change. model-router.md's example was rewritten into a tier lookup instead, so it needs no entry - registering one would have failed the registry-decay test immediately.",
+    "sites": [
+      {
+        "path": ".claude/commands/santa.md",
+        "line_hint": 64,
+        "model": "opus",
+        "role": null,
+        "reason": "Deliberate model DIVERSITY, not a tier choice: the santa-method pairs two reviewers on different models so neither anchors on the other. Resolving both from one tier would defeat the pattern."
+      },
+      {
+        "path": ".claude/commands/santa.md",
+        "line_hint": 68,
+        "model": "sonnet",
+        "role": null,
+        "reason": "The other half of the santa-method pair. See above."
+      },
+      {
+        "path": ".claude/commands/gan-build.md",
+        "line_hint": 85,
+        "model": "opus",
+        "role": null,
+        "reason": "Illustrative prose showing the raw `claude -p` form with no agent file; not a spawn this repo performs."
+      }
+    ]
+  }
+}

@@ -1,7 +1,6 @@
 ---
 name: dispatching-parallel-agents
 description: "Use when facing multiple independent failures that can be investigated simultaneously"
-disable-model-invocation: true
 ---
 
 # Dispatching Parallel Agents

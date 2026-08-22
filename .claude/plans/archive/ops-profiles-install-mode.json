@@ -1,0 +1,19 @@
+{
+  "plan": "profiles-install-mode",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "install.sh",
+      "edits": [
+        {
+          "find": "mkdir -p \"$DEST\"/{agents/_shared,commands,skills,hooks,operations/scripts,local,modes,profiles}",
+          "replace": "mkdir -p \"$DEST\"/{agents/_shared,commands,skills,hooks,operations/scripts,local,modes}"
+        },
+        {
+          "find": "    print_step \"Installing profiles...\"\n",
+          "replace": "    print_step \"Installing profiles...\"\n    # Created HERE, not in the unconditional mkdir above: profiles declare the\n    # hook set, hooks are full-mode only, and an empty profiles/ in a --minimal\n    # install is a `ck doctor` failure rather than a designed absence.\n    mkdir -p \"$DEST/profiles\"\n"
+        }
+      ]
+    }
+  ]
+}

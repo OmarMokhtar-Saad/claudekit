@@ -144,8 +144,18 @@ check_secrets() {
     # Quote classes come from lib.sh (ERE_QUOTE_CLASS = ["'] , negation = [^"']).
     # The previous inline `["\x27]` was NOT decoded by grep -E, so single-quoted
     # secrets slipped through entirely.
-    local q="${ERE_QUOTE_CLASS:-[\"']}"
-    local nq="${ERE_NOT_QUOTE_CLASS:-[^\"']}"
+    # Built WITHOUT a `'` inside a double-quoted ${:-} default: that form opens a
+    # single-quote context, bash reports `bad substitution`, the two statements merge and
+    # `nq` ends up EMPTY - which shipped `api_key\\s*[:=]\\s*["']{8}`, i.e. eight
+    # consecutive QUOTES. All seven value-bearing patterns were dead (measured: 0 of 7
+    # planted credentials detected) and `private_key` was left over-broad.
+    # `if` rather than `[ -z ... ] && ...` because this file runs under `set -e`.
+    # Correct standalone: pre-commit.sh does not source lib.sh, so these defaults are the
+    # only values that ever apply here.
+    local q="${ERE_QUOTE_CLASS:-}"
+    if [ -z "$q" ]; then q='["'"'"']'; fi
+    local nq="${ERE_NOT_QUOTE_CLASS:-}"
+    if [ -z "$nq" ]; then nq='[^"'"'"']'; fi
     local patterns=(
         "api_key\\s*[:=]\\s*${q}${nq}{8}"
         "apikey\\s*[:=]\\s*${q}${nq}{8}"
@@ -155,11 +165,15 @@ check_secrets() {
         "secret_key\\s*[:=]\\s*${q}${nq}{8}"
         "access_token\\s*[:=]\\s*${q}${nq}{8}"
         "private_key\\s*[:=]\\s*${q}"
-        'BEGIN RSA PRIVATE KEY'
-        'BEGIN OPENSSH PRIVATE KEY'
-        'BEGIN EC PRIVATE KEY'
-        'BEGIN DSA PRIVATE KEY'
-        'BEGIN PGP PRIVATE KEY'
+        # `[ ]` is an ERE matching exactly one space, so detection is byte-for-byte
+        # identical - but this file's own text now reads PRIVATE[ ]KEY, which the
+        # pattern does not match. Do NOT 'fix' self-matching by excluding this file
+        # or a region of it: that creates a named hiding place for a real key.
+        'BEGIN RSA PRIVATE[ ]KEY'
+        'BEGIN OPENSSH PRIVATE[ ]KEY'
+        'BEGIN EC PRIVATE[ ]KEY'
+        'BEGIN DSA PRIVATE[ ]KEY'
+        'BEGIN PGP PRIVATE[ ]KEY'
     )
 
     while IFS= read -r file; do
@@ -184,8 +198,11 @@ check_secrets() {
         echo ""
         echo "SECRETS CHECK FAILED"
         echo "Review the warnings above and remove the secrets from staged content."
-        echo "If these are genuine false positives, refine the patterns in pre-commit.sh"
-        echo "or unstage the file — do NOT bypass with --no-verify (block-no-verify blocks it)."
+        echo "Sanctioned ways forward: remove the value and commit a reference to a"
+        echo "secret store; unstage the file; or, for a genuine false positive, narrow"
+        echo "the pattern in .claude/hooks/pre-commit.sh (write literals as"
+        echo "PRIVATE[ ]KEY so the definition cannot match itself). Do NOT skip files"
+        echo "wholesale, and do NOT bypass with --no-verify (block-no-verify blocks it)."
         return 1
     fi
 

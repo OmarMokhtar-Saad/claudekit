@@ -1,8 +1,20 @@
 # Hooks
 
-ClaudeKit ships 19 hook scripts (plus `lib.sh`, a shared helper library) wired
-into Claude Code through `.claude/settings.json`. They enforce guardrails,
+ClaudeKit ships 22 hook scripts (plus `lib.sh`, a shared helper library), all
+wired into Claude Code through `.claude/settings.json`. They enforce guardrails,
 capture telemetry, and automate housekeeping around the agent workflow.
+
+> **`PreToolUse` runs through `dispatch.sh` -- that event only.** It is the
+> per-event dispatcher front end: it runs every handler registered for that event in
+> `dispatch-registry.json`, decodes each exit code (`0 -> ALLOW`, `2 -> DENY`,
+> **anything else -> ERROR**), clamps `advisory` handlers, and takes the **most
+> restrictive** outcome, so a result can never depend on registration order and a
+> handler that crashes can never fail open. The other seven events are still
+> invoked directly: `exit 2` is not honoured on them, and several of their hooks
+> are backgrounded with `&`, which the dispatcher does not model yet. So "one
+> dispatcher per event" is the design; **one of the eight events** is routed
+> through it, and the merge rule and the event-log records apply to that event
+> alone.
 
 > **Not a sandbox.** Blocking hooks raise the cost of a mistake; they are not a
 > security boundary. For untrusted code, run Claude Code under OS-level
