@@ -246,6 +246,21 @@ def test_hook_is_wired_on_pretooluse_bash():
     entries = [e for e in config["hooks"]["PreToolUse"] if e.get("matcher") == "Bash"]
     wired = [h for e in entries for h in e.get("hooks", [])
              if "iron-law-gate.py" in h.get("command", "")]
+    if not wired:
+        # PreToolUse now routes through dispatch.sh, so "wired" means "in the
+        # dispatch registry for this event, with a matcher that includes Bash".
+        # The assertion is not weakened: a hook missing from BOTH places still
+        # never fires, and that is still a failure.
+        dispatched = [h for e in config["hooks"]["PreToolUse"] for h in e.get("hooks", [])
+                      if "dispatch.sh" in h.get("command", "")]
+        assert dispatched, (
+            "iron-law-gate.py is not wired on PreToolUse/Bash and PreToolUse does "
+            "not route through dispatch.sh either - it would never fire")
+        registry = json.loads(
+            (SETTINGS.parent / "hooks" / "dispatch-registry.json").read_text(encoding="utf-8"))
+        wired = [row for row in registry["events"].get("PreToolUse", [])
+                 if row["file"] == "iron-law-gate.py"
+                 and "Bash" in (row.get("matcher") or "").split("|")]
     assert wired, "iron-law-gate.py is not wired on PreToolUse/Bash - it would never fire"
 
 

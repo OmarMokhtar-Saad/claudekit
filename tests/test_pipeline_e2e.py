@@ -179,8 +179,51 @@ def wired_commands(matcher_tool):
             continue
         for hook in entry.get("hooks", []):
             command = hook.get("command", "")
-            if command:
-                out.append((_hook_name(command), command))
+            if not command:
+                continue
+            if "dispatch.sh" in command:
+                out.extend(_dispatched_commands(matcher_tool))
+                continue
+            out.append((_hook_name(command), command))
+    return out
+
+
+def _dispatched_commands(matcher_tool):
+    """Expand a `dispatch.sh` registration into the handlers it will really run.
+
+    settings.json now names ONE dispatcher for PreToolUse, so parsing settings
+    alone would stop naming individual hooks -- and these chain tests would go
+    quiet exactly where they are supposed to shout, since their whole job is to
+    catch a hook that is present, unit-tested and never invoked. The registry is
+    the wiring now, so the registry is what gets parsed: a handler dropped from
+    `dispatch-registry.json` fails these tests the same way an unwired hook did.
+
+    Each row is reconstructed into the command settings.json used to hold,
+    INCLUDING the `git commit` / `git push` conditional wrapper, so the chain the
+    tests drive is behaviourally the same one.
+    """
+    registry_path = SETTINGS.parent / "hooks" / "dispatch-registry.json"
+    registry = json.loads(registry_path.read_text(encoding="utf-8"))
+    out = []
+    for row in registry["events"].get("PreToolUse", []):
+        matcher = row.get("matcher") or ""
+        if matcher and matcher_tool not in matcher.split("|"):
+            continue
+        runner = row.get("runner", "bash")
+        args = " ".join(row.get("args") or [])
+        root = 'ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"'
+        invoke = '%s "$ROOT/.claude/hooks/%s" %s' % (runner, row["file"], args)
+        condition = row.get("command_matcher") or ""
+        if condition:
+            command = (
+                '%s; TOOL_INPUT=$(cat); CMD=$(echo "$TOOL_INPUT" | python3 -c '
+                '"import sys,json; d=json.load(sys.stdin); '
+                'print(d.get(\'tool_input\',{}).get(\'command\') or d.get(\'command\',\'\'))" '
+                '2>/dev/null); if echo "$CMD" | grep -qE "%s"; then %s; fi'
+                % (root, condition, invoke))
+        else:
+            command = "%s; %s" % (root, invoke)
+        out.append((row["file"], command))
     return out
 
 
