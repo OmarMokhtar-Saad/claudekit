@@ -314,7 +314,7 @@ file another agent may be holding.
    `python3 scripts/gen-docs.py` → `git diff` (expect **no** change) → `--check`.
 2. **`pytest tests/ -q` is RED at HEAD for a reason outside this lane** (M3).
    `tests/test_day_one_blockers.py::TestSelfScanIsClean::test_no_committed_file_matches_a_live_pattern[api_key...]`
-   fails against `tests/test_memory.py` (lines 240, 257, 438 — literal `api_key = "sk-live-..."`
+   fails against `tests/test_memory.py` (lines 240, 257, 438 — a literal secret-shaped assignment (key name, `=`, quoted `sk-live-` value; not spelled out here, see below)
    fixtures committed by the memory lane). Re-verified at HEAD `5f3e322`:
    `1 failed, 14 passed` `[prior round, superseded]`. **Since fixed outside this plan:** the
    real tree's self-scan is now GREEN — `tests/test_day_one_blockers.py` +
@@ -410,7 +410,7 @@ instead of the gate being left red.
 **Pre-existing, not caused by this change (M3, out of lane)**
 - `tests/test_day_one_blockers.py::TestSelfScanIsClean::test_no_committed_file_matches_a_live_pattern[api_key...]`
   fails at HEAD `5f3e322` against `tests/test_memory.py:240,257,438`, which commits literal
-  `api_key = "sk-live-abcdefghijklmnop"` secret-shaped fixtures. Owned by the **memory lane**;
+  secret-shaped fixtures (same assignment form, deliberately not written out). Owned by the **memory lane**;
   this plan does not touch that file. Any post-execution suite run will show this failure, and
   it must not be attributed to Phase 3. Fixing it (a split literal, or a `gen-docs:ignore`-style
   allowance in the self-scan) belongs to whoever owns `tests/test_memory.py`, and the owner has
