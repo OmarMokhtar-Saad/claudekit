@@ -1,6 +1,80 @@
 # AI Session Changelog
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
+## 2026-08-21 — Claude (Opus 5) — Enforcement runtime: the lane that was written up but never built
+
+**Scope.** Agent A, Phase 0 (0.1 event log, 0.2 dispatcher + merge, 0.3 spill + pruning, 0.4
+advisory tier), executed as one ops config (`plan-enforcement-runtime.ops.json`, 18 ops) on
+`perf/token-efficiency`. New: `src/claudekit/enforcement/` (`decisions.py`, `eventlog.py`,
+`spill.py`), `.claude/hooks/dispatch.sh`, `.claude/hooks/dispatch-registry.json`,
+`tests/test_dispatch_merge.py`, `tests/test_event_log.py`, `tests/test_spill.py`; plus the
+`gen-docs.py` count regeneration (21 -> 22 hooks) with README/HOOKS.md prose reworded so a hook
+that is PRESENT is not described as WIRED, and a BACKLOG entry for the three `-gate`-named hooks
+that cannot block.
+
+**The brief said re-verify, so it was.** `git show --stat caa96f7` is two files, both docs —
+`.ai/REVIEW_GUIDE.md` and `CHANGELOG.md`. No dispatcher, event log, spill or merge rule existed.
+Two of the brief's numbers were wrong in the safe direction and are corrected here: **7**
+blocking-capable hooks, not 6, and **26** `settings.json` registrations across 8 events, not
+"~20 hooks".
+
+**The defect was measured, and then RE-measured, because the first measurement was wrong.**
+`PATH=/nonexistent bash ops-enforcement.sh` reporting 127 was the *interpreter* not being found;
+the hook had never run. In a clean environment — `echo '' | env -i PATH=/nonexistent /bin/bash
+ops-enforcement.sh` — it exits **0**, and 0 is ALLOW, which is stronger and worse than the number
+originally claimed. Lesson recorded rather than buried: a "measured" figure taken through the
+outer shell measures the outer shell. The codec's catch-all (`anything that is not 0 or 2 ->
+ERROR -> exit 2`) fixes every failure the dispatcher can observe, including the handler that
+cannot start (127); a hook that degrades to 0 on its own is not observable and is filed in
+`.ai/BACKLOG.md`.
+
+**Round-2 adversarial review (76/100, REJECTED) found a live hang, by executing.** With the
+tool-name matcher disabled on an unreadable payload, `echo 'not json' | dispatch.sh PreToolUse`
+against the SHIPPED registry started `pre-push.sh`, which runs the full test suite — a multi-minute
+stall, and a guard executing outside its contract (`settings.json` had only ever started it behind
+`grep -qE "^\\s*git\\s+push"`). Every sandbox test used a synthetic registry, so none could see
+it. Fixed at the cause: a handler that declares a `command_matcher` has no command text to match
+on an unreadable payload and is therefore NOT APPLICABLE, while handlers without one still run
+(fail-closed unchanged; both `command_matcher` handlers are advisory and cannot block anyway). Now
+bound by a test that drives the real registry and by a mutant that reproduces the hang on demand.
+Also from round 2: there is **no per-handler timeout**, and the comment that implied one is gone
+rather than the control being invented (hard rule 6).
+
+**Every gate was proven by mutation before the plan was written.** Each of the three contract
+proofs is paired with a mutant test that copies the shipped artifact, applies one mutation
+(reverse the merge comparison; make the codec catch-all return ALLOW; disable the advisory clamp)
+and asserts the outcome flips. All three flipped. Proof 4 is parametrised over every required
+field, and pins the field tuple as a literal in the test file so the schema cannot be narrowed to
+silence a failure. One real bug surfaced from executing rather than reasoning: re-exporting the
+`spill` function from the package `__init__` shadows the `spill` module and broke 13 tests.
+
+**Deliberately not done.** `.claude/settings.json` is **not** rewired onto the dispatcher — that
+is Phase 0b, owner-gated, kept apart because the file is shared with Agent B and because holding
+it back keeps this commit a zero-behaviour-change revert. `hooks.log` keeps its prose shape (a
+test pins it). Stop-hook DoD gate and the failure-fingerprint breaker remain the next phase.
+
+**Round-3 adversarial review (81/100, REJECTED) found the fix refuting itself.** Round 2's fix was
+right, but the test that had asserted the OPPOSITE was left in the tree, red (`assert 0 == 2`), and
+the invariant the fix leans on -- a handler with a precondition cannot block -- was enforced
+nowhere: adding a `command_matcher` to the shipped **blocking** `commit-quality` row produced a
+fully green suite and eight green gates. Both halves closed. The test is reconciled (it now asserts
+the asymmetry the code implements and carries the history of why its predecessor was wrong), and
+the resolver now REJECTS any row whose tier is not `advisory` while carrying a `command_matcher`
+-- exit 3, which the dispatcher renders as a block on a blocking event, so an illegal registry
+fails closed. Proven by mutating the shipped registry: without the check the illegal row is
+accepted and a malformed payload skips a blocking guard (`rc=0`); with it, `rc=2`. Two lessons
+worth more than the fix. First, the round-3 finding was not a subtle one -- the plan's own shipped
+test said 'that is a bypass' in its assertion message, and three review rounds read past it: an
+invariant a design depends on and does not enforce IS the defect. Second, the first draft of the
+replacement test used the markers `CONDITIONAL RAN` and `UNCONDITIONAL RAN` -- the first is a
+SUBSTRING of the second, so the assertion could never fail. A vacuous test that passes, caught only
+by running it. Adding the check also pushed the resolver heredoc to 103 lines, past
+`check-silent-failure.py`'s 80-line skip cap, which made its scan of a security-relevant file
+INCOMPLETE and reded two lint tests -- a gate going quiet rather than loud. Fixed by relocating the
+rationale comments verbatim outside the heredoc (58 lines now), not by relaxing the linter.
+
+**Phase 0b ran.** `.claude/settings.json` PreToolUse (11 registrations) now routes through `dispatch.sh`; the other seven events are unchanged (advisory, `exit 2` not honoured, and four hooks are backgrounded with `&`, which the dispatcher does not model). Applied as its own reviewed ops config, `plan-enforcement-runtime-wiring.ops.json`.\n\n**Follow-ups.** Phase 0b rewire; re-baseline the spill thresholds against real transcripts; decide
+whether `file-guard-gate` / `injection-scan-gate` / `security-reminder` were ever meant to block.
 
 ## 2026-08-21 — Claude (Opus 5) — Phase 4: a memory store that enforces its own rules
 
@@ -35,6 +109,52 @@ this branch — Agent A's `plan-enforcement-runtime` and Agent B's `plan-generat
 Doing batch 2 would also have built profile-reading into eleven hooks that Agent A's dispatcher is
 about to replace with one. Phase 5 (`ck adapt`) depends on Phase 3, so it is blocked behind Agent B.
 Owner chose to defer rather than duplicate or take over another session's authored plan.
+
+## 2026-08-21 — Claude (Opus 5, Agent B) — generators that cannot drift (Phase 3)
+
+**Scope.** `ck skill new` and `ck mcp add`, plus filesystem<->registry reconciliation in
+`scripts/gen-registry.py` and the CI step that runs it. Lane: Agent B; Agent A held
+`.claude/hooks/**` and `src/claudekit/security/**` concurrently. `scripts/check-context-floor.py`,
+`tests/test_context_floor.py` and `.github/workflows/ci.yml` were reassigned to Agent B for this
+phase (COORDINATION.md's table did not cover them).
+
+**What binds.** Four mutation proofs, each executed rather than asserted: a skill whose
+description would breach the always-on floor is refused with current/added/projected/budget; a
+hand-created skill or agent now fails `gen-registry.py --check` (it passed silently before, exit 0
+with two mutants planted); `mcp add` past `max_servers`/`max_tools` is refused with current vs
+limit; and the generator's own output passes the repo's gates.
+
+**Two things that were wrong in the first draft and are recorded rather than quietly fixed.**
+(1) Moving the floor measurement into the package would have broken the three tests that copy
+`check-context-floor.py` alone into a temp tree — under CI's editable install the import would have
+resolved back to the real repo and kept everything green while measuring the wrong tree. The script
+now loads the module from this tree only (`src/claudekit/` or beside itself) and fails closed;
+the tests plant it. (2) `check_budget()` counted only our ledger, so servers hand-added to
+`.mcp.json` counted as zero — a budget that failed OPEN. It counts the union now, and refuses to
+evaluate `max_tools` when a configured server has no recorded count.
+
+**`--probe` was cut.** Measuring a server's tool count by spawning it means downloading and running
+third-party code from a `ck` verb, and the denylist allowlists `npx`, `node` and `docker` — it is a
+speed bump, not a sandbox (hard rule 6). `--tools N` is required instead. The probe survives as a
+separate, owner-gated addendum: `.claude/plans/ops-mcp-probe.json`.
+
+**Round-2 review, two Highs, both design defects rather than typos.** (1) `ck skill new`
+left `gen-docs.py --check` red: component counts are generator-owned (hard rule 8), so a
+new skill invalidates them by design and the only honest remedy is re-running the
+generator. That is now pinned by a test that watches the gate go red and then green, the
+CLI names `gen-docs.py` on success (guarded on the script existing, since installed
+projects have no `scripts/`), and the DoD carries the follow-up run instead of leaving a
+gate quietly failing. (2) The C3 fail-closed fix had no escape: a server in `.mcp.json`
+with no ledger row blocked every `ck mcp add`, and the remedy the refusal printed was
+itself refused ("already registered"), with no `ck mcp remove` to fall back on. Such a
+call now ADOPTS the existing entry — records the count, touches no configuration, adds no
+verb — and the budget cannot refuse a cost already being paid. Also: `ck mcp list` shows
+the union it enforces on, and the floor gate refuses only on the skill-description
+category so an oversized CLAUDE.md no longer makes skills uncreatable.
+
+**Follow-ups.** `.ai/SESSION_STATE.md` is updated by hand after execution (its header is a rewrite,
+not an append, and COORDINATION.md forbids reflowing a contended file). Version bump for two new
+public verbs stays owner-gated.
 
 ## 2026-08-21 — Claude (Opus 5) — `.codex/` removed, and a finding of mine corrected
 

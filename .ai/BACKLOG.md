@@ -271,6 +271,41 @@ asset changes, so they are recorded as options with trade-offs.
   (per-unit tests) as the composition layer; its implementation session additively touches
   `scripts/run-evals.py` and `evals/`, which task 010 also owns.
 - [ ] Task 012: behavioral upgrades for `test_modes/test_mcp/test_checkpoint/test_spec_driven` (currently existence-flavored).
+- [ ] **Three hooks are named `-gate` but cannot block.** `file-guard-gate.sh`,
+  `injection-scan-gate.sh` and `security-reminder.sh` contain neither `exit 2` nor a `deny` call,
+  so nothing they detect can stop a tool call — the name promises enforcement the file does not
+  implement. Found 2026-08-21 while building the dispatch registry, by re-deriving blocking
+  capability from the shipped hook files rather than from their names; the same pass corrected the
+  repo's own count of blocking-capable hooks from 6 to **7** (`reflection-gate.py` and
+  `iron-law-gate.py` do block). They are registered `advisory` in `dispatch-registry.json`, which
+  is honest about what they do today and is *not* a decision about what they should do. **If any
+  of the three was ever meant to block, that is a live security gap, not a naming nit** — it means
+  a guard has been reporting for an unknown length of time while enforcing nothing. Decide per
+  hook: promote to blocking (with a fail-closed path and a mutation proof), or rename so the file
+  stops claiming to be a gate. Owner call — silently changing enforcement behaviour is not
+  something a refactor gets to do.
+- [ ] **`.claude/hooks/dispatch.sh` has no per-handler timeout, and deliberately does not claim
+  one.** Handlers run synchronously and unbounded; the dispatcher cannot observe a timeout, so
+  exit 124 in the codec is only ever a code a handler chose to report. Not implemented because
+  macOS has no `timeout(1)`, a bash-3.2 background+poll+kill wrapper cannot reliably kill a
+  handler's descendants without a process group, and `pre-commit`/`pre-push` legitimately run for
+  minutes, so any bound short enough to help would break them. Recorded here rather than written
+  into a comment as if it existed (hard rule 6). If a bounded wait is ever wanted, it needs a
+  per-handler `timeout_s` in the registry with an explicit unbounded opt-out, and a mutation proof
+  that a sleeping handler yields exit 2 on a blocking event.
+- [ ] **A hook can fail open by degrading to exit 0, and no codec can catch that.** Re-measured
+  2026-08-21 at `5f3e322`: `echo '' | env -i PATH=/nonexistent /bin/bash
+  .claude/hooks/ops-enforcement.sh` exits **0** — `dirname`, `cat` and even `lib.sh`'s `deny` are
+  command-not-found, so the guard emits nothing and ends successfully, and 0 is ALLOW. (An earlier
+  `PATH=/nonexistent bash ...` reading of 127 measured the *interpreter* lookup failing, so the
+  hook had not run at all; 0 is the stronger and more alarming fact.) The dispatcher's codec fixes
+  every failure it can *observe* — a handler that cannot start, crashes, or is signalled — but a
+  handler that returns 0 while doing nothing is indistinguishable from a handler that allowed. The
+  fix belongs in the hooks: `set -e`, an `EXIT` trap, and a positive "I ran" assertion per guard.
+- [ ] **Footgun: never place a git worktree under the session scratchpad.** A full-suite run
+  inside a worktree rooted at a scratchpad path deletes its own CWD mid-run, because a test
+  `rmtree`s scratchpad paths. Symptom is a mid-suite cascade of `FileNotFoundError`/`getcwd`
+  failures that looks like a test-ordering bug. Put worktrees outside the scratchpad.
 
 ## P2 — important, larger
 
@@ -315,11 +350,34 @@ asset changes, so they are recorded as options with trade-offs.
 - [ ] Generate `docs/AGENTS.md` specialist sections from frontmatter via gen-docs.
 - [ ] Example CONSTITUTION.md files for the two example projects (guide+template exist, no filled examples).
 - [ ] `ck lint` for consumer-authored assets; `ck new <asset>` scaffolder.
+- [ ] **Mechanical check: no DoD gate may be asserted from a prior round inside a plan's gate-evidence table.** The eight DoD gates are a fixed list, so a test can assert that no file under `.claude/plans/` contains `not re-run` / `prior round` inside a gate-evidence table. Class has recurred three times on `perf/token-efficiency`: (1) round-3 `mypy` omitted from the evidence table, which became the blocking H1-new; (2) `gen-model-policy --check` labelled `[prior round, not re-run]`; (3) `shellcheck` labelled the same — (2) and (3) were green when re-executed, so milder than (1), but the class earned a mechanical check per .ai/REVIEW_GUIDE.md. Proposed only; **not** implemented by `plan-generators-that-cannot-drift` and deliberately absent from its ops.
+- [ ] **The secret self-scan has no exemption model, so documenting a pattern trips it.** `tests/test_day_one_blockers.py::TestSelfScanIsClean` greps every *tracked* file for 13 secret patterns, with no way to mark a file as legitimately describing one. Three occurrences on this branch, each a different file class: (1) an earlier revision's test module (recorded in that test's own docstring); (2) `tests/test_memory.py`, whose secret-refusal cases need a body that looks like a secret — fixed by assembling the literal from parts; (3) `.claude/plans/archive/README.md`, whose row *explaining fix (2)* quoted the literal and re-reddened the gate — caught by an adversarial reviewer, not by the author, who had claimed the gates green from a suite run predating the row. Splitting literals works but every future author must rediscover it, and the failure mode is a red branch nobody expects. Options: an explicit allowlist with a stated reason per entry; a `# selfscan: expected` marker the scan honours; or scanning only added lines in a diff. Prefer whichever keeps the scan fail-closed by default — an exemption model that is easy to apply silently is worse than the workaround.
 
 ## Icebox
 
 Cross-project promotion of `.claude/knowledge/issues/` entries into the global
 `~/.claude/skills/learned/` tier — explicitly out of scope for ledger v1 (project-local only);
 needs a redaction story and a per-project provenance field before it can be considered.
+
+## Post-execution findings — dispatcher wiring + approval machinery (2026-08-22)
+
+Filed by the adversarial diff review after lanes A and B landed. Ranked.
+
+- [ ] **[HIGH] A tool payload over ~1 MB is blocked, with a misleading cause.** `.claude/hooks/dispatch.sh:254` passes the payload to the resolver through the ENVIRONMENT, so once it crosses `ARG_MAX` (1048576) `execve` returns `E2BIG`, the resolver fails, and the registry-resolution branch exits 2. Measured: 1000.1KB -> rc 0; 1020.1KB -> rc 2 `BLOCKED: could not resolve hook handlers for PreToolUse`. Before the wiring addendum, PreToolUse hooks received the payload on stdin and had no such limit, so this is introduced by that change. Fail-CLOSED, so not a safety hole — but a real functional regression on a realistic operation (writing a >1 MB file), and the message names neither the size nor the cause. Fix: write the payload to the already-available `ck_mktemp` file and pass the PATH in `CK_PAYLOAD_FILE`, or move the resolver body to a `.py` file beside `dispatch.sh` so stdin is free (the heredoc currently occupies it). Add a regression test asserting a 2 MB `Write` payload returns 0.
+- [ ] **[MEDIUM] `decisions.merge()` is dead code with zero coverage, while `dispatch.sh:48-49` claims it is parity-tested.** Mutating `worst = ALLOW` -> `worst = DENY` (making every merge return DENY) leaves the suite green; `grep -rnE "(decisions\.merge|[^_a-z]merge)\("` over src/tests/scripts returns nothing. Only `from_exit_code`, `to_exit_code` and `clamp_advisory` have shell<->Python parity tests. The live merge is the bash one and IS mutation-proven, so no live risk — but the file most likely to be trusted as canonical is the one nothing checks. Fix: add a parity test driving both merges over the 4^n decision tuples (n<=3), OR delete `merge` and narrow the dispatch.sh sentence to the three functions genuinely covered.
+- [ ] **[LOW] `printf: write error: Broken pipe` leaks to hook stderr on payloads >=100 KB.** `.claude/hooks/dispatch.sh:346` — a handler that exits before draining stdin SIGPIPEs the writer. Verdict unaffected. Fix: `2>/dev/null` on that printf, or redirect into hooks.log.
+- [ ] **[LOW] `stderr_preview` persists up to 512 bytes of handler stderr to disk.** `.claude/hooks/lib.sh` `ck_emit_hook_decision`. A guard that blocks a secret-bearing write and echoes the offending text would land it in `.claude/runtime/events/*.jsonl`. Mitigated: that directory is gitignored and advisory stdout is not captured. Fix: one-line note in docs/HOOKS.md that the event log may contain guard stderr.
+- [ ] **[LOW] Four PreToolUse hooks are structurally unable to block.** `file-guard-gate`, `security-reminder`, `pre-commit`, `pre-push` are `tier: "advisory"` in dispatch-registry.json. Verified none has an `exit 2` path today, so no live regression — but a future `exit 2` added to a file named `*-gate.sh` would be silently clamped. Fix: a test asserting these four remain `exit 2`-free, so the clamp and the artifact cannot drift apart.
+
+## Approval-machinery defects, found by using it (2026-08-22)
+
+Three separate defects made the Iron Law's own enforcement path unable to service a
+multi-config plan. All hit live while executing two approved Tier 3 plans.
+
+- [ ] **[HIGH] The record slug is derived from the PLAN filename, but the executor's gate derives it from the OPS filename.** `review-record.py write .../plan-generators-that-cannot-drift.md .../ops-mcp-probe.json` records under slug `generators-that-cannot-drift`; `execute-json-ops.py` then refuses with `no review record for 'mcp-probe'`. So an addendum whose ops file is named differently from its plan CANNOT be approved through the sanctioned path at all. `ops-mcp-probe.json` reviewed APPROVED 93 and is still unexecuted for this reason alone. Fix: derive the slug the same way in both, or let the record carry an explicit slug.
+- [ ] **[HIGH] `validate-config-json.py --stamp-baseline` breaks the approval binding it coexists with.** Stamping writes a `baseline` key of target-file hashes INTO the ops config; the review record binds `sha256(ops.json)`; so stamping changes the hash and the gate then refuses with DRIFT. Two anti-drift mechanisms that cancel each other, and any plan whose steps say "stamp, then execute an approved config" is unrunnable by construction. Hit live on lane B; recovered by restoring the approved snapshot (verified the ONLY delta was the injected key, all 16 operations byte-identical). Fix: stamp to a sidecar file, or exclude `baseline` from the hashed bytes.
+- [ ] **[MEDIUM] Records key by plan slug, so a plan with a core config AND an addendum can hold only one — the second silently overwrites the first.** Writing the probe's verdict destroyed lane B core's approved snapshot (105925 -> 10524 bytes). Recovered by re-recording the core from its archived config. Fix: key by ops identity, or store one record per config under the plan.
+- [ ] **[MEDIUM] Nothing in the reviewer prompt chain asks for the `=== REVIEW ===` block that `review-record.py --from-review` parses.** A reviewer can therefore return a flawless verdict the approval gate cannot consume. Five review rounds this session produced prose; execution stalled until `/review` (which DOES specify the block) was run. Fix: put the block in the reviewer contract in `.claude/agents/reviewer.md`.
+- [ ] **[MEDIUM] `subagent_type: reviewer` has no Bash, so it cannot run the mutation proofs its own prompt demands.** Rounds 1-2 of both lanes scored plans without executing anything and found nothing; every finding that mattered came from `code-reviewer`. Fix: grant `reviewer` Bash, or retire it in favour of `code-reviewer` for any review that must prove a gate binds.
 
 Windows support · MCP server for the ops engine · `ck cost`/`ck trace` observability · team features · README translations refresh policy (i18n/ currently drifts silently — no CI check).

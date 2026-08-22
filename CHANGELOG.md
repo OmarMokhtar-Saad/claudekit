@@ -13,6 +13,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Generators that cannot drift: `ck skill new`, `ck mcp add`, and a registry gate that
+  sees the filesystem.** Creating a skill and registering it are now one act — `ck skill new`
+  scaffolds `SKILL.md`, writes the `skills-registry.json` entry in the same call, and removes
+  the scaffold again if that write fails, so "a skill exists but is unregistered" is no longer
+  a reachable state. It refuses, with current/added/projected/budget numbers, a description
+  that would push the always-on context floor over budget. `ck mcp add` registers a server
+  against the active profile's `mcp.max_servers` / `mcp.max_tools` and refuses over-budget
+  additions naming current vs limit — an MCP server's tool schemas are injected into every
+  session, so adding one is an always-on cost. `scripts/gen-registry.py --check` now reconciles
+  the registry against the filesystem in both directions: a hand-created skill directory, and a
+  hand-created agent file that declares no skills, both fail the gate (they passed it in silence
+  before), while a registry row whose directory is gone is reported and never auto-removed,
+  because deleting an asset is owner-gated. That gate now also runs in CI, which it never did.
+  The context-floor measurement moved into `claudekit.context_floor` so the number CI gates on
+  and the number the generator refuses on are the same number by construction.
+  A server that Claude Code (or a human) already put in `.mcp.json` is **adopted** by
+  `ck mcp add <name> --tools N` — the count is recorded, no configuration is touched —
+  so the fail-closed "projected total is unknown" refusal now has a remedy that works,
+  and `ck mcp list` shows those servers with an `unknown` count instead of hiding them.
+  `ck skill new` warns about, rather than refuses on, context-floor categories the new
+  skill did not cause, and closes by naming `python3 scripts/gen-docs.py`, which owns the
+  component counts a new skill changes.
 - **`ck memory` — a project-local memory store that enforces two rules instead of asking
   an agent to remember them.** Memories live in `.claude/memory/entries.jsonl`, schema-
   validated. Each stamps the SHA-256 of every file it cites, so `ck memory check` re-derives
@@ -40,6 +62,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   **`ECC_HOOK_PROFILE` is unchanged and keeps working**: it selects the profile, and no hook reads
   the new format. Profiles *declare*, and are gate-bound to what the hooks actually do; they do not
   yet control them, and `.claude/profiles/README.md` says so rather than implying otherwise.
+- **Enforcement runtime: one dispatcher per event, a most-restrictive merge rule, a typed event
+  log, and spill — landed, and deliberately NOT yet wired.** `.claude/hooks/dispatch.sh` +
+  `dispatch-registry.json` give every hook event a single dispatcher with an explicit precedence
+  rule — `ALLOW < ADVISE < ERROR < DENY`, outcome is the maximum — so an outcome can no longer
+  depend on a registration order nobody chose. Its exit-code codec fails closed: `0 -> ALLOW`,
+  `2 -> DENY`, and *anything else* is `ERROR`, which renders as a block. The **advisory** tier
+  (the same word `profile.json` already uses) is clamped before the merge, so advisory output can
+  neither override a block nor create one; its text still surfaces, it just is not a decision. One registry
+  invariant is **enforced rather than documented**: a handler may declare a command precondition
+  (`command_matcher`) only if its tier is `advisory`. A row that could block *and* carried a
+  precondition would be skipped when the payload cannot be parsed, so malformed input would
+  silently remove a guard; the dispatcher rejects such a registry and fails closed instead.
+  `src/claudekit/enforcement/` adds a durable typed JSONL event log with a pure replay projection
+  and a runtime assertion for "model-visible means logged", plus spill (bounded preview +
+  retrievable, digest-verified locator) and a deterministic **model-free** pruner that runs
+  *before* any paid summarization. `.claude/hooks/hooks.log` keeps its prose shape and existing
+  debugging workflows are untouched. Stdlib only; `ECC_HOOK_PROFILE=minimal` is unaffected.
+- **Still open: a hook that breaks still fails open in the live path.** `.claude/settings.json`
+  is **not** rewired onto the dispatcher in this release, so the measured defect stands. Measured
+  in a clean environment, so the shell's own interpreter lookup is not mistaken for the hook's
+  exit code: `echo '' | env -i PATH=/nonexistent /bin/bash .claude/hooks/ops-enforcement.sh`
+  exits **0** — not a crash code. `dirname`, `cat` and even `deny` are command-not-found, so the
+  guard emits nothing and ends successfully, and **0 is exactly what Claude Code reads as
+  "allow"**: it honours only `exit 2` as a block, so the guarded operation proceeds. The
+  dispatcher's codec fixes every failure it can *observe* (a handler that cannot start, crashes,
+  or is signalled); a handler that degrades to 0 by itself is not observable and is tracked
+  separately. There is also **no per-handler timeout** — the dispatcher does not implement one and
+  does not claim one. The fix exists and is proven by
+  execution against the shipped artifacts, but it is not load-bearing until the rewire lands. It
+  is stated here rather than omitted because a changelog that reads as if the hole were closed is
+  worse than one that says it is open.
+
+- **Update, superseding the two entries above: `PreToolUse` is now wired onto the dispatcher.**
+  All 11 `PreToolUse` registrations run through `dispatch.sh`, so the fail-open defect described
+  in the entry above is **closed on the one event where Claude Code honours `exit 2`**. Read the
+  two entries above as the state before this change and this one as the state that shipped: the
+  dispatcher landed unwired, and the wiring landed afterwards. Under the dispatcher a broken
+  environment is *observable*: the handler process cannot start (`bash`/`python3` unresolvable ->
+  exit 127), 127 decodes as `ERROR`, and `ERROR` renders as a block instead of being ignored. An
+  outcome no longer depends on the order of the `PreToolUse` list. **Still not closed, stated
+  plainly:** a hook that degrades to `exit 0` while doing nothing — which is what
+  `echo '' | env -i PATH=/nonexistent /bin/bash .claude/hooks/ops-enforcement.sh` actually does —
+  is indistinguishable from a hook that allowed, and no exit-code codec can fix that; there is
+  also no per-handler timeout. Both stay tracked in the backlog rather than implied away. The
+  other seven events are unchanged: they are advisory, `exit 2` is not honoured there, and several
+  of their hooks are backgrounded with `&`, which the dispatcher does not model. Nothing was
+  dropped in the move — `test_registry_covers_every_settings_registration` fails if any handler
+  the entries above name is missing from the registry, and the registry keeps each handler's tool
+  matcher, the `git commit` / `git push` command conditions, and reflection-gate's `--event`
+  argument.
 
 ### Removed
 - **The `.codex/` mirror (53 files).** A Codex-CLI corpus copy that nothing installed, packaged or
