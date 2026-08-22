@@ -14,6 +14,20 @@ import pytest
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 SCRIPT = os.path.join(REPO_ROOT, 'scripts', 'check-context-floor.py')
+# The measurement lives in the package; the script is a CLI over it. A temp tree
+# has no src/, so the module is planted BESIDE the copied script -- that is the
+# script's second lookup path. Without this the copy would either fail to import
+# (bare checkout) or silently resolve to the installed repo package (editable
+# install in CI), which would keep these tests green while measuring the wrong tree.
+FLOOR_MODULE = os.path.join(REPO_ROOT, 'src', 'claudekit', 'context_floor.py')
+
+
+def plant_gate(root):
+    """Copy the gate CLI plus its measurement module into an isolated tree."""
+    with open(SCRIPT) as f:
+        (root / 'scripts' / 'check-context-floor.py').write_text(f.read())
+    with open(FLOOR_MODULE) as f:
+        (root / 'scripts' / 'context_floor.py').write_text(f.read())
 AGENTS_DIR = os.path.join(REPO_ROOT, '.claude', 'agents')
 
 # Confusable pairs allowed to keep ONE routing example each.
@@ -50,9 +64,7 @@ def test_gate_fails_when_over_budget(tmp_path):
     (root / '.claude' / 'commands' / 'c.md').write_text(
         '---\ndescription: "small"\n---\nbody\n'
     )
-    with open(SCRIPT) as f:
-        script_src = f.read()
-    (root / 'scripts' / 'check-context-floor.py').write_text(script_src)
+    plant_gate(root)
     result = subprocess.run(
         [sys.executable, str(root / 'scripts' / 'check-context-floor.py'), '--check'],
         capture_output=True, text=True,
@@ -88,9 +100,7 @@ def test_json_reports_not_ok_and_exits_1_when_over_budget(tmp_path):
     (root / '.claude' / 'agents' / 'huge.md').write_text(
         '---\ndescription: "' + 'x' * 20000 + '"\n---\nbody\n'
     )
-    with open(SCRIPT) as f:
-        script_src = f.read()
-    (root / 'scripts' / 'check-context-floor.py').write_text(script_src)
+    plant_gate(root)
     result = subprocess.run(
         [sys.executable, str(root / 'scripts' / 'check-context-floor.py'), '--json', '--check'],
         capture_output=True, text=True,
@@ -133,8 +143,7 @@ def test_gate_covers_pipeline_agent_bodies(tmp_path):
     (root / '.claude' / 'agents' / 'planner.md').write_text(
         '---\nname: planner\ndescription: "small"\n---\n' + 'x' * 50000
     )
-    with open(SCRIPT) as f:
-        (root / 'scripts' / 'check-context-floor.py').write_text(f.read())
+    plant_gate(root)
     result = subprocess.run(
         [sys.executable, str(root / 'scripts' / 'check-context-floor.py'), '--check'],
         capture_output=True, text=True,

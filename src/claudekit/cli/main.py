@@ -308,6 +308,14 @@ def cmd_doctor(args):
                         if sid not in skill_ids:
                             warn(f"  Registry: agent '{agent}' references unknown skill '{sid}'")
                             checks_warned += 1
+                # A skill on disk that nobody registered is invisible drift:
+                # no agentMapping can reference it and no gate used to look for it.
+                fs_skills = {d.name for d in (claude_dir / "skills").glob("*")
+                             if (d / "SKILL.md").is_file()}
+                for sid in sorted(fs_skills - skill_ids):
+                    warn(f"  Registry: skill '{sid}' exists on disk but is not "
+                         f"registered (create skills with `ck skill new`)")
+                    checks_warned += 1
                 check(f"Skills registry valid: {len(skill_ids)} skills, {len(data.get('agentMapping', {}))} agents", True)
             except (json.JSONDecodeError, KeyError) as e:
                 check("Skills registry", False, f"Invalid JSON: {e}")
@@ -1001,6 +1009,120 @@ def cmd_memory(args):
         return 1
 
 
+def cmd_skill(args):
+    """`ck skill new` — scaffold and register in one act.
+
+    Creation and registration are deliberately not separable: an unregistered
+    skill is the exact drift this verb exists to end, so there is no flag that
+    writes the directory without the registry entry.
+    """
+    from claudekit import context_floor, skills
+
+    root = Path(".")
+    try:
+        path, entry, floor_warnings = skills.new_skill(
+            root, args.name, args.description,
+            summary=args.summary,
+            invisible=args.invisible,
+            mandatory=args.mandatory,
+            allowed_tools=args.allowed_tools,
+        )
+    except skills.SkillError as exc:
+        err(f"skill new: {exc}")
+        return 1
+    ok(f"Created {path}")
+    ok(f"Registered '{entry['id']}' in {skills.registry_path(root)}")
+    for category in floor_warnings:
+        warn(f"context floor: '{category}' is over budget — this skill did not cause "
+             f"it and is not blocked by it, but it is still over: "
+             f"{context_floor.floor_remedy(root)}")
+    # Component counts are generator-owned (CLAUDE.md hard rule 8), and a new
+    # skill changes the skill count, so gen-docs.py MUST be re-run or its gate
+    # goes red. The hint is guarded on the script existing: an installed user
+    # project has no scripts/ tree, and naming a file the reader does not have
+    # is how a helpful hint becomes a dead end.
+    if (root / "scripts" / "gen-docs.py").is_file():
+        info("Next: fill in the scaffold, then run `python3 scripts/gen-docs.py` "
+             "(it owns the component counts — never hand-edit them) and "
+             "`python3 scripts/gen-registry.py --check`")
+    else:
+        info("Next: fill in the scaffold, then `ck doctor`")
+    return 0
+
+
+def cmd_mcp(args):
+    """`ck mcp add` / `ck mcp list` — MCP servers against the profile's budget.
+
+    A server's tool schemas are injected into every session, so this is the one
+    place a single command raises the always-on context floor. It refuses with
+    current-vs-limit numbers rather than warning and proceeding.
+    """
+    from claudekit import mcp
+
+    root = Path(".")
+    if args.action == "add" and not args.name:
+        err("mcp add: a server name is required")
+        return 1
+    if args.action == "list":
+        try:
+            state = mcp.list_servers(root, args.profile)
+        except mcp.MCPError as exc:
+            err(f"mcp: {exc}")
+            return 1
+        limit_s = "unlimited" if state["max_servers"] is None else state["max_servers"]
+        limit_t = "unlimited" if state["max_tools"] is None else state["max_tools"]
+        print(f"\n{C.CYAN}MCP servers{C.NC}   (profile: {state['profile']})\n")
+        for name, row in sorted(state["servers"].items()):
+            count = "unknown" if row.get("tools") is None else row["tools"]
+            print(f"  {name:<24} {count} tools  ({row.get('source')})")
+        if not state["servers"]:
+            print("  <none>")
+        print(f"\n  servers {len(state['servers'])}/{limit_s}   "
+              f"tools {state['total_tools']}/{limit_t}\n")
+        over_servers = (state["max_servers"] is not None
+                        and len(state["servers"]) > state["max_servers"])
+        over_tools = (state["max_tools"] is not None
+                      and state["total_tools"] > state["max_tools"])
+        if over_servers or over_tools:
+            # This budget binds on DELTAS. Adoption records a cost already being
+            # paid and `.mcp.json` is Claude Code's file, so a project can sit
+            # permanently over budget with nothing red anywhere; only the next
+            # ADDITION is refused. Printing the numbers without saying that would
+            # let a reader assume a standing overage is impossible (hard rule 6).
+            warn(f"OVER BUDGET under profile {state['profile']!r}: servers "
+                 f"{len(state['servers'])}/{limit_s}, tools "
+                 f"{state['total_tools']}/{limit_t}. Nothing is blocked "
+                 f"retroactively — the next new server is refused; adopting one "
+                 f"already in .mcp.json stays allowed. Remove a server from "
+                 f"{mcp.config_path(root)} to get back under budget.")
+        if state["unknown"]:
+            # These count towards max_servers and make max_tools unevaluable;
+            # showing them is what stops a refusal from looking arbitrary.
+            print(f"  no recorded tool count: {', '.join(state['unknown'])}\n"
+                  f"  record one with `ck mcp add <name> --tools N` — it adopts "
+                  f"the existing {mcp.config_path(root)} entry, changing nothing else.\n")
+        return 0
+
+    try:
+        result = mcp.add_server(
+            root, args.name, args.server_command,
+            tools=args.tools, profile=args.profile,
+        )
+    except mcp.MCPError as exc:
+        err(f"mcp add: {exc}")
+        return 1
+    if result["source"] == "adopted":
+        ok(f"Adopted '{result['name']}' — already in {mcp.config_path(root)}; "
+           f"recorded {result['tools']} tools in {mcp.ledger_path(root)}. No "
+           f"configuration changed.")
+    else:
+        ok(f"Registered MCP server '{result['name']}' "
+           f"({result['tools']} tools, {result['source']}) in {mcp.config_path(root)}")
+    if result.get("warning"):
+        warn(result["warning"])
+    return 0
+
+
 def cmd_profile(args):
     """Inspect hook/asset profiles: what is installed, and what actually resolves.
 
@@ -1075,6 +1197,21 @@ module lazily inside the command function, so a top-level import here would
 make `ck --help` pay for a module it may never use. `tests/test_memory.py`
 pins the two lists together so they cannot drift.
 """
+
+
+def _split_server_command(argv):
+    """Split ``ck mcp add NAME --tools 5 -- npx ...`` at the first ``--``.
+
+    argparse cannot express this: a trailing ``nargs="*"`` positional rejects
+    the flags that precede ``--`` ("unrecognized arguments"), and
+    ``argparse.REMAINDER`` swallows those flags into the argv instead. Splitting
+    before parsing is the honest way to get a verbatim argv, and it is scoped to
+    the ``mcp`` verb so no other command's ``--`` handling changes.
+    """
+    if argv[:1] != ["mcp"] or "--" not in argv:
+        return argv, []
+    index = argv.index("--")
+    return argv[:index], argv[index + 1:]
 
 
 def main():
@@ -1184,6 +1321,40 @@ def main():
     p.add_argument("--set", action="append", metavar="SECTION.ID=VALUE",
                    help="Override-layer row (repeatable)")
 
+    # skill
+    p = sub.add_parser("skill",
+                       help="Author skills (creation and registration are one act)")
+    p.add_argument("action", choices=["new"], help="new: scaffold and register a skill")
+    p.add_argument("name", help="Skill id, kebab-case")
+    p.add_argument("--description", required=True,
+                   help="The trigger line a model reads when deciding to load the skill")
+    p.add_argument("--summary",
+                   help="Shorter text for the registry entry (default: --description)")
+    p.add_argument("--invisible", action="store_true",
+                   help="disable-model-invocation: costs no always-on context")
+    p.add_argument("--mandatory", action="store_true",
+                   help="Mark the registry entry mandatory")
+    # No `--used-by`: `usedBy` is derived from agent files by gen-registry.py,
+    # so an operator-asserted value can only ever drift from it (it did: the flag
+    # put `gen-registry.py --check` red and the printed remedy silently discarded
+    # the value). Add the skill to the agent's `## Skill Loading` section instead.
+    p.add_argument("--allowed-tools", default="Read, Grep, Glob",
+                   help="allowed-tools frontmatter value")
+
+    # mcp
+    p = sub.add_parser("mcp",
+                       help="Register MCP servers against the active profile's budget")
+    p.add_argument("action", choices=["add", "list"],
+                   help="add: register a server; list: show servers vs budget")
+    p.add_argument("name", nargs="?", help="Server name (add)")
+    p.add_argument("--tools", type=int,
+                   help="Tool count this server advertises, from its docs (required for add)")
+    p.add_argument("--profile", help="Profile whose mcp budget applies (default: active)")
+    # The server argv is NOT an argparse positional: with `nargs="*"` argparse
+    # cannot parse `add NAME --tools 5 -- npx ...` (verified: it reports
+    # "unrecognized arguments"), and `REMAINDER` swallows the flags instead.
+    # main() splits sys.argv on the first `--` for this verb; see _split_server_command.
+
     # memory
     p = sub.add_parser("memory",
                        help="Project-local memory with evidence precedence enforced")
@@ -1199,7 +1370,9 @@ def main():
                         "Its sha256 is stamped now and re-derived by `check`")
     p.add_argument("--json", action="store_true", help="Machine-readable check output")
 
-    args = parser.parse_args()
+    argv, server_command = _split_server_command(sys.argv[1:])
+    args = parser.parse_args(argv)
+    args.server_command = server_command
 
     if not args.command:
         parser.print_help()
@@ -1220,6 +1393,8 @@ def main():
         "check-path": cmd_check_path,
         "config": cmd_config,
         "profile": cmd_profile,
+        "skill": cmd_skill,
+        "mcp": cmd_mcp,
         "memory": cmd_memory,
     }
 

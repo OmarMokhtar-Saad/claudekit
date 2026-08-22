@@ -745,6 +745,19 @@
       "description": "Judge whether tests would actually catch a regression \u2014 four gap shapes, the Demonstration, and proving a check binds by mutation"
     }
   ],
+  "agentsWithoutSkills": [
+    "code-simplifier",
+    "doc-updater",
+    "harness-optimizer",
+    "model-router",
+    "performance-optimizer",
+    "python-reviewer",
+    "refactor-cleaner",
+    "silent-failure-hunter",
+    "tdd-guide",
+    "typescript-reviewer",
+    "web-researcher"
+  ],
   "agentMapping": {
     "build-error-resolver": [
       "systematic-debugging",

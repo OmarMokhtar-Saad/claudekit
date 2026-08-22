@@ -15,85 +15,63 @@ the point of this gate is that the floor never silently grows back.
 """
 from __future__ import annotations
 
+import importlib.util
 import json
-import re
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+_HERE = Path(__file__).resolve().parent
 
-# Budgets set 2026-08-17 after the example-block strip (measured + ~10% headroom).
-# "skill descriptions" re-baselined 2026-08-21 (14000 -> 9000) when the category
-# stopped charging for model-invisible skills. This is a TIGHTENING, not a raise:
-# the old number gated a measurement that counted 3.9k chars of descriptions no
-# model can see. Real value at re-baseline was 7811 of 9000.
-# "pipeline agent bodies" is the per-spawn floor: the FULL text of the three
-# pipeline agents, loaded on every plan->review->implement run. Added after
-# review evidence showed this floor grew 4% with nothing failing while only
-# the always-on categories were gated.
-#
-# "CLAUDE.md" is DELIVERY-WEIGHTED (chars x CLAUDE_MD_MULTIPLIER): the file is
-# injected into the main context AND re-injected into each of the 3 pipeline
-# subagent spawns, so one char there costs ~4x what a char in a single agent
-# body costs. The gate measures delivered cost, not file size — otherwise
-# moving content out of CLAUDE.md into a consuming agent (a real token win)
-# would look like a regression in the tighter category.
-BUDGETS = {
-    "agent descriptions": 10000,
-    "skill descriptions": 9000,
-    "command descriptions": 6000,
-    "CLAUDE.md": 31000,
-    "pipeline agent bodies": 43000,
-}
-
-CLAUDE_MD_MULTIPLIER = 4  # main context + 3 pipeline subagent injections
-PIPELINE_AGENTS = ("planner.md", "reviewer.md", "implementer.md")
+# ONE measurement, two callers. `ck skill new` refuses a skill that would breach
+# this floor, and it has to refuse on the same number CI gates on -- so the
+# measurement moved into src/claudekit/context_floor.py and this script became a
+# CLI over it. A second copy here would drift from that one the first time
+# either changed, and a floor gate that disagrees with the generator enforcing
+# it is worse than either alone.
 
 
-def frontmatter(text: str) -> str:
-    m = re.match(r"(?s)\A---\n(.*?)\n---\n", text)
-    return m.group(1) if m else ""
+def _load_context_floor():
+    """Import the one measurement, deterministically and from THIS tree only.
 
-
-def model_invisible(fm: str) -> bool:
-    """True if the model never sees this skill listed.
-
-    `disable-model-invocation: true` keeps a skill out of the Skill tool's
-    listing entirely, so its description costs zero always-on context. Charging
-    for it inflated this floor by ~3.9k chars against skills no model can read -
-    and an inflated floor is not a conservative one, it is a wrong one: it hides
-    real headroom while gating on noise.
+    Two candidates, in order: the package source under this checkout, then a
+    copy sitting beside this script (that is how tests/test_context_floor.py
+    plants the gate in an isolated temp tree). We deliberately never fall
+    through to `import claudekit`: under CI's editable install that would
+    silently resolve a temp-tree copy back to the real repo, destroying the
+    isolation those tests exist for -- invisibly, with everything still green.
+    Missing module is a named, fail-closed error, not a fallback.
     """
-    return bool(re.search(r"(?m)^disable-model-invocation:[ \t]*true[ \t]*$", fm))
+    for candidate in (ROOT / "src" / "claudekit" / "context_floor.py",
+                      _HERE / "context_floor.py"):
+        if candidate.is_file():
+            spec = importlib.util.spec_from_file_location("_ck_context_floor", candidate)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            return module
+    sys.exit(
+        "FAIL: cannot locate context_floor.py (looked in src/claudekit/ and beside "
+        "this script). The floor gate refuses to guess."
+    )
 
 
-def description_span(fm: str) -> str:
-    """Extract the description value: quoted single-line or block scalar."""
-    m = re.search(r'(?m)^description:[ \t]*["\']?(.*?)["\']?[ \t]*$', fm)
-    if m and m.group(1) not in ("", "|", ">", "|-", ">-"):
-        return m.group(1)
-    # block scalar: indented lines until the next top-level key
-    m = re.search(r"(?ms)^description:[ \t]*[|>]-?\n(.*?)(?=^\S|\Z)", fm)
-    return m.group(1) if m else ""
+_cf = _load_context_floor()
+
+# Re-exported because callers load THIS file as a module by path and use them
+# (tests/test_skill_loading_contract.py calls module.frontmatter /
+# module.model_invisible / module.measure).
+BUDGETS = _cf.BUDGETS
+CLAUDE_MD_MULTIPLIER = _cf.CLAUDE_MD_MULTIPLIER
+PIPELINE_AGENTS = _cf.PIPELINE_AGENTS
+frontmatter = _cf.frontmatter
+model_invisible = _cf.model_invisible
+description_span = _cf.description_span
 
 
 def measure() -> "dict[str, int]":
-    sizes = {k: 0 for k in BUDGETS}
-    for f in sorted((ROOT / ".claude" / "agents").glob("*.md")):
-        sizes["agent descriptions"] += len(description_span(frontmatter(f.read_text())))
-    for f in sorted((ROOT / ".claude" / "skills").glob("*/SKILL.md")):
-        fm = frontmatter(f.read_text())
-        if model_invisible(fm):
-            continue  # never enters a model's context, so it is not part of the floor
-        sizes["skill descriptions"] += len(description_span(fm))
-    for f in sorted((ROOT / ".claude" / "commands").glob("*.md")):
-        sizes["command descriptions"] += len(description_span(frontmatter(f.read_text())))
-    sizes["CLAUDE.md"] = len((ROOT / "CLAUDE.md").read_text()) * CLAUDE_MD_MULTIPLIER
-    for name in PIPELINE_AGENTS:
-        agent_file = ROOT / ".claude" / "agents" / name
-        if agent_file.exists():
-            sizes["pipeline agent bodies"] += len(agent_file.read_text())
-    return sizes
+    """The floor under this checkout. Kept zero-arg: callers import this module
+    by path and call `measure()` with no arguments."""
+    return _cf.measure(ROOT)
 
 
 def main() -> int:
