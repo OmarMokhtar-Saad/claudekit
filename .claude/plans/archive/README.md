@@ -12,6 +12,9 @@ Move a config here when it is **spent** (already executed — anchors consumed b
 | `ops-task-014-supply-chain-hardening.json` | Spent — executed 2026-08-01 (RESULT-JSON: 11/11 ops success). All supply chain hardening operations applied: action SHA pins, MCP version pins, hash-pinned test deps, CI guards. |
 | `ops-workflow-file-templates-ops-schema.json` | Spent — executed 2026-08-10 in worktree `agent/workflow-file-templates-ops-schema` (7/7 ops success), merged as `dfaf6e5`. Fixed AGENTS_KNOWN_ISSUES.md #9 (legacy ops schema in `_shared/WORKFLOW_FILE_TEMPLATES.md`); plan: `plan-workflow-file-templates-ops-schema.md`. |
 | `ops-floor-json-flag.json` | Spent — executed 2026-08-17 (RESULT-JSON: 4/4 ops success). Added `--json` to `scripts/check-context-floor.py` + tests + CHANGELOG. Also the first measured pipeline under the token-efficiency prompts: planner never Read the 47KB CHANGELOG (grep-anchored), 31,959 planner tokens total; plan: `plan-floor-json-flag.md`. |
+| `ops-review-loop.json` | Spent — executed 2026-08-22 (RESULT-JSON: 6/6 ops success). Code-review exit rule, round-scope contract, INHERITED FINDINGS, `scripts/check-plan-artifacts.py` + tests; plan: `plan-review-loop.md`. |
+| `ops-review-loop-2.json` | Spent — executed 2026-08-22 (RESULT-JSON: 3/3 ops success). Amendment: moved the policy text out of the ×4-weighted `CLAUDE.md` into `.ai/REVIEW_GUIDE.md` + `planner.md` Phase 0; plan: `plan-review-loop-2.md`. |
+| `ops-review-loop-3.json` | Spent — executed 2026-08-22 (RESULT-JSON: 2/2 ops success). Amendment: `check-plan-artifacts.py` matches a target by basename as well as full path, killing a false positive on `plan-dispatcher-payload.md`; plan: `plan-review-loop-3.md`. |
 
 ### 2026-08-19 — reflection/review-discipline batch (7 workstreams, 21 ops)
 

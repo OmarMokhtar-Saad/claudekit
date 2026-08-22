@@ -1,0 +1,27 @@
+{
+  "plan": "review-loop-3",
+  "operations": [
+    {
+      "id": "basename",
+      "type": "code_edit",
+      "path": "scripts/check-plan-artifacts.py",
+      "edits": [
+        {
+          "find": "    plan_text = plan_path.read_text(encoding=\"utf-8\")\n    missing = [p for p in target_paths(cfg) if p not in plan_text]\n",
+          "replace": "    plan_text = plan_path.read_text(encoding=\"utf-8\")\n    # A plan that calls the file `dispatch_resolve.py` has named it; demanding the full\n    # repository path would train authors to paste prefixes rather than describe the\n    # artifact, and would cry wolf on plans that are in fact complete. The finding this\n    # mechanises is the artifact going UNMENTIONED, so the basename is the right token.\n    missing = [\n        p for p in target_paths(cfg)\n        if p not in plan_text and p.rsplit(\"/\", 1)[-1] not in plan_text\n    ]\n"
+        }
+      ]
+    },
+    {
+      "id": "tests",
+      "type": "code_edit",
+      "path": "tests/test_check_plan_artifacts.py",
+      "edits": [
+        {
+          "find": "    assert \"no such file\" in result.stderr\n",
+          "add_after": "\n\ndef test_basename_counts_as_naming_the_artifact(tmp_path):\n    \"\"\"A plan that calls the file by name has named it -- the full path is not required.\"\"\"\n    ops = write_pair(tmp_path, \"adds dispatch_resolve.py beside the hook\\n\",\n                     [\".claude/hooks/dispatch_resolve.py\"])\n    result = run(str(ops))\n    assert result.returncode == 0, result.stderr\n\n\ndef test_unmentioned_artifact_still_fails(tmp_path):\n    \"\"\"The class being mechanised: the artifact appears nowhere in the plan.\"\"\"\n    ops = write_pair(tmp_path, \"adds a hook\\n\", [\".claude/hooks/dispatch_resolve.py\"])\n    result = run(str(ops))\n    assert result.returncode == 1\n    assert \"dispatch_resolve.py\" in result.stderr\n"
+        }
+      ]
+    }
+  ]
+}

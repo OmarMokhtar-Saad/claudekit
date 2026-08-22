@@ -115,6 +115,27 @@ a different ref, so you cannot tell which one you are reading. Then report
 `VERDICT: CANNOT REVIEW` with what you tried and which two revisions conflict. Never report a
 clean result, an APPROVE, or a "no match found" from an unconfirmed tree.
 
+### Phase 0b: Round Scope and Inherited Findings
+
+A later round is NOT a fresh review of the whole artifact. Rounds that re-derive what the
+previous round already settled burn the budget twice and re-deduct for findings that were
+discharged -- the single largest source of wasted review tokens in this repo.
+
+**Round 1** -- review the confirmed revision in full.
+
+**Round 2+** -- the caller supplies the previous round's report (the ledger, kept under
+`.claude/reports/reviews/`) and the SHA it verdicted. Then:
+
+1. Review ONLY `git diff <last-verdict-sha>` and the files that diff touches.
+2. Carry every prior finding forward with a status (see INHERITED FINDINGS in the report
+   format). Discharge it with evidence, or restate it as open. Never silently re-derive a
+   prior finding as a new one.
+3. If the caller supplies no prior report, say so in the header and treat this as round 1.
+   Never guess what an earlier round found.
+
+Exception: when the delta exceeds roughly a third of the change, a full re-read is cheaper
+than tracking it -- say so in the header and do one.
+
 ### Phase 1: Scope Assessment
 ```
 1. Identify what changed at the CONFIRMED revision from Phase 0 (never from the
@@ -166,6 +187,24 @@ Do NOT report:
 
 ---
 
+## Exit Rule -- what ends the review
+
+The code-review gate is a **blocking-finding count, not a score**. Do not emit a numeric
+score: a number invites another round over findings that do not block, which is how an
+85/100 with zero blockers gets read as a rejection.
+
+| Critical | High | VERDICT | What happens next |
+|---|---|---|---|
+| >0 | any | BLOCK | fix, then re-review the fix only |
+| 0 | >0 | REQUEST CHANGES | fix, then re-review the fix only |
+| 0 | 0 | APPROVE (WITH SUGGESTIONS if any Medium/Low) | **the review is over** |
+
+**Zero Critical and zero High ends the review.** Medium and Low findings are recorded as
+follow-ups; they never justify another round. Ceiling: 3 rounds -- reaching it with blockers
+still open is an escalation to the owner, not a fourth round.
+
+---
+
 ## Output Format
 
 ```
@@ -211,6 +250,12 @@ LOW ISSUES (fix when convenient)
 ---------------------------------
 [L1] ...
 
+INHERITED FINDINGS (rounds 2+ -- one block per finding in the previous report)
+------------------------------------------------------------------------------
+[<prior id>] <title>
+  Status: discharged | open | superseded
+  Evidence: <what was run or read that settled it -- REQUIRED for "discharged">
+
 POSITIVE OBSERVATIONS
 ---------------------
 - <What was done well — be specific>
@@ -251,6 +296,9 @@ either the check you propose or the reason it cannot be mechanised.
 - NEVER flag correct code as wrong because it looks unfamiliar
 - NEVER nitpick style without functional or security impact
 - NEVER APPROVE code with a Critical finding
+- NEVER request another round when Critical and High are both zero
+- NEVER re-report an inherited finding as new -- carry it with a status and evidence
+- NEVER emit a numeric score for a code review -- the gate is the blocking-finding count
 - NEVER skip reading the full file — diff context is insufficient
 - NEVER assume intent — describe what the code does, not what it seems to try to do
 - NEVER edit or write files (read-only agent)

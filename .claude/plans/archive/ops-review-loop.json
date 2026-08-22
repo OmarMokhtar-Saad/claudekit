@@ -1,0 +1,75 @@
+{
+  "plan": "review-loop",
+  "operations": [
+    {
+      "id": "script",
+      "type": "file_create",
+      "path": "scripts/check-plan-artifacts.py",
+      "content": "#!/usr/bin/env python3\n\"\"\"\ncheck-plan-artifacts.py - Every path an ops config writes must be named in its plan.\n\nThe mechanical form of a finding raised in three consecutive review rounds: a plan\nwhose prose omits the change's largest new artifact reads as complete while the\nreviewer keeps rediscovering the omission. A class at three entries earns a check\n(.ai/REVIEW_GUIDE.md, the recurrence ratchet).\n\nUsage:\n  check-plan-artifacts.py [ops.json ...]     # default: every ops config in .claude/plans\n  check-plan-artifacts.py --check [...]      # alias, for symmetry with the other gates\n\nExit codes:\n  0  every target path is named in its plan (or there was nothing to check)\n  1  usage / unreadable config, or a plan omits a path its config writes\n\nZero third-party dependencies; Python 3.9+.\n\"\"\"\n\nimport json\nimport sys\nfrom pathlib import Path\nfrom typing import List, Optional\n\nPLANS_DIR = Path(\".claude/plans\")\n\n\ndef target_paths(cfg: dict) -> List[str]:\n    \"\"\"Every filesystem path the config writes. run_command has no path and is skipped.\"\"\"\n    items = cfg.get(\"operations\")\n    if items is None:\n        items = cfg.get(\"files\", [])\n    paths = []\n    for item in items:\n        if not isinstance(item, dict):\n            continue\n        path = item.get(\"path\")\n        if isinstance(path, str) and path:\n            paths.append(path)\n    return paths\n\n\ndef resolve_plan(ops_path: Path) -> Optional[Path]:\n    \"\"\"Find the plan.md that owns this config, by the slug conventions in use here.\"\"\"\n    name = ops_path.name\n    if name.endswith(\".ops.json\"):\n        slug = name[: -len(\".ops.json\")]\n    elif name.startswith(\"ops-\"):\n        slug = name[len(\"ops-\") : -len(\".json\")]\n    else:\n        slug = name[: -len(\".json\")]\n    slug = slug[len(\"plan-\") :] if slug.startswith(\"plan-\") else slug\n    for candidate in (f\"plan-{slug}.md\", f\"{slug}.md\"):\n        resolved = ops_path.parent / candidate\n        if resolved.exists():\n            return resolved\n    return None\n\n\ndef check(ops_path: Path) -> List[str]:\n    \"\"\"Return the problems found for one config; empty list means it passed.\"\"\"\n    try:\n        cfg = json.loads(ops_path.read_text(encoding=\"utf-8\"))\n    except (OSError, ValueError) as exc:\n        return [f\"{ops_path}: unreadable ({exc})\"]\n    if not isinstance(cfg, dict):\n        return [f\"{ops_path}: not a JSON object\"]\n\n    plan_path = resolve_plan(ops_path)\n    if plan_path is None:\n        # No plan is a routing fact, not drift: Tier 1 ships a config with no plan.\n        return []\n\n    plan_text = plan_path.read_text(encoding=\"utf-8\")\n    missing = [p for p in target_paths(cfg) if p not in plan_text]\n    return [f\"{plan_path}: does not name {p} (written by {ops_path.name})\" for p in missing]\n\n\ndef main(argv: List[str]) -> int:\n    args = [a for a in argv if a != \"--check\"]\n    if args:\n        configs = [Path(a) for a in args]\n    else:\n        configs = sorted(\n            set(PLANS_DIR.glob(\"ops-*.json\")) | set(PLANS_DIR.glob(\"*.ops.json\"))\n        )\n    if not configs:\n        print(\"check-plan-artifacts: no ops configs to check\")\n        return 0\n\n    problems: List[str] = []\n    for ops_path in configs:\n        if not ops_path.exists():\n            problems.append(f\"{ops_path}: no such file\")\n            continue\n        problems.extend(check(ops_path))\n\n    if problems:\n        print(\"PLAN/CONFIG DRIFT - a plan omits a path its config writes:\", file=sys.stderr)\n        for problem in problems:\n            print(f\"  {problem}\", file=sys.stderr)\n        print(\n            \"\\nFix the plan (name the artifact), not this check: a plan that hides its \"\n            \"largest artifact cannot be reviewed for it.\",\n            file=sys.stderr,\n        )\n        return 1\n\n    print(f\"check-plan-artifacts: OK ({len(configs)} config(s))\")\n    return 0\n\n\nif __name__ == \"__main__\":\n    sys.exit(main(sys.argv[1:]))\n",
+      "description": "Mechanical check: a plan must name every path its ops config writes"
+    },
+    {
+      "id": "test",
+      "type": "file_create",
+      "path": "tests/test_check_plan_artifacts.py",
+      "content": "\"\"\"Behavioral tests for scripts/check-plan-artifacts.py.\n\nEach test runs the real script as a subprocess and asserts on its exit code and\noutput -- the gate is proven to bind by mutating the artifact it guards.\n\"\"\"\n\nimport json\nimport subprocess\nimport sys\nfrom pathlib import Path\n\nSCRIPT = Path(__file__).resolve().parents[1] / \"scripts\" / \"check-plan-artifacts.py\"\n\n\ndef run(*args):\n    return subprocess.run(\n        [sys.executable, str(SCRIPT), *args], capture_output=True, text=True\n    )\n\n\ndef write_pair(tmp_path, plan_body, paths):\n    plan = tmp_path / \"plan-demo.md\"\n    plan.write_text(plan_body, encoding=\"utf-8\")\n    ops = tmp_path / \"ops-demo.json\"\n    ops.write_text(\n        json.dumps(\n            {\n                \"plan\": \"demo\",\n                \"operations\": [\n                    {\"type\": \"file_create\", \"path\": p, \"content\": \"x\"} for p in paths\n                ],\n            }\n        ),\n        encoding=\"utf-8\",\n    )\n    return ops\n\n\ndef test_passes_when_plan_names_every_path(tmp_path):\n    ops = write_pair(tmp_path, \"writes src/a.py and tests/test_a.py\\n\",\n                     [\"src/a.py\", \"tests/test_a.py\"])\n    result = run(str(ops))\n    assert result.returncode == 0, result.stderr\n\n\ndef test_fails_when_plan_omits_a_path(tmp_path):\n    ops = write_pair(tmp_path, \"writes src/a.py\\n\", [\"src/a.py\", \"tests/test_a.py\"])\n    result = run(str(ops))\n    assert result.returncode == 1\n    assert \"tests/test_a.py\" in result.stderr\n\n\ndef test_no_plan_is_not_drift(tmp_path):\n    ops = tmp_path / \"ops-orphan.json\"\n    ops.write_text(\n        json.dumps({\"plan\": \"orphan\",\n                    \"operations\": [{\"type\": \"file_create\", \"path\": \"a.py\",\n                                    \"content\": \"x\"}]}),\n        encoding=\"utf-8\",\n    )\n    assert run(str(ops)).returncode == 0\n\n\ndef test_legacy_files_format_is_checked(tmp_path):\n    plan = tmp_path / \"plan-legacy.md\"\n    plan.write_text(\"nothing named here\\n\", encoding=\"utf-8\")\n    ops = tmp_path / \"ops-legacy.json\"\n    ops.write_text(\n        json.dumps({\"plan\": \"legacy\",\n                    \"files\": [{\"path\": \"src/b.py\",\n                               \"edits\": [{\"find\": \"a\", \"replace\": \"b\"}]}]}),\n        encoding=\"utf-8\",\n    )\n    result = run(str(ops))\n    assert result.returncode == 1\n    assert \"src/b.py\" in result.stderr\n\n\ndef test_missing_config_is_reported(tmp_path):\n    result = run(str(tmp_path / \"nope.json\"))\n    assert result.returncode == 1\n    assert \"no such file\" in result.stderr\n",
+      "description": "Behavioral tests for the new gate, including the failing direction"
+    },
+    {
+      "id": "reviewer-prompt",
+      "type": "code_edit",
+      "path": ".claude/agents/code-reviewer.md",
+      "edits": [
+        {
+          "find": "### Phase 1: Scope Assessment",
+          "add_before": "### Phase 0b: Round Scope and Inherited Findings\n\nA later round is NOT a fresh review of the whole artifact. Rounds that re-derive what the\nprevious round already settled burn the budget twice and re-deduct for findings that were\ndischarged -- the single largest source of wasted review tokens in this repo.\n\n**Round 1** -- review the confirmed revision in full.\n\n**Round 2+** -- the caller supplies the previous round's report (the ledger, kept under\n`.claude/reports/reviews/`) and the SHA it verdicted. Then:\n\n1. Review ONLY `git diff <last-verdict-sha>` and the files that diff touches.\n2. Carry every prior finding forward with a status (see INHERITED FINDINGS in the report\n   format). Discharge it with evidence, or restate it as open. Never silently re-derive a\n   prior finding as a new one.\n3. If the caller supplies no prior report, say so in the header and treat this as round 1.\n   Never guess what an earlier round found.\n\nException: when the delta exceeds roughly a third of the change, a full re-read is cheaper\nthan tracking it -- say so in the header and do one.\n\n"
+        },
+        {
+          "find": "## Output Format",
+          "add_before": "## Exit Rule -- what ends the review\n\nThe code-review gate is a **blocking-finding count, not a score**. Do not emit a numeric\nscore: a number invites another round over findings that do not block, which is how an\n85/100 with zero blockers gets read as a rejection.\n\n| Critical | High | VERDICT | What happens next |\n|---|---|---|---|\n| >0 | any | BLOCK | fix, then re-review the fix only |\n| 0 | >0 | REQUEST CHANGES | fix, then re-review the fix only |\n| 0 | 0 | APPROVE (WITH SUGGESTIONS if any Medium/Low) | **the review is over** |\n\n**Zero Critical and zero High ends the review.** Medium and Low findings are recorded as\nfollow-ups; they never justify another round. Ceiling: 3 rounds -- reaching it with blockers\nstill open is an escalation to the owner, not a fourth round.\n\n---\n\n"
+        },
+        {
+          "find": "POSITIVE OBSERVATIONS\n---------------------",
+          "add_before": "INHERITED FINDINGS (rounds 2+ -- one block per finding in the previous report)\n------------------------------------------------------------------------------\n[<prior id>] <title>\n  Status: discharged | open | superseded\n  Evidence: <what was run or read that settled it -- REQUIRED for \"discharged\">\n\n"
+        },
+        {
+          "find": "- NEVER APPROVE code with a Critical finding\n",
+          "add_after": "- NEVER request another round when Critical and High are both zero\n- NEVER re-report an inherited finding as new -- carry it with a status and evidence\n- NEVER emit a numeric score for a code review -- the gate is the blocking-finding count\n"
+        }
+      ]
+    },
+    {
+      "id": "policy",
+      "type": "code_edit",
+      "path": "CLAUDE.md",
+      "edits": [
+        {
+          "find": "rounds 2+ read only the diff since the last verdict.\n",
+          "add_after": "  - **Reviewer routing**: `reviewer` reviews *plans* and has **no Bash** -- it cannot execute, so it cannot prove a gate binds. `code-reviewer` reviews *code* and **has Bash**. Any verdict that depends on running the artifact (mutation proof, \"the gate binds\", \"that test would fail\") goes to `code-reviewer`; routing it to `reviewer` buys a confident opinion with no evidence under it.\n  - **Pre-ops design precheck (Tier 2/3)**: before authoring ops.json, write one paragraph naming the ownership/data model the change assumes and the files that actually carry its value. A design whose value sits outside its own model is the failure that costs a whole build cycle, and no amount of implementation review surfaces it cheaply.\n"
+        }
+      ]
+    },
+    {
+      "id": "guide",
+      "type": "code_edit",
+      "path": ".ai/REVIEW_GUIDE.md",
+      "edits": [
+        {
+          "find": "| Auto-reject | plan without ops.json \u2192 score 0 | \u2014 |\n",
+          "add_after": "| Tools | Read/Grep/Glob \u2014 **no Bash**, cannot execute | Read/Grep/Glob/**Bash** \u2014 can run a mutation proof |\n| Ends when | score \u226590 | Critical + High both zero; Medium/Low become follow-ups |\n| Rounds 2+ | re-score the delta | read only `git diff <last-verdict-sha>`, inherit prior findings with a status |\n"
+        }
+      ]
+    },
+    {
+      "id": "changelog",
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "edits": [
+        {
+          "find": "## [Unreleased]\n\n",
+          "add_after": "### Changed\n- **The review loop now ends when it should, and stops re-deriving what it already settled.**\n  `CLAUDE.md` had said since the token-efficiency pass that a code review stops at the first\n  round with zero blocking findings and that later rounds read only the delta \u2014 but that policy\n  lived solely in the orchestrator's context and never reached `code-reviewer`'s own prompt, so\n  fresh instances re-reviewed whole artifacts and returned sub-90 scores with zero blockers,\n  which read as rejections and invited another round. `code-reviewer` now carries the exit rule\n  (verdict is a blocking-finding count, never a score), a round-scope contract, and an\n  INHERITED FINDINGS section that makes each prior finding be discharged with evidence or\n  restated as open. `CLAUDE.md` gains the reviewer-vs-code-reviewer routing rule (only\n  `code-reviewer` has Bash, so only it can prove a gate binds) and a pre-ops design precheck for\n  Tier 2/3. New `scripts/check-plan-artifacts.py` mechanises the plan/config drift finding that\n  three consecutive rounds raised by hand.\n\n"
+        }
+      ]
+    }
+  ]
+}

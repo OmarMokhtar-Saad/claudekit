@@ -1,0 +1,39 @@
+{
+  "plan": "review-loop-2",
+  "operations": [
+    {
+      "id": "claude-md-trim",
+      "type": "code_edit",
+      "path": "CLAUDE.md",
+      "description": "Keep CLAUDE.md under the delivery-weighted context floor; full text moves to REVIEW_GUIDE",
+      "edits": [
+        {
+          "find": "  - **Reviewer routing**: `reviewer` reviews *plans* and has **no Bash** -- it cannot execute, so it cannot prove a gate binds. `code-reviewer` reviews *code* and **has Bash**. Any verdict that depends on running the artifact (mutation proof, \"the gate binds\", \"that test would fail\") goes to `code-reviewer`; routing it to `reviewer` buys a confident opinion with no evidence under it.\n  - **Pre-ops design precheck (Tier 2/3)**: before authoring ops.json, write one paragraph naming the ownership/data model the change assumes and the files that actually carry its value. A design whose value sits outside its own model is the failure that costs a whole build cycle, and no amount of implementation review surfaces it cheaply.\n",
+          "replace": "  - **Review routing**: plans -> `reviewer`; code + mutation proofs -> `code-reviewer` (has Bash). See .ai/REVIEW_GUIDE.md\n"
+        }
+      ]
+    },
+    {
+      "id": "guide",
+      "type": "code_edit",
+      "path": ".ai/REVIEW_GUIDE.md",
+      "edits": [
+        {
+          "find": "\n## Reviewing changes to ClaudeKit itself (maintainer checklist)",
+          "add_before": "\n## Routing: which reviewer, and when a round ends\n\n`reviewer` reviews **plans** and has **no Bash** \u2014 it cannot execute, so it cannot prove a gate\nbinds. `code-reviewer` reviews **code** and **has Bash**. Any verdict that depends on running the\nartifact (a mutation proof, \"the gate binds\", \"that test would fail if this regressed\") goes to\n`code-reviewer`; routing it to `reviewer` buys a confident opinion with no evidence under it.\n\n**A code review ends at the first round with zero Critical and zero High findings.** Medium and\nLow become follow-ups \u2014 they never justify another round, and code review emits no numeric score\n(a number invites a round over findings that do not block). Ceiling 3 rounds; reaching it with\nblockers open is an owner escalation, not a fourth round.\n\n**Rounds 2+** read only `git diff <last-verdict-sha>` and carry every prior finding forward with\na status \u2014 `discharged` (with the evidence that settled it), `open`, or `superseded`. The ledger\nis the previous round's report, kept under `.claude/reports/reviews/` (gitignored runtime state).\nRe-deriving a settled finding is the single largest source of wasted review tokens here.\n\n## Pre-ops design precheck (Tier 2/3)\n\nBefore authoring ops.json, write one paragraph naming **the ownership/data model the change\nassumes** and **the files that actually carry its value**. If those files fall outside the model,\nthe design is wrong, and implementation review will only surface it after a whole build cycle has\nbeen spent \u2014 which is exactly how the Phase 1a sidecar and the Phase 2 ownership model failed.\n"
+        }
+      ]
+    },
+    {
+      "id": "planner",
+      "type": "code_edit",
+      "path": ".claude/agents/planner.md",
+      "edits": [
+        {
+          "find": "### Phase 1: Discovery",
+          "add_before": "### Phase 0: Design Precheck (Tier 2/3 only)\n\nBefore any operation is written, state in one paragraph: the ownership/data model this change\nassumes, and the files that actually carry its value. If the value sits in files the model does\nnot cover, stop and say so \u2014 that is a design defect, and no amount of downstream review finds it\ncheaply. A plan that cannot answer this in a paragraph is not ready for a config.\n\n"
+        }
+      ]
+    }
+  ]
+}

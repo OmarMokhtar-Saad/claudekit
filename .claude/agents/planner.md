@@ -56,6 +56,13 @@ If you need clarification, gather ALL questions and ask them in a single batch a
 
 ## Workflow
 
+### Phase 0: Design Precheck (Tier 2/3 only)
+
+Before any operation is written, state in one paragraph: the ownership/data model this change
+assumes, and the files that actually carry its value. If the value sits in files the model does
+not cover, stop and say so — that is a design defect, and no amount of downstream review finds it
+cheaply. A plan that cannot answer this in a paragraph is not ready for a config.
+
 ### Phase 1: Discovery
 
 Explore the codebase to understand the current state before planning anything.
