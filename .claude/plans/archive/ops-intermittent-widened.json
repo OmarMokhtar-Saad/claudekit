@@ -1,0 +1,15 @@
+{
+  "plan": "intermittent-widened",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".ai/BACKLOG.md",
+      "edits": [
+        {
+          "find": "- [ ] **UNEXPLAINED intermittent: `test_receipt_via_json_stdin_clears_the_checkpoint`**\n",
+          "replace": "- [ ] **UNEXPLAINED intermittent: `test_receipt_via_json_stdin_clears_the_checkpoint`**\n  **WIDENED 2026-08-22 \u2014 it is a FAMILY, not one test.** Two consecutive full-suite runs on\n  `main` at the merge of `perf/token-efficiency` each failed exactly one `TestCli`\n  checkpoint-clearing test, and a DIFFERENT one each time: first\n  `test_receipt_via_json_stdin_clears_the_checkpoint`, then\n  `test_receipt_via_cli_clears_the_checkpoint`. Both passed 3/3 standalone and the whole file\n  passed 54/54 immediately after, in both cases. So the signature is not one flaky test but any\n  member of the receipt-clears-checkpoint set, failing only under a full-suite run \u2014 which points\n  at cross-test state (a shared ledger/checkpoint path or a session id colliding across modules)\n  rather than at either test. Still NOT diagnosed; recorded as observation, not theory.\n"
+        }
+      ]
+    }
+  ]
+}

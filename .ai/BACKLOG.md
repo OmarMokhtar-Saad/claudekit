@@ -89,6 +89,15 @@ defects discovered during execution. See CHANGELOG `[Unreleased]` and the plans 
   likely origin of a "flaky CLI test" reported 2026-08-19 that no in-process reproduction could
   produce — an ambient `CLAUDEKIT_REFLECTION_DIR` in a live session, misattributed to the test.
 - [ ] **UNEXPLAINED intermittent: `test_receipt_via_json_stdin_clears_the_checkpoint`**
+  **WIDENED 2026-08-22 — it is a FAMILY, not one test.** Two consecutive full-suite runs on
+  `main` at the merge of `perf/token-efficiency` each failed exactly one `TestCli`
+  checkpoint-clearing test, and a DIFFERENT one each time: first
+  `test_receipt_via_json_stdin_clears_the_checkpoint`, then
+  `test_receipt_via_cli_clears_the_checkpoint`. Both passed 3/3 standalone and the whole file
+  passed 54/54 immediately after, in both cases. So the signature is not one flaky test but any
+  member of the receipt-clears-checkpoint set, failing only under a full-suite run — which points
+  at cross-test state (a shared ledger/checkpoint path or a session id colliding across modules)
+  rather than at either test. Still NOT diagnosed; recorded as observation, not theory.
   (`tests/test_reflection_ledger.py:388`). Observed 2026-08-21 on `perf/token-efficiency` at
   `7f25746`: one full-suite run failed at `:399` — `assert ref.pending_checkpoint(SESSION) is None`
   — with the CLI itself exiting 0. It did **not** reproduce standalone, running the whole file,
