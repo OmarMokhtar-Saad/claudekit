@@ -3,12 +3,14 @@
 
 Measures the text that is injected into EVERY session's context window before
 any work happens: agent frontmatter descriptions, skill descriptions, command
-descriptions, and CLAUDE.md. Fails --check when the floor exceeds budget, the
-same drift-gate pattern as gen-docs.py --check.
+descriptions, and CLAUDE.md. Exits 1 whenever the floor exceeds budget, on ANY
+invocation — same drift-gate pattern as gen-docs.py --check, except that this
+gate's exit code never depended on being asked nicely.
 
 Usage:
-    python3 scripts/check-context-floor.py            # print the floor table
-    python3 scripts/check-context-floor.py --check    # exit 1 if over budget    python3 scripts/check-context-floor.py --json     # print JSON instead of the table
+    python3 scripts/check-context-floor.py            # table; exit 1 if over budget
+    python3 scripts/check-context-floor.py --check    # accepted for gate symmetry; ignored
+    python3 scripts/check-context-floor.py --json     # JSON instead of the table
 
 Budgets are chars (tokens ~ chars/4). Raise a budget only with owner sign-off —
 the point of this gate is that the floor never silently grows back.
@@ -76,7 +78,13 @@ def measure() -> "dict[str, int]":
 
 def main() -> int:
     args = sys.argv[1:]
-    check = "--check" in args
+    # `--check` is accepted for symmetry with the other generator gates and is
+    # otherwise IGNORED. It used to gate the exit code -- `return 1 if check else 0`
+    # -- so the bare invocation printed `FAIL: context floor over budget` and then
+    # exited 0. CLAUDE.md's command block prescribes the bare form, so the
+    # documented way to run this gate was the one way it could not fail. A gate
+    # that reports failure and returns success is the class this repo ratchets
+    # against, so the exit code now follows the measurement, never the flag.
     sizes = measure()
     total = sum(sizes.values())
     budget_total = sum(BUDGETS.values())
@@ -85,7 +93,7 @@ def main() -> int:
         ok = all(size <= BUDGETS[name] for name, size in sizes.items())
         payload = {"sizes": sizes, "budgets": BUDGETS, "total": total, "ok": ok}
         print(json.dumps(payload, indent=2))
-        return 1 if (check and not ok) else 0
+        return 0 if ok else 1
 
     print("Always-on context floor (chars; tokens ~ chars/4)")
     print(f"{'source':<24}{'chars':>8}{'budget':>8}  status")
@@ -105,7 +113,7 @@ def main() -> int:
             "sign-off to raise the budget in scripts/check-context-floor.py.",
             file=sys.stderr,
         )
-        return 1 if check else 0
+        return 1
     print("\nOK: context floor within budget.")
     return 0
 

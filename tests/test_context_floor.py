@@ -73,6 +73,70 @@ def test_gate_fails_when_over_budget(tmp_path):
     assert 'OVER' in result.stdout
     assert 'over budget' in result.stderr
 
+def _tree(root, description_chars):
+    """A minimal repo shape whose agent description drives the floor over or under."""
+    (root / 'scripts').mkdir()
+    (root / '.claude' / 'agents').mkdir(parents=True)
+    (root / '.claude' / 'skills' / 'x').mkdir(parents=True)
+    (root / '.claude' / 'commands').mkdir(parents=True)
+    (root / 'CLAUDE.md').write_text('# minimal\n')
+    (root / '.claude' / 'agents' / 'a.md').write_text(
+        '---\nname: a\ndescription: "%s"\n---\nbody\n' % ('x' * description_chars)
+    )
+    (root / '.claude' / 'skills' / 'x' / 'SKILL.md').write_text(
+        '---\nname: x\ndescription: "small"\n---\nbody\n'
+    )
+    (root / '.claude' / 'commands' / 'c.md').write_text(
+        '---\ndescription: "small"\n---\nbody\n'
+    )
+    plant_gate(root)
+    return root
+
+
+def _bare(root):
+    """Run the gate the way CLAUDE.md's command block documents it: no flags."""
+    return subprocess.run(
+        [sys.executable, str(root / 'scripts' / 'check-context-floor.py')],
+        capture_output=True, text=True,
+    )
+
+
+def test_the_bare_invocation_fails_when_over_budget(tmp_path):
+    """The form the repo documents must be able to fail.
+
+    `main()` gated its exit code on `--check` (`return 1 if check else 0`), so the bare
+    invocation printed `FAIL: context floor over budget` and returned 0 -- a gate
+    reporting failure and returning success, run exactly the way CLAUDE.md's command
+    block prescribes. Asserted WITHOUT `--check`, so reintroducing the flag gate turns
+    this red rather than leaving it quietly green.
+    """
+    result = _bare(_tree(tmp_path, 20000))
+    assert result.returncode == 1, (
+        "the bare form returned %s while printing a failure:\n%s\n%s"
+        % (result.returncode, result.stdout, result.stderr))
+    assert 'OVER' in result.stdout
+    assert 'over budget' in result.stderr
+
+
+def test_the_bare_invocation_still_succeeds_when_within_budget(tmp_path):
+    """The converse: the fix must not make the bare form fail unconditionally, which a
+    plain `return 1` at the end of the failure branch would do if it were misplaced."""
+    result = _bare(_tree(tmp_path, 50))
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert 'within budget' in result.stdout
+
+
+def test_json_mode_exit_code_no_longer_depends_on_the_flag(tmp_path):
+    """`--json` had the same defect in its own branch."""
+    root = _tree(tmp_path, 20000)
+    result = subprocess.run(
+        [sys.executable, str(root / 'scripts' / 'check-context-floor.py'), '--json'],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert json.loads(result.stdout)['ok'] is False
+
+
 def test_json_output_shape():
     result = run_gate('--json')
     assert result.returncode == 0, result.stdout + result.stderr
