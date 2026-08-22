@@ -63,3 +63,26 @@ behaviour and needs its own plan:
 
 Net asset change this wave: **0** (29 roles before, 29 after). The tier table adds
 capability *choice* without adding assets.
+
+### A project-local CLI is often the cheaper answer than an MCP server
+
+Recorded 2026-08-21 while building `ck mcp add`. An MCP server's tool schemas are
+injected into **every** session that has the server configured, whether or not a
+single tool is ever called. A project-local CLI costs nothing until it is run, and
+its "schema" is one line in CLAUDE.md.
+
+ChaosEngine made exactly this trade deliberately — a CLI instead of an MCP server,
+for the context-cost reason — and it is the same boundary the Rejected rows above
+sit on: policy layer, not runtime. The rule this repo now encodes in
+`profile.json`'s `mcp` budget:
+
+- **Prefer a CLI** when the capability is project-specific, invoked occasionally,
+  and expressible as one command with flags.
+- **Prefer an MCP server** when the capability needs a live session (a browser, an
+  index, an authenticated remote), or when the tool surface is genuinely used in
+  most sessions.
+- Either way the cost is now visible: `ck mcp list` prints servers and tools
+  against the profile's limits, and `ck mcp add` refuses to cross them silently.
+
+**ClaudeKit itself adds no MCP servers as part of this work** — the budget is for
+user projects, and this repo continues to depend on none.
