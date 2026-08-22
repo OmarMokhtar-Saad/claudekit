@@ -54,6 +54,188 @@ def _approve(tmp_path, plan, ops, score=97, decision='APPROVED'):
                 '--score', str(score), '--decision', decision)
 
 
+class TestRoundHistory:
+    """A re-review must not destroy the verdict it replaces.
+
+    Before this, `write` overwrote the record, so a plan reviewed 80 REVISE then
+    95 APPROVED left only the 95 on disk -- and the corpus consequently read as a
+    100% approval rate in a 90-96 band, which is a strictly misleading summary of
+    how review actually goes.
+    """
+
+    def _record(self, tmp_path, slug='demo'):  # ops_slug strips the 'ops-' prefix
+        path = tmp_path / '.claude' / 'reports' / 'reviews' / f'{slug}.json'
+        return json.loads(path.read_text(encoding='utf-8'))
+
+    def test_a_second_verdict_preserves_the_first(self, tmp_path):
+        plan, ops = _fixture(tmp_path)
+        assert _approve(tmp_path, plan, ops, 80, 'REVISE').returncode == 0
+        assert _approve(tmp_path, plan, ops, 95, 'APPROVED').returncode == 0
+        rec = self._record(tmp_path)
+        assert rec['score'] == 95 and rec['decision'] == 'APPROVED'
+        assert rec['round'] == 2
+        assert len(rec['rounds']) == 1
+        assert rec['rounds'][0]['score'] == 80
+        assert rec['rounds'][0]['decision'] == 'REVISE'
+        # The hash is what made the superseded verdict meaningful: it says which
+        # artifact was judged, not merely that some earlier round happened.
+        assert rec['rounds'][0]['ops_sha256'] == rec['ops_sha256']
+
+    def test_history_accumulates_in_chronological_order(self, tmp_path):
+        plan, ops = _fixture(tmp_path)
+        for score, decision in ((70, 'REJECTED'), (85, 'CONDITIONAL'), (93, 'APPROVED')):
+            assert _approve(tmp_path, plan, ops, score, decision).returncode == 0
+        rec = self._record(tmp_path)
+        assert rec['round'] == 3
+        assert [r['score'] for r in rec['rounds']] == [70, 85]
+        assert [r['decision'] for r in rec['rounds']] == ['REJECTED', 'CONDITIONAL']
+
+    def test_a_first_verdict_has_empty_history(self, tmp_path):
+        plan, ops = _fixture(tmp_path)
+        assert _approve(tmp_path, plan, ops).returncode == 0
+        rec = self._record(tmp_path)
+        assert rec['rounds'] == [] and rec['round'] == 1
+
+    def test_a_superseded_round_keeps_its_findings(self, tmp_path):
+        # findings is in ROUND_KEYS but was unpinned: dropping it from the tuple
+        # left every test green while silently discarding what each superseded
+        # verdict actually objected to.
+        plan, ops = _fixture(tmp_path)
+        r1 = _run(tmp_path, 'write', str(plan), str(ops), '--from-review', '-',
+                  stdin="=== REVIEW ===\nSCORE: 80\nDECISION: REVISE\n"
+                        "- [MAJOR] the thing is wrong\n=== END REVIEW ===\n")
+        assert r1.returncode == 0, r1.stderr
+        assert _approve(tmp_path, plan, ops, 95, 'APPROVED').returncode == 0
+        prior = self._record(tmp_path)['rounds'][0]
+        assert any('the thing is wrong' in f for f in prior['findings'])
+        assert prior['recorded_utc']
+
+    def test_the_trail_is_reported_to_the_operator(self, tmp_path):
+        plan, ops = _fixture(tmp_path)
+        _approve(tmp_path, plan, ops, 80, 'REVISE')
+        res = _approve(tmp_path, plan, ops, 95, 'APPROVED')
+        assert '80/REVISE' in res.stdout and 'round 2' in res.stdout
+
+    def test_a_corrupt_prior_record_warns_and_still_records(self, tmp_path):
+        plan, ops = _fixture(tmp_path)
+        assert _approve(tmp_path, plan, ops, 80, 'REVISE').returncode == 0
+        path = tmp_path / '.claude' / 'reports' / 'reviews' / 'demo.json'
+        path.write_text('{ truncated', encoding='utf-8')
+        res = _approve(tmp_path, plan, ops, 95, 'APPROVED')
+        # A corrupt file must not brick approvals for this slug forever...
+        assert res.returncode == 0
+        # ...but losing history silently is how this defect class started.
+        assert 'unreadable' in res.stderr
+        assert self._record(tmp_path)['rounds'] == []
+
+    def test_a_prior_record_with_invalid_utf8_does_not_brick_the_slug(self, tmp_path):
+        """The corruption class, not the one member of it that came to mind.
+
+        Invalid UTF-8 raises UnicodeDecodeError -- a ValueError, so neither
+        JSONDecodeError nor OSError. Catching only those two crashes the write and
+        blocks every future approval for this slug, which is the exact failure the
+        fallback exists to prevent.
+        """
+        plan, ops = _fixture(tmp_path)
+        assert _approve(tmp_path, plan, ops, 80, 'REVISE').returncode == 0
+        path = tmp_path / '.claude' / 'reports' / 'reviews' / 'demo.json'
+        path.write_bytes(b'\xff\xfe{"score": 80}')
+        res = _approve(tmp_path, plan, ops, 95, 'APPROVED')
+        assert res.returncode == 0, res.stderr
+        assert 'Traceback' not in res.stderr
+        assert 'unreadable' in res.stderr
+        assert self._record(tmp_path)['score'] == 95
+
+    def test_history_is_capped_and_says_so(self, tmp_path):
+        plan, ops = _fixture(tmp_path)
+        res = None
+        for i in range(23):
+            res = _approve(tmp_path, plan, ops, 90 + (i % 7), 'APPROVED')
+            assert res.returncode == 0
+        rec = self._record(tmp_path)
+        assert len(rec['rounds']) == 20
+        assert rec['round'] == 23
+        # "Dropping is announced, never silent" -- asserted, not just claimed.
+        assert 'MAX_ROUNDS=20' in res.stderr
+        # And the survivors are the NEWEST 20: a `rounds[:MAX_ROUNDS]` slice keeps
+        # the oldest instead and permanently discards the round immediately
+        # preceding this one, which is the defect this whole change exists to fix.
+        assert [r['score'] for r in rec['rounds']] == [90 + (i % 7) for i in range(2, 22)]
+
+
+    def test_a_valid_json_record_of_the_wrong_shape_does_not_brick_the_slug(self, tmp_path):
+        """Corruption is not only unparseable bytes.
+
+        `"rounds": 5` is valid JSON and valid UTF-8, so it clears the parse and
+        then fails on list(). If the structural walk sat outside the guard, one
+        such file would block every future approval for this slug.
+        """
+        plan, ops = _fixture(tmp_path)
+        assert _approve(tmp_path, plan, ops, 80, 'REVISE').returncode == 0
+        path = tmp_path / '.claude' / 'reports' / 'reviews' / 'demo.json'
+        path.write_text(json.dumps({'score': 80, 'rounds': 5}), encoding='utf-8')
+        res = _approve(tmp_path, plan, ops, 95, 'APPROVED')
+        assert res.returncode == 0, res.stderr
+        assert 'Traceback' not in res.stderr
+        assert self._record(tmp_path)['score'] == 95
+
+    def test_a_non_object_round_entry_cannot_fail_a_successful_write(self, tmp_path):
+        """The trail printer runs AFTER the record is on disk.
+
+        A round entry that is not an object used to reach it and raise, so the
+        command exited 1 having already written an approval -- an exit code that
+        contradicts the state on disk.
+        """
+        plan, ops = _fixture(tmp_path)
+        assert _approve(tmp_path, plan, ops, 80, 'REVISE').returncode == 0
+        path = tmp_path / '.claude' / 'reports' / 'reviews' / 'demo.json'
+        path.write_text(json.dumps({'score': 80, 'decision': 'REVISE',
+                                    'rounds': 'APPROVED'}), encoding='utf-8')
+        res = _approve(tmp_path, plan, ops, 95, 'APPROVED')
+        assert res.returncode == 0, res.stdout + res.stderr
+        assert 'Traceback' not in res.stderr
+
+    def test_the_round_number_stays_true_past_the_cap(self, tmp_path):
+        """Derived from the prior record's number, not from the capped list.
+
+        Counting len(rounds)+1 makes the number saturate at MAX_ROUNDS+1, so
+        review 30 reports itself as 21 -- and rounds-to-clean, the whole reason
+        this history exists, quietly stops being a fact.
+        """
+        plan, ops = _fixture(tmp_path)
+        for i in range(24):
+            assert _approve(tmp_path, plan, ops, 90, 'APPROVED').returncode == 0
+        assert self._record(tmp_path)['round'] == 24
+
+class TestHistoryDoesNotWeakenTheGate:
+    """The Safety claim, asserted rather than reasoned about.
+
+    `rounds` is additive, but this file IS the approval machinery, so the gate's
+    behaviour is pinned directly after a history-bearing write.
+    """
+
+    def test_an_approved_second_round_still_authorises_execution(self, tmp_path):
+        plan, ops = _fixture(tmp_path)
+        _approve(tmp_path, plan, ops, 80, 'REVISE')
+        _approve(tmp_path, plan, ops, 95, 'APPROVED')
+        assert _run(tmp_path, 'check', str(plan), str(ops)).returncode == 0
+
+    def test_a_non_approving_latest_verdict_still_refuses(self, tmp_path):
+        plan, ops = _fixture(tmp_path)
+        _approve(tmp_path, plan, ops, 95, 'APPROVED')
+        # An approval followed by a REVISE must NOT be rescued by the history.
+        _approve(tmp_path, plan, ops, 60, 'REVISE')
+        assert _run(tmp_path, 'check', str(plan), str(ops)).returncode == 4
+
+    def test_drift_is_still_detected_after_a_second_round(self, tmp_path):
+        plan, ops = _fixture(tmp_path)
+        _approve(tmp_path, plan, ops, 80, 'REVISE')
+        _approve(tmp_path, plan, ops, 95, 'APPROVED')
+        ops.write_text(ops.read_text(encoding='utf-8').replace('b0', 'b9'),
+                       encoding='utf-8')
+        assert _run(tmp_path, 'check', str(plan), str(ops)).returncode == 2
+
+
 class TestOpsResolution:
     def test_resolves_each_naming_convention(self, tmp_path):
         for name in ('ops-demo.json', 'demo.ops.json', 'demo.json'):

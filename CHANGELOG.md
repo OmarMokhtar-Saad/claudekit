@@ -13,6 +13,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Review records keep their round history.** `review-record.py write` overwrote the
+  record for an ops config, so a re-review destroyed the verdict it replaced and a
+  record could only ever show the round that passed. The corpus this was measured on
+  read as 51 records, 51 `APPROVED`, scores 90-96 — a 100% approval rate in a tight
+  band, which is a strictly misleading summary of how review actually goes. A write now
+  folds the verdict it supersedes into a `rounds` list (score, decision, findings,
+  timestamp, and the ops hash each verdict was bound to) and reports the trail, so
+  rounds-to-clean and score trajectory are finally derivable — including whether the
+  review floor's 3-round ceiling ever binds. `rounds` is additive and the gate is
+  untouched: `check` still reads score, decision and hash off the top level, and tests
+  pin that an approved second round still authorises execution, a later non-approving
+  verdict is not rescued by its history, and drift is still caught.
+
 - **`claudekit doctor` now grades an install, not just passes it.** Doctor already
   tallied passed/warned/failed/skipped checks and then threw the ratio away, so every
   project that cleared the floor reported identically green and there was no way to

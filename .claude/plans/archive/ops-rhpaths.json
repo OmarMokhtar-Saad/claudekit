@@ -1,0 +1,24 @@
+{
+  "plan": "round-history-test-paths",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_review_record.py",
+      "description": "records are keyed by ops_slug, which strips the ops- prefix",
+      "edits": [
+        {
+          "find": "    def _record(self, tmp_path, slug='ops-demo'):",
+          "replace": "    def _record(self, tmp_path, slug='demo'):  # ops_slug strips the 'ops-' prefix"
+        },
+        {
+          "find": "        path = tmp_path / '.claude' / 'reports' / 'reviews' / 'ops-demo.json'\n        path.write_text('{ truncated', encoding='utf-8')",
+          "replace": "        path = tmp_path / '.claude' / 'reports' / 'reviews' / 'demo.json'\n        path.write_text('{ truncated', encoding='utf-8')"
+        },
+        {
+          "find": "        path = tmp_path / '.claude' / 'reports' / 'reviews' / 'ops-demo.json'\n        path.write_bytes(b'\\xff\\xfe{\"score\": 80}')",
+          "replace": "        path = tmp_path / '.claude' / 'reports' / 'reviews' / 'demo.json'\n        path.write_bytes(b'\\xff\\xfe{\"score\": 80}')"
+        }
+      ]
+    }
+  ]
+}

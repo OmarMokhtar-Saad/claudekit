@@ -41,6 +41,17 @@ RECORDS_DIR = Path(".claude/reports/reviews")
 APPROVAL_THRESHOLD = 90
 VALID_DECISIONS = ("APPROVED", "CONDITIONAL", "REVISE", "REJECTED")
 
+# A re-review used to overwrite the verdict it replaced, so a record could only
+# ever show the round that passed. Measured on the corpus that produced this
+# change: 51 records, 51 APPROVED, scores 90-96 -- not because review always
+# passes, but because only the passing round survived. Rounds-to-clean and score
+# trajectory are exactly the signals that make review outcomes measurable, and
+# both were destroyed at write time.
+ROUND_KEYS = ("score", "decision", "findings", "recorded_utc", "ops_sha256")
+# The review loop's documented ceiling is 3 rounds; 20 is far above any real run
+# while still bounding a pathological loop. Dropping is announced, never silent.
+MAX_ROUNDS = 20
+
 # Delta review stops being a saving once the change is sweeping; past this share of
 # changed lines the reviewer is told to do a full review instead.
 DELTA_CEILING = 0.25
@@ -245,6 +256,54 @@ def cmd_write(args) -> int:
     }
     record.update(load_ops_summary(ops_path))
 
+    # Fold the verdict being replaced into this one's history. `rounds` is purely
+    # additive: cmd_check reads score/decision/ops_sha256 off the TOP level, which
+    # is written exactly as before, so nothing here can change what the gate does.
+    rounds: list = []
+    prior_round = 0
+    if rec_path.exists():
+        # The whole read AND the structural walk live inside the try. Parsing is
+        # not the only way a corrupt record bites: a file holding `"rounds": 5`
+        # is valid JSON, so it clears json.loads and then raises TypeError on
+        # list(), which -- if the walk sat outside -- would brick every future
+        # approval for this slug. That is the same failure the broad catch below
+        # exists to prevent, so the guard has to cover the untrusted READ, not
+        # just the untrusted PARSE.
+        try:
+            prior = json.loads(rec_path.read_text(encoding="utf-8"))
+            if not isinstance(prior, dict):
+                raise TypeError(f"record is {type(prior).__name__}, not an object")
+            prior_rounds = prior.get("rounds")
+            # Every element is re-checked: a round entry that is not an object
+            # would reach the trail printer below, which would then fail a write
+            # that already succeeded.
+            rounds = [r for r in prior_rounds
+                      if isinstance(r, dict)] if isinstance(prior_rounds, list) else []
+            rounds.append({k: prior[k] for k in ROUND_KEYS if k in prior})
+            # Counted from the PRIOR record's own number, not from len(rounds),
+            # so the count stays true after the cap starts dropping entries --
+            # otherwise round 30 would report itself as 21 and rounds-to-clean,
+            # the entire point of this history, would quietly stop being a fact.
+            pr = prior.get("round")
+            prior_round = pr if isinstance(pr, int) and pr > 0 else len(rounds)
+        except Exception as e:
+            # Deliberately broad, matching cmd_check (:309) and cmd_diff (:380),
+            # which use `except Exception` for this same "read an existing record"
+            # operation. Narrowing it to (JSONDecodeError, OSError) looks tighter
+            # but is not: a record holding invalid UTF-8 raises UnicodeDecodeError
+            # -- a ValueError, neither of those -- and would crash the write,
+            # bricking every future approval for this slug. Losing history
+            # silently is how the corpus got into this state, so it is announced.
+            print(f"WARNING: existing record for '{slug}' is unreadable ({e}); "
+                  "its verdict history is lost.", file=sys.stderr)
+            rounds, prior_round = [], 0
+    if len(rounds) > MAX_ROUNDS:
+        print(f"NOTE: {len(rounds) - MAX_ROUNDS} oldest round(s) dropped "
+              f"(MAX_ROUNDS={MAX_ROUNDS}).", file=sys.stderr)
+        rounds = rounds[-MAX_ROUNDS:]
+    record["rounds"] = rounds
+    record["round"] = prior_round + 1
+
     if not _safe_write(rec_path, json.dumps(record, indent=2) + "\n"):
         return 1
     if not _safe_write(snap_path, ops_path.read_text(encoding="utf-8")):
@@ -256,6 +315,10 @@ def cmd_write(args) -> int:
     print(f"Recorded {decision} ({score}) for {slug} — {gate}")
     print(f"  sha256: {record['ops_sha256'][:16]}...  ops={record['operations']} "
           f"edits={record['edits']}  findings={len(findings)}")
+    if rounds:
+        trail = " -> ".join(
+            f"{r.get('score')}/{r.get('decision')}" for r in rounds)
+        print(f"  round {record['round']}: {trail} -> {score}/{decision}")
     return 0
 
 
