@@ -1,6 +1,49 @@
 # AI Session Changelog
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
+## 2026-08-22 — Claude (Opus 5) — Phase 1a: repairing the approval path, and cutting a redesign that was worse than the bug
+
+**Scope.** The `## Approval-machinery defects` section of `.ai/BACKLOG.md`, lifted ahead of
+the ranked ARG_MAX row because every later plan has to execute through the path it repairs.
+One config, `ops-approval-machinery.json` (3 ops / 9 edits), APPROVED 90/100 on round 3.
+
+**The finding that mattered.** Three of the five filed defects were one bug: records keyed
+by plan slug, gate resolving by ops filename. One change fixed all three. The second
+`[HIGH]` was misdiagnosed in the backlog — `--stamp-baseline` vs the approval hash is a
+SEQUENCING problem, not a code defect. Measured on unmodified HEAD: stamp -> record ->
+execute works; only record -> stamp drifts.
+
+**What went wrong, and is worth remembering.** Between rounds 1 and 2 the score went DOWN,
+82 -> 62. A sidecar redesign for the stamping collision introduced three defects worse than
+the one it fixed: it made `--stamp-baseline` reject every config the repo's own generator
+emits (`implementer.md:83` runs it unconditionally and treats non-zero as STOP), it restored
+tamper-evidence only against deletion, and an empty-object sidecar disabled the drift gate
+at rc 0 — while the new code's own docstring said "fail LOUD". The whole of C2 was then cut
+and replaced with five lines of refusal text plus tests pinning both orders. **Testing the
+premise, not the patch, was what closed it**: one command sequence on unmodified HEAD showed
+there was nothing to fix in code.
+
+**Three self-inflicted verification failures, all caught before shipping.** (1) A draft T1
+passed against unfixed HEAD because it used `--dry-run`, and the executor skips the approval
+gate when nothing will be written. (2) A draft asserted "the run was not refused", which a
+gate that stopped *applying* would also satisfy; it now asserts the gate's own success
+string. (3) The T4 extractor took the FIRST `=== REVIEW ===` match while `parse_verdict`
+documents that only the LAST block counts, so the test read a different span from the parser.
+Each is the "gate that reports PASS against a mutant" shape `.ai/REVIEW_GUIDE.md` records as
+having shipped twice here.
+
+**Reviews.** Round 1 CONDITIONAL 82 (four MAJORs, including a fail-open *introduced by the
+fix*), round 2 REJECTED 62 (five MAJORs), round 3 APPROVED 90. Rounds 1 and 2 each found
+defects no amount of re-reading would have: both were run with Bash and executed the
+artifact. Round 1's F6 was itself wrong (it asserted no ops schema exists;
+`operations-schema.json` is the ops schema, and its `additionalProperties: false` was what
+rejected the new key), which is a reminder that a reviewer's prose is evidence, not a ruling.
+
+**Follow-ups.** Six rows filed under `## Findings from the approval-machinery repair`, the
+most substantive being that the executor's legacy-record path — the real production
+back-compat surface — is still untested. The `reviewer` Bash grant stays open and
+owner-gated. `ops-mcp-probe.json` is still stranded: the fix prevents the class going
+forward but cannot rescue a verdict recorded under a different plan's slug.
 ## 2026-08-21 — Claude (Opus 5) — Enforcement runtime: the lane that was written up but never built
 
 **Scope.** Agent A, Phase 0 (0.1 event log, 0.2 dispatcher + merge, 0.3 spill + pruning, 0.4
