@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "_doc": [
+    "Handler registry for .claude/hooks/dispatch.sh — one dispatcher per event.",
+    "Order in each list is EXECUTION order only; it can never change the outcome,",
+    "because the outcome is max(severity) over all handlers (most restrictive wins).",
+    "It is preserved solely so stderr reads in a stable order.",
+    "",
+    "tier: 'blocking' — may return exit 2 and have it honoured.",
+    "      'advisory'  — its verdict is clamped to ADVISE before merge, so it can",
+    "                    neither override a block nor create one. Same vocabulary",
+    "                    as the 'advisory' value already used in profile.json.",
+    "",
+    "matcher: ERE against the tool name; empty means every tool on this event.",
+    "command_matcher: ERE against the Bash command text (tool_input.command, or a",
+    "      top-level `command`, since settings.json wrappers assume both shapes).",
+    "      Empty means no command filter. On an UNPARSEABLE payload a handler",
+    "      that declares a command_matcher is NOT APPLICABLE and is SKIPPED:",
+    "      there is no command text, so its precondition cannot be evaluated,",
+    "      and running it anyway executes a guard outside its contract.",
+    "      pre-push.sh runs the FULL TEST SUITE - round-2 review measured a",
+    "      malformed payload starting it and stalling the tool call for minutes.",
+    "      Handlers with NO command_matcher still run on an unreadable payload:",
+    "      the tool-name matcher stays disabled there, which is fail-closed.",
+    "      INVARIANT, ENFORCED: only an 'advisory' row may declare a",
+    "      command_matcher. A row that can block PLUS a precondition would be",
+    "      silently skipped on an unreadable payload -- a guard removed by",
+    "      malformed input, which is a real bypass. dispatch.sh's resolver",
+    "      REJECTS such a row (resolver exit 3 -> fail closed -> exit 2 on a",
+    "      blocking event) instead of trusting this table. Proven by mutating",
+    "      THIS file: see test_a_blocking_row_carrying_a_command_matcher_",
+    "      is_rejected_by_the_resolver.",
+    "args: extra argv passed to the handler. reflection-gate.py REQUIRES --event,",
+    "      so a registry without this field could not be wired at all.",
+    "",
+    "Tiers are checked against the shipped artifact, in ONE direction: a handler",
+    "declared 'blocking' MUST actually be able to reach `exit 2` (directly or via",
+    "lib.sh deny()), and tests/test_dispatch_merge.py re-derives that from the hook",
+    "file and fails if it is false advertising. The reverse is NOT required: a",
+    "capable handler may legitimately be clamped down to 'advisory', which is why",
+    "reflection-gate is blocking on PreToolUse and advisory on Stop/SessionStart/",
+    "PreCompact/SubagentStop/PostToolUse(Failure) -- exit 2 is only honoured on",
+    "PreToolUse, so claiming to block elsewhere would be a lie in the other direction."
+  ],
+  "blocking_events": ["PreToolUse"],
+  "events": {
+    "PreToolUse": [
+      {"id": "iron-law-gate", "file": "iron-law-gate.py", "runner": "python3", "tier": "blocking", "matcher": "Bash"},
+      {"id": "command-guard", "file": "command-guard.sh", "runner": "bash", "tier": "blocking", "matcher": "Bash"},
+      {"id": "block-no-verify", "file": "block-no-verify.sh", "runner": "bash", "tier": "blocking", "matcher": "Bash"},
+      {"id": "commit-quality", "file": "commit-quality.sh", "runner": "bash", "tier": "blocking", "matcher": "Bash"},
+      {"id": "ops-enforcement", "file": "ops-enforcement.sh", "runner": "bash", "tier": "blocking", "matcher": "str_replace_based_edit_tool|write_file|Write|Edit"},
+      {"id": "config-protection", "file": "config-protection.sh", "runner": "bash", "tier": "blocking", "matcher": "str_replace_based_edit_tool|write_file|Write|Edit"},
+      {"id": "reflection-gate", "file": "reflection-gate.py", "runner": "python3", "tier": "blocking", "matcher": "", "args": ["--event", "PreToolUse"]},
+      {"id": "file-guard-gate", "file": "file-guard-gate.sh", "runner": "bash", "tier": "advisory", "matcher": "str_replace_based_edit_tool|write_file|Write|Edit"},
+      {"id": "security-reminder", "file": "security-reminder.sh", "runner": "bash", "tier": "advisory", "matcher": "str_replace_based_edit_tool|write_file|Write|Edit"},
+      {"id": "pre-commit", "file": "pre-commit.sh", "runner": "bash", "tier": "advisory", "matcher": "Bash", "command_matcher": "^\\s*git\\s+commit"},
+      {"id": "pre-push", "file": "pre-push.sh", "runner": "bash", "tier": "advisory", "matcher": "Bash", "command_matcher": "^\\s*git\\s+push"}
+    ],
+    "PostToolUse": [
+      {"id": "reflection-gate", "file": "reflection-gate.py", "runner": "python3", "tier": "advisory", "matcher": "", "args": ["--event", "PostToolUse"]},
+      {"id": "post-tool-use", "file": "post-tool-use.sh", "runner": "bash", "tier": "advisory", "matcher": "Edit|Write|Bash"},
+      {"id": "command-log-audit", "file": "command-log-audit.sh", "runner": "bash", "tier": "advisory", "matcher": "Bash"},
+      {"id": "suggest-compact", "file": "suggest-compact.sh", "runner": "bash", "tier": "advisory", "matcher": ""}
+    ],
+    "UserPromptSubmit": [
+      {"id": "pre-plan", "file": "pre-plan.sh", "runner": "bash", "tier": "advisory", "matcher": ""},
+      {"id": "injection-scan-gate", "file": "injection-scan-gate.sh", "runner": "bash", "tier": "advisory", "matcher": ""}
+    ],
+    "SessionStart": [
+      {"id": "reflection-gate", "file": "reflection-gate.py", "runner": "python3", "tier": "advisory", "matcher": "", "args": ["--event", "SessionStart"]},
+      {"id": "session-start", "file": "session-start.sh", "runner": "bash", "tier": "advisory", "matcher": ""}
+    ],
+    "PreCompact": [
+      {"id": "reflection-gate", "file": "reflection-gate.py", "runner": "python3", "tier": "advisory", "matcher": "", "args": ["--event", "PreCompact"]}
+    ],
+    "Stop": [
+      {"id": "reflection-gate", "file": "reflection-gate.py", "runner": "python3", "tier": "advisory", "matcher": "", "args": ["--event", "Stop"]},
+      {"id": "cost-tracker", "file": "cost-tracker.sh", "runner": "bash", "tier": "advisory", "matcher": ""},
+      {"id": "desktop-notify", "file": "desktop-notify.sh", "runner": "bash", "tier": "advisory", "matcher": ""},
+      {"id": "format-typecheck", "file": "format-typecheck.sh", "runner": "bash", "tier": "advisory", "matcher": ""}
+    ],
+    "SubagentStop": [
+      {"id": "reflection-gate", "file": "reflection-gate.py", "runner": "python3", "tier": "advisory", "matcher": "", "args": ["--event", "SubagentStop"]}
+    ],
+    "PostToolUseFailure": [
+      {"id": "reflection-gate", "file": "reflection-gate.py", "runner": "python3", "tier": "advisory", "matcher": "", "args": ["--event", "PostToolUseFailure"]}
+    ]
+  }
+}

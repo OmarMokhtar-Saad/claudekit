@@ -55,3 +55,6 @@ backups/
 
 # pytest fixture sandbox for tests/test_silent_failure_lint.py
 .tmp-test-fixtures/
+# Enforcement runtime state: typed event log + spilled tool output (session-scoped).
+# Runtime state is never a source artifact -- re-derive, never cite.
+.claude/runtime/
