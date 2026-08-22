@@ -1,0 +1,31 @@
+{
+  "plan": "eject-revert-inert-installsh",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "install.sh",
+      "description": "revert an inert change: neither set can ever see the eject receipt",
+      "edits": [
+        {
+          "find": "NEVER_MANAGED = {\"hooks.log\", \"settings.local.json\", \".claudekit-manifest.json\",\n                 \".claudekit-ejected.json\"}",
+          "replace": "NEVER_MANAGED = {\"hooks.log\", \"settings.local.json\", \".claudekit-manifest.json\"}"
+        },
+        {
+          "find": "SKIP_NAMES = {\"hooks.log\", \"settings.local.json\", \".claudekit-manifest.json\",\n              \".claudekit-ejected.json\"}",
+          "replace": "SKIP_NAMES = {\"hooks.log\", \"settings.local.json\", \".claudekit-manifest.json\"}"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_eject.py",
+      "description": "state the mechanism that actually clears the receipt",
+      "edits": [
+        {
+          "find": "        # Once a project is managed again the receipt is stale: leaving it behind\n        # would make `ck doctor` report a managed install as ejected.",
+          "replace": "        # Once a project is managed again the receipt is stale: leaving it behind\n        # would make `ck doctor` report a managed install as ejected. install.sh\n        # gets this for free -- it backs up and replaces .claude/ wholesale and\n        # restores only ASSET_DIRS (agents, commands, skills), and the receipt\n        # sits at the .claude/ root -- so this test guards the property, not any\n        # one mechanism."
+        }
+      ]
+    }
+  ]
+}

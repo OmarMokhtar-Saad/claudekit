@@ -1,0 +1,28 @@
+{
+  "plan": "eject-review-fix-tests",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_eject.py",
+      "description": "bind the language round trip, the --strict contract, and the score call site",
+      "edits": [
+        {
+          "find": "    def test_re_adopting_clears_the_eject_receipt(self):",
+          "replace": "    def test_re_adopting_an_ejected_project_restores_its_language(self):\n        # Exactly the mode bug one field over: install.sh applies a language\n        # template, so dropping `language` from the receipt silently reinstalls\n        # a rust project as generic.\n        target = install(self, mode=\"--minimal\", language=\"rust\")\n        with open(os.path.join(target, \".claude\", MANIFEST)) as fh:\n            self.assertEqual(\"rust\", json.load(fh)[\"language\"])\n        self.assertEqual(0, ck(\"eject\", target, \"--yes\").returncode)\n        result = ck(\"update\", target, \"--yes\")\n        self.assertEqual(0, result.returncode, result.stdout + result.stderr)\n        with open(os.path.join(target, \".claude\", MANIFEST)) as fh:\n            self.assertEqual(\"rust\", json.load(fh)[\"language\"])\n\n    def test_re_adopting_clears_the_eject_receipt(self):"
+        },
+        {
+          "find": "        self.assertEqual(0, result.returncode,\n                         \"ejecting a --minimal install must not turn its excused \"\n                         \"absences into failures:\\n\" + result.stdout)",
+          "replace": "        self.assertEqual(0, result.returncode,\n                         \"ejecting a --minimal install must not turn its excused \"\n                         \"absences into failures:\\n\" + result.stdout)\n        # The eject check reports \"skip\", and a skip must not be able to redden\n        # --strict. Asserted here because the distinction between skip and warn\n        # is invisible to an exit-code-0 assertion without it.\n        strict = ck(\"doctor\", \"--strict\", cwd=target)\n        self.assertEqual(0, strict.returncode,\n                         \"the ejected-install check must not redden --strict:\\n\"\n                         + strict.stdout)\n        # Binds the SCORE CALL SITE, not just the helper's signature: an ejected\n        # minimal install is all passes and skips, so folding skipped into the\n        # denominator (or the numerator) would move this number off 100.\n        self.assertIn(\"Readiness: 100/100\", strict.stdout)"
+        },
+        {
+          "find": "def install(testcase, mode=\"--minimal\"):\n    \"\"\"A real project with a real ClaudeKit install in it.\"\"\"\n    target = tempfile.mkdtemp(prefix=\"ck-eject-\")\n    testcase.addCleanup(shutil.rmtree, target, True)\n    result = subprocess.run(\n        [\"bash\", INSTALLER, target, mode, \"--yes\", \"--force\"],",
+          "replace": "def install(testcase, mode=\"--minimal\", language=None):\n    \"\"\"A real project with a real ClaudeKit install in it.\"\"\"\n    target = tempfile.mkdtemp(prefix=\"ck-eject-\")\n    testcase.addCleanup(shutil.rmtree, target, True)\n    argv = [\"bash\", INSTALLER, target, mode, \"--yes\", \"--force\"]\n    if language:\n        argv.extend([\"--language\", language])\n    result = subprocess.run(\n        argv,"
+        },
+        {
+          "find": "    def test_eject_without_a_manifest_refuses(self):",
+          "replace": "    def test_prompt_on_closed_stdin_declines_instead_of_crashing(self):\n        target = install(self)\n        result = subprocess.run(\n            [sys.executable, \"-m\", \"claudekit.cli.main\", \"eject\", target],\n            capture_output=True, text=True, stdin=subprocess.DEVNULL,\n            env=dict(os.environ, PYTHONPATH=os.path.join(ROOT, \"src\")), timeout=300)\n        self.assertEqual(0, result.returncode)\n        self.assertNotIn(\"Traceback\", result.stderr)\n        self.assertTrue(os.path.exists(os.path.join(target, \".claude\", MANIFEST)))\n\n    def test_an_unreadable_receipt_is_announced_not_swallowed(self):\n        target = install(self)\n        self.assertEqual(0, ck(\"eject\", target, \"--yes\").returncode)\n        with open(os.path.join(target, \".claude\", EJECTED), \"w\") as fh:\n            fh.write(\"{ truncated\")\n        result = ck(\"update\", target, \"--yes\")\n        self.assertIn(\"unreadable\", result.stdout + result.stderr)\n\n    def test_eject_without_a_manifest_refuses(self):"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "plan": "eject-review-fixes",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "src/claudekit/cli/main.py",
+      "description": "H1 language round-trip, L1 corrupt-record warning, L5 EOF-safe prompt, L4 help wording",
+      "edits": [
+        {
+          "find": "        \"ejected_from_version\": manifest.get(\"version\"),\n        \"mode\": manifest.get(\"mode\"),",
+          "replace": "        \"ejected_from_version\": manifest.get(\"version\"),\n        \"mode\": manifest.get(\"mode\"),\n        # `language` sits beside `mode` for the same reason: cmd_update reads\n        # both back to reinstall the project as it was. Leaving it only inside\n        # `manifest` below made the round trip silently reinstall a\n        # `--language rust` project as `generic`, because install.sh applies a\n        # language template -- the same field-dropped-on-round-trip bug as mode,\n        # one field over.\n        \"language\": manifest.get(\"language\"),"
+        },
+        {
+          "find": "    _receipt = manifest or ejected or {}\n    mode = _receipt.get(\"mode\") or \"full\"\n    cmd = [\"bash\", str(install_script), str(target), f\"--{mode}\", \"--force\", \"--yes\"]\n    lang = _receipt.get(\"language\")",
+          "replace": "    _receipt = manifest or ejected or {}\n    # An eject record written before `language` was promoted to the top level\n    # still carries it verbatim inside `manifest`, so fall through to that\n    # rather than silently reinstalling an older ejection as `generic`.\n    _nested = _receipt.get(\"manifest\") or {}\n    mode = _receipt.get(\"mode\") or _nested.get(\"mode\") or \"full\"\n    cmd = [\"bash\", str(install_script), str(target), f\"--{mode}\", \"--force\", \"--yes\"]\n    lang = _receipt.get(\"language\") or _nested.get(\"language\")"
+        },
+        {
+          "find": "def _load_eject_record(target):\n    \"\"\"Load a project's eject receipt, or return None.\"\"\"\n    epath = _manifest_base(target) / EJECT_NAME\n    if not epath.exists():\n        return None\n    try:\n        return json.loads(epath.read_text())\n    except (json.JSONDecodeError, OSError):\n        return None",
+          "replace": "def _load_eject_record(target):\n    \"\"\"Load a project's eject receipt, or return None.\n\n    A present-but-unreadable receipt is NOT the same state as an absent one:\n    returning None for it makes cmd_update treat an ejected project as a legacy\n    pre-manifest install and reinstall it as `full`, and makes doctor withdraw a\n    --minimal install's excuse. Both are silent downgrades, so the read failure\n    is announced even though the caller still degrades to None.\n    \"\"\"\n    epath = _manifest_base(target) / EJECT_NAME\n    if not epath.exists():\n        return None\n    try:\n        return json.loads(epath.read_text())\n    except (json.JSONDecodeError, OSError) as e:\n        warn(f\"{EJECT_NAME} is present but unreadable ({e}); treating this \"\n             \"project as if it had never been ejected\")\n        return None"
+        },
+        {
+          "find": "    if not getattr(args, \"yes\", False):\n        resp = input(f\"Eject {target} from ClaudeKit management? [y/N] \")\n        if resp.strip().lower() not in (\"y\", \"yes\"):\n            info(\"Aborted.\")\n            return 0",
+          "replace": "    if not getattr(args, \"yes\", False):\n        try:\n            resp = input(f\"Eject {target} from ClaudeKit management? [y/N] \")\n        except EOFError:\n            # No stdin (a pipeline, a CI step): the safe reading of \"no answer\"\n            # for a state change is no, not a traceback.\n            resp = \"\"\n        if resp.strip().lower() not in (\"y\", \"yes\"):\n            info(\"Aborted.\")\n            return 0"
+        },
+        {
+          "find": "    p.add_argument(\"--min-score\", type=int, metavar=\"N\",\n                   help=\"Exit 1 if the readiness score is below N (0-100)\")",
+          "replace": "    p.add_argument(\"--min-score\", type=int, metavar=\"N\",\n                   help=\"Exit 1 if the readiness score is below N \"\n                        \"(a floor above 100 always fails, by design)\")"
+        }
+      ]
+    }
+  ]
+}
