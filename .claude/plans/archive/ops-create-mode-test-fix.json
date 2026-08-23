@@ -1,0 +1,16 @@
+{
+  "plan": "ops-create-mode-test-fix",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_ops_file_modes.py",
+      "description": "the mode guard must hold with AND without jsonschema installed",
+      "edits": [
+        {
+          "find": "    def test_the_validator_rejects_a_bad_mode_before_execution(self, tmp_path):\n        \"\"\"Reported where every other operation defect is reported.\"\"\"\n        ops = _ops(tmp_path, [{'type': 'file_create', 'path': 'evil.sh',\n                               'content': SCRIPT_BODY, 'mode': '4755'}])\n        res = _run(os.path.join(SCRIPTS_DIR, 'validate-config-json.py'), tmp_path, ops)\n        assert res.returncode != 0, res.stdout + res.stderr\n        assert 'unsupported mode' in res.stdout.lower()",
+          "replace": "    def test_the_validator_rejects_a_bad_mode_before_execution(self, tmp_path):\n        \"\"\"Reported where every other operation defect is reported.\"\"\"\n        ops = _ops(tmp_path, [{'type': 'file_create', 'path': 'evil.sh',\n                               'content': SCRIPT_BODY, 'mode': '4755'}])\n        res = _run(os.path.join(SCRIPTS_DIR, 'validate-config-json.py'), tmp_path, ops)\n        assert res.returncode != 0, res.stdout + res.stderr\n        assert '4755' in res.stdout and 'REJECTED' in res.stdout\n\n    def test_the_mode_guard_holds_without_jsonschema(self, tmp_path):\n        \"\"\"ClaudeKit has ZERO runtime dependencies, so `jsonschema` is absent on a\n        default install and the validator says so and carries on with its own\n        guards (validate-config-json.py:883). The schema enum is therefore NOT the\n        control in the common case -- the hand-rolled check is. Simulated by\n        blocking the import, which is what an unpatched machine actually does.\n        \"\"\"\n        ops = _ops(tmp_path, [{'type': 'file_create', 'path': 'evil.sh',\n                               'content': SCRIPT_BODY, 'mode': '4755'}])\n        blocker = tmp_path / 'jsonschema.py'\n        blocker.write_text('raise ImportError(\"blocked for this test\")\\n',\n                           encoding='utf-8')\n        env = _env()\n        env['PYTHONPATH'] = str(tmp_path)\n        res = subprocess.run(\n            [sys.executable, os.path.join(SCRIPTS_DIR, 'validate-config-json.py'),\n             str(ops)],\n            cwd=str(tmp_path), capture_output=True, text=True, timeout=120, env=env)\n        assert 'schema validation skipped' in res.stdout.lower(), (\n            'fixture did not actually remove jsonschema: ' + res.stdout)\n        assert res.returncode != 0, res.stdout + res.stderr\n        assert 'unsupported mode' in res.stdout.lower(), res.stdout"
+        }
+      ]
+    }
+  ]
+}

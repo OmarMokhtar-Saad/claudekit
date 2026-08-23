@@ -1,0 +1,16 @@
+{
+  "plan": "protected-differential-gate-fix",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "scripts/check-protected-differential.py",
+      "description": "operator precedence: / binds tighter than %",
+      "edits": [
+        {
+          "find": "        target = Path(tmp) / \"shared_%s.py\" % label",
+          "replace": "        target = Path(tmp) / (\"shared_%s.py\" % label)"
+        }
+      ]
+    }
+  ]
+}

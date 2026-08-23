@@ -5,6 +5,8 @@ import os
 import sys
 import tempfile
 
+import pytest
+
 # Add scripts to path
 SCRIPTS_DIR = os.path.join(os.path.dirname(__file__), '..', '.claude', 'operations', 'scripts')
 sys.path.insert(0, SCRIPTS_DIR)
@@ -14,6 +16,15 @@ from shared import PROTECTED_PATTERNS, is_protected_file, protected_patterns  # 
 
 class TestProtectedFiles:
     """Tests for protected file detection."""
+
+    @pytest.fixture(autouse=True)
+    def _no_ambient_extras(self, monkeypatch):
+        """CLAUDEKIT_EXTRA_PROTECTED is a supported project setting, so a developer
+        or CI runner may legitimately have it set -- and these tests assert what the
+        DEFAULTS do. Without this, `CLAUDEKIT_EXTRA_PROTECTED='*.md'` (the documented
+        way to restore the old behaviour) turns this file red on a correct tree.
+        Same rule CLAUDE.md already states for ECC_HOOK_PROFILE: force it in tests."""
+        monkeypatch.delenv("CLAUDEKIT_EXTRA_PROTECTED", raising=False)
 
     def test_gitignore_protected(self):
         assert is_protected_file(".gitignore")
@@ -105,24 +116,44 @@ class TestProtectedFiles:
             "tsconfig.json"
         ]
 
-    def test_extra_protected_widens_but_cannot_narrow(self):
+    def test_extra_protected_widens(self, monkeypatch):
         """The escape hatch for a consumer whose identity documents this kit never
-        heard of. It must not be able to REMOVE a default -- a project config that
-        could unprotect README.md would be a hole, not an extension."""
-        import os as _os
-        before = _os.environ.get("CLAUDEKIT_EXTRA_PROTECTED")
-        _os.environ["CLAUDEKIT_EXTRA_PROTECTED"] = "RUNBOOK.md: ARCHITECTURE.md "
-        try:
-            assert is_protected_file("docs/RUNBOOK.md")
-            assert is_protected_file("ARCHITECTURE.md")
-            assert is_protected_file("README.md"), "an extension removed a default"
-            assert set(PROTECTED_PATTERNS) <= set(protected_patterns())
-        finally:
-            if before is None:
-                _os.environ.pop("CLAUDEKIT_EXTRA_PROTECTED", None)
-            else:
-                _os.environ["CLAUDEKIT_EXTRA_PROTECTED"] = before
-        assert not is_protected_file("docs/RUNBOOK.md"), "extension leaked"
+        heard of."""
+        monkeypatch.setenv("CLAUDEKIT_EXTRA_PROTECTED", "RUNBOOK.md: ARCHITECTURE.md ")
+        assert is_protected_file("docs/RUNBOOK.md")
+        assert is_protected_file("ARCHITECTURE.md")
+        assert set(PROTECTED_PATTERNS) <= set(protected_patterns())
+
+    @pytest.mark.parametrize("hostile", [
+        "!README.md", "-README.md", "^README.md", "README.md=0", "NONE", "none",
+        "", "   ", ":::", "\t: \n", "*", "[", "[a-", "README.md",
+    ])
+    def test_extra_protected_cannot_narrow(self, monkeypatch, hostile):
+        """The widen-only claim, exercised against values that would EXERCISE a
+        narrowing branch if one existed.
+
+        The previous version of this test set a value with no narrowing token in it
+        ("RUNBOOK.md: ARCHITECTURE.md"), so it asserted the property without ever
+        reaching the code that could violate it. Review mutation-tested it: three
+        separate narrowing implementations -- `!name` removes a default, a `NONE`
+        sentinel empties the list, extras shadow defaults -- ALL survived it, 24
+        passed. A test that its own bug class walks straight through is not a test.
+
+        `[` and `[a-` are here because an unterminated character class is a known
+        fnmatch footgun; CPython treats a dangling `[` as a literal, and this pins
+        that no exception escapes.
+        """
+        monkeypatch.setenv("CLAUDEKIT_EXTRA_PROTECTED", hostile)
+        assert is_protected_file("README.md"), (
+            f"CLAUDEKIT_EXTRA_PROTECTED={hostile!r} unprotected a default")
+        assert is_protected_file("docs/deep/CHANGELOG.md")
+        assert set(PROTECTED_PATTERNS) <= set(protected_patterns())
+
+    def test_extra_protected_does_not_outlive_its_setting(self, monkeypatch):
+        monkeypatch.setenv("CLAUDEKIT_EXTRA_PROTECTED", "RUNBOOK.md")
+        assert is_protected_file("docs/RUNBOOK.md")
+        monkeypatch.delenv("CLAUDEKIT_EXTRA_PROTECTED")
+        assert not is_protected_file("docs/RUNBOOK.md")
 
 
 class TestConstants:

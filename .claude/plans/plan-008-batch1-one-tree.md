@@ -59,10 +59,22 @@ moves them.
    because `i18n-workflow` shipped from `templates/` and was absent from the
    registry — `ck doctor --strict` exited 1 on a fresh install because of it), and
    make `.claude/modes` the modes source.
-8. **Tests**: update the six files that assert the two-tree layout
-   (`test_new_commands.py:47`, `test_new_skills.py:71`, `test_doctor_gate.py:425`,
-   `test_install_receipts.py:402,430`, `test_project_graph.py:13`,
-   `test_install.py:267`) to assert the one-tree invariant instead.
+8. **Tests**: update the **thirteen** files that read the two-tree layout. Six
+   assert the invariant directly (`test_new_commands.py`, `test_new_skills.py`,
+   `test_doctor_gate.py`, `test_install_receipts.py`, `test_project_graph.py`,
+   `test_install.py`); seven more simply read paths that move
+   (`test_checkpoint.py`, `test_i18n.py`, `test_mcp.py`, `test_modes.py`,
+   `test_security_hooks.py`, `test_silent_failure_lint.py`, `test_spec_driven.py`).
+   The first review of this plan listed only the six — the other seven were found by
+   applying the batch, not by grepping, because they reach the tree through a
+   `TEMPLATE_DIR` constant rather than a literal path.
+
+   Assertions are on component **files**, never on directory existence:
+   `file_delete` leaves the directory behind and git does not track an empty
+   directory, so `isdir` is True in the tree that ran the batch and False in a fresh
+   clone. And the installer check strips comments first — `install.sh` explains the
+   old two-tree bug in prose, and a raw substring search flags that explanation as
+   the bug.
 9. Regenerate counts with `scripts/gen-docs.py` and `scripts/gen-registry.py`.
    Never by hand (hard rule 8).
 
@@ -71,7 +83,7 @@ moves them.
 ## Shape: many small configs, by design
 
 `MAX_DELETIONS = 3` per ops.json (`validate-config-json.py:40`) and this plan
-removes 38 files, so it executes as **17 sequential ops configs**, listed in
+removes 38 files, so it executes as **20 sequential ops configs**, listed in
 `ops-008-batch1-INDEX.md`. That cap is not routed around and is not raised. There
 is no move operation in the schema, so each promotion is `file_create` +
 `file_delete`, and every deleted file is backed up by the executor first.
@@ -81,12 +93,42 @@ point `install.sh` still installs a complete tree — the `templates/` copy loop
 are all guarded (`-d` test, or `2>/dev/null || true`), so a promoted-and-removed
 source is a no-op, never a failure.
 
+## The batch must be simulated before it runs
+
+Every config validating is not evidence that the batch WORKS. Measured: all 19
+configs returned `-> APPROVED` while the applied result left 110 tests failing and
+one module that would not even parse — `validate-config-json.py` checks that an
+anchor is present and unique, not that the text it produces is syntactically whole.
+
+So the gate on this batch is not validation, it is application:
+
+    git worktree add --detach <tmp> HEAD
+    # apply all configs in INDEX order, then:
+    python3 -c 'import ast,pathlib;[ast.parse(p.read_text()) for p in pathlib.Path("tests").glob("*.py")]'
+    python3 scripts/gen-docs.py && python3 scripts/gen-registry.py
+    python3 -m pytest tests/ -q
+
+A detached worktree has its own baseline of ~17 pre-existing failures
+(`test_ops_enforcement_scope`, `test_pipeline_e2e`, `test_profiles`,
+`test_hooks_behavioral`, `test_dispatch_payload`) plus any test reading an untracked
+file, since `git diff | git apply` does not carry untracked files. Compare against
+that baseline, never against zero.
+
+Simulation history for this batch: **110 failures → 36 → 20**, where 17 of the
+final 20 are the worktree baseline and 2 more are the untracked-file artefact.
+
+## Counts move, and only the generator moves them
+
+`gen-docs.py` and `gen-registry.py` run after the last config. Commands 42 → 55,
+hooks 22 → 26, and `.claude/modes/` appears with 7 entries. Never by hand (hard
+rule 8).
+
 ## Must be proven, not asserted
 
 | # | Claim | Proof |
 |---|---|---|
 | 1 | `install.sh` no longer copies two trees to one destination | `grep -c 'templates/\(commands\|hooks\|modes\|skills\)' install.sh` → 0 |
-| 2 | No content lost in the promotion | every promoted file byte-identical to its source: `cmp` per file, before deletion |
+| 2 | No content lost in the promotion | every promoted file byte-identical to its source: `cmp` per file, before deletion. **One disclosed exception:** `auto-checkpoint.sh` gains a two-line SC2155 fix (`local cp_id` then assign). `shellcheck` never ran over `templates/hooks/`, and `.claude/hooks/*.sh` is linted by `test_shell_lint` and by the DoD command — so promoting the file unchanged would have imported a lint failure. The defect was pre-existing and latent; the tree it lived in simply had no gate. |
 | 3 | The three "diverged" skills keep the union | diff each `.claude/` body against the `templates/` body → empty; description diff shown |
 | 4 | `i18n-workflow`'s unique sections survive | each of the five headings present in `i18n-patterns/SKILL.md` |
 | 5 | Registry referential integrity still clean | `gen-registry.py --check` |

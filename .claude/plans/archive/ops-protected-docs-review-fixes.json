@@ -1,0 +1,53 @@
+{
+  "plan": "protected-docs-review-fixes",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_validator.py",
+      "description": "isolate the guard tests from the ambient environment; make the widen-only claim actually bind",
+      "edits": [
+        {
+          "find": "class TestProtectedFiles:\n    \"\"\"Tests for protected file detection.\"\"\"\n",
+          "replace": "class TestProtectedFiles:\n    \"\"\"Tests for protected file detection.\"\"\"\n\n    @pytest.fixture(autouse=True)\n    def _no_ambient_extras(self, monkeypatch):\n        \"\"\"CLAUDEKIT_EXTRA_PROTECTED is a supported project setting, so a developer\n        or CI runner may legitimately have it set -- and these tests assert what the\n        DEFAULTS do. Without this, `CLAUDEKIT_EXTRA_PROTECTED='*.md'` (the documented\n        way to restore the old behaviour) turns this file red on a correct tree.\n        Same rule CLAUDE.md already states for ECC_HOOK_PROFILE: force it in tests.\"\"\"\n        monkeypatch.delenv(\"CLAUDEKIT_EXTRA_PROTECTED\", raising=False)\n"
+        },
+        {
+          "find": "    def test_extra_protected_widens_but_cannot_narrow(self):\n        \"\"\"The escape hatch for a consumer whose identity documents this kit never\n        heard of. It must not be able to REMOVE a default -- a project config that\n        could unprotect README.md would be a hole, not an extension.\"\"\"\n        import os as _os\n        before = _os.environ.get(\"CLAUDEKIT_EXTRA_PROTECTED\")\n        _os.environ[\"CLAUDEKIT_EXTRA_PROTECTED\"] = \"RUNBOOK.md: ARCHITECTURE.md \"\n        try:\n            assert is_protected_file(\"docs/RUNBOOK.md\")\n            assert is_protected_file(\"ARCHITECTURE.md\")\n            assert is_protected_file(\"README.md\"), \"an extension removed a default\"\n            assert set(PROTECTED_PATTERNS) <= set(protected_patterns())\n        finally:\n            if before is None:\n                _os.environ.pop(\"CLAUDEKIT_EXTRA_PROTECTED\", None)\n            else:\n                _os.environ[\"CLAUDEKIT_EXTRA_PROTECTED\"] = before\n        assert not is_protected_file(\"docs/RUNBOOK.md\"), \"extension leaked\"",
+          "replace": "    def test_extra_protected_widens(self, monkeypatch):\n        \"\"\"The escape hatch for a consumer whose identity documents this kit never\n        heard of.\"\"\"\n        monkeypatch.setenv(\"CLAUDEKIT_EXTRA_PROTECTED\", \"RUNBOOK.md: ARCHITECTURE.md \")\n        assert is_protected_file(\"docs/RUNBOOK.md\")\n        assert is_protected_file(\"ARCHITECTURE.md\")\n        assert set(PROTECTED_PATTERNS) <= set(protected_patterns())\n\n    @pytest.mark.parametrize(\"hostile\", [\n        \"!README.md\", \"-README.md\", \"^README.md\", \"README.md=0\", \"NONE\", \"none\",\n        \"\", \"   \", \":::\", \"\\t: \\n\", \"*\", \"[\", \"[a-\", \"README.md\",\n    ])\n    def test_extra_protected_cannot_narrow(self, monkeypatch, hostile):\n        \"\"\"The widen-only claim, exercised against values that would EXERCISE a\n        narrowing branch if one existed.\n\n        The previous version of this test set a value with no narrowing token in it\n        (\"RUNBOOK.md: ARCHITECTURE.md\"), so it asserted the property without ever\n        reaching the code that could violate it. Review mutation-tested it: three\n        separate narrowing implementations -- `!name` removes a default, a `NONE`\n        sentinel empties the list, extras shadow defaults -- ALL survived it, 24\n        passed. A test that its own bug class walks straight through is not a test.\n\n        `[` and `[a-` are here because an unterminated character class is a known\n        fnmatch footgun; CPython treats a dangling `[` as a literal, and this pins\n        that no exception escapes.\n        \"\"\"\n        monkeypatch.setenv(\"CLAUDEKIT_EXTRA_PROTECTED\", hostile)\n        assert is_protected_file(\"README.md\"), (\n            f\"CLAUDEKIT_EXTRA_PROTECTED={hostile!r} unprotected a default\")\n        assert is_protected_file(\"docs/deep/CHANGELOG.md\")\n        assert set(PROTECTED_PATTERNS) <= set(protected_patterns())\n\n    def test_extra_protected_does_not_outlive_its_setting(self, monkeypatch):\n        monkeypatch.setenv(\"CLAUDEKIT_EXTRA_PROTECTED\", \"RUNBOOK.md\")\n        assert is_protected_file(\"docs/RUNBOOK.md\")\n        monkeypatch.delenv(\"CLAUDEKIT_EXTRA_PROTECTED\")\n        assert not is_protected_file(\"docs/RUNBOOK.md\")"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_validator.py",
+      "description": "pytest import for the parametrize marker",
+      "edits": [
+        {
+          "find": "\"\"\"Tests for validate-config-json.py\"\"\"\n\nimport json\nimport os\nimport sys\nimport tempfile",
+          "replace": "\"\"\"Tests for validate-config-json.py\"\"\"\n\nimport json\nimport os\nimport sys\nimport tempfile\n\nimport pytest"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/validate-config-json.py",
+      "description": "bound the protected-set echo; an extension can be arbitrarily long",
+      "edits": [
+        {
+          "find": "                    f\"                  Protected patterns: {', '.join(protected_patterns())}\"",
+          "replace": "                    f\"                  Protected patterns: {_patterns_summary()}\""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/validate-config-json.py",
+      "description": "the summary helper",
+      "edits": [
+        {
+          "find": "MAX_DELETIONS = 3",
+          "add_after": "\n\ndef _patterns_summary(limit: int = 200) -> str:\n    \"\"\"The effective protected set, bounded. CLAUDEKIT_EXTRA_PROTECTED is\n    unbounded user input and this string is printed once per blocked operation,\n    so an oversized value would bury the actual error message.\"\"\"\n    text = ', '.join(protected_patterns())\n    return text if len(text) <= limit else text[:limit] + f\"... (+{len(text) - limit} chars)\""
+        }
+      ]
+    }
+  ]
+}

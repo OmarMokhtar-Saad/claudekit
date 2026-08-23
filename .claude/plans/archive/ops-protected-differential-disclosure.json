@@ -1,0 +1,20 @@
+{
+  "plan": "protected-differential-disclosure",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "scripts/check-protected-differential.py",
+      "description": "state the disclosure as the rule it is, and make identity documents undisclosable",
+      "edits": [
+        {
+          "find": "DISCLOSED_WIDENINGS: List[Dict[str, str]] = [\n    {\n        \"path\": \"docs/ARCHITECTURE.md\",\n        \"why\": \"2026-08-23: the `*.md` glob froze every paragraph of prose in the tree, so \"\n               \"the ops engine could not retire a component and the kit's own corpus (all \"\n               \"markdown) was unmaintainable. Narrowed to named identity documents. Ordinary \"\n               \"prose is deletable behind MAX_DELETIONS=3, a mandatory reason and a backup; \"\n               \"a project restores the old behaviour with CLAUDEKIT_EXTRA_PROTECTED='*.md'.\",\n    },\n]\n_DISCLOSED_PREFIXES = (\n    \"docs/\", \".ai/\", \".github/\", \".claude/skills/\", \".claude/agents/\", \"templates/\",\n)\n\n\n",
+          "replace": "DISCLOSED_WIDENINGS: List[Dict[str, str]] = [\n    {\n        \"path\": \"*.md that is not a named identity document\",\n        \"why\": \"2026-08-23: the `*.md` glob froze every paragraph of prose in the tree, so \"\n               \"the ops engine could not retire a component and the kit's own corpus (all \"\n               \"markdown) was unmaintainable -- across 97 archived configs, zero deletions of \"\n               \"any kind. Narrowed to the named identity documents. Ordinary prose is now \"\n               \"deletable behind MAX_DELETIONS=3, a mandatory reason and a pre-delete backup; \"\n               \"a project restores the old behaviour with CLAUDEKIT_EXTRA_PROTECTED='*.md'.\",\n    },\n]\n\n# The identity documents. A path here must NEVER move protected -> unprotected, disclosed\n# or not: that is the property the whole guard exists for, and the one thing the disclosure\n# above must not be able to swallow.\nIDENTITY_DOCS = frozenset({\n    \"readme.md\", \"changelog.md\", \"claude.md\", \"agents.md\", \"contributing.md\",\n    \"security.md\", \"code_of_conduct.md\", \"license\", \"license.md\", \"notice.md\",\n    \"maintainers.md\", \"governance.md\", \"authors.md\", \"support.md\",\n})\n\n\n"
+        },
+        {
+          "find": "def _is_disclosed(path: str) -> bool:\n    \"\"\"A path is a disclosed widening if it is named, or matches the prose-tree prefixes\n    the single disclosed entry covers. Kept explicit rather than blanket-allowing `*.md`:\n    an identity document that lost protection must still fail.\"\"\"\n    for entry in DISCLOSED_WIDENINGS:\n        if entry[\"path\"] == path:\n            return True\n    return path.endswith(\".md\") and path.startswith(_DISCLOSED_PREFIXES)\n\n\n",
+          "replace": "def _is_disclosed(path: str) -> bool:\n    \"\"\"True when losing protection on this path is the disclosed widening.\n\n    Deliberately expressed as the RULE, not as a list of sample paths. The first\n    version of this function named `docs/`-style prefixes, and the gate promptly\n    caught a root-level `notes.md` it had not thought of -- correctly, since that\n    file did lose protection. Narrow disclosures do not make a gate stricter, they\n    make it noisy, and a noisy gate gets suppressed.\n\n    An identity document is never disclosed, so this cannot swallow the regression\n    that actually matters.\n    \"\"\"\n    if os.path.basename(path).lower() in IDENTITY_DOCS:\n        return False\n    return path.lower().endswith(\".md\")\n\n\n"
+        }
+      ]
+    }
+  ]
+}
