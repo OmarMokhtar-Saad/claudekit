@@ -61,6 +61,15 @@ class TestScoreReporting(unittest.TestCase):
     def test_doctor_prints_a_readiness_line(self):
         self.assertIn("Readiness:", ck("doctor").stdout)
 
+    def test_the_readiness_line_always_names_its_denominator(self):
+        # Skips leave the denominator, so the score is comparable within an install mode
+        # and not across them -- a --minimal install outscores the --full superset of it.
+        # A bare "95/100" gave the reader nothing to see that with. Printed on BOTH
+        # branches so the format is stable: the clause is most needed on the --full
+        # install, which skips nothing.
+        out = ck("doctor").stdout
+        self.assertRegex(out, r"Readiness: +\d+/100 \(\d+ applicable, \d+ not\)")
+
 
 class TestMinScoreGate(unittest.TestCase):
 

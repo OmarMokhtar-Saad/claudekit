@@ -225,6 +225,16 @@ def _readiness_score(passed, warned, failed):
     inflate the score nor depress it. A warning is half credit -- a real
     deficiency that is nonetheless not a broken install, so it has to move the
     number without zeroing it.
+
+    Absolute, therefore NOT comparable across install modes. Because skips leave the
+    denominator, a --minimal install can score higher than the --full install that is a
+    strict superset of it -- measured at 100 (13 applicable) against 95 (29 applicable),
+    because --minimal drops the checks capable of warning while --full keeps its three
+    by-design blank-command warnings. cmd_doctor prints the applicable count next to the
+    score and docs/cli.md says a --min-score floor is a per-mode floor. Do NOT "fix" the
+    asymmetry by skipping the blank-command checks: they are the only thing that asks
+    the user to configure build/test/lint, and install.sh closes by calling that
+    deliberate.
     """
     total = passed + warned + failed
     if total == 0:
@@ -532,7 +542,16 @@ def cmd_doctor(args):
     if checks_failed:
         print(f"  Failed:   {C.RED}{checks_failed}{C.NC}/{total}")
     score = _readiness_score(checks_passed, checks_warned, checks_failed)
-    print(f"  Readiness: {score}/100")
+    # The applicable count is part of the number. Skips leave the denominator, so a
+    # --minimal install scored 100/100 while the --full superset of it scored 95:
+    # minimal drops exactly the checks that can WARN, while full keeps the three blank
+    # project-command warnings it ships with by design. The score is therefore
+    # comparable within an install mode and NOT across them. Printed on BOTH branches so
+    # the format is stable and greppable -- a clause that appears only when something
+    # was skipped is absent on the --full install whose 95 is the actual puzzle.
+    _applicable = checks_passed + checks_warned + checks_failed
+    print(f"  Readiness: {score}/100 "
+          f"({_applicable} applicable, {checks_skipped} not)")
     print(f"{'='*40}\n")
 
     if checks_failed:
@@ -1080,10 +1099,22 @@ def cmd_adapt(args):
       `ck update` is `install.sh --force`, which `mv`s an existing `.claude/` aside
       unconditionally and consults no manifest, so reaching it would relocate the
       user's unreceipted files. Unreachable by construction rather than by claim.
-    * **Fresh** (`.claude/` ABSENT) -- reports that `ck init` must run first, because
-      profile resolution reads a tree only the installer creates. Invoking the
-      installer from here is recorded in the plan as deferred and NOT owner-approved,
-      so this is a NAMED skip rather than a silent one.
+    * **Fresh** (`.claude/` ABSENT) -- INSTALLS, by calling `cmd_init` with
+      `mode="full"`, and then adapts the tree it just created. Safe because `.claude/`
+      is ABSENT: install.sh's `mv .claude .claude.bak-*` has nothing to move. That
+      absence is the whole guarantee -- `force=False` does NOT add one here, because the
+      same call passes `yes=True` and install.sh's existence prompt stands down for
+      EITHER flag (`install.sh:125`) while the `mv` itself consults neither
+      (`install.sh:624`). `force=False` is intent-signalling, not a race guard; if
+      `.claude/` can appear between the check and the call, `--yes` is what makes that
+      destructive. `full` rather than `args.mode` because install.sh creates
+      `.claude/profiles/` only in its full-mode block, and profile resolution plus the
+      Class 2 writes below read it. The receipt is re-checked afterwards by the
+      `is_fresh`/`_load_manifest` guard below, so a partial install still routes to the
+      refusal instead of being adapted blind.
+      (An earlier revision of this docstring called the branch a "NAMED skip" that was
+      "NOT owner-approved" -- stale by 46 lines, and inverted: a reviewer reading the
+      contract concluded `ck adapt` never installs.)
 
     "Fresh" never means "no manifest". A tree with a hand-made `.claude/` and no
     receipt is a REFUSAL, not a fresh install; routing it to the installer is the
@@ -2151,7 +2182,8 @@ def main():
 
     # mcp
     p = sub.add_parser("adapt",
-                       help="Configure ClaudeKit for this project and report what it did")
+                       help="Configure ClaudeKit for this project and report what it "
+                            "did (installs first if .claude/ is absent)")
     p.add_argument("target", nargs="?", help="Project directory (default: .)")
 
     p = sub.add_parser("mcp",

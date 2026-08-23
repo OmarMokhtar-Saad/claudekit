@@ -5,16 +5,22 @@ output -- the gate is proven to bind by mutating the artifact it guards.
 """
 
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "check-plan-artifacts.py"
 
 
-def run(*args):
+def run(*args, cwd=None):
+    """`cwd` matters: PLANS_DIR is relative, so the default-scan tests must own their
+    own tree instead of depending on pytest being invoked from the repo root."""
     return subprocess.run(
-        [sys.executable, str(SCRIPT), *args], capture_output=True, text=True
+        [sys.executable, str(SCRIPT), *args], capture_output=True, text=True,
+        cwd=str(cwd) if cwd else None,
     )
 
 
@@ -250,4 +256,111 @@ def test_a_writing_operation_with_no_path_is_not_a_silent_skip(tmp_path):
     result = run(str(ops))
     assert result.returncode == 1, result.stdout + result.stderr
     assert "no path" in result.stderr
+
+
+def _fixture_tree(tmp_path, archived=True):
+    """A plans tree shaped like the real one: plans at the root, configs in archive/."""
+    plans = tmp_path / ".claude" / "plans"
+    (plans / "archive").mkdir(parents=True)
+    (plans / "plan-shipped.md").write_text(
+        "Writes `src/one.py` and `src/two.py`.\n", encoding="utf-8")
+    target = (plans / "archive") if archived else plans
+    (target / "ops-shipped.json").write_text(
+        json.dumps({"plan": "shipped", "operations": [
+            {"type": "file_create", "path": "src/one.py", "content": "x"},
+            {"type": "file_create", "path": "src/two.py", "content": "x"}]}),
+        encoding="utf-8")
+    return tmp_path
+
+
+def test_an_archived_config_is_checked_against_the_plan_that_stayed_behind(tmp_path):
+    """Executed configs move to .claude/plans/archive/; their plans do not. Resolving a
+    plan only next to its config meant the archive held 92 configs and 0 resolvable
+    plans -- so the gate reported OK having verified nothing."""
+    root = _fixture_tree(tmp_path, archived=True)
+    result = run("--check", cwd=root)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "no ops configs to check" not in result.stdout
+    # A NUMERIC floor, not the substring: "0 path(s) verified" satisfies a substring
+    # assertion, which is exactly how the first version of this test certified a gate
+    # that checked nothing.
+    verified = int(re.search(r"(\d+) path\(s\) verified", result.stdout).group(1))
+    assert verified == 2, result.stdout
+
+
+def test_drift_in_an_archived_config_still_fails(tmp_path):
+    """Reaching the archive is worthless if reaching it cannot fail."""
+    root = _fixture_tree(tmp_path, archived=True)
+    plan = root / ".claude" / "plans" / "plan-shipped.md"
+    plan.write_text("Writes `src/one.py` only.\n", encoding="utf-8")
+    result = run("--check", cwd=root)
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "src/two.py" in result.stderr
+
+
+def test_a_config_that_resolves_to_no_plan_is_named_not_silently_green(tmp_path):
+    """No plan is a PASS (Tier 1 ships one), but it must not read identically to a real
+    check: a plan renamed by accident left every operation unchecked."""
+    ops = tmp_path / "ops-orphan.json"
+    ops.write_text(
+        json.dumps({"plan": "nothing-here",
+                    "operations": [{"type": "file_create", "path": "src/x.py",
+                                    "content": "x"}]}),
+        encoding="utf-8")
+    result = run(str(ops))
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "NOTE:" in result.stdout
+    assert "ops-orphan.json" in result.stdout
+
+
+def test_a_glob_or_placeholder_names_every_path_it_covers(tmp_path):
+    """A plan writing 15 files under one convention names them as
+    `.claude/skills/<name>/SKILL.md`. Demanding 15 literal paths rejected complete plans
+    -- 19 of the 23 findings on the first honest run were this false positive."""
+    for body in ("Rewrites `.claude/skills/<name>/SKILL.md` for all 15 skills.\n",
+                 "Rewrites `.claude/skills/*/SKILL.md` for all 15 skills.\n"):
+        plan = tmp_path / "plan-globby.md"
+        plan.write_text(body, encoding="utf-8")
+        ops = tmp_path / "ops-globby.json"
+        ops.write_text(
+            json.dumps({"plan": "globby", "operations": [
+                {"type": "code_edit", "path": ".claude/skills/brainstorming/SKILL.md",
+                 "edits": [{"find": "a", "replace": "b"}]}]}),
+            encoding="utf-8")
+        result = run(str(ops))
+        assert result.returncode == 0, body + result.stdout + result.stderr
+
+
+# Each row is (label, the token as it appears in the plan, the path a config writes).
+# Every one of these was GREEN under the first implementation, which used fnmatch --
+# whose `*` crosses `/`. The first version of this test asserted only that
+# `.claude/skills/*/SKILL.md` fails to name `src/claudekit/cli/main.py`: bounded, and
+# different in every segment, so it passed for a reason unrelated to the property it
+# claimed to pin, and could not have caught any row below.
+PATTERN_MUST_NOT_NAME = [
+    ("path traversal", "`.claude/skills/*`",
+     ".claude/skills/x/../../../etc/passwd"),
+    ("one segment does not cover many", "`src/*`", "src/a/b/c/evil.py"),
+    ("bare star-slash-star", "`**/*`", "src/anything.py"),
+    ("markdown bold names a DIFFERENT file", "**scripts/gen-docs.py**",
+     "templates/scripts/gen-docs.py"),
+    ("markdown italic is not a glob", "*src/main.py*", "vendor/src/main.py.bak"),
+    ("a fenced token is still one segment", "`src/*`", "src/deep/nested/x.py"),
+]
+
+
+@pytest.mark.parametrize("label,token,path", PATTERN_MUST_NOT_NAME,
+                         ids=[r[0] for r in PATTERN_MUST_NOT_NAME])
+def test_a_pattern_does_not_license_a_path_it_does_not_cover(tmp_path, label, token,
+                                                             path):
+    plan = tmp_path / "plan-narrow.md"
+    plan.write_text(f"Rewrites {token}.\n", encoding="utf-8")
+    ops = tmp_path / "ops-narrow.json"
+    ops.write_text(
+        json.dumps({"plan": "narrow", "operations": [
+            {"type": "file_create", "path": path, "content": "x"}]}),
+        encoding="utf-8")
+    result = run(str(ops))
+    assert result.returncode == 1, f"{label}: {token} named {path}\n" + result.stdout
+    assert "does not name" in result.stderr
 

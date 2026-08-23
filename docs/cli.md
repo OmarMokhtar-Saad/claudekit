@@ -41,19 +41,31 @@ claudekit doctor --min-score 90   # exit 1 if the readiness score is below 90
 Checks: Python version, Bash, Git, agents, commands, skills, hooks, registry integrity, config validity.
 
 Every run ends with a **readiness score** out of 100, so two healthy installs
-are still comparable — a bare install and a fully configured one no longer read
-identically green:
+no longer read identically green. The line names its denominator, because the
+denominator is what makes two scores comparable or not:
 
 ```
-  Readiness: 94/100
+  Readiness: 95/100 (29 applicable, 0 not)      # a fresh --full install
+  Readiness: 100/100 (13 applicable, 10 not)    # a fresh --minimal install
 ```
 
 A passing check is full credit and a warning is half; checks that do not apply
 to your install (`Skipped`) are left out of the score entirely, so a
 `--minimal` install is not penalised for what it was never meant to have.
+
+**That means scores compare within an install mode, not across them** — and, as
+above, a `--minimal` install normally scores *higher* than the `--full` install
+that contains it. Nothing is wrong when that happens: `--minimal` drops the
+checks capable of warning, while a fresh `--full` install keeps three warnings
+for the project commands you have not configured yet. Those are the same
+warnings `install.sh` closes on, and they are deliberate — configure
+`build/test/lint_cmd` in `.claude/hooks/config.json` and the full install goes
+green.
+
 `--min-score N` turns the number into a gate — useful as the exit condition for
-`/adapt` or as a fleet-wide floor in CI. It can only *add* a failure: an install
-with a failing check still exits 1 regardless of the floor you set.
+`/adapt`, or as a fleet floor in CI **for one install mode**. It can only *add*
+a failure: an install with a failing check still exits 1 regardless of the floor
+you set.
 
 ### `claudekit diff [target]`
 

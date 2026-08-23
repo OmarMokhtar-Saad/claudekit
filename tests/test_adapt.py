@@ -201,6 +201,15 @@ class TestAtomicWrite:
         assert residue == [], f"temp residue survived: {residue}"
 
 
+class TestThePartialOwnedLiteralsCannotDrift:
+    def test_the_cli_and_adapt_agree_on_which_files_are_partially_owned(self):
+        # main.py says this set "MUST STAY IN STEP WITH adapt.PARTIAL_OWNED_RELS" and
+        # nothing compared them. Divergence makes `ck adapt` write into a file
+        # `ck uninstall` deletes -- exactly the class the comment names.
+        from claudekit.cli import main as cli_main
+        assert set(cli_main.PARTIAL_OWNED) == set(adapt.PARTIAL_OWNED_RELS)
+
+
 class TestOwnershipIsAComplement:
     def test_class1_is_every_receipted_key_minus_the_receipted_class2_members(self):
         manifest = {"files": {
