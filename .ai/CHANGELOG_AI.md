@@ -822,6 +822,63 @@ absolute path and raw stderr produced zero leaks across 5,327 bytes of real ledg
 - Packaging fixed (installable wheel, src-layout, version single-sourcing, bundled assets) · hooks made real (exit 2/stderr/fail-closed, lib.sh, telemetry via stdin JSON) · security layer wired (validator hardening, command-guard, CLI) · skip-permissions eradicated · installer made safe (staging/backup/atomic swap, manifest, settings.json installed) · versions/docs reconciled (renumbering, gen-docs + docs-drift CI, canonical slug) · CI made honest (11 jobs, 2-OS matrix).
 - Record: `.claude/plans/phase-1-HANDOFF.md`. Post-merge fix `0c9223b` (py3.12+ setuptools).
 
+## 2026-08-23 — Claude (Opus 5, 1M context) — Phase 2: `ck adapt`
+
+- Finished the verb the previous session's review REJECTED at 65/100. The nine filed
+  findings were real; five more were found by adversarially reviewing the fix itself,
+  and three of those five were defects this session had just introduced.
+- The rejected implementation existed **only inside `ops-ck-adapt.json`'s embedded
+  content** — `src/claudekit/adapt.py` was never on disk, so the "1952 baseline / +70
+  tests" figures in the handoff were both wrong. Re-measured on a clean clone at
+  `14cf45e`: **1983 passed, 1 xfailed**. Final: **2081 passed, 1 xfailed, delta +98**.
+- The five filed blockers: an unmatched code fence desynchronised a bare
+  `in_fence` toggle so adapt appended a region on every run (1→2→3 measured through
+  the CLI); `splitlines()` + `join()` rewrote user bytes outside the region on mixed
+  line endings — and **`Path.read_text` was translating `\r\n` before the writer ever
+  saw it**, which defeated the splice at the read layer; `ck uninstall` built survivors
+  from `modified ∩ exists`, unlinking the receipt over files still on disk;
+  `cmd_adapt` never re-stamped the manifest; and `apply_commands` **was never called
+  from anywhere** while the report printed "OK — every step either completed".
+- The five found by self-review, worth more than the filed five:
+  1. Writing `dirty` into the region made the verb self-referentially
+     non-idempotent wherever `.claude/` is TRACKED — run 1 dirtied the tree it then
+     described. Proof 1's fixture has no `.git`, so it could never see it.
+  2. A `run:` string in the TARGET repo reached `hooks/config.json` verbatim
+     (`pytest ; touch /tmp/PWNED_BY_ADAPT`), i.e. attacker-controlled shell in a file
+     pre-push executes. Detection executing nothing was not enough: the write
+     outlives the report.
+  3. Blanking an unevidenced command key destroyed user configuration on every run —
+     and `project-adaptation` Phase 2 tells the user to set exactly those keys, so the
+     verb undid its own documented workflow. `install.sh:495-497` writes them EMPTY,
+     which is what proves a non-empty value is the user's.
+  4. The two refusal branches omitted every step they never reached, while the fresh
+     branch named them. Same overstatement, one branch down.
+  5. A test of mine that could not fail: `test_a_stack_profile_value_is_not_filtered`
+     used a profile command with no metacharacter, so a mutant that over-applied the
+     rule went green. Caught only by mutating.
+- **The config silently deleted another session's line.** Its `find` anchors all
+  matched exactly once and validation said APPROVED, yet applying it over that
+  session's uncommitted `ck eject` removed `"eject": cmd_eject` from the dispatch dict
+  — context-carrying edits re-emit old context — breaking 12 of their tests with
+  `KeyError: 'eject'`. Closed by stamping a `baseline` (6 files), which now refuses on
+  drift instead. Also caught a **stale delivered copy** of the config that validated
+  against the drifted tree but was rejected by a pristine `14cf45e` clone.
+- Structural: **only 1 of the plan's 21 proofs drove the CLI**, which is exactly how a
+  function nothing calls passed three green unit tests. Added a CLI-driven half (real
+  `ck init` tree, subprocess, assertions on exit code and printed report) including
+  proof 14 (`NEVER_MANAGED` survives), which the plan calls the single
+  highest-value test here and which had no test at all. **27 mutants, all bind.**
+- Also landed: `ck doctor --strict` exited 1 on every freshly installed tree
+  (`templates/skills/i18n-workflow` is copied by the installer but absent from the
+  generated registry) — the installer now reconciles it; the task-008 half, so
+  `/adapt` and `project-adaptation` delegate the mechanical surface to the verb and
+  three adaptation surfaces became two; and the fresh branch now installs FULL mode
+  itself and re-checks Rule 0 against the receipt the installer actually produced.
+- Net asset delta **0** (29 agents / 42 commands / 76 skills / 22 hooks). Filed rather
+  than built: `.claude/plans/plan-adapt-eject-interaction.md` — `ck adapt` on an
+  ejected tree refuses with the wrong remedy, and that remedy (`ck init`) points at
+  the destructive installer swap decision (A) exists to make unreachable.
+
 ## Earlier — v1.0.0 → v2.0.0 (2026-03-16/17)
 
 Original corpus build-out (agents/commands/skills/hooks/templates/modes/MCP/i18n) — see CHANGELOG.md. Delivery-shell defects from this era were the subject of the 2026-07-05 audit (`review/FINAL-REPORT.md`, 49/100).

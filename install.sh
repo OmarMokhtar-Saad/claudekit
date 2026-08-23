@@ -228,6 +228,53 @@ if [[ "$MODE" == "full" ]]; then
     # Copy skills registry
     if [[ -f "$CLAUDE_SRC/skills/skills-registry.json" ]]; then
         cp "$CLAUDE_SRC/skills/skills-registry.json" "$DEST/skills/"
+        # Then reconcile it with what was ACTUALLY installed. The registry is
+        # generated from .claude/skills/ (scripts/gen-registry.py), but the loop
+        # above also copies templates/skills/*, and `i18n-workflow` lives ONLY
+        # there. So every install shipped a skill the registry did not list and
+        # `ck doctor --strict` exited 1 on a freshly installed tree -- a gate
+        # failing on the happy path, which trains people to ignore it. Adding the
+        # skill to .claude/skills/ instead would create a near-duplicate of
+        # `i18n-patterns` and move a component count, both owner-gated; teaching
+        # the installer to describe what it installed is neither.
+        DEST_SKILLS="$DEST/skills" python3 - <<'REG_PY' || print_warn "registry reconcile skipped"
+import json, os, sys
+
+dest = os.environ["DEST_SKILLS"]
+path = os.path.join(dest, "skills-registry.json")
+try:
+    with open(path, encoding="utf-8") as fh:
+        doc = json.load(fh)
+except (OSError, ValueError) as exc:
+    print("could not read the registry: %s" % exc, file=sys.stderr)
+    raise SystemExit(1)
+rows = doc.get("skills")
+if not isinstance(rows, list):
+    raise SystemExit(1)
+known = {r.get("id") for r in rows if isinstance(r, dict)}
+added = []
+for name in sorted(os.listdir(dest)):
+    skill = os.path.join(dest, name, "SKILL.md")
+    if name in known or not os.path.isfile(skill):
+        continue
+    description = ""
+    with open(skill, encoding="utf-8", errors="replace") as fh:
+        for line in fh:
+            if line.startswith("description:"):
+                description = line.split(":", 1)[1].strip().strip('"\'')
+                break
+            if line.startswith("---") and description:
+                break
+    rows.append({"id": name, "name": name, "path": "skills/%s/SKILL.md" % name,
+                 "mandatory": False, "usedBy": [], "description": description,
+                 "source": "templates/skills"})
+    added.append(name)
+if added:
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(doc, fh, indent=2)
+        fh.write("\n")
+    print("registry: registered %s" % ", ".join(added))
+REG_PY
     fi
     SKILL_COUNT=$(find "$DEST/skills" -name "SKILL.md" 2>/dev/null | wc -l | tr -d ' ')
     print_ok "$SKILL_COUNT skills installed"
