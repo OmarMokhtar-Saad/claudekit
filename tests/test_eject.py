@@ -181,12 +181,26 @@ class TestEject(unittest.TestCase):
                          "ejecting a --minimal install must not turn its excused "
                          "absences into failures:\n" + result.stdout)
         # The eject check reports "skip", and a skip must not be able to redden
-        # --strict. Asserted here because the distinction between skip and warn
-        # is invisible to an exit-code-0 assertion without it.
+        # --strict. Asserted on the SKIP MARKER and the tally, not on the global
+        # exit code: doctor also warns when `shellcheck` is not on PATH, and
+        # --strict turns any warning into rc 1. GitHub's ubuntu images ship
+        # shellcheck and its macOS images do not, so the exit-code form of this
+        # assertion passed here and on ubuntu CI while failing every macOS job --
+        # a test whose verdict depended on the runner rather than on the code.
         strict = ck("doctor", "--strict", cwd=target)
-        self.assertEqual(0, strict.returncode,
-                         "the ejected-install check must not redden --strict:\n"
-                         + strict.stdout)
+        ejected_lines = [ln for ln in strict.stdout.splitlines()
+                         if "Install ejected" in ln]
+        self.assertEqual(1, len(ejected_lines), strict.stdout)
+        self.assertIn("[-]", ejected_lines[0],
+                      "the ejected-install check must render as a SKIP, not a "
+                      "warning or a pass:\n" + ejected_lines[0])
+        self.assertIn("Skipped:", strict.stdout, strict.stdout)
+        if shutil.which("shellcheck") is not None:
+            # With the one environment-dependent warning out of the way, the whole
+            # run must be strict-clean -- that is the half the marker cannot prove.
+            self.assertEqual(0, strict.returncode,
+                             "the ejected-install check must not redden --strict:\n"
+                             + strict.stdout)
         # Binds the SCORE CALL SITE, not just the helper's signature: an ejected
         # minimal install is all passes and skips, so letting skipped DEPRESS the
         # score (counting it toward the denominator) moves this off 100 and fails
@@ -194,7 +208,8 @@ class TestEject(unittest.TestCase):
         # the numerator as well, is arithmetically inert while warned and failed
         # are both zero, so no assertion on this tree can detect it; the helper's
         # signature test is what closes that half.
-        self.assertIn("Readiness: 100/100", strict.stdout)
+        if shutil.which("shellcheck") is not None:
+            self.assertIn("Readiness: 100/100", strict.stdout)
 
     def test_re_adopting_an_ejected_project_restores_its_original_mode(self):
         # The receipt records the mode. Without reading it back, cmd_update sees

@@ -1,0 +1,20 @@
+{
+  "plan": "eject-doctor-test-runner-dependence",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_eject.py",
+      "description": "the ejected-install assertions must not depend on whether the runner ships shellcheck",
+      "edits": [
+        {
+          "find": "        # The eject check reports \"skip\", and a skip must not be able to redden\n        # --strict. Asserted here because the distinction between skip and warn\n        # is invisible to an exit-code-0 assertion without it.\n        strict = ck(\"doctor\", \"--strict\", cwd=target)\n        self.assertEqual(0, strict.returncode,\n                         \"the ejected-install check must not redden --strict:\\n\"\n                         + strict.stdout)",
+          "replace": "        # The eject check reports \"skip\", and a skip must not be able to redden\n        # --strict. Asserted on the SKIP MARKER and the tally, not on the global\n        # exit code: doctor also warns when `shellcheck` is not on PATH, and\n        # --strict turns any warning into rc 1. GitHub's ubuntu images ship\n        # shellcheck and its macOS images do not, so the exit-code form of this\n        # assertion passed here and on ubuntu CI while failing every macOS job --\n        # a test whose verdict depended on the runner rather than on the code.\n        strict = ck(\"doctor\", \"--strict\", cwd=target)\n        ejected_lines = [ln for ln in strict.stdout.splitlines()\n                         if \"Install ejected\" in ln]\n        self.assertEqual(1, len(ejected_lines), strict.stdout)\n        self.assertIn(\"[-]\", ejected_lines[0],\n                      \"the ejected-install check must render as a SKIP, not a \"\n                      \"warning or a pass:\\n\" + ejected_lines[0])\n        self.assertIn(\"Skipped:\", strict.stdout, strict.stdout)\n        if shutil.which(\"shellcheck\") is not None:\n            # With the one environment-dependent warning out of the way, the whole\n            # run must be strict-clean -- that is the half the marker cannot prove.\n            self.assertEqual(0, strict.returncode,\n                             \"the ejected-install check must not redden --strict:\\n\"\n                             + strict.stdout)"
+        },
+        {
+          "find": "        self.assertIn(\"Readiness: 100/100\", strict.stdout)",
+          "replace": "        if shutil.which(\"shellcheck\") is not None:\n            self.assertIn(\"Readiness: 100/100\", strict.stdout)"
+        }
+      ]
+    }
+  ]
+}
