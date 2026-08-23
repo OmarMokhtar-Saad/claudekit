@@ -340,6 +340,34 @@ asset changes, so they are recorded as options with trade-offs.
   review, and a proof that runs on Linux, not on the maintainer's Mac. The durable lesson is
   already earned: a security oracle must be proven to BIND on every platform its gate runs on,
   and this one was only ever proven on one.
+- [ ] **Three open minors from `ops-review-truthfulness-batch.json`'s round-3 approval
+  (94/100, 2026-08-23).** None blocks; all three are in `scripts/check-plan-artifacts.py`.
+  (a) **`[^/]*` matches a `..` segment**, so a plan writing `src/*/x.py` names
+  `src/../x.py`. Blast radius chased rather than assumed: `validate-config-json.py`
+  APPROVES a `..` path and `execute-json-ops.py:258-268` confines without normalising, so
+  `src/../x.py` executes as `x.py` — a different file than the pattern implies, while
+  `src/../../x.py` is blocked. Not a security boundary (the gate grants nothing) but the
+  same "plan names a DIFFERENT file" class one level deeper. Fix: reject any token or path
+  containing a `..` segment, or `os.path.normpath` before matching.
+  (b) **The docstring's reason for rejecting trailing-glob tokens is wrong for honest
+  ones.** It says a token ending in `*` "is markdown emphasis, not a path pattern" — true
+  of `*src/main.py*`, false of `docs/*`, which is a real pattern the matcher now rejects.
+  The behaviour is the safe direction (cries wolf, never licenses) and no plan relies on
+  it, but the stated reason is exactly the class this batch closed. Fix: describe the
+  trade-off instead — rejected because indistinguishable from emphasis, at the cost of
+  honest trailing globs. Also worth recording: the reviewer could construct NO input where
+  removing the `startswith`/`endswith` guard changes the outcome, so the segment rule is
+  the mechanism and the guard is defence-in-depth — do not credit it as the fix.
+  (c) **Theoretical regex backtracking** at 8+ adjacent `*` in one segment (0.9s at 8,
+  >8s at 12). Unreachable from real prose — the three real multi-star tokens in the corpus
+  run in 0.000s because `/` literals bound each segment. Fix: `re.sub(r"\*+", "*", pattern)`.
+- [ ] **Nothing archives an executed ops config, and the queued-ops gate punishes the next
+  committer for it.** `execute-json-ops.py` has no archive step; `.claude/plans/archive/README.md`
+  documents archiving as a manual `mv` plus a table row. So every execution leaves
+  `test_queued_ops_configs_validate_against_head` red until a human remembers — measured twice
+  this session, once caught by a reviewer AFTER the commit had already gone in (`7b39cb9`).
+  Fix: have the executor move the config and stub the README row on success, or make the gate's
+  failure message name the exact `mv` command.
 - [ ] Fix QUICK_START table drift vs frontmatter (issue #6) and the phantom `opensource-forker` references (#8).
 - [ ] Task 008 prep (no deletions yet): draft the migration table for owner review.
 - [ ] Task 010 eval framework skeleton: `evals/` + one fixture repo + golden ops.json for planner + `ck eval` stub.

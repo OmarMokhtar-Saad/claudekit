@@ -81,10 +81,13 @@ def main() -> int:
     # `--check` is accepted for symmetry with the other generator gates and is
     # otherwise IGNORED. It used to gate the exit code -- `return 1 if check else 0`
     # -- so the bare invocation printed `FAIL: context floor over budget` and then
-    # exited 0. CLAUDE.md's command block prescribes the bare form, so the
-    # documented way to run this gate was the one way it could not fail. A gate
-    # that reports failure and returns success is the class this repo ratchets
-    # against, so the exit code now follows the measurement, never the flag.
+    # exited 0. (An earlier version of this comment blamed CLAUDE.md for prescribing the
+    # bare form. It does not: CLAUDE.md:22 and ci.yml both pass `--check`. The real
+    # defect is simpler and worse -- the flag was accepted and then silently decided the
+    # exit code, so the two documented invocations disagreed about whether a measured
+    # failure was a failure.) A gate that reports failure and returns success is the
+    # class this repo ratchets against, so the exit code now follows the measurement,
+    # never the flag.
     sizes = measure()
     total = sum(sizes.values())
     budget_total = sum(BUDGETS.values())

@@ -72,6 +72,37 @@ def names_path(plan_text: str, path: str) -> bool:
         if re.search(r"(?<![\w./-])%s(?![\w-])(?!\.[A-Za-z0-9])" % re.escape(token),
                      plan_text):
             return True
+    return _names_by_pattern(plan_text, path)
+
+
+def _names_by_pattern(plan_text: str, path: str) -> bool:
+    """True when the plan describes `path` with a GLOB or `<placeholder>` covering it.
+
+    A plan that writes 15 files under one convention names them honestly as
+    `.claude/skills/<name>/SKILL.md`, or 4 as `evals/definitions/*.json` -- both stated
+    with their count in the ops table. Demanding 15 literal paths rejects a complete,
+    reviewable description and trains authors to paste enumerations, which is the
+    cry-wolf failure this gate's own comments warn about. Measured when the gate first
+    reached the archive: of 23 findings, 19 were this false positive and 4 were real.
+
+    `*` matches WITHIN one path segment only, and the match is anchored. Both matter,
+    and the first version of this function got both wrong by using `fnmatch`, whose `*`
+    crosses `/`: `.claude/skills/*` then named `.claude/skills/x/../../../etc/passwd`
+    and `src/*` named `src/a/b/c/evil.py`. A token that STARTS or ENDS with `*` is
+    rejected outright -- that is markdown emphasis, not a path pattern, and treating
+    `**scripts/gen-docs.py**` as a glob reopened the closed class `names_path` documents
+    above (a plan naming `templates/scripts/gen-docs.py` satisfying `scripts/gen-docs.py`
+    -- a DIFFERENT file). 38 of 76 plan documents contain emphasis-shaped tokens.
+    """
+    for token in re.findall(r"[\w./<>*-]*[<*][\w./<>*-]*", plan_text):
+        if "/" not in token or token.startswith("*") or token.endswith("*"):
+            continue
+        pattern = re.sub(r"<[^<>/]*>", "*", token)
+        if "*" not in pattern:
+            continue
+        rx = "".join("[^/]*" if ch == "*" else re.escape(ch) for ch in pattern)
+        if re.fullmatch(rx, path):
+            return True
     return False
 
 
@@ -112,20 +143,45 @@ def resolve_plan(ops_path: Path, cfg: Optional[dict] = None) -> Optional[Path]:
     slugs = [slug] + ([declared] if declared and declared != slug else [])
     for candidate_slug in slugs:
         for candidate in (f"plan-{candidate_slug}.md", f"{candidate_slug}.md"):
-            resolved = ops_path.parent / candidate
-            if resolved.exists():
-                return resolved
+            # PLANS_DIR as well as the config's own directory: an EXECUTED config is
+            # moved to .claude/plans/archive/ and its plan is NOT -- the plans stay at
+            # .claude/plans/. Resolving only against `ops_path.parent` meant the archive
+            # held 92 configs and 0 resolvable plans, so widening the scan to reach them
+            # verified 15 paths instead of 354. Sibling first, so a config that ships
+            # beside its own plan still binds to that one.
+            for parent in (ops_path.parent, PLANS_DIR):
+                resolved = parent / candidate
+                if resolved.exists():
+                    return resolved
     return None
 
 
-def check(ops_path: Path) -> List[str]:
-    """Return the problems found for one config; empty list means it passed."""
+def _read(ops_path: Path) -> Optional[dict]:
+    """The config as a dict, or None when unreadable or not a JSON object. `check` still
+    owns the error MESSAGE for those cases; the caller only needs to know it cannot
+    resolve a plan or count paths from them."""
     try:
         cfg = json.loads(ops_path.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as exc:
-        return [f"{ops_path}: unreadable ({exc})"]
-    if not isinstance(cfg, dict):
-        return [f"{ops_path}: not a JSON object"]
+    except (OSError, ValueError):
+        return None
+    return cfg if isinstance(cfg, dict) else None
+
+
+def check(ops_path: Path, cfg: Optional[dict] = None) -> List[str]:
+    """Return the problems found for one config; empty list means it passed.
+
+    `cfg` is the already-parsed config when the caller has one (it needs it to count
+    paths), so the file is read once rather than three times per config. Passing None
+    keeps the standalone contract: this function still owns every error message for a
+    config it cannot read.
+    """
+    if cfg is None:
+        try:
+            cfg = json.loads(ops_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            return [f"{ops_path}: unreadable ({exc})"]
+        if not isinstance(cfg, dict):
+            return [f"{ops_path}: not a JSON object"]
 
     plan_path = resolve_plan(ops_path, cfg)
     if plan_path is None:
@@ -159,19 +215,35 @@ def main(argv: List[str]) -> int:
     if args:
         configs = [Path(a) for a in args]
     else:
+        # rglob, not glob: an EXECUTED config is moved to .claude/plans/archive/, so a
+        # top-level-only scan printed `no ops configs to check`, rc 0, on any branch
+        # whose configs had all run -- including the CI run that gates the merge.
         configs = sorted(
-            set(PLANS_DIR.glob("ops-*.json")) | set(PLANS_DIR.glob("*.ops.json"))
+            set(PLANS_DIR.rglob("ops-*.json")) | set(PLANS_DIR.rglob("*.ops.json"))
         )
     if not configs:
         print("check-plan-artifacts: no ops configs to check")
         return 0
 
     problems: List[str] = []
+    checked_paths = 0
+    unresolved: List[str] = []
     for ops_path in configs:
         if not ops_path.exists():
             problems.append(f"{ops_path}: no such file")
             continue
-        problems.extend(check(ops_path))
+        cfg = _read(ops_path)
+        if cfg is None:
+            problems.extend(check(ops_path))
+            continue
+        if resolve_plan(ops_path, cfg) is None:
+            # Still a PASS -- Tier 1 legitimately ships a config with no plan. But it
+            # must not be INDISTINGUISHABLE from a real check: a plan renamed by
+            # accident left every operation unchecked under the same OK line.
+            unresolved.append(ops_path.name)
+        else:
+            checked_paths += len(target_paths(cfg))
+        problems.extend(check(ops_path, cfg))
 
     if problems:
         print("PLAN/CONFIG DRIFT - a plan omits a path its config writes:", file=sys.stderr)
@@ -184,7 +256,14 @@ def main(argv: List[str]) -> int:
         )
         return 1
 
-    print(f"check-plan-artifacts: OK ({len(configs)} config(s))")
+    # The PATH count is the honest signal and the number to watch. The run that first
+    # reached the archive reported 92 configs and would have reported 0 paths: a config
+    # count alone cannot tell a real pass from a gate that checked nothing.
+    print(f"check-plan-artifacts: OK ({len(configs)} config(s), "
+          f"{checked_paths} path(s) verified)")
+    if unresolved:
+        print(f"NOTE: {len(unresolved)} config(s) resolved to no plan and were not "
+              f"checked: {', '.join(sorted(unresolved))}")
     return 0
 
 
