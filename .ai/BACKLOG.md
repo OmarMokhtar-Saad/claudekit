@@ -268,6 +268,78 @@ asset changes, so they are recorded as options with trade-offs.
   drifts silently — measured at 8 stale shell hooks and three weeks — and the right question was
   "should this exist" before "how do we gate it".
 
+- [ ] **`install.sh --full` ships the STALE `token-optimization` skill (measured 2026-08-23).**
+  The skills install is two passes into one destination — `.claude/skills/*/` then
+  `templates/skills/*/` — so the second wins. 13 names exist in both trees; three have
+  diverged. For `incident-response` (180 vs 350 lines) and `spec-driven-development`
+  (214 vs 221) the templates copy is the newer one, so the race is benign by luck. For
+  `token-optimization` it is not: canonical is 219 lines (2026-08-19, the token-efficiency
+  pass), templates is 147 (2026-04-12), and **a real `bash install.sh --full` into a temp
+  dir ships the 147-line file** — verified by `diff`, not by reading the script. Every
+  `--full` install since 2026-08-19 discarded the newer text, and no gate could see it:
+  `gen-registry.py`, `gen-docs.py` and `check-context-floor.py` all read `.claude/skills/`,
+  the copy that loses. This is arch F-11 turning from a hazard into a live regression.
+  **Fix is prepared and blocked, not deferred:** `.claude/plans/plan-canonical-skill-wins.md`
+  + `ops-canonical-skill-wins.json` (validator: APPROVED) make the canonical tree win, with a
+  content-asserting regression test in `tests/test_install.py`. Execution is refused by the
+  approval gate for want of a review record — it needs a `code-reviewer` pass, then
+  `/implement`. **Second-order consequence to weigh in that review:** under the fix,
+  `incident-response` and `spec-driven-development` start shipping their OLDER canonical
+  bodies. Determinism first, content merge second (task 008) — but the two must land close
+  together or the fix trades one silent staleness for two.
+
+- [ ] **`review-record.py` cannot express the verdict reviewers actually give.** A reviewer
+  that ends a round with "apply this one fix, then execute without a fourth round" is giving
+  a CONDITIONAL — and `write` accepts `CONDITIONAL` while `check` treats it exactly like
+  `REJECTED`: "Recorded CONDITIONAL (91) — does NOT authorise execution". Measured
+  2026-08-23 on `ops-canonical-skill-wins.json`. The decision is in `VALID_DECISIONS`
+  (`review-record.py:42`) but there is no path from it to an authorised execution, so the
+  only ways forward are a round the reviewer explicitly said not to run, `--no-approval`
+  (which launders the gate), or self-issuing `APPROVED` (which the review-record machinery
+  exists to prevent). All three are wrong; the review had to be bounced back to the
+  reviewer purely to change one word. **Options:** (a) let `check` accept CONDITIONAL when
+  the ops.json hash still matches the snapshot the reviewer signed AND the record carries
+  the applied conditions; (b) drop CONDITIONAL from `VALID_DECISIONS` so the taxonomy stops
+  offering a verdict the gate cannot honour. Owner call — (a) widens what authorises
+  execution, which is a security-adjacent surface.
+- [ ] **`resolve_plan`'s prefix normalisation destroys the only match it had.**
+  `ops-hardening-implementer-contract.json` declares `"plan": "ops-hardening-implementer-
+  contract"`; the loop strips the `ops-` prefix, and the real file is
+  `plan-ops-hardening-implementer-contract.md` — so the strip removes the very prefix that
+  made it resolvable, and the config passes with every operation unchecked. Found
+  2026-08-23 by fuzzy-matching all 36 configs the newly honest `check-plan-artifacts.py`
+  reports as plan-less: 31 are genuinely plan-less, 4 are follow-up configs against distinct
+  plans, and this 1 is a resolution bug. Pre-existing, out of scope for the change that
+  measured it. Fix: try the declared value BOTH stripped and unstripped.
+- [ ] **The recurrence ratchet earned a check that is not written yet:
+  `comment-asserts-what-is-false` reached FIVE entries** across two review rounds of one
+  change (a false `force=False` race claim, a wrong line reference, a fabricated docs
+  example, a docstring whose own counter-example was false, and a retrospective artifacts
+  list naming `.claude/profiles/base/profile.json` — a file that has never existed). Only
+  the last shape is mechanisable, and cheaply: `check-plan-artifacts.py` today checks
+  config → plan only, so add the REVERSE — every path listed in a plan's "Artifacts
+  written"/"Artifacts this change writes" section must appear in some config's
+  `target_paths`. That would have caught the fabricated profile path automatically. The
+  other four are prose claims about code behaviour and cannot be mechanised; the durable
+  mitigation is to cite symbols rather than behaviour that has not been executed.
+- [ ] **The bash oracle is INERT on ubuntu, which is the platform CI runs it on.**
+  `tests/test_validator_vs_bash.py::TestTheOracleBinds::test_a_validator_with_no_blocklist_is_caught_by_bash`
+  holes the validator's `BLOCKLIST` and asserts the oracle catches the mutant. On ubuntu it
+  reports `{'errored': 0, 'executed': 338, 'finding_count': 0, 'findings': []}` — 338 payloads
+  ran, nothing errored, and the shadow functions never echoed a marker, so a validator with NO
+  BLOCKLIST AT ALL passes the oracle. Measured 2026-08-23: **23 passed locally on macOS, all
+  four ubuntu jobs red, and red on `main` too** (run 32560538178), so it predates
+  `fix/review-loop-gaps` and is not caused by it. This is the `TestTheOracleBinds` half — the
+  test whose entire job is to prove the oracle can fail. While it is red, the sibling
+  `test_the_shipped_validator_allows_nothing_bash_can_use` passing means nothing: an oracle that
+  cannot catch an empty blocklist cannot certify a real one. **Do not "fix" it by relaxing the
+  assertion.** Likely suspects, in order: the `ulimit -v 262144` line in `PROBE`
+  (`scripts/check-validator-vs-bash.py:111`), which glibc/ASLR may make unsurvivable for bash on
+  Linux while macOS ignores it via `|| true`; then `export PATH=""` interacting with a
+  Linux-built bash's function lookup. Tier 3 — security-relevant surface, needs a plan, a real
+  review, and a proof that runs on Linux, not on the maintainer's Mac. The durable lesson is
+  already earned: a security oracle must be proven to BIND on every platform its gate runs on,
+  and this one was only ever proven on one.
 - [ ] Fix QUICK_START table drift vs frontmatter (issue #6) and the phantom `opensource-forker` references (#8).
 - [ ] Task 008 prep (no deletions yet): draft the migration table for owner review.
 - [ ] Task 010 eval framework skeleton: `evals/` + one fixture repo + golden ops.json for planner + `ck eval` stub.
