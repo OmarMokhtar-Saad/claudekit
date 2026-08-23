@@ -50,6 +50,24 @@ greeting = t("welcome") + userName + t("you_have") + count + t("notifications")
 
 ---
 
+
+### Externalization APIs by Language
+
+Replace each user-visible literal with the platform's translation call, not a
+home-grown lookup:
+
+| Language | Call |
+|---|---|
+| JavaScript/TypeScript | `t('key')` or `intl.formatMessage({ id: 'key' })` |
+| Python | `_('key')` or `gettext('key')` |
+| Java/Kotlin | `messages.getString("key")` |
+| Swift/Obj-C | `NSLocalizedString("key", comment: "context")` |
+
+Include translator context as a comment or metadata alongside the key — a string
+with no context is a string that gets mistranslated.
+
+---
+
 ## Pluralization
 
 Different languages have different plural rules. English has 2 forms (singular, plural). Arabic has 6. Russian has 3.
@@ -76,6 +94,9 @@ Different languages have different plural rules. English has 2 forms (singular, 
 | other | All languages (required fallback) |
 
 **Rule:** Always provide at least `one` and `other` forms. Provide additional forms based on your target languages.
+
+---
+
 ### Gender / Select
 
 ```
@@ -205,6 +226,29 @@ locales/
 | PO/POT | Python/PHP/Ruby | `.po` / `.pot` |
 | YAML | Rails/Flutter | `.yml` |
 | ARB | Flutter/Dart | `.arb` |
+
+---
+
+
+### The CI Round-Trip
+
+1. A developer adds strings to the base locale (e.g. `en`)
+2. CI extracts new or changed keys and generates a diff
+3. The translation platform (Crowdin, Lokalise, Phrase) picks up the new keys
+4. Translators translate and review
+5. CI pulls completed translations back into the repo
+6. The build compiles translation files into the app bundle
+
+### RTL Testing
+
+- Test every page in both LTR and RTL
+- Verify form inputs align correctly
+- Verify icons flip where appropriate — directional ones (arrows, progress) flip,
+  non-directional ones (search, settings) must NOT
+- Verify scrollbars appear on the correct side
+- Verify toast and notification positioning
+- Bidirectional text (Arabic with embedded English) needs proper isolation: `<bdi>`
+  tags or Unicode isolate characters
 
 ---
 

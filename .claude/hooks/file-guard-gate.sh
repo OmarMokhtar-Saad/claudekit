@@ -22,8 +22,7 @@ LOG_FILE="${LOG_FILE:-$ROOT/.claude/hooks/hooks.log}"
 # Locate the classifier (installed project vs. this repo).
 GUARD=""
 for candidate in "$SCRIPT_DIR/file-guard.sh" \
-                 "$ROOT/.claude/hooks/file-guard.sh" \
-                 "$ROOT/templates/hooks/file-guard.sh"; do
+                 "$ROOT/.claude/hooks/file-guard.sh"; do
     if [ -f "$candidate" ]; then
         GUARD="$candidate"
         break

@@ -1,0 +1,49 @@
+{
+  "plan": "008-b1-review-hook-honesty",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_structure.py",
+      "description": "post-implement.sh is a third inert hook, already documented as such",
+      "edits": [
+        {
+          "find": "        # Shared library, not a hook.\n        \"lib.sh\",",
+          "replace": "        # Ships deliberately unwired, and said so in docs/HOOKS.md long before this\n        # test existed -- which is how that file came to contradict its own opening\n        # sentence. Found by this test, not by a reader.\n        \"post-implement.sh\",\n        # Shared library, not a hook.\n        \"lib.sh\","
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "docs/HOOKS.md",
+      "description": "the opening sentence contradicted line 124; say the number that is true",
+      "edits": [
+        {
+          "find": "ClaudeKit ships 26 hook scripts (plus `lib.sh`, a shared helper library). 24 are\nreachable: wired into Claude Code through `.claude/settings.json`, or resolved by a\ngate wrapper. They enforce guardrails, capture telemetry, and automate housekeeping\naround the agent workflow.\n\n**Two ship unwired**, and the count must not be read as saying otherwise:\n`auto-checkpoint.sh` and `check-comment-replacement.sh` are referenced by no settings\nentry, no dispatch row and no wrapper. They are opt-in material. They were promoted\nout of `templates/hooks/` in task 008 batch 1, where nothing invoked them either --\npromotion changed where they live, not whether they run.",
+          "replace": "ClaudeKit ships 26 hook scripts (plus `lib.sh`, a shared helper library). 23 are\nreachable: wired into Claude Code through `.claude/settings.json`, or resolved by a\ngate wrapper. They enforce guardrails, capture telemetry, and automate housekeeping\naround the agent workflow.\n\n**Three ship unwired**, and the count must not be read as saying otherwise:\n`auto-checkpoint.sh` and `check-comment-replacement.sh`, promoted out of\n`templates/hooks/` in task 008 batch 1 where nothing invoked them either -- promotion\nchanged where they live, not whether they run -- and `post-implement.sh`, which has\nshipped unwired for far longer and is described as such further down this very file.\nThis page opened by claiming all of them were wired while contradicting itself at the\n`post-implement.sh` entry below, so the sentence was wrong before batch 1 and the\npromotion only widened the gap."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "README.md",
+      "description": "same correction: three, not two, and it predates the promotion",
+      "edits": [
+        {
+          "find": "**`auto-checkpoint.sh` and `check-comment-replacement.sh` ship UNWIRED** \u2014 nothing invokes them; they are opt-in material you wire yourself. A count that implied otherwise would advertise inert scripts as active guardrails.",
+          "replace": "**Three ship UNWIRED** \u2014 `auto-checkpoint.sh`, `check-comment-replacement.sh` and `post-implement.sh`. Nothing invokes them; they are opt-in material you wire yourself. A count that implied otherwise would advertise inert scripts as active guardrails, which is the honesty rule this project holds itself to."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "README.md",
+      "description": "the reachable count follows",
+      "edits": [
+        {
+          "find": "26 hooks ship in `.claude/hooks/`; 24 are reachable \u2014 wired through `.claude/settings.json`",
+          "replace": "26 hooks ship in `.claude/hooks/`; 23 are reachable \u2014 wired through `.claude/settings.json`"
+        }
+      ]
+    }
+  ]
+}

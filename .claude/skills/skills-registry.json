@@ -2,6 +2,9 @@
   "version": "2.0",
   "lastUpdated": "2026-07-08",
   "description": "ClaudeKit skills registry \u2014 maps skills to agents",
+  "renamed": {
+    "i18n-workflow": "i18n-patterns"
+  },
   "skills": [
     {
       "id": "using-superpowers",

@@ -28,6 +28,8 @@ END = "<!-- END GENERATED:inventory -->"
 DRIFT_FILES = [
     "README.md",
     "src/claudekit/cli/main.py",
+    "AGENTS.md",       # root: carries counts, and was drifting unseen -- it still
+                       # said "42 commands" after batch 1 moved the number to 55
     "docs/AGENTS.md",
     "docs/ARCHITECTURE.md",
     "docs/SKILLS.md",

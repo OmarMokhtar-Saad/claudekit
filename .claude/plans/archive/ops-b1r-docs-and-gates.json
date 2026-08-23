@@ -1,0 +1,93 @@
+{
+  "plan": "008-b1-review-fixes",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "README.md",
+      "description": "26 ship, 24 are reachable; two ship inert and saying otherwise is the hard-rule-6 failure mode",
+      "edits": [
+        {
+          "find": "26 hooks ship in `.claude/hooks/` and all are wired through `.claude/settings.json`",
+          "replace": "26 hooks ship in `.claude/hooks/`; 24 are reachable \u2014 wired through `.claude/settings.json`"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "README.md",
+      "description": "name the two inert hooks rather than letting the count imply they run",
+      "edits": [
+        {
+          "find": "Blocking hooks fail closed: `exit 2` + reason on stderr. Highlights:",
+          "replace": "Blocking hooks fail closed: `exit 2` + reason on stderr. **`auto-checkpoint.sh` and `check-comment-replacement.sh` ship UNWIRED** \u2014 nothing invokes them; they are opt-in material you wire yourself. A count that implied otherwise would advertise inert scripts as active guardrails. Highlights:"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "docs/HOOKS.md",
+      "description": "same correction at the source of record",
+      "edits": [
+        {
+          "find": "ClaudeKit ships 26 hook scripts (plus `lib.sh`, a shared helper library), all\nwired into Claude Code through `.claude/settings.json`. They enforce guardrails,\ncapture telemetry, and automate housekeeping around the agent workflow.",
+          "replace": "ClaudeKit ships 26 hook scripts (plus `lib.sh`, a shared helper library). 24 are\nreachable: wired into Claude Code through `.claude/settings.json`, or resolved by a\ngate wrapper. They enforce guardrails, capture telemetry, and automate housekeeping\naround the agent workflow.\n\n**Two ship unwired**, and the count must not be read as saying otherwise:\n`auto-checkpoint.sh` and `check-comment-replacement.sh` are referenced by no settings\nentry, no dispatch row and no wrapper. They are opt-in material. They were promoted\nout of `templates/hooks/` in task 008 batch 1, where nothing invoked them either --\npromotion changed where they live, not whether they run.\n`tests/test_structure.py::TestHookWiringIsHonest` pins this, so the prose cannot drift\nfrom the tree again."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_structure.py",
+      "description": "every hook is wired, wrapper-resolved, or explicitly declared inert",
+      "edits": [
+        {
+          "find": "class TestRootFiles:",
+          "add_before": "class TestHookWiringIsHonest:\n    \"\"\"A shipped hook is wired, resolved by a wrapper, or declared inert -- never\n    silently none of the three.\n\n    `README.md` and `docs/HOOKS.md` said \"26 hooks ship ... all are wired\" while two of\n    them were referenced by nothing at all. The count moved 22 -> 26 with the promotion\n    in task 008 batch 1 and the prose around it did not, so a generated number turned a\n    true sentence into a false one. A reader who believes `auto-checkpoint.sh` is\n    protecting their session and never configures a real checkpoint is exactly the\n    failure hard rule 6 exists to prevent: inert scripts advertised as active\n    guardrails.\n\n    Adding a hook to UNWIRED is a deliberate, reviewable act. Adding one to neither\n    fails here.\n    \"\"\"\n\n    UNWIRED = {\n        # Opt-in material: promoted out of templates/hooks/, where nothing invoked them\n        # either. Promotion changed where they live, not whether they run.\n        \"auto-checkpoint.sh\",\n        \"check-comment-replacement.sh\",\n        # Shared library, not a hook.\n        \"lib.sh\",\n    }\n\n    def _hooks(self):\n        return sorted(os.path.basename(p) for p in\n                      glob.glob(os.path.join(CLAUDE_DIR, \"hooks\", \"*.sh\")))\n\n    def test_every_hook_is_wired_or_declared_inert(self):\n        settings = os.path.join(CLAUDE_DIR, \"settings.json\")\n        with open(settings, encoding=\"utf-8\") as fh:\n            wiring = fh.read()\n        registry = os.path.join(CLAUDE_DIR, \"hooks\", \"dispatch-registry.json\")\n        if os.path.isfile(registry):\n            with open(registry, encoding=\"utf-8\") as fh:\n                wiring += fh.read()\n        # A wrapper resolving a hook by name counts as reachable.\n        for path in glob.glob(os.path.join(CLAUDE_DIR, \"hooks\", \"*.sh\")):\n            with open(path, encoding=\"utf-8\") as fh:\n                wiring += fh.read().replace(os.path.basename(path), \"\")\n\n        unreachable = [h for h in self._hooks()\n                       if h not in TestHookWiringIsHonest.UNWIRED and h not in wiring]\n        assert unreachable == [], (\n            f\"hooks reachable from nothing and not declared inert: {unreachable}\")\n\n    def test_the_inert_list_does_not_hide_a_wired_hook(self):\n        \"\"\"The allowlist must not grow to cover hooks that ARE wired -- that would\n        make the test pass by shrinking what it checks.\"\"\"\n        with open(os.path.join(CLAUDE_DIR, \"settings.json\"), encoding=\"utf-8\") as fh:\n            settings = fh.read()\n        wired_but_listed = [h for h in TestHookWiringIsHonest.UNWIRED if h in settings]\n        assert wired_but_listed == [], (\n            f\"declared inert but wired in settings.json: {wired_but_listed}\")\n\n    def test_the_docs_do_not_claim_every_hook_is_wired(self):\n        \"\"\"The specific false sentence, pinned. Reads the docs, because the two tests\n        above pass just as well beside prose that contradicts them.\"\"\"\n        for rel in (\"README.md\", \"docs/HOOKS.md\"):\n            with open(os.path.join(ROOT, rel), encoding=\"utf-8\") as fh:\n                body = fh.read()\n            assert \"all are wired\" not in body, f\"{rel} claims every hook is wired\"\n            assert \"library), all\\nwired\" not in body, f\"{rel} claims every hook is wired\"\n\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/file-guard-gate.sh",
+      "description": "the templates/hooks fallback names a path that can no longer exist",
+      "edits": [
+        {
+          "find": "for candidate in \"$SCRIPT_DIR/file-guard.sh\" \\\n                 \"$ROOT/.claude/hooks/file-guard.sh\" \\\n                 \"$ROOT/templates/hooks/file-guard.sh\"; do",
+          "replace": "for candidate in \"$SCRIPT_DIR/file-guard.sh\" \\\n                 \"$ROOT/.claude/hooks/file-guard.sh\"; do"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "scripts/gen-docs.py",
+      "description": "root AGENTS.md carries counts and no gate could see it",
+      "edits": [
+        {
+          "find": "    \"docs/AGENTS.md\",",
+          "replace": "    \"AGENTS.md\",       # root: carries counts, and was drifting unseen -- it still\n                       # said \"42 commands\" after batch 1 moved the number to 55\n    \"docs/AGENTS.md\","
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_structure.py",
+      "description": "modes are a component class now; give them the same floor the others have",
+      "edits": [
+        {
+          "find": "    def test_modes_live_in_the_canonical_tree(self):\n        modes = os.path.join(CLAUDE_DIR, \"modes\")\n        assert os.path.isdir(modes)\n        assert [f for f in os.listdir(modes) if f.endswith(\".md\")]",
+          "replace": "    EXPECTED_MODES = {\"default\", \"brainstorm\", \"token-efficient\", \"deep-research\",\n                      \"implementation\", \"orchestration\", \"review\"}\n\n    def test_modes_live_in_the_canonical_tree(self):\n        \"\"\"Named, not counted. `.claude/modes/` arrived in task 008 batch 1 and is the\n        one component class no generator counts, so a mode deleted by accident would\n        go unnoticed -- an existence check on the directory passes with six of seven.\"\"\"\n        modes = os.path.join(CLAUDE_DIR, \"modes\")\n        assert os.path.isdir(modes)\n        found = {os.path.basename(p)[:-3] for p in\n                 glob.glob(os.path.join(modes, \"*.md\"))}\n        missing = sorted(TestOneCanonicalTree.EXPECTED_MODES - found)\n        assert missing == [], f\"modes lost: {missing}\""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/injection-scan-gate.sh",
+      "description": "the templates/hooks fallback names a path that can no longer exist",
+      "edits": [
+        {
+          "find": " \\\n                 \"$ROOT/templates/hooks/prompt-injection-scanner.sh\"; do",
+          "replace": "; do"
+        }
+      ]
+    }
+  ]
+}

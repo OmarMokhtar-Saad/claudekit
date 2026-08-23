@@ -1,0 +1,38 @@
+{
+  "plan": "008-b1-review-major1-renamed",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/skills-registry.json",
+      "description": "the renamed alias map the sign-off made a condition for downstream consumers",
+      "edits": [
+        {
+          "find": "  \"description\": \"ClaudeKit skills registry \\u2014 maps skills to agents\",",
+          "add_after": "\n  \"renamed\": {\n    \"i18n-workflow\": \"i18n-patterns\"\n  },"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "scripts/gen-registry.py",
+      "description": "validate the alias map: targets must exist, aliases must not shadow a live skill",
+      "edits": [
+        {
+          "find": "    registry[\"agentMapping\"] = derived",
+          "add_before": "    # The `renamed` alias map is how a REMOVED skill name stays resolvable for one\n    # release, so the 16 downstream repos see a rename and not a deletion (a\n    # condition of the task-008 sign-off). It is hand-maintained -- nothing on disk\n    # can derive it, since the whole point is that the old name is gone -- so the\n    # generator's job is to keep it HONEST rather than to write it.\n    aliases = registry.get(\"renamed\", {})\n    alias_errors = []\n    for old, new in sorted(aliases.items()):\n        if old in fs_skills:\n            alias_errors.append(\n                f\"'{old}' is aliased to '{new}' but still exists on disk: an alias\"\n                f\" that shadows a live skill resolves the wrong way\")\n        if new not in fs_skills:\n            alias_errors.append(\n                f\"'{old}' is aliased to '{new}', which does not exist\")\n    if alias_errors:\n        for err in alias_errors:\n            print(f\"ERROR: renamed: {err}\", file=sys.stderr)\n        return 1\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "scripts/gen-registry.py",
+      "description": "--check must fail on a broken alias too, not only the rewrite path",
+      "edits": [
+        {
+          "find": "    fs_skills = set(derive_skill_ids())\n    reg_skills = {s[\"id\"] for s in registry.get(\"skills\", [])}",
+          "replace": "    fs_skills = set(derive_skill_ids())\n    reg_skills = {s[\"id\"] for s in registry.get(\"skills\", [])}\n\n    # Alias targets are checked before the skills reconciliation below, so a broken\n    # alias is reported by BOTH `--check` and the rewrite rather than only the one\n    # that happens to run first.\n    for _old, _new in sorted(registry.get(\"renamed\", {}).items()):\n        if _old in fs_skills:\n            print(f\"ERROR: renamed: '{_old}' is aliased but still exists on disk\",\n                  file=sys.stderr)\n            return 1\n        if _new not in fs_skills:\n            print(f\"ERROR: renamed: '{_old}' -> '{_new}', which does not exist\",\n                  file=sys.stderr)\n            return 1"
+        }
+      ]
+    }
+  ]
+}

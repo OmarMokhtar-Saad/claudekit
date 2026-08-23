@@ -38,7 +38,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   copied `templates/skills/*`, where `i18n-workflow` lived alone — so every install
   shipped a skill the registry did not list, and a gate failed on the happy path. That
   was patched by rewriting the registry after install; the cause is now gone and the
-  patch with it. A fresh `--full` install reports 26/26 and 100/100.
+  patch with it. A fresh `--full` install into a Python project reports 26/26 and
+  100/100. **`--strict` still exits 1 on a bare directory** (95/100, three warnings
+  for build/test/lint commands the generic template cannot fill in) — that is
+  unrelated to this change and behaved identically before it. An earlier draft of
+  this entry quoted the Python figure without the qualifier, which read as a promise
+  the installer does not make.
 - **A promoted hook is executable.** `templates/hooks/` was never linted or
   permission-checked; `.claude/hooks/` is both. The four promoted hooks ship `0755`,
   and `auto-checkpoint.sh` carries a shellcheck SC2155 fix it needed all along.

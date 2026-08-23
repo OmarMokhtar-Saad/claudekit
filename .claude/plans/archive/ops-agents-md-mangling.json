@@ -1,0 +1,16 @@
+{
+  "plan": "agents-md-codex-mangling",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "AGENTS.md",
+      "description": "pre-existing sed mangling from the .codex/ mirror removal: the paths and the PyPI name are simply wrong",
+      "edits": [
+        {
+          "find": "Prompt corpus (29 agents \u00b7 55 commands \u00b7 76 skills in `.Codex/`) + enforcement layer (26 hooks, `src/claudekit/security/`) + operations engine (`.Codex/operations/scripts/`) + delivery shell (`src/claudekit/cli/`, `install.sh`, CI). Version 2.1.0 (unreleased tag); PyPI name `Codex-kit`; CLI `claudekit`/`ck`; zero runtime dependencies.",
+          "replace": "Prompt corpus (29 agents \u00b7 55 commands \u00b7 76 skills in `.claude/`) + enforcement layer (26 hooks, `src/claudekit/security/`) + operations engine (`.claude/operations/scripts/`) + delivery shell (`src/claudekit/cli/`, `install.sh`, CI). Version 2.1.0 (unreleased tag); PyPI name `claude-kit`; CLI `claudekit`/`ck`; zero runtime dependencies."
+        }
+      ]
+    }
+  ]
+}
