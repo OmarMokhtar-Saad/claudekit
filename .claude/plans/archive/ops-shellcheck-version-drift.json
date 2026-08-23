@@ -1,0 +1,27 @@
+{
+  "plan": "shellcheck-version-drift",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/dispatch.sh",
+      "description": "the older shellcheck flags the trap body as unreachable; the directive did not cover it",
+      "edits": [
+        {
+          "find": "# shellcheck disable=SC2329  # invoked indirectly, by the traps below",
+          "replace": "# shellcheck disable=SC2329,SC2317  # invoked indirectly, by the traps below.\n# SC2317 (\"command appears to be unreachable\") is the same claim about the BODY,\n# and it is wrong for the same reason. Both are needed: ShellCheck 0.11 (local)\n# emits neither, while the version CI installs from apt emits both, so omitting\n# SC2317 reddened three CI jobs against a silent local run."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/ops-enforcement.sh",
+      "description": "useless cat; the redirect keeps the fail-dormant behaviour the comment promises",
+      "edits": [
+        {
+          "find": "    OPS_SOURCE_PATTERNS=$(cat \"$OPS_GLOBS_FILE\" 2>/dev/null | tr -d '\\r')",
+          "replace": "    OPS_SOURCE_PATTERNS=$(tr -d '\\r' < \"$OPS_GLOBS_FILE\" 2>/dev/null)"
+        }
+      ]
+    }
+  ]
+}

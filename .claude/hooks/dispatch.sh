@@ -127,7 +127,11 @@ esac
 # the trigger on purpose: an ERR trap would also fire on a handler that merely
 # exited non-zero, which is a normal, expected outcome here, not a panic.
 CK_RENDERED=0
-# shellcheck disable=SC2329  # invoked indirectly, by the traps below
+# shellcheck disable=SC2329,SC2317  # invoked indirectly, by the traps below.
+# SC2317 ("command appears to be unreachable") is the same claim about the BODY,
+# and it is wrong for the same reason. Both are needed: ShellCheck 0.11 (local)
+# emits neither, while the version CI installs from apt emits both, so omitting
+# SC2317 reddened three CI jobs against a silent local run.
 ck_dispatch_panic() {
     local rc=$?
     [ "$CK_RENDERED" -eq 1 ] && exit "$rc"

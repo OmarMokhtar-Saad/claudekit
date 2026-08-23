@@ -53,7 +53,7 @@ elif [ -f "$OPS_GLOBS_FILE" ]; then
     # `tr -d` \r: a CRLF marker would otherwise yield patterns that match nothing,
     # silently disabling enforcement. 2>/dev/null: an unreadable marker fails dormant
     # without leaking "Permission denied" onto the hook's stderr.
-    OPS_SOURCE_PATTERNS=$(cat "$OPS_GLOBS_FILE" 2>/dev/null | tr -d '\r')
+    OPS_SOURCE_PATTERNS=$(tr -d '\r' < "$OPS_GLOBS_FILE" 2>/dev/null)
 fi
 if [ -n "$OPS_SOURCE_PATTERNS" ]; then
     REL_TARGET=${ABS_TARGET#"$ABS_ROOT"/}
