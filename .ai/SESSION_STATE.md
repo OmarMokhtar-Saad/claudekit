@@ -3,8 +3,8 @@
 > Update this file at the end of every significant AI working session. It is the resume point.
 
 **Last updated:** 2026-08-23 · **By:** Claude (Opus 5) — **PR #20 is one PRE-EXISTING
-red test away from mergeable. Four commits landed; one change is queued with no verdict.**
-`fix/review-loop-gaps` is at `6ff71d4`, pushed, 14 commits. Every non-test CI job passes
+red test away from mergeable. Five commits landed; nothing is queued.**
+`fix/review-loop-gaps` is at `82206fc`, pushed, 17 commits. Every non-test CI job passes
 and all four macOS test jobs pass; the four ubuntu jobs and `coverage` fail on ONE test
 that is also red on `main` (see below). Nothing is tagged. `origin/main` is still at
 `5e890f1`, so the merge is what publishes any of this.
@@ -29,21 +29,24 @@ that is also red on `main` (see below). Nothing is tagged. `origin/main` is stil
   a property of the RUNNER (ubuntu images ship shellcheck, macOS images do not). Now
   asserts the skip marker and tally, mutation-proven with shellcheck hidden from PATH.
 
-**QUEUED, NOT EXECUTED: `ops-review-truthfulness-batch.json`** (validator APPROVED, 8 ops).
-Closes the three non-blocking majors of PR #20's composed-diff review: the readiness-score
-asymmetry (a fresh `--minimal` install scores 100 while the `--full` superset scores 95, so
-`--min-score` cannot express "a complete kit" as `docs/cli.md` claims), `cmd_adapt`'s
-docstring asserting the opposite of what its fresh branch does, and
-`check-plan-artifacts.py` verifying ZERO paths in CI. Reviewed twice (84, then round 3
-never returned a verdict — the reviewer died mid-round on the session limit). I verified it
-myself in a throwaway worktree — 8/8 ops apply at HEAD, the gate goes from `OK (1 config)`
-to `OK (95 configs, 355 paths verified)`, doctor prints `100/100 (26 applicable, 0 not)`,
-188 tests pass — **but author verification is not review, and it stays queued.** Round 3's
-delta is written into the config already: the segment-wise pattern matcher (the first one
-used `fnmatch`, whose `*` crosses `/`, so `.claude/skills/*` named
-`.claude/skills/x/../../../etc/passwd` and markdown bold reopened a closed class), the
-plan naming its own `CHANGELOG.md` target, and the fabricated `profiles/base/profile.json`
-removed.
+**`82206fc` — the batch landed, APPROVED 94/100** (68 REJECTED → 84 REJECTED → 94
+APPROVED, bound by sha256 `fcc1e237`). It closes the three non-blocking majors of PR #20's
+composed-diff review: `check-plan-artifacts.py` verified ZERO paths in the CI run that gates
+the merge (now `OK (97 config(s), 357 path(s) verified)`); the readiness score ranked a
+`--minimal` install above the `--full` superset of it, 100 against 95, so `--min-score` could
+not express "a complete kit" as `docs/cli.md` sells it; and two comments asserted the opposite
+of the code they describe. Making the gate honest surfaced 27 findings whose triage was the
+real work — 4 mine, **19 one false-positive shape** (a plan naming 15 files as
+`.claude/skills/<name>/SKILL.md` with the count in its ops table is a complete description),
+4 genuine. The matcher that fixed those 19 first used `fnmatch`, whose `*` crosses `/`, so
+`.claude/skills/*` named `.claude/skills/x/../../../etc/passwd` and markdown bold reopened a
+class that file documents as closed; replaced with anchored segment-wise translation and
+attacked with 27 vectors. Three minors filed, none blocking — notably `[^/]*` still matches a
+`..` segment, which is review fidelity rather than a boundary (the gate grants nothing, and
+`execute-json-ops.py` confines without normalising).
+
+**Nothing is queued now.** Suite `2153 passed, 1 xfailed`; all eight gates green, re-run after
+committing.
 
 **The blocker to look at first.** `test_validator_vs_bash.py::TestTheOracleBinds::
 test_a_validator_with_no_blocklist_is_caught_by_bash` is red on ubuntu and on `main`:
