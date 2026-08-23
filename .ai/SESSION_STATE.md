@@ -2,8 +2,24 @@
 
 > Update this file at the end of every significant AI working session. It is the resume point.
 
-**Last updated:** 2026-08-23 · **By:** Claude (Opus 5) — **PR #20 is one PRE-EXISTING
-red test away from mergeable. Five commits landed; nothing is queued.**
+**Last updated:** 2026-08-23 · **By:** Claude (Opus 5) — **task 008 is unblocked and
+batch 1 is planned, reviewed-ready and NOT executed. One commit landed.**
+
+Task 008 could not have run at all: the ops engine's protected-file guard listed
+`*.md`, so it could not delete a markdown file, and the corpus is entirely markdown.
+Across 97 archived configs there are zero `file_delete` operations of any kind. The
+guard is now scoped to 14 named identity documents (case-insensitively, plus a
+widen-only `CLAUDEKIT_EXTRA_PROTECTED`), reviewed 80 CONDITIONAL → 93 APPROVED, and
+proven by mutation. Batch-1 ops configs went 3/19 → 19/19 validating.
+
+**Next action:** owner go-ahead to execute `.claude/plans/ops-008-batch1/` (19 configs,
+in INDEX order — promote, then delete, then install.sh, then tests). Read
+`plan-008-batch1-one-tree.md` first: it documents where the 008 sign-off sheet was
+measurably wrong (the three "diverged" skills differ by one frontmatter line each; the
+`templates/commands|hooks|modes` trees are 24 unique components, not duplicates).
+
+**Prior state, still true below:** PR #20 is one PRE-EXISTING red test away from
+mergeable; nothing is tagged; `origin/main` is still at `5e890f1`.
 `fix/review-loop-gaps` is at `82206fc`, pushed, 17 commits. Every non-test CI job passes
 and all four macOS test jobs pass; the four ubuntu jobs and `coverage` fail on ONE test
 that is also red on `main` (see below). Nothing is tagged. `origin/main` is still at

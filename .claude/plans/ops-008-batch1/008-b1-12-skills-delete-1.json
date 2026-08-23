@@ -1,0 +1,20 @@
+{
+  "plan": "008-b1-12-skills-delete-1",
+  "operations": [
+    {
+      "type": "file_delete",
+      "path": "templates/skills/autonomous-loop/SKILL.md",
+      "reason": "exact duplicate of .claude/skills/autonomous-loop/SKILL.md (only the description line differed for three of the fourteen, and .claude/ already carries the better one); one canonical tree"
+    },
+    {
+      "type": "file_delete",
+      "path": "templates/skills/codebase-mapping/SKILL.md",
+      "reason": "exact duplicate of .claude/skills/codebase-mapping/SKILL.md (only the description line differed for three of the fourteen, and .claude/ already carries the better one); one canonical tree"
+    },
+    {
+      "type": "file_delete",
+      "path": "templates/skills/command-flags/SKILL.md",
+      "reason": "exact duplicate of .claude/skills/command-flags/SKILL.md (only the description line differed for three of the fourteen, and .claude/ already carries the better one); one canonical tree"
+    }
+  ]
+}

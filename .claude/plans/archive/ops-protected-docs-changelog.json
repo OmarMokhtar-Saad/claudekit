@@ -1,0 +1,16 @@
+{
+  "plan": "protected-docs-scope-changelog",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "description": "user-visible entry for the protected-docs narrowing",
+      "edits": [
+        {
+          "find": "## [Unreleased]\n\n### Fixed",
+          "replace": "## [Unreleased]\n\n### Changed\n- **The ops engine can now retire a markdown file, and could not before.** Its\n  protected-file guard listed `*.md`, matched by basename anywhere in the tree, with no\n  override of any kind. Since this kit's corpus \u2014 agents, commands, skills, modes \u2014 is\n  entirely markdown, and the operations engine is the only sanctioned path for making a\n  change, no component could ever be retired: across 97 archived operation configs there\n  are **zero** file deletions of any kind. The glob is replaced by the documents the\n  guard exists to protect \u2014 `README.md`, `CHANGELOG.md`, `CLAUDE.md`, `AGENTS.md`,\n  `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, `LICENSE`, `LICENSE.md`,\n  `NOTICE.md`, `MAINTAINERS.md`, `GOVERNANCE.md`, `AUTHORS.md`, `SUPPORT.md` \u2014 which\n  stay refused at any depth. Ordinary prose is now deletable, still behind the three\n  controls that did the real work all along: at most three deletions per config, a\n  mandatory reason on each, and a backup taken before the file is touched.\n- **The protected-file guard no longer gives different answers on different machines.**\n  `fnmatch` normalises case only on Windows, so on Linux the guard refused `README.md`\n  and permitted `readme.md`, while on macOS it refused both; `makefile` and\n  `Contributing.MD` were unprotected everywhere. Matching is now case-insensitive, which\n  widens protection rather than narrowing it. The old `*.md` glob concealed half of this\n  by covering every casing of one extension.\n\n### Added\n- **`CLAUDEKIT_EXTRA_PROTECTED`** \u2014 colon-separated basenames or globs a project adds to\n  the protected set, in the same shape as `CLAUDEKIT_RUN_COMMAND_EXTRA_ALLOW`. Widening\n  only: a project can protect its own `RUNBOOK.md`, and cannot unprotect `README.md`.\n  The validator's rejection message now names the effective set, so a project that\n  extended the list sees what actually blocked it.\n### Fixed"
+        }
+      ]
+    }
+  ]
+}

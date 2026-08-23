@@ -1,6 +1,44 @@
 # AI Session Changelog
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
+## 2026-08-23 — the ops engine could not delete a markdown file, and the corpus is all markdown
+
+Task 008 (consolidation) was picked up from a handoff. Nothing of task 008 itself has
+been executed; the session went entirely into the prerequisite it uncovered, plus the
+plan for batch 1.
+
+- **The handoff's premise was wrong in two places, and re-measuring found it.**
+  The three skills the sign-off sheet called DIVERGED and slated for a three-way merge
+  differ by exactly ONE line each — the `description:` frontmatter — with `.claude/` a
+  strict superset of the body. And `templates/commands|hooks|modes` are not duplicates
+  at all: 24 uniquely-shipped components with ZERO name overlap in `.claude/`, so
+  "delete the duplicate tree" as written would have deleted real content. Owner chose
+  promotion. Lesson worth keeping: the sign-off sheet was itself evidence-shaped, with a
+  table of measurements, and was still wrong — re-measure anyway.
+- **The blocker: `PROTECTED_PATTERNS` contained `*.md`, matched by basename anywhere,
+  with no override.** The kit's corpus is entirely markdown and the ops engine is the
+  only sanctioned path for a change (Iron Law), so no component could ever be retired.
+  Measured: across 97 archived ops configs there are ZERO `file_delete` operations of any
+  kind. Task 008 is not the first plan to hit this — it is the first to notice.
+- **Guard narrowed, 80 CONDITIONAL → 93 APPROVED.** Round 1 caught two REAL defects, not
+  style: (a) narrowing `*.md` to literal names silently unprotected `readme.md` on
+  case-sensitive filesystems, since `fnmatch` normalises case only on Windows — the guard
+  had been answering differently on Linux CI and macOS all along, and the glob concealed
+  it; (b) `test_the_non_markdown_patterns_are_untouched` used `>=`, so it passed against
+  exactly the mutant the plan said it guarded against. Both fixed; matching is now
+  case-insensitive (a widening), the list is pinned by equality, and
+  `CLAUDEKIT_EXTRA_PROTECTED` lets a consumer widen its own set without forking the file.
+- **Gate proven by mutation.** Dropping `CLAUDE.md` from the shipped list goes red in
+  three independent tests; restoring the old `fnmatch` call goes red in the casing test.
+  Output pasted in the archive README rather than claimed.
+- **Batch 1 planned but NOT executed.** `plan-008-batch1-one-tree.md` + 19 ops configs in
+  `.claude/plans/ops-008-batch1/` + an INDEX. All 19 validate (they were 3/19 before the
+  guard change — that delta is the proof the prerequisite was load-bearing).
+  `MAX_DELETIONS = 3` is what makes it 19 configs for 38 deletions; the cap was not raised.
+
+**Follow-ups.** Batch 1 awaits owner go-ahead. Batches 2–4 unchanged. The `.md` guard
+narrowing is a real reduction in protection for 16 downstream repos — named plainly in
+`CHANGELOG.md`, not buried.
 ## 2026-08-23 — PR #20 review round: four rejections, four fixes, one queued
 
 Every change this session was rejected on its first adversarial round, and every rejection

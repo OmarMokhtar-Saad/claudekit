@@ -1,0 +1,27 @@
+{
+  "plan": "protected-docs-scope-ai-records",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".ai/CHANGELOG_AI.md",
+      "description": "session entry for the guard narrowing and the task-008 blocker",
+      "edits": [
+        {
+          "find": "## 2026-08-23 \u2014 PR #20 review round: four rejections, four fixes, one queued",
+          "add_before": "## 2026-08-23 \u2014 the ops engine could not delete a markdown file, and the corpus is all markdown\n\nTask 008 (consolidation) was picked up from a handoff. Nothing of task 008 itself has\nbeen executed; the session went entirely into the prerequisite it uncovered, plus the\nplan for batch 1.\n\n- **The handoff's premise was wrong in two places, and re-measuring found it.**\n  The three skills the sign-off sheet called DIVERGED and slated for a three-way merge\n  differ by exactly ONE line each \u2014 the `description:` frontmatter \u2014 with `.claude/` a\n  strict superset of the body. And `templates/commands|hooks|modes` are not duplicates\n  at all: 24 uniquely-shipped components with ZERO name overlap in `.claude/`, so\n  \"delete the duplicate tree\" as written would have deleted real content. Owner chose\n  promotion. Lesson worth keeping: the sign-off sheet was itself evidence-shaped, with a\n  table of measurements, and was still wrong \u2014 re-measure anyway.\n- **The blocker: `PROTECTED_PATTERNS` contained `*.md`, matched by basename anywhere,\n  with no override.** The kit's corpus is entirely markdown and the ops engine is the\n  only sanctioned path for a change (Iron Law), so no component could ever be retired.\n  Measured: across 97 archived ops configs there are ZERO `file_delete` operations of any\n  kind. Task 008 is not the first plan to hit this \u2014 it is the first to notice.\n- **Guard narrowed, 80 CONDITIONAL \u2192 93 APPROVED.** Round 1 caught two REAL defects, not\n  style: (a) narrowing `*.md` to literal names silently unprotected `readme.md` on\n  case-sensitive filesystems, since `fnmatch` normalises case only on Windows \u2014 the guard\n  had been answering differently on Linux CI and macOS all along, and the glob concealed\n  it; (b) `test_the_non_markdown_patterns_are_untouched` used `>=`, so it passed against\n  exactly the mutant the plan said it guarded against. Both fixed; matching is now\n  case-insensitive (a widening), the list is pinned by equality, and\n  `CLAUDEKIT_EXTRA_PROTECTED` lets a consumer widen its own set without forking the file.\n- **Gate proven by mutation.** Dropping `CLAUDE.md` from the shipped list goes red in\n  three independent tests; restoring the old `fnmatch` call goes red in the casing test.\n  Output pasted in the archive README rather than claimed.\n- **Batch 1 planned but NOT executed.** `plan-008-batch1-one-tree.md` + 19 ops configs in\n  `.claude/plans/ops-008-batch1/` + an INDEX. All 19 validate (they were 3/19 before the\n  guard change \u2014 that delta is the proof the prerequisite was load-bearing).\n  `MAX_DELETIONS = 3` is what makes it 19 configs for 38 deletions; the cap was not raised.\n\n**Follow-ups.** Batch 1 awaits owner go-ahead. Batches 2\u20134 unchanged. The `.md` guard\nnarrowing is a real reduction in protection for 16 downstream repos \u2014 named plainly in\n`CHANGELOG.md`, not buried.\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".ai/SESSION_STATE.md",
+      "description": "resume point: task 008 unblocked, batch 1 planned and awaiting approval",
+      "edits": [
+        {
+          "find": "**Last updated:** 2026-08-23 \u00b7 **By:** Claude (Opus 5) \u2014 **PR #20 is one PRE-EXISTING\nred test away from mergeable. Five commits landed; nothing is queued.**",
+          "replace": "**Last updated:** 2026-08-23 \u00b7 **By:** Claude (Opus 5) \u2014 **task 008 is unblocked and\nbatch 1 is planned, reviewed-ready and NOT executed. One commit landed.**\n\nTask 008 could not have run at all: the ops engine's protected-file guard listed\n`*.md`, so it could not delete a markdown file, and the corpus is entirely markdown.\nAcross 97 archived configs there are zero `file_delete` operations of any kind. The\nguard is now scoped to 14 named identity documents (case-insensitively, plus a\nwiden-only `CLAUDEKIT_EXTRA_PROTECTED`), reviewed 80 CONDITIONAL \u2192 93 APPROVED, and\nproven by mutation. Batch-1 ops configs went 3/19 \u2192 19/19 validating.\n\n**Next action:** owner go-ahead to execute `.claude/plans/ops-008-batch1/` (19 configs,\nin INDEX order \u2014 promote, then delete, then install.sh, then tests). Read\n`plan-008-batch1-one-tree.md` first: it documents where the 008 sign-off sheet was\nmeasurably wrong (the three \"diverged\" skills differ by one frontmatter line each; the\n`templates/commands|hooks|modes` trees are 24 unique components, not duplicates).\n\n**Prior state, still true below:** PR #20 is one PRE-EXISTING red test away from\nmergeable; nothing is tagged; `origin/main` is still at `5e890f1`."
+        }
+      ]
+    }
+  ]
+}

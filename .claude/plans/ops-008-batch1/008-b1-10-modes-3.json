@@ -1,0 +1,16 @@
+{
+  "plan": "008-b1-10-modes-3",
+  "operations": [
+    {
+      "type": "file_create",
+      "path": ".claude/modes/token-efficient.md",
+      "content": "---\nname: token-efficient\ndescription: \"Compressed concise output targeting 40-70% token savings over default mode\"\n---\n\n# Token-Efficient Mode\n\n## Purpose\n\nMinimize token usage while preserving information density. Target: 40-70% fewer tokens than default mode for equivalent content.\n\n---\n\n## Rules\n\n### Eliminate\n\n- No filler words (just, simply, basically, actually, really, quite, very)\n- No pleasantries (Sure!, Great question!, Happy to help!, Absolutely!)\n- No preambles (Let me explain..., Here's what I found..., I'll walk you through...)\n- No summaries or recaps at the end\n- No \"Let me...\", \"I'll...\", \"Here's what I did...\"\n- No restating the question back\n- No transition phrases between sections\n\n### Prefer\n\n- Code-only responses where code IS the answer\n- Bullet points over paragraphs\n- Tables over prose comparisons\n- Shorthand over full words where unambiguous\n- Single-line answers for simple questions\n\n### Shorthand Conventions\n\n| Shorthand | Meaning |\n|-----------|---------|\n| fn | function |\n| impl | implementation |\n| cfg | configuration |\n| dep | dependency |\n| pkg | package |\n| dir | directory |\n| env | environment |\n| param | parameter |\n| ret | return |\n| err | error |\n| req | request |\n| res | response |\n| auth | authentication |\n| db | database |\n| msg | message |\n\n---\n\n## Response Patterns\n\n### Simple question\n\n```\nQ: How do I reverse a list in Python?\nA: `lst[::-1]` or `lst.reverse()` (in-place)\n```\n\n### Code task\n\nRespond with code block only. No explanation unless the logic is non-obvious.\n\n### Explanation needed\n\n- Use numbered steps\n- Max 1 sentence per step\n- Skip obvious steps\n\n### Error diagnosis\n\n```\nCause: [one line]\nFix: [code or one line]\n```\n\n---\n\n## Formatting\n\n- Headers only when response has 3+ distinct sections\n- No blank lines between bullet points\n- Inline code over code blocks for single expressions\n- Skip language identifier on obvious code blocks\n\n---\n\n## Session Behavior\n\nWhile token-efficient mode is active:\n\n- Every response should be as short as possible without losing correctness\n- When in doubt, leave it out\n- If the user asks \"why\", give a 1-2 sentence reason, not an essay\n- Code changes: show only the diff, not the full file\n- File references: `path/file.ext:L42` format\n",
+      "description": "promote templates/modes/token-efficient.md to the canonical tree"
+    },
+    {
+      "type": "file_delete",
+      "path": "templates/modes/token-efficient.md",
+      "reason": "promoted byte-identically to .claude/modes/token-efficient.md; one canonical tree so no destination file is decided by install copy order"
+    }
+  ]
+}

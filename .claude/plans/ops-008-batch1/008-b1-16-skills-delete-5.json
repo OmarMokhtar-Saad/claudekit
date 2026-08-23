@@ -1,0 +1,10 @@
+{
+  "plan": "008-b1-16-skills-delete-5",
+  "operations": [
+    {
+      "type": "file_delete",
+      "path": "templates/skills/usage-monitoring/SKILL.md",
+      "reason": "exact duplicate of .claude/skills/usage-monitoring/SKILL.md (only the description line differed for three of the fourteen, and .claude/ already carries the better one); one canonical tree"
+    }
+  ]
+}

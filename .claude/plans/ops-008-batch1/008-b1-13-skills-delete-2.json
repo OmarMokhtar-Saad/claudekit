@@ -1,0 +1,20 @@
+{
+  "plan": "008-b1-13-skills-delete-2",
+  "operations": [
+    {
+      "type": "file_delete",
+      "path": "templates/skills/context-priming/SKILL.md",
+      "reason": "exact duplicate of .claude/skills/context-priming/SKILL.md (only the description line differed for three of the fourteen, and .claude/ already carries the better one); one canonical tree"
+    },
+    {
+      "type": "file_delete",
+      "path": "templates/skills/hook-profiling/SKILL.md",
+      "reason": "exact duplicate of .claude/skills/hook-profiling/SKILL.md (only the description line differed for three of the fourteen, and .claude/ already carries the better one); one canonical tree"
+    },
+    {
+      "type": "file_delete",
+      "path": "templates/skills/incident-response/SKILL.md",
+      "reason": "exact duplicate of .claude/skills/incident-response/SKILL.md (only the description line differed for three of the fourteen, and .claude/ already carries the better one); one canonical tree"
+    }
+  ]
+}

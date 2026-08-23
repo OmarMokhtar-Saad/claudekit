@@ -1,0 +1,54 @@
+{
+  "plan": "protected-docs-scope",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/shared.py",
+      "description": "protect named identity documents, case-insensitively and per-project extensibly, instead of every markdown file",
+      "edits": [
+        {
+          "find": "# Protected file patterns (cannot be deleted via ops config).\n# Add project-specific patterns as needed.\nPROTECTED_PATTERNS = [\n    \".gitignore\",\n    \"*.md\",",
+          "replace": "# Protected file patterns (cannot be deleted via ops config), matched against the\n# BASENAME and CASE-INSENSITIVELY, so a pattern applies at any depth and `readme.md`\n# is as protected as `README.md`.\n#\n# The markdown entry was the glob `*.md` until 2026-08-23. That froze every paragraph\n# of prose in the tree, and this kit's corpus -- agents, commands, skills, modes -- is\n# entirely markdown, so no ops config could ever retire one. The engine is the only\n# sanctioned path for implementation (the Iron Law), so a whole class of maintenance\n# had no legal route at all. Measured: across 97 archived configs there are ZERO\n# file_delete operations of any kind, and task 008 stalled with 16 of 19 configs\n# REJECTED, every one of them on `*.md`.\n#\n# What the guard is FOR is a project's identity documents -- the files whose loss a\n# user would experience as damage. Those are named below and still refused at any\n# depth. Ordinary prose is deletable, and three controls remain in front of it:\n# MAX_DELETIONS = 3 per config, the mandatory `reason` field, and the executor's\n# pre-delete backup.\n#\n# The list is a DEFAULT, not a survey: it is the conventional OSS set, not a census of\n# what any particular consumer keeps. A project with its own identity documents widens\n# its own set with CLAUDEKIT_EXTRA_PROTECTED rather than forking this file -- the same\n# shape ALLOWED_RUN_COMMANDS already uses below.\nPROTECTED_PATTERNS = [\n    \".gitignore\",\n    \"README.md\",\n    \"CHANGELOG.md\",\n    \"CLAUDE.md\",\n    \"AGENTS.md\",\n    \"CONTRIBUTING.md\",\n    \"SECURITY.md\",\n    \"CODE_OF_CONDUCT.md\",\n    \"LICENSE\",\n    \"LICENSE.md\",\n    \"NOTICE.md\",\n    \"MAINTAINERS.md\",\n    \"GOVERNANCE.md\",\n    \"AUTHORS.md\",\n    \"SUPPORT.md\","
+        },
+        {
+          "find": "    \"__version__\", \"PROTECTED_PATTERNS\", \"is_protected_file\",",
+          "replace": "    \"__version__\", \"PROTECTED_PATTERNS\", \"protected_patterns\", \"is_protected_file\","
+        },
+        {
+          "find": "def is_protected_file(file_path: str) -> bool:\n    \"\"\"Check if file matches protected patterns.\n\n    Protected files cannot be deleted via operations config.\n    \"\"\"\n    file_name = os.path.basename(file_path)\n    for pattern in PROTECTED_PATTERNS:\n        if fnmatch.fnmatch(file_name, pattern):\n            return True\n    return False",
+          "replace": "def protected_patterns() -> list:\n    \"\"\"The effective protected set: the defaults above plus anything a project\n    adds through CLAUDEKIT_EXTRA_PROTECTED (colon-separated basenames or globs,\n    typically set in .claude/settings.local.json env).\n\n    Extensible for the same reason ALLOWED_RUN_COMMANDS is: the default list is a\n    convention, and a consumer that keeps an identity document this kit never\n    heard of should be able to say so without editing a file the kit overwrites\n    on upgrade. Widening only -- there is no mechanism to REMOVE a default.\n    \"\"\"\n    extra = os.environ.get(\"CLAUDEKIT_EXTRA_PROTECTED\", \"\")\n    return PROTECTED_PATTERNS + [n.strip() for n in extra.split(\":\") if n.strip()]\n\n\ndef is_protected_file(file_path: str) -> bool:\n    \"\"\"Check if file matches protected patterns.\n\n    Protected files cannot be deleted via operations config.\n\n    Case-INSENSITIVE, and deliberately so. `fnmatch.fnmatch` normalises case only\n    on Windows, so on Linux CI the guard used to refuse `README.md` and permit\n    `readme.md` while on macOS both behaved the same -- a security control whose\n    answer depended on the developer's filesystem. The old `*.md` glob hid half\n    of that; naming the documents exposes it, so it is fixed here rather than\n    inherited.\n    \"\"\"\n    file_name = os.path.basename(file_path).lower()\n    for pattern in protected_patterns():\n        if fnmatch.fnmatchcase(file_name, pattern.lower()):\n            return True\n    return False"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/validate-config-json.py",
+      "description": "the rejection message must name the EFFECTIVE protected set, not just the defaults",
+      "edits": [
+        {
+          "find": "from shared import PROTECTED_PATTERNS, is_protected_file, allowed_run_commands, __version__",
+          "replace": "from shared import protected_patterns, is_protected_file, allowed_run_commands, __version__"
+        },
+        {
+          "find": "                    f\"                  Protected patterns: {', '.join(PROTECTED_PATTERNS)}\"",
+          "replace": "                    f\"                  Protected patterns: {', '.join(protected_patterns())}\""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_validator.py",
+      "description": "pin the narrowed list exactly, both casings, and the extension mechanism",
+      "edits": [
+        {
+          "find": "from shared import PROTECTED_PATTERNS, is_protected_file  # noqa: E402",
+          "replace": "from shared import PROTECTED_PATTERNS, is_protected_file, protected_patterns  # noqa: E402"
+        },
+        {
+          "find": "    def test_nested_path_uses_basename(self):\n        assert is_protected_file(\"src/deep/README.md\")\n        assert not is_protected_file(\"src/deep/app.py\")",
+          "replace": "    def test_nested_path_uses_basename(self):\n        assert is_protected_file(\"src/deep/README.md\")\n        assert not is_protected_file(\"src/deep/app.py\")\n\n    def test_every_identity_document_is_refused_at_any_depth(self):\n        \"\"\"Named one by one. The `*.md` glob used to cover these as a side effect\n        of covering everything; now they are the whole of the markdown rule, so a\n        name dropped from the list is a silent hole. Depth is asserted because the\n        match is on basename and a path-based rewrite would break it.\"\"\"\n        for name in (\"README.md\", \"CHANGELOG.md\", \"CLAUDE.md\", \"AGENTS.md\",\n                     \"CONTRIBUTING.md\", \"SECURITY.md\", \"CODE_OF_CONDUCT.md\",\n                     \"LICENSE\", \"LICENSE.md\", \"NOTICE.md\", \"MAINTAINERS.md\",\n                     \"GOVERNANCE.md\", \"AUTHORS.md\", \"SUPPORT.md\"):\n            assert is_protected_file(name), f\"{name} unprotected\"\n            assert is_protected_file(f\"docs/deep/{name}\"), f\"{name} unprotected at depth\"\n\n    def test_protection_does_not_depend_on_casing(self):\n        \"\"\"`fnmatch.fnmatch` normalises case only on Windows, so before this the\n        guard gave different answers on Linux CI and on macOS. `readme.md` was\n        protected by the old `*.md` glob and must not lose that by being renamed\n        into a literal list.\"\"\"\n        for name in (\"readme.md\", \"License.md\", \"Contributing.MD\", \"cLaUdE.Md\",\n                     \"makefile\", \"DOCKERFILE\"):\n            assert is_protected_file(name), f\"{name} unprotected\"\n\n    def test_component_prose_is_deletable(self):\n        \"\"\"The narrowing exists so the kit can retire its own components. If this\n        goes red the ops engine cannot execute a consolidation plan, which is the\n        state that blocked task 008.\"\"\"\n        assert not is_protected_file(\".claude/skills/token-optimization/SKILL.md\")\n        assert not is_protected_file(\".claude/agents/python-reviewer.md\")\n        assert not is_protected_file(\"templates/commands/analyze.md\")\n\n    def test_the_default_list_is_pinned_exactly(self):\n        \"\"\"Equality, not a superset check. A superset assertion passes against a\n        mutant that ADDS an unreviewed pattern or reorders the list, and the whole\n        point of this change is that the list is now the entire markdown rule.\"\"\"\n        assert PROTECTED_PATTERNS == [\n            \".gitignore\",\n            \"README.md\",\n            \"CHANGELOG.md\",\n            \"CLAUDE.md\",\n            \"AGENTS.md\",\n            \"CONTRIBUTING.md\",\n            \"SECURITY.md\",\n            \"CODE_OF_CONDUCT.md\",\n            \"LICENSE\",\n            \"LICENSE.md\",\n            \"NOTICE.md\",\n            \"MAINTAINERS.md\",\n            \"GOVERNANCE.md\",\n            \"AUTHORS.md\",\n            \"SUPPORT.md\",\n            \"Makefile\",\n            \"Dockerfile\",\n            \"docker-compose.yml\",\n            \"docker-compose.yaml\",\n            \"requirements.txt\",\n            \"package.json\",\n            \"package-lock.json\",\n            \"yarn.lock\",\n            \"pyproject.toml\",\n            \"setup.py\",\n            \"setup.cfg\",\n            \"Pipfile\",\n            \"Pipfile.lock\",\n            \"tsconfig.json\"\n        ]\n\n    def test_extra_protected_widens_but_cannot_narrow(self):\n        \"\"\"The escape hatch for a consumer whose identity documents this kit never\n        heard of. It must not be able to REMOVE a default -- a project config that\n        could unprotect README.md would be a hole, not an extension.\"\"\"\n        import os as _os\n        before = _os.environ.get(\"CLAUDEKIT_EXTRA_PROTECTED\")\n        _os.environ[\"CLAUDEKIT_EXTRA_PROTECTED\"] = \"RUNBOOK.md: ARCHITECTURE.md \"\n        try:\n            assert is_protected_file(\"docs/RUNBOOK.md\")\n            assert is_protected_file(\"ARCHITECTURE.md\")\n            assert is_protected_file(\"README.md\"), \"an extension removed a default\"\n            assert set(PROTECTED_PATTERNS) <= set(protected_patterns())\n        finally:\n            if before is None:\n                _os.environ.pop(\"CLAUDEKIT_EXTRA_PROTECTED\", None)\n            else:\n                _os.environ[\"CLAUDEKIT_EXTRA_PROTECTED\"] = before\n        assert not is_protected_file(\"docs/RUNBOOK.md\"), \"extension leaked\""
+        }
+      ]
+    }
+  ]
+}

@@ -6,6 +6,9 @@ Move a config here when it is **spent** (already executed — anchors consumed b
 
 | File | Why archived |
 |---|---|
+| `ops-protected-docs-scope.json` | Spent — executed 2026-08-23 (RESULT-JSON: 3/3 ops success). Narrowed the ops guard's `*.md` glob to 14 named identity documents, made `is_protected_file` case-insensitive, added the widen-only `CLAUDEKIT_EXTRA_PROTECTED` extension. Reviewer rounds: 80 CONDITIONAL → **93 APPROVED**; round 1 caught two real defects — a case-sensitivity regression that would have silently unprotected `readme.md` on Linux CI, and a `>=` assertion that would have passed against the very mutant the plan claimed to guard. Unblocked task 008: batch-1 configs went 3/19 → 19/19 validating. Gate proven by mutation, not asserted (see `plan-protected-docs-scope.md`). |
+| `ops-protected-docs-changelog.json` | Spent — executed 2026-08-23 with `--no-approval` (docs-only, Tier 1 repo maintenance; disclosed rather than backed by a self-issued review record). The `[Unreleased]` entry for the change above. |
+| `ops-protected-docs-ai-records.json` | Spent — executed 2026-08-23 with `--no-approval` (docs-only, `.ai/` maintainer records; disclosed). Session entry + resume point for the guard narrowing and the task-008 blocker. |
 | `ops-hardening-implementer-contract.json` | Spent — executed before archiving; its output is the ops-hardening working-tree changes (see `plan-ops-hardening-implementer-contract.md`). |
 | `ops-review-approval-binding.json` | Superseded — never executed as-is; its command-file edits targeted pre-2026-07-31 `review.md`. Its two `file_create` payloads (`review-record.py`, `tests/test_review_record.py`) were reused byte-for-byte by `ops-approval-binding-rebased.json`. Kept as the reviewed design record (3 review rounds). |
 | `ops-approval-binding-rebased.json` | Spent — executed 2026-07-31 (RESULT-JSON: 9/9 ops success). The rebase of the above against HEAD, per `plan-remaining-fixes-2026-07-31.md` §2. |
