@@ -406,6 +406,65 @@ class TestInvokedHelpersAreCheckedNotAssumed:
         (destination / ".claude" / "hooks" / "dispatch_resolve.py").unlink()
         return destination
 
+
+    def test_a_full_install_with_configured_commands_is_green_under_strict(
+            self, full_project, strict_env, tmp_path_factory):
+        """The gap the minimal-install test cannot cover: a FULL install, strict-green.
+
+        `test_a_healthy_install_reports_the_helper_check_as_a_pass` above deliberately
+        asserts on one check's line rather than the exit code, because a fresh full
+        install into an empty directory configures no project commands and so warns
+        three times -- a verdict that check does not own. That left nothing driving a
+        full install to a strict-green EXIT CODE, which is the only assertion that
+        proves the other 26 checks agree.
+
+        Measured before this test existed: `--strict` on a fresh full install returns 1
+        with exactly three warnings, all of them `config.json: <name> not configured`;
+        filling them returns 0 at 26/26. An earlier review read that rc=1 as registry
+        drift from `i18n-workflow`, which was a misdiagnosis -- that skill ships from
+        `templates/skills/` and is reconciled by design.
+
+        The commands go under `project`, not at the root: a root-level write fails the
+        schema check, so a version of this test that wrote them there would prove the
+        opposite of what it claims.
+        """
+        target = tmp_path_factory.mktemp("full-strict-green")
+        shutil.copytree(full_project, target, dirs_exist_ok=True)
+
+        config_path = target / ".claude" / "hooks" / "config.json"
+        with open(config_path, encoding="utf-8") as handle:
+            config = json.load(handle)
+        project = config.setdefault("project", {})
+        project["build_cmd"] = "true"
+        project["test_cmd"] = "true"
+        project["lint_cmd"] = "true"
+        with open(config_path, "w", encoding="utf-8") as handle:
+            json.dump(config, handle, indent=2)
+
+        proc = _doctor(target, "--strict", env=strict_env)
+        combined = proc.stdout + proc.stderr
+        assert proc.returncode == 0, (
+            "a full install with its commands configured is not strict-green:\n"
+            + combined)
+        assert "Warnings: 0" in combined or "Warnings:" not in combined, combined
+
+    def test_the_only_strict_warnings_on_a_fresh_full_install_are_the_blank_commands(
+            self, full_project, strict_env):
+        """Pins the DIAGNOSIS, so the misdiagnosis cannot recur.
+
+        If a future change adds a different warning, this fails and names it, rather
+        than someone re-deriving "doctor fails on a fresh install" and attributing it
+        to whatever looks suspicious that week.
+        """
+        proc = _doctor(full_project, "--strict", env=strict_env)
+        combined = proc.stdout + proc.stderr
+        warnings = [line.strip() for line in combined.splitlines()
+                    if "not configured" in line or line.strip().startswith("[!]")]
+        unexpected = [w for w in warnings if "config.json:" not in w]
+        assert not unexpected, (
+            "a fresh full install now warns for a reason other than unconfigured "
+            "project commands: %r\n%s" % (unexpected, combined))
+
     def test_a_healthy_install_reports_the_helper_check_as_a_pass(self, full_project):
         """Asserted on the check's own line rather than the exit code: a full install
         into an empty temp dir configures no project commands, so the overall --strict
