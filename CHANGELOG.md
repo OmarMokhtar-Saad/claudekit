@@ -13,6 +13,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **One canonical tree: `templates/` no longer ships a second copy of any component.**
+  `install.sh` copied `templates/` and `.claude/` into the same destination, so which
+  file you got was decided by copy order. The fix is not a deletion — measured against
+  the tree rather than the sign-off sheet, `templates/commands` (13), `templates/hooks`
+  (4) and `templates/modes` (7) were **not duplicates at all**: 24 components with zero
+  name overlap in `.claude/`, which a "delete the duplicate tree" change would have
+  destroyed. They are promoted into `.claude/` instead. Only `templates/skills` held
+  true duplicates (14), and those are gone.
+
+  Counts move accordingly: **42 → 55 commands**, **22 → 26 hooks**, and a new
+  `.claude/modes/` with 7 entries. Skills stay at 76. A `--full` install previously
+  landed 55 commands while every document said 42; the generator now describes what
+  actually ships.
+- **`i18n-workflow` is merged into `i18n-patterns`.** It existed only in `templates/`
+  and overlapped `i18n-patterns` heavily. The five sections it covered and
+  `i18n-patterns` did not — gender/select, nested select-plural, relative time,
+  translation formats by ecosystem, quality checks and anti-patterns — were folded in
+  rather than dropped. Promoting it verbatim would have shipped a near-duplicate skill.
+
+### Fixed
+- **`ck doctor --strict` no longer needs a post-install patch to come out clean.**
+  `skills-registry.json` is generated from `.claude/skills/`, but the installer also
+  copied `templates/skills/*`, where `i18n-workflow` lived alone — so every install
+  shipped a skill the registry did not list, and a gate failed on the happy path. That
+  was patched by rewriting the registry after install; the cause is now gone and the
+  patch with it. A fresh `--full` install reports 26/26 and 100/100.
+- **A promoted hook is executable.** `templates/hooks/` was never linted or
+  permission-checked; `.claude/hooks/` is both. The four promoted hooks ship `0755`,
+  and `auto-checkpoint.sh` carries a shellcheck SC2155 fix it needed all along.
+### Changed
 - **The ops engine can now retire a markdown file, and could not before.** Its
   protected-file guard listed `*.md`, matched by basename anywhere in the tree, with no
   override of any kind. Since this kit's corpus — agents, commands, skills, modes — is

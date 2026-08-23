@@ -9,8 +9,8 @@ and answers structural queries so agents stop re-grepping. Contract under test:
 - query/path/hubs answer from the stored graph; a miss or absent graph exits 3
   (the caller's signal to fall back to grep).
 - stale re-hashes file-backed nodes and exits 1 listing CHANGED/MISSING nodes.
-- the codebase-mapping and context-priming SKILL.md twins (.claude/skills vs
-  templates/skills) stay byte-identical.
+- the codebase-mapping and context-priming skills have exactly one copy each
+  (task 008 batch 1 deleted the templates/skills twins).
 
 All invocations run the real script as a subprocess against a temp project via
 CLAUDEKIT_PROJECT_ROOT / CLAUDEKIT_GRAPH_PATH, asserting exit codes and on-disk
@@ -421,21 +421,19 @@ class TestSessionStartGraphStatus:
         assert "Graph: STALE" in out
         assert "--merge" in out
 
+class TestSkillHasOneCopy:
+    """These two skills used to be maintained as byte-identical twins in
+    `.claude/skills/` and `templates/skills/`. Task 008 batch 1 deleted the
+    second tree, so the invariant is now "exactly one copy", not "two that
+    match" -- a twin test would pass vacuously against a missing file."""
 
-# ---------------------------------------------------------------------------
-# asset twins stay in lockstep
-# ---------------------------------------------------------------------------
+    def _copies(self, name):
+        return [p for p in (REPO / ".claude" / "skills" / name / "SKILL.md",
+                            REPO / "templates" / "skills" / name / "SKILL.md")
+                if p.is_file()]
 
-class TestSkillTwinsIdentical:
-    def _pair(self, name):
-        live = REPO / ".claude" / "skills" / name / "SKILL.md"
-        template = REPO / "templates" / "skills" / name / "SKILL.md"
-        return live.read_bytes(), template.read_bytes()
+    def test_codebase_mapping_has_exactly_one_copy(self):
+        assert [p.name for p in self._copies("codebase-mapping")] == ["SKILL.md"]
 
-    def test_codebase_mapping_twins_identical(self):
-        live, template = self._pair("codebase-mapping")
-        assert live == template
-
-    def test_context_priming_twins_identical(self):
-        live, template = self._pair("context-priming")
-        assert live == template
+    def test_context_priming_has_exactly_one_copy(self):
+        assert [p.name for p in self._copies("context-priming")] == ["SKILL.md"]

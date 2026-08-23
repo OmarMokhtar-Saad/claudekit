@@ -1,0 +1,16 @@
+{
+  "plan": "008-b1-21-trailing-newline",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_new_commands.py",
+      "description": "W292: config 18 replaced the file tail and dropped the trailing newline",
+      "edits": [
+        {
+          "find": "        assert len(cmds) >= 55, f\"Expected >= 55 commands, found {len(cmds)}\"",
+          "replace": "        assert len(cmds) >= 55, f\"Expected >= 55 commands, found {len(cmds)}\"\n"
+        }
+      ]
+    }
+  ]
+}

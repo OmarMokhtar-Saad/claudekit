@@ -421,8 +421,10 @@ class TestInvokedHelpersAreCheckedNotAssumed:
         Measured before this test existed: `--strict` on a fresh full install returns 1
         with exactly three warnings, all of them `config.json: <name> not configured`;
         filling them returns 0 at 26/26. An earlier review read that rc=1 as registry
-        drift from `i18n-workflow`, which was a misdiagnosis -- that skill ships from
-        `templates/skills/` and is reconciled by design.
+        drift from `i18n-workflow`, which was a misdiagnosis -- that skill shipped from
+        `templates/skills/` and was reconciled at install time. Task 008 batch 1 folded
+        it into `i18n-patterns` and deleted the second tree, so neither the skill nor
+        the reconcile exists now, and the three warnings are the whole of the rc=1.
 
         The commands go under `project`, not at the root: a root-level write fails the
         schema check, so a version of this test that wrote them there would prove the

@@ -76,6 +76,29 @@ Different languages have different plural rules. English has 2 forms (singular, 
 | other | All languages (required fallback) |
 
 **Rule:** Always provide at least `one` and `other` forms. Provide additional forms based on your target languages.
+### Gender / Select
+
+```
+{gender, select,
+  male {He updated his profile}
+  female {She updated her profile}
+  other {They updated their profile}
+}
+```
+
+### Nested (select wrapping plural)
+
+```
+{gender, select,
+  male {{count, plural, one {He has # item} other {He has # items}}}
+  female {{count, plural, one {She has # item} other {She has # items}}}
+  other {{count, plural, one {They have # item} other {They have # items}}}
+}
+```
+
+**Rules:** always use `#` for the numeric placeholder inside a plural block;
+never concatenate translated strings — use one message holding every variant;
+never split a sentence across multiple keys.
 
 ---
 
@@ -164,6 +187,53 @@ locales/
 
 ---
 
+## Relative Time
+
+- Use `Intl.RelativeTimeFormat` or equivalent
+- Examples: "3 days ago", "in 2 hours", "yesterday"
+
+---
+
+## Translation File Formats by Ecosystem
+
+| Format | Ecosystem | Extension |
+|--------|-----------|-----------|
+| JSON | JavaScript/TypeScript | `.json` |
+| Properties | Java/Kotlin | `.properties` |
+| XLIFF | iOS/macOS | `.xliff` |
+| Strings | Swift/Obj-C | `.strings` |
+| PO/POT | Python/PHP/Ruby | `.po` / `.pot` |
+| YAML | Rails/Flutter | `.yml` |
+| ARB | Flutter/Dart | `.arb` |
+
+---
+
+## Translation Quality Checks
+
+- **Completeness**: every key in the base locale must exist in all target locales
+- **Placeholders**: all `{variable}` placeholders must appear in every translation
+- **Length**: flag translations significantly longer than the source (may overflow UI)
+- **ICU syntax**: validate all ICU MessageFormat strings parse correctly
+- **Encoding**: all files must be UTF-8 without BOM
+- **Duplicates**: no duplicate keys within a single file
+- **Sorting**: keys should be sorted alphabetically for clean diffs
+
+---
+
+## Anti-Patterns
+
+| Anti-Pattern | Why It Fails | Correct Approach |
+|-------------|-------------|-----------------|
+| Concatenating translated fragments | Word order varies by language | Use a single message with placeholders |
+| Using English text as keys | Keys change when English copy changes | Use semantic keys (`auth.login.title`) |
+| Hardcoding date/number formats | Formats vary by locale | Use `Intl` APIs or equivalent |
+| Assuming `one`/`other` plurals | Arabic has 6 plural forms, Polish has 4 | Use all ICU plural categories |
+| Translating inside code | Mixing translation with logic | Extract all strings to resource files |
+| Storing translations in code | Hard to manage, no translator tooling | Use external translation files |
+| Using images with text | Cannot translate images easily | Use CSS/HTML text over images |
+| Right/left in CSS | Breaks in RTL layouts | Use `start`/`end` logical properties |
+
+---
 ## i18n Checklist
 
 - [ ] All user-visible strings use translation keys, not hardcoded text

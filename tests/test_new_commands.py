@@ -1,10 +1,15 @@
-"""Tests for all new commands added in v2.0.0."""
+"""Tests for all new commands added in v2.0.0.
+
+They shipped from `templates/commands/` until task 008 batch 1 promoted them into
+`.claude/commands/`, the single tree the installer now reads.
+"""
+import glob
 import os
 
 import pytest
 
-TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "templates")
-COMMANDS_DIR = os.path.join(TEMPLATE_DIR, "commands")
+ROOT = os.path.dirname(os.path.dirname(__file__))
+COMMANDS_DIR = os.path.join(ROOT, ".claude", "commands")
 
 NEW_COMMANDS = [
     "mode", "index", "mcp", "specify", "clarify", "analyze", "checklist",
@@ -40,21 +45,26 @@ class TestNewCommandsExist:
         assert os.path.getsize(path) > 100, f"/{cmd} too small (likely empty)"
 
 
-class TestTotalCommandCount:
-    """Verify total command count meets target."""
+class TestOneCanonicalTree:
+    """`.claude/commands/` is the only command source install.sh reads."""
 
-    def test_minimum_new_command_count(self):
-        """templates/commands/ has new v2.0 commands; existing ones are in .claude/commands/"""
-        cmds = [f for f in os.listdir(COMMANDS_DIR) if f.endswith(".md")]
-        assert len(cmds) >= 13, f"Expected >= 13 new commands, found {len(cmds)}"
+    def test_there_is_no_second_command_tree(self):
+        """A second commands tree would be copied to the same destination as
+        .claude/commands/, so which file installs would again depend on copy order.
 
-    def test_total_command_count_with_existing(self):
-        """Total commands across templates + .claude should be >= 27."""
+        Asserted on component FILES, not the directory. `file_delete` removes files and leaves the
+        directory, and git does not track an empty directory -- so a directory-existence
+        assertion FAILS in the tree that just ran the batch and PASSES in a fresh clone.
+        A check whose answer depends on which of those you are in proves nothing."""
         project_dir = os.path.dirname(os.path.dirname(__file__))
-        existing_dir = os.path.join(project_dir, ".claude", "commands")
-        new_cmds = set(f for f in os.listdir(COMMANDS_DIR) if f.endswith(".md"))
-        existing_cmds = set()
-        if os.path.isdir(existing_dir):
-            existing_cmds = set(f for f in os.listdir(existing_dir) if f.endswith(".md"))
-        total = len(new_cmds | existing_cmds)
-        assert total >= 27, f"Expected >= 27 total commands, found {total}"
+        stale = glob.glob(os.path.join(project_dir, "templates", "commands", "*.md"))
+        assert stale == [], f"a second command tree is back: {stale}"
+
+    def test_every_v2_command_survived_the_promotion(self):
+        cmds = {f for f in os.listdir(COMMANDS_DIR) if f.endswith(".md")}
+        missing = sorted(f"{c}.md" for c in NEW_COMMANDS if f"{c}.md" not in cmds)
+        assert missing == [], f"lost in the promotion: {missing}"
+
+    def test_total_command_count(self):
+        cmds = [f for f in os.listdir(COMMANDS_DIR) if f.endswith(".md")]
+        assert len(cmds) >= 55, f"Expected >= 55 commands, found {len(cmds)}"

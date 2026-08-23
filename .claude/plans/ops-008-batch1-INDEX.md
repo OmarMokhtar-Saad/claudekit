@@ -1,5 +1,9 @@
 # Task 008 batch 1 — ops config index
 
+> **SPENT 2026-08-23.** All 21 configs executed in the order below, 79 operations, zero
+> errors. Archived to `archive/ops-008-batch1/`. Config 21 was added during execution:
+> config 18 replaced a file's tail and dropped its trailing newline (ruff W292).
+
 Plan: [`plan-008-batch1-one-tree.md`](plan-008-batch1-one-tree.md).
 
 `MAX_DELETIONS = 3` per config (`validate-config-json.py:40`) and the batch removes

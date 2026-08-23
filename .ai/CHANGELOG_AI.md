@@ -1,6 +1,39 @@
 # AI Session Changelog
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
+## 2026-08-23 — task 008 batch 1 executed: one canonical tree
+
+Batch 1 is done. 21 ops configs, 79 operations, zero errors, executed in INDEX order
+after two adversarial review rounds and a full end-to-end simulation.
+
+- **The sign-off sheet was wrong and re-measuring caught it.** It called
+  `templates/commands|hooks|modes` duplicates. They were 24 unique components with zero
+  name overlap in `.claude/`. Executing batch 1 as written would have deleted them. The
+  three "DIVERGED" skills needing a "three-way merge" differed by exactly one line each
+  — the `description:` frontmatter. **A document can be evidence-shaped, full of
+  measurements, and still wrong. Re-measure.**
+- **Validation is not the gate on a batch.** All 19 configs returned `-> APPROVED`
+  while the applied result left 110 tests red and one module that would not parse:
+  `validate-config-json.py` checks an anchor is present and unique, not that the text
+  it produces is syntactically whole. Two anchors stopped one line short. The plan now
+  mandates applying the whole sequence into a scratch worktree first. Simulation went
+  110 → 36 → 20 → 17, where 17 is the worktree's own baseline.
+- **The simulation found what grep could not.** Seven test files reached the old tree
+  through a `TEMPLATE_DIR` constant, not a literal path, so the original six-file list
+  was wrong. It also surfaced a promoted `0755` hook landing `0644`, a latent SC2155
+  that `templates/` never linted, and my own invariant tests asserting on directory
+  existence — which git does not track when empty, so they answered differently in a
+  fresh clone than in the tree that ran the batch.
+- **Prerequisite:** the ops engine could not delete a markdown file at all (`*.md` in
+  `PROTECTED_PATTERNS`, no override; zero `file_delete` ops across 97 archived configs).
+  Narrowed to 14 named identity documents, case-insensitively, with a widen-only
+  `CLAUDEKIT_EXTRA_PROTECTED`. Reviewed 80 → 93.
+- **New gate:** `scripts/check-protected-differential.py`. CI's "no REJECT → ALLOW"
+  gate was pinned to the command validator, so the repo's other deny-decision had none
+  and this branch's own widening passed CI green.
+
+**Follow-ups.** Batches 2, 4 then 3, in that order. Batch 3 still lands last and still
+has no eval-suite gate — that risk is accepted, not resolved.
 ## 2026-08-23 — the ops engine could not delete a markdown file, and the corpus is all markdown
 
 Task 008 (consolidation) was picked up from a handoff. Nothing of task 008 itself has

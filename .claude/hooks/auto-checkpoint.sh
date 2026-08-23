@@ -140,7 +140,8 @@ create_checkpoint() {
     date_slug=$(date '+%Y%m%d-%H%M%S')
     local short_hash
     short_hash=$(git rev-parse --short HEAD 2>/dev/null || echo "nohash")
-    local cp_id="cp-$(date '+%s')-${short_hash}"
+    local cp_id
+    cp_id="cp-$(date '+%s')-${short_hash}"
     local cp_name="auto-${date_slug}"
     local branch
     branch=$(git branch --show-current 2>/dev/null || echo "detached")

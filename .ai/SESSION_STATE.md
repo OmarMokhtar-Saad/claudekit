@@ -2,28 +2,25 @@
 
 > Update this file at the end of every significant AI working session. It is the resume point.
 
-**Last updated:** 2026-08-23 · **By:** Claude (Opus 5) — **task 008 is unblocked and
-batch 1 is planned, reviewed-ready and NOT executed. One commit landed.**
+**Last updated:** 2026-08-23 · **By:** Claude (Opus 5) — **task 008 batch 1 is
+EXECUTED. Four commits on `fix/protected-docs-scope`, unpushed.**
 
-Task 008 could not have run at all: the ops engine's protected-file guard listed
-`*.md`, so it could not delete a markdown file, and the corpus is entirely markdown.
-Across 97 archived configs there are zero `file_delete` operations of any kind. The
-guard is now scoped to 14 named identity documents (case-insensitively, plus a
-widen-only `CLAUDEKIT_EXTRA_PROTECTED`), reviewed 80 CONDITIONAL → 93 APPROVED, and
-proven by mutation. Batch-1 ops configs went 3/19 → 19/19 validating.
+One canonical tree: 55 commands · 76 skills · 26 hooks · 7 modes · 29 agents
+(generator-derived). `templates/` holds no component files and `install.sh` has no
+executable reference to a second tree. A fresh `--full` install reports 100/100 on
+`ck doctor --strict`. 2190 tests pass.
 
-**Next action:** owner go-ahead to execute `.claude/plans/ops-008-batch1/` (19 configs,
-in INDEX order — promote, then delete, then install.sh, then tests). Read
-`plan-008-batch1-one-tree.md` first: it documents where the 008 sign-off sheet was
-measurably wrong (the three "diverged" skills differ by one frontmatter line each; the
-`templates/commands|hooks|modes` trees are 24 unique components, not duplicates).
+**Next action:** batch 2 — merge the near-duplicate skills (`autonomous-loops`,
+`verification-loop`, `token-budget-advisor`, `context-keeper`, `context-priming`,
+`codebase-mapping`, `dependency-audit`), 76 → ~69, every removed name into the registry
+`renamed` alias map. Then batch 4, then batch 3 LAST.
+
+**Read before planning any of them:** `plan-008-batch1-one-tree.md` § "The batch must
+be simulated before it runs". Every config validating clean is not evidence the batch
+works — that combination has already produced 110 red tests once.
 
 **Prior state, still true below:** PR #20 is one PRE-EXISTING red test away from
 mergeable; nothing is tagged; `origin/main` is still at `5e890f1`.
-`fix/review-loop-gaps` is at `82206fc`, pushed, 17 commits. Every non-test CI job passes
-and all four macOS test jobs pass; the four ubuntu jobs and `coverage` fail on ONE test
-that is also red on `main` (see below). Nothing is tagged. `origin/main` is still at
-`5e890f1`, so the merge is what publishes any of this.
 
 **What landed this session, each with its own adversarial verdict.**
 - `7b39cb9` — **the ship-stopper.** `ck uninstall` dead-ended on the edit `install.sh`

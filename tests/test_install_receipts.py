@@ -398,11 +398,13 @@ if __name__ == "__main__":
 class TheRegistryDescribesWhatWasInstalled(unittest.TestCase):
     """`ck doctor --strict` exited 1 on a FRESHLY installed tree.
 
-    `skills-registry.json` is generated from `.claude/skills/`
-    (scripts/gen-registry.py), but install.sh also copies `templates/skills/*`, and
-    `i18n-workflow` lives only there. So every install shipped a skill the registry
-    did not list, and the drift check warned on the happy path -- a gate that fails
-    when nothing is wrong is a gate people learn to ignore.
+    `skills-registry.json` is generated from `.claude/skills/`, but install.sh
+    also copied `templates/skills/*`, and `i18n-workflow` lived only there. So
+    every install shipped a skill the registry did not list, and the drift check
+    warned on the happy path -- a gate that fails when nothing is wrong is a gate
+    people learn to ignore. It was patched with a post-install reconcile; task 008
+    batch 1 removed the cause instead, so the reconcile is gone too and these
+    tests now prove the registry matches the tree without one.
     """
 
     def setUp(self):
@@ -424,16 +426,19 @@ class TheRegistryDescribesWhatWasInstalled(unittest.TestCase):
         self.assertTrue(on_disk, "the fixture installed no skills at all")
         self.assertEqual(sorted(on_disk - registered), [],
                          "installed skills missing from skills-registry.json")
-
-    def test_the_template_only_skill_is_the_one_this_covers(self):
-        """Named, so a reader can see WHICH skill the reconcile exists for. If
-        templates/skills/i18n-workflow ever moves into .claude/skills/ this goes
-        red rather than passing vacuously against an empty difference."""
+    def test_nothing_ships_from_outside_the_canonical_tree(self):
+        """The reconcile existed for skills installed from templates/skills/.
+        With one tree there are none, so nothing can be installed-but-unlisted.
+        Checked against the SOURCE tree, so this goes red if a second tree comes
+        back rather than passing vacuously."""
+        repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        import glob
+        self.assertEqual(
+            glob.glob(os.path.join(repo, "templates", "skills", "*", "SKILL.md")), [],
+            "a second skill tree is back")
         registered = {row["id"] for row in self._registry()["skills"]}
-        self.assertIn("i18n-workflow", registered)
-        row = [r for r in self._registry()["skills"] if r["id"] == "i18n-workflow"][0]
-        self.assertEqual(row["path"], "skills/i18n-workflow/SKILL.md")
-        self.assertTrue(row["description"], "registered with no description")
+        self.assertNotIn("i18n-workflow", registered,
+                         "folded into i18n-patterns; it should not be registered")
 
     def test_doctor_strict_is_clean_on_a_fresh_install(self):
         """Exit code measured WITHOUT a pipe: `rc=$?` after one reads `tail`'s."""
