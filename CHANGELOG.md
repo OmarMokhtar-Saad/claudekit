@@ -12,6 +12,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **The ops engine can now retire a markdown file, and could not before.** Its
+  protected-file guard listed `*.md`, matched by basename anywhere in the tree, with no
+  override of any kind. Since this kit's corpus — agents, commands, skills, modes — is
+  entirely markdown, and the operations engine is the only sanctioned path for making a
+  change, no component could ever be retired: across 97 archived operation configs there
+  are **zero** file deletions of any kind. The glob is replaced by the documents the
+  guard exists to protect — `README.md`, `CHANGELOG.md`, `CLAUDE.md`, `AGENTS.md`,
+  `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, `LICENSE`, `LICENSE.md`,
+  `NOTICE.md`, `MAINTAINERS.md`, `GOVERNANCE.md`, `AUTHORS.md`, `SUPPORT.md` — which
+  stay refused at any depth. Ordinary prose is now deletable, still behind the three
+  controls that did the real work all along: at most three deletions per config, a
+  mandatory reason on each, and a backup taken before the file is touched.
+- **The protected-file guard no longer gives different answers on different machines.**
+  `fnmatch` normalises case only on Windows, so on Linux the guard refused `README.md`
+  and permitted `readme.md`, while on macOS it refused both; `makefile` and
+  `Contributing.MD` were unprotected everywhere. Matching is now case-insensitive, which
+  widens protection rather than narrowing it. The old `*.md` glob concealed half of this
+  by covering every casing of one extension.
+
+### Added
+- **`CLAUDEKIT_EXTRA_PROTECTED`** — colon-separated basenames or globs a project adds to
+  the protected set, in the same shape as `CLAUDEKIT_RUN_COMMAND_EXTRA_ALLOW`. Widening
+  only: a project can protect its own `RUNBOOK.md`, and cannot unprotect `README.md`.
+  The validator's rejection message now names the effective set, so a project that
+  extended the list sees what actually blocked it.
 ### Fixed
 - **A full install no longer ships a stale copy of a skill you have since improved.**
   `install.sh` copied `.claude/skills/` and then `templates/skills/` into the same

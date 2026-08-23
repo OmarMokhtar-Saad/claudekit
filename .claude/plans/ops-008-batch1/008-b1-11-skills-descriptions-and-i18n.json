@@ -1,0 +1,36 @@
+{
+  "plan": "008-b1-11-skills-descriptions-and-i18n",
+  "operations": [
+    {
+      "type": "code_edit",
+      "description": "spec-driven-development: adopt the templates description (Use when ... trigger form). The only operative content the templates copy held that .claude/ lacked.",
+      "path": ".claude/skills/spec-driven-development/SKILL.md",
+      "edits": [
+        {
+          "find": "description: Spec-driven development workflow where specifications are the single source of truth. Write specs first, then generate code that conforms exactly. Treat development as compilation from spec to code.",
+          "replace": "description: \"Use when developing features with specifications first \u2014 covers the full workflow: specify, clarify, checklist, plan, analyze, implement, verify. Specs are the single source of truth.\""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "description": "i18n-patterns: absorb the five sections i18n-workflow covered and it did not",
+      "path": ".claude/skills/i18n-patterns/SKILL.md",
+      "edits": [
+        {
+          "find": "**Rule:** Always provide at least `one` and `other` forms. Provide additional forms based on your target languages.",
+          "add_after": "\n### Gender / Select\n\n```\n{gender, select,\n  male {He updated his profile}\n  female {She updated her profile}\n  other {They updated their profile}\n}\n```\n\n### Nested (select wrapping plural)\n\n```\n{gender, select,\n  male {{count, plural, one {He has # item} other {He has # items}}}\n  female {{count, plural, one {She has # item} other {She has # items}}}\n  other {{count, plural, one {They have # item} other {They have # items}}}\n}\n```\n\n**Rules:** always use `#` for the numeric placeholder inside a plural block;\nnever concatenate translated strings \u2014 use one message holding every variant;\nnever split a sentence across multiple keys."
+        },
+        {
+          "find": "## i18n Checklist",
+          "add_before": "## Relative Time\n\n- Use `Intl.RelativeTimeFormat` or equivalent\n- Examples: \"3 days ago\", \"in 2 hours\", \"yesterday\"\n\n---\n\n## Translation File Formats by Ecosystem\n\n| Format | Ecosystem | Extension |\n|--------|-----------|-----------|\n| JSON | JavaScript/TypeScript | `.json` |\n| Properties | Java/Kotlin | `.properties` |\n| XLIFF | iOS/macOS | `.xliff` |\n| Strings | Swift/Obj-C | `.strings` |\n| PO/POT | Python/PHP/Ruby | `.po` / `.pot` |\n| YAML | Rails/Flutter | `.yml` |\n| ARB | Flutter/Dart | `.arb` |\n\n---\n\n## Translation Quality Checks\n\n- **Completeness**: every key in the base locale must exist in all target locales\n- **Placeholders**: all `{variable}` placeholders must appear in every translation\n- **Length**: flag translations significantly longer than the source (may overflow UI)\n- **ICU syntax**: validate all ICU MessageFormat strings parse correctly\n- **Encoding**: all files must be UTF-8 without BOM\n- **Duplicates**: no duplicate keys within a single file\n- **Sorting**: keys should be sorted alphabetically for clean diffs\n\n---\n\n| Anti-Pattern | Why It Fails | Correct Approach |\n|-------------|-------------|-----------------|\n| Concatenating translated fragments | Word order varies by language | Use a single message with placeholders |\n| Using English text as keys | Keys change when English copy changes | Use semantic keys (`auth.login.title`) |\n| Hardcoding date/number formats | Formats vary by locale | Use `Intl` APIs or equivalent |\n| Assuming `one`/`other` plurals | Arabic has 6 plural forms, Polish has 4 | Use all ICU plural categories |\n| Translating inside code | Mixing translation with logic | Extract all strings to resource files |\n| Storing translations in code | Hard to manage, no translator tooling | Use external translation files |\n| Using images with text | Cannot translate images easily | Use CSS/HTML text over images |\n| Right/left in CSS | Breaks in RTL layouts | Use `start`/`end` logical properties |\n\n---\n"
+        }
+      ]
+    },
+    {
+      "type": "file_delete",
+      "path": "templates/skills/i18n-workflow/SKILL.md",
+      "reason": "near-duplicate of .claude/skills/i18n-patterns; its five uncovered sections are folded into i18n-patterns in this same config, and the name enters the registry renamed alias map"
+    }
+  ]
+}

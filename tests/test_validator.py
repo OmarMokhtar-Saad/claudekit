@@ -9,7 +9,7 @@ import tempfile
 SCRIPTS_DIR = os.path.join(os.path.dirname(__file__), '..', '.claude', 'operations', 'scripts')
 sys.path.insert(0, SCRIPTS_DIR)
 
-from shared import PROTECTED_PATTERNS, is_protected_file  # noqa: E402
+from shared import PROTECTED_PATTERNS, is_protected_file, protected_patterns  # noqa: E402
 
 
 class TestProtectedFiles:
@@ -39,6 +39,90 @@ class TestProtectedFiles:
     def test_nested_path_uses_basename(self):
         assert is_protected_file("src/deep/README.md")
         assert not is_protected_file("src/deep/app.py")
+
+    def test_every_identity_document_is_refused_at_any_depth(self):
+        """Named one by one. The `*.md` glob used to cover these as a side effect
+        of covering everything; now they are the whole of the markdown rule, so a
+        name dropped from the list is a silent hole. Depth is asserted because the
+        match is on basename and a path-based rewrite would break it."""
+        for name in ("README.md", "CHANGELOG.md", "CLAUDE.md", "AGENTS.md",
+                     "CONTRIBUTING.md", "SECURITY.md", "CODE_OF_CONDUCT.md",
+                     "LICENSE", "LICENSE.md", "NOTICE.md", "MAINTAINERS.md",
+                     "GOVERNANCE.md", "AUTHORS.md", "SUPPORT.md"):
+            assert is_protected_file(name), f"{name} unprotected"
+            assert is_protected_file(f"docs/deep/{name}"), f"{name} unprotected at depth"
+
+    def test_protection_does_not_depend_on_casing(self):
+        """`fnmatch.fnmatch` normalises case only on Windows, so before this the
+        guard gave different answers on Linux CI and on macOS. `readme.md` was
+        protected by the old `*.md` glob and must not lose that by being renamed
+        into a literal list."""
+        for name in ("readme.md", "License.md", "Contributing.MD", "cLaUdE.Md",
+                     "makefile", "DOCKERFILE"):
+            assert is_protected_file(name), f"{name} unprotected"
+
+    def test_component_prose_is_deletable(self):
+        """The narrowing exists so the kit can retire its own components. If this
+        goes red the ops engine cannot execute a consolidation plan, which is the
+        state that blocked task 008."""
+        assert not is_protected_file(".claude/skills/token-optimization/SKILL.md")
+        assert not is_protected_file(".claude/agents/python-reviewer.md")
+        assert not is_protected_file("templates/commands/analyze.md")
+
+    def test_the_default_list_is_pinned_exactly(self):
+        """Equality, not a superset check. A superset assertion passes against a
+        mutant that ADDS an unreviewed pattern or reorders the list, and the whole
+        point of this change is that the list is now the entire markdown rule."""
+        assert PROTECTED_PATTERNS == [
+            ".gitignore",
+            "README.md",
+            "CHANGELOG.md",
+            "CLAUDE.md",
+            "AGENTS.md",
+            "CONTRIBUTING.md",
+            "SECURITY.md",
+            "CODE_OF_CONDUCT.md",
+            "LICENSE",
+            "LICENSE.md",
+            "NOTICE.md",
+            "MAINTAINERS.md",
+            "GOVERNANCE.md",
+            "AUTHORS.md",
+            "SUPPORT.md",
+            "Makefile",
+            "Dockerfile",
+            "docker-compose.yml",
+            "docker-compose.yaml",
+            "requirements.txt",
+            "package.json",
+            "package-lock.json",
+            "yarn.lock",
+            "pyproject.toml",
+            "setup.py",
+            "setup.cfg",
+            "Pipfile",
+            "Pipfile.lock",
+            "tsconfig.json"
+        ]
+
+    def test_extra_protected_widens_but_cannot_narrow(self):
+        """The escape hatch for a consumer whose identity documents this kit never
+        heard of. It must not be able to REMOVE a default -- a project config that
+        could unprotect README.md would be a hole, not an extension."""
+        import os as _os
+        before = _os.environ.get("CLAUDEKIT_EXTRA_PROTECTED")
+        _os.environ["CLAUDEKIT_EXTRA_PROTECTED"] = "RUNBOOK.md: ARCHITECTURE.md "
+        try:
+            assert is_protected_file("docs/RUNBOOK.md")
+            assert is_protected_file("ARCHITECTURE.md")
+            assert is_protected_file("README.md"), "an extension removed a default"
+            assert set(PROTECTED_PATTERNS) <= set(protected_patterns())
+        finally:
+            if before is None:
+                _os.environ.pop("CLAUDEKIT_EXTRA_PROTECTED", None)
+            else:
+                _os.environ["CLAUDEKIT_EXTRA_PROTECTED"] = before
+        assert not is_protected_file("docs/RUNBOOK.md"), "extension leaked"
 
 
 class TestConstants:

@@ -1,0 +1,20 @@
+{
+  "plan": "008-b1-14-skills-delete-3",
+  "operations": [
+    {
+      "type": "file_delete",
+      "path": "templates/skills/mcp-integration/SKILL.md",
+      "reason": "exact duplicate of .claude/skills/mcp-integration/SKILL.md (only the description line differed for three of the fourteen, and .claude/ already carries the better one); one canonical tree"
+    },
+    {
+      "type": "file_delete",
+      "path": "templates/skills/prompt-injection-defense/SKILL.md",
+      "reason": "exact duplicate of .claude/skills/prompt-injection-defense/SKILL.md (only the description line differed for three of the fourteen, and .claude/ already carries the better one); one canonical tree"
+    },
+    {
+      "type": "file_delete",
+      "path": "templates/skills/safe-command-approval/SKILL.md",
+      "reason": "exact duplicate of .claude/skills/safe-command-approval/SKILL.md (only the description line differed for three of the fourteen, and .claude/ already carries the better one); one canonical tree"
+    }
+  ]
+}

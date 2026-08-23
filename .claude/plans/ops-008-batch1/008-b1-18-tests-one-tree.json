@@ -1,0 +1,62 @@
+{
+  "plan": "008-b1-18-tests-one-tree",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_new_commands.py",
+      "description": "the v2.0 commands now live in the one canonical tree",
+      "edits": [
+        {
+          "find": "\"\"\"Tests for all new commands added in v2.0.0.\"\"\"",
+          "replace": "\"\"\"Tests for all new commands added in v2.0.0.\n\nThey shipped from `templates/commands/` until task 008 batch 1 promoted them into\n`.claude/commands/`, the single tree the installer now reads.\n\"\"\""
+        },
+        {
+          "find": "TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), \"templates\")\nCOMMANDS_DIR = os.path.join(TEMPLATE_DIR, \"commands\")",
+          "replace": "ROOT = os.path.dirname(os.path.dirname(__file__))\nCOMMANDS_DIR = os.path.join(ROOT, \".claude\", \"commands\")"
+        },
+        {
+          "find": "class TestTotalCommandCount:\n    \"\"\"Verify total command count meets target.\"\"\"\n\n    def test_minimum_new_command_count(self):\n        \"\"\"templates/commands/ has new v2.0 commands; existing ones are in .claude/commands/\"\"\"\n        cmds = [f for f in os.listdir(COMMANDS_DIR) if f.endswith(\".md\")]\n        assert len(cmds) >= 13, f\"Expected >= 13 new commands, found {len(cmds)}\"\n\n    def test_total_command_count_with_existing(self):\n        \"\"\"Total commands across templates + .claude should be >= 27.\"\"\"\n        project_dir = os.path.dirname(os.path.dirname(__file__))\n        existing_dir = os.path.join(project_dir, \".claude\", \"commands\")\n        new_cmds = set(f for f in os.listdir(COMMANDS_DIR) if f.endswith(\".md\"))\n        existing_cmds = set()\n        if os.path.isdir(existing_dir):\n            existing_cmds = set(f for f in os.listdir(existing_dir) if f.endswith(\".md\"))\n        total = len(new_cmds | existing_cmds)\n        assert total >= 27, f\"Expected >= 27 total commands, found {total}\"\n",
+          "replace": "class TestOneCanonicalTree:\n    \"\"\"`.claude/commands/` is the only command source install.sh reads.\"\"\"\n\n    def test_there_is_no_second_command_tree(self):\n        \"\"\"A templates/commands/ tree would be copied to the same destination as\n        .claude/commands/, so which file installs would again depend on copy\n        order. Asserted on the directory, not on install.sh prose.\"\"\"\n        project_dir = os.path.dirname(os.path.dirname(__file__))\n        assert not os.path.isdir(os.path.join(project_dir, \"templates\", \"commands\"))\n\n    def test_every_v2_command_survived_the_promotion(self):\n        cmds = {f for f in os.listdir(COMMANDS_DIR) if f.endswith(\".md\")}\n        missing = sorted(f\"{c}.md\" for c in NEW_COMMANDS if f\"{c}.md\" not in cmds)\n        assert missing == [], f\"lost in the promotion: {missing}\"\n\n    def test_total_command_count(self):\n        cmds = [f for f in os.listdir(COMMANDS_DIR) if f.endswith(\".md\")]\n        assert len(cmds) >= 55, f\"Expected >= 55 commands, found {len(cmds)}\""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_new_skills.py",
+      "description": "the v2.0 skills are read from the canonical tree; i18n-workflow folded into i18n-patterns",
+      "edits": [
+        {
+          "find": "\"\"\"Tests for all new skills added in v2.0.0.\"\"\"",
+          "replace": "\"\"\"Tests for all new skills added in v2.0.0.\n\nThey were duplicated in `templates/skills/` until task 008 batch 1 deleted that\ncopy. `i18n-workflow` is absent from the list on purpose: it existed only in\n`templates/`, and its five uncovered sections were folded into `i18n-patterns`.\n\"\"\""
+        },
+        {
+          "find": "TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), \"templates\")\nSKILLS_DIR = os.path.join(TEMPLATE_DIR, \"skills\")",
+          "replace": "ROOT = os.path.dirname(os.path.dirname(__file__))\nSKILLS_DIR = os.path.join(ROOT, \".claude\", \"skills\")"
+        },
+        {
+          "find": "    \"i18n-workflow\",\n",
+          "delete": true
+        },
+        {
+          "find": "class TestTotalSkillCount:\n    \"\"\"Verify total skill count meets target.\"\"\"\n\n    def test_minimum_new_skill_count(self):\n        \"\"\"templates/skills/ has new v2.0 skills; existing ones are in .claude/skills/\"\"\"\n        skills = [\n            d for d in os.listdir(SKILLS_DIR)\n            if os.path.isdir(os.path.join(SKILLS_DIR, d))\n            and os.path.isfile(os.path.join(SKILLS_DIR, d, \"SKILL.md\"))\n        ]\n        assert len(skills) >= 14, f\"Expected >= 14 new skills, found {len(skills)}\"\n\n    def test_total_skill_count_with_existing(self):\n        \"\"\"Total skills across templates + .claude should be >= 55.\"\"\"\n        project_dir = os.path.dirname(os.path.dirname(__file__))\n        existing_dir = os.path.join(project_dir, \".claude\", \"skills\")\n        new_skills = set(\n            d for d in os.listdir(SKILLS_DIR)\n            if os.path.isdir(os.path.join(SKILLS_DIR, d))\n            and os.path.isfile(os.path.join(SKILLS_DIR, d, \"SKILL.md\"))\n        )\n        existing_skills = set()\n        if os.path.isdir(existing_dir):\n            existing_skills = set(\n                d for d in os.listdir(existing_dir)\n                if os.path.isdir(os.path.join(existing_dir, d))\n                and os.path.isfile(os.path.join(existing_dir, d, \"SKILL.md\"))\n            )\n        total = len(new_skills | existing_skills)\n        assert total >= 55, f\"Expected >= 55 total skills, found {total}\"",
+          "replace": "class TestOneCanonicalTree:\n    \"\"\"`.claude/skills/` is the only skill source install.sh reads.\"\"\"\n\n    def test_there_is_no_second_skill_tree(self):\n        project_dir = os.path.dirname(os.path.dirname(__file__))\n        assert not os.path.isdir(os.path.join(project_dir, \"templates\", \"skills\"))\n\n    def test_i18n_patterns_absorbed_what_i18n_workflow_covered(self):\n        \"\"\"The five sections i18n-patterns did not have before the fold. Named\n        one by one so a silent regression on any of them goes red.\"\"\"\n        path = os.path.join(SKILLS_DIR, \"i18n-patterns\", \"SKILL.md\")\n        with open(path, encoding=\"utf-8\") as fh:\n            body = fh.read()\n        for heading in (\"Gender / Select\", \"Nested (select wrapping plural)\",\n                        \"Relative Time\", \"Translation File Formats by Ecosystem\",\n                        \"Translation Quality Checks\", \"Anti-Patterns\"):\n            assert heading in body, f\"i18n fold lost: {heading}\"\n\n    def test_total_skill_count(self):\n        skills = [\n            d for d in os.listdir(SKILLS_DIR)\n            if os.path.isdir(os.path.join(SKILLS_DIR, d))\n            and os.path.isfile(os.path.join(SKILLS_DIR, d, \"SKILL.md\"))\n        ]\n        assert len(skills) >= 76, f\"Expected >= 76 skills, found {len(skills)}\""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_project_graph.py",
+      "description": "the skill twins are gone; assert the one-tree invariant that replaced them",
+      "edits": [
+        {
+          "find": "- the codebase-mapping and context-priming SKILL.md twins (.claude/skills vs\n  templates/skills) stay byte-identical.",
+          "replace": "- the codebase-mapping and context-priming skills have exactly one copy each\n  (task 008 batch 1 deleted the templates/skills twins)."
+        },
+        {
+          "find": "\n# ---------------------------------------------------------------------------\n# asset twins stay in lockstep\n# ---------------------------------------------------------------------------\n\nclass TestSkillTwinsIdentical:\n    def _pair(self, name):\n        live = REPO / \".claude\" / \"skills\" / name / \"SKILL.md\"\n        template = REPO / \"templates\" / \"skills\" / name / \"SKILL.md\"\n        return live.read_bytes(), template.read_bytes()\n\n    def test_codebase_mapping_twins_identical(self):\n        live, template = self._pair(\"codebase-mapping\")\n        assert live == template\n\n    def test_context_priming_twins_identical(self):",
+          "replace": "class TestSkillHasOneCopy:\n    \"\"\"These two skills used to be maintained as byte-identical twins in\n    `.claude/skills/` and `templates/skills/`. Task 008 batch 1 deleted the\n    second tree, so the invariant is now \"exactly one copy\", not \"two that\n    match\" -- a twin test would pass vacuously against a missing file.\"\"\"\n\n    def _copies(self, name):\n        return [p for p in (REPO / \".claude\" / \"skills\" / name / \"SKILL.md\",\n                            REPO / \"templates\" / \"skills\" / name / \"SKILL.md\")\n                if p.is_file()]\n\n    def test_codebase_mapping_has_exactly_one_copy(self):\n        assert [p.name for p in self._copies(\"codebase-mapping\")] == [\"SKILL.md\"]\n\n    def test_context_priming_has_exactly_one_copy(self):\n        assert [p.name for p in self._copies(\"context-priming\")] == [\"SKILL.md\"]"
+        }
+      ]
+    }
+  ]
+}

@@ -25,7 +25,7 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from shared import PROTECTED_PATTERNS, is_protected_file, allowed_run_commands, __version__
+from shared import protected_patterns, is_protected_file, allowed_run_commands, __version__
 
 try:
     import jsonschema
@@ -106,7 +106,7 @@ def validate_file_operations(operations: List[dict]) -> Tuple[bool, List[str]]:
             if file_path and is_protected_file(file_path):
                 errors.append(
                     f"Operation {i} (file_delete): BLOCKED - Cannot delete protected file: {file_path}\n"
-                    f"                  Protected patterns: {', '.join(PROTECTED_PATTERNS)}"
+                    f"                  Protected patterns: {', '.join(protected_patterns())}"
                 )
 
             # GUARD 14: Deletion reason >= 10 chars
