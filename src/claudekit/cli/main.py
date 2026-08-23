@@ -1423,6 +1423,22 @@ def cmd_uninstall(args):
     target = Path(args.target or ".").resolve()
     manifest = _load_manifest(target)
     if manifest is None:
+        # "Nothing to uninstall" was false on an ejected tree: eject replaces the
+        # manifest with a receipt that still records every path, so 114 kit files sat
+        # on disk while this said there was nothing to remove. `ck eject` tells the
+        # user `ck update` re-adopts the project; it never says uninstall stops
+        # working, so the recovery path has to be named here.
+        # `file_count` first, same as cmd_update at :1206 -- two derivations of the
+        # same number in one file must not disagree.
+        _ej = _load_eject_record(target)
+        if _ej is not None:
+            _n = _ej.get("file_count")
+            if not isinstance(_n, int):
+                _n = len(_ej.get("files") or {})
+            err(f"{target} was ejected ({_n} path(s) recorded in {EJECT_NAME}), so no "
+                f"manifest remains to uninstall against.")
+            info("Re-adopt it first with `ck update`, then uninstall.")
+            return 1
         err(f"No {MANIFEST_NAME} found in {target}. Nothing to uninstall.")
         return 1
 
@@ -1437,29 +1453,48 @@ def cmd_uninstall(args):
     # `listed` under --force, so both need the filter: `NEVER_MANAGED` is safe from
     # --force only because it is never listed at all, and these files ARE listed.
     #
-    # `modified` is deliberately NOT filtered. It drives the RECEIPT rewrite, whose
-    # contract is "describe exactly what is still ours" — filtering it dropped a
-    # user-edited partially-owned file out of the receipt entirely. Deletion and
-    # provenance are separate questions and the earlier revision conflated them.
+    # `modified_for_receipt` is deliberately NOT filtered. It drives the RECEIPT
+    # rewrite, whose contract is "describe exactly what is still ours" — filtering it
+    # dropped a user-edited partially-owned file out of the receipt entirely.
+    #
+    # It is named for its one job because answering a DELETION question with it is the
+    # bug this function keeps producing — three times now: the original pre-PARTIAL_OWNED
+    # conflation, the refusal below (which blocked forever on a file deletion cannot
+    # reach, dead-ending `ck uninstall` on the edit install.sh tells every user to make),
+    # and the confirmation prompt, which promised "including locally-modified files"
+    # about files it would not touch. Deletion-side code reads `blocking` or `removable`.
+    # A reader reaching for `modified_for_receipt` in a deletion context now has to
+    # notice they are in the wrong set. Class earned its mechanical guard at three
+    # entries (.ai/REVIEW_GUIDE.md, the recurrence ratchet); this rename is it.
     partial_kept = [rel for rel in listed if rel in PARTIAL_OWNED]
     listed = [rel for rel in listed if rel not in PARTIAL_OWNED]
 
-    modified, missing, unchanged = _classify_manifest(target, manifest)
+    modified_for_receipt, missing, unchanged = _classify_manifest(target, manifest)
     unchanged = [rel for rel in unchanged if rel not in PARTIAL_OWNED]
-    if partial_kept:
-        info(f"  {len(partial_kept)} partially-owned file(s) KEPT "
-             f"(the kit owns only part of each; `ck adapt` writes into them):")
-        for rel in partial_kept:
-            print(f"    {rel}")
+    # PARTIAL_OWNED is already out of `listed` and `unchanged`, so those files are
+    # unremovable under every flag; they must not gate the refusal either.
+    blocking = [rel for rel in modified_for_receipt if rel not in PARTIAL_OWNED]
+
+    def _report_partial_kept(prefix):
+        if partial_kept:
+            info(f"{len(partial_kept)} partially-owned file(s) {prefix}KEPT "
+                 f"(the kit owns only part of each; `ck adapt` writes into them):")
+            for rel in partial_kept:
+                print(f"    {rel}")
 
     if args.dry_run:
         info(f"[dry-run] {target}")
         info(f"  {len(unchanged)} receipt-owned file(s) would be removed")
         for rel in unchanged:
             print(f"    {rel}")
-        if modified:
-            info(f"  {len(modified)} locally-modified file(s) would be KEPT")
-            for rel in modified:
+        # Dry-run must predict the real run. Reporting the survivors only on the real
+        # path made --dry-run say "113 would be removed" and name the partially-owned
+        # files nowhere, so a reader concluded local/CLAUDE.project.md was going away.
+        _report_partial_kept("would be ")
+        _blocked = [rel for rel in modified_for_receipt if rel not in PARTIAL_OWNED]
+        if _blocked:
+            info(f"  {len(_blocked)} locally-modified file(s) would be KEPT")
+            for rel in _blocked:
                 print(f"    {rel}")
         if missing:
             info(f"  {len(missing)} manifest file(s) already absent")
@@ -1473,21 +1508,27 @@ def cmd_uninstall(args):
     force = getattr(args, "force", False)
     keep_modified = getattr(args, "keep_modified", False)
 
-    if modified and not (force or keep_modified):
-        err(f"Refusing to uninstall: {len(modified)} managed file(s) have local "
+    if blocking and not (force or keep_modified):
+        err(f"Refusing to uninstall: {len(blocking)} managed file(s) have local "
             f"modifications, so they are no longer solely ClaudeKit's to delete:")
-        for rel in modified:
+        for rel in blocking:
             print(f"    {rel}")
         info("Choose explicitly:")
         info("  --keep-modified   remove only the files the receipt still owns")
         info("  --force           remove them too (your edits are backed up first)")
         return 1
 
+    # Printed AFTER the refusal, not before it: interleaved with the refusal's own file
+    # list this reported the same path twice, the second time under no header.
+    _report_partial_kept("")
+
     removable = list(unchanged) if not force else [
         rel for rel in listed if (_manifest_base(target) / rel).exists()]
 
     if not args.yes:
-        extra = " (including locally-modified files)" if force and modified else ""
+        # `blocking`, not the receipt set: with only a partially-owned file edited, this
+        # promised "(including locally-modified files)" for a run that removes none.
+        extra = " (including locally-modified files)" if force and blocking else ""
         resp = input(f"Remove {len(removable)} ClaudeKit files from {target}{extra}? [y/N] ")
         if resp.strip().lower() not in ("y", "yes"):
             info("Aborted.")
@@ -1509,10 +1550,11 @@ def cmd_uninstall(args):
         except OSError as e:
             warn(f"could not remove {rel}: {e}")
 
-    kept = [rel for rel in modified if (base / rel).exists()]
+    kept = [rel for rel in modified_for_receipt if (base / rel).exists()]
     # Every receipted file still on disk, not just the MODIFIED ones. A
-    # PARTIAL_OWNED survivor that was never edited is in neither `modified` nor
-    # `removable`, so the earlier `kept`-only rewrite unlinked the receipt while its
+    # PARTIAL_OWNED survivor that was never edited is in neither
+    # `modified_for_receipt` nor `removable`, so the earlier `kept`-only rewrite
+    # unlinked the receipt while its
     # files were still there. Measured consequences: `ck adapt` refused forever ("no
     # usable install receipt"), a second `ck uninstall` said "nothing to uninstall",
     # and adapt's printed remedy ("re-run `ck init`") routed into install.sh's
@@ -1542,9 +1584,22 @@ def cmd_uninstall(args):
                 pass
 
     ok(f"Removed {removed} file(s). Backup at {backup}")
-    if kept:
-        info(f"Kept {len(kept)} locally-modified file(s):")
-        for rel in kept:
+    # Two different reasons, reported separately. Collapsing them said "kept
+    # locally-modified" about a file that was never removable, which reads as "your
+    # edit saved it" and hides that the flag was irrelevant. The partial tally comes
+    # from `partial_kept`, not from `kept`: an UNEDITED survivor is in no
+    # modification set, so deriving it from `kept` opened with "2 will be KEPT" and
+    # closed with "Kept 1" about the same run.
+    _kept_modified = [rel for rel in kept if rel not in PARTIAL_OWNED]
+    _kept_partial = sorted(rel for rel in partial_kept if (base / rel).exists())
+    if _kept_modified:
+        info(f"Kept {len(_kept_modified)} locally-modified file(s):")
+        for rel in _kept_modified:
+            print(f"    {rel}")
+    if _kept_partial:
+        info(f"Kept {len(_kept_partial)} partially-owned file(s) - never removable "
+             f"by uninstall, edited or not:")
+        for rel in _kept_partial:
             print(f"    {rel}")
     return 0
 

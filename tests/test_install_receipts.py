@@ -232,6 +232,55 @@ class UninstallActsOnlyOnReceiptOwnedFiles(unittest.TestCase):
                                 "a refused uninstall removed %s" % rel)
         self.assertFalse(os.path.isdir(os.path.join(self.project.dir, "backups")))
 
+    def test_uninstall_is_not_blocked_by_a_modified_partially_owned_file(self):
+        # install.sh closes by telling the user to fill in build/test/lint_cmd, i.e. to
+        # modify .claude/hooks/config.json -- a PARTIAL_OWNED file. Deletion can never
+        # touch those (they are filtered out of `listed` and `unchanged`), so they must
+        # not gate the refusal either: this dead-ended `ck uninstall` on the documented
+        # happy path with no flag combination that got past it.
+        # --full, not the default --minimal: only a full install receipts
+        # hooks/config.json, which is the file the bug report is about.
+        project = InstalledProject(self, mode="--full")
+        partial = [rel for rel in sorted(project.manifest["files"])
+                   if rel in PARTIAL_OWNED and os.path.isfile(project.path(rel))]
+        self.assertIn("hooks/config.json", partial)
+        project.edit(partial[0])
+        result = ck("uninstall", project.dir, "--yes")
+        self.assertEqual(result.returncode, 0,
+                         "a modified partially-owned file blocked uninstall:\n"
+                         + result.stdout + result.stderr)
+        self.assertNotIn("Refusing to uninstall", result.stdout + result.stderr)
+        # KEPT, not deleted -- the kit only ever owned part of it.
+        self.assertTrue(os.path.isfile(project.path(partial[0])))
+        # ...and the receipt still describes it, so `ck adapt` keeps working.
+        self.assertIn(partial[0], project.manifest["files"])
+
+    def test_the_write_flags_agree_when_only_a_partially_owned_file_changed(self):
+        # The new invariant, and the one that fails pre-fix. --force and
+        # --keep-modified must AGREE here -- there is nothing for either to decide,
+        # because the file is unremovable under both. Pre-fix, no-flags exited 1 while
+        # the other two exited 0, so the user was made to "choose explicitly" between
+        # two flags with identical effect in order to escape a refusal about a file
+        # neither of them could touch.
+        outcomes = []
+        for flags in ([], ["--force"], ["--keep-modified"]):
+            project = InstalledProject(self, mode="--full")
+            project.edit("hooks/config.json")
+            result = ck("uninstall", project.dir, "--yes", *flags)
+            outcomes.append((tuple(flags), result.returncode,
+                             os.path.isfile(project.path("hooks/config.json"))))
+        self.assertEqual([rc for _, rc, _ in outcomes], [0, 0, 0], outcomes)
+        self.assertTrue(all(kept for _, _, kept in outcomes), outcomes)
+
+    def test_dry_run_predicts_the_partially_owned_survivors(self):
+        # A dry run that omits them says "N would be removed" and names the survivors
+        # nowhere, so a reader concludes their edited config.json is going away.
+        project = InstalledProject(self, mode="--full")
+        project.edit("hooks/config.json")
+        out = ck("uninstall", project.dir, "--dry-run").stdout
+        self.assertIn("partially-owned", out)
+        self.assertIn("hooks/config.json", out)
+
     def test_the_refusal_names_both_ways_out(self):
         result = ck("uninstall", self.project.dir, "--yes")
         self.assertIn("--keep-modified", result.stdout + result.stderr)
