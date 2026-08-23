@@ -215,11 +215,27 @@ if [[ "$MODE" == "full" ]]; then
             cp "$skill_dir"*.md "$DEST/skills/$skill_name/" 2>/dev/null || true
         fi
     done
-    # Copy skill directories from templates/skills/
+    # Copy skill directories from templates/skills/ -- but never OVER one the
+    # canonical tree already delivered. Both passes write the same destination, so
+    # the second used to win: 13 names exist in both trees, and for
+    # `token-optimization` the templates copy is five months older (147 lines vs
+    # 219), so every --full install since 2026-08-19 shipped the stale text and
+    # discarded the token-efficiency pass. No gate could see it -- gen-registry,
+    # gen-docs and check-context-floor all read .claude/skills/, the copy that lost.
+    #
+    # Keyed on the FILE, not the directory: a canonical dir holding no *.md would
+    # otherwise suppress the templates copy and install nothing, leaving the skill
+    # silently absent. `.claude/skills/` is authoritative, so the two bodies that
+    # only ever shipped from templates/ (incident-response, spec-driven-development)
+    # were promoted into it in this same change -- see CHANGELOG. templates/skills
+    # still delivers what only it has (i18n-workflow).
     if [[ -d "$SCRIPT_DIR/templates/skills" ]]; then
         for skill_dir in "$SCRIPT_DIR"/templates/skills/*/; do
             if [[ -d "$skill_dir" ]]; then
                 skill_name=$(basename "$skill_dir")
+                if [[ -f "$CLAUDE_SRC/skills/$skill_name/SKILL.md" ]]; then
+                    continue
+                fi
                 mkdir -p "$DEST/skills/$skill_name"
                 cp "$skill_dir"*.md "$DEST/skills/$skill_name/" 2>/dev/null || true
             fi

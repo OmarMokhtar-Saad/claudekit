@@ -13,6 +13,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **A full install no longer ships a stale copy of a skill you have since improved.**
+  `install.sh` copied `.claude/skills/` and then `templates/skills/` into the same
+  destination, so the second pass silently won wherever both trees held the same skill
+  name — 13 of them. For `token-optimization` the `templates/` copy was five months
+  older, so every `--full` install since 2026-08-19 shipped the 147-line April text
+  instead of the 219-line current one. None of the repo's own gates could see it, because
+  they all read `.claude/skills/` — the copy that lost. `.claude/skills/` is now
+  authoritative and `templates/skills/` fills only the gaps (`i18n-workflow`).
+- **Two skills whose bodies only ever shipped from `templates/` were promoted into
+  `.claude/skills/`, so the fix above does not regress them.** `spec-driven-development`
+  now documents `.specify/` and the commands that actually implement it — the canonical
+  copy pointed at `.claude/specs/`, a path none of the shipped `/specify`, `/clarify`,
+  `/checklist` or `/analyze` commands ever read. `incident-response` keeps its incident
+  phases, severity table, communication templates and **rollback procedures**, and gains
+  the response-roles table, the blamelessness rules and the war-room and on-call material
+  that had previously shipped nowhere. Frontmatter is unchanged in both, so descriptions
+  and invocability are exactly as before.
 - **`ck uninstall` no longer dead-ends on the edit the installer tells you to make.**
   `install.sh` closes by asking you to fill in `build/test/lint_cmd` in
   `.claude/hooks/config.json`. Doing so made `ck uninstall` refuse — and neither
