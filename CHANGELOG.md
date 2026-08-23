@@ -13,6 +13,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **`ck uninstall` no longer dead-ends on the edit the installer tells you to make.**
+  `install.sh` closes by asking you to fill in `build/test/lint_cmd` in
+  `.claude/hooks/config.json`. Doing so made `ck uninstall` refuse — and neither
+  `--force` nor `--keep-modified` got past it, because that file is partially owned and
+  was never deletable in the first place. `--force` also claimed it would "remove them
+  too" and then kept the file, making the two flags indistinguishable. The refusal now
+  considers only files uninstall can actually delete; partially-owned files are reported
+  as kept, with the reason, on the real run and in `--dry-run` alike. `ck uninstall` on
+  an ejected project now says so and points at `ck update`, instead of "Nothing to
+  uninstall" while the files sit on disk.
 - **`ck doctor --strict` is now proven green on a full install, not just a minimal one.**
   Nothing drove a full install to a green exit code, because a fresh one warns three
   times about unconfigured project commands and the existing test asserted on a single
