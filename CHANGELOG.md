@@ -13,6 +13,74 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`ck adapt` — one command that configures ClaudeKit for the project it is pointed
+  at.** It detects the stack from files on disk, derives the four commands CI-first
+  (`.github/workflows` `run:` strings beat `Makefile` targets beat `package.json`
+  scripts beat manifests), writes exactly
+  `project.build_cmd|test_cmd|lint_cmd|coverage_cmd` into `.claude/hooks/config.json`
+  while preserving every other key, maintains a versioned marked region in
+  `.claude/local/CLAUDE.project.md`, reports the MCP budget from the stack profile,
+  records the decision once in the memory store, and re-stamps the install receipt.
+  Every step prints `done`, `skipped (reason)` or `failed (reason)`; a failed step
+  exits non-zero, a skip exits 0.
+  - **A greenfield directory is one command.** On a tree with no `.claude/` at all
+    adapt runs `ck init --full` itself, then RE-CHECKS that the installer actually
+    wrote a receipt — `install.sh`'s manifest generation is non-fatal, so a fresh
+    install can exit 0 with none — and refuses over an unreceipted kit install rather
+    than configuring a tree with no provenance.
+  - **Detection executes nothing.** A discovered command is reported with the file it
+    came from, never run — proven with two sentinels, a `Makefile` recipe and a
+    workflow `run:` string, neither of which is ever created.
+  - **It will not put repo-controlled shell COMPOSITION into a file the hooks
+    execute.** Any command containing `;`, `|`, `&`, a redirect, a substitution or a
+    newline is refused and the report names the character and the source — whether it came from
+    a `.github/workflows` `run:` string or from a profile under
+    `.claude/profiles/`. **Both are files in the repository being adapted**, and a
+    new profile is unreceipted, so the ownership pre-flight cannot see it; without
+    this, `hooks/config.json` fed arbitrary shell to `post-implement.sh`. Stated
+    narrowly on purpose: this is not a sandbox, and a hostile *single* command
+    (`python3 .evil.py`) still passes. What it buys is that a command cannot smuggle
+    a second action past the one the report shows you.
+  - **A command you set by hand survives.** Only a key adapt can evidence is
+    overwritten; the rest keep their value and are named in the report as kept.
+  - **Every branch names every step.** A step adapt did not reach is printed as
+    `skipped (reason)`, so a reader can tell work that was skipped from work that
+    never happened — on the refusal branches as well as the successful one.
+  - **An ejected project is recognised, not reported as corrupt.** After `ck eject`
+    there is no manifest, and adapt used to say "no usable install receipt (absent or
+    unparseable)" and then advise `ck init` — which over an existing `.claude/` moves
+    the directory aside. It now names the ejection, keeps its read-only half
+    (detection, profile, MCP budget), writes nothing at all, and points at
+    `ck update` for deliberate re-adoption.
+  - **It refuses rather than guessing.** No usable install receipt, or a whole-file
+    kit asset that differs from it, is a refusal that writes nothing. A tree with a
+    hand-made `.claude/` and no receipt is a refusal, not a fresh install.
+  - **It never invokes the installer over an existing `.claude/`.** `ck update` is the
+    destructive path; adapt cannot reach it, so nothing is moved into `.claude.bak-*`.
+  - `.claude/local/CLAUDE.project.md` and `.claude/hooks/config.json` are now
+    *partially* kit-owned: `ck uninstall` keeps them, `--force` included, and the
+    receipt survives to describe them.
+  - `/adapt` and the `project-adaptation` skill now delegate this mechanical surface
+    to the verb and keep only the judgement half (root `CLAUDE.md`, `CONSTITUTION.md`,
+    hook profile, `.agentignore`, reviewer routing). Three adaptation surfaces became
+    two. No asset was added or removed.
+- **`claudekit doctor` now grades an install, not just passes it.** Doctor already
+  tallied passed/warned/failed/skipped checks and then threw the ratio away, so every
+  project that cleared the floor reported identically green and there was no way to
+  tell a bare install from a fully configured one — or to give `/adapt` a numeric exit
+  condition. Runs now end with `Readiness: NN/100` (a pass is full credit, a warning
+  half, and checks that do not apply to the install are excluded from the denominator
+  rather than counted against it), and `--min-score N` turns that number into a gate.
+  The floor is evaluated last and can only add a failure: an install with a failing
+  check still exits 1 no matter what floor is set.
+- **`claudekit eject` — leave kit management without losing a file.** There was no step
+  between `update` (re-adopt) and `uninstall` (remove), so a project that wanted to keep
+  its assets but stop tracking the kit had to either keep drifting under a manifest that
+  no longer described it or delete the assets to be rid of it. `eject` removes exactly
+  one file, the manifest, after copying its full contents — every path and digest — into
+  `.claude/.claudekit-ejected.json` in its place. Local modifications are preserved by
+  design, `ck diff` falls back to source comparison, and `ck update` re-adopts the
+  project, so the operation is reversible. Supports `--dry-run` and `--yes`.
 - **Review records keep their round history.** `review-record.py write` overwrote the
   record for an ops config, so a re-review destroyed the verdict it replaced and a
   record could only ever show the round that passed. The corpus this was measured on
@@ -45,6 +113,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   project, so the operation is reversible. Supports `--dry-run` and `--yes`.
 
 ### Fixed
+- **`ck doctor --strict` exited 1 on a freshly installed tree.**
+  `skills-registry.json` is generated from `.claude/skills/`, but the installer also
+  copies `templates/skills/*`, and `i18n-workflow` lives only there — so every install
+  shipped a skill the registry did not list. The installer now reconciles the registry
+  with what it actually installed. A gate that fails when nothing is wrong is a gate
+  people learn to ignore.
+- **`ck uninstall` left undeletable orphans and destroyed the receipt.** It built the
+  surviving set from `modified ∩ exists`, so a partially-owned file that was never
+  edited was in neither the removable set nor the rewritten receipt: both files stayed
+  on disk and the manifest was unlinked. Measured consequences: `ck adapt` then refused
+  forever ("no usable install receipt"), a second `ck uninstall` reported "nothing to
+  uninstall", and the printed remedy routed into the installer's
+  `mv .claude .claude.bak-*`. Survivors are now unioned into the receipt, and the
+  receipt is never unlinked while a file it describes is still on disk.
 - **Writes larger than ~1 MB are no longer refused.** The dispatcher passed the tool
   payload to its handler-resolver through the environment, so once the payload crossed
   `ARG_MAX` (1048576) the resolver could not start and a guarded event failed closed —

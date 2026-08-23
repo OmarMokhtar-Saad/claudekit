@@ -2,31 +2,45 @@
 
 > Update this file at the end of every significant AI working session. It is the resume point.
 
-**Last updated:** 2026-08-22 · **By:** Claude (Opus 5) — **Phase 1b landed on `main`:
-the >1 MB payload refusal is fixed, and three gates that could not fail now can.**
-`ops-dispatcher-payload.json` (18 ops / 25 edits) APPROVED 94/100 bound to `726d3b9`,
-executed, archived. Suite `1979 passed, 1 xfailed`; all nine gates green (the ninth,
-`check-plan-artifacts.py`, is newly wired into CI and the DoD).
+**Last updated:** 2026-08-23 · **By:** Claude (Opus 5) — **Phase 2 `ck adapt` is
+built, proven and QUEUED, not applied.** `ops-ck-adapt.json` (8 ops / 6 files,
+`baseline` stamped against `14cf45e`) validates APPROVED and reproduces a tree with
+**2081 passed, 1 xfailed** (baseline `14cf45e`: 1983 — delta **+98**), all eight gates
+green, `ck doctor --strict` 26/26 on a tree the verb adapted, and 27 mutants all
+binding. It is NOT executed: the approval gate correctly refuses ("no review record
+exists for this plan"), the review floor wants a fresh `code-reviewer` this session was
+told not to spawn, and self-issuing an APPROVED record is forbidden.
 
-**In one paragraph.** `dispatch.sh`'s resolver moved out of a `<<'PY'` heredoc into
-`.claude/hooks/dispatch_resolve.py` so the payload can travel on stdin, which is what
-`ARG_MAX` had blocked. Two hooks changed with it: `reflection-gate.py` exited **1** with a
-traceback on an unparseable payload — neither 0 nor 2, so the host read a crash as
-non-blocking — and `iron-law-gate.py` treated an undecodable payload as a documented
-fail-open, making one invalid byte a passthrough past the implementer allowlist. Both now
-fail closed, the iron-law tightening bounded in both directions by test. `ck doctor` gained
-a helper-script check: this change created the first file every `PreToolUse` call depends on
-that `settings.json` never mentions, and deleting only it left **no doctor check failing
-while every tool call was blocked**. The plan/config drift floor was folded into
-`scripts/check-plan-artifacts.py`, which another session landed the same day — the same
-floor from the same three-round recurrence — rather than shipped twice.
+**In one paragraph.** The previous session's review rejected this verb at 65/100 and
+was right: the safety half held, the value half did not exist. `apply_commands` was
+never called from anywhere, no command was ever detected, the profile was never
+resolved, and the report printed "OK — every step either completed or is reported as
+skipped" over work that had not happened. The verb now derives the four commands
+CI-first with the provenance of each, calls the writer, resolves both profile axes,
+reports the MCP budget, records the decision once, re-stamps the receipt, and installs
+FULL mode itself on a greenfield tree before re-checking Rule 0 against the receipt the
+installer actually produced. `ck uninstall` no longer unlinks the receipt over files
+still on disk, and `ck doctor --strict` no longer exits 1 on a fresh install.
 
-**The transferable lesson, worth more than the change.** Eight review rounds; of the defects
-introduced while fixing this class, three were "the check passed because it wasn't checking"
-and one was its mirror, "the check failed although nothing was wrong". A partial fix with a
-green test certifying it complete is worse than no fix, because the test stops the next
-person looking. Every one was caught by MUTATING the shipped artifact; none by reading it.
-The habit to break is writing the assertion you intend instead of proving it can fail.
+**The transferable lesson, worth more than the change.** Five of the ten defects fixed
+here were introduced *by this session*, and every one was found by attacking my own
+diff rather than by reading it: runtime state written into a durable document made the
+verb non-idempotent only where `.claude/` is tracked; repo-controlled shell reached a
+file the hooks execute; blanking an "owned" key destroyed the configuration the skill
+tells users to write; and one of my own tests could not fail. The plan said twenty-one
+times that every proof must drive the real CLI — **one of twenty-one did**, and that is
+precisely how a function nothing calls passes three green unit tests. Unit tests cannot
+prove a verb. Separately: an ops config whose `find` anchors each match exactly once can
+still silently delete a neighbouring line, because the *replace* re-emits stale context
+— uniqueness is not sufficiency, and only a stamped `baseline` catches it.
+
+**Resume point.** One decision, then three commands. Decide how the config gets its
+review record (`/review`, authorise a fresh `code-reviewer`, or accept `--no-approval`
+with the reason disclosed — Tier 3, so the last is discouraged). Then: sequence against
+the other session's uncommitted `ck eject`, which has already broken two of this
+config's anchors, so apply at `14cf45e` or re-stamp after theirs lands; execute; archive
+the config to `.claude/plans/archive/` **with its row**; re-run the gates AFTER
+committing, because the secret self-scan enumerates `git ls-files`.
 
 ---
 

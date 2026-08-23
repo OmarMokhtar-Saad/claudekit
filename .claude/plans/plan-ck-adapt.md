@@ -484,6 +484,149 @@ count. For each, revert the corresponding source behaviour and show the test go 
     against the REAL lines on disk — `CLAUDE.md:64` and `:77` used as fixtures. That is
     what binds the writer to the convention that already exists rather than to itself.
 
+## What the config writes — named, because a plan that hides its largest artifact cannot be reviewed for it
+
+`check-plan-artifacts.py` refused the first config authored against this plan for
+exactly that reason, on its first real use. Every operation, named:
+
+- **`src/claudekit/adapt.py`** (new module) — the marker parser (line-structured
+  tokenization, optional version on both markers, real fence tracking, CRLF- and
+  mixed-ending-preserving splice, mode-preserving atomic write), CI-first detection
+  that executes nothing and derives the four commands with their provenance,
+  `vcs_dirty` on the far side of the "executes nothing" line, `classify_ownership` as
+  the receipt COMPLEMENT, the Class 1 pre-flight, the `hooks/config.json` key-subtree
+  writer, and the `Report` whose `skipped` is not a failure.
+- **`tests/test_adapt.py`** (new) — the behavioural proofs. The unit half (parser,
+  ownership complement, atomic-write seam, the writer's literal bytes against the real
+  markers in this repo's `CLAUDE.md`) plus a **CLI half** that drives
+  `python -m claudekit.cli.main` as a subprocess against a tree a real `ck init`
+  produced: idempotence (LF, CRLF, mixed, unbalanced fence), the Class 1 refusal,
+  `NEVER_MANAGED` survival, the hand-tuned `config.json`, the MCP breach, the fenced
+  `file:line`, the two detection sentinels, and every uninstall path.
+- **`src/claudekit/cli/main.py`** — `PARTIAL_OWNED` beside `DIFF_IGNORED`; the
+  uninstall filter applied to `listed` AND to the classification while keeping those
+  files RECEIPTED in the rewrite, with survivors unioned into that rewrite so the
+  receipt is never unlinked over a file still on disk; `cmd_adapt` with every step
+  wired; the manifest re-stamp; the `adapt` subparser and dispatch entry.
+- **`tests/test_install_receipts.py`** — two existing expectations updated to the
+  PARTIAL_OWNED contract (the receipt now survives a clean uninstall and describes the
+  survivors), and a new class covering the registry reconcile below.
+- **`install.sh`** — the skills registry is reconciled with what was actually
+  installed. Unrelated to adapt, but it is what made `ck doctor --strict` exit 1 on a
+  freshly installed tree, and this plan's DoD names that command.
+- **`.claude/commands/adapt.md`** and
+  **`.claude/skills/project-adaptation/SKILL.md`** — rewritten to delegate the
+  mechanical half to the verb and keep the judgement half. Net asset delta 0.
+- **`CHANGELOG.md`** — `[Unreleased]`, for a new user-visible CLI verb.
+- **`.ai/CHANGELOG_AI.md`** and **`.ai/SESSION_STATE.md`** — the maintainer
+  record and the resume point, shipped WITH the change rather than after it, so
+  the tree never carries code whose session record says it is not there yet.
+
+## Divergences from this plan, stated rather than buried
+
+1. **Proof 16's blank-then-refuse is implemented as blank-OR-refuse, deliberately.**
+   `install.sh:542-563` can blank the four keys because it holds a PRISTINE source and
+   writes into a freshly staged file. Adapt has neither: on an adopted tree the only
+   copy of an unparseable `config.json` is the USER's bytes, so blanking it would
+   destroy content the installer never risks. So the two branches are: an unevidenced
+   key is written EMPTY rather than left stale (the blanking half, on the ordinary
+   path), and invalid JSON refuses and writes nothing. Both are asserted through the
+   CLI. Asserting install.sh's exact pair here would have gone red against the safer
+   behaviour.
+2. **`Detection.dirty` is computed by `vcs_dirty`, not by `detect`.** Detection's
+   contract is that it executes nothing, and reading dirtiness runs `git`. It is a
+   fixed VCS query rather than a discovered command, but it is still an execution, so
+   it lives in a separate function a reader can see rather than inside the one whose
+   contract forbids it. `None` means "unknowable", and the report prints that.
+3. **An unevidenced command key is KEPT, not blanked.** `install.sh:495-497` writes
+   all four keys EMPTY and never ships ClaudeKit's own `pytest`/`ruff`, so on an
+   adopted tree a non-empty value is the USER's. Blanking it destroyed their
+   configuration on every run, and `project-adaptation` Phase 2 tells them to set
+   exactly those keys — the verb and the skill contradicted each other. Only an
+   evidenced value overwrites; kept keys are named in the report. (Found by
+   adversarially reviewing this change, not by any proof in this plan.)
+4. **EVERY command adapt writes is filtered for shell metacharacters, by name.** Adapt
+   writes into `hooks/config.json` and pre-commit / pre-push / post-implement EXECUTE
+   what is there, so a `run:` string in the TARGET repository is attacker-controlled
+   input to a shell that fires on the user's next push. Measured: `run: pytest ;
+   touch /tmp/PWNED_BY_ADAPT` was derived and written verbatim. Detection still
+   executed nothing and the report still named it, but a report is read once and a
+   hook runs every time. Profile values are NOT filtered — they ship with the kit or
+   are written by the user — and `cd web && npm test` still works, because the `cd`
+   prefix is stripped before the rule applies.
+
+   **Corrected after round 1 of code review (62/100, REVISE).** The profile exemption
+   in the sentence above was WRONG and the reviewer proved it end to end:
+   `profiles.profiles_dir` resolves `<TARGET>/.claude/profiles`, so a profile is a
+   file in the repository being adapted, and a NEW one is unreceipted —
+   `_classify_manifest` reports only MODIFIED receipted files, so the Class 1
+   pre-flight never sees it. A `typescript/profile.json` carrying
+   `npm run build; python3 -c "open('/tmp/PWNED_PROFILE','w').write('x')"` reached
+   `hooks/config.json`, and `post-implement.sh` executed it. Worse, the exemption had
+   a GREEN TEST asserting it, which is worse than no test. **Now every value is
+   filtered whatever its source.** The cost is nil — every shipped profile value is
+   metacharacter-free — and a profile that genuinely needs composition is refused by
+   name rather than silently rewritten.
+
+   **Scope of the claim, stated narrowly (hard rule 6).** The screen stops shell
+   COMPOSITION, not a hostile single command: round 2 measured that an unreceipted
+   profile with `build_cmd = "python3 .evil.py"` passes, is written, and a hook runs
+   it — equally true of the derivation path, so it is the verb's threat model rather
+   than a regression. What the screen buys is that a command cannot smuggle a SECOND
+   action past the one the report shows the user. Screening writes through
+   `CommandValidator` at write time is filed as a follow-up, not claimed here.
+
+   **Round 2 (84/100, CONDITIONAL) found the regression test for this CRITICAL
+   VACUOUS.** `assert payload not in json.dumps(config)` cannot fail: `json.dumps`
+   escapes the payload's own quotes. The reviewer applied the re-exemption mutant,
+   fully restoring the vulnerability, and the test still PASSED. It now asserts the
+   VALUE (`config["project"]["build_cmd"] == ""` and `payload not in
+   config["project"].values()`) and goes red under that mutant. A regression test for
+   a CRITICAL that cannot fail is coverage in appearance only.
+5. **Runtime state is not written into the region.** `dirty` was, which made the verb
+   self-referentially non-idempotent wherever `.claude/` is TRACKED — this repo and
+   every downstream repo: run 1 saw a clean tree, wrote the region, dirtied the tree,
+   and run 2 added a line run 1 had not. Proof 1's fixture has no `.git`, so it could
+   not see it. The report prints `dirty=`; the document does not.
+6. **The MCP step reports the budget; it adds no server.** Proof 17's breach case is
+   asserted against `python/profile.json`'s `max_servers: 3` with four servers in
+   `.mcp.json`: the step reports `skipped` with the numbers quoted, the remaining
+   steps still complete, and the run exits 0.
+
+## Delivered vs deferred, stated rather than implied
+
+Delivered: detection **and the four derived commands, with provenance**, the ownership
+split, the Class 1 refusal, the marked region in `CLAUDE.project.md`, the
+`config.json` key-subtree writer **called from the verb**, profile resolution on both
+axes, the MCP budget step, the memory record, the manifest re-stamp, the honest report,
+the `PARTIAL_OWNED` protection, and the task-008 rewrite of the command and the skill.
+
+**Nothing is deferred.** The fresh branch now runs `cmd_init` itself, as the step
+ordering above specifies — owner-approved 2026-08-23 ("finish them all"). It installs
+FULL mode (`install.sh:239-243` creates `.claude/profiles/` only there, and profile
+resolution is the next step), then re-checks Rule 0 against the receipt the installer
+actually produced rather than asserting one, and names an UNRECEIPTED kit install
+together with its recovery. The safety argument is unchanged and is why the installer
+is reachable on this branch and only here: "fresh" means `.claude/` is **absent**, so
+`install.sh:577-581`'s `mv .claude .claude.bak-<ts>` has nothing to move. A tree with a
+hand-made `.claude/` and no receipt is still a refusal — asserted on the user's bytes,
+on the absence of any `.claude.bak-*`, and on the installer never having run.
+
+The one follow-up this session filed is also **delivered**:
+`.claude/plans/plan-adapt-eject-interaction.md`. `ck eject` landed as `afc4ba8`
+mid-session, so `cmd_adapt` now recognises an ejected tree, keeps its read-only half,
+writes nothing, and stops advising `ck init` — which over an existing `.claude/` is the
+destructive swap decision (A) exists to make unreachable. Two structural changes came
+with it: the read-only half (profile, commands, MCP) is factored into
+`_adapt_read_only`, so the ejected branch reuses it instead of carrying a second copy,
+and the step order now matches the ordering stated above — profile -> MCP -> memory ->
+Class 2 writes — which the first implementation did not.
+
+**This config is rebased onto `afc4ba8`, not `14cf45e`.** Applying the `14cf45e` version
+over `afc4ba8` silently deleted `"eject": cmd_eject` from the dispatch dict while every
+`find` anchor still matched exactly once, because a context-carrying edit re-emits stale
+context. Uniqueness is not sufficiency; the stamped `baseline` is what catches it.
+
 ## Hard constraints
 
 - **ClaudeKit is NOT a harness.** No model client, no agent loop, no session runtime, no

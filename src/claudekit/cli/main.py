@@ -655,6 +655,20 @@ MANAGED_DIRS = ("agents", "commands", "skills", "hooks", "operations/scripts")
 MANAGED_FILES = ("settings.json",)
 # Never compared: expected to differ per-project or generated at runtime.
 DIFF_IGNORED = {"hooks/config.json", "settings.local.json"}
+# Receipted, but the kit owns only PART of the file: a marked region in
+# CLAUDE.project.md, four keys under `project` in config.json. `ck adapt` writes
+# into these, so `ck uninstall` must never delete them -- the rest of each file is
+# the user's. MUST STAY IN STEP WITH claudekit.adapt.PARTIAL_OWNED_RELS.
+#
+# The class lives HERE and not in the receipt, and that is load-bearing. A
+# `"partial": true` beside the hash fails three ways: `files` is a flat
+# rel -> sha256-string map that `_classify_manifest` compares with `==`, so an
+# object value makes every such file read `modified` forever; `--force` below makes
+# `removable` every listed path that exists, so a per-entry skip is bypassed; and
+# install.sh rebuilds `files` from a bare directory walk, so any install or
+# `ck update` silently drops the flag and regains delete rights. A safety property
+# that evaporates on the most routine command is not a safety property.
+PARTIAL_OWNED = {"local/CLAUDE.project.md", "hooks/config.json"}
 DIFF_IGNORED_NAMES = {"compact-counter.txt", "cost-tracker.log"}  # hook runtime state
 
 
@@ -928,6 +942,468 @@ def cmd_eject(args):
     return 0
 
 
+def _adapt_read_only(target, detected, report, adaptmod, mcpmod, profilesmod):
+    """The half of `ck adapt` that only READS: profile resolution on both axes, the
+    four commands, and the MCP budget. Returns (posture, stack_profile, commands,
+    sources); every failure it can hit becomes a reported step rather than a raise,
+    and the caller owns the exit code.
+
+    Factored out because the EJECTED branch needs exactly this and nothing else. A
+    second copy there would be two adaptation code paths inside one verb -- the
+    duplication task 008 exists to stop, and the shape that lets a report and the
+    behaviour it describes drift apart.
+    """
+    # --- profiles. Two AXES, not one. The posture profile governs hook enablement;
+    # the STACK profile carries the MCP budget and the stack command defaults. All
+    # three posture profiles declare `"mcp": {}`, which resolves to no budget at all,
+    # so reading a budget off the posture would make the budget claim unfalsifiable.
+    installed = profilesmod.list_profiles(target)
+    posture = None
+    stack_profile = None
+    if not installed:
+        minimal = "no profiles installed (minimal install); MCP budget unbounded"
+        report.step("profile", adaptmod.SKIPPED, minimal)
+        report.note(minimal)
+    else:
+        try:
+            posture = profilesmod.resolve(target).name
+        except profilesmod.ProfileError as exc:
+            # A FAILED step, never a bare `return 1`: this function's contract is a
+            # 4-tuple and the caller unpacks it, so returning an int raised
+            # `TypeError: cannot unpack non-iterable int object` on the user's
+            # console -- reachable from a target-controlled
+            # `.claude/profiles/local.json`. It also bypassed the caller's
+            # `skip_the_rest`, so six steps vanished from the report, and on the
+            # ejected branch (which discards the return value) the report printed
+            # TWICE with two different step sets. The caller checks `report.failed`
+            # and owns the single exit.
+            report.step("profile", adaptmod.FAILED, str(exc))
+            return None, None, {}, {}
+        stack_profile = detected.stack if detected.stack in installed else None
+        report.step("profile", adaptmod.DONE,
+                    f"posture={posture}; stack={stack_profile or 'none matched'}")
+
+    # --- the four commands. Detection wins where it found evidence; the stack
+    # profile fills the rest. Never ClaudeKit's own pytest/ruff into someone else's
+    # push hook: a profile value is the STACK's documented default, not this repo's.
+    commands = dict(detected.commands)
+    sources = dict(detected.command_sources)
+    if stack_profile:
+        try:
+            resolved_stack = profilesmod.resolve(target, stack_profile)
+            for key in adaptmod.COMMAND_KEYS:
+                if commands.get(key) or key in detected.refused:
+                    continue
+                value = resolved_stack.value("stack", key)
+                if not value:
+                    continue
+                # Filtered like any other source. A profile lives in the TARGET's
+                # `.claude/profiles/`, so it is repository content, and a NEW one is
+                # unreceipted -- the Class 1 pre-flight reports only MODIFIED
+                # receipted files, so it cannot see it and refuses nothing.
+                char = adaptmod.unsafe_to_write(value)
+                if char is not None:
+                    detected.refused[key] = (
+                        f"{key} in profile {stack_profile!r} contains {char!r}, so it "
+                        f"is shell composition rather than a single command; refusing "
+                        f"to write it into a file the hooks execute")
+                    continue
+                commands[key] = value
+                sources[key] = f"profile:{stack_profile}"
+        except profilesmod.ProfileError as exc:
+            report.note(f"stack profile {stack_profile!r} did not resolve: {exc}")
+    for reason in sorted(detected.refused.values()):
+        report.note(reason)
+    if commands:
+        report.step("commands", adaptmod.DONE, "; ".join(
+            f"{key}={commands[key]!r} (from {sources.get(key, 'unknown')})"
+            for key in adaptmod.COMMAND_KEYS if commands.get(key)))
+    elif detected.refused:
+        report.step("commands", adaptmod.SKIPPED,
+                    "every derived command was refused as shell composition; set "
+                    "them deliberately")
+    else:
+        report.step("commands", adaptmod.SKIPPED,
+                    "nothing on disk evidenced a build, test, lint or coverage "
+                    "command")
+    if detected.stack is None:
+        report.note(
+            f"no stack profile matched; MCP budget unbounded; posture "
+            f"{posture or 'unresolved'!r}; "
+            + ("wrote no build/test commands" if not commands
+               else "wrote only the commands evidence supported"))
+
+    # --- MCP. Budget only, because adapt adds no server: recording a budget that is
+    # not enforced would be the dishonest report this contract forbids.
+    if not installed:
+        report.step("mcp", adaptmod.SKIPPED,
+                    "no profiles installed (minimal install); MCP budget unbounded")
+    elif stack_profile is None:
+        report.step("mcp", adaptmod.SKIPPED,
+                    "no stack profile matched; MCP budget unbounded")
+    else:
+        try:
+            name, max_servers, max_tools = mcpmod.budget(target, stack_profile)
+            ledger = mcpmod.load_ledger(target)
+            declared = mcpmod.declared_tools(ledger)
+            servers = len(mcpmod.load_config(target).get("mcpServers", {}))
+            breach = []
+            if max_servers is not None and servers > max_servers:
+                breach.append(f"{servers} server(s) against max_servers {max_servers}")
+            if max_tools is not None and declared > max_tools:
+                breach.append(f"{declared} tool(s) against max_tools {max_tools}")
+            if breach:
+                report.step("mcp", adaptmod.SKIPPED,
+                            f"budget {name!r} already breached — " + "; ".join(breach)
+                            + "; adapt added no server")
+                report.note("MCP is over budget: `ck mcp list` and remove a server "
+                            "before adding another")
+            else:
+                report.step("mcp", adaptmod.DONE,
+                            f"budget {name!r}: {servers}/"
+                            f"{'unbounded' if max_servers is None else max_servers}"
+                            f" server(s), {declared}/"
+                            f"{'unbounded' if max_tools is None else max_tools} tool(s)")
+        except mcpmod.MCPError as exc:
+            report.step("mcp", adaptmod.SKIPPED, str(exc))
+    return posture, stack_profile, commands, sources
+
+
+def cmd_adapt(args):
+    """Configure ClaudeKit for the project it is pointed at, and report honestly.
+
+    Two branches, because they have genuinely different shapes:
+
+    * **Adopted** (`.claude/` present) -- classify against the PRE-EXISTING receipt,
+      refuse on a modified whole-file kit asset, then resolve profiles, wire MCP and
+      memory, and do the Class 2 writes. The installer is NEVER invoked here:
+      `ck update` is `install.sh --force`, which `mv`s an existing `.claude/` aside
+      unconditionally and consults no manifest, so reaching it would relocate the
+      user's unreceipted files. Unreachable by construction rather than by claim.
+    * **Fresh** (`.claude/` ABSENT) -- reports that `ck init` must run first, because
+      profile resolution reads a tree only the installer creates. Invoking the
+      installer from here is recorded in the plan as deferred and NOT owner-approved,
+      so this is a NAMED skip rather than a silent one.
+
+    "Fresh" never means "no manifest". A tree with a hand-made `.claude/` and no
+    receipt is a REFUSAL, not a fresh install; routing it to the installer is the
+    worst outcome this verb exists to prevent, reached through the branch that looks
+    safe.
+
+    Every step below records `done` / `skipped (reason)` / `failed (reason)`. A step
+    that is not attempted is still recorded -- omitting it and then printing "every
+    step either completed or is reported as skipped" is the overstatement the report
+    contract forbids, and it is worse than a named skip because a reader cannot see
+    that the work did not happen.
+    """
+    from .. import adapt as adaptmod
+    from .. import mcp as mcpmod
+    from .. import memory as memorymod
+    from .. import profiles as profilesmod
+
+    target = Path(args.target or ".").resolve()
+    if not target.is_dir():
+        err(f"Directory does not exist: {target}")
+        return 1
+
+    # Every step this verb can run, in order. A step that is NOT attempted is still
+    # reported as `skipped (reason)`: the fresh branch already did that, but the two
+    # refusal branches silently omitted the rest, so a reader could not tell the work
+    # from the work that never happened. That asymmetry is the same overstatement the
+    # report contract forbids, one branch down.
+    LATER_STEPS = ("profile", "commands", "hooks/config.json", "mcp", "memory",
+                   "claude.project.md", "re-stamp")
+
+    fresh = adaptmod.is_fresh(target)
+    report = adaptmod.Report(target, "fresh" if fresh else "adopted")
+
+    def skip_the_rest(names, reason):
+        for name in names:
+            report.step(name, adaptmod.SKIPPED, reason)
+
+    detected = adaptmod.detect(target)
+    detected.dirty = adaptmod.vcs_dirty(target) if detected.has_git else None
+    report.step("detect", adaptmod.DONE,
+                f"stack={detected.stack or 'none matched'}; "
+                f"evidence={', '.join(sorted(detected.sources)) or 'none'}; "
+                f"dirty={'unknown' if detected.dirty is None else detected.dirty}")
+    if not detected.has_git:
+        report.note("no git repository: there is no VCS safety net for these writes")
+
+    if fresh:
+        # FULL mode, not `args.mode`, and not minimal: `install.sh:239-243` creates
+        # `.claude/profiles/` inside the full-mode block only, and profile resolution
+        # is the very next step. A minimal install here would reproduce the
+        # adopted-minimal gap on the branch that is supposed to avoid it.
+        #
+        # Safe on THIS branch and only here: "fresh" means `.claude/` is ABSENT, so
+        # `install.sh:577-581`'s `mv .claude .claude.bak-<ts>` has nothing to move.
+        # The adopted branch still never reaches the installer.
+        code = cmd_init(argparse.Namespace(
+            target=str(target), mode="full", language=None, force=False, yes=True))
+        if code != 0:
+            report.step("install", adaptmod.FAILED,
+                        f"`ck init` exited {code}; `install.sh:558-562` can exit "
+                        f"non-zero after cleaning up, so this tree may be partial")
+            skip_the_rest(("ownership", "pre-flight") + LATER_STEPS,
+                          "the install did not complete")
+            report.note("inspect `.claude/` before re-running: a partial install is "
+                        "not a fresh tree, so the next `ck adapt` takes the adopted "
+                        "branch")
+            print(report.render())
+            return 1
+        report.step("install", adaptmod.DONE, "`ck init --full` (fresh tree)")
+
+        # Rule 0 re-checked against the receipt the installer actually produced, not
+        # asserted. `install.sh:602` runs the manifest generator as
+        # `... && print_ok || print_warn`, so manifest generation is NON-FATAL: a
+        # fresh install can complete with exit 0 and NO receipt at all. Without this
+        # re-check adapt would then write Class 2 into a tree with no provenance --
+        # exactly what Rule 0 exists to prevent, reached through the branch that
+        # looks safe.
+        if adaptmod.is_fresh(target) or _load_manifest(target) is None:
+            report.step("ownership", adaptmod.FAILED,
+                        "`ck init` reported success but wrote no usable receipt "
+                        "(install.sh's manifest generation is non-fatal)")
+            skip_the_rest(("pre-flight",) + LATER_STEPS,
+                          "ownership could not be established")
+            # Refusing honestly includes saying what already happened: the installer
+            # HAS written a full kit, so "refused" over a materially changed tree is
+            # misleading unless the report names it.
+            report.note("this tree now holds an UNRECEIPTED kit install: the assets "
+                        "are there, the provenance is not")
+            report.note("recover with `ck diff` to see what is present, or re-run "
+                        "`ck init --force` to regenerate the receipt")
+            print(report.render())
+            return 1
+
+    # Rule 0, re-evaluated on the tree as adapt FOUND it: no usable receipt is a
+    # refusal, never a licence. _load_manifest returns None for an absent receipt and
+    # an unparseable one alike, so without this the Class 1 complement is empty and
+    # adapt would write into a tree of entirely unknown provenance.
+    manifest = _load_manifest(target)
+
+    # EJECTED is a supported state, not a broken install, and it is checked BEFORE
+    # Rule 0 so the two are never conflated. `ck eject` removes the manifest after
+    # copying every path and digest into EJECT_NAME, which means the provenance is
+    # right there -- but ejecting is the user WITHDRAWING write and delete authority,
+    # so reading that record as a licence returns exactly what the command
+    # surrendered. Adapt therefore keeps its read-only half and writes nothing.
+    #
+    # The old behaviour was worse than a bare refusal: it reported "no usable install
+    # receipt (absent or unparseable)", which reads as corruption, and then advised
+    # `ck init` -- which over an existing `.claude/` reaches install.sh:577-581 and
+    # `mv`s the directory aside, keeping only a heuristic subset. Adapt recommending
+    # the destructive path decision (A) exists to make unreachable is the same shape
+    # as the uninstall defect that produced this verb: the refusal was right and the
+    # printed remedy was the damage.
+    if manifest is None:
+        ejected = _load_eject_record(target)
+        if ejected is not None:
+            # Read the record's OWN fields (`file_count`, `ejected_utc`) rather
+            # than re-deriving them: `cmd_eject` writes both, and a second
+            # derivation here would drift the moment that shape changes.
+            count = ejected.get("file_count")
+            if not isinstance(count, int):
+                recorded = ejected.get("files") or ejected.get("manifest", {}).get("files")
+                count = len(recorded) if isinstance(recorded, dict) else 0
+            report.step("ownership", adaptmod.SKIPPED,
+                        f"this project is ejected ({EJECT_NAME}, {count} path(s) "
+                        f"recorded); adapt writes nothing here")
+            report.step("pre-flight", adaptmod.SKIPPED,
+                        "ejected: nothing is kit-owned by declaration")
+            _adapt_read_only(target, detected, report, adaptmod, mcpmod,
+                             profilesmod)
+            if report.failed:
+                skip_the_rest(("commands", "mcp", "memory", "hooks/config.json",
+                               "claude.project.md", "re-stamp"),
+                              "a read-only step failed; ejected trees are never "
+                              "written to in any case")
+                print(report.render())
+                return 1
+            # The ejected branch discards the tuple, so a FAILED read-only step must
+            # not fall through into a SECOND render of the same report.
+            for name in ("hooks/config.json", "claude.project.md"):
+                report.step(name, adaptmod.SKIPPED,
+                            "ejected: adapt does not write to a self-managed tree")
+            report.step("memory", adaptmod.SKIPPED,
+                        "ejected: adapt does not write to a self-managed tree")
+            report.step("re-stamp", adaptmod.SKIPPED,
+                        "ejected: there is no receipt to stamp")
+            when = ejected.get("ejected_utc") or "an earlier session"
+            report.note(f"this project was ejected ({when}). To let `ck adapt` "
+                        f"configure it again, re-adopt it with `ck update`, or set "
+                        f"the four commands yourself -- see `/adapt` step 2.")
+            print(report.render())
+            return 0 if not report.failed else 1
+
+    try:
+        ownership = adaptmod.classify_ownership(manifest)
+    except adaptmod.AdaptError as exc:
+        report.step("ownership", adaptmod.FAILED, str(exc))
+        skip_the_rest(("pre-flight",) + LATER_STEPS,
+                      "ownership could not be established")
+        # NOT "re-run `ck init`". Over an existing `.claude/` that reaches
+        # `install.sh:577-581`, which `mv`s the directory to `.claude.bak-<ts>` and
+        # restores only a heuristic subset -- the same wrong remedy this verb removed
+        # from the ejected branch, on the branch where provenance is LEAST known.
+        # Name the consequence instead of the command.
+        report.note("remedy: `ck diff` to see what is present. To adopt this tree "
+                    "deliberately, back up `.claude/` FIRST: both `ck init --force` "
+                    "and `ck update` move the existing directory aside to "
+                    "`.claude.bak-<timestamp>` and restore only a subset.")
+        print(report.render())
+        return 1
+    report.step("ownership", adaptmod.DONE,
+                f"{len(ownership.class1)} whole-file kit asset(s), "
+                f"{len(ownership.class2_receipted)} partially-owned")
+
+    modified, _missing, _unchanged = _classify_manifest(target, manifest)
+    refusal = adaptmod.refuse_on_modified(modified, ownership.class1)
+    if refusal:
+        report.step("pre-flight", adaptmod.FAILED, refusal)
+        skip_the_rest(LATER_STEPS, "the pre-flight refused, so nothing was written")
+        report.note("nothing was written; resolve the difference or run `ck update`")
+        print(report.render())
+        return 1
+    report.step("pre-flight", adaptmod.DONE, "no modified whole-file kit asset")
+
+    posture, stack_profile, commands, sources = _adapt_read_only(
+        target, detected, report, adaptmod, mcpmod, profilesmod)
+    if report.failed:
+        # `commands` and `mcp` are in here too: `_adapt_read_only` returns as soon
+        # as the profile fails, so it never records them either. Listing only the
+        # write steps left two rows missing and re-broke the every-step-named
+        # contract one layer down -- the same omission, a third time.
+        skip_the_rest(("commands", "mcp", "memory", "hooks/config.json",
+                       "claude.project.md", "re-stamp"),
+                      "a read-only step failed, so nothing was written")
+        print(report.render())
+        return 1
+
+    # --- memory. Append-only, so seeding on every run would break idempotence:
+    # record the decision once and say so on every run after that.
+    title = f"ck adapt configured {target.name}"
+    try:
+        existing = [e for e in memorymod.entries(target)
+                    if e.get("title") == title]
+        if existing:
+            report.step("memory", adaptmod.SKIPPED,
+                        "the adapt decision is already recorded (the store is "
+                        "append-only, so re-seeding it would break idempotence)")
+        else:
+            body = (
+                f"Stack detected as {detected.stack or 'none matched'} from "
+                f"{', '.join(sorted(detected.sources)) or 'no evidence'}. Posture "
+                f"profile {posture or 'unresolved'}, stack profile "
+                f"{stack_profile or 'none matched'}. Commands written: "
+                + (", ".join(f"{k}={commands[k]}" for k in adaptmod.COMMAND_KEYS
+                             if commands.get(k)) or "none")
+                + ".")
+            memorymod.add(target, "decision", title, body)
+            report.step("memory", adaptmod.DONE, "recorded the adapt decision")
+    except memorymod.MemoryStoreError as exc:
+        report.step("memory", adaptmod.SKIPPED, str(exc))
+
+    # --- hooks/config.json: adapt owns four keys under `project` and nothing else.
+    restamp = []
+    config = target / ".claude" / "hooks" / "config.json"
+    if not config.exists():
+        report.step("hooks/config.json", adaptmod.SKIPPED,
+                    "not present in this install")
+    else:
+        try:
+            text = adaptmod.read_text_strict(config)
+            new_text, kept = adaptmod.apply_commands(text, commands)
+            if new_text != text:
+                adaptmod.write_atomic(config, new_text)
+            detail = (f"{sum(1 for k in adaptmod.COMMAND_KEYS if commands.get(k))} "
+                      f"of {len(adaptmod.COMMAND_KEYS)} owned key(s) set from "
+                      f"evidence; every other key preserved")
+            if kept:
+                detail += ("; left the existing value of " + ", ".join(kept)
+                           + " untouched (adapt evidenced none; the value already in "
+                           "config.json is unchanged)")
+            report.step("hooks/config.json", adaptmod.DONE, detail)
+            restamp.append("hooks/config.json")
+        except adaptmod.AdaptError as exc:
+            # install.sh:542-563 is blank-then-refuse because it holds a PRISTINE
+            # source and writes into a freshly staged file. Adapt has neither: the
+            # only copy of an unparseable config.json here is the user's own bytes,
+            # so blanking it would destroy content install.sh never risks. The
+            # divergence is deliberate and recorded in the plan -- refuse, write
+            # nothing. The blanking half still happens on the ordinary path above,
+            # where an unevidenced key is written EMPTY rather than left stale.
+            report.step("hooks/config.json", adaptmod.FAILED,
+                        f"{exc} (no pristine source to blank from on an adopted "
+                        f"tree, so nothing was written)")
+
+    # --- the marked region in CLAUDE.project.md.
+    doc = adaptmod.project_doc(target)
+    if not doc.exists():
+        report.step("claude.project.md", adaptmod.SKIPPED,
+                    f"{doc.name} is not present in this install")
+    else:
+        try:
+            text = adaptmod.read_text_strict(doc)
+            _region, fenced = adaptmod.find_region(text)
+            budget_line = None
+            for name, _status, detail in report.steps:
+                if name == "mcp":
+                    budget_line = detail
+            body = adaptmod.region_body(
+                detected, posture, commands, stack_profile=stack_profile,
+                sources=sources, mcp_budget=budget_line)
+            new_text, action, previous = adaptmod.apply_region(text, body)
+            if new_text != text:
+                adaptmod.write_atomic(doc, new_text)
+            detail = action
+            if previous is not None and previous != adaptmod.REGION_VERSION:
+                detail += (f"; region at v{previous}, writer emits "
+                           f"v{adaptmod.REGION_VERSION}")
+            elif previous is None and action == "replaced":
+                detail += ("; region present, version absent; writer emits "
+                           f"v{adaptmod.REGION_VERSION}")
+            if fenced:
+                # Requirement 6: name the fenced line by file:line so a reader sees
+                # the marker was recognised and deliberately ignored, rather than
+                # missed. find_region computed this and the caller used to throw it
+                # away, which made the requirement unassertable.
+                detail += ("; fenced marker(s) recognised and ignored at "
+                           + ", ".join(f"{doc}:{line}" for line in fenced))
+            report.step("claude.project.md", adaptmod.DONE, detail)
+            restamp.append("local/CLAUDE.project.md")
+        except adaptmod.AdaptError as exc:
+            report.step("claude.project.md", adaptmod.FAILED, str(exc))
+
+    # --- re-stamp. Under PARTIAL_OWNED this is a plain hash update: without it one
+    # successful adapt makes a previously-working `ck uninstall` exit 1, blocked by a
+    # file uninstall has already declared KEPT -- a transcript that contradicts
+    # itself.
+    base = _manifest_base(target)
+    stamped = []
+    for rel in restamp:
+        path = base / rel
+        if rel in manifest.get("files", {}) and path.exists():
+            digest = _sha256(path)
+            if manifest["files"][rel] != digest:
+                manifest["files"][rel] = digest
+                stamped.append(rel)
+    if stamped:
+        try:
+            (base / MANIFEST_NAME).write_text(json.dumps(manifest, indent=2))
+            report.step("re-stamp", adaptmod.DONE,
+                        f"receipt updated for {', '.join(stamped)}")
+        except OSError as exc:
+            report.step("re-stamp", adaptmod.FAILED,
+                        f"could not rewrite {MANIFEST_NAME}: {exc}")
+    else:
+        report.step("re-stamp", adaptmod.SKIPPED,
+                    "no receipted partially-owned file changed")
+
+    print(report.render())
+    return 1 if report.failed else 0
+
 def cmd_uninstall(args):
     """Remove ClaudeKit-managed files, acting ONLY on files the receipt owns.
 
@@ -955,7 +1431,26 @@ def cmd_uninstall(args):
         warn("Manifest lists no files.")
         return 0
 
+    # Filter exactly the two sets that drive DELETION, and nothing else.
+    #
+    # `removable` is `unchanged` on the ordinary path and every existing entry of
+    # `listed` under --force, so both need the filter: `NEVER_MANAGED` is safe from
+    # --force only because it is never listed at all, and these files ARE listed.
+    #
+    # `modified` is deliberately NOT filtered. It drives the RECEIPT rewrite, whose
+    # contract is "describe exactly what is still ours" — filtering it dropped a
+    # user-edited partially-owned file out of the receipt entirely. Deletion and
+    # provenance are separate questions and the earlier revision conflated them.
+    partial_kept = [rel for rel in listed if rel in PARTIAL_OWNED]
+    listed = [rel for rel in listed if rel not in PARTIAL_OWNED]
+
     modified, missing, unchanged = _classify_manifest(target, manifest)
+    unchanged = [rel for rel in unchanged if rel not in PARTIAL_OWNED]
+    if partial_kept:
+        info(f"  {len(partial_kept)} partially-owned file(s) KEPT "
+             f"(the kit owns only part of each; `ck adapt` writes into them):")
+        for rel in partial_kept:
+            print(f"    {rel}")
 
     if args.dry_run:
         info(f"[dry-run] {target}")
@@ -1015,12 +1510,22 @@ def cmd_uninstall(args):
             warn(f"could not remove {rel}: {e}")
 
     kept = [rel for rel in modified if (base / rel).exists()]
-    if kept:
+    # Every receipted file still on disk, not just the MODIFIED ones. A
+    # PARTIAL_OWNED survivor that was never edited is in neither `modified` nor
+    # `removable`, so the earlier `kept`-only rewrite unlinked the receipt while its
+    # files were still there. Measured consequences: `ck adapt` refused forever ("no
+    # usable install receipt"), a second `ck uninstall` said "nothing to uninstall",
+    # and adapt's printed remedy ("re-run `ck init`") routed into install.sh's
+    # `mv .claude .claude.bak-*` -- the destructive path decision (A) exists to make
+    # unreachable. Deletion and provenance stay separate questions: this is the
+    # provenance half, so it unions in survivors rather than widening `removable`.
+    survivors = sorted(set(kept) | {rel for rel in partial_kept
+                                    if (base / rel).exists()})
+    if survivors:
         # The manifest must not outlive the files it describes as removed, but a
         # kept file with no receipt would read as user-authored on the next
         # install. Rewrite the receipt to cover exactly what is still ours.
-        remaining = {rel: manifest["files"][rel] for rel in kept}
-        manifest["files"] = remaining
+        manifest["files"] = {rel: manifest["files"][rel] for rel in survivors}
         try:
             (base / MANIFEST_NAME).write_text(json.dumps(manifest, indent=2))
         except OSError as e:
@@ -1590,6 +2095,10 @@ def main():
                    help="allowed-tools frontmatter value")
 
     # mcp
+    p = sub.add_parser("adapt",
+                       help="Configure ClaudeKit for this project and report what it did")
+    p.add_argument("target", nargs="?", help="Project directory (default: .)")
+
     p = sub.add_parser("mcp",
                        help="Register MCP servers against the active profile's budget")
     p.add_argument("action", choices=["add", "list"],
@@ -1636,6 +2145,7 @@ def main():
         "diff": cmd_diff,
         "update": cmd_update,
         "uninstall": cmd_uninstall,
+        "adapt": cmd_adapt,
         "eject": cmd_eject,
         "eval": cmd_eval,
         "check-command": cmd_check_command,

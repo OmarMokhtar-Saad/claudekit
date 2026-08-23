@@ -22,6 +22,11 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 INSTALLER = os.path.join(ROOT, "install.sh")
 MANIFEST = ".claudekit-manifest.json"
 
+#: Imported, never re-listed: `cli/main.py` owns this set and a second copy here
+#: would drift the moment it changes.
+sys.path.insert(0, os.path.join(ROOT, "src"))
+from claudekit.cli.main import PARTIAL_OWNED  # noqa: E402
+
 
 def ck(*args, cwd=None, stdin=""):
     return subprocess.run(
@@ -239,7 +244,10 @@ class UninstallActsOnlyOnReceiptOwnedFiles(unittest.TestCase):
                         "--keep-modified deleted a locally-modified file")
         with open(os.path.join(self.project.claude, MANIFEST), encoding="utf-8") as fh:
             remaining = json.load(fh)["files"]
-        self.assertEqual(sorted(remaining), [self.edited],
+        # The partially-owned files survive too, so "still ours" now includes them.
+        expected = sorted({self.edited}
+                          | (set(self.project.manifest["files"]) & PARTIAL_OWNED))
+        self.assertEqual(sorted(remaining), expected,
                          "the receipt must describe exactly what is still ours")
 
     def test_force_removes_the_modified_file_but_backs_it_up_first(self):
@@ -287,11 +295,38 @@ class UninstallActsOnlyOnReceiptOwnedFiles(unittest.TestCase):
         self.assertEqual(sorted(os.listdir(self.project.claude)), before)
 
     def test_an_unmodified_install_still_uninstalls_cleanly(self):
-        """The happy path must not become collateral damage of the new gate."""
+        """The happy path must not become collateral damage of the new gate.
+
+        The receipt SURVIVES now, and that is the point rather than a regression.
+        `ck adapt` writes into two partially-owned files, so `ck uninstall` keeps
+        them; a receipt unlinked while its files are still on disk left them
+        undeletable, made `ck adapt` refuse forever with "no usable install
+        receipt", made a second uninstall say "nothing to uninstall", and routed
+        adapt's own printed remedy into install.sh's `mv .claude .claude.bak-*`.
+        So: everything the receipt owned WHOLE is gone, the two partially-owned
+        survivors are still there, and the receipt describes exactly those.
+        """
         clean = InstalledProject(self)
+        listed = sorted(clean.manifest["files"])
         result = ck("uninstall", clean.dir, "--yes")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertFalse(os.path.isfile(os.path.join(clean.claude, MANIFEST)))
+        manifest_path = os.path.join(clean.claude, MANIFEST)
+        self.assertTrue(os.path.isfile(manifest_path),
+                        "the receipt was unlinked while its files were still on disk")
+        with open(manifest_path, encoding="utf-8") as fh:
+            remaining = sorted(json.load(fh)["files"])
+        # Intersected with what this install actually receipted, never hardcoded:
+        # a minimal install receipts only some of PARTIAL_OWNED, and a hardcoded
+        # expectation would fail for the install shape rather than for the rule.
+        self.assertEqual(remaining, sorted(set(listed) & PARTIAL_OWNED))
+        for rel in remaining:
+            self.assertTrue(os.path.isfile(clean.path(rel)),
+                            "%s is in the receipt but not on disk" % rel)
+        for rel in listed:
+            if rel in remaining:
+                continue
+            self.assertFalse(os.path.isfile(clean.path(rel)),
+                             "%s was neither removed nor kept" % rel)
 
 
 class FilesTheReceiptNeverSawAreNotTouched(unittest.TestCase):
@@ -309,3 +344,49 @@ class FilesTheReceiptNeverSawAreNotTouched(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TheRegistryDescribesWhatWasInstalled(unittest.TestCase):
+    """`ck doctor --strict` exited 1 on a FRESHLY installed tree.
+
+    `skills-registry.json` is generated from `.claude/skills/`
+    (scripts/gen-registry.py), but install.sh also copies `templates/skills/*`, and
+    `i18n-workflow` lives only there. So every install shipped a skill the registry
+    did not list, and the drift check warned on the happy path -- a gate that fails
+    when nothing is wrong is a gate people learn to ignore.
+    """
+
+    def setUp(self):
+        # FULL mode deliberately: `--minimal` installs no skills registry at all,
+        # so the drift this covers is unreachable there and a minimal fixture would
+        # pass vacuously.
+        self.project = InstalledProject(self, mode="--full")
+
+    def _registry(self):
+        path = os.path.join(self.project.claude, "skills", "skills-registry.json")
+        with open(path, encoding="utf-8") as fh:
+            return json.load(fh)
+
+    def test_every_installed_skill_is_registered(self):
+        registered = {row["id"] for row in self._registry()["skills"]}
+        skills_dir = os.path.join(self.project.claude, "skills")
+        on_disk = {name for name in os.listdir(skills_dir)
+                   if os.path.isfile(os.path.join(skills_dir, name, "SKILL.md"))}
+        self.assertTrue(on_disk, "the fixture installed no skills at all")
+        self.assertEqual(sorted(on_disk - registered), [],
+                         "installed skills missing from skills-registry.json")
+
+    def test_the_template_only_skill_is_the_one_this_covers(self):
+        """Named, so a reader can see WHICH skill the reconcile exists for. If
+        templates/skills/i18n-workflow ever moves into .claude/skills/ this goes
+        red rather than passing vacuously against an empty difference."""
+        registered = {row["id"] for row in self._registry()["skills"]}
+        self.assertIn("i18n-workflow", registered)
+        row = [r for r in self._registry()["skills"] if r["id"] == "i18n-workflow"][0]
+        self.assertEqual(row["path"], "skills/i18n-workflow/SKILL.md")
+        self.assertTrue(row["description"], "registered with no description")
+
+    def test_doctor_strict_is_clean_on_a_fresh_install(self):
+        """Exit code measured WITHOUT a pipe: `rc=$?` after one reads `tail`'s."""
+        result = ck("doctor", "--strict", cwd=self.project.dir)
+        self.assertNotIn("is not registered", result.stdout + result.stderr)
