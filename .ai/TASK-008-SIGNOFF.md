@@ -28,7 +28,7 @@ Then delete `templates/skills|commands|hooks|modes` (14/13/4/7 entries) and upda
 `install.sh` + the manifest.
 
 **Risk:** low for the 10 identical; the 3 diverged need real content review.
-**Sign-off:** ______
+**Sign-off:** APPROVED 2026-08-23
 
 ## Batch 2 — near-duplicate skills (P1, active mis-routing hazard)
 
@@ -45,7 +45,7 @@ All still present, all measured today.
 76 → ~69 skills. Deleted names go into a registry `renamed` alias map for one release.
 
 **Risk:** medium — merges can lose nuance. Diff both, keep the union.
-**Sign-off:** ______
+**Sign-off:** APPROVED 2026-08-23
 
 ## Batch 3 — agent merges (P2)
 
@@ -66,7 +66,7 @@ All 10 still present.
 **Risk:** medium-high — this is the batch that changes routing behaviour.
 **Blocker:** should run behind the eval suite (task 010), which needs cassettes —
 currently blocked on API quota. **Recommend HOLD until cassettes exist.**
-**Sign-off:** ______
+**Sign-off:** APPROVED 2026-08-23
 
 ## Batch 4 — command diet + lint rules (P2)
 
@@ -76,15 +76,32 @@ routing tables; add lint rules (command line budget, `allowed-tools: Agent` in a
 duplicate trigger phrases).
 
 **Risk:** low. Mechanical, and `ck lint` can enforce it afterwards.
-**Sign-off:** ______
+**Sign-off:** APPROVED 2026-08-23
 
 ---
 
-## Recommendation
+## Recommendation (superseded by the decision below)
 
 Approve **1, 2, 4**. **Hold 3** until the eval cassettes exist — batch 3 is the only
 one that changes routing behaviour, and the spec's own rollback plan names the eval
 suite as the gate. Without it there is no way to prove routing did not degrade.
+
+## OWNER DECISION 2026-08-23 — all four batches APPROVED
+
+Batches 1, 2 and 4: approved as recommended.
+
+Batch 3: **approved over the recommendation to hold.** The eval-suite gate named in
+the spec's rollback plan is unavailable (cassettes blocked on API quota), so the risk
+that a routing regression ships undetected is **accepted, knowingly**. Compensating
+controls required in its place, since the designed gate is absent:
+- batch 3 lands **after** 1, 2 and 4, never alongside them;
+- one merge cluster per plan, one plan per PR — never a bulk agent sweep;
+- the registry `renamed` alias map must serve every removed agent name for one
+  release, so consumers see a rename and not a deletion;
+- each merge keeps the **union** of operative rules from both sources, proven by
+  diffing both before deleting either;
+- if routing behaviour cannot be demonstrated unchanged by other means, record that
+  plainly in the PR rather than implying the eval suite covered it.
 
 ## Carried debt (already an owner decision, 2026-08-22)
 
