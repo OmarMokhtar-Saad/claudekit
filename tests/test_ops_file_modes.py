@@ -136,3 +136,104 @@ class TestCreateOverExistingFile:
         assert res.returncode == 0, res.stdout + res.stderr
         assert target.read_text(encoding='utf-8') == EDITED_BODY
         assert _mode(target) == 0o755
+
+class TestDeclaredCreateMode:
+    """`file_create` may declare a POSIX mode.
+
+    Without it a NEW file always landed 0644 (atomic_write falls back to
+    DEFAULT_CREATE_MODE when the target does not exist), so promoting a 0755 hook
+    script through the engine produced a hook nothing could run. Found in review of
+    task 008 batch 1, where four `.claude/hooks/*.sh` would have landed
+    non-executable; `install.sh` chmods by shebang, so CONSUMERS self-healed and
+    this repo's own tree did not -- the worst shape of bug to find later."""
+
+    def test_declared_0755_is_applied_to_a_new_file(self, tmp_path):
+        ops = _ops(tmp_path, [{'type': 'file_create', 'path': 'hook.sh',
+                               'content': SCRIPT_BODY, 'mode': '0755'}])
+        res = _run(EXECUTOR, tmp_path, ops)
+        assert res.returncode == 0, res.stdout + res.stderr
+        assert _mode(tmp_path / 'hook.sh') == 0o755
+        assert os.access(str(tmp_path / 'hook.sh'), os.X_OK)
+
+    def test_declared_0644_is_applied_regardless_of_umask(self, tmp_path):
+        ops = _ops(tmp_path, [{'type': 'file_create', 'path': 'doc.txt',
+                               'content': 'x\n', 'mode': '0644'}])
+        res = _run(EXECUTOR, tmp_path, ops)
+        assert res.returncode == 0, res.stdout + res.stderr
+        assert _mode(tmp_path / 'doc.txt') == 0o644
+
+    def test_omitting_mode_keeps_the_previous_default(self, tmp_path):
+        """The field is optional and its absence must not change what shipped."""
+        ops = _ops(tmp_path, [{'type': 'file_create', 'path': 'plain.txt',
+                               'content': 'x\n'}])
+        res = _run(EXECUTOR, tmp_path, ops)
+        assert res.returncode == 0, res.stdout + res.stderr
+        assert _mode(tmp_path / 'plain.txt') == 0o666 & ~_process_umask()
+
+    def test_setuid_is_refused_by_the_executor(self, tmp_path):
+        """The schema enum is the contract; this is the enforcement. A config that
+        never went through the validator must still not be able to set setuid.
+        Asserted on the FILE, not just the exit code: a refusal that still wrote"""
+        ops = _ops(tmp_path, [{'type': 'file_create', 'path': 'evil.sh',
+                               'content': SCRIPT_BODY, 'mode': '4755'}])
+        res = _run(EXECUTOR, tmp_path, ops)
+        assert res.returncode != 0, res.stdout + res.stderr
+        assert 'unsupported create mode' in (res.stdout + res.stderr).lower()
+        assert not (tmp_path / 'evil.sh').exists(), 'refused the mode but wrote the file'
+
+    def test_world_writable_is_refused(self, tmp_path):
+        ops = _ops(tmp_path, [{'type': 'file_create', 'path': 'open.txt',
+                               'content': 'x\n', 'mode': '0777'}])
+        res = _run(EXECUTOR, tmp_path, ops)
+        assert res.returncode != 0, res.stdout + res.stderr
+        assert not (tmp_path / 'open.txt').exists()
+
+    def test_the_validator_rejects_a_bad_mode_before_execution(self, tmp_path):
+        """Reported where every other operation defect is reported."""
+        ops = _ops(tmp_path, [{'type': 'file_create', 'path': 'evil.sh',
+                               'content': SCRIPT_BODY, 'mode': '4755'}])
+        res = _run(os.path.join(SCRIPTS_DIR, 'validate-config-json.py'), tmp_path, ops)
+        assert res.returncode != 0, res.stdout + res.stderr
+        assert '4755' in res.stdout and 'REJECTED' in res.stdout
+
+    def test_the_mode_guard_holds_without_jsonschema(self, tmp_path):
+        """ClaudeKit has ZERO runtime dependencies, so `jsonschema` is absent on a
+        default install and the validator says so and carries on with its own
+        guards (validate-config-json.py:883). The schema enum is therefore NOT the
+        control in the common case -- the hand-rolled check is. Simulated by
+        blocking the import, which is what an unpatched machine actually does.
+        """
+        ops = _ops(tmp_path, [{'type': 'file_create', 'path': 'evil.sh',
+                               'content': SCRIPT_BODY, 'mode': '4755'}])
+        blocker = tmp_path / 'jsonschema.py'
+        blocker.write_text('raise ImportError("blocked for this test")\n',
+                           encoding='utf-8')
+        env = _env()
+        env['PYTHONPATH'] = str(tmp_path)
+        res = subprocess.run(
+            [sys.executable, os.path.join(SCRIPTS_DIR, 'validate-config-json.py'),
+             str(ops)],
+            cwd=str(tmp_path), capture_output=True, text=True, timeout=120, env=env)
+        assert 'schema validation skipped' in res.stdout.lower(), (
+            'fixture did not actually remove jsonschema: ' + res.stdout)
+        assert res.returncode != 0, res.stdout + res.stderr
+        assert 'unsupported mode' in res.stdout.lower(), res.stdout
+
+    def test_the_promoted_hooks_declare_0755(self):
+        """The batch-1 configs this feature exists for. Reads the shipped configs, so
+        dropping the mode from a promotion goes red here."""
+        repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        batch = os.path.join(repo, '.claude', 'plans', 'ops-008-batch1')
+        if not os.path.isdir(batch):
+            import pytest
+            pytest.skip('batch 1 configs already spent and archived')
+        found = 0
+        for name in sorted(os.listdir(batch)):
+            with open(os.path.join(batch, name), encoding='utf-8') as fh:
+                cfg = json.load(fh)
+            for op in cfg.get('operations', []):
+                if op.get('type') == 'file_create' and op['path'].endswith('.sh'):
+                    assert op.get('mode') == '0755', (
+                        f"{name}: {op['path']} promoted without the executable bit")
+                    found += 1
+        assert found == 4, f'expected the 4 hook promotions, found {found}'

@@ -1,0 +1,38 @@
+{
+  "plan": "protected-gate-docs-and-wiring",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "description": "migration note for consumers whose docs tree stopped being protected",
+      "edits": [
+        {
+          "find": "  controls that did the real work all along: at most three deletions per config, a\n  mandatory reason on each, and a backup taken before the file is touched.",
+          "add_after": "\n  **Migration.** If your project relied on every `.md` being undeletable, restore exactly that\n  with one line \u2014 no fork, no patch:\n\n  ```bash\n  # .claude/settings.local.json -> env, or your shell profile\n  export CLAUDEKIT_EXTRA_PROTECTED='*.md'\n  ```"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "description": "the new gate and the create mode",
+      "edits": [
+        {
+          "find": "### Added\n- **`CLAUDEKIT_EXTRA_PROTECTED`**",
+          "replace": "### Added\n- **A differential gate for the protected-file guard** (`scripts/check-protected-differential.py`,\n  run in CI). The repo already had one for the command validator, under the banner *\"No change\n  may turn a REJECT into an ALLOW\"* \u2014 but it is pinned to that one module, so the guard that\n  decides whether an operations config may delete a file had no such check, and the very change\n  described above passed CI green. The new gate compares the guard against a git baseline over a\n  corpus of paths and fails on any undisclosed loss of protection. An identity document can never\n  be disclosed away.\n- **`file_create` operations may declare a POSIX `mode`** (`\"0644\"` or `\"0755\"`, nothing else).\n  A newly created file previously always landed `0644`, so promoting an executable script through\n  the operations engine produced a script nothing could run. Anything outside those two values is\n  refused by the schema *and* independently by the executor \u2014 ClaudeKit has no runtime\n  dependencies, so `jsonschema` is usually absent and the schema is not the control in practice.\n- **`CLAUDEKIT_EXTRA_PROTECTED`**"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_delivery_contract_smoke.py",
+      "description": "the gate must exist, be wired, and actually fail on a regression",
+      "edits": [
+        {
+          "find": "        \"queued ops config(s) no longer validate against HEAD -- regenerate via /plan \"\n        \"or move to .claude/plans/archive/ with a README entry:\\n\" + \"\\n\".join(failures)\n    )",
+          "add_after": "\n\ndef test_the_protected_guard_has_a_differential_gate_and_it_is_wired():\n    \"\"\"The REJECT->ALLOW banner covered only ONE of the repo's two deny-decisions.\n\n    `check-validator-differential.py` pins MODULE_PATH to the command validator, so\n    `shared.is_protected_file` -- the guard deciding whether an ops config may delete\n    a file -- had no differential gate, and the first change to widen it passed CI\n    green. Asserted on the CI file as well as the script's existence: a gate that\n    exists but is not run is not a gate.\n    \"\"\"\n    script = os.path.join(REPO_ROOT, \"scripts\", \"check-protected-differential.py\")\n    assert os.path.isfile(script), \"the protected-file differential gate is missing\"\n    assert os.access(script, os.X_OK), \"gate is not executable\"\n\n    with open(os.path.join(REPO_ROOT, \".github\", \"workflows\", \"ci.yml\"),\n              encoding=\"utf-8\") as fh:\n        ci = fh.read()\n    assert \"check-protected-differential.py\" in ci, \"gate exists but CI never runs it\"\n    assert \"--require-baseline\" in ci.split(\"check-protected-differential.py\")[1][:120], (\n        \"gate runs without --require-baseline, so an unresolvable baseline passes it\")\n\n\ndef test_the_protected_differential_gate_catches_an_identity_doc_regression(tmp_path):\n    \"\"\"The gate must FAIL when an identity document loses protection. Run against a\n    mutated copy of the guard, because a gate proven only on the happy path is the\n    shape this repo has shipped twice.\"\"\"\n    shared = os.path.join(REPO_ROOT, \".claude\", \"operations\", \"scripts\", \"shared.py\")\n    with open(shared, encoding=\"utf-8\") as fh:\n        original = fh.read()\n    assert '    \"README.md\",\\n' in original\n    mutated = original.replace('    \"README.md\",\\n', '', 1)\n    with open(shared, \"w\", encoding=\"utf-8\") as fh:\n        fh.write(mutated)\n    try:\n        result = subprocess.run(\n            [sys.executable, os.path.join(REPO_ROOT, \"scripts\",\n                                          \"check-protected-differential.py\"),\n             \"--baseline\", \"main\"],\n            capture_output=True, text=True, cwd=REPO_ROOT, timeout=120)\n    finally:\n        with open(shared, \"w\", encoding=\"utf-8\") as fh:\n            fh.write(original)\n    if \"SKIP:\" in result.stdout:\n        import pytest\n        pytest.skip(\"no usable baseline in this checkout: \" + result.stdout.strip())\n    assert result.returncode != 0, (\n        \"an identity document lost protection and the gate passed:\\n\" + result.stdout)\n    assert \"README.md\" in result.stdout"
+        }
+      ]
+    }
+  ]
+}

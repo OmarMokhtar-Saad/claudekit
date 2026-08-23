@@ -115,7 +115,12 @@
                   "description": {"type": "string", "description": "Optional human-readable description"},
                   "type": {"const": "file_create"},
                   "path": {"type": "string", "minLength": 1},
-                  "content": {"type": "string", "minLength": 1}
+                  "content": {"type": "string", "minLength": 1},
+                  "mode": {
+                    "type": "string",
+                    "description": "Optional POSIX permission bits as an octal string. Only 0644 and 0755 are accepted \u2014 a create op has no business setting setuid, setgid, sticky, or a world-writable file. Omit for the default (0666 masked by umask).",
+                    "enum": ["0644", "0755"]
+                  }
                 }
               },
               {

@@ -39,6 +39,13 @@ except ImportError:
 # a plan that legitimately needs to remove more than this should be split and reviewed.
 MAX_DELETIONS = 3
 
+def _patterns_summary(limit: int = 200) -> str:
+    """The effective protected set, bounded. CLAUDEKIT_EXTRA_PROTECTED is
+    unbounded user input and this string is printed once per blocked operation,
+    so an oversized value would bury the actual error message."""
+    text = ', '.join(protected_patterns())
+    return text if len(text) <= limit else text[:limit] + f"... (+{len(text) - limit} chars)"
+
 # GUARD 32: Bound the number of run_command operations per plan. Commands are for
 # regenerating derived artifacts (lockfiles, format churn), not for scripting a
 # build — a plan needing more should be split and reviewed.
@@ -82,6 +89,16 @@ def validate_file_operations(operations: List[dict]) -> Tuple[bool, List[str]]:
     for i, op in enumerate(operations, 1):
         op_type = op.get('type', '')
 
+        # GUARD: a file_create mode is one of the two sane values. Checked at
+        # validation as well as in the executor, so a bad mode is reported
+        # where every other operation defect is reported, not at write time.
+        if op_type == 'file_create':
+            declared_mode = op.get('mode')
+            if declared_mode is not None and declared_mode not in ('0644', '0755'):
+                errors.append(
+                    f"Operation {i} (file_create): unsupported mode {declared_mode!r}"
+                    f" -- expected '0644' or '0755'")
+
         if op_type == 'file_delete':
             file_path = op.get('path', '')
             reason = op.get('reason', '')
@@ -106,7 +123,7 @@ def validate_file_operations(operations: List[dict]) -> Tuple[bool, List[str]]:
             if file_path and is_protected_file(file_path):
                 errors.append(
                     f"Operation {i} (file_delete): BLOCKED - Cannot delete protected file: {file_path}\n"
-                    f"                  Protected patterns: {', '.join(protected_patterns())}"
+                    f"                  Protected patterns: {_patterns_summary()}"
                 )
 
             # GUARD 14: Deletion reason >= 10 chars

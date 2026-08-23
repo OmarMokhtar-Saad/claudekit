@@ -1,0 +1,146 @@
+{
+  "plan": "008-b1-20-tests-follow-the-promotion",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_checkpoint.py",
+      "description": "checkpoint command is promoted into the canonical tree",
+      "edits": [
+        {
+          "find": "TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), \"templates\")",
+          "replace": "ROOT = os.path.dirname(os.path.dirname(__file__))\nCOMMANDS_DIR = os.path.join(ROOT, \".claude\", \"commands\")"
+        },
+        {
+          "find": "    def test_checkpoint_command_exists(self):\n        path = os.path.join(TEMPLATE_DIR, \"commands\", \"checkpoint.md\")",
+          "replace": "    def test_checkpoint_command_exists(self):\n        path = os.path.join(COMMANDS_DIR, \"checkpoint.md\")"
+        },
+        {
+          "find": "    def test_checkpoint_has_create_action(self):\n        path = os.path.join(TEMPLATE_DIR, \"commands\", \"checkpoint.md\")",
+          "replace": "    def test_checkpoint_has_create_action(self):\n        path = os.path.join(COMMANDS_DIR, \"checkpoint.md\")"
+        },
+        {
+          "find": "    def test_checkpoint_has_restore_action(self):\n        path = os.path.join(TEMPLATE_DIR, \"commands\", \"checkpoint.md\")",
+          "replace": "    def test_checkpoint_has_restore_action(self):\n        path = os.path.join(COMMANDS_DIR, \"checkpoint.md\")"
+        },
+        {
+          "find": "    def test_checkpoint_has_list_action(self):\n        path = os.path.join(TEMPLATE_DIR, \"commands\", \"checkpoint.md\")",
+          "replace": "    def test_checkpoint_has_list_action(self):\n        path = os.path.join(COMMANDS_DIR, \"checkpoint.md\")"
+        },
+        {
+          "find": "    def test_hook_exists(self):\n        path = os.path.join(TEMPLATE_DIR, \"hooks\", \"auto-checkpoint.sh\")",
+          "replace": "    def test_hook_exists(self):\n        path = os.path.join(ROOT, \".claude\", \"hooks\", \"auto-checkpoint.sh\")"
+        },
+        {
+          "find": "    def test_hook_uses_git_stash(self):\n        path = os.path.join(TEMPLATE_DIR, \"hooks\", \"auto-checkpoint.sh\")",
+          "replace": "    def test_hook_uses_git_stash(self):\n        path = os.path.join(ROOT, \".claude\", \"hooks\", \"auto-checkpoint.sh\")"
+        },
+        {
+          "find": "    def test_hook_is_executable(self):\n        path = os.path.join(TEMPLATE_DIR, \"hooks\", \"auto-checkpoint.sh\")",
+          "replace": "    def test_hook_is_executable(self):\n        path = os.path.join(ROOT, \".claude\", \"hooks\", \"auto-checkpoint.sh\")"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_i18n.py",
+      "description": "translate command promoted; i18n-workflow folded into i18n-patterns",
+      "edits": [
+        {
+          "find": "TEMPLATE_DIR = os.path.join(PROJECT_DIR, \"templates\")",
+          "replace": "TEMPLATE_DIR = os.path.join(PROJECT_DIR, \"templates\")\nCOMMANDS_DIR = os.path.join(PROJECT_DIR, \".claude\", \"commands\")\nSKILLS_DIR = os.path.join(PROJECT_DIR, \".claude\", \"skills\")"
+        },
+        {
+          "find": "    def test_translate_command_exists(self):\n        path = os.path.join(TEMPLATE_DIR, \"commands\", \"translate.md\")",
+          "replace": "    def test_translate_command_exists(self):\n        path = os.path.join(COMMANDS_DIR, \"translate.md\")"
+        },
+        {
+          "find": "    def test_translate_has_frontmatter(self):\n        path = os.path.join(TEMPLATE_DIR, \"commands\", \"translate.md\")",
+          "replace": "    def test_translate_has_frontmatter(self):\n        path = os.path.join(COMMANDS_DIR, \"translate.md\")"
+        },
+        {
+          "find": "    def test_i18n_skill_exists(self):\n        path = os.path.join(TEMPLATE_DIR, \"skills\", \"i18n-workflow\", \"SKILL.md\")",
+          "replace": "    def test_i18n_skill_exists(self):\n        path = os.path.join(SKILLS_DIR, \"i18n-patterns\", \"SKILL.md\")"
+        },
+        {
+          "find": "    def test_i18n_skill_covers_rtl(self):\n        path = os.path.join(TEMPLATE_DIR, \"skills\", \"i18n-workflow\", \"SKILL.md\")",
+          "replace": "    def test_i18n_skill_covers_rtl(self):\n        path = os.path.join(SKILLS_DIR, \"i18n-patterns\", \"SKILL.md\")"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_mcp.py",
+      "description": "mcp command promoted; templates/mcp stays where it is",
+      "edits": [
+        {
+          "find": "MCP_DIR = os.path.join(TEMPLATE_DIR, \"mcp\")",
+          "replace": "MCP_DIR = os.path.join(TEMPLATE_DIR, \"mcp\")\nCOMMANDS_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), \".claude\", \"commands\")"
+        },
+        {
+          "find": "    def test_mcp_command_exists(self):\n        path = os.path.join(TEMPLATE_DIR, \"commands\", \"mcp.md\")",
+          "replace": "    def test_mcp_command_exists(self):\n        path = os.path.join(COMMANDS_DIR, \"mcp.md\")"
+        },
+        {
+          "find": "    def test_mcp_command_has_frontmatter(self):\n        path = os.path.join(TEMPLATE_DIR, \"commands\", \"mcp.md\")",
+          "replace": "    def test_mcp_command_has_frontmatter(self):\n        path = os.path.join(COMMANDS_DIR, \"mcp.md\")"
+        },
+        {
+          "find": "    def test_mcp_skill_exists(self):\n        path = os.path.join(TEMPLATE_DIR, \"skills\", \"mcp-integration\", \"SKILL.md\")",
+          "replace": "    def test_mcp_skill_exists(self):\n        path = os.path.join(os.path.dirname(os.path.dirname(__file__)), \".claude\", \"skills\",\n                            \"mcp-integration\", \"SKILL.md\")"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_modes.py",
+      "description": "modes and the mode command are promoted into the canonical tree",
+      "edits": [
+        {
+          "find": "TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), \"templates\")\nMODES_DIR = os.path.join(TEMPLATE_DIR, \"modes\")",
+          "replace": "ROOT = os.path.dirname(os.path.dirname(__file__))\nMODES_DIR = os.path.join(ROOT, \".claude\", \"modes\")\nCOMMANDS_DIR = os.path.join(ROOT, \".claude\", \"commands\")"
+        },
+        {
+          "find": "    def test_mode_command_exists(self):\n        path = os.path.join(TEMPLATE_DIR, \"commands\", \"mode.md\")",
+          "replace": "    def test_mode_command_exists(self):\n        path = os.path.join(COMMANDS_DIR, \"mode.md\")"
+        },
+        {
+          "find": "    def test_mode_command_has_frontmatter(self):\n        path = os.path.join(TEMPLATE_DIR, \"commands\", \"mode.md\")",
+          "replace": "    def test_mode_command_has_frontmatter(self):\n        path = os.path.join(COMMANDS_DIR, \"mode.md\")"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_security_hooks.py",
+      "description": "the four template hooks are promoted; .agentignore stays in templates/",
+      "edits": [
+        {
+          "find": "HOOKS_DIR = os.path.join(TEMPLATE_DIR, \"hooks\")",
+          "replace": "HOOKS_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), \".claude\", \"hooks\")"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_silent_failure_lint.py",
+      "description": "the F57 site moved with auto-checkpoint.sh",
+      "edits": [
+        {
+          "find": "target = REPO / \"templates\" / \"hooks\" / \"auto-checkpoint.sh\"",
+          "replace": "target = REPO / \".claude\" / \"hooks\" / \"auto-checkpoint.sh\""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_spec_driven.py",
+      "description": "spec-driven commands and skill are in the canonical tree",
+      "edits": [
+        {
+          "find": "TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), \"templates\")\nCOMMANDS_DIR = os.path.join(TEMPLATE_DIR, \"commands\")\nSKILLS_DIR = os.path.join(TEMPLATE_DIR, \"skills\")",
+          "replace": "ROOT = os.path.dirname(os.path.dirname(__file__))\nCOMMANDS_DIR = os.path.join(ROOT, \".claude\", \"commands\")\nSKILLS_DIR = os.path.join(ROOT, \".claude\", \"skills\")"
+        }
+      ]
+    }
+  ]
+}

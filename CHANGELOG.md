@@ -25,6 +25,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   stay refused at any depth. Ordinary prose is now deletable, still behind the three
   controls that did the real work all along: at most three deletions per config, a
   mandatory reason on each, and a backup taken before the file is touched.
+  **Migration.** If your project relied on every `.md` being undeletable, restore exactly that
+  with one line — no fork, no patch:
+
+  ```bash
+  # .claude/settings.local.json -> env, or your shell profile
+  export CLAUDEKIT_EXTRA_PROTECTED='*.md'
+  ```
 - **The protected-file guard no longer gives different answers on different machines.**
   `fnmatch` normalises case only on Windows, so on Linux the guard refused `README.md`
   and permitted `readme.md`, while on macOS it refused both; `makefile` and
@@ -33,6 +40,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   by covering every casing of one extension.
 
 ### Added
+- **A differential gate for the protected-file guard** (`scripts/check-protected-differential.py`,
+  run in CI). The repo already had one for the command validator, under the banner *"No change
+  may turn a REJECT into an ALLOW"* — but it is pinned to that one module, so the guard that
+  decides whether an operations config may delete a file had no such check, and the very change
+  described above passed CI green. The new gate compares the guard against a git baseline over a
+  corpus of paths and fails on any undisclosed loss of protection. An identity document can never
+  be disclosed away.
+- **`file_create` operations may declare a POSIX `mode`** (`"0644"` or `"0755"`, nothing else).
+  A newly created file previously always landed `0644`, so promoting an executable script through
+  the operations engine produced a script nothing could run. Anything outside those two values is
+  refused by the schema *and* independently by the executor — ClaudeKit has no runtime
+  dependencies, so `jsonschema` is usually absent and the schema is not the control in practice.
 - **`CLAUDEKIT_EXTRA_PROTECTED`** — colon-separated basenames or globs a project adds to
   the protected set, in the same shape as `CLAUDEKIT_RUN_COMMAND_EXTRA_ALLOW`. Widening
   only: a project can protect its own `RUNBOOK.md`, and cannot unprotect `README.md`.

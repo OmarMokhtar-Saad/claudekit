@@ -1,0 +1,46 @@
+{
+  "plan": "ops-create-mode",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/operations-schema.json",
+      "description": "file_create gains an optional POSIX mode so a promoted executable stays executable",
+      "edits": [
+        {
+          "find": "                  \"type\": {\"const\": \"file_create\"},\n                  \"path\": {\"type\": \"string\", \"minLength\": 1},\n                  \"content\": {\"type\": \"string\", \"minLength\": 1}",
+          "replace": "                  \"type\": {\"const\": \"file_create\"},\n                  \"path\": {\"type\": \"string\", \"minLength\": 1},\n                  \"content\": {\"type\": \"string\", \"minLength\": 1},\n                  \"mode\": {\n                    \"type\": \"string\",\n                    \"description\": \"Optional POSIX permission bits as an octal string. Only 0644 and 0755 are accepted \\u2014 a create op has no business setting setuid, setgid, sticky, or a world-writable file. Omit for the default (0666 masked by umask).\",\n                    \"enum\": [\"0644\", \"0755\"]\n                  }"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/execute-json-ops.py",
+      "description": "apply the declared mode on create; refuse anything outside the two-value enum",
+      "edits": [
+        {
+          "find": "    \"\"\"Create new file with specified content.\"\"\"\n    file_path = Path(operation['path'])\n    content = operation['content']\n\n    if not validate_path(str(file_path)):\n        return False, \"path-validation-failed\"",
+          "replace": "    \"\"\"Create new file with specified content.\"\"\"\n    file_path = Path(operation['path'])\n    content = operation['content']\n\n    # A created file used to always land 0644, because atomic_write falls back to\n    # DEFAULT_CREATE_MODE when the target does not yet exist. That silently drops the\n    # executable bit, so promoting a 0755 hook script through the engine produced a\n    # hook nothing could run -- caught in review of task 008 batch 1, where four\n    # promoted `.claude/hooks/*.sh` would have landed non-executable and `install.sh`\n    # would have chmod'd them back only for CONSUMERS, never for this repo's own tree.\n    #\n    # Restricted to 0644/0755 in the schema AND re-checked here: the schema is the\n    # contract, this is the enforcement, and a hand-written config that skipped\n    # validation must not be able to set setuid through it.\n    declared_mode = operation.get('mode')\n    create_mode = None\n    if declared_mode is not None:\n        if declared_mode not in ('0644', '0755'):\n            print(f\"  BLOCKED: unsupported create mode {declared_mode!r} (expected 0644 or 0755)\")\n            return False, \"unsupported-create-mode\"\n        create_mode = int(declared_mode, 8)\n\n    if not validate_path(str(file_path)):\n        return False, \"path-validation-failed\""
+        },
+        {
+          "find": "        print(f\"  [DRY RUN] Would create: {file_path}\")\n        print(f\"            Size: {byte_size} bytes, Lines: {content.count(chr(10)) + 1}\")",
+          "replace": "        print(f\"  [DRY RUN] Would create: {file_path}\")\n        print(f\"            Size: {byte_size} bytes, Lines: {content.count(chr(10)) + 1}\")\n        if declared_mode is not None:\n            print(f\"            Mode: {declared_mode}\")"
+        },
+        {
+          "find": "        file_path.parent.mkdir(parents=True, exist_ok=True)\n        atomic_write(file_path, content)\n        print(f\"  Created: {file_path}\")",
+          "replace": "        file_path.parent.mkdir(parents=True, exist_ok=True)\n        atomic_write(file_path, content, mode=create_mode)\n        print(f\"  Created: {file_path}\")"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/validate-config-json.py",
+      "description": "GUARD: a file_create mode outside the enum is rejected at validation time",
+      "edits": [
+        {
+          "find": "            f\"(maximum {MAX_DELETIONS}). Split into smaller reviewed batches.\"\n        )\n\n    for i, op in enumerate(operations, 1):\n        op_type = op.get('type', '')\n",
+          "replace": "            f\"(maximum {MAX_DELETIONS}). Split into smaller reviewed batches.\"\n        )\n\n    for i, op in enumerate(operations, 1):\n        op_type = op.get('type', '')\n\n        # GUARD: a file_create mode is one of the two sane values. Checked at\n        # validation as well as in the executor, so a bad mode is reported\n        # where every other operation defect is reported, not at write time.\n        if op_type == 'file_create':\n            declared_mode = op.get('mode')\n            if declared_mode is not None and declared_mode not in ('0644', '0755'):\n                errors.append(\n                    f\"Operation {i} (file_create): unsupported mode {declared_mode!r}\"\n                    f\" -- expected '0644' or '0755'\")\n"
+        }
+      ]
+    }
+  ]
+}

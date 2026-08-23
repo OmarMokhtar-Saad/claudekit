@@ -33,7 +33,16 @@ last. At every intermediate point `install.sh` still installs a complete tree �
 | 17 | `008-b1-17-installer-one-tree.json` | edit×1 | 0 |
 | 18 | `008-b1-18-tests-one-tree.json` | edit×3 | 0 |
 | 19 | `008-b1-19-tests-invariants.json` | edit×4 | 0 |
+| 20 | `008-b1-20-tests-follow-the-promotion.json` | edit×7 | 0 |
 
-Total deletions: 38. Every config validates with
-`python3 .claude/operations/scripts/validate-config-json.py <config>` before it runs,
-and each spent config moves to `.claude/plans/archive/` with a README row.
+Total deletions: 38. Every config validates before it runs — but validation is NOT
+the gate on this batch. All 19 configs validated while the applied result left 110
+tests red and one module unparseable: the validator checks that an anchor is unique,
+not that the text it produces is syntactically whole. **Apply the whole sequence into
+a scratch worktree and run the suite before running any of it for real** — see the
+plan's "The batch must be simulated before it runs".
+
+After the last config, run `gen-docs.py` and `gen-registry.py`: commands 42 → 55,
+hooks 22 → 26, and `.claude/modes/` appears. Counts are never hand-edited.
+
+Each spent config moves to `.claude/plans/archive/` with a README row.

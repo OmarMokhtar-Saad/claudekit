@@ -285,3 +285,51 @@ def test_queued_ops_configs_validate_against_head():
         "queued ops config(s) no longer validate against HEAD -- regenerate via /plan "
         "or move to .claude/plans/archive/ with a README entry:\n" + "\n".join(failures)
     )
+
+def test_the_protected_guard_has_a_differential_gate_and_it_is_wired():
+    """The REJECT->ALLOW banner covered only ONE of the repo's two deny-decisions.
+
+    `check-validator-differential.py` pins MODULE_PATH to the command validator, so
+    `shared.is_protected_file` -- the guard deciding whether an ops config may delete
+    a file -- had no differential gate, and the first change to widen it passed CI
+    green. Asserted on the CI file as well as the script's existence: a gate that
+    exists but is not run is not a gate.
+    """
+    script = os.path.join(REPO_ROOT, "scripts", "check-protected-differential.py")
+    assert os.path.isfile(script), "the protected-file differential gate is missing"
+    assert os.access(script, os.X_OK), "gate is not executable"
+
+    with open(os.path.join(REPO_ROOT, ".github", "workflows", "ci.yml"),
+              encoding="utf-8") as fh:
+        ci = fh.read()
+    assert "check-protected-differential.py" in ci, "gate exists but CI never runs it"
+    assert "--require-baseline" in ci.split("check-protected-differential.py")[1][:120], (
+        "gate runs without --require-baseline, so an unresolvable baseline passes it")
+
+
+def test_the_protected_differential_gate_catches_an_identity_doc_regression(tmp_path):
+    """The gate must FAIL when an identity document loses protection. Run against a
+    mutated copy of the guard, because a gate proven only on the happy path is the
+    shape this repo has shipped twice."""
+    shared = os.path.join(REPO_ROOT, ".claude", "operations", "scripts", "shared.py")
+    with open(shared, encoding="utf-8") as fh:
+        original = fh.read()
+    assert '    "README.md",\n' in original
+    mutated = original.replace('    "README.md",\n', '', 1)
+    with open(shared, "w", encoding="utf-8") as fh:
+        fh.write(mutated)
+    try:
+        result = subprocess.run(
+            [sys.executable, os.path.join(REPO_ROOT, "scripts",
+                                          "check-protected-differential.py"),
+             "--baseline", "main"],
+            capture_output=True, text=True, cwd=REPO_ROOT, timeout=120)
+    finally:
+        with open(shared, "w", encoding="utf-8") as fh:
+            fh.write(original)
+    if "SKIP:" in result.stdout:
+        import pytest
+        pytest.skip("no usable baseline in this checkout: " + result.stdout.strip())
+    assert result.returncode != 0, (
+        "an identity document lost protection and the gate passed:\n" + result.stdout)
+    assert "README.md" in result.stdout

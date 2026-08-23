@@ -508,6 +508,24 @@ def execute_file_create(operation: dict, backup_dir: Path, dry_run: bool,
     file_path = Path(operation['path'])
     content = operation['content']
 
+    # A created file used to always land 0644, because atomic_write falls back to
+    # DEFAULT_CREATE_MODE when the target does not yet exist. That silently drops the
+    # executable bit, so promoting a 0755 hook script through the engine produced a
+    # hook nothing could run -- caught in review of task 008 batch 1, where four
+    # promoted `.claude/hooks/*.sh` would have landed non-executable and `install.sh`
+    # would have chmod'd them back only for CONSUMERS, never for this repo's own tree.
+    #
+    # Restricted to 0644/0755 in the schema AND re-checked here: the schema is the
+    # contract, this is the enforcement, and a hand-written config that skipped
+    # validation must not be able to set setuid through it.
+    declared_mode = operation.get('mode')
+    create_mode = None
+    if declared_mode is not None:
+        if declared_mode not in ('0644', '0755'):
+            print(f"  BLOCKED: unsupported create mode {declared_mode!r} (expected 0644 or 0755)")
+            return False, "unsupported-create-mode"
+        create_mode = int(declared_mode, 8)
+
     if not validate_path(str(file_path)):
         return False, "path-validation-failed"
 
@@ -516,13 +534,15 @@ def execute_file_create(operation: dict, backup_dir: Path, dry_run: bool,
     if dry_run:
         print(f"  [DRY RUN] Would create: {file_path}")
         print(f"            Size: {byte_size} bytes, Lines: {content.count(chr(10)) + 1}")
+        if declared_mode is not None:
+            print(f"            Mode: {declared_mode}")
         if sim_state is not None:
             sim_state[os.path.relpath(str(file_path))] = content
         return True, "dry-run"
 
     try:
         file_path.parent.mkdir(parents=True, exist_ok=True)
-        atomic_write(file_path, content)
+        atomic_write(file_path, content, mode=create_mode)
         print(f"  Created: {file_path}")
         print(f"  Size: {byte_size} bytes, Lines: {content.count(chr(10)) + 1}")
         return True, "created"
