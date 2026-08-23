@@ -3,8 +3,9 @@ import os
 
 import pytest
 
-TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "templates")
-MODES_DIR = os.path.join(TEMPLATE_DIR, "modes")
+ROOT = os.path.dirname(os.path.dirname(__file__))
+MODES_DIR = os.path.join(ROOT, ".claude", "modes")
+COMMANDS_DIR = os.path.join(ROOT, ".claude", "commands")
 
 EXPECTED_MODES = [
     "default",
@@ -70,11 +71,11 @@ class TestModeCommand:
     """Verify /mode command exists."""
 
     def test_mode_command_exists(self):
-        path = os.path.join(TEMPLATE_DIR, "commands", "mode.md")
+        path = os.path.join(COMMANDS_DIR, "mode.md")
         assert os.path.isfile(path), "/mode command file missing"
 
     def test_mode_command_has_frontmatter(self):
-        path = os.path.join(TEMPLATE_DIR, "commands", "mode.md")
+        path = os.path.join(COMMANDS_DIR, "mode.md")
         with open(path) as f:
             content = f.read()
         assert "description:" in content

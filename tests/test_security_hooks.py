@@ -4,7 +4,7 @@ import os
 import pytest
 
 TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "templates")
-HOOKS_DIR = os.path.join(TEMPLATE_DIR, "hooks")
+HOOKS_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".claude", "hooks")
 
 SECURITY_HOOKS = ["file-guard.sh", "check-comment-replacement.sh", "prompt-injection-scanner.sh"]
 ALL_HOOKS = SECURITY_HOOKS + ["auto-checkpoint.sh"]

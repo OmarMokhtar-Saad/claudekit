@@ -45,7 +45,7 @@ claudekit/
 │   │   ├── security-scanner.md
 │   │   ├── devops.md
 │   │   └── database-architect.md
-│   ├── commands/         # 42 slash commands
+│   ├── commands/         # 55 slash commands
 │   ├── skills/           # 76 skill modules + registry
 │   │   ├── skills-registry.json
 │   │   └── <skill-name>/SKILL.md

@@ -257,7 +257,7 @@ def test_scanning_zero_files_is_distinguishable_from_zero_findings(sandbox):
 # --- the worked example and the ratchet -----------------------------------
 def test_f57_site_is_fixed():
     """Fails against unfixed code: this is the test that pins the F57 patch."""
-    target = REPO / "templates" / "hooks" / "auto-checkpoint.sh"
+    target = REPO / ".claude" / "hooks" / "auto-checkpoint.sh"
     assert run(str(target)).returncode == EXIT_CLEAN
 
 

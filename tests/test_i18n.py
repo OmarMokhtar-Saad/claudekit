@@ -6,6 +6,8 @@ import pytest
 PROJECT_DIR = os.path.dirname(os.path.dirname(__file__))
 I18N_DIR = os.path.join(PROJECT_DIR, "i18n")
 TEMPLATE_DIR = os.path.join(PROJECT_DIR, "templates")
+COMMANDS_DIR = os.path.join(PROJECT_DIR, ".claude", "commands")
+SKILLS_DIR = os.path.join(PROJECT_DIR, ".claude", "skills")
 
 EXPECTED_LANGUAGES = ["ar", "zh", "es", "fr", "ja", "ko"]
 
@@ -56,11 +58,11 @@ class TestTranslateCommand:
     """Verify /translate command exists."""
 
     def test_translate_command_exists(self):
-        path = os.path.join(TEMPLATE_DIR, "commands", "translate.md")
+        path = os.path.join(COMMANDS_DIR, "translate.md")
         assert os.path.isfile(path)
 
     def test_translate_has_frontmatter(self):
-        path = os.path.join(TEMPLATE_DIR, "commands", "translate.md")
+        path = os.path.join(COMMANDS_DIR, "translate.md")
         with open(path) as f:
             content = f.read()
         assert "description:" in content
@@ -70,11 +72,11 @@ class TestI18nSkill:
     """Verify i18n workflow skill."""
 
     def test_i18n_skill_exists(self):
-        path = os.path.join(TEMPLATE_DIR, "skills", "i18n-workflow", "SKILL.md")
+        path = os.path.join(SKILLS_DIR, "i18n-patterns", "SKILL.md")
         assert os.path.isfile(path)
 
     def test_i18n_skill_covers_rtl(self):
-        path = os.path.join(TEMPLATE_DIR, "skills", "i18n-workflow", "SKILL.md")
+        path = os.path.join(SKILLS_DIR, "i18n-patterns", "SKILL.md")
         with open(path) as f:
             content = f.read()
         assert "RTL" in content or "rtl" in content

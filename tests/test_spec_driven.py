@@ -3,9 +3,9 @@ import os
 
 import pytest
 
-TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "templates")
-COMMANDS_DIR = os.path.join(TEMPLATE_DIR, "commands")
-SKILLS_DIR = os.path.join(TEMPLATE_DIR, "skills")
+ROOT = os.path.dirname(os.path.dirname(__file__))
+COMMANDS_DIR = os.path.join(ROOT, ".claude", "commands")
+SKILLS_DIR = os.path.join(ROOT, ".claude", "skills")
 
 SPEC_COMMANDS = ["specify", "clarify", "analyze", "checklist"]
 

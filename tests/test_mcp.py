@@ -7,6 +7,7 @@ import pytest
 
 TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "templates")
 MCP_DIR = os.path.join(TEMPLATE_DIR, "mcp")
+COMMANDS_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".claude", "commands")
 
 EXPECTED_SERVERS = ["context7", "sequential-thinking", "playwright", "memory", "filesystem"]
 
@@ -81,11 +82,11 @@ class TestMCPCommand:
     """Verify /mcp command exists."""
 
     def test_mcp_command_exists(self):
-        path = os.path.join(TEMPLATE_DIR, "commands", "mcp.md")
+        path = os.path.join(COMMANDS_DIR, "mcp.md")
         assert os.path.isfile(path)
 
     def test_mcp_command_has_frontmatter(self):
-        path = os.path.join(TEMPLATE_DIR, "commands", "mcp.md")
+        path = os.path.join(COMMANDS_DIR, "mcp.md")
         with open(path) as f:
             content = f.read()
         assert "description:" in content
@@ -95,5 +96,6 @@ class TestMCPSkill:
     """Verify MCP integration skill exists."""
 
     def test_mcp_skill_exists(self):
-        path = os.path.join(TEMPLATE_DIR, "skills", "mcp-integration", "SKILL.md")
+        path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".claude", "skills",
+                            "mcp-integration", "SKILL.md")
         assert os.path.isfile(path)

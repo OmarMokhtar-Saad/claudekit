@@ -28,7 +28,18 @@ Then delete `templates/skills|commands|hooks|modes` (14/13/4/7 entries) and upda
 `install.sh` + the manifest.
 
 **Risk:** low for the 10 identical; the 3 diverged need real content review.
-**Sign-off:** APPROVED 2026-08-23
+**Sign-off:** APPROVED 2026-08-23 · **DONE 2026-08-23** (21 ops configs, 79 operations).
+
+> **This section was wrong in two places, and the corrections are the lesson.**
+> `templates/commands|hooks|modes` are described above as part of a duplicate tree.
+> They were **24 unique components** with zero name overlap in `.claude/` — deleting
+> them as written would have destroyed content, not de-duplicated it. They were
+> promoted instead. And the three skills marked DIVERGED, slated for a three-way
+> merge, differed by exactly **one line** each: the `description:` frontmatter, with
+> `.claude/` already holding a strict superset of the body.
+>
+> Both errors were found by measuring the tree, not by reading this sheet. It was
+> written in good faith with a table of measurements in it, and was still wrong.
 
 ## Batch 2 — near-duplicate skills (P1, active mis-routing hazard)
 

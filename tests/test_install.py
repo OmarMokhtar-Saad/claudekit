@@ -263,38 +263,45 @@ class TestCustomAssetPreservation:
                 tmpdir, '.claude', '.claudekit-manifest.json')))
             assert 'skills/my-team-skill/SKILL.md' not in manifest['files']
 
-    def test_full_install_ships_the_canonical_skill_not_the_templates_copy(self):
-        # install.sh copies .claude/skills/ then templates/skills/ into the SAME
-        # destination, so the second pass used to win. 13 names live in both trees;
-        # for token-optimization the templates copy is five months older, so a full
-        # install shipped the stale text and threw away the newer canonical one.
+    def test_full_install_reads_exactly_one_tree(self):
+        # install.sh used to copy .claude/skills/ then templates/skills/ into the
+        # SAME destination, so the second pass won: 13 names lived in both trees,
+        # and for token-optimization the templates copy was five months older, so
+        # a full install shipped the stale text. Task 008 batch 1 deleted the
+        # second tree, and the predecessor of this test said in so many words to
+        # retire it when the duplicated names were gone.
+        #
         # Asserted on CONTENT, not presence: a presence assertion passes with and
-        # without the guard, which is the vacuous shape this repo has shipped twice.
+        # without the fix, which is the vacuous shape this repo has shipped twice.
         import filecmp
         repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        tmpl_root = os.path.join(repo, 'templates', 'skills')
-        dupes = [
-            name for name in os.listdir(tmpl_root)
-            if os.path.isdir(os.path.join(tmpl_root, name))
-            and os.path.isdir(os.path.join(repo, '.claude', 'skills', name))
-        ]
-        assert dupes, "no duplicated skill names left -- retire this test with them"
+        # Component FILES, not directories: file_delete leaves the directory and git
+        # does not track an empty one, so isdir answers differently in the tree that
+        # ran the batch and in a fresh clone.
+        import glob as _glob
+        for kind, parts in (("skills", ("*", "SKILL.md")), ("commands", ("*.md",)),
+                            ("hooks", ("*.sh",)), ("modes", ("*.md",))):
+            stale = _glob.glob(os.path.join(repo, "templates", kind, *parts))
+            assert stale == [], (
+                f"templates/{kind} is back -- two trees, one destination, and the "
+                f"winner decided by copy order again: {stale}")
+        canonical_root = os.path.join(repo, ".claude", "skills")
+        names = sorted(
+            n for n in os.listdir(canonical_root)
+            if os.path.isfile(os.path.join(canonical_root, n, "SKILL.md"))
+        )
+        assert names, "no canonical skills to check"
         with tempfile.TemporaryDirectory() as tmpdir:
-            open(os.path.join(tmpdir, 'pyproject.toml'), 'w').close()
-            r = self._install(tmpdir, '--full', '--yes')
+            open(os.path.join(tmpdir, "pyproject.toml"), "w").close()
+            r = self._install(tmpdir, "--full", "--yes")
             assert r.returncode == 0, r.stderr
-            for name in dupes:
-                installed = os.path.join(tmpdir, '.claude', 'skills', name, 'SKILL.md')
-                canonical = os.path.join(repo, '.claude', 'skills', name, 'SKILL.md')
-                # assert, not `continue`: a canonical dir with no SKILL.md is exactly
-                # the state in which the install ships nothing for that skill, which
-                # is the failure this test exists to catch.
-                assert os.path.isfile(canonical), \
-                    f"{name}: canonical dir with no SKILL.md"
+            for name in names:
+                installed = os.path.join(tmpdir, ".claude", "skills", name, "SKILL.md")
+                canonical = os.path.join(canonical_root, name, "SKILL.md")
                 assert os.path.isfile(installed), f"{name} not installed"
                 assert filecmp.cmp(installed, canonical, shallow=False), (
-                    f"{name}: install shipped the templates/ copy over the "
-                    f"canonical .claude/skills/ one")
+                    f"{name}: install shipped something other than the canonical "
+                    f".claude/skills/ copy")
 
     def test_reinstall_does_not_resurrect_old_kit_files(self):
         # A file the OLD manifest tracked (i.e. kit-managed, since removed or

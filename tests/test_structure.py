@@ -1,5 +1,6 @@
 """Tests for ClaudeKit directory structure and file integrity."""
 
+import glob
 import json
 import os
 
@@ -155,6 +156,56 @@ class TestDocFiles:
         path = os.path.join(ROOT, 'docs', doc)
         assert os.path.exists(path), f"Missing doc: {doc}"
 
+
+class TestOneCanonicalTree:
+    """`templates/` must not carry a second copy of any component class.
+
+    install.sh copies `templates/` and `.claude/` into the SAME destination, so a
+    name present in both is resolved by copy order, not by intent. That shipped a
+    five-month-stale `token-optimization` to every `--full` install. Task 008
+    batch 1 promoted what was unique and deleted what was duplicated; this test is
+    what stops the second tree growing back.
+
+    Everything here asserts on component FILES or on executable installer lines.
+    `file_delete` leaves the directory behind and git does not track an empty
+    directory, so `isdir` is True in the tree that ran the batch and False in a
+    fresh clone -- a check whose answer depends on which one you are in.
+    """
+
+    COMPONENT_GLOBS = {
+        "agents": ("agents", "*.md"),
+        "commands": ("commands", "*.md"),
+        "hooks": ("hooks", "*.sh"),
+        "modes": ("modes", "*.md"),
+        "skills": ("skills", "*", "SKILL.md"),
+    }
+
+    @pytest.mark.parametrize("kind", sorted(COMPONENT_GLOBS))
+    def test_no_second_tree(self, kind):
+        stale = glob.glob(os.path.join(ROOT, "templates", *TestOneCanonicalTree.COMPONENT_GLOBS[kind]))
+        assert stale == [], (
+            f"templates/{kind}/ holds components again: two trees, one install "
+            f"destination, and the winner decided by copy order: {stale}")
+
+    def test_modes_live_in_the_canonical_tree(self):
+        modes = os.path.join(CLAUDE_DIR, "modes")
+        assert os.path.isdir(modes)
+        assert [f for f in os.listdir(modes) if f.endswith(".md")]
+
+    def test_the_installer_reads_no_second_tree(self):
+        """Reads install.sh, because the file checks above pass just as well against
+        an installer that still names a tree that is gone.
+
+        Comments are stripped first: the installer legitimately EXPLAINS the old
+        two-tree bug in prose, and a raw substring search flags that explanation as
+        the bug itself. Measured -- the first version of this test failed on
+        install.sh's own changelog comment."""
+        with open(os.path.join(ROOT, "install.sh"), encoding="utf-8") as fh:
+            code = "\n".join(line for line in fh.read().splitlines()
+                             if not line.lstrip().startswith("#"))
+        for kind in sorted(TestOneCanonicalTree.COMPONENT_GLOBS):
+            assert f"templates/{kind}" not in code, (
+                f"install.sh still copies templates/{kind}")
 
 class TestRootFiles:
     """Verify root-level files exist."""

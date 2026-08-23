@@ -1,16 +1,21 @@
-"""Tests for all new skills added in v2.0.0."""
+"""Tests for all new skills added in v2.0.0.
+
+They were duplicated in `templates/skills/` until task 008 batch 1 deleted that
+copy. `i18n-workflow` is absent from the list on purpose: it existed only in
+`templates/`, and its five uncovered sections were folded into `i18n-patterns`.
+"""
+import glob
 import os
 
 import pytest
 
-TEMPLATE_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "templates")
-SKILLS_DIR = os.path.join(TEMPLATE_DIR, "skills")
+ROOT = os.path.dirname(os.path.dirname(__file__))
+SKILLS_DIR = os.path.join(ROOT, ".claude", "skills")
 
 NEW_SKILLS = [
     "command-flags",
     "mcp-integration",
     "spec-driven-development",
-    "i18n-workflow",
     "token-optimization",
     "codebase-mapping",
     "session-continuity",
@@ -64,33 +69,33 @@ class TestNewSkillsExist:
         assert os.path.getsize(path) > 200, f"{skill} too small"
 
 
-class TestTotalSkillCount:
-    """Verify total skill count meets target."""
+class TestOneCanonicalTree:
+    """`.claude/skills/` is the only skill source install.sh reads."""
 
-    def test_minimum_new_skill_count(self):
-        """templates/skills/ has new v2.0 skills; existing ones are in .claude/skills/"""
+    def test_there_is_no_second_skill_tree(self):
+        """Asserted on component FILES, not the directory. `file_delete` removes files and leaves the
+        directory, and git does not track an empty directory -- so a directory-existence
+        assertion FAILS in the tree that just ran the batch and PASSES in a fresh clone.
+        A check whose answer depends on which of those you are in proves nothing."""
+        project_dir = os.path.dirname(os.path.dirname(__file__))
+        stale = glob.glob(os.path.join(project_dir, "templates", "skills", "*", "SKILL.md"))
+        assert stale == [], f"a second skill tree is back: {stale}"
+
+    def test_i18n_patterns_absorbed_what_i18n_workflow_covered(self):
+        """The five sections i18n-patterns did not have before the fold. Named
+        one by one so a silent regression on any of them goes red."""
+        path = os.path.join(SKILLS_DIR, "i18n-patterns", "SKILL.md")
+        with open(path, encoding="utf-8") as fh:
+            body = fh.read()
+        for heading in ("Gender / Select", "Nested (select wrapping plural)",
+                        "Relative Time", "Translation File Formats by Ecosystem",
+                        "Translation Quality Checks", "Anti-Patterns"):
+            assert heading in body, f"i18n fold lost: {heading}"
+
+    def test_total_skill_count(self):
         skills = [
             d for d in os.listdir(SKILLS_DIR)
             if os.path.isdir(os.path.join(SKILLS_DIR, d))
             and os.path.isfile(os.path.join(SKILLS_DIR, d, "SKILL.md"))
         ]
-        assert len(skills) >= 14, f"Expected >= 14 new skills, found {len(skills)}"
-
-    def test_total_skill_count_with_existing(self):
-        """Total skills across templates + .claude should be >= 55."""
-        project_dir = os.path.dirname(os.path.dirname(__file__))
-        existing_dir = os.path.join(project_dir, ".claude", "skills")
-        new_skills = set(
-            d for d in os.listdir(SKILLS_DIR)
-            if os.path.isdir(os.path.join(SKILLS_DIR, d))
-            and os.path.isfile(os.path.join(SKILLS_DIR, d, "SKILL.md"))
-        )
-        existing_skills = set()
-        if os.path.isdir(existing_dir):
-            existing_skills = set(
-                d for d in os.listdir(existing_dir)
-                if os.path.isdir(os.path.join(existing_dir, d))
-                and os.path.isfile(os.path.join(existing_dir, d, "SKILL.md"))
-            )
-        total = len(new_skills | existing_skills)
-        assert total >= 55, f"Expected >= 55 total skills, found {total}"
+        assert len(skills) >= 76, f"Expected >= 76 skills, found {len(skills)}"

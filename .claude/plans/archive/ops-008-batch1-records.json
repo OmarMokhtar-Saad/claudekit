@@ -1,0 +1,49 @@
+{
+  "plan": "008-batch1-records",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "description": "user-visible entry for the one-tree change",
+      "edits": [
+        {
+          "find": "## [Unreleased]\n\n",
+          "replace": "## [Unreleased]\n\n### Changed\n- **One canonical tree: `templates/` no longer ships a second copy of any component.**\n  `install.sh` copied `templates/` and `.claude/` into the same destination, so which\n  file you got was decided by copy order. The fix is not a deletion \u2014 measured against\n  the tree rather than the sign-off sheet, `templates/commands` (13), `templates/hooks`\n  (4) and `templates/modes` (7) were **not duplicates at all**: 24 components with zero\n  name overlap in `.claude/`, which a \"delete the duplicate tree\" change would have\n  destroyed. They are promoted into `.claude/` instead. Only `templates/skills` held\n  true duplicates (14), and those are gone.\n\n  Counts move accordingly: **42 \u2192 55 commands**, **22 \u2192 26 hooks**, and a new\n  `.claude/modes/` with 7 entries. Skills stay at 76. A `--full` install previously\n  landed 55 commands while every document said 42; the generator now describes what\n  actually ships.\n- **`i18n-workflow` is merged into `i18n-patterns`.** It existed only in `templates/`\n  and overlapped `i18n-patterns` heavily. The five sections it covered and\n  `i18n-patterns` did not \u2014 gender/select, nested select-plural, relative time,\n  translation formats by ecosystem, quality checks and anti-patterns \u2014 were folded in\n  rather than dropped. Promoting it verbatim would have shipped a near-duplicate skill.\n\n### Fixed\n- **`ck doctor --strict` no longer needs a post-install patch to come out clean.**\n  `skills-registry.json` is generated from `.claude/skills/`, but the installer also\n  copied `templates/skills/*`, where `i18n-workflow` lived alone \u2014 so every install\n  shipped a skill the registry did not list, and a gate failed on the happy path. That\n  was patched by rewriting the registry after install; the cause is now gone and the\n  patch with it. A fresh `--full` install reports 26/26 and 100/100.\n- **A promoted hook is executable.** `templates/hooks/` was never linted or\n  permission-checked; `.claude/hooks/` is both. The four promoted hooks ship `0755`,\n  and `auto-checkpoint.sh` carries a shellcheck SC2155 fix it needed all along.\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".ai/CHANGELOG_AI.md",
+      "description": "session entry for batch 1",
+      "edits": [
+        {
+          "find": "## 2026-08-23 \u2014 the ops engine could not delete a markdown file, and the corpus is all markdown",
+          "add_before": "## 2026-08-23 \u2014 task 008 batch 1 executed: one canonical tree\n\nBatch 1 is done. 21 ops configs, 79 operations, zero errors, executed in INDEX order\nafter two adversarial review rounds and a full end-to-end simulation.\n\n- **The sign-off sheet was wrong and re-measuring caught it.** It called\n  `templates/commands|hooks|modes` duplicates. They were 24 unique components with zero\n  name overlap in `.claude/`. Executing batch 1 as written would have deleted them. The\n  three \"DIVERGED\" skills needing a \"three-way merge\" differed by exactly one line each\n  \u2014 the `description:` frontmatter. **A document can be evidence-shaped, full of\n  measurements, and still wrong. Re-measure.**\n- **Validation is not the gate on a batch.** All 19 configs returned `-> APPROVED`\n  while the applied result left 110 tests red and one module that would not parse:\n  `validate-config-json.py` checks an anchor is present and unique, not that the text\n  it produces is syntactically whole. Two anchors stopped one line short. The plan now\n  mandates applying the whole sequence into a scratch worktree first. Simulation went\n  110 \u2192 36 \u2192 20 \u2192 17, where 17 is the worktree's own baseline.\n- **The simulation found what grep could not.** Seven test files reached the old tree\n  through a `TEMPLATE_DIR` constant, not a literal path, so the original six-file list\n  was wrong. It also surfaced a promoted `0755` hook landing `0644`, a latent SC2155\n  that `templates/` never linted, and my own invariant tests asserting on directory\n  existence \u2014 which git does not track when empty, so they answered differently in a\n  fresh clone than in the tree that ran the batch.\n- **Prerequisite:** the ops engine could not delete a markdown file at all (`*.md` in\n  `PROTECTED_PATTERNS`, no override; zero `file_delete` ops across 97 archived configs).\n  Narrowed to 14 named identity documents, case-insensitively, with a widen-only\n  `CLAUDEKIT_EXTRA_PROTECTED`. Reviewed 80 \u2192 93.\n- **New gate:** `scripts/check-protected-differential.py`. CI's \"no REJECT \u2192 ALLOW\"\n  gate was pinned to the command validator, so the repo's other deny-decision had none\n  and this branch's own widening passed CI green.\n\n**Follow-ups.** Batches 2, 4 then 3, in that order. Batch 3 still lands last and still\nhas no eval-suite gate \u2014 that risk is accepted, not resolved.\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".ai/SESSION_STATE.md",
+      "description": "resume point after batch 1",
+      "edits": [
+        {
+          "find": "**Last updated:** 2026-08-23 \u00b7 **By:** Claude (Opus 5) \u2014 **task 008 is unblocked and\nbatch 1 is planned, reviewed-ready and NOT executed. One commit landed.**\n\nTask 008 could not have run at all: the ops engine's protected-file guard listed\n`*.md`, so it could not delete a markdown file, and the corpus is entirely markdown.\nAcross 97 archived configs there are zero `file_delete` operations of any kind. The\nguard is now scoped to 14 named identity documents (case-insensitively, plus a\nwiden-only `CLAUDEKIT_EXTRA_PROTECTED`), reviewed 80 CONDITIONAL \u2192 93 APPROVED, and\nproven by mutation. Batch-1 ops configs went 3/19 \u2192 19/19 validating.\n\n**Next action:** owner go-ahead to execute `.claude/plans/ops-008-batch1/` (19 configs,\nin INDEX order \u2014 promote, then delete, then install.sh, then tests). Read\n`plan-008-batch1-one-tree.md` first: it documents where the 008 sign-off sheet was\nmeasurably wrong (the three \"diverged\" skills differ by one frontmatter line each; the\n`templates/commands|hooks|modes` trees are 24 unique components, not duplicates).\n\n**Prior state, still true below:** PR #20 is one PRE-EXISTING red test away from\nmergeable; nothing is tagged; `origin/main` is still at `5e890f1`.\n`fix/review-loop-gaps` is at `82206fc`, pushed, 17 commits. Every non-test CI job passes\nand all four macOS test jobs pass; the four ubuntu jobs and `coverage` fail on ONE test\nthat is also red on `main` (see below). Nothing is tagged. `origin/main` is still at\n`5e890f1`, so the merge is what publishes any of this.",
+          "replace": "**Last updated:** 2026-08-23 \u00b7 **By:** Claude (Opus 5) \u2014 **task 008 batch 1 is\nEXECUTED. Four commits on `fix/protected-docs-scope`, unpushed.**\n\nOne canonical tree: 55 commands \u00b7 76 skills \u00b7 26 hooks \u00b7 7 modes \u00b7 29 agents\n(generator-derived). `templates/` holds no component files and `install.sh` has no\nexecutable reference to a second tree. A fresh `--full` install reports 100/100 on\n`ck doctor --strict`. 2190 tests pass.\n\n**Next action:** batch 2 \u2014 merge the near-duplicate skills (`autonomous-loops`,\n`verification-loop`, `token-budget-advisor`, `context-keeper`, `context-priming`,\n`codebase-mapping`, `dependency-audit`), 76 \u2192 ~69, every removed name into the registry\n`renamed` alias map. Then batch 4, then batch 3 LAST.\n\n**Read before planning any of them:** `plan-008-batch1-one-tree.md` \u00a7 \"The batch must\nbe simulated before it runs\". Every config validating clean is not evidence the batch\nworks \u2014 that combination has already produced 110 red tests once.\n\n**Prior state, still true below:** PR #20 is one PRE-EXISTING red test away from\nmergeable; nothing is tagged; `origin/main` is still at `5e890f1`."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".ai/TASK-008-SIGNOFF.md",
+      "description": "tick batch 1 and record where this sheet was measurably wrong",
+      "edits": [
+        {
+          "find": "**Risk:** low for the 10 identical; the 3 diverged need real content review.\n**Sign-off:** APPROVED 2026-08-23",
+          "replace": "**Risk:** low for the 10 identical; the 3 diverged need real content review.\n**Sign-off:** APPROVED 2026-08-23 \u00b7 **DONE 2026-08-23** (21 ops configs, 79 operations).\n\n> **This section was wrong in two places, and the corrections are the lesson.**\n> `templates/commands|hooks|modes` are described above as part of a duplicate tree.\n> They were **24 unique components** with zero name overlap in `.claude/` \u2014 deleting\n> them as written would have destroyed content, not de-duplicated it. They were\n> promoted instead. And the three skills marked DIVERGED, slated for a three-way\n> merge, differed by exactly **one line** each: the `description:` frontmatter, with\n> `.claude/` already holding a strict superset of the body.\n>\n> Both errors were found by measuring the tree, not by reading this sheet. It was\n> written in good faith with a table of measurements in it, and was still wrong."
+        }
+      ]
+    }
+  ]
+}

@@ -189,12 +189,10 @@ cp "$CLAUDE_SRC"/agents/*.md "$DEST/agents/"
 cp "$CLAUDE_SRC"/agents/_shared/*.md "$DEST/agents/_shared/"
 print_ok "Agents installed"
 
-# Copy commands (core + templates)
+# Copy commands. One tree: `.claude/commands/` is the only source, so no
+# installed command is decided by copy order (task 008 batch 1).
 print_step "Installing commands..."
 cp "$CLAUDE_SRC"/commands/*.md "$DEST/commands/"
-if [[ -d "$SCRIPT_DIR/templates/commands" ]]; then
-    cp "$SCRIPT_DIR"/templates/commands/*.md "$DEST/commands/" 2>/dev/null || true
-fi
 CMD_COUNT=$(ls -1 "$DEST/commands/"*.md 2>/dev/null | wc -l | tr -d ' ')
 print_ok "$CMD_COUNT commands installed"
 
@@ -215,82 +213,14 @@ if [[ "$MODE" == "full" ]]; then
             cp "$skill_dir"*.md "$DEST/skills/$skill_name/" 2>/dev/null || true
         fi
     done
-    # Copy skill directories from templates/skills/ -- but never OVER one the
-    # canonical tree already delivered. Both passes write the same destination, so
-    # the second used to win: 13 names exist in both trees, and for
-    # `token-optimization` the templates copy is five months older (147 lines vs
-    # 219), so every --full install since 2026-08-19 shipped the stale text and
-    # discarded the token-efficiency pass. No gate could see it -- gen-registry,
-    # gen-docs and check-context-floor all read .claude/skills/, the copy that lost.
-    #
-    # Keyed on the FILE, not the directory: a canonical dir holding no *.md would
-    # otherwise suppress the templates copy and install nothing, leaving the skill
-    # silently absent. `.claude/skills/` is authoritative, so the two bodies that
-    # only ever shipped from templates/ (incident-response, spec-driven-development)
-    # were promoted into it in this same change -- see CHANGELOG. templates/skills
-    # still delivers what only it has (i18n-workflow).
-    if [[ -d "$SCRIPT_DIR/templates/skills" ]]; then
-        for skill_dir in "$SCRIPT_DIR"/templates/skills/*/; do
-            if [[ -d "$skill_dir" ]]; then
-                skill_name=$(basename "$skill_dir")
-                if [[ -f "$CLAUDE_SRC/skills/$skill_name/SKILL.md" ]]; then
-                    continue
-                fi
-                mkdir -p "$DEST/skills/$skill_name"
-                cp "$skill_dir"*.md "$DEST/skills/$skill_name/" 2>/dev/null || true
-            fi
-        done
-    fi
-    # Copy skills registry
+
+    # Copy skills registry. It is generated from `.claude/skills/`, which is now
+    # the only tree the loop above reads, so what ships and what the registry
+    # lists cannot diverge and no post-install reconcile is needed. Before task
+    # 008 batch 1, `i18n-workflow` shipped from `templates/skills/` and was absent
+    # from the registry, so `ck doctor --strict` exited 1 on a fresh install.
     if [[ -f "$CLAUDE_SRC/skills/skills-registry.json" ]]; then
         cp "$CLAUDE_SRC/skills/skills-registry.json" "$DEST/skills/"
-        # Then reconcile it with what was ACTUALLY installed. The registry is
-        # generated from .claude/skills/ (scripts/gen-registry.py), but the loop
-        # above also copies templates/skills/*, and `i18n-workflow` lives ONLY
-        # there. So every install shipped a skill the registry did not list and
-        # `ck doctor --strict` exited 1 on a freshly installed tree -- a gate
-        # failing on the happy path, which trains people to ignore it. Adding the
-        # skill to .claude/skills/ instead would create a near-duplicate of
-        # `i18n-patterns` and move a component count, both owner-gated; teaching
-        # the installer to describe what it installed is neither.
-        DEST_SKILLS="$DEST/skills" python3 - <<'REG_PY' || print_warn "registry reconcile skipped"
-import json, os, sys
-
-dest = os.environ["DEST_SKILLS"]
-path = os.path.join(dest, "skills-registry.json")
-try:
-    with open(path, encoding="utf-8") as fh:
-        doc = json.load(fh)
-except (OSError, ValueError) as exc:
-    print("could not read the registry: %s" % exc, file=sys.stderr)
-    raise SystemExit(1)
-rows = doc.get("skills")
-if not isinstance(rows, list):
-    raise SystemExit(1)
-known = {r.get("id") for r in rows if isinstance(r, dict)}
-added = []
-for name in sorted(os.listdir(dest)):
-    skill = os.path.join(dest, name, "SKILL.md")
-    if name in known or not os.path.isfile(skill):
-        continue
-    description = ""
-    with open(skill, encoding="utf-8", errors="replace") as fh:
-        for line in fh:
-            if line.startswith("description:"):
-                description = line.split(":", 1)[1].strip().strip('"\'')
-                break
-            if line.startswith("---") and description:
-                break
-    rows.append({"id": name, "name": name, "path": "skills/%s/SKILL.md" % name,
-                 "mandatory": False, "usedBy": [], "description": description,
-                 "source": "templates/skills"})
-    added.append(name)
-if added:
-    with open(path, "w", encoding="utf-8") as fh:
-        json.dump(doc, fh, indent=2)
-        fh.write("\n")
-    print("registry: registered %s" % ", ".join(added))
-REG_PY
     fi
     SKILL_COUNT=$(find "$DEST/skills" -name "SKILL.md" 2>/dev/null | wc -l | tr -d ' ')
     print_ok "$SKILL_COUNT skills installed"
@@ -346,7 +276,6 @@ REG_PY
         done
     }
     _copy_hook_assets "$CLAUDE_SRC/hooks"
-    _copy_hook_assets "$SCRIPT_DIR/templates/hooks"
     # Executability follows the file's own shebang, not its extension, so a hook
     # written in any language is handled without another list to keep in sync.
     HOOK_COUNT=0
@@ -428,13 +357,10 @@ WIRED_PY
     fi
 fi
 
-# Copy modes from templates
+# Copy modes. Promoted out of templates/ in task 008 batch 1, so `.claude/modes/`
+# is the only source.
 print_step "Installing behavioral modes..."
-if [[ -d "$SCRIPT_DIR/templates/modes" ]]; then
-    cp "$SCRIPT_DIR"/templates/modes/*.md "$DEST/modes/" 2>/dev/null || true
-    MODE_COUNT=$(ls -1 "$DEST/modes/"*.md 2>/dev/null | wc -l | tr -d ' ')
-    print_ok "$MODE_COUNT modes installed"
-elif [[ -d "$CLAUDE_SRC/modes" ]]; then
+if [[ -d "$CLAUDE_SRC/modes" ]]; then
     cp "$CLAUDE_SRC"/modes/*.md "$DEST/modes/" 2>/dev/null || true
     MODE_COUNT=$(ls -1 "$DEST/modes/"*.md 2>/dev/null | wc -l | tr -d ' ')
     print_ok "$MODE_COUNT modes installed"

@@ -1,6 +1,6 @@
 ---
 name: spec-driven-development
-description: Spec-driven development workflow where specifications are the single source of truth. Write specs first, then generate code that conforms exactly. Treat development as compilation from spec to code.
+description: "Use when developing features with specifications first — covers the full workflow: specify, clarify, checklist, plan, analyze, implement, verify. Specs are the single source of truth."
 disable-model-invocation: true
 argument-hint: "<spec-file-or-feature>"
 allowed-tools: Read, Write, Edit, Bash, Grep, Glob
