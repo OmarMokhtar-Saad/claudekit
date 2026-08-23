@@ -1,0 +1,20 @@
+{
+  "plan": "protected-gate-no-backslash-normalisation",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "scripts/check-protected-differential.py",
+      "description": "the gate models the guard rather than correcting it",
+      "edits": [
+        {
+          "find": "    The path is slash-normalised first: `os.path.basename` does not split on a\n    backslash on POSIX, so `sub\\\\README.md` would otherwise miss the identity check\n    and be swallowed by the `.md` blanket.\n    \"\"\"\n    normalised = path.replace(\"\\\\\", \"/\")\n    if os.path.basename(normalised).lower() in identity_docs:\n        return False\n    return baseline_had_md_glob and normalised.lower().endswith(\".md\")",
+          "replace": "    Backslashes are deliberately NOT normalised. Round-2 review suggested it, on the\n    grounds that `os.path.basename` does not split on `\\\\` on POSIX so `sub\\\\README.md`\n    misses the identity check. Implementing it made the gate fail on a clean tree, and\n    the gate was right: on POSIX `sub\\\\README.md` is ONE filename, `is_protected_file`\n    does not read it as README.md either, and it genuinely lost protection as an\n    ordinary markdown file. A gate that normalises where the guard it models does not\n    reports a regression the guard cannot have. It models the guard; it does not\n    correct it. (On Windows both split identically, so the two agree there too.)\n    \"\"\"\n    if os.path.basename(path).lower() in identity_docs:\n        return False\n    return baseline_had_md_glob and path.lower().endswith(\".md\")"
+        },
+        {
+          "find": "    \"sub\\\\README.md\",  # basename() does not split on a backslash on POSIX",
+          "replace": "    \"sub\\\\README.md\",  # ONE filename on POSIX -- pins that the gate reads it as the\n                       # guard does, not as README.md inside sub/"
+        }
+      ]
+    }
+  ]
+}

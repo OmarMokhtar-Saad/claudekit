@@ -1,0 +1,53 @@
+{
+  "plan": "create-mode-null-agreement",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/execute-json-ops.py",
+      "description": "an explicit null mode must get the same answer with and without jsonschema",
+      "edits": [
+        {
+          "find": "    declared_mode = operation.get('mode')\n    create_mode = None\n    if declared_mode is not None:\n        if declared_mode not in ('0644', '0755'):",
+          "replace": "    # `'mode' in operation`, not `.get(...) is not None`: an explicit `\"mode\": null`\n    # is rejected by the schema enum but was skipped by this check, so a config\n    # carrying one failed validation on a machine WITH jsonschema and passed on a\n    # default zero-dependency install. Fail-open into the default mode only, so it\n    # was never a security hole -- but a guard that answers differently per machine\n    # is the class of defect this file already carries scars from.\n    create_mode = None\n    if 'mode' in operation:\n        declared_mode = operation['mode']\n        if declared_mode not in ('0644', '0755'):"
+        },
+        {
+          "find": "        if declared_mode is not None:\n            print(f\"            Mode: {declared_mode}\")",
+          "replace": "        if 'mode' in operation:\n            print(f\"            Mode: {operation['mode']}\")"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/validate-config-json.py",
+      "description": "same rule at validation time",
+      "edits": [
+        {
+          "find": "        if op_type == 'file_create':\n            declared_mode = op.get('mode')\n            if declared_mode is not None and declared_mode not in ('0644', '0755'):",
+          "replace": "        if op_type == 'file_create' and 'mode' in op:\n            declared_mode = op['mode']\n            if declared_mode not in ('0644', '0755'):"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_ops_file_modes.py",
+      "description": "pin the agreement an explicit null used to break",
+      "edits": [
+        {
+          "find": "    def test_the_mode_guard_holds_without_jsonschema(self, tmp_path):",
+          "add_before": "    def test_an_explicit_null_mode_is_refused_by_both_checks(self):\n        \"\"\"`\"mode\": null` passed the executor's check (which skipped None) while the\n        schema enum rejected it -- so the same config failed on a machine with\n        jsonschema and succeeded on a default install, which has none. Asserted on\n        both tools, because agreement is the property, not either verdict alone.\"\"\"\n        import tempfile\n        with tempfile.TemporaryDirectory() as tmp:\n            ops = _ops(pathlib.Path(tmp), [{'type': 'file_create', 'path': 'x.txt',\n                                            'content': 'x\\n', 'mode': None}])\n            val = _run(os.path.join(SCRIPTS_DIR, 'validate-config-json.py'),\n                       pathlib.Path(tmp), ops)\n            exe = _run(EXECUTOR, pathlib.Path(tmp), ops)\n            assert val.returncode != 0, val.stdout\n            assert exe.returncode != 0, exe.stdout\n            assert not os.path.exists(os.path.join(tmp, 'x.txt'))\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_ops_file_modes.py",
+      "description": "pathlib for the temp-dir helper",
+      "edits": [
+        {
+          "find": "import json\nimport os\nimport stat\nimport subprocess\nimport sys",
+          "replace": "import json\nimport os\nimport pathlib\nimport stat\nimport subprocess\nimport sys"
+        }
+      ]
+    }
+  ]
+}

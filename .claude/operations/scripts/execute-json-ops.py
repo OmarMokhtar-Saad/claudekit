@@ -518,9 +518,15 @@ def execute_file_create(operation: dict, backup_dir: Path, dry_run: bool,
     # Restricted to 0644/0755 in the schema AND re-checked here: the schema is the
     # contract, this is the enforcement, and a hand-written config that skipped
     # validation must not be able to set setuid through it.
-    declared_mode = operation.get('mode')
+    # `'mode' in operation`, not `.get(...) is not None`: an explicit `"mode": null`
+    # is rejected by the schema enum but was skipped by this check, so a config
+    # carrying one failed validation on a machine WITH jsonschema and passed on a
+    # default zero-dependency install. Fail-open into the default mode only, so it
+    # was never a security hole -- but a guard that answers differently per machine
+    # is the class of defect this file already carries scars from.
     create_mode = None
-    if declared_mode is not None:
+    if 'mode' in operation:
+        declared_mode = operation['mode']
         if declared_mode not in ('0644', '0755'):
             print(f"  BLOCKED: unsupported create mode {declared_mode!r} (expected 0644 or 0755)")
             return False, "unsupported-create-mode"
@@ -534,8 +540,8 @@ def execute_file_create(operation: dict, backup_dir: Path, dry_run: bool,
     if dry_run:
         print(f"  [DRY RUN] Would create: {file_path}")
         print(f"            Size: {byte_size} bytes, Lines: {content.count(chr(10)) + 1}")
-        if declared_mode is not None:
-            print(f"            Mode: {declared_mode}")
+        if 'mode' in operation:
+            print(f"            Mode: {operation['mode']}")
         if sim_state is not None:
             sim_state[os.path.relpath(str(file_path))] = content
         return True, "dry-run"

@@ -1,0 +1,24 @@
+{
+  "plan": "protected-gate-corpus-from-baseline",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "scripts/check-protected-differential.py",
+      "description": "probe every name the baseline protected, so the corpus cannot fall behind the guard",
+      "edits": [
+        {
+          "find": "    identity_docs = _identity_docs(before)\n    baseline_had_md_glob = \"*.md\" in before.PROTECTED_PATTERNS",
+          "replace": "    identity_docs = _identity_docs(before)\n    baseline_had_md_glob = \"*.md\" in before.PROTECTED_PATTERNS\n\n    # Ask about every name the BASELINE protected, not only the ones someone thought to\n    # list. CORPUS is hand-written, so a pattern added to the guard after this script was\n    # written would never be asked about, and dropping it again would pass silently --\n    # the fixed corpus, not the disclosure rule, is the weaker half of that hole. Each\n    # name is probed at the root and at depth, since the match is on basename.\n    corpus = list(CORPUS)\n    for name in sorted(identity_docs):\n        for probe in (name, \"docs/deep/%s\" % name):\n            if probe not in corpus:\n                corpus.append(probe)"
+        },
+        {
+          "find": "    for path in CORPUS:",
+          "replace": "    for path in corpus:"
+        },
+        {
+          "find": "    print(\"Corpus: %d paths\" % len(CORPUS))",
+          "replace": "    print(\"Corpus: %d paths (%d listed + %d derived from the baseline guard)\"\n          % (len(corpus), len(CORPUS), len(corpus) - len(CORPUS)))"
+        }
+      ]
+    }
+  ]
+}

@@ -47,6 +47,8 @@ CORPUS: List[str] = [
     ".claude/skills/token-optimization/SKILL.md", ".claude/agents/code-reviewer.md",
     "templates/commands/analyze.md", "notes.md", "docs/design.md",
     "install.sh", "src/claudekit/cli/main.py", ".claude/settings.json",
+    "sub\\README.md",  # ONE filename on POSIX -- pins that the gate reads it as the
+                       # guard does, not as README.md inside sub/
     ".github/workflows/ci.yml", "MANIFEST.in", ".pre-commit-config.yaml",
 ]
 
@@ -65,36 +67,72 @@ DISCLOSED_WIDENINGS: List[Dict[str, str]] = [
     },
 ]
 
-# The identity documents. A path here must NEVER move protected -> unprotected, disclosed
-# or not: that is the property the whole guard exists for, and the one thing the disclosure
-# above must not be able to swallow.
-IDENTITY_DOCS = frozenset({
+# Identity documents are the UNION of three sources, because each alone has a hole a
+# review found by executing it:
+#
+#   * the baseline guard's literal patterns  -- but when the baseline is the old `*.md`
+#     glob it contains NO literal `README.md`, so dropping README.md would be classified
+#     as the disclosed markdown widening and reported OK. Measured; it regressed exactly
+#     that way when derivation replaced the hardcoded list.
+#   * the working tree's literal patterns    -- but a change that DELETES a name also
+#     erases the evidence that the name was ever protected.
+#   * a hardcoded floor                      -- which drifts on its own, as round-2
+#     review demonstrated: add a name to the guard, forget this file, and a later
+#     removal is swallowed.
+#
+# Union of all three: the floor covers the conventional documents whichever direction a
+# change moves, and derivation from BOTH modules means a name added to the guard is
+# picked up here without anyone remembering to.
+IDENTITY_FLOOR = frozenset({
     "readme.md", "changelog.md", "claude.md", "agents.md", "contributing.md",
     "security.md", "code_of_conduct.md", "license", "license.md", "notice.md",
     "maintainers.md", "governance.md", "authors.md", "support.md",
 })
 
 
+def _identity_docs(*modules) -> frozenset:
+    """Every non-glob pattern any of the given guards protects, plus the floor."""
+    names = set(IDENTITY_FLOOR)
+    for module in modules:
+        names.update(p.lower() for p in module.PROTECTED_PATTERNS
+                     if not any(ch in p for ch in "*?["))
+    return frozenset(names)
+
 def _git(repo_root: Path, *args: str) -> Optional[str]:
     result = subprocess.run(["git", *args], capture_output=True, text=True, cwd=repo_root)
     return result.stdout.strip() if result.returncode == 0 else None
 
 
-def _is_disclosed(path: str) -> bool:
+def _is_disclosed(path: str, identity_docs: frozenset, baseline_had_md_glob: bool) -> bool:
     """True when losing protection on this path is the disclosed widening.
 
-    Deliberately expressed as the RULE, not as a list of sample paths. The first
-    version of this function named `docs/`-style prefixes, and the gate promptly
-    caught a root-level `notes.md` it had not thought of -- correctly, since that
-    file did lose protection. Narrow disclosures do not make a gate stricter, they
-    make it noisy, and a noisy gate gets suppressed.
+    Expressed as the RULE, not as a list of sample paths. The first version named
+    `docs/`-style prefixes and the gate promptly caught a root-level `notes.md` it had
+    not thought of -- correctly, since that file did lose protection. Narrow
+    disclosures do not make a gate stricter, they make it noisy, and a noisy gate gets
+    suppressed.
 
-    An identity document is never disclosed, so this cannot swallow the regression
-    that actually matters.
+    Two things keep the rule from becoming a blanket amnesty for markdown:
+
+    * an identity document is never disclosed, so this cannot swallow the regression
+      that actually matters; and
+    * the blanket applies ONLY when the baseline still carried the `*.md` glob. Once
+      this widening is behind `main`, the baseline has the narrow list, the condition
+      goes false, and the disclosure retires itself instead of pre-disclosing every
+      future `.md` unprotection for the life of the repo.
+
+    Backslashes are deliberately NOT normalised. Round-2 review suggested it, on the
+    grounds that `os.path.basename` does not split on `\\` on POSIX so `sub\\README.md`
+    misses the identity check. Implementing it made the gate fail on a clean tree, and
+    the gate was right: on POSIX `sub\\README.md` is ONE filename, `is_protected_file`
+    does not read it as README.md either, and it genuinely lost protection as an
+    ordinary markdown file. A gate that normalises where the guard it models does not
+    reports a regression the guard cannot have. It models the guard; it does not
+    correct it. (On Windows both split identically, so the two agree there too.)
     """
-    if os.path.basename(path).lower() in IDENTITY_DOCS:
+    if os.path.basename(path).lower() in identity_docs:
         return False
-    return path.lower().endswith(".md")
+    return baseline_had_md_glob and path.lower().endswith(".md")
 
 
 def _load(source: str, label: str):
@@ -151,16 +189,36 @@ def main() -> int:
     before = _load(result.stdout, "before")
     after = _load((repo_root / MODULE_PATH).read_text(encoding="utf-8"), "after")
 
+    identity_docs = _identity_docs(before, after)
+    baseline_had_md_glob = "*.md" in before.PROTECTED_PATTERNS
+
+    # Ask about every name the BASELINE protected, not only the ones someone thought to
+    # list. CORPUS is hand-written, so a pattern added to the guard after this script was
+    # written would never be asked about, and dropping it again would pass silently --
+    # the fixed corpus, not the disclosure rule, is the weaker half of that hole. Each
+    # name is probed at the root and at depth, since the match is on basename.
+    corpus = list(CORPUS)
+    for name in sorted(identity_docs):
+        for probe in (name, "docs/deep/%s" % name):
+            if probe not in corpus:
+                corpus.append(probe)
+    if not baseline_had_md_glob:
+        print("Baseline carries the narrow list: the 2026-08-23 `.md` widening is "
+              "retired, and every path is now judged on its own.")
+
     regressions, disclosed, narrowings = [], [], []
-    for path in CORPUS:
+    for path in corpus:
         was = before.is_protected_file(path)
         now = after.is_protected_file(path)
         if was and not now:
-            (disclosed if _is_disclosed(path) else regressions).append(path)
+            bucket = (disclosed if _is_disclosed(path, identity_docs, baseline_had_md_glob)
+                      else regressions)
+            bucket.append(path)
         elif now and not was:
             narrowings.append(path)
 
-    print("Corpus: %d paths" % len(CORPUS))
+    print("Corpus: %d paths (%d listed + %d derived from the baseline guard)"
+          % (len(corpus), len(CORPUS), len(corpus) - len(CORPUS)))
     if narrowings:
         print("\nNewly PROTECTED (a tightening - always fine):")
         for path in narrowings:
