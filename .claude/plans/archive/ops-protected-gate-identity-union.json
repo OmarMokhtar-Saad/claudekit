@@ -1,0 +1,20 @@
+{
+  "plan": "protected-gate-identity-union",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "scripts/check-protected-differential.py",
+      "description": "identity docs are the union of both guards plus a floor; derivation alone regressed",
+      "edits": [
+        {
+          "find": "# The identity documents are DERIVED from the baseline guard, never restated here.\n# A hand-maintained copy of the same list is a copy that drifts: add `RUNBOOK.md` to\n# PROTECTED_PATTERNS without touching this file and a later change dropping it would\n# be classified as the disclosed `.md` widening and reported as OK -- the exact swallow\n# the docstring above promises cannot happen. Round-2 review demonstrated it.\n\n\ndef _identity_docs(baseline_module) -> frozenset:\n    \"\"\"Every non-glob pattern the BASELINE protected, lowercased.\n\n    Taken from the baseline rather than the working tree on purpose: the question this\n    gate asks is \"what was protected before\", so a change that DELETES a name from the\n    list cannot also erase the evidence that it used to be protected.\n    \"\"\"\n    return frozenset(p.lower() for p in baseline_module.PROTECTED_PATTERNS\n                     if not any(ch in p for ch in \"*?[\"))\n\n",
+          "replace": "# Identity documents are the UNION of three sources, because each alone has a hole a\n# review found by executing it:\n#\n#   * the baseline guard's literal patterns  -- but when the baseline is the old `*.md`\n#     glob it contains NO literal `README.md`, so dropping README.md would be classified\n#     as the disclosed markdown widening and reported OK. Measured; it regressed exactly\n#     that way when derivation replaced the hardcoded list.\n#   * the working tree's literal patterns    -- but a change that DELETES a name also\n#     erases the evidence that the name was ever protected.\n#   * a hardcoded floor                      -- which drifts on its own, as round-2\n#     review demonstrated: add a name to the guard, forget this file, and a later\n#     removal is swallowed.\n#\n# Union of all three: the floor covers the conventional documents whichever direction a\n# change moves, and derivation from BOTH modules means a name added to the guard is\n# picked up here without anyone remembering to.\nIDENTITY_FLOOR = frozenset({\n    \"readme.md\", \"changelog.md\", \"claude.md\", \"agents.md\", \"contributing.md\",\n    \"security.md\", \"code_of_conduct.md\", \"license\", \"license.md\", \"notice.md\",\n    \"maintainers.md\", \"governance.md\", \"authors.md\", \"support.md\",\n})\n\n\ndef _identity_docs(*modules) -> frozenset:\n    \"\"\"Every non-glob pattern any of the given guards protects, plus the floor.\"\"\"\n    names = set(IDENTITY_FLOOR)\n    for module in modules:\n        names.update(p.lower() for p in module.PROTECTED_PATTERNS\n                     if not any(ch in p for ch in \"*?[\"))\n    return frozenset(names)\n\n"
+        },
+        {
+          "find": "    identity_docs = _identity_docs(before)",
+          "replace": "    identity_docs = _identity_docs(before, after)"
+        }
+      ]
+    }
+  ]
+}

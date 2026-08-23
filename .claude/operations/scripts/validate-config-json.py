@@ -92,9 +92,9 @@ def validate_file_operations(operations: List[dict]) -> Tuple[bool, List[str]]:
         # GUARD: a file_create mode is one of the two sane values. Checked at
         # validation as well as in the executor, so a bad mode is reported
         # where every other operation defect is reported, not at write time.
-        if op_type == 'file_create':
-            declared_mode = op.get('mode')
-            if declared_mode is not None and declared_mode not in ('0644', '0755'):
+        if op_type == 'file_create' and 'mode' in op:
+            declared_mode = op['mode']
+            if declared_mode not in ('0644', '0755'):
                 errors.append(
                     f"Operation {i} (file_create): unsupported mode {declared_mode!r}"
                     f" -- expected '0644' or '0755'")

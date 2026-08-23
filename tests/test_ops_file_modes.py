@@ -2,6 +2,7 @@
 
 import json
 import os
+import pathlib
 import stat
 import subprocess
 import sys
@@ -196,6 +197,21 @@ class TestDeclaredCreateMode:
         assert res.returncode != 0, res.stdout + res.stderr
         assert '4755' in res.stdout and 'REJECTED' in res.stdout
 
+    def test_an_explicit_null_mode_is_refused_by_both_checks(self):
+        """`"mode": null` passed the executor's check (which skipped None) while the
+        schema enum rejected it -- so the same config failed on a machine with
+        jsonschema and succeeded on a default install, which has none. Asserted on
+        both tools, because agreement is the property, not either verdict alone."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            ops = _ops(pathlib.Path(tmp), [{'type': 'file_create', 'path': 'x.txt',
+                                            'content': 'x\n', 'mode': None}])
+            val = _run(os.path.join(SCRIPTS_DIR, 'validate-config-json.py'),
+                       pathlib.Path(tmp), ops)
+            exe = _run(EXECUTOR, pathlib.Path(tmp), ops)
+            assert val.returncode != 0, val.stdout
+            assert exe.returncode != 0, exe.stdout
+            assert not os.path.exists(os.path.join(tmp, 'x.txt'))
     def test_the_mode_guard_holds_without_jsonschema(self, tmp_path):
         """ClaudeKit has ZERO runtime dependencies, so `jsonschema` is absent on a
         default install and the validator says so and carries on with its own
