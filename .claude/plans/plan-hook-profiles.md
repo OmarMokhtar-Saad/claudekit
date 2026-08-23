@@ -281,3 +281,22 @@ reads any of it**. ITEM 5 is two lines of installer.
   rather than a fail.
 - **Explicitly not done:** hooks do not read profiles; nothing about the security
   layer, the ops engine, or the Iron Law is touched.
+
+## Artifacts written (added 2026-08-23)
+
+Recorded retrospectively, because `check-plan-artifacts.py` reached this plan's archived
+config for the first time and was right: the plan said "`.claude/profiles/` (4 profiles +
+README)" and "four profile documents" but never named the file, so a reviewer had no way to
+check the schema of an artifact whose name the plan does not state. A directory prefix with a
+count is not a name.
+
+(Corrected on review: an earlier version of this list also claimed
+`.claude/profiles/base/profile.json`. That file has never existed and no config in
+the corpus creates it — a section added to make a plan honest asserting a
+fabricated artifact. `base` is a resolver LAYER, not a profile directory.)
+
+- `.claude/profiles/minimal/profile.json`
+- `.claude/profiles/standard/profile.json`
+- `.claude/profiles/strict/profile.json`
+- `.claude/profiles/python/profile.json`
+- `.claude/profiles/README.md`

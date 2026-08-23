@@ -1,0 +1,137 @@
+{
+  "plan": "review-truthfulness-batch",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "src/claudekit/cli/main.py",
+      "description": "MAJ-1 score honesty on both branches; MAJ-3 the adapt contract, with the flag that actually guards it",
+      "edits": [
+        {
+          "find": "    score = _readiness_score(checks_passed, checks_warned, checks_failed)\n    print(f\"  Readiness: {score}/100\")",
+          "replace": "    score = _readiness_score(checks_passed, checks_warned, checks_failed)\n    # The applicable count is part of the number. Skips leave the denominator, so a\n    # --minimal install scored 100/100 while the --full superset of it scored 95:\n    # minimal drops exactly the checks that can WARN, while full keeps the three blank\n    # project-command warnings it ships with by design. The score is therefore\n    # comparable within an install mode and NOT across them. Printed on BOTH branches so\n    # the format is stable and greppable -- a clause that appears only when something\n    # was skipped is absent on the --full install whose 95 is the actual puzzle.\n    _applicable = checks_passed + checks_warned + checks_failed\n    print(f\"  Readiness: {score}/100 \"\n          f\"({_applicable} applicable, {checks_skipped} not)\")"
+        },
+        {
+          "find": "    number without zeroing it.\n    \"\"\"",
+          "replace": "    number without zeroing it.\n\n    Absolute, therefore NOT comparable across install modes. Because skips leave the\n    denominator, a --minimal install can score higher than the --full install that is a\n    strict superset of it -- measured at 100 (13 applicable) against 95 (29 applicable),\n    because --minimal drops the checks capable of warning while --full keeps its three\n    by-design blank-command warnings. cmd_doctor prints the applicable count next to the\n    score and docs/cli.md says a --min-score floor is a per-mode floor. Do NOT \"fix\" the\n    asymmetry by skipping the blank-command checks: they are the only thing that asks\n    the user to configure build/test/lint, and install.sh closes by calling that\n    deliberate.\n    \"\"\""
+        },
+        {
+          "find": "    * **Fresh** (`.claude/` ABSENT) -- reports that `ck init` must run first, because\n      profile resolution reads a tree only the installer creates. Invoking the\n      installer from here is recorded in the plan as deferred and NOT owner-approved,\n      so this is a NAMED skip rather than a silent one.",
+          "replace": "    * **Fresh** (`.claude/` ABSENT) -- INSTALLS, by calling `cmd_init` with\n      `mode=\"full\"`, and then adapts the tree it just created. Safe because `.claude/`\n      is ABSENT: install.sh's `mv .claude .claude.bak-*` has nothing to move. That\n      absence is the whole guarantee -- `force=False` does NOT add one here, because the\n      same call passes `yes=True` and install.sh's existence prompt stands down for\n      EITHER flag (`install.sh:125`) while the `mv` itself consults neither\n      (`install.sh:624`). `force=False` is intent-signalling, not a race guard; if\n      `.claude/` can appear between the check and the call, `--yes` is what makes that\n      destructive. `full` rather than `args.mode` because install.sh creates\n      `.claude/profiles/` only in its full-mode block, and profile resolution plus the\n      Class 2 writes below read it. The receipt is re-checked afterwards by the\n      `is_fresh`/`_load_manifest` guard below, so a partial install still routes to the\n      refusal instead of being adapted blind.\n      (An earlier revision of this docstring called the branch a \"NAMED skip\" that was\n      \"NOT owner-approved\" -- stale by 46 lines, and inverted: a reviewer reading the\n      contract concluded `ck adapt` never installs.)"
+        },
+        {
+          "find": "    p = sub.add_parser(\"adapt\",\n                       help=\"Configure ClaudeKit for this project and report what it did\")",
+          "replace": "    p = sub.add_parser(\"adapt\",\n                       help=\"Configure ClaudeKit for this project and report what it \"\n                            \"did (installs first if .claude/ is absent)\")"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "docs/cli.md",
+      "description": "MAJ-D: correct the claim instead of appending to it, with measured output",
+      "edits": [
+        {
+          "find": "are still comparable \u2014 a bare install and a fully configured one no longer read\nidentically green:\n\n```\n  Readiness: 94/100\n```\n\nA passing check is full credit and a warning is half; checks that do not apply\nto your install (`Skipped`) are left out of the score entirely, so a\n`--minimal` install is not penalised for what it was never meant to have.\n`--min-score N` turns the number into a gate \u2014 useful as the exit condition for\n`/adapt` or as a fleet-wide floor in CI. It can only *add* a failure: an install\nwith a failing check still exits 1 regardless of the floor you set.",
+          "replace": "no longer read identically green. The line names its denominator, because the\ndenominator is what makes two scores comparable or not:\n\n```\n  Readiness: 95/100 (29 applicable, 0 not)      # a fresh --full install\n  Readiness: 100/100 (13 applicable, 10 not)    # a fresh --minimal install\n```\n\nA passing check is full credit and a warning is half; checks that do not apply\nto your install (`Skipped`) are left out of the score entirely, so a\n`--minimal` install is not penalised for what it was never meant to have.\n\n**That means scores compare within an install mode, not across them** \u2014 and, as\nabove, a `--minimal` install normally scores *higher* than the `--full` install\nthat contains it. Nothing is wrong when that happens: `--minimal` drops the\nchecks capable of warning, while a fresh `--full` install keeps three warnings\nfor the project commands you have not configured yet. Those are the same\nwarnings `install.sh` closes on, and they are deliberate \u2014 configure\n`build/test/lint_cmd` in `.claude/hooks/config.json` and the full install goes\ngreen.\n\n`--min-score N` turns the number into a gate \u2014 useful as the exit condition for\n`/adapt`, or as a fleet floor in CI **for one install mode**. It can only *add*\na failure: an install with a failing check still exits 1 regardless of the floor\nyou set."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "scripts/check-context-floor.py",
+      "description": "MIN-5: the rationale blamed CLAUDE.md for prescribing the bare form; it does not",
+      "edits": [
+        {
+          "find": "    # -- so the bare invocation printed `FAIL: context floor over budget` and then\n    # exited 0. CLAUDE.md's command block prescribes the bare form, so the\n    # documented way to run this gate was the one way it could not fail. A gate\n    # that reports failure and returns success is the class this repo ratchets\n    # against, so the exit code now follows the measurement, never the flag.",
+          "replace": "    # -- so the bare invocation printed `FAIL: context floor over budget` and then\n    # exited 0. (An earlier version of this comment blamed CLAUDE.md for prescribing the\n    # bare form. It does not: CLAUDE.md:22 and ci.yml both pass `--check`. The real\n    # defect is simpler and worse -- the flag was accepted and then silently decided the\n    # exit code, so the two documented invocations disagreed about whether a measured\n    # failure was a failure.) A gate that reports failure and returns success is the\n    # class this repo ratchets against, so the exit code now follows the measurement,\n    # never the flag."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "scripts/check-plan-artifacts.py",
+      "description": "MAJ-A: reach the plans too, count paths, and stop treating a pattern as an omission",
+      "edits": [
+        {
+          "find": "        if re.search(r\"(?<![\\w./-])%s(?![\\w-])(?!\\.[A-Za-z0-9])\" % re.escape(token),\n                     plan_text):\n            return True\n    return False",
+          "replace": "        if re.search(r\"(?<![\\w./-])%s(?![\\w-])(?!\\.[A-Za-z0-9])\" % re.escape(token),\n                     plan_text):\n            return True\n    return _names_by_pattern(plan_text, path)\n\n\ndef _names_by_pattern(plan_text: str, path: str) -> bool:\n    \"\"\"True when the plan describes `path` with a GLOB or `<placeholder>` covering it.\n\n    A plan that writes 15 files under one convention names them honestly as\n    `.claude/skills/<name>/SKILL.md`, or 4 as `evals/definitions/*.json` -- both stated\n    with their count in the ops table. Demanding 15 literal paths rejects a complete,\n    reviewable description and trains authors to paste enumerations, which is the\n    cry-wolf failure this gate's own comments warn about. Measured when the gate first\n    reached the archive: of 23 findings, 19 were this false positive and 4 were real.\n\n    `*` matches WITHIN one path segment only, and the match is anchored. Both matter,\n    and the first version of this function got both wrong by using `fnmatch`, whose `*`\n    crosses `/`: `.claude/skills/*` then named `.claude/skills/x/../../../etc/passwd`\n    and `src/*` named `src/a/b/c/evil.py`. A token that STARTS or ENDS with `*` is\n    rejected outright -- that is markdown emphasis, not a path pattern, and treating\n    `**scripts/gen-docs.py**` as a glob reopened the closed class `names_path` documents\n    above (a plan naming `templates/scripts/gen-docs.py` satisfying `scripts/gen-docs.py`\n    -- a DIFFERENT file). 38 of 76 plan documents contain emphasis-shaped tokens.\n    \"\"\"\n    for token in re.findall(r\"[\\w./<>*-]*[<*][\\w./<>*-]*\", plan_text):\n        if \"/\" not in token or token.startswith(\"*\") or token.endswith(\"*\"):\n            continue\n        pattern = re.sub(r\"<[^<>/]*>\", \"*\", token)\n        if \"*\" not in pattern:\n            continue\n        rx = \"\".join(\"[^/]*\" if ch == \"*\" else re.escape(ch) for ch in pattern)\n        if re.fullmatch(rx, path):\n            return True\n    return False"
+        },
+        {
+          "find": "    slugs = [slug] + ([declared] if declared and declared != slug else [])\n    for candidate_slug in slugs:\n        for candidate in (f\"plan-{candidate_slug}.md\", f\"{candidate_slug}.md\"):\n            resolved = ops_path.parent / candidate\n            if resolved.exists():\n                return resolved\n    return None",
+          "replace": "    slugs = [slug] + ([declared] if declared and declared != slug else [])\n    for candidate_slug in slugs:\n        for candidate in (f\"plan-{candidate_slug}.md\", f\"{candidate_slug}.md\"):\n            # PLANS_DIR as well as the config's own directory: an EXECUTED config is\n            # moved to .claude/plans/archive/ and its plan is NOT -- the plans stay at\n            # .claude/plans/. Resolving only against `ops_path.parent` meant the archive\n            # held 92 configs and 0 resolvable plans, so widening the scan to reach them\n            # verified 15 paths instead of 354. Sibling first, so a config that ships\n            # beside its own plan still binds to that one.\n            for parent in (ops_path.parent, PLANS_DIR):\n                resolved = parent / candidate\n                if resolved.exists():\n                    return resolved\n    return None"
+        },
+        {
+          "find": "def check(ops_path: Path) -> List[str]:\n    \"\"\"Return the problems found for one config; empty list means it passed.\"\"\"\n    try:\n        cfg = json.loads(ops_path.read_text(encoding=\"utf-8\"))\n    except (OSError, ValueError) as exc:\n        return [f\"{ops_path}: unreadable ({exc})\"]\n    if not isinstance(cfg, dict):\n        return [f\"{ops_path}: not a JSON object\"]\n\n    plan_path = resolve_plan(ops_path, cfg)",
+          "replace": "def _read(ops_path: Path) -> Optional[dict]:\n    \"\"\"The config as a dict, or None when unreadable or not a JSON object. `check` still\n    owns the error MESSAGE for those cases; the caller only needs to know it cannot\n    resolve a plan or count paths from them.\"\"\"\n    try:\n        cfg = json.loads(ops_path.read_text(encoding=\"utf-8\"))\n    except (OSError, ValueError):\n        return None\n    return cfg if isinstance(cfg, dict) else None\n\n\ndef check(ops_path: Path, cfg: Optional[dict] = None) -> List[str]:\n    \"\"\"Return the problems found for one config; empty list means it passed.\n\n    `cfg` is the already-parsed config when the caller has one (it needs it to count\n    paths), so the file is read once rather than three times per config. Passing None\n    keeps the standalone contract: this function still owns every error message for a\n    config it cannot read.\n    \"\"\"\n    if cfg is None:\n        try:\n            cfg = json.loads(ops_path.read_text(encoding=\"utf-8\"))\n        except (OSError, ValueError) as exc:\n            return [f\"{ops_path}: unreadable ({exc})\"]\n        if not isinstance(cfg, dict):\n            return [f\"{ops_path}: not a JSON object\"]\n\n    plan_path = resolve_plan(ops_path, cfg)"
+        },
+        {
+          "find": "    else:\n        configs = sorted(\n            set(PLANS_DIR.glob(\"ops-*.json\")) | set(PLANS_DIR.glob(\"*.ops.json\"))\n        )",
+          "replace": "    else:\n        # rglob, not glob: an EXECUTED config is moved to .claude/plans/archive/, so a\n        # top-level-only scan printed `no ops configs to check`, rc 0, on any branch\n        # whose configs had all run -- including the CI run that gates the merge.\n        configs = sorted(\n            set(PLANS_DIR.rglob(\"ops-*.json\")) | set(PLANS_DIR.rglob(\"*.ops.json\"))\n        )"
+        },
+        {
+          "find": "    problems: List[str] = []\n    for ops_path in configs:\n        if not ops_path.exists():\n            problems.append(f\"{ops_path}: no such file\")\n            continue\n        problems.extend(check(ops_path))\n",
+          "replace": "    problems: List[str] = []\n    checked_paths = 0\n    unresolved: List[str] = []\n    for ops_path in configs:\n        if not ops_path.exists():\n            problems.append(f\"{ops_path}: no such file\")\n            continue\n        cfg = _read(ops_path)\n        if cfg is None:\n            problems.extend(check(ops_path))\n            continue\n        if resolve_plan(ops_path, cfg) is None:\n            # Still a PASS -- Tier 1 legitimately ships a config with no plan. But it\n            # must not be INDISTINGUISHABLE from a real check: a plan renamed by\n            # accident left every operation unchecked under the same OK line.\n            unresolved.append(ops_path.name)\n        else:\n            checked_paths += len(target_paths(cfg))\n        problems.extend(check(ops_path, cfg))\n"
+        },
+        {
+          "find": "    print(f\"check-plan-artifacts: OK ({len(configs)} config(s))\")\n    return 0",
+          "replace": "    # The PATH count is the honest signal and the number to watch. The run that first\n    # reached the archive reported 92 configs and would have reported 0 paths: a config\n    # count alone cannot tell a real pass from a gate that checked nothing.\n    print(f\"check-plan-artifacts: OK ({len(configs)} config(s), \"\n          f\"{checked_paths} path(s) verified)\")\n    if unresolved:\n        print(f\"NOTE: {len(unresolved)} config(s) resolved to no plan and were not \"\n              f\"checked: {', '.join(sorted(unresolved))}\")\n    return 0"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_check_plan_artifacts.py",
+      "description": "MAJ-A/MIN-b: cwd-independent fixtures, a numeric floor, and the pattern cases",
+      "edits": [
+        {
+          "find": "import json\nimport subprocess\nimport sys\nfrom pathlib import Path",
+          "replace": "import json\nimport re\nimport subprocess\nimport sys\nfrom pathlib import Path\n\nimport pytest"
+        },
+        {
+          "find": "def run(*args):\n    return subprocess.run(\n        [sys.executable, str(SCRIPT), *args], capture_output=True, text=True\n    )",
+          "replace": "def run(*args, cwd=None):\n    \"\"\"`cwd` matters: PLANS_DIR is relative, so the default-scan tests must own their\n    own tree instead of depending on pytest being invoked from the repo root.\"\"\"\n    return subprocess.run(\n        [sys.executable, str(SCRIPT), *args], capture_output=True, text=True,\n        cwd=str(cwd) if cwd else None,\n    )"
+        },
+        {
+          "find": "    result = run(str(ops))\n    assert result.returncode == 1, result.stdout + result.stderr\n    assert \"no path\" in result.stderr\n",
+          "replace": "    result = run(str(ops))\n    assert result.returncode == 1, result.stdout + result.stderr\n    assert \"no path\" in result.stderr\n\n\ndef _fixture_tree(tmp_path, archived=True):\n    \"\"\"A plans tree shaped like the real one: plans at the root, configs in archive/.\"\"\"\n    plans = tmp_path / \".claude\" / \"plans\"\n    (plans / \"archive\").mkdir(parents=True)\n    (plans / \"plan-shipped.md\").write_text(\n        \"Writes `src/one.py` and `src/two.py`.\\n\", encoding=\"utf-8\")\n    target = (plans / \"archive\") if archived else plans\n    (target / \"ops-shipped.json\").write_text(\n        json.dumps({\"plan\": \"shipped\", \"operations\": [\n            {\"type\": \"file_create\", \"path\": \"src/one.py\", \"content\": \"x\"},\n            {\"type\": \"file_create\", \"path\": \"src/two.py\", \"content\": \"x\"}]}),\n        encoding=\"utf-8\")\n    return tmp_path\n\n\ndef test_an_archived_config_is_checked_against_the_plan_that_stayed_behind(tmp_path):\n    \"\"\"Executed configs move to .claude/plans/archive/; their plans do not. Resolving a\n    plan only next to its config meant the archive held 92 configs and 0 resolvable\n    plans -- so the gate reported OK having verified nothing.\"\"\"\n    root = _fixture_tree(tmp_path, archived=True)\n    result = run(\"--check\", cwd=root)\n    assert result.returncode == 0, result.stdout + result.stderr\n    assert \"no ops configs to check\" not in result.stdout\n    # A NUMERIC floor, not the substring: \"0 path(s) verified\" satisfies a substring\n    # assertion, which is exactly how the first version of this test certified a gate\n    # that checked nothing.\n    verified = int(re.search(r\"(\\d+) path\\(s\\) verified\", result.stdout).group(1))\n    assert verified == 2, result.stdout\n\n\ndef test_drift_in_an_archived_config_still_fails(tmp_path):\n    \"\"\"Reaching the archive is worthless if reaching it cannot fail.\"\"\"\n    root = _fixture_tree(tmp_path, archived=True)\n    plan = root / \".claude\" / \"plans\" / \"plan-shipped.md\"\n    plan.write_text(\"Writes `src/one.py` only.\\n\", encoding=\"utf-8\")\n    result = run(\"--check\", cwd=root)\n    assert result.returncode == 1, result.stdout + result.stderr\n    assert \"src/two.py\" in result.stderr\n\n\ndef test_a_config_that_resolves_to_no_plan_is_named_not_silently_green(tmp_path):\n    \"\"\"No plan is a PASS (Tier 1 ships one), but it must not read identically to a real\n    check: a plan renamed by accident left every operation unchecked.\"\"\"\n    ops = tmp_path / \"ops-orphan.json\"\n    ops.write_text(\n        json.dumps({\"plan\": \"nothing-here\",\n                    \"operations\": [{\"type\": \"file_create\", \"path\": \"src/x.py\",\n                                    \"content\": \"x\"}]}),\n        encoding=\"utf-8\")\n    result = run(str(ops))\n    assert result.returncode == 0, result.stdout + result.stderr\n    assert \"NOTE:\" in result.stdout\n    assert \"ops-orphan.json\" in result.stdout\n\n\ndef test_a_glob_or_placeholder_names_every_path_it_covers(tmp_path):\n    \"\"\"A plan writing 15 files under one convention names them as\n    `.claude/skills/<name>/SKILL.md`. Demanding 15 literal paths rejected complete plans\n    -- 19 of the 23 findings on the first honest run were this false positive.\"\"\"\n    for body in (\"Rewrites `.claude/skills/<name>/SKILL.md` for all 15 skills.\\n\",\n                 \"Rewrites `.claude/skills/*/SKILL.md` for all 15 skills.\\n\"):\n        plan = tmp_path / \"plan-globby.md\"\n        plan.write_text(body, encoding=\"utf-8\")\n        ops = tmp_path / \"ops-globby.json\"\n        ops.write_text(\n            json.dumps({\"plan\": \"globby\", \"operations\": [\n                {\"type\": \"code_edit\", \"path\": \".claude/skills/brainstorming/SKILL.md\",\n                 \"edits\": [{\"find\": \"a\", \"replace\": \"b\"}]}]}),\n            encoding=\"utf-8\")\n        result = run(str(ops))\n        assert result.returncode == 0, body + result.stdout + result.stderr\n\n\n# Each row is (label, the token as it appears in the plan, the path a config writes).\n# Every one of these was GREEN under the first implementation, which used fnmatch --\n# whose `*` crosses `/`. The first version of this test asserted only that\n# `.claude/skills/*/SKILL.md` fails to name `src/claudekit/cli/main.py`: bounded, and\n# different in every segment, so it passed for a reason unrelated to the property it\n# claimed to pin, and could not have caught any row below.\nPATTERN_MUST_NOT_NAME = [\n    (\"path traversal\", \"`.claude/skills/*`\",\n     \".claude/skills/x/../../../etc/passwd\"),\n    (\"one segment does not cover many\", \"`src/*`\", \"src/a/b/c/evil.py\"),\n    (\"bare star-slash-star\", \"`**/*`\", \"src/anything.py\"),\n    (\"markdown bold names a DIFFERENT file\", \"**scripts/gen-docs.py**\",\n     \"templates/scripts/gen-docs.py\"),\n    (\"markdown italic is not a glob\", \"*src/main.py*\", \"vendor/src/main.py.bak\"),\n    (\"a fenced token is still one segment\", \"`src/*`\", \"src/deep/nested/x.py\"),\n]\n\n\n@pytest.mark.parametrize(\"label,token,path\", PATTERN_MUST_NOT_NAME,\n                         ids=[r[0] for r in PATTERN_MUST_NOT_NAME])\ndef test_a_pattern_does_not_license_a_path_it_does_not_cover(tmp_path, label, token,\n                                                             path):\n    plan = tmp_path / \"plan-narrow.md\"\n    plan.write_text(f\"Rewrites {token}.\\n\", encoding=\"utf-8\")\n    ops = tmp_path / \"ops-narrow.json\"\n    ops.write_text(\n        json.dumps({\"plan\": \"narrow\", \"operations\": [\n            {\"type\": \"file_create\", \"path\": path, \"content\": \"x\"}]}),\n        encoding=\"utf-8\")\n    result = run(str(ops))\n    assert result.returncode == 1, f\"{label}: {token} named {path}\\n\" + result.stdout\n    assert \"does not name\" in result.stderr\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_doctor_score.py",
+      "description": "MAJ-1 mutation proof: the applicable count is part of the line, on both branches",
+      "edits": [
+        {
+          "find": "    def test_doctor_prints_a_readiness_line(self):\n        self.assertIn(\"Readiness:\", ck(\"doctor\").stdout)",
+          "replace": "    def test_doctor_prints_a_readiness_line(self):\n        self.assertIn(\"Readiness:\", ck(\"doctor\").stdout)\n\n    def test_the_readiness_line_always_names_its_denominator(self):\n        # Skips leave the denominator, so the score is comparable within an install mode\n        # and not across them -- a --minimal install outscores the --full superset of it.\n        # A bare \"95/100\" gave the reader nothing to see that with. Printed on BOTH\n        # branches so the format is stable: the clause is most needed on the --full\n        # install, which skips nothing.\n        out = ck(\"doctor\").stdout\n        self.assertRegex(out, r\"Readiness: +\\d+/100 \\(\\d+ applicable, \\d+ not\\)\")"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_adapt.py",
+      "description": "MIN-4: the two PARTIAL_OWNED literals were kept in step by comment only",
+      "edits": [
+        {
+          "find": "class TestOwnershipIsAComplement:",
+          "replace": "class TestThePartialOwnedLiteralsCannotDrift:\n    def test_the_cli_and_adapt_agree_on_which_files_are_partially_owned(self):\n        # main.py says this set \"MUST STAY IN STEP WITH adapt.PARTIAL_OWNED_RELS\" and\n        # nothing compared them. Divergence makes `ck adapt` write into a file\n        # `ck uninstall` deletes -- exactly the class the comment names.\n        from claudekit.cli import main as cli_main\n        assert set(cli_main.PARTIAL_OWNED) == set(adapt.PARTIAL_OWNED_RELS)\n\n\nclass TestOwnershipIsAComplement:"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "description": "MIN-d: two entries were duplicated verbatim in the same section, and both described a Readiness line format that changed",
+      "edits": [
+        {
+          "find": "- **`claudekit doctor` now grades an install, not just passes it.** Doctor already\n  tallied passed/warned/failed/skipped checks and then threw the ratio away, so every\n  project that cleared the floor reported identically green and there was no way to\n  tell a bare install from a fully configured one \u2014 or to give `/adapt` a numeric exit\n  condition. Runs now end with `Readiness: NN/100` (a pass is full credit, a warning\n  half, and checks that do not apply to the install are excluded from the denominator\n  rather than counted against it), and `--min-score N` turns that number into a gate.\n  The floor is evaluated last and can only add a failure: an install with a failing\n  check still exits 1 no matter what floor is set.\n- **`claudekit eject` \u2014 leave kit management without losing a file.** There was no step\n  between `update` (re-adopt) and `uninstall` (remove), so a project that wanted to keep\n  its assets but stop tracking the kit had to either keep drifting under a manifest that\n  no longer described it or delete the assets to be rid of it. `eject` removes exactly\n  one file, the manifest, after copying its full contents \u2014 every path and digest \u2014 into\n  `.claude/.claudekit-ejected.json` in its place. Local modifications are preserved by\n  design, `ck diff` falls back to source comparison, and `ck update` re-adopts the\n  project, so the operation is reversible. Supports `--dry-run` and `--yes`.\n\n### Fixed\n- **`ck doctor --strict` exited 1 on a freshly installed tree.**",
+          "replace": "\n### Fixed\n- **`ck doctor --strict` exited 1 on a freshly installed tree.**"
+        },
+        {
+          "find": "  condition. Runs now end with `Readiness: NN/100` (a pass is full credit, a warning\n  half, and checks that do not apply to the install are excluded from the denominator\n  rather than counted against it), and `--min-score N` turns that number into a gate.",
+          "replace": "  condition. Runs now end with `Readiness: NN/100 (N applicable, M not)`: a pass is\n  full credit, a warning half, and checks that do not apply to the install are\n  excluded from the denominator rather than counted against it. `--min-score N`\n  turns that number into a gate."
+        }
+      ]
+    }
+  ]
+}
