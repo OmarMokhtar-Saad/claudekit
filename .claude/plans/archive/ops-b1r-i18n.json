@@ -1,0 +1,60 @@
+{
+  "plan": "008-b1-review-i18n-and-claims",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/i18n-patterns/SKILL.md",
+      "description": "fold in the externalization API table the first merge dropped",
+      "edits": [
+        {
+          "find": "## Pluralization",
+          "add_before": "\n### Externalization APIs by Language\n\nReplace each user-visible literal with the platform's translation call, not a\nhome-grown lookup:\n\n| Language | Call |\n|---|---|\n| JavaScript/TypeScript | `t('key')` or `intl.formatMessage({ id: 'key' })` |\n| Python | `_('key')` or `gettext('key')` |\n| Java/Kotlin | `messages.getString(\"key\")` |\n| Swift/Obj-C | `NSLocalizedString(\"key\", comment: \"context\")` |\n\nInclude translator context as a comment or metadata alongside the key \u2014 a string\nwith no context is a string that gets mistranslated.\n\n---\n\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/i18n-patterns/SKILL.md",
+      "description": "fold in the CI round-trip and the RTL test checklist",
+      "edits": [
+        {
+          "find": "## Translation Quality Checks",
+          "add_before": "\n### The CI Round-Trip\n\n1. A developer adds strings to the base locale (e.g. `en`)\n2. CI extracts new or changed keys and generates a diff\n3. The translation platform (Crowdin, Lokalise, Phrase) picks up the new keys\n4. Translators translate and review\n5. CI pulls completed translations back into the repo\n6. The build compiles translation files into the app bundle\n\n### RTL Testing\n\n- Test every page in both LTR and RTL\n- Verify form inputs align correctly\n- Verify icons flip where appropriate \u2014 directional ones (arrows, progress) flip,\n  non-directional ones (search, settings) must NOT\n- Verify scrollbars appear on the correct side\n- Verify toast and notification positioning\n- Bidirectional text (Arabic with embedded English) needs proper isolation: `<bdi>`\n  tags or Unicode isolate characters\n\n---\n\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/i18n-patterns/SKILL.md",
+      "description": "blank line before the folded heading",
+      "edits": [
+        {
+          "find": "**Rule:** Always provide at least `one` and `other` forms. Provide additional forms based on your target languages.\n### Gender / Select",
+          "replace": "**Rule:** Always provide at least `one` and `other` forms. Provide additional forms based on your target languages.\n\n---\n\n### Gender / Select"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_i18n.py",
+      "description": "the fold is guarded by content, not by the presence of the file",
+      "edits": [
+        {
+          "find": "    def test_i18n_skill_covers_rtl(self):",
+          "add_before": "    FOLDED_FROM_I18N_WORKFLOW = [\n        # headings\n        \"Gender / Select\", \"Nested (select wrapping plural)\", \"Relative Time\",\n        \"Translation File Formats by Ecosystem\", \"Translation Quality Checks\",\n        \"Anti-Patterns\", \"Externalization APIs by Language\", \"The CI Round-Trip\",\n        \"RTL Testing\",\n        # operative content -- headings alone passed while the bodies were missing\n        \"NSLocalizedString\", \"gettext\", \"getString\", \"intl.formatMessage\",\n        \"Crowdin\", \"Lokalise\", \"Phrase\", \"bdi\", \"scrollbars\",\n    ]\n\n    @pytest.mark.parametrize(\"fragment\", FOLDED_FROM_I18N_WORKFLOW)\n    def test_the_i18n_workflow_fold_survives(self, fragment):\n        \"\"\"`i18n-workflow` was deleted and its content folded into `i18n-patterns`.\n        The only copy of this text is now here; if it goes, it is a `git show` away\n        and nobody notices.\n\n        Asserts on operative CONTENT, not only headings. The batch-1 acceptance\n        criterion checked the five headings and passed while the externalization API\n        table, the CI round-trip and the RTL checklist were all missing -- review\n        found that by grepping for the APIs, which is what this now does.\"\"\"\n        path = os.path.join(SKILLS_DIR, \"i18n-patterns\", \"SKILL.md\")\n        with open(path, encoding=\"utf-8\") as fh:\n            body = fh.read()\n        assert fragment in body, f\"i18n fold lost: {fragment}\"\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "description": "the 100/100 figure is fixture-dependent and was stated as universal",
+      "edits": [
+        {
+          "find": "  was patched by rewriting the registry after install; the cause is now gone and the\n  patch with it. A fresh `--full` install reports 26/26 and 100/100.",
+          "replace": "  was patched by rewriting the registry after install; the cause is now gone and the\n  patch with it. A fresh `--full` install into a Python project reports 26/26 and\n  100/100. **`--strict` still exits 1 on a bare directory** (95/100, three warnings\n  for build/test/lint commands the generic template cannot fill in) \u2014 that is\n  unrelated to this change and behaved identically before it. An earlier draft of\n  this entry quoted the Python figure without the qualifier, which read as a promise\n  the installer does not make."
+        }
+      ]
+    }
+  ]
+}

@@ -187,10 +187,19 @@ class TestOneCanonicalTree:
             f"templates/{kind}/ holds components again: two trees, one install "
             f"destination, and the winner decided by copy order: {stale}")
 
+    EXPECTED_MODES = {"default", "brainstorm", "token-efficient", "deep-research",
+                      "implementation", "orchestration", "review"}
+
     def test_modes_live_in_the_canonical_tree(self):
+        """Named, not counted. `.claude/modes/` arrived in task 008 batch 1 and is the
+        one component class no generator counts, so a mode deleted by accident would
+        go unnoticed -- an existence check on the directory passes with six of seven."""
         modes = os.path.join(CLAUDE_DIR, "modes")
         assert os.path.isdir(modes)
-        assert [f for f in os.listdir(modes) if f.endswith(".md")]
+        found = {os.path.basename(p)[:-3] for p in
+                 glob.glob(os.path.join(modes, "*.md"))}
+        missing = sorted(TestOneCanonicalTree.EXPECTED_MODES - found)
+        assert missing == [], f"modes lost: {missing}"
 
     def test_the_installer_reads_no_second_tree(self):
         """Reads install.sh, because the file checks above pass just as well against
@@ -206,6 +215,75 @@ class TestOneCanonicalTree:
         for kind in sorted(TestOneCanonicalTree.COMPONENT_GLOBS):
             assert f"templates/{kind}" not in code, (
                 f"install.sh still copies templates/{kind}")
+
+class TestHookWiringIsHonest:
+    """A shipped hook is wired, resolved by a wrapper, or declared inert -- never
+    silently none of the three.
+
+    `README.md` and `docs/HOOKS.md` said "26 hooks ship ... all are wired" while two of
+    them were referenced by nothing at all. The count moved 22 -> 26 with the promotion
+    in task 008 batch 1 and the prose around it did not, so a generated number turned a
+    true sentence into a false one. A reader who believes `auto-checkpoint.sh` is
+    protecting their session and never configures a real checkpoint is exactly the
+    failure hard rule 6 exists to prevent: inert scripts advertised as active
+    guardrails.
+
+    Adding a hook to UNWIRED is a deliberate, reviewable act. Adding one to neither
+    fails here.
+    """
+
+    UNWIRED = {
+        # Opt-in material: promoted out of templates/hooks/, where nothing invoked them
+        # either. Promotion changed where they live, not whether they run.
+        "auto-checkpoint.sh",
+        "check-comment-replacement.sh",
+        # Ships deliberately unwired, and said so in docs/HOOKS.md long before this
+        # test existed -- which is how that file came to contradict its own opening
+        # sentence. Found by this test, not by a reader.
+        "post-implement.sh",
+        # Shared library, not a hook.
+        "lib.sh",
+    }
+
+    def _hooks(self):
+        return sorted(os.path.basename(p) for p in
+                      glob.glob(os.path.join(CLAUDE_DIR, "hooks", "*.sh")))
+
+    def test_every_hook_is_wired_or_declared_inert(self):
+        settings = os.path.join(CLAUDE_DIR, "settings.json")
+        with open(settings, encoding="utf-8") as fh:
+            wiring = fh.read()
+        registry = os.path.join(CLAUDE_DIR, "hooks", "dispatch-registry.json")
+        if os.path.isfile(registry):
+            with open(registry, encoding="utf-8") as fh:
+                wiring += fh.read()
+        # A wrapper resolving a hook by name counts as reachable.
+        for path in glob.glob(os.path.join(CLAUDE_DIR, "hooks", "*.sh")):
+            with open(path, encoding="utf-8") as fh:
+                wiring += fh.read().replace(os.path.basename(path), "")
+
+        unreachable = [h for h in self._hooks()
+                       if h not in TestHookWiringIsHonest.UNWIRED and h not in wiring]
+        assert unreachable == [], (
+            f"hooks reachable from nothing and not declared inert: {unreachable}")
+
+    def test_the_inert_list_does_not_hide_a_wired_hook(self):
+        """The allowlist must not grow to cover hooks that ARE wired -- that would
+        make the test pass by shrinking what it checks."""
+        with open(os.path.join(CLAUDE_DIR, "settings.json"), encoding="utf-8") as fh:
+            settings = fh.read()
+        wired_but_listed = [h for h in TestHookWiringIsHonest.UNWIRED if h in settings]
+        assert wired_but_listed == [], (
+            f"declared inert but wired in settings.json: {wired_but_listed}")
+
+    def test_the_docs_do_not_claim_every_hook_is_wired(self):
+        """The specific false sentence, pinned. Reads the docs, because the two tests
+        above pass just as well beside prose that contradicts them."""
+        for rel in ("README.md", "docs/HOOKS.md"):
+            with open(os.path.join(ROOT, rel), encoding="utf-8") as fh:
+                body = fh.read()
+            assert "all are wired" not in body, f"{rel} claims every hook is wired"
+            assert "library), all\nwired" not in body, f"{rel} claims every hook is wired"
 
 class TestRootFiles:
     """Verify root-level files exist."""

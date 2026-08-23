@@ -1,0 +1,36 @@
+{
+  "plan": "agents-md-codex-paths",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "AGENTS.md",
+      "description": "every .Codex/ path is a directory that does not exist; an agent reading this file is sent nowhere",
+      "edits": [
+        {
+          "find": "You are working **on** ClaudeKit (the multi-agent orchestration kit for Codex), not *with* it in a user project. Full maintainer knowledge lives in [`.ai/`](.ai/README.md) \u2014 start with [.ai/MODEL_ONBOARDING.md](.ai/MODEL_ONBOARDING.md) if this is your first session. User-project templates (`.Codex/local/Codex.template.md`, `templates/*/AGENTS.md`) are **product artifacts**, not instructions for you.",
+          "replace": "You are working **on** ClaudeKit (the multi-agent orchestration kit for Codex), not *with* it in a user project. Full maintainer knowledge lives in [`.ai/`](.ai/README.md) \u2014 start with [.ai/MODEL_ONBOARDING.md](.ai/MODEL_ONBOARDING.md) if this is your first session. User-project templates (`.claude/local/Codex.template.md`, `templates/*/AGENTS.md`) are **product artifacts**, not instructions for you."
+        },
+        {
+          "find": "This repo runs its own enforcement hooks on itself. If Edit/Write gets blocked by `ops-enforcement`, the gitignored `.Codex/settings.local.json` with `ECC_HOOK_PROFILE=minimal` is missing \u2014 restore it (see CONTRIBUTING.md \"Working on ClaudeKit itself\"). Never bypass hooks by other means.",
+          "replace": "This repo runs its own enforcement hooks on itself. If Edit/Write gets blocked by `ops-enforcement`, the gitignored `.claude/settings.local.json` with `ECC_HOOK_PROFILE=minimal` is missing \u2014 restore it (see CONTRIBUTING.md \"Working on ClaudeKit itself\"). Never bypass hooks by other means."
+        },
+        {
+          "find": "- **Plan:** for multi-file changes, write the plan down (this repo's own `/plan` convention: `.Codex/plans/plan-<slug>.md`). Get owner sign-off for anything user-visible (deletions, renames, releases).",
+          "replace": "- **Plan:** for multi-file changes, write the plan down (this repo's own `/plan` convention: `.claude/plans/plan-<slug>.md`). Get owner sign-off for anything user-visible (deletions, renames, releases)."
+        },
+        {
+          "find": "- **Debug:** `.Codex/hooks/hooks.log` \u2192 `ck doctor --strict` \u2192 the matching test file; recipes in [.ai/DEBUGGING_GUIDE.md](.ai/DEBUGGING_GUIDE.md).",
+          "replace": "- **Debug:** `.claude/hooks/hooks.log` \u2192 `ck doctor --strict` \u2192 the matching test file; recipes in [.ai/DEBUGGING_GUIDE.md](.ai/DEBUGGING_GUIDE.md)."
+        },
+        {
+          "find": "3. No `--dangerously-skip-permissions` anywhere (CI-gated); agent spawning per `.Codex/agents/_shared/INVOCATION.md` with scoped `--allowedTools`.",
+          "replace": "3. No `--dangerously-skip-permissions` anywhere (CI-gated); agent spawning per `.claude/agents/_shared/INVOCATION.md` with scoped `--allowedTools`."
+        },
+        {
+          "find": "7. Versions bump in three places together (pyproject, `src/claudekit/__init__.py`, `.Codex/operations/scripts/shared.py`) and stay monotonic.",
+          "replace": "7. Versions bump in three places together (pyproject, `src/claudekit/__init__.py`, `.claude/operations/scripts/shared.py`) and stay monotonic."
+        }
+      ]
+    }
+  ]
+}

@@ -75,6 +75,31 @@ class TestI18nSkill:
         path = os.path.join(SKILLS_DIR, "i18n-patterns", "SKILL.md")
         assert os.path.isfile(path)
 
+    FOLDED_FROM_I18N_WORKFLOW = [
+        # headings
+        "Gender / Select", "Nested (select wrapping plural)", "Relative Time",
+        "Translation File Formats by Ecosystem", "Translation Quality Checks",
+        "Anti-Patterns", "Externalization APIs by Language", "The CI Round-Trip",
+        "RTL Testing",
+        # operative content -- headings alone passed while the bodies were missing
+        "NSLocalizedString", "gettext", "getString", "intl.formatMessage",
+        "Crowdin", "Lokalise", "Phrase", "bdi", "scrollbars",
+    ]
+
+    @pytest.mark.parametrize("fragment", FOLDED_FROM_I18N_WORKFLOW)
+    def test_the_i18n_workflow_fold_survives(self, fragment):
+        """`i18n-workflow` was deleted and its content folded into `i18n-patterns`.
+        The only copy of this text is now here; if it goes, it is a `git show` away
+        and nobody notices.
+
+        Asserts on operative CONTENT, not only headings. The batch-1 acceptance
+        criterion checked the five headings and passed while the externalization API
+        table, the CI round-trip and the RTL checklist were all missing -- review
+        found that by grepping for the APIs, which is what this now does."""
+        path = os.path.join(SKILLS_DIR, "i18n-patterns", "SKILL.md")
+        with open(path, encoding="utf-8") as fh:
+            body = fh.read()
+        assert fragment in body, f"i18n fold lost: {fragment}"
     def test_i18n_skill_covers_rtl(self):
         path = os.path.join(SKILLS_DIR, "i18n-patterns", "SKILL.md")
         with open(path) as f:

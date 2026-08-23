@@ -261,7 +261,7 @@ ClaudeKit includes 76 reusable skills that agents load on-demand:
 
 ## Hooks
 
-26 hooks ship in `.claude/hooks/` and all are wired through `.claude/settings.json` (PreToolUse, PostToolUse, UserPromptSubmit, SessionStart, Stop), gated by `ECC_HOOK_PROFILE` (`minimal` / `standard` / `strict`). `PreToolUse` handlers -- and, of the eight events, only those -- are invoked by `dispatch.sh`, which merges their verdicts most-restrictive-first; the other seven events still invoke their hooks directly (see [docs/HOOKS.md](docs/HOOKS.md)). Blocking hooks fail closed: `exit 2` + reason on stderr. Highlights:
+26 hooks ship in `.claude/hooks/`; 23 are reachable — wired through `.claude/settings.json` (PreToolUse, PostToolUse, UserPromptSubmit, SessionStart, Stop), gated by `ECC_HOOK_PROFILE` (`minimal` / `standard` / `strict`). `PreToolUse` handlers -- and, of the eight events, only those -- are invoked by `dispatch.sh`, which merges their verdicts most-restrictive-first; the other seven events still invoke their hooks directly (see [docs/HOOKS.md](docs/HOOKS.md)). Blocking hooks fail closed: `exit 2` + reason on stderr. **Three ship UNWIRED** — `auto-checkpoint.sh`, `check-comment-replacement.sh` and `post-implement.sh`. Nothing invokes them; they are opt-in material you wire yourself. A count that implied otherwise would advertise inert scripts as active guardrails, which is the honesty rule this project holds itself to. Highlights:
 
 | Hook | Trigger | Blocking | Purpose |
 |------|---------|----------|---------|

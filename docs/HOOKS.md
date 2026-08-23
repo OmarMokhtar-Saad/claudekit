@@ -1,8 +1,20 @@
 # Hooks
 
-ClaudeKit ships 26 hook scripts (plus `lib.sh`, a shared helper library), all
-wired into Claude Code through `.claude/settings.json`. They enforce guardrails,
-capture telemetry, and automate housekeeping around the agent workflow.
+ClaudeKit ships 26 hook scripts (plus `lib.sh`, a shared helper library). 23 are
+reachable: wired into Claude Code through `.claude/settings.json`, or resolved by a
+gate wrapper. They enforce guardrails, capture telemetry, and automate housekeeping
+around the agent workflow.
+
+**Three ship unwired**, and the count must not be read as saying otherwise:
+`auto-checkpoint.sh` and `check-comment-replacement.sh`, promoted out of
+`templates/hooks/` in task 008 batch 1 where nothing invoked them either -- promotion
+changed where they live, not whether they run -- and `post-implement.sh`, which has
+shipped unwired for far longer and is described as such further down this very file.
+This page opened by claiming all of them were wired while contradicting itself at the
+`post-implement.sh` entry below, so the sentence was wrong before batch 1 and the
+promotion only widened the gap.
+`tests/test_structure.py::TestHookWiringIsHonest` pins this, so the prose cannot drift
+from the tree again.
 
 > **`PreToolUse` runs through `dispatch.sh` -- that event only.** It is the
 > per-event dispatcher front end: it runs every handler registered for that event in

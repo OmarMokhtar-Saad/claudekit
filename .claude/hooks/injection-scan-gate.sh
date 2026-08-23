@@ -21,8 +21,7 @@ LOG_FILE="${LOG_FILE:-$ROOT/.claude/hooks/hooks.log}"
 
 SCANNER=""
 for candidate in "$SCRIPT_DIR/prompt-injection-scanner.sh" \
-                 "$ROOT/.claude/hooks/prompt-injection-scanner.sh" \
-                 "$ROOT/templates/hooks/prompt-injection-scanner.sh"; do
+                 "$ROOT/.claude/hooks/prompt-injection-scanner.sh"; do
     if [ -f "$candidate" ]; then
         SCANNER="$candidate"
         break
