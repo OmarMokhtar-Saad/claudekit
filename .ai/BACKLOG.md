@@ -362,6 +362,22 @@ asset changes, so they are recorded as options with trade-offs.
 - [ ] **Mechanical check: no DoD gate may be asserted from a prior round inside a plan's gate-evidence table.** The eight DoD gates are a fixed list, so a test can assert that no file under `.claude/plans/` contains `not re-run` / `prior round` inside a gate-evidence table. Class has recurred three times on `perf/token-efficiency`: (1) round-3 `mypy` omitted from the evidence table, which became the blocking H1-new; (2) `gen-model-policy --check` labelled `[prior round, not re-run]`; (3) `shellcheck` labelled the same — (2) and (3) were green when re-executed, so milder than (1), but the class earned a mechanical check per .ai/REVIEW_GUIDE.md. Proposed only; **not** implemented by `plan-generators-that-cannot-drift` and deliberately absent from its ops.
 - [ ] **The secret self-scan has no exemption model, so documenting a pattern trips it.** `tests/test_day_one_blockers.py::TestSelfScanIsClean` greps every *tracked* file for 13 secret patterns, with no way to mark a file as legitimately describing one. Three occurrences on this branch, each a different file class: (1) an earlier revision's test module (recorded in that test's own docstring); (2) `tests/test_memory.py`, whose secret-refusal cases need a body that looks like a secret — fixed by assembling the literal from parts; (3) `.claude/plans/archive/README.md`, whose row *explaining fix (2)* quoted the literal and re-reddened the gate — caught by an adversarial reviewer, not by the author, who had claimed the gates green from a suite run predating the row. Splitting literals works but every future author must rediscover it, and the failure mode is a red branch nobody expects. Options: an explicit allowlist with a stated reason per entry; a `# selfscan: expected` marker the scan honours; or scanning only added lines in a diff. Prefer whichever keeps the scan fail-closed by default — an exemption model that is easy to apply silently is worse than the workaround.
 
+## Closed 2026-08-23
+
+- [x] **`ck doctor --strict` on a fresh full install was NOT registry drift.** Diagnosed
+  and closed: the rc 1 came from three deliberately-blank `project.*_cmd` values, not from
+  `i18n-workflow`. That skill ships from `templates/skills/`, lives outside
+  `.claude/skills/` by design, and the installer's reconciliation is covered at
+  `tests/test_install_receipts.py:354-386`. Filling the commands (under `project`, not the
+  root — a root write fails the schema check) gives rc 0 at 26/26. Both the outcome and the
+  diagnosis are now pinned by tests, so the misattribution cannot recur.
+- [x] **`ops-mcp-probe.json` archived unexecuted** by owner decision. Its verdict was
+  recorded under a different plan's slug before records keyed on ops identity; verified
+  still `NO RECORD` after that fix, which stops the class but cannot rescue this artifact.
+  Its `--probe` would execute vendor server argv on the operator's machine, unsandboxed, so
+  a fresh plan and review is the right route if the capability is wanted. See the archive
+  README row.
+
 ## Icebox
 
 Cross-project promotion of `.claude/knowledge/issues/` entries into the global

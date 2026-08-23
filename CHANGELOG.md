@@ -12,6 +12,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **`ck doctor --strict` is now proven green on a full install, not just a minimal one.**
+  Nothing drove a full install to a green exit code, because a fresh one warns three
+  times about unconfigured project commands and the existing test asserted on a single
+  check's line instead. A full install with its commands configured is now asserted to
+  return 0, and a second test pins *why* a fresh one returns 1 — so "doctor fails on a
+  fresh install" cannot be re-attributed to the wrong cause again.
+
 ### Added
 - **`ck adapt` — one command that configures ClaudeKit for the project it is pointed
   at.** It detects the stack from files on disk, derives the four commands CI-first
