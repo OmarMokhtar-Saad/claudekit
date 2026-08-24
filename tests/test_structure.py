@@ -267,16 +267,39 @@ class TestHookWiringIsHonest:
         files = gd._hook_files()
         return sorted(p.name for p in files if not gd._is_helper_module(p, files))
 
+    #: A hook invocation, as opposed to a mention. Requires the name to sit in COMMAND
+    #: position -- after an interpreter, `exec`, `source`/`.`, or as a `$SCRIPT_DIR/x`
+    #: style path -- so prose that happens to contain a filename is not an invocation.
+    _INVOCATION = re.compile(
+        r"(?:bash|sh|zsh|python3?|exec|source|\.)\s+[^\s;|&]*?"
+        r"([A-Za-z0-9._-]+\.(?:sh|py))"
+        r"|[\"']?\$(?:SCRIPT_DIR|ROOT|CLAUDE_DIR|HOOKS_DIR)[^\s\"';|&]*/"
+        r"([A-Za-z0-9._-]+\.(?:sh|py))")
+
     @staticmethod
-    def _strip_comments(text, path):
-        """Comment text is documentation, not an invocation."""
-        marker = "#"
+    def _strip_comments(text):
+        """Comment text is documentation, not an invocation.
+
+        The first version split on `" #"` only, so a comment preceded by a TAB -- or by
+        nothing at all -- survived and was then substring-matched as a call. Round 3
+        re-exploited exactly that: `true\t#resolves pre-push.sh` appended to dispatch.sh
+        kept a fully unwired `pre-push.sh` looking reachable, with the whole class green.
+        Any `#` outside a single- or double-quoted span now ends the line.
+        """
         out = []
         for line in text.splitlines():
-            stripped = line.lstrip()
-            if stripped.startswith(marker):
-                continue
-            out.append(line.split(" " + marker, 1)[0] if " " + marker in line else line)
+            quote = None
+            cut = len(line)
+            for pos, ch in enumerate(line):
+                if quote:
+                    if ch == quote:
+                        quote = None
+                elif ch in "\"'":
+                    quote = ch
+                elif ch == "#":
+                    cut = pos
+                    break
+            out.append(line[:cut])
         return "\n".join(out)
 
     @classmethod
@@ -300,23 +323,30 @@ class TestHookWiringIsHonest:
 
     @classmethod
     def _wrapper_resolved(cls, published):
-        """Names a REACHABLE hook resolves at runtime. A hook that is itself unreachable
-        cannot confer reachability, so the inert set is excluded -- otherwise a comment
-        inside a file nothing runs would keep another hook 'reachable'."""
+        """Names a REACHABLE hook actually INVOKES. A hook that is itself unreachable
+        cannot confer reachability, so the inert set is excluded.
+
+        Matched by extracting invocations, not by asking whether a name appears
+        somewhere in the byte stream. The substring form let a SHORTER name inherit a
+        LONGER one's wiring -- round 3 renamed `command-log-audit.sh` to `guard.sh`,
+        dropped its registry row, and every test stayed green because `guard.sh` is a
+        substring of the `file-guard.sh` that a wrapper legitimately names.
+        """
         resolved = set()
-        reachable_sources = [n for n in published if n not in cls.UNWIRED]
-        for name in reachable_sources:
+        known = set(published)
+        for name in published:
+            if name in cls.UNWIRED:
+                continue
             path = os.path.join(CLAUDE_DIR, "hooks", name)
             if not os.path.isfile(path):
                 continue
             with open(path, encoding="utf-8", errors="replace") as fh:
-                body = cls._strip_comments(fh.read(), path)
-            body = body.replace(name, "")
-            for other in published:
-                if other != name and other in body:
-                    resolved.add(other)
+                body = cls._strip_comments(fh.read())
+            for match in cls._INVOCATION.finditer(body):
+                called = match.group(1) or match.group(2)
+                if called and called != name and called in known:
+                    resolved.add(called)
         return resolved
-
     def test_every_hook_is_wired_or_declared_inert(self):
         published = self._published_hooks()
         reachable = self._wired() | self._wrapper_resolved(published)

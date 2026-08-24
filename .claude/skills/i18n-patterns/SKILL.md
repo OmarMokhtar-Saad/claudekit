@@ -142,6 +142,11 @@ string is a hardcoded locale wearing a costume.
 never a bare number plus a symbol. Symbol position varies by locale (`$100` vs `100$`),
 and the amount alone does not say which currency it is.
 
+### Relative Time
+
+- Use `Intl.RelativeTimeFormat` or equivalent
+- Examples: "3 days ago", "in 2 hours", "yesterday"
+
 ### Common Pitfalls
 
 | Pitfall | Example | Fix |
@@ -183,6 +188,7 @@ Use logical properties instead of physical properties:
 - Verify toast and notification positioning
 - Bidirectional text (Arabic with embedded English) needs proper isolation: `<bdi>`
   tags or Unicode isolate characters
+
 ### RTL Checklist
 
 - [ ] Document direction set via `<html dir="rtl" lang="ar">`
@@ -222,6 +228,7 @@ locales/
 4. Translators translate and review
 5. CI pulls completed translations back into the repo
 6. The build compiles translation files into the app bundle
+
 ### Process
 
 1. Developer adds keys with source language text
@@ -231,11 +238,6 @@ locales/
 5. Pseudo-localization is used for testing (accented characters, expanded text)
 
 ---
-
-## Relative Time
-
-- Use `Intl.RelativeTimeFormat` or equivalent
-- Examples: "3 days ago", "in 2 hours", "yesterday"
 
 ---
 
@@ -279,6 +281,7 @@ locales/
 | Right/left in CSS | Breaks in RTL layouts | Use `start`/`end` logical properties |
 
 ---
+
 ## i18n Checklist
 
 - [ ] All user-visible strings use translation keys, not hardcoded text

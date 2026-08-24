@@ -155,6 +155,10 @@ def main():
               f"{type(_aliases).__name__}", file=sys.stderr)
         return 1
     for _old, _new in sorted(_aliases.items()):
+        if not _old or not isinstance(_new, str) or not _new:
+            print(f"ERROR: renamed: {_old!r} -> {_new!r} is not a usable alias "
+                  f"(an empty key matches every file)", file=sys.stderr)
+            return 1
         if _old in fs_skills:
             print(f"ERROR: renamed: '{_old}' is aliased but still exists on disk",
                   file=sys.stderr)

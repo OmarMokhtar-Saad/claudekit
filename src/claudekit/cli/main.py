@@ -371,8 +371,12 @@ def cmd_doctor(args):
                 # reference. Without something reading it the map is stored data that
                 # changes no behaviour anywhere -- which is what it was when review
                 # first asked who consumes it.
-                aliases = data.get("renamed")
-                aliases = aliases if isinstance(aliases, dict) else {}
+                # Read through skills.renamed_map so the parse lives in ONE place. It
+                # was re-implemented inline here at first, which recreated the
+                # duplicate-alias-logic defect in the same commit that deleted the
+                # original instance of it.
+                from claudekit.skills import renamed_map
+                aliases = renamed_map(data)
                 for agent, skills in data.get("agentMapping", {}).items():
                     for sid in skills:
                         if sid in skill_ids:
@@ -396,6 +400,15 @@ def cmd_doctor(args):
                 # name the old id. An alias nobody can act on is an alias that
                 # expires while the references are still broken.
                 for old, new in sorted(aliases.items()):
+                    if old in skill_ids or old in fs_skills:
+                        # gen-registry --check refuses this, but it never runs in an
+                        # installed tree -- which is the only place doctor runs. Left
+                        # unhandled, the scan below tells the user to stop referencing
+                        # a skill they still have.
+                        warn(f"  Registry: alias '{old}' shadows a skill that still "
+                             f"exists; remove it from `renamed`")
+                        checks_warned += 1
+                        continue
                     stale = []
                     for sub in ("agents", "commands", "skills"):
                         base = claude_dir / sub

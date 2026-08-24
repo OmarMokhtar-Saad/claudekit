@@ -75,19 +75,23 @@ class TestI18nSkill:
         path = os.path.join(SKILLS_DIR, "i18n-patterns", "SKILL.md")
         assert os.path.isfile(path)
 
-    #: Derived by a TOKEN DIFF of the deleted `templates/skills/i18n-workflow/SKILL.md`
-    #: at 80a2e74 against the merged file -- every backtick code span and dotted
-    #: identifier -- not by reading the headings and not by a reviewer's spot-check.
-    #: Both of the narrower methods have already failed here once each: batch 1 checked
-    #: five HEADINGS and passed while three whole sections were missing, and the fix for
-    #: that checked the fragments review happened to name and still missed the
+    #: Two provenances, kept distinct because review caught the docstring claiming only
+    #: the first. The TOKEN-DIFF half is every backtick span and dotted identifier in
+    #: the deleted `templates/skills/i18n-workflow/SKILL.md` at 80a2e74 that had to be
+    #: carried over. The NAMED half is headings and qualified API names that exist only
+    #: in the merged file -- a superset, so a stronger guard, but not "derived by a
+    #: token diff" as an earlier version of this comment claimed.
+    #:
+    #: Both narrower methods have already failed here once each: batch 1 checked five
+    #: HEADINGS and passed while three whole sections were missing, and the fix for that
+    #: checked the fragments a reviewer happened to name and still missed the
     #: per-language formatting APIs.
     #:
-    #: Four tokens from the old file are deliberately absent, having equivalents rather
-    #: than being losses: `auth.login.button` (the merged file uses
-    #: `auth.login.title`/`submit_button` for the same semantic-key rule) and
-    #: `dashboard.json`/`errors.json` (its File Organization block uses
-    #: `common.json`/`auth.json`/`settings.json`).
+    #: THREE tokens from the old file are deliberately absent, having equivalents rather
+    #: than being losses: `auth.login.button` (the merged file teaches the same
+    #: semantic-key rule with `auth.login.title` / `submit_button`) and
+    #: `dashboard.json` / `errors.json` (its File Organization block uses
+    #: `common.json` / `auth.json` / `settings.json`).
     FOLDED_FROM_I18N_WORKFLOW = [
         # headings
         "Gender / Select", "Nested (select wrapping plural)", "Relative Time",
