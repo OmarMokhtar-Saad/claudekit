@@ -1,0 +1,15 @@
+{
+  "plan": "triage-refresh",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/plans/archive/README.md",
+      "edits": [
+        {
+          "find": "Plan: `plan-triage-refresh.md`. |",
+          "replace": "**Follow-up config, same directory:** the entry's HEADLINE still said \"45 unverified\" after its body had been corrected \u2014 the line a skim actually reads. Fixed and marked done. Leaving a stale summary above an accurate body is how the original error propagated. Plan: `plan-triage-refresh.md`. |"
+        }
+      ]
+    }
+  ]
+}

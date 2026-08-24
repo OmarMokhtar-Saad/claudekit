@@ -1,0 +1,15 @@
+{
+  "plan": "triage-refresh",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".ai/BACKLOG.md",
+      "edits": [
+        {
+          "find": "- [ ] **Triage `review/code-review.md` \u2014 partially done 2026-08-24. 30 of 75 P2/P3 findings\n  verified: 19 already fixed, 11 still real. 45 unverified.**\n",
+          "replace": "- [x] **Triage `review/code-review.md` \u2014 DONE. Pointer only; verdicts live in\n  `review/code-review-triage.md` (40 LIVE, 62 FIXED, 5 OBSOLETE, 1 UNVERIFIABLE at `d945278`).**\n\n  This headline used to read \"30 of 75 P2/P3 findings verified ... 45 unverified\", which the body\n  below already corrects \u2014 and leaving the wrong number in the *headline* is how the error\n  propagated in the first place, since that is the line a skim reads. A stale summary above an\n  accurate body is worse than no summary.\n"
+        }
+      ]
+    }
+  ]
+}
