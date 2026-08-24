@@ -25,10 +25,10 @@ index never outranks the current files.
 | `drifted` | 3 |
 | `approved` | 49 |
 | `planned` | 9 |
-| `executed` | 17 |
+| `executed` | 18 |
 | `not_started` | 15 |
 | `legacy` | 3 |
-| **total** | **96** |
+| **total** | **97** |
 
 ## Plans
 
@@ -54,6 +54,7 @@ index never outranks the current files.
 | `.claude/plans/plan-capability-tiers.md` | `drifted` | 1 |  |
 | `.claude/plans/plan-ck-adapt.md` | `approved` | 1 |  |
 | `.claude/plans/plan-cli-live-findings.md` | `executed` | 4 |  |
+| `.claude/plans/plan-close2.md` | `executed` | 2 |  |
 | `.claude/plans/plan-code-review-triage.md` | `approved` | 1 |  |
 | `.claude/plans/plan-command-bash-placeholders.md` | `executed` | 2 |  |
 | `.claude/plans/plan-context-budget-lazy-skills.md` | `not_started` | 0 |  |

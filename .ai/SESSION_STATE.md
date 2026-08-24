@@ -25,6 +25,44 @@ last bundles items 3 and 4 plus this close, because they share `.ai/BACKLOG.md`,
 `archive/README.md` and `INDEX.md` and splitting would have meant partial-staging the same
 files. Its message says so and carries a `Plan-Id:` trailer per plan.
 
+**A second stretch followed, and it closed a three-week-old mystery.** Commits `7aa0e45`
+and `0e35e91` fix **eight of the eleven** findings the triage confirmed live, and diagnose
+the `UNEXPLAINED` intermittent.
+
+- **`7aa0e45` — four `cli/main.py` findings.** Colour was unconditional (ANSI into every
+  pipe and CI log; now `NO_COLOR`/tty/`FORCE_COLOR`); `ck doctor` hung forever on a wedged
+  `bash` or `git`; `ck config` raised a traceback on a malformed `config.json`;
+  `cmd_rollback` had two byte-identical branches. **One existing test had to change and that
+  was itself a finding** — `test_gate_scope.py` asserted raw ANSI in output captured through
+  a pipe, so it *required* the defect and was the only thing that would have "caught" the fix.
+- **`0e35e91` — three hook findings + the intermittent.** The checkpoint cap was exceeded on
+  every other run (two guards disagreeing by one, measured as a 3→4→3→4 oscillation); the
+  registry was read-modify-written twice with no mutex; failure output was truncated to
+  `tail -20`. **The review named three truncation sites; asserting the property found six.**
+- **THE INTERMITTENT IS DIAGNOSED.** `secrets.token_urlsafe` emits a leading `-` about
+  **1.53%** of the time (306 of 20 000), and every caller passed `--session-token <value>`,
+  so argparse read the token as the next flag — exactly the recorded signature. It never
+  reproduced because **the coin flip is inside the secret**. Fixed at generation (redraw, not
+  strip) plus `--session-token=` at the call sites; tests pin the behaviour **and the
+  premise**. `.ai/BACKLOG.md` keeps the original record in full.
+  **What caught it was the rule adopted one commit earlier: keep the whole suite output.**
+  The capture had fired twice before and the harness threw it away both times.
+
+**Four defects of my own this stretch, each recorded where it will be hit again:** markdown
+backticks inside a `python3 -c "..."` shell string (the shell would have executed them —
+shellcheck caught it, which is the argument for the unlanded command-bash gate); a test that
+forbade the bare string it was documenting; a fake wedged `bash` that forked a `sleep` and
+orphaned it, so `timeout=` did not bound the wall clock (**the product limit is now recorded
+at `PROBE_TIMEOUT`** rather than claimed away); and `git checkout --` used to undo a mutation,
+which also reverted an uncommitted fix. **One mutation proof reported GREEN for the wrong
+reason** — BSD `sed` silently ignores `0,/re/`, so the mutant never applied. A mutation proof
+is only evidence if the mutation landed.
+
+**Still deferred, with numbers rather than a shrug:** the `log()` dedup across 14 hooks.
+`lib.sh` already ships `hlog()` and one hook already delegates, but the 14 definitions are
+**four distinct implementations** and **only 2 of the 14 source `lib.sh` at all** — a 12-file
+change to the hook layer for deduplication with no user-visible defect behind it.
+
 1. `cfc8a09` — task 008's paper trail: batch 3 in `CHANGELOG.md` (written for users), the
    resume point rewritten, and `TASK-008-SIGNOFF.md` recording the five places that sheet
    was measurably wrong.
@@ -42,7 +80,13 @@ files. Its message says so and carries a `Plan-Id:` trailer per plan.
    an input *redirection*). All six fixed, two synopses re-fenced `text`, zero parse errors
    left.
 
-**The open decision, and it is the only one:** the parse-error gate for command bash is
+**Open decisions — three now, not one** (the line below said "the only one" before the third
+period added two): the **enforcement trio** from the code-review triage (`ExecutionLock` on
+Windows, `file-guard.sh`'s extension blocking, `config.schema.json`'s "195+ patterns" claim),
+and the **`log()` dedup across 14 hooks** (12 files would gain a `lib.sh` source line).
+Both are described above. The third:
+
+**The command-bash parse-error gate:** it is
 written, narrow (parse errors only, style findings out of scope) and currently green — and
 **not landed**, because enabling a new CI gate is owner-gated and the pytest suite is CI.
 Details in `plan-command-bash-placeholders.md` § "THE GATE IS NOT LANDED".
@@ -75,10 +119,12 @@ the wrong home for those verdicts.** That is an owner call and is flagged in bot
    slot changed agent), `docs` called without a `mode` (now inferred from whether the target
    exists), and `model-route` (three tiers where four labels used to be). **Owner-gated on
    API quota.**
-2. **The 45 unverified `code-review.md` findings**, and the 11 confirmed ones — three of
-   which touch the enforcement layer (`ExecutionLock` is not a lock on Windows,
-   `file-guard.sh`'s extension blocking, `config.schema.json:75` advertising "195+ patterns"
-   for a ~60-pattern hook wired into nothing) and are owner-gated.
+2. **The 45 unverified `code-review.md` findings.** Of the 11 confirmed live, **8 are now
+   fixed** (`7aa0e45`, `0e35e91`). The remaining three are the **enforcement trio and stay
+   owner-gated**: `ExecutionLock` is not a lock on Windows and its `release()` unlinks a lock
+   another process may hold, `file-guard.sh` blocks `.pem`/`.key`/`.crt` by extension with no
+   allowlist, and `config.schema.json:75` advertises "195+ patterns" for a ~60-pattern hook
+   that is wired into nothing.
 3. **The command diet proper.** `refine` 464, `ship` 228, `gan-build` 227, `opensource` 222,
    `loop-start` 220. **Measure before cutting — command bodies are NOT in the always-on
    context floor** (only descriptions, ~4,730/6,000), so this is readability and
