@@ -1,0 +1,23 @@
+{
+  "plan": "review-2",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "scripts/check-fileguard-differential.py",
+      "edits": [
+        {
+          "find": "    \"tests/fixtures/.env\", \"test/secrets.json\", \"tests/credentials.json\",",
+          "replace": "    # Cert-EXTENSIONED members of other categories. The corpus lacked every one of these\n    # because it was rebuilt around the previous hole: v2's allowlist was gated on the\n    # extension, so a corpus whose test-component entries all avoided that extension set\n    # could not see the hole. `k8s/tests/tls.key` is the canonical checked-in TLS secret.\n    \"k8s/tests/tls.key\", \"tests/fixtures/.ssh/deploy.key\", \"tests/api_key.key\",\n    \"pii/tests/customers.key\", \"production/tests/data.key\",\n    \"tests/credentials.json.pem\", \"testdata/wallet.dat.key\", \"fixtures/prod.sqlite.crt\",\n    \"secrets/tests/db.bak.p12\",\n    \"tests/fixtures/.env\", \"test/secrets.json\", \"tests/credentials.json\","
+        },
+        {
+          "find": "_CATEGORY = re.compile(r\"BLOCKED \\[([a-z-]+)\\]\")",
+          "replace": "# `[a-z0-9-]`, with the digit: `k8s-secrets` did not match, so a legitimate category was\n# reported as the `flagged-uncategorised` sentinel meant for a BROKEN guard -- and a\n# genuinely unparseable output became indistinguishable from a normal one.\n_CATEGORY = re.compile(r\"BLOCKED \\[([a-z0-9-]+)\\]\")"
+        },
+        {
+          "find": "        for canary in (\".env\", \"id_rsa\"):\n            if classify(before_path, canary) is None:\n                print(\"FAIL: the baseline guard does not flag %s -- it is empty, \"\n                      \"truncated or broken, and comparing against it would pass \"\n                      \"vacuously.\" % canary)\n                return 1\n",
+          "replace": "        for canary in (\".env\", \"id_rsa\"):\n            if classify(before_path, canary) is None:\n                print(\"FAIL: the baseline guard does not flag %s -- it is empty, \"\n                      \"truncated or broken, and comparing against it would pass \"\n                      \"vacuously.\" % canary)\n                return 1\n        # Two named canaries are not enough: a baseline that flags ONLY those two makes\n        # every other corpus path look already-clean, so no regression can be recorded and\n        # the gate prints OK. Require a floor on how much the baseline actually flags.\n        baseline_flagged = sum(1 for path in CORPUS if classify(before_path, path))\n        floor = int(len(CORPUS) * 0.5)\n        if baseline_flagged < floor:\n            print(\"FAIL: the baseline guard flags only %d of %d corpus paths (floor %d). \"\n                  \"A baseline that classifies almost nothing cannot reveal a regression.\"\n                  % (baseline_flagged, len(CORPUS), floor))\n            return 1\n"
+        }
+      ]
+    }
+  ]
+}

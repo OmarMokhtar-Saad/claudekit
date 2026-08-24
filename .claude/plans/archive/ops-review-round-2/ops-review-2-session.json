@@ -1,0 +1,29 @@
+{
+  "plan": "review-2",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/session-start.sh",
+      "edits": [
+        {
+          "find": "        _ctx_excerpt=$(head -20 \"$CONTEXT_FILE\")\n        _ctx_scanner=\"\"\n        for _cand in \"$SCRIPT_DIR/prompt-injection-scanner.sh\" \\\n                     \".claude/hooks/prompt-injection-scanner.sh\"; do\n            [ -f \"$_cand\" ] && { _ctx_scanner=\"$_cand\"; break; }\n        done\n",
+          "replace": "        # `head -c` as well as `head -20`: a 2 MB single-line context file passed the\n        # line bound and was printed in full (measured: 2,000,154 characters).\n        _ctx_excerpt=$(head -20 \"$CONTEXT_FILE\" | head -c 4000)\n        # ONE candidate, resolved from this script's own directory. The cwd-relative\n        # second candidate is gone: a hostile cwd could supply its own scanner that\n        # exits 0 and the payload printed.\n        _ctx_scanner=\"\"\n        [ -f \"$SCRIPT_DIR/prompt-injection-scanner.sh\" ] &&\n            _ctx_scanner=\"$SCRIPT_DIR/prompt-injection-scanner.sh\"\n"
+        },
+        {
+          "find": "        elif printf '%s\\n' \"$_ctx_excerpt\" | bash \"$_ctx_scanner\" >/dev/null 2>&1; then\n            printf '%s\\n' \"$_ctx_excerpt\" | sed 's/^/  /'\n        else\n            echo \"  (not shown: the excerpt matched a prompt-injection pattern. The file is\"\n            echo \"   unchanged on disk. Inspect $CONTEXT_FILE, then /resume-session if it is\"\n            echo \"   legitimate.)\"\n            log \"WARN\" \"session context withheld: injection pattern in $CONTEXT_FILE\"\n        fi",
+          "replace": "        else\n            printf '%s\\n' \"$_ctx_excerpt\" | bash \"$_ctx_scanner\" >/dev/null 2>&1\n            _ctx_rc=$?\n            if [ \"$_ctx_rc\" -eq 0 ]; then\n                printf '%s\\n' \"$_ctx_excerpt\" | sed 's/^/  /'\n            elif [ \"$_ctx_rc\" -eq 1 ]; then\n                echo \"  (not shown: the excerpt matched a known injection pattern. The file\"\n                echo \"   is unchanged on disk. Inspect $CONTEXT_FILE, then /resume-session\"\n                echo \"   if it is legitimate.)\"\n                log \"WARN\" \"session context withheld: injection pattern in $CONTEXT_FILE\"\n            else\n                # Exit 1 is the scanner's DETECTION code; anything else is the scanner\n                # failing. Reporting a crash as \"injection detected\" is a lie about a\n                # benign file, and the two were indistinguishable before -- a cwd without\n                # `.claude/hooks/` made the scanner exit non-zero on its own log write.\n                echo \"  (not shown: the injection scanner failed (exit $_ctx_rc), so the\"\n                echo \"   excerpt was not checked. This is a scanner problem, not a finding\"\n                echo \"   about $CONTEXT_FILE.)\"\n                log \"WARN\" \"session context withheld: scanner error rc=$_ctx_rc\"\n            fi\n            unset _ctx_rc\n        fi"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/prompt-injection-scanner.sh",
+      "edits": [
+        {
+          "find": "HOOK_NAME=\"prompt-injection-scanner\"\nLOG_FILE=\".claude/hooks/hooks.log\"",
+          "replace": "HOOK_NAME=\"prompt-injection-scanner\"\n# `$SCRIPT_DIR`, not cwd-relative. This was the FOURTH cwd-relative log-path form in this\n# directory (finding F107). It was not cosmetic here: `set -e` on line 2 plus a log write\n# to a non-existent `./.claude/hooks/` made the scanner exit NON-ZERO on a benign input,\n# and `session-start.sh` reads any non-zero as \"injection detected\" -- so a session whose\n# cwd lacked that directory reported a phantom finding about an innocent file.\nSCANNER_DIR=\"$(cd \"$(dirname \"${BASH_SOURCE[0]}\")\" && pwd)\"\nLOG_FILE=\"${LOG_FILE:-$SCANNER_DIR/hooks.log}\""
+        }
+      ]
+    }
+  ]
+}

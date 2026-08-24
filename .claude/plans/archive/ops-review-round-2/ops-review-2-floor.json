@@ -1,0 +1,19 @@
+{
+  "plan": "review-2",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "scripts/check-fileguard-differential.py",
+      "edits": [
+        {
+          "find": "        # Two named canaries are not enough: a baseline that flags ONLY those two makes\n        # every other corpus path look already-clean, so no regression can be recorded and\n        # the gate prints OK. Require a floor on how much the baseline actually flags.\n        baseline_flagged = sum(1 for path in CORPUS if classify(before_path, path))\n        floor = int(len(CORPUS) * 0.5)\n        if baseline_flagged < floor:\n            print(\"FAIL: the baseline guard flags only %d of %d corpus paths (floor %d). \"\n                  \"A baseline that classifies almost nothing cannot reveal a regression.\"\n                  % (baseline_flagged, len(CORPUS), floor))\n            return 1\n",
+          "replace": "        # Two named canaries are not enough: a baseline flagging ONLY those two makes every\n        # other corpus path look already-clean, so no regression can be recorded and the\n        # gate prints OK. The floor is a fixed set of ROOT-LEVEL canonical secrets rather\n        # than a fraction of CORPUS, deliberately: a fraction also fires when the baseline\n        # merely has a BUG that frees some paths (measured: `d945278` flags 31 of 76,\n        # because that is the commit whose allowlist this gate exists to have caught), and\n        # conflating \"broken baseline\" with \"buggy baseline\" would make the gate refuse to\n        # run in exactly the case it is for. These twelve are category-diverse and none\n        # sits under a test component, so any guard that classifies at all flags them.\n        floor_missing = [p for p in BASELINE_FLOOR if classify(before_path, p) is None]\n        if len(floor_missing) > 2:\n            print(\"FAIL: the baseline guard does not flag %d of %d canonical root-level \"\n                  \"secrets (%s). It is empty, truncated or broken, and comparing against \"\n                  \"it would pass vacuously.\"\n                  % (len(floor_missing), len(BASELINE_FLOOR), \", \".join(floor_missing)))\n            return 1\n"
+        },
+        {
+          "find": "_CATEGORY = re.compile(r\"BLOCKED \\[([a-z0-9-]+)\\]\")",
+          "replace": "# Root-level, category-diverse, none under a test component: any guard that classifies at\n# all flags these. Used as the vacuity floor for a baseline (see main()).\nBASELINE_FLOOR = [\n    \".env\", \"id_rsa\", \"credentials.json\", \"secrets.yaml\", \"private.pem\",\n    \"wallet.dat\", \"passwd\", \".npmrc\", \"prod.sqlite\", \".pgpass\",\n    \"k8s/secret-db.yaml\", \"pii/customers.csv\",\n]\n\n_CATEGORY = re.compile(r\"BLOCKED \\[([a-z0-9-]+)\\]\")"
+        }
+      ]
+    }
+  ]
+}

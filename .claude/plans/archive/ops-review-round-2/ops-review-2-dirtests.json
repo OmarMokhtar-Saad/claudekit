@@ -1,0 +1,15 @@
+{
+  "plan": "review-2",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_fileguard_allowlist.py",
+      "edits": [
+        {
+          "find": "def test_the_allowlist_is_applied_to_the_classification_not_ahead_of_it():",
+          "add_before": "# Directories that signal secrets override a test-shaped path. `k8s/tests/tls.key` is why:\n# branch 13 needs the word \"secret\" in the path, so a TLS key called `tls.key` never\n# reaches it, falls through to `certificates`, and a `tests/` component freed it. The\n# DIFFERENTIAL GATE caught that one, not this file -- the ratchet earning its keep.\nSECRET_DIRS = [\"k8s\", \"kubernetes\", \"pii\", \"production\", \"prod\", \"secrets\",\n               \"credentials\", \".ssh\", \".aws\", \".gnupg\", \"vault\", \"keys\"]\n\n\n@pytest.mark.parametrize(\"directory\", SECRET_DIRS)\n@pytest.mark.parametrize(\"ext\", [\".pem\", \".key\", \".crt\", \".p12\", \".pfx\"])\ndef test_a_secret_directory_beats_a_test_component(directory, ext):\n    \"\"\"\"No stronger category fired\" is not the same as \"nothing here is sensitive\".\"\"\"\n    path = f\"{directory}/tests/fixtures/anonymous{ext}\"\n    assert classify(path) is not None, f\"{path} was freed by its test component\"\n\n"
+        }
+      ]
+    }
+  ]
+}

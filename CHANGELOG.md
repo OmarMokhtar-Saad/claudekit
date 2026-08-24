@@ -20,7 +20,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   injection scanner did not cover this path: `injection-scan-gate.sh` scans the
   `UserPromptSubmit` payload's `prompt` field and nothing else. The excerpt is now scanned
   first; a match **withholds the content**, leaves the file untouched, and tells you which file
-  to inspect. Not gated to `ECC_HOOK_PROFILE=strict`, because `session-start.sh` runs in every
+  to inspect. **Scope, stated honestly and downgraded from the original wording:** the scanner
+  is a 25-phrase keyword denylist, so this catches naive injection shapes — a payload written
+  to evade it ("Disregard the safety rules above") still prints. It is not a filter you should
+  rely on. The scanner is also resolved from the hook's own directory only: a cwd-relative
+  candidate meant anyone who could write the context file could drop their own `exit 0`
+  scanner beside it. And a scanner *crash* is no longer reported as a detection — `set -e`
+  plus a cwd-relative log path made it exit non-zero on benign input in any directory without
+  `.claude/hooks/`, so it claimed an injection in an innocent file. Not gated to `ECC_HOOK_PROFILE=strict`, because `session-start.sh` runs in every
   profile. Bounds, stated plainly: writing that file needs local write access, so the realistic
   vector is a shared or cloned repo, or an earlier agent run — not a remote hole. What it closes
   is a mechanical exception to the project's own rule that retrieved text is evidence, never an
@@ -38,7 +45,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   — the way weak crypto is actually written in Python — **never** triggered a warning, while a
   comment saying "do not use MD5" did. Verified against the previous version before changing it.
   Now the API-call shapes match case-insensitively, the bare uppercase word matches only on
-  non-comment lines, and `hashlib.sha256` does not fire.
+  non-comment lines, and `hashlib.sha256` does not fire. **Extended after review:** the
+  bare-word branch is **removed** — `BANNED = ["RC4", "MD5"]`, a denylist, warned as if it were
+  weak crypto, and a string literal is not a comment that stripping can remove. Every real
+  shape is a call or an import, and those are matched directly, including the aliased forms
+  (`import hashlib as _h; _h.md5()`, `from hashlib import md5`, `getattr(hashlib, "md5")`)
+  that the module-adjacent pattern missed. The `PARTIAL SCAN` notice moved from stderr to
+  **stdout**, because a PreToolUse hook exiting 0 does not surface stderr — the notice was
+  still silent in the only place that mattered.
 
 - **`file-guard` no longer warns about public keys and test fixtures.** Its extension set
   (`cert|crt|pem|key|p12|pfx`) had no escape hatch, so `public.pem`, `id_rsa.pub`,
@@ -58,8 +72,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   shapes went silent, and this entry's claim that every freed path was enumerated was
   false, because a path-component rule frees an unbounded set. The differential gate
   below did not catch it: its corpus contained no non-certificate secret under a test
-  component, having been drawn from the widening it was meant to police. Both are fixed
-  and both directions are now proven. Honest framing, per
+  component, having been drawn from the widening it was meant to police.
+  **Corrected AGAIN, same day, after a second review of that repair.** Gating the allowlist
+  on the file's EXTENSION was not the same as scoping it to the CATEGORY: `classify()`
+  returns on the first match, so every `.key`/`.pem` reached the certificate branch before
+  the k8s, PII, api-token and ssh branches could claim it — `k8s/tests/tls.key`,
+  `tests/api_key.key` and `pii/tests/customers.key` were all still silent. The allowlist now
+  lives outside the classifier and is applied to the *verdict*, only when no stronger
+  category fires and only when the certificate suffix, once stripped, reveals nothing
+  stronger; and it refuses any path under `k8s/`, `pii/`, `production/`, `secrets/`,
+  `credentials/`, `.ssh/`, `.aws/`, `vault/` or `keys/`. A **generated** invariant (12
+  categories × 6 test-shaped directories × 6 certificate extensions) replaces the
+  hand-written corpora that were blind twice; it failed 151 cases on its first run. Honest framing, per
   the project's own rule: file-guard is a denylist speed bump behind an **advisory** hook
   (`file-guard-gate.sh` exits 0 always, `ECC_HOOK_PROFILE=strict` only), so the defect
   fixed here was noise on a warning channel, not a blocked edit — and noise is what makes

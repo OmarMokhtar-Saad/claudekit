@@ -114,9 +114,95 @@ def test_secrets_and_near_misses_stay_flagged(path, category):
     assert actual == category, f"{path}: expected {category}, got {actual}"
 
 
-def test_the_allowlist_runs_before_the_denylist():
-    """Ordering is the mechanism: a later allowlist would never be reached."""
+# ---------------------------------------------------------------------------
+# The generated invariant. This class of defect has now shipped THREE times:
+#   v1  the allowlist sat above all 13 branches and exempted every category;
+#   v2  it was gated on the EXTENSION, which is not the category -- classify()
+#       returns on the first match, so every `.key`/`.pem` reached the certificate
+#       branch before branches 9-13 could claim it (`k8s/tests/tls.key` went silent);
+#   v3  (current) it is applied to the CLASSIFICATION, and only when no stronger
+#       category also matches.
+# Three occurrences of one class earn a mechanical check rather than more examples.
+# Hand-picked paths cannot carry this: both previous corpora were thorough and both
+# were blind, because each was written around the hole that had just been found.
+#
+# The property, stated once: a file that a NON-CERTIFICATE category owns must stay
+# flagged no matter what certificate extension it carries or which test-shaped
+# directory it sits in. Generated, so it cannot be blind to the next variation.
+# ---------------------------------------------------------------------------
+
+# One exemplar per non-certificate category, with the category it must keep.
+CATEGORY_EXEMPLARS = [
+    (".env", "env-files"),
+    ("credentials.json", "credential-files"),
+    ("id_rsa", "ssh-keys"),
+    ("api_key.txt", "api-tokens"),
+    (".aws/credentials", "cloud-configs"),
+    ("prod.sqlite", "database-files"),
+    ("vault-secrets.yml", "cicd-secrets"),
+    ("passwd", "password-files"),
+    ("wallet.dat", "crypto-wallets"),
+    ("secrets/backup.bak", "sensitive-backups"),
+    ("pii/customers.csv", "production-data"),
+    ("k8s/secret-db.yaml", "k8s-secrets"),
+]
+
+TEST_PREFIXES = ["", "tests/", "fixtures/", "testdata/", "spec/fixtures/", "__fixtures__/"]
+CERT_EXTENSIONS = ["", ".pem", ".key", ".crt", ".p12", ".pfx"]
+
+
+def _generated_cases():
+    for exemplar, category in CATEGORY_EXEMPLARS:
+        for prefix in TEST_PREFIXES:
+            for ext in CERT_EXTENSIONS:
+                yield f"{prefix}{exemplar}{ext}", category
+
+
+@pytest.mark.parametrize("path,category", list(_generated_cases()))
+def test_a_non_certificate_category_survives_any_cert_extension_anywhere(path, category):
+    """A stronger category must beat the certificate allowlist, always.
+
+    `.pub` is deliberately NOT in CERT_EXTENSIONS: a public key IS the half you
+    publish, so `id_rsa.pub` being clean is intended behaviour and is asserted in
+    FREED above -- not a hole. Every other certificate extension is a claim about
+    the file's FORMAT and says nothing about whether it holds a secret.
+    """
+    actual = classify(path)
+    assert actual is not None, (
+        f"{path} lost its flag: a {category} file is still a {category} file when it "
+        f"carries a certificate extension or sits under a test directory"
+    )
+
+# Directories that signal secrets override a test-shaped path. `k8s/tests/tls.key` is why:
+# branch 13 needs the word "secret" in the path, so a TLS key called `tls.key` never
+# reaches it, falls through to `certificates`, and a `tests/` component freed it. The
+# DIFFERENTIAL GATE caught that one, not this file -- the ratchet earning its keep.
+SECRET_DIRS = ["k8s", "kubernetes", "pii", "production", "prod", "secrets",
+               "credentials", ".ssh", ".aws", ".gnupg", "vault", "keys"]
+
+
+@pytest.mark.parametrize("directory", SECRET_DIRS)
+@pytest.mark.parametrize("ext", [".pem", ".key", ".crt", ".p12", ".pfx"])
+def test_a_secret_directory_beats_a_test_component(directory, ext):
+    """"No stronger category fired" is not the same as "nothing here is sensitive"."""
+    path = f"{directory}/tests/fixtures/anonymous{ext}"
+    assert classify(path) is not None, f"{path} was freed by its test component"
+
+def test_the_allowlist_is_applied_to_the_classification_not_ahead_of_it():
+    """Structure is the mechanism, and the structure changed twice for the same reason.
+
+    The allowlist used to sit at the top of `classify()`, where it exempted every
+    category. It now lives in `check_file()`, applied only once `classify()` has said
+    `certificates` AND no stronger category claims the file. This asserts that shape
+    directly, because it is the property the two prior defects violated.
+    """
     body = GUARD.read_text()
-    allow = body.index("# 0. Public-by-construction")
-    certs = body.index("# 8. Certificates and private keys")
-    assert allow < certs
+    assert "public_material" in body
+    # The allowlist must NOT be inside classify(): everything between `classify() {` and
+    # `check_file() {` is the classifier, and a return-early exemption there is the bug.
+    classifier = body[body.index("classify() {"):body.index("public_material() {")]
+    assert "public_material" not in classifier, (
+        "the allowlist is inside classify() again -- classify() returns on the first "
+        "match, so an exemption there applies to every category below it"
+    )
+    assert "stronger=$(classify" in body, "the stronger-category check is gone"

@@ -1,0 +1,15 @@
+{
+  "plan": "review-2",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_command_bash_parse.py",
+      "edits": [
+        {
+          "find": "    import re\n    suspicious = []\n    for path in sorted(COMMANDS.glob(\"*.md\")):\n        for tag in re.findall(r\"^\\s*```\\s*([A-Za-z][\\w+-]*)\", path.read_text(), re.M):\n            low = tag.lower()\n            if low in SHELL_TAGS:\n                continue\n            if low in {\"console\", \"shell-session\", \"sh-session\", \"bash-session\", \"ksh\",\n                       \"fish\", \"shellscript\"}:\n                suspicious.append(f\"{path.name}: ```{tag}\")\n    assert not suspicious, (\n        \"shell-ish fences the parse gate does not lint:\\n\" + \"\\n\".join(suspicious)\n    )",
+          "replace": "    import re\n    # ALLOWLIST, not a denylist of shell-ish spellings. The first version listed seven\n    # names it considered suspicious, so a new spelling (`shellsession`, `terminal`,\n    # `bashrc`) passed silently -- and since the corpus contains only bash/markdown/json/\n    # text, that test could not fail at all. A census that cannot fail is not a census.\n    KNOWN_SAFE = SHELL_TAGS | {\n        \"markdown\", \"md\", \"json\", \"text\", \"txt\", \"yaml\", \"yml\", \"toml\", \"diff\",\n        \"python\", \"py\", \"javascript\", \"js\", \"typescript\", \"ts\", \"html\", \"css\", \"xml\",\n    }\n    unknown = []\n    for path in sorted(COMMANDS.glob(\"*.md\")):\n        for tag in re.findall(r\"^\\s*```\\s*([A-Za-z][\\w+-]*)\", path.read_text(), re.M):\n            if tag.lower() not in KNOWN_SAFE:\n                unknown.append(f\"{path.name}: ```{tag}\")\n    assert not unknown, (\n        \"unrecognised fence languages. If any of these is shell, add it to SHELL_TAGS so \"\n        \"the parse gate lints it; otherwise add it to KNOWN_SAFE:\\n\" + \"\\n\".join(unknown)\n    )"
+        }
+      ]
+    }
+  ]
+}

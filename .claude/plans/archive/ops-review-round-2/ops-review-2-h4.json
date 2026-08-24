@@ -1,0 +1,15 @@
+{
+  "plan": "review-2",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/file-guard.sh",
+      "edits": [
+        {
+          "find": "    local _stem=\"${basename%%.*}\"\n    if [[ \"$basename\" == *\"customer\"* ]] && [[ \"$basename\" == *\"data\"* ]] &&\n       [[ \"$_stem\" != *[-_]schema ]] && [[ \"$_stem\" != *[-_]model ]]; then\n        echo \"production-data\"; return\n    fi",
+          "replace": "    # Predicate on the PATH (so `customer/data/dump.csv` counts, where the words are\n    # directories), exclusion on the BASENAME. Two conditions, both required, because\n    # each alone was defeated:\n    #   * the stem must END in `-schema`/`_schema`/`-model`/`_model` -- not merely contain\n    #     it, or `customerdata-schema.csv` and a bare `*schema*` substring slip through; and\n    #   * the EXTENSION must be a description format. `${basename%%.*}` alone freed\n    #     `customer_data_schema.sql.bak` -- a BACKUP of the data -- because stripping every\n    #     suffix left a stem ending in `_schema`. A `.bak`, `.gz`, `.csv` or `.dump` is\n    #     data no matter what the stem says; a `.sql`/`.md`/`.json` schema is a description.\n    local _stem=\"${basename%%.*}\"\n    local _ext\n    _ext=\"$(printf '%s' \"${basename##*.}\" | tr '[:upper:]' '[:lower:]')\"\n    local _is_description=0\n    case \"$_ext\" in\n        sql|md|json|yaml|yml|graphql|prisma|proto|xsd|rst|txt) _is_description=1 ;;\n    esac\n    if [[ \"$filepath\" == *\"customer\"* ]] && [[ \"$filepath\" == *\"data\"* ]]; then\n        if [ \"$_is_description\" -eq 1 ] &&\n           { [[ \"$_stem\" == *[-_]schema ]] || [[ \"$_stem\" == *[-_]model ]]; }; then\n            :   # a schema or model DESCRIPTION, in a description format\n        else\n            echo \"production-data\"; return\n        fi\n    fi"
+        }
+      ]
+    }
+  ]
+}

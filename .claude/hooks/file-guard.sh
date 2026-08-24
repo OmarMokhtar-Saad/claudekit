@@ -29,52 +29,13 @@ block() {
 # Classify a single file path against 13 sensitive-file categories.
 # Returns the category name if blocked, empty string if allowed.
 # ---------------------------------------------------------------------------
+# `$2` = "skip_certs": classify as if the certificate branch did not exist. That is how
+# the allowlist below is scoped to the category it was written for -- see public_material().
 classify() {
     local filepath="$1"
+    local skip_certs="${2:-}"
     local basename
     basename=$(basename "$filepath")
-
-    # 0. Public-by-construction and test material, checked BEFORE any denylist.
-    #
-    # The extension set below is right -- a `.pem` usually IS a key. The problem was
-    # that "usually" had no escape hatch: `public.pem`, `id_rsa.pub`, `ca-bundle.crt`
-    # and every `.pem` under `tests/fixtures/` classified as `certificates`, and this
-    # classifier is wired through an ADVISORY hook (`file-guard-gate.sh` exits 0 always,
-    # `strict` profile only). So the cost was not a blocked edit -- it was a warning that
-    # cries wolf, and an advisory nobody believes is worse than none.
-    #
-    # An allowlist rather than a narrower denylist, deliberately: hard rule 6 calls this
-    # a speed bump, and a speed bump needs a marked exit or people drive around it.
-    #
-    # SCOPED TO THE EXTENSION SET THAT MOTIVATED IT. The first version of this allowlist
-    # (2026-08-24, same day) `return`ed before branches 1-13, so a `test`/`fixtures` path
-    # component was not a certificate exemption -- it was a blanket exemption from ALL
-    # thirteen categories. An adversarial review executed it and found ten regressions,
-    # every one a real secret shape: `tests/fixtures/.env`, `test/secrets.json`,
-    # `tests/credentials.json`, `tests/id_rsa`, `testdata/wallet.dat`,
-    # `spec/fixtures/terraform.tfstate`, `k8s/tests/secret-db.yaml` and three under `pii/`.
-    # A checked-in `.env` under `tests/fixtures/` and a `terraform.tfstate` under
-    # `testdata/` are the two commonest real shapes of a leaked secret, and both went
-    # silent. The differential gate written in the same commit reported OK, because its
-    # corpus was drawn from the widening it was meant to police.
-    #
-    # So the gate is now the extension itself: the allowlist is reachable ONLY for the
-    # certificate/key extensions whose false positives justified it. `pub` is in the set
-    # because `id_rsa.pub` is the canonical public-key case; nothing else changes.
-    case "${basename##*.}" in
-        cert|crt|pem|key|p12|pfx|pub)
-            # Narrow on purpose, and STEM/COMPONENT matching, never substring:
-            # `publickeys.pem`, `samples.key` and `latest.pem` all stay flagged.
-            case "$basename" in
-                public.*|*.pub|ca-bundle.*|ca-certificates.*|example.*|sample.*|dummy.*)
-                    echo ""; return ;;
-            esac
-            case "/$filepath" in
-                */test/*|*/tests/*|*/testdata/*|*/fixtures/*|*/spec/fixtures/*|*/__fixtures__/*)
-                    echo ""; return ;;
-            esac
-            ;;
-    esac
 
     # 1. Env files
     case "$basename" in
@@ -132,11 +93,15 @@ classify() {
         echo "cicd-secrets"; return
     fi
 
-    # 8. Certificates and private keys
-    case "${basename##*.}" in
-        cert|crt|pem|key|p12|pfx)
-            echo "certificates"; return ;;
-    esac
+    # 8. Certificates and private keys. Extension lowercased: `SERVER.PEM` was clean,
+    # and since the allowlist is scoped by this classification, its case-sensitivity is
+    # load-bearing in a way it was not when it was only a denylist branch.
+    if [ -z "$skip_certs" ]; then
+        case "$(printf '%s' "${basename##*.}" | tr '[:upper:]' '[:lower:]')" in
+            cert|crt|pem|key|p12|pfx)
+                echo "certificates"; return ;;
+        esac
+    fi
 
     # 9. Password files
     case "$basename" in
@@ -175,9 +140,35 @@ classify() {
     # Anchored to the `-schema.`/`_schema.` and `-model.`/`_model.` SHAPES, not to the bare
     # substrings: `customer-data-schema-dump.sql` is a dump -- it IS data -- and stays
     # flagged, where a bare `*schema*` freed it.
-    if [[ "$filepath" == *"customer"*"data"* ]] &&
-       [[ "$basename" != *[-_]schema.* ]] && [[ "$basename" != *[-_]model.* ]]; then
-        echo "production-data"; return
+    # Anchored to the END OF THE STEM and matched on the BASENAME, not the path. The
+    # first version tested `*[-_]schema.*` against the basename while the predicate tested
+    # the whole path, so `customer_data_schema.sql.bak` (a BACKUP of the data),
+    # `customerdata-schema.csv` (no separator at all) and `customer/data/dump-schema.csv`
+    # (the words are DIRECTORIES; the basename is a dump) were all freed. Same defect as
+    # the exclusion it replaced, one anchoring level up.
+    # Predicate on the PATH (so `customer/data/dump.csv` counts, where the words are
+    # directories), exclusion on the BASENAME. Two conditions, both required, because
+    # each alone was defeated:
+    #   * the stem must END in `-schema`/`_schema`/`-model`/`_model` -- not merely contain
+    #     it, or `customerdata-schema.csv` and a bare `*schema*` substring slip through; and
+    #   * the EXTENSION must be a description format. `${basename%%.*}` alone freed
+    #     `customer_data_schema.sql.bak` -- a BACKUP of the data -- because stripping every
+    #     suffix left a stem ending in `_schema`. A `.bak`, `.gz`, `.csv` or `.dump` is
+    #     data no matter what the stem says; a `.sql`/`.md`/`.json` schema is a description.
+    local _stem="${basename%%.*}"
+    local _ext
+    _ext="$(printf '%s' "${basename##*.}" | tr '[:upper:]' '[:lower:]')"
+    local _is_description=0
+    case "$_ext" in
+        sql|md|json|yaml|yml|graphql|prisma|proto|xsd|rst|txt) _is_description=1 ;;
+    esac
+    if [[ "$filepath" == *"customer"* ]] && [[ "$filepath" == *"data"* ]]; then
+        if [ "$_is_description" -eq 1 ] &&
+           { [[ "$_stem" == *[-_]schema ]] || [[ "$_stem" == *[-_]model ]]; }; then
+            :   # a schema or model DESCRIPTION, in a description format
+        else
+            echo "production-data"; return
+        fi
     fi
 
     # 13. Kubernetes secrets
@@ -193,12 +184,97 @@ classify() {
 # ---------------------------------------------------------------------------
 # Process a single file path
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Is this file public-by-construction or test material?
+#
+# Called ONLY for a file whose only classification is `certificates` (see check_file).
+# The false positives that justify it are real -- `public.pem`, `ca-bundle.crt` and every
+# `.pem` under `tests/fixtures/` are not secrets, and this classifier feeds an ADVISORY
+# hook (`file-guard-gate.sh` exits 0 always, `strict` profile only), so a false flag costs
+# credibility rather than a blocked edit. An advisory nobody believes is worse than none.
+#
+# STEM and PATH-COMPONENT matching, never substring: `publickeys.pem`, `samples.key`,
+# `latest.pem` and `contest/prod.key` all stay flagged.
+# ---------------------------------------------------------------------------
+public_material() {
+    local filepath="$1"
+    local basename
+    basename=$(basename "$filepath")
+
+    # A `public`/`pub` STEM or a CA bundle is public wherever it lives -- that is what the
+    # name asserts, and no directory changes it.
+    case "$basename" in
+        public.*|*.pub|ca-bundle.*|ca-certificates.*)
+            return 0 ;;
+    esac
+
+    # DIRECTORIES THAT SIGNAL SECRETS OVERRIDE A TEST-SHAPED PATH. `k8s/tests/tls.key` is
+    # the case that proves this is needed: branch 13 requires the word "secret" in the
+    # path, so a TLS key named `tls.key` never reaches it, falls through to `certificates`,
+    # and a `tests/` component then freed it. The differential gate caught this one, which
+    # is the ratchet doing its job -- but the lesson is that "no stronger category fired"
+    # is not the same as "nothing about this path is sensitive". A test fixture living
+    # inside a secrets directory is not evidence that the file is not a secret.
+    case "/$filepath/" in
+        */k8s/*|*/kubernetes/*|*/pii/*|*/production/*|*/prod/*|*/secrets/*|\
+        */credentials/*|*/.ssh/*|*/.aws/*|*/.gnupg/*|*/vault/*|*/keys/*)
+            return 1 ;;
+    esac
+
+    case "$basename" in
+        example.*|sample.*|dummy.*)
+            return 0 ;;
+    esac
+    case "/$filepath" in
+        */test/*|*/tests/*|*/testdata/*|*/fixtures/*|*/spec/fixtures/*|*/__fixtures__/*)
+            return 0 ;;
+    esac
+    return 1
+}
+
 check_file() {
     local filepath="$1"
     [ -z "$filepath" ] && return 0
 
     local category
     category=$(classify "$filepath")
+
+    # THE ALLOWLIST, applied to the CLASSIFICATION rather than ahead of it.
+    #
+    # Two prior versions of this got the scope wrong in the same direction. v1 sat at the
+    # top of classify() and exempted all thirteen categories. v2 gated that on the file's
+    # EXTENSION -- which is not the same as the category, because classify() returns on the
+    # FIRST match and `.key`/`.pem` files reach branch 8 before branches 9-13 ever run. So
+    # `k8s/tests/tls.key` (the canonical checked-in TLS secret), `tests/api_key.key` and
+    # `pii/tests/customers.key` were all still silent. "Unreachable for any other
+    # extension" was true and irrelevant.
+    #
+    # v3 asks the question that actually matters: WOULD ANY OTHER CATEGORY HAVE FIRED?
+    # Only a file whose sole claim to sensitivity is "it has a certificate extension" is
+    # exemptible. If a stronger category also matches, that category wins and the file
+    # stays flagged.
+    if [ "$category" = "certificates" ]; then
+        local stronger
+        stronger=$(classify "$filepath" skip_certs)
+        # ALSO ask what the file is with the certificate extension REMOVED. A generated
+        # invariant (tests/test_fileguard_allowlist.py) found 150 paths of this shape that
+        # the two hand-written corpora both missed: `credentials.json.pem`,
+        # `wallet.dat.key`, `prod.sqlite.crt`, `secrets/backup.bak.p12` -- appending a
+        # certificate suffix breaks the EXACT-basename match those categories rely on, so
+        # only branch 8 fires and the allowlist frees it under a test directory. Strip the
+        # suffix and the real category reappears.
+        if [ -z "$stronger" ]; then
+            stronger=$(classify "${filepath%.*}" skip_certs)
+        fi
+        if [ -n "$stronger" ]; then
+            category="$stronger"
+        elif public_material "$filepath"; then
+            category=""
+        fi
+    elif [ "$category" = "ssh-keys" ] && [[ "$(basename "$filepath")" == *.pub ]]; then
+        # A public key is the half you publish, in any directory.
+        category=""
+    fi
 
     if [ -n "$category" ]; then
         block "$category" "$filepath"

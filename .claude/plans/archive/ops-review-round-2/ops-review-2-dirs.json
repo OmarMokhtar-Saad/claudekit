@@ -1,0 +1,15 @@
+{
+  "plan": "review-2",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/file-guard.sh",
+      "edits": [
+        {
+          "find": "    case \"$basename\" in\n        public.*|*.pub|ca-bundle.*|ca-certificates.*|example.*|sample.*|dummy.*)\n            return 0 ;;\n    esac\n    case \"/$filepath\" in\n        */test/*|*/tests/*|*/testdata/*|*/fixtures/*|*/spec/fixtures/*|*/__fixtures__/*)\n            return 0 ;;\n    esac\n    return 1",
+          "replace": "    # A `public`/`pub` STEM or a CA bundle is public wherever it lives -- that is what the\n    # name asserts, and no directory changes it.\n    case \"$basename\" in\n        public.*|*.pub|ca-bundle.*|ca-certificates.*)\n            return 0 ;;\n    esac\n\n    # DIRECTORIES THAT SIGNAL SECRETS OVERRIDE A TEST-SHAPED PATH. `k8s/tests/tls.key` is\n    # the case that proves this is needed: branch 13 requires the word \"secret\" in the\n    # path, so a TLS key named `tls.key` never reaches it, falls through to `certificates`,\n    # and a `tests/` component then freed it. The differential gate caught this one, which\n    # is the ratchet doing its job -- but the lesson is that \"no stronger category fired\"\n    # is not the same as \"nothing about this path is sensitive\". A test fixture living\n    # inside a secrets directory is not evidence that the file is not a secret.\n    case \"/$filepath/\" in\n        */k8s/*|*/kubernetes/*|*/pii/*|*/production/*|*/prod/*|*/secrets/*|\\\n        */credentials/*|*/.ssh/*|*/.aws/*|*/.gnupg/*|*/vault/*|*/keys/*)\n            return 1 ;;\n    esac\n\n    case \"$basename\" in\n        example.*|sample.*|dummy.*)\n            return 0 ;;\n    esac\n    case \"/$filepath\" in\n        */test/*|*/tests/*|*/testdata/*|*/fixtures/*|*/spec/fixtures/*|*/__fixtures__/*)\n            return 0 ;;\n    esac\n    return 1"
+        }
+      ]
+    }
+  ]
+}

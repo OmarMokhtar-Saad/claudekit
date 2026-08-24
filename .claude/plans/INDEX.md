@@ -25,10 +25,10 @@ index never outranks the current files.
 | `drifted` | 3 |
 | `approved` | 49 |
 | `planned` | 9 |
-| `executed` | 24 |
+| `executed` | 25 |
 | `not_started` | 16 |
 | `legacy` | 3 |
-| **total** | **104** |
+| **total** | **105** |
 
 ## Plans
 
@@ -111,6 +111,7 @@ index never outranks the current files.
 | `.claude/plans/plan-review-loop-2.md` | `planned` | 1 |  |
 | `.claude/plans/plan-review-loop-3.md` | `planned` | 1 |  |
 | `.claude/plans/plan-review-loop.md` | `planned` | 3 |  |
+| `.claude/plans/plan-review-round-2.md` | `executed` | 18 |  |
 | `.claude/plans/plan-review-round-history.md` | `approved` | 1 |  |
 | `.claude/plans/plan-review-truthfulness-batch.md` | `approved` | 1 |  |
 | `.claude/plans/plan-run-command-op.md` | `not_started` | 0 |  |

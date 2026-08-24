@@ -21,7 +21,7 @@ to expect next time too.
 by omission). **Two new CI gates now run:** `scripts/check-fileguard-differential.py` and
 `tests/test_command_bash_parse.py`.
 
-**The independent review happened, and it found real defects.** See
+**TWO reviews happened, and each found real High findings in the previous one's fix.** Round 2 is in `plan-review-round-2.md`: the round-1 repair gated the file-guard allowlist on the file's EXTENSION, which is not its CATEGORY, so `k8s/tests/tls.key` and friends were still silent. A **generated** invariant (12 categories x 6 test dirs x 6 cert extensions) now replaces the hand-written corpora that were blind twice; it failed 151 cases on first run. **No third review has been run, and the prior that one would find something is not low.** Round 1 record follows: See
 `plan-review-d945278.md`: 3 High, 4 Medium, 2 Low, all confirmed by execution. The two High
 findings were one defect seen twice — the file-guard allowlist was scoped far wider than claimed
 (thirteen real secret shapes lost their flag), and the differential gate written in the same

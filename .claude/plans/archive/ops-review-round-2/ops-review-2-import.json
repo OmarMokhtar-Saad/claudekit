@@ -1,0 +1,15 @@
+{
+  "plan": "review-2",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/security-reminder.sh",
+      "edits": [
+        {
+          "find": "|getattr\\([[:space:]]*hashlib'; then",
+          "replace": "|getattr\\([[:space:]]*hashlib|\\bimport[[:space:]]+[^#]*\\b(md5|sha1|rc4)\\b'; then"
+        }
+      ]
+    }
+  ]
+}

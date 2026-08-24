@@ -1,0 +1,27 @@
+{
+  "plan": "review-2",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/security-reminder.sh",
+      "edits": [
+        {
+          "find": "if echo \"$CONTENT_CODE\" | grep -qiE '(hashlib|crypto|openssl|digest)[._:]*(md5|sha1|rc4)|(md5|sha1|rc4)\\.new\\(|new (md5|sha1|rc4)\\b'; then",
+          "replace": "# `\\b(md5|sha1|rc4)[[:space:]]*\\(` subsumes every aliased spelling. The module-adjacent\n# pattern alone caught ONE spelling of real code and missed the second-commonest:\n#   import hashlib as _h; _h.md5()      silent\n#   from hashlib import md5; md5()      silent\n#   hashlib . md5(data)                 silent\n#   getattr(hashlib, \"md5\")             silent\n# A call to something NAMED md5/sha1/rc4 is the signal; a rare false positive on a\n# same-named helper is the right trade for a non-blocking warning.\nif echo \"$CONTENT_CODE\" | grep -qiE '(hashlib|crypto|openssl|digest)[._:[:space:]]*(md5|sha1|rc4)|\\b(md5|sha1|rc4)[[:space:]]*\\(|getattr\\([[:space:]]*hashlib'; then"
+        },
+        {
+          "find": "    printf '[%s] PARTIAL SCAN: %s of %s characters checked in %s. The remainder was NOT scanned.\\n' \\\n        \"$HOOK_NAME\" \"$SCAN_LIMIT\" \"$CONTENT_LEN\" \"$TARGET_PATH\" >&2",
+          "replace": "    # STDOUT, not stderr. The warnings this notice qualifies go to stdout, and a\n    # PreToolUse hook exiting 0 does not surface stderr -- so a truncation notice on\n    # stderr was still silent in the only place that matters, and the test passed only\n    # because it merged the two streams.\n    printf '[%s] PARTIAL SCAN: %s of %s characters checked in %s. The remainder was NOT scanned.\\n' \\\n        \"$HOOK_NAME\" \"$SCAN_LIMIT\" \"$CONTENT_LEN\" \"$TARGET_PATH\""
+        },
+        {
+          "find": "if [ \"${CONTENT_LEN:-0}\" -gt \"$SCAN_LIMIT\" ] 2>/dev/null; then",
+          "replace": "# `case` rather than a bare `-gt`: CONTENT_LEN is a line of python output, and a\n# non-numeric value made the comparison a shell error rather than a decision.\ncase \"$CONTENT_LEN\" in\n    ''|*[!0-9]*) CONTENT_LEN=0 ;;\nesac\nif [ \"$CONTENT_LEN\" -gt \"$SCAN_LIMIT\" ]; then"
+        },
+        {
+          "find": "            value = inp[key]\n            print(len(value))\n            print(value[:limit])\n            break",
+          "replace": "            value = inp[key]\n            # A list-valued \\`content\\` gave len() == 2, so a 300,000-character payload\n            # reported length 2, triggered no PARTIAL SCAN, and was scanned as a repr.\n            if not isinstance(value, str):\n                break\n            print(len(value))\n            print(value[:limit])\n            break"
+        }
+      ]
+    }
+  ]
+}

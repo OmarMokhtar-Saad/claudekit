@@ -156,12 +156,15 @@ except:
         #
         # Not gated to `strict`: session-start.sh runs in every profile, and a check that
         # only protects the profile nobody sets is decoration.
-        _ctx_excerpt=$(head -20 "$CONTEXT_FILE")
+        # `head -c` as well as `head -20`: a 2 MB single-line context file passed the
+        # line bound and was printed in full (measured: 2,000,154 characters).
+        _ctx_excerpt=$(head -20 "$CONTEXT_FILE" | head -c 4000)
+        # ONE candidate, resolved from this script's own directory. The cwd-relative
+        # second candidate is gone: a hostile cwd could supply its own scanner that
+        # exits 0 and the payload printed.
         _ctx_scanner=""
-        for _cand in "$SCRIPT_DIR/prompt-injection-scanner.sh" \
-                     ".claude/hooks/prompt-injection-scanner.sh"; do
-            [ -f "$_cand" ] && { _ctx_scanner="$_cand"; break; }
-        done
+        [ -f "$SCRIPT_DIR/prompt-injection-scanner.sh" ] &&
+            _ctx_scanner="$SCRIPT_DIR/prompt-injection-scanner.sh"
 
         echo ""
         echo "Previous session context found (${CONTEXT_AGE_HOURS}h ago):"
@@ -171,13 +174,27 @@ except:
             echo "  (not shown: the injection scanner is unavailable, so the excerpt was"
             echo "   not checked. Run /resume-session to load it deliberately.)"
             log "WARN" "session context not shown: scanner missing at $SCRIPT_DIR"
-        elif printf '%s\n' "$_ctx_excerpt" | bash "$_ctx_scanner" >/dev/null 2>&1; then
-            printf '%s\n' "$_ctx_excerpt" | sed 's/^/  /'
         else
-            echo "  (not shown: the excerpt matched a prompt-injection pattern. The file is"
-            echo "   unchanged on disk. Inspect $CONTEXT_FILE, then /resume-session if it is"
-            echo "   legitimate.)"
-            log "WARN" "session context withheld: injection pattern in $CONTEXT_FILE"
+            printf '%s\n' "$_ctx_excerpt" | bash "$_ctx_scanner" >/dev/null 2>&1
+            _ctx_rc=$?
+            if [ "$_ctx_rc" -eq 0 ]; then
+                printf '%s\n' "$_ctx_excerpt" | sed 's/^/  /'
+            elif [ "$_ctx_rc" -eq 1 ]; then
+                echo "  (not shown: the excerpt matched a known injection pattern. The file"
+                echo "   is unchanged on disk. Inspect $CONTEXT_FILE, then /resume-session"
+                echo "   if it is legitimate.)"
+                log "WARN" "session context withheld: injection pattern in $CONTEXT_FILE"
+            else
+                # Exit 1 is the scanner's DETECTION code; anything else is the scanner
+                # failing. Reporting a crash as "injection detected" is a lie about a
+                # benign file, and the two were indistinguishable before -- a cwd without
+                # `.claude/hooks/` made the scanner exit non-zero on its own log write.
+                echo "  (not shown: the injection scanner failed (exit $_ctx_rc), so the"
+                echo "   excerpt was not checked. This is a scanner problem, not a finding"
+                echo "   about $CONTEXT_FILE.)"
+                log "WARN" "session context withheld: scanner error rc=$_ctx_rc"
+            fi
+            unset _ctx_rc
         fi
         unset _ctx_excerpt _ctx_scanner _cand
         echo ""
