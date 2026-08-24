@@ -2,52 +2,87 @@
 
 > Update this file at the end of every significant AI working session. It is the resume point.
 
-**Last updated:** 2026-08-24 · **By:** Claude (Opus 5) — **task 008 batches 2 and 4
-are EXECUTED, and batch 3 phase 0 (its blocker) with them.** Three commits on
-`fix/protected-docs-scope`, unpushed. Every batch went through adversarial review
-before execution and every batch was simulated in a throwaway worktree first.
+**Last updated:** 2026-08-24 · **By:** Claude (Opus 5) — **task 008 is COMPLETE. All
+four batches executed, and batch 3's seven merge clusters with them.**
 
-29 agents · 55 commands · **71 skills** · 26 hooks · 7 modes (generator-derived).
-**2492 tests pass, 0 failures.** `ck lint` and `ck doctor --strict` both exit 0.
+You are on `main`, working tree clean, **21 commits ahead of `origin/main` (`f76f5d5`) and
+unpushed. Pushing is owner-gated and has never been authorised — do not push.**
 
-**What shipped**
-- **Batch 2** (`bd49c7f`) — five near-duplicate skills merged away as UNIONS, 76 → 71.
-  Reviewed 84 REVISE → 93 APPROVED.
-- **Batch 4** — **`ck lint` now exists**; nothing previously checked the prose corpus,
-  only derived artifacts. Three rules, plus one reviewer-decision taxonomy and one
-  coordinator routing table replacing four and two contradicting copies. Reviewed
-  75 REVISE → 80 REVISE → 94 APPROVED.
-- **Batch 3 phase 0** — the `renamedAgents` mechanism. **No merges, no deletions.**
-  Reviewed 87 CONDITIONAL → 94 APPROVED.
+**21 agents · 55 commands · 73 skills · 26 hooks · 7 modes** (generator-derived;
+`scripts/gen-docs.py --check`). Task 008 started at 31 / 42 / 76 / 22.
+**2901 tests pass, 0 failures.** Every gate green: gen-docs, gen-registry,
+gen-model-policy, gen-plan-index, check-context-floor, ruff, mypy, shellcheck, `ck lint`,
+`ck doctor --strict`.
 
-**The command line budget, decided.** The 008 spec's ≤40 lines is unreachable: 0 of 55
-commands meet it, and complying is a 5138-of-7338-line prose rewrite. Owner decision:
-≤40 binds NEW commands; existing ones may not grow past `.claude/lint-baseline.json`.
-The gate caught batch 4's own edits three times and the fix was to trim, not re-baseline.
+**What batch 3 did.** Nine agents removed, **29 → 21**: `code-simplifier` →
+`refactor-cleaner`; `silent-failure-hunter` → a `code-reviewer` dimension;
+`python-reviewer` / `typescript-reviewer` → per-language checklist **skills**;
+`documenter` + `doc-updater` → one `docs` agent with `mode: create|update`; `tdd-guide` →
+the `test-driven-development` **skill**; `model-router` → `coordinator` § Model economy;
+`harness-optimizer` → the `context-budget` **skill**. All nine names resolve for one
+release through the registry `renamedAgents` map, which `ck doctor` reads.
 
-**Batch 3 is now UNBLOCKED but not started.** Seven merge clusters remain, one plan and
-one PR each, 29 → ~20 agents. `renamedAgents` ships EMPTY; the first cluster fills it.
-**The accepted risk is unchanged: routing cannot be demonstrated unchanged, because the
-eval cassettes do not exist. Every cluster PR must say so rather than implying the eval
-suite covered it.**
+**Batch 3 shipped WITHOUT its designed gate, knowingly.** The spec's rollback plan names
+the task-010 eval suite as the gate for routing changes; its cassettes do not exist
+(blocked on API quota), so the owner accepted the risk on 2026-08-23 and required
+compensating controls in its place. All of them were honoured:
 
-**Read before starting a cluster:** `plan-008-batch1-one-tree.md` § "The batch must be
-simulated before it runs", and `plan-008-batch4-command-diet-and-lint.md`, whose round-1
-CRITICAL is the sharpest lesson of the session — a rule I wrote to catch
-`allowed-tools: Agent` read only one of the two YAML forms in this corpus, so it
-silently skipped the two skills that actually grant it, and its "corpus is clean" test
-passed over both. **Third gate here to pass against a mutant, in the batch whose stated
-purpose was preventing that.** Probing the parser afterwards found four more evasions
-review had not reported. Probe your gates; do not reason about them.
+- batch 3 landed **after** 1, 2 and 4, never alongside them;
+- **one cluster per plan and per commit** — never a bulk agent sweep;
+- `renamedAgents` had to be **built first**, because it did not exist: `gen-registry.py`
+  resolved every `renamed` target against `.claude/skills/`, so an agent name could not be
+  aliased at all. Same shape as batch 1's protected-`*.md` blocker;
+- each merge kept the **union** of both sources, proven by **token diff** — every backtick
+  span, dotted identifier, bold span and ALL-CAPS imperative from the removed file present
+  in the survivor — never by comparing headings;
+- the routing disclosure is carried in all seven cluster plans, and now in `CHANGELOG.md`
+  as well, since users read that and not `.claude/plans/`.
 
-**Recurring class, now named twice:** `claim-not-corrected-everywhere-it-was-made` — the
-same false claim was corrected in the module, then found again in the plan, then again
-in a test docstring a round later. A third instance earns a mechanical check.
+**The risk is still open.** Content and names are verified; **behaviour is not.** Nobody
+proved an invocation reaching a merged destination behaves identically. Cassettes are the
+only thing that retires this — see "What is genuinely open" below.
 
-**Prior state, still true below:** PR #20 is one PRE-EXISTING red test away from
-mergeable; nothing is tagged; `origin/main` is still at `5e890f1`.
+**The lesson of the session, three times over: a gate that cannot be made to fail is
+decoration, and the author is the last person to notice.** A rule written to catch
+`allowed-tools: Agent` read only one of the two YAML spellings in this corpus, so it
+silently skipped the two skills that actually grant it — while its own test asserted "the
+shipped corpus is clean". Third such gate here. An exact-string assertion missed a fifth
+copy of a contradicting taxonomy because the fifth copy was punctuated differently.
+**Probe your gates; do not reason about them.** Mutate the shipped artifact and read the
+failure.
 
-**What landed this session, each with its own adversarial verdict.**
+**Recurring class, now gated:** `claim-not-corrected-everywhere-it-was-made` — the same
+false claim was corrected in a module, then found again in a plan, then again in a test
+docstring a round later. At its third instance it earned a mechanical grep sweep over the
+whole corpus, in `tests/test_single_source_contracts.py`.
+
+**What is genuinely open**, in value order:
+
+1. **Eval cassettes (task 010)** — the only item that retires an accepted risk. Start with
+   the three riskiest paths: `/audit`'s three-way fan-out (third slot changed agent),
+   `docs` called without a `mode` (now inferred from whether the target exists), and
+   `model-route` (scores map onto three tiers where they mapped onto four labels).
+   **Owner-gated on API quota.** A cassette suite that passes without exercising the path
+   is the same decoration as a gate that cannot fail.
+2. **The command diet.** `ck lint`'s ratchet holds the line; five commands remain over 200
+   lines (`refine` 464, `ship` 228, `gan-build` 227, `opensource` 222, `loop-start` 220).
+   **Measure before cutting — the obvious motive is wrong:** command *bodies* are not in
+   the always-on context floor (only descriptions, ~4,730/6,000), so this is a readability
+   and per-invocation win, not a context-budget one. The genuinely valuable slice is that
+   `refine.md` holds 196 lines of fenced content, **89 of them bash, none of it linted** —
+   `shellcheck` covers only `install.sh` and `.claude/hooks/*.sh`. Extracting that script
+   under `.claude/operations/scripts/` puts it under shellcheck; it is a behaviour-shaped
+   change to a CI-facing path, so simulate and get it reviewed.
+3. **`review/code-review.md` triage.** `.ai/BACKLOG.md:139` files it as 76 unfixed P2/P3
+   findings; the file now greps to **88** P2/P3 mentions, so re-derive the count rather
+   than quote it. Triage into already-fixed-by-later-work / still-real / no-longer-
+   applicable, and expect a large first bucket after this session.
+4. **The push**, plus the v2.1.0 tag, PyPI publish and fleet-sync to the 16 downstream
+   repos. **All owner-gated. None of them are yours.**
+
+**Prior state:** nothing is tagged. `origin/main` is at `f76f5d5`.
+
+**What landed in the sessions BEFORE this one, each with its own adversarial verdict.**
 - `7b39cb9` — **the ship-stopper.** `ck uninstall` dead-ended on the edit `install.sh`
   closes by telling every user to make: the refusal fired on a PARTIAL_OWNED file
   deletion can never reach, `--force` promised "remove them too" and kept it, and

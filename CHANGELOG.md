@@ -12,6 +12,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- **Nine agents merged away: 29 → 21.** Each one folded into an agent or skill that
+  already covered its ground, so the names you invoke changed:
+
+  | Removed | Use instead | Kind of destination |
+  | --- | --- | --- |
+  | `code-simplifier` | `refactor-cleaner` | agent |
+  | `silent-failure-hunter` | `code-reviewer`, Dimension 6 | agent |
+  | `python-reviewer` | `python-review-checklist` | **skill** |
+  | `typescript-reviewer` | `typescript-review-checklist` | **skill** |
+  | `documenter` **and** `doc-updater` | one `docs` agent, `mode: create` / `mode: update` | agent |
+  | `tdd-guide` | `test-driven-development` | **skill** |
+  | `model-router` | `coordinator`, § Model economy | agent |
+  | `harness-optimizer` | `context-budget` | **skill** |
+
+  **Every removed name still resolves, for one release.** The registry carries a
+  `renamedAgents` map from each old id to `{to, kind}` — the `kind` is there because four
+  of these destinations are *skills*, not agents, and a bare name cannot say which
+  namespace to look in. `ck doctor` reads that map and, rather than just noting the
+  rename, **names the files in your project that still reference the old id**. So a
+  consumer sees a rename with a to-do list, not a deletion.
+
+  **The commands did not go anywhere.** `/doc-updater` still exists with all of its flags,
+  as do `/docs` and `/model-route`; only the agent behind each one moved. Read this entry
+  as a change of agent names, not a removal of features.
+
+  **What was verified, and what was not — the second half matters.** Every merge kept the
+  **union** of operative rules from both sources, proven by token diff (every backtick
+  span, dotted identifier, bold span and ALL-CAPS imperative from the removed file present
+  in the survivor) rather than by comparing headings; each cluster shipped as its own plan
+  and its own commit; and no reference anywhere in the corpus was left dangling.
+
+  **Nobody proved that an invocation reaching a merged destination behaves identically.**
+  The eval suite that would have proven it is blocked on recorded cassettes, so it did not
+  run. That means a routing regression could have shipped undetected, and the three places
+  it is most plausible are worth knowing if you depend on them: `/audit`'s three-way
+  parallel fan-out, whose third slot changed agent; `docs` called **without** a `mode`,
+  which now depends on the agent inferring the mode from whether the target file exists;
+  and `model-route`, where scores map onto three capability tiers where they used to map
+  onto four labels. Content and names were verified. Behaviour was not.
+
 ### Added
 
 - **The issue ledger can now hold a finding that is not fixed yet.** The ledger

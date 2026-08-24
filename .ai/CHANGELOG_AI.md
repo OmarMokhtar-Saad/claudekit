@@ -1,6 +1,39 @@
 # AI Session Changelog
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
+## 2026-08-24 — task 008 batch 3 EXECUTED (seven clusters) + its paper trail
+
+Nine agents removed, **29 → 21**, one plan and one commit per cluster. 2901 tests pass,
+0 failures. Task 008 is complete; this session also closed the DoD hole the seven cluster
+commits left behind.
+
+- **The paper trail was a DoD violation sitting on `main`.** `CHANGELOG.md` documented
+  batches 1, 2 and 4 and said **nothing** about batch 3 — the most user-visible change in
+  the task, since the names users invoke changed. Seven commits each claimed DoD-green
+  while missing it. Written now for users: the rename table, the fact that
+  `/doc-updater`, `/docs` and `/model-route` all still exist as commands with the agents
+  behind them moved, and the routing risk in consumer terms.
+- **The routing risk is disclosed where it will actually be read.** All seven cluster
+  plans carried "routing is not demonstrated unchanged", and no user reads
+  `.claude/plans/`. Content and names are verified by token diff and by a dangling-
+  reference scan; **behaviour is not verified at all**, because the eval cassettes that
+  would prove it do not exist.
+- **`renamedAgents` had to be built before anything could be deleted.** `gen-registry.py`
+  resolved every alias target against `.claude/skills/`, so `renamed: 'python-reviewer' ->
+  'code-reviewer'` was a hard error — an agent name could not be aliased at all. The map
+  takes `{to, kind}` because four of batch 3's destinations are skills, and a bare name
+  cannot say which namespace to validate against.
+- **`.ai/TASK-008-SIGNOFF.md` now records the five places it was wrong**, not softened
+  into "learnings". Three of them would have destroyed content if followed: the
+  "duplicate" `templates/commands|hooks|modes` tree was 24 unique components; three skills
+  marked DIVERGED differed by one `description:` line; and the session pair's survivor was
+  backwards — `context-keeper` owns the file `session-start.sh:133` reads, while
+  `session-continuity`'s state file had no reader or writer anywhere in the repo. The
+  sheet and the filesystem disagreed three times and the filesystem was right every time.
+- **Executed Tier 1 with `--no-approval`, disclosed.** Three documentation configs, no
+  code / schema / API / security surface. Reason recorded in the commit and in the archive
+  README row.
+
 ## 2026-08-24 — task 008 batch 4 + batch 3 phase 0 EXECUTED
 
 Seven ops configs, zero errors. Batch 4 ships `ck lint`; batch 3 phase 0 ships only its

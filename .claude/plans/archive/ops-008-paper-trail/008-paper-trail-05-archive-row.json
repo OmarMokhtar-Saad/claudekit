@@ -1,0 +1,16 @@
+{
+  "plan": "008-paper-trail-05-archive-row",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/plans/archive/README.md",
+      "description": "Archive row for this plan's four spent configs. tests/test_delivery_contract_smoke.py fails if a spent config is archived without one.",
+      "edits": [
+        {
+          "find": "| `ops-kitcopy-logs/ops-kitcopy-logs.json` |",
+          "add_before": "| `ops-008-paper-trail/*.json` (4 configs) | Spent 2026-08-24, **`--no-approval` disclosed (Tier 1: four documentation edits, no code / schema / API / security surface).** Closes task 008's paper trail, which was a DoD violation sitting on `main`: `CHANGELOG.md` documented batches 1, 2 and 4 and said **nothing** about batch 3 — the most user-visible change in the task, since nine agent names users invoke were removed (29 → 21). The new `### Removed` entry carries the rename table, the fact that `/doc-updater`, `/docs` and `/model-route` all still exist as commands with only the agents behind them moved, and the routing risk **in consumer terms**: content and names are verified by token diff and a dangling-reference scan, **behaviour is not verified at all**, and the three most plausible regressions are named (`/audit`'s third fan-out slot, `docs` called without a `mode`, `model-route`'s three tiers where four labels used to be). All seven cluster plans carried that disclosure and no user reads `.claude/plans/`. `.ai/SESSION_STATE.md` still read \"batches 2 and 4 are EXECUTED\" and cited a stale `origin/main` sha; rewritten as a resume point for a reader with no context, including that batch 3 shipped **without its designed gate** and which compensating controls stood in. `.ai/TASK-008-SIGNOFF.md` now records **the five places that sheet was measurably wrong**, as errors rather than \"learnings\" — three of them would have destroyed content if followed. **Measured, not quoted:** the 29 → 21 figure is re-derived from agent files per commit (`2e954fe` 31 → `9c85238` 23, minus the two non-agent docs), `renamedAgents` holds exactly nine entries, and 2901 tests pass. |\n"
+        }
+      ]
+    }
+  ]
+}

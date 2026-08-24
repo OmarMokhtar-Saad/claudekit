@@ -1,0 +1,16 @@
+{
+  "plan": "008-paper-trail-01-changelog",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "description": "The [Unreleased] section documents batches 1, 2 and 4 and says nothing about batch 3 — the most user-visible change in task 008. Written for users: what the removed names resolve to, that the commands survived, and the routing risk in consumer terms rather than left in .claude/plans/ where no user reads it.",
+      "edits": [
+        {
+          "find": "## [Unreleased]\n",
+          "add_after": "\n### Removed\n\n- **Nine agents merged away: 29 → 21.** Each one folded into an agent or skill that\n  already covered its ground, so the names you invoke changed:\n\n  | Removed | Use instead | Kind of destination |\n  | --- | --- | --- |\n  | `code-simplifier` | `refactor-cleaner` | agent |\n  | `silent-failure-hunter` | `code-reviewer`, Dimension 6 | agent |\n  | `python-reviewer` | `python-review-checklist` | **skill** |\n  | `typescript-reviewer` | `typescript-review-checklist` | **skill** |\n  | `documenter` **and** `doc-updater` | one `docs` agent, `mode: create` / `mode: update` | agent |\n  | `tdd-guide` | `test-driven-development` | **skill** |\n  | `model-router` | `coordinator`, § Model economy | agent |\n  | `harness-optimizer` | `context-budget` | **skill** |\n\n  **Every removed name still resolves, for one release.** The registry carries a\n  `renamedAgents` map from each old id to `{to, kind}` — the `kind` is there because four\n  of these destinations are *skills*, not agents, and a bare name cannot say which\n  namespace to look in. `ck doctor` reads that map and, rather than just noting the\n  rename, **names the files in your project that still reference the old id**. So a\n  consumer sees a rename with a to-do list, not a deletion.\n\n  **The commands did not go anywhere.** `/doc-updater` still exists with all of its flags,\n  as do `/docs` and `/model-route`; only the agent behind each one moved. Read this entry\n  as a change of agent names, not a removal of features.\n\n  **What was verified, and what was not — the second half matters.** Every merge kept the\n  **union** of operative rules from both sources, proven by token diff (every backtick\n  span, dotted identifier, bold span and ALL-CAPS imperative from the removed file present\n  in the survivor) rather than by comparing headings; each cluster shipped as its own plan\n  and its own commit; and no reference anywhere in the corpus was left dangling.\n\n  **Nobody proved that an invocation reaching a merged destination behaves identically.**\n  The eval suite that would have proven it is blocked on recorded cassettes, so it did not\n  run. That means a routing regression could have shipped undetected, and the three places\n  it is most plausible are worth knowing if you depend on them: `/audit`'s three-way\n  parallel fan-out, whose third slot changed agent; `docs` called **without** a `mode`,\n  which now depends on the agent inferring the mode from whether the target file exists;\n  and `model-route`, where scores map onto three capability tiers where they used to map\n  onto four labels. Content and names were verified. Behaviour was not.\n"
+        }
+      ]
+    }
+  ]
+}
