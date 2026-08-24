@@ -1,0 +1,23 @@
+{
+  "plan": "enforcement-trio",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_pipeline_e2e.py",
+      "edits": [
+        {
+          "find": "def test_executor_lock_refuses_a_second_run_and_leaves_no_stale_lock(project, tmp_path):",
+          "replace": "def test_executor_lock_refuses_a_second_run_and_does_not_block_the_next(project, tmp_path):"
+        },
+        {
+          "find": "    must refuse rather than interleave, and a refused run must not poison the next one\n    (E2E-31's \"no stale lock left behind that blocks the next run\").\"\"\"",
+          "replace": "    must refuse rather than interleave, and a refused run must not poison the next one\n    (E2E-31's \"no stale lock left behind that blocks the next run\").\n\n    Renamed 2026-08-24: the old name said \"leaves no stale lock\", which is a stronger and\n    different claim than E2E-31's \"no stale lock that BLOCKS the next run\". `release()` now\n    keeps the file on purpose -- see the comment at the final assertion.\"\"\""
+        },
+        {
+          "find": "    assert not (project / \".codemanifest.lock\").exists(), \\\n        \"a completed run left its lock behind; the next run would be blocked by it\"\n",
+          "replace": "    # E2E-31's original wording was \"no stale lock left behind that BLOCKS the next run\",\n    # and this assertion had shortened that to \"no lock file left behind\" -- two different\n    # properties. The design falsifies the short one: mutual exclusion is `fcntl.flock`,\n    # so a leftover path is inert, and the two assertions immediately above already prove\n    # it by running the executor to success with the file present. `release()` deliberately\n    # stopped unlinking (2026-08-24) because the unlink WAS a race: a process blocked on\n    # flock against the inode could have it removed from under it while a third created a\n    # fresh path and acquired that, leaving two executors live. So the property asserted\n    # here is the one E2E-31 asked for -- the next run is not blocked -- plus the reason\n    # the file is worth keeping.\n    lock = project / \".codemanifest.lock\"\n    if lock.exists():\n        assert lock.read_text(encoding=\"utf-8\").strip().isdigit(), \\\n            \"the lock file that is no longer unlinked must carry the holder pid, or it \" \\\n            \"is litter rather than a diagnostic\"\n"
+        }
+      ]
+    }
+  ]
+}

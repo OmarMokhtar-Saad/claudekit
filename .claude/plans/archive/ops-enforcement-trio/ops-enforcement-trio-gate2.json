@@ -1,0 +1,19 @@
+{
+  "plan": "enforcement-trio",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "scripts/check-fileguard-differential.py",
+      "edits": [
+        {
+          "find": "GUARD_PATH = \".claude/hooks/file-guard.sh\"\n",
+          "replace": "GUARD_PATH = \".claude/hooks/file-guard.sh\"\n\n# Where the guard used to live. Batch 1 PROMOTED it out of `templates/hooks/`, so a\n# baseline older than that promotion has no `.claude/hooks/file-guard.sh` at all and the\n# gate SKIPPED -- measured against `origin/main` on the first run of this script, which\n# is exactly the silent pass the sibling gates warn about. A renamed subject is not an\n# absent one.\nLEGACY_GUARD_PATHS = [\"templates/hooks/file-guard.sh\"]\n"
+        },
+        {
+          "find": "    shown = subprocess.run([\"git\", \"show\", \"%s:%s\" % (ref, GUARD_PATH)],\n                           capture_output=True, text=True, cwd=repo_root)\n    if shown.returncode != 0:\n        print(\"SKIP: no %s at %s\" % (GUARD_PATH, ref))\n        return 1 if args.require_baseline else 0\n",
+          "replace": "    shown = None\n    baseline_path = GUARD_PATH\n    for candidate in [GUARD_PATH] + LEGACY_GUARD_PATHS:\n        attempt = subprocess.run([\"git\", \"show\", \"%s:%s\" % (ref, candidate)],\n                                 capture_output=True, text=True, cwd=repo_root)\n        if attempt.returncode == 0:\n            shown, baseline_path = attempt, candidate\n            break\n    if shown is None:\n        print(\"SKIP: no file-guard.sh at %s (tried %s)\"\n              % (ref, \", \".join([GUARD_PATH] + LEGACY_GUARD_PATHS)))\n        return 1 if args.require_baseline else 0\n    if baseline_path != GUARD_PATH:\n        print(\"Baseline guard found at its pre-promotion path: %s\" % baseline_path)\n"
+        }
+      ]
+    }
+  ]
+}

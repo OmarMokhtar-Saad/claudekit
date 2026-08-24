@@ -1,0 +1,19 @@
+{
+  "plan": "triage-refresh-renumber",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".ai/TECH_DEBT.md",
+      "edits": [
+        {
+          "find": "| 16 | Five commands over 200 lines | L | `.claude/commands/` | `refine` 464, `ship` 228, `gan-build` 227, `opensource` 222, `loop-start` 220 (`wc -l`, 2026-08-24; 7318 total). **Not a context win** \u2014 command *bodies* are outside the always-on floor; `check-context-floor.py` budgets only descriptions, at **4753/6000** chars. So the exit is readability + per-invocation cost, and framing it as context savings would breach hard rule 6. **`refine.md` is not extractable:** its bash blocks are fragments carrying `<TASK>`/`<N>`/`$iteration` with no loop wrapper (stated in `tests/test_delivery_contract_smoke.py`'s module docstring), so \"extract the script\" means *writing* one on a CI-facing path \u2014 a feature, not a refactor. Any cut to a shipped command is user-visible and owner-gated. |\n",
+          "replace": ""
+        },
+        {
+          "find": "| 20 | model-tension: Haiku verifier / Sonnet merge-verdict reviewers | L | frontmatter vs model-router rules | Decide and align (AGENTS_KNOWN_ISSUES.md #15). |\n",
+          "add_after": "| 21 | Five commands over 200 lines | L | `.claude/commands/` | `refine` 464, `ship` 228, `gan-build` 227, `opensource` 222, `loop-start` 220 (`wc -l`, 2026-08-24; 7318 total). **Not a context win** \u2014 command *bodies* are outside the always-on floor; `check-context-floor.py` budgets only descriptions, at **4753/6000** chars. So the exit is readability + per-invocation cost, and framing it as context savings would breach hard rule 6. **`refine.md` is not extractable:** its bash blocks are fragments carrying `<TASK>`/`<N>`/`$iteration` with no loop wrapper (stated in `tests/test_delivery_contract_smoke.py`'s module docstring), so \"extract the script\" means *writing* one on a CI-facing path \u2014 a feature, not a refactor. Any cut to a shipped command is user-visible and owner-gated. |\n"
+        }
+      ]
+    }
+  ]
+}

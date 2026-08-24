@@ -1,0 +1,19 @@
+{
+  "plan": "enforcement-trio",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/file-guard.sh",
+      "edits": [
+        {
+          "find": "classify() {\n    local filepath=\"$1\"\n    local basename\n    basename=$(basename \"$filepath\")\n\n",
+          "replace": "classify() {\n    local filepath=\"$1\"\n    local basename\n    basename=$(basename \"$filepath\")\n\n    # 0. Public-by-construction and test material, checked BEFORE any denylist.\n    #\n    # The extension set below is right -- a `.pem` usually IS a key. The problem was\n    # that \"usually\" had no escape hatch: `public.pem`, `id_rsa.pub`, `ca-bundle.crt`\n    # and every `.pem` under `tests/fixtures/` classified as `certificates`, and this\n    # classifier is wired through an ADVISORY hook (`file-guard-gate.sh` exits 0 always,\n    # `strict` profile only). So the cost was not a blocked edit -- it was a warning that\n    # cries wolf, and an advisory nobody believes is worse than none.\n    #\n    # An allowlist rather than a narrower denylist, deliberately: hard rule 6 calls this\n    # a speed bump, and a speed bump needs a marked exit or people drive around it.\n    #\n    # Narrow on purpose. A `public`/`pub` STEM (not substring: `publickeys.pem` is not\n    # freed), a test/fixture/example/sample PATH COMPONENT (not substring: `latest.pem`\n    # is not freed), and the two conventional CA bundle names.\n    case \"$basename\" in\n        public.*|*.pub|ca-bundle.*|ca-certificates.*)\n            echo \"\"; return ;;\n    esac\n    case \"/$filepath\" in\n        */test/*|*/tests/*|*/testdata/*|*/fixtures/*|*/spec/fixtures/*|*/__fixtures__/*)\n            echo \"\"; return ;;\n    esac\n    case \"$basename\" in\n        example.*|sample.*|dummy.*)\n            echo \"\"; return ;;\n    esac\n\n"
+        },
+        {
+          "find": "    if [[ \"$filepath\" == *\"production/\"*\"data\"* ]] || \\\n       [[ \"$filepath\" == *\"customer\"*\"data\"* ]] || \\\n       [[ \"$filepath\" == *\"pii/\"* ]]; then\n        echo \"production-data\"; return\n    fi",
+          "replace": "    # `*\"customer\"*\"data\"*` matched `customer_data_schema.sql` -- a SCHEMA is a\n    # description of data, not data. Same for a model doc. Narrowed by excluding the\n    # two words that mean \"shape of\", rather than by dropping the pattern.\n    if [[ \"$basename\" != *schema* ]] && [[ \"$basename\" != *model* ]] && \\\n       { [[ \"$filepath\" == *\"production/\"*\"data\"* ]] || \\\n         [[ \"$filepath\" == *\"customer\"*\"data\"* ]] || \\\n         [[ \"$filepath\" == *\"pii/\"* ]]; }; then\n        echo \"production-data\"; return\n    fi"
+        }
+      ]
+    }
+  ]
+}

@@ -24,6 +24,10 @@ Thumbs.db
 backups/
 *.log
 .claude-core.lock
+# The ops executor's lock. It used to be unlinked by `ExecutionLock.release()`, which was
+# the race that fix removed -- so the file now PERSISTS after a run, holding the last
+# holder's pid as a diagnostic. It is runtime state, never a source artifact.
+.codemanifest.lock
 .claude/.managed/
 .claude/hooks/compact-counter.txt
 # Review records: verdict + a full snapshot of each approved ops.json. Local drift-gate

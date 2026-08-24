@@ -1,6 +1,78 @@
 # AI Session Changelog
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
+## 2026-08-24 (fourth period) — one record instead of two, and all six jobs closed
+
+Two halves. The first was docs and records only; the second executed the three owner-gated
+plans after the owner approved each in session. **Two new CI gates landed.**
+
+**Second half — the three approved plans.**
+
+- **`plan-enforcement-trio.md`, and the order is the point.** The new
+  `scripts/check-fileguard-differential.py` landed and was proven against a real baseline
+  *before* the file-guard allowlist was written; the allowlist then **failed the gate on all ten
+  paths as undisclosed**; each was then disclosed with its reason. That is the sequence the owner
+  chose over the faster one. **The gate's first run SKIPPED** — at `origin/main` there is no
+  `.claude/hooks/file-guard.sh`, because batch 1 promoted it out of `templates/hooks/`, so
+  `git show` failed and the script returned 0. A renamed subject is not an absent one, and a gate
+  that skips passes forever; fixed with a legacy-path fallback. Also: `ExecutionLock.release()`
+  stopped unlinking the lock file (the unlink *was* the race it appeared to prevent), and
+  `config.schema.json`'s "195+ patterns" became a description with **no count at all**.
+- **`plan-command-bash-parse-gate.md`.** 682 lines of command bash, never linted, now gated on
+  parse errors only. **The near-miss:** the first hand-run mutation targeted `ship.md`, which has
+  zero ```bash fences, so nothing landed and the gate said GREEN — caught by `grep`, not by the
+  gate. The in-suite mutation test builds its own fixture for that reason.
+- **`plan-hook-log-dedup.md`, scoped down on purpose.** Item 3 only: the three hooks writing to a
+  **cwd-relative** log path. The other 11 `log()` definitions were left alone — delegating them
+  widens `lib.sh`'s blast radius from 11 hooks to 23 across 16 downstream repos with no defect
+  behind it. **My first behavioural test was vacuous**, and only the mutation proof showed it:
+  the old code appended with `2>/dev/null`, so with no directory in the foreign cwd the write
+  failed silently and "no stray log" was trivially true.
+
+**No independent review for any of the second half.** No `code-reviewer` was spawned; each plan
+records that rather than implying a verdict.
+
+**First half — docs and records only.**
+
+- **The commissioning premise was false, and finding that out was the period's main result.**
+  The handoff said 45 of `review/code-review.md`'s findings were "unchecked, not probably
+  fine", and asked where new verdicts should live. `review/code-review-triage.md` already held
+  all 108 findings with verdicts, committed at `8f54f55` — an ancestor of `HEAD`. The "45" came
+  from `.ai/BACKLOG.md`'s *separate* 75-finding P2/P3 enumeration of the same review, with
+  different IDs and different totals. **Two triages of one file, neither pointing at the
+  other.** Every one of the 45 already had a verdict one directory over. `.ai/BACKLOG.md` is now
+  a pointer; the triage file is the single record.
+- **Re-verified all 53 LIVE rows against `HEAD`, 78 commits after they were recorded.**
+  **13 are now FIXED** — F37, F47, F57, F59, F70, F80, F91, F92, F93, F95, F98, F99, F100 — F68
+  is half-fixed, and 40 are still live. Appended as a dated section rather than rewritten, so
+  the 2026-08-20 evidence survives.
+- **§6's paths had moved wholesale.** Its eight rows cite `templates/hooks/`, which no longer
+  exists — those hooks were *promoted* into `.claude/hooks/`. Their findings did not retire,
+  and F61/F63/F65 **lost** the "template-only, unwired, so contained" mitigation, so they went
+  up in priority, not away.
+- **Diagnosed the three `drifted` plans, and two of the three warnings are the tool's.**
+  `review-record.py`'s legacy plan-slug fallback compares a second ops config's bytes against a
+  *different* config's approved hash, so an addendum that never had a verdict is reported as
+  having drifted from one. Each plan's primary config is clean (94, 93, 93/95).
+  `plan-capability-tiers`'s drift is **genuine** and no approval was re-recorded for it. Filed
+  as a `[MEDIUM]` backlog row; the fix touches the approval machinery and is owner-gated.
+  **The handoff's prescribed remedy does not apply** — `check-plan-artifacts.py:147-148` states
+  plans stay at `.claude/plans/` while only configs move to `archive/`, so moving the three plan
+  documents would break the resolution that comment exists to describe.
+- **The command diet, measured and deliberately not sold as a context win.** `refine` 464,
+  `ship` 228, `gan-build` 227, `opensource` 222, `loop-start` 220. Command *bodies* are outside
+  the always-on floor — `check-context-floor.py` budgets only descriptions, at 4753/6000 — so
+  the exit is readability and per-invocation cost. Filed as TECH_DEBT row 21. `refine.md` is not
+  extractable: its bash blocks are fragments with no loop wrapper, so "extract the script" means
+  writing one on a CI-facing path.
+- **Three defects of my own, recorded where the next reader hits them.** (1) I accepted the
+  handoff's framing before running `ls review/`, which would have shown the triage file
+  immediately. (2) The `.ai/TECH_DEBT.md` row landed as a second `| 16 |` because I read only
+  the head of that file before picking an ID — renumbered by its own ops config, not by hand.
+  (3) My first mutation proof for the command-bash gate targeted `ship.md`, which has **zero**
+  ```bash fences, so nothing was inserted and the gate reported GREEN; a `grep` for the
+  mutation caught it, not the gate.
+
 ## 2026-08-24 (third period) — eight live findings fixed, and a three-week mystery solved
 
 Two commits. 2932 tests pass, 0 failures.

@@ -14,6 +14,85 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`file-guard` no longer warns about public keys and test fixtures.** Its extension set
+  (`cert|crt|pem|key|p12|pfx`) had no escape hatch, so `public.pem`, `id_rsa.pub`,
+  `ca-bundle.crt` and every `.pem` under `tests/fixtures/` were reported as
+  `certificates` — and `customer_data_schema.sql` as `production-data`. A schema
+  describes data; it is not data. An allowlist now runs **before** the denylist, matching
+  by **stem** and by **path component**, never by substring: `public.pem` is freed and
+  `publickeys.pem` is not; `tests/fixtures/test.pem` is freed and `latest.pem` is not.
+  **This is a widening**, and every path it frees is enumerated with its reason in
+  `scripts/check-fileguard-differential.py`'s `DISCLOSED_WIDENINGS`. Honest framing, per
+  the project's own rule: file-guard is a denylist speed bump behind an **advisory** hook
+  (`file-guard-gate.sh` exits 0 always, `ECC_HOOK_PROFILE=strict` only), so the defect
+  fixed here was noise on a warning channel, not a blocked edit — and noise is what makes
+  an advisory ignorable.
+
+- **The ops executor's lock no longer deletes a lock file another process may be waiting
+  on.** `ExecutionLock.release()` unlinked the path unconditionally, which created the
+  race it looked like it prevented: B blocks on `flock` against the inode, A's `release()`
+  unlinks it, C creates a fresh path and acquires that — and B and C both believe they
+  hold the lock. `release()` now unlocks and closes without unlinking. The file left
+  behind holds the last holder's pid and is a diagnostic, not a leak. **Windows is
+  unchanged and remains unprotected** (no `fcntl`, as the class docstring has always
+  said); no untestable shim was invented for it.
+
+  **One existing test asserted the opposite contract and was changed.**
+  `test_pipeline_e2e.py`'s lock test ended with `assert not (project /
+  ".codemanifest.lock").exists()`, justified as "the next run would be blocked by it". That
+  justification is falsified two assertions earlier in the same test, which runs the executor
+  to success with the file present — mutual exclusion is `flock`, so a leftover path is inert.
+  The original requirement (E2E-31) said "no stale lock **that blocks the next run**"; the
+  assertion had quietly shortened it to "no lock file". It now asserts the requirement as
+  written, plus that the retained file carries the holder pid — otherwise it is litter rather
+  than a diagnostic. `.codemanifest.lock` is now gitignored, because not unlinking means it
+  persists in the working tree after every run.
+
+- **`config.schema.json` no longer claims "195+ patterns".** The shipped classifier has
+  roughly 47 patterns across 18 categories — an overstatement of about 4× in two places —
+  and it said "Blocks" for a hook that only warns. The description now states what the
+  hook does and deliberately quotes **no** pattern count, because a hand-written count
+  drifts on the next edit. `check-comment-replacement`'s block is now labelled **shipped
+  but not wired**: it has zero references in `.claude/settings.json`, and wiring it is a
+  separate decision.
+
+### Added
+
+- **A differential gate for the file-guard classifier**
+  (`scripts/check-fileguard-differential.py`, wired into CI). "No change may turn a REJECT
+  into an ALLOW" already had gates for the command validator and for
+  `shared.is_protected_file`; file-guard — the third deny-shaped decision in the repo —
+  had none, and its first widening was the one proposed above. The gate runs the
+  classifier as a subprocess on both sides of a baseline, compares the **category** each
+  reports, and fails on any path that loses its flag without an entry in
+  `DISCLOSED_WIDENINGS`. It caught all ten of this release's widenings before they landed,
+  and no genuine secret among the 48 corpus paths lost its flag. It also handles the
+  guard's pre-promotion path: the first run **SKIPPED**, because at `origin/main` the file
+  still lived at `templates/hooks/file-guard.sh` — a renamed subject is not an absent one,
+  and a gate that skips is a gate that passes forever.
+
+- **A parse-error gate for command-prompt bash** (`tests/test_command_bash_parse.py`).
+  `.claude/commands/*.md` ships 682 lines of bash inside ```bash fences and nothing linted
+  it; CI's `shellcheck` step covers `install.sh` and `.claude/hooks/*.sh` only. Six parse
+  errors of one shape were fixed earlier with nothing to keep them fixed — and the class
+  had already reopened once *during* those fixes, when a comment put markdown backticks
+  inside a `python3 -c "…"` string, where a backtick is command substitution. The gate
+  fails on `SC1072`/`SC1073`/`SC1009` only, so it is satisfiable the day it lands, and it
+  maps shellcheck's line numbers back to `file.md:LINE`. It does **not** catch bash that
+  parses and is wrong.
+
+### Changed
+
+- **`format-typecheck.sh`, `security-reminder.sh` and `session-start.sh` now log beside
+  the hook instead of relative to the caller's directory.** All three set
+  `LOG=".claude/hooks/hooks.log"` — a cwd-relative path — so run from anywhere but the
+  repo root their log lines landed in another tree, or nowhere, silently. They now source
+  `lib.sh`, set `LOG_FILE="$SCRIPT_DIR/hooks.log"` and delegate to the shared `hlog`,
+  which also uses `$*`, so an argument past the second no longer vanishes. The other 11
+  local `log()` definitions were **left alone deliberately**: they work, and delegating
+  them would mean adding `. lib.sh` to 12 more hooks — widening that file's blast radius
+  from 11 hooks to 23, across 16 downstream repos, with no defect behind it.
+
 - **`ck` no longer writes ANSI escape codes into pipes, files and CI logs.** Colour was
   unconditional, so every command emitted escapes whether or not anything could render
   them. It now follows the conventional precedence: `NO_COLOR` set to any value disables

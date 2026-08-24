@@ -1,0 +1,15 @@
+{
+  "plan": "enforcement-trio",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/plans/plan-enforcement-trio.md",
+      "edits": [
+        {
+          "find": "| `.claude/plans/plan-enforcement-trio.md`, `.claude/plans/plan-command-bash-parse-gate.md`, `.claude/plans/plan-hook-log-dedup.md` |",
+          "add_before": "| `.claude/plans/archive/README.md` | `-archive`, `-count` | The archive rows for this plan's three siblings, and the correction of a hand-written config count in one of them |\n"
+        }
+      ]
+    }
+  ]
+}

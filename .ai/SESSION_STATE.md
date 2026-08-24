@@ -2,9 +2,31 @@
 
 > Update this file at the end of every significant AI working session. It is the resume point.
 
-**Last updated:** 2026-08-24 (second period) · **By:** Claude (Opus 5) — **task 008 is
-COMPLETE and its paper trail is closed.** Three more items landed after it; one decision is
-open and is the owner's.
+**Last updated:** 2026-08-24 (fourth period) · **By:** Claude (Opus 5) — **the
+code-review backlog now has ONE record, and 13 of its 53 LIVE findings turned out to be
+already fixed.** Three plans are written and await owner approval; none has been executed.
+
+**Start here if you are picking this up.** `review/code-review-triage.md` is the single
+record for `review/code-review.md`'s findings — **40 LIVE, 62 FIXED, 5 OBSOLETE, 1
+UNVERIFIABLE**, zero P0, zero P1. `.ai/BACKLOG.md`'s entry is a pointer now, not a second
+enumeration. The previous handoff asked for 45 "unverified" findings to be triaged; **all 45
+already had verdicts** in a file committed at `8f54f55`, and the "45" was an artifact of two
+records not naming each other. Do not re-triage them. Re-verify against `HEAD` instead — the
+triage's evidence was 78 commits stale when this period started, and that is the failure mode
+to expect next time too.
+
+**All three owner-gated plans were approved in session and executed** —
+`plan-enforcement-trio.md` (gate first, then widen), `plan-command-bash-parse-gate.md` (land it),
+`plan-hook-log-dedup.md` (**item 3 only** — the other three items remain open by decision, not
+by omission). **Two new CI gates now run:** `scripts/check-fileguard-differential.py` and
+`tests/test_command_bash_parse.py`.
+
+**No independent review exists for any of it.** The review floor asks for a fresh adversarial
+`code-reviewer`; none was spawned this period, so every plan says so. That is the largest open
+risk on this work, and it is not a small one — the file-guard allowlist is a deliberate widening
+of a deny-shaped decision.
+
+**Prior state, still true:** task 008 is COMPLETE and its paper trail is closed.
 
 You are on `main`, working tree clean, and **unpushed. Pushing is owner-gated and has never
 been authorised — do not push.** `origin/main` is at `f76f5d5`; for the count, run

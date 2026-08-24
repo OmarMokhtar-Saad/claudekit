@@ -1,0 +1,35 @@
+{
+  "plan": "triage-refresh-records",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".ai/TECH_DEBT.md",
+      "edits": [
+        {
+          "find": "| 15 | `gitOps.md` camelCase filename | L | `.claude/agents/` | Standardize during 008 (breaking rename). |\n",
+          "add_after": "| 16 | Five commands over 200 lines | L | `.claude/commands/` | `refine` 464, `ship` 228, `gan-build` 227, `opensource` 222, `loop-start` 220 (`wc -l`, 2026-08-24; 7318 total). **Not a context win** \u2014 command *bodies* are outside the always-on floor; `check-context-floor.py` budgets only descriptions, at **4753/6000** chars. So the exit is readability + per-invocation cost, and framing it as context savings would breach hard rule 6. **`refine.md` is not extractable:** its bash blocks are fragments carrying `<TASK>`/`<N>`/`$iteration` with no loop wrapper (stated in `tests/test_delivery_contract_smoke.py`'s module docstring), so \"extract the script\" means *writing* one on a CI-facing path \u2014 a feature, not a refactor. Any cut to a shipped command is user-visible and owner-gated. |\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".ai/BACKLOG.md",
+      "edits": [
+        {
+          "find": "- [ ] **Triage `review/code-review.md`",
+          "add_before": "- [ ] **[MEDIUM] `review-record.py check` manufactures DRIFT for a plan's second ops config.**\n  Diagnosed 2026-08-24 while working the three `drifted` plans `gen-plan-index.py --check`\n  reports. **Two of the three warnings are the tool's, not the tree's.** When a config has no\n  record under its own ops key, `resolve_ops`'s legacy fallback compares its bytes against the\n  *plan-slug* record \u2014 a different file's approved hash \u2014 and reports drift:\n\n      $ python3 .claude/operations/scripts/review-record.py check \\\n          .claude/plans/plan-dispatcher-payload.md \\\n          .claude/plans/archive/ops-dispatcher-payload-docs.json\n      NOTE: no record under ops key 'dispatcher-payload-docs'; using the legacy plan-slug record 'dispatcher-payload'.\n      DRIFT: ops.json changed after it was reviewed.\n\n  `archive/README.md:57` records that config as executed with `--no-approval` (Tier 1, docs) \u2014\n  it never had a verdict, so it cannot have drifted from one. `ops-enforcement-runtime-wiring.json`\n  is the same shape. Each plan's *primary* config is clean: `ops-dispatcher-payload.json`\n  APPROVED 94, `ops-enforcement-runtime.json` APPROVED 93, both capability-tiers siblings 93/95.\n  Because `gen-plan-index.py`'s `PRECEDENCE` puts `drifted` first, one falsely-drifted addendum\n  condemns the whole plan. Fix: report *absence* (the existing rc=3 `planned`) when no record\n  exists under the ops key, instead of hashing against a different file's verdict. **Owner-gated \u2014\n  it changes what the approval machinery calls approved, so it is Tier 3 and wants an adversarial\n  review.** Mutation proof required both ways: the two addenda 2 \u2192 3, the four primary configs\n  unchanged at 0, and a hand-edited byte in a primary config still reporting 2.\n\n  **`plan-capability-tiers`'s drift is genuine and is NOT covered by that fix.** Its own key's\n  hash changed after the verdict. `archive/README.md:90` records it executed 8/8 with APPROVED 95,\n  and `review-record.py` names the probable cause itself \u2014 `--stamp-baseline` run after the\n  verdict was recorded, which rewrites the config's bytes. Probable, documented, benign, and\n  still not a verdict: **no approval will be re-recorded for it.** It stays `drifted` until a real\n  `/review` pass re-scores it, which is the only honest way out.\n\n  **The handoff's prescribed remedy does not apply.** \"Archive it with a README row\" conflicts\n  with the repo's own convention: `scripts/check-plan-artifacts.py:147-148` states that an\n  executed *config* moves to `archive/` while **the plan stays at `.claude/plans/`** \u2014 moving the\n  three plan documents would break the path resolution that comment exists to describe.\n\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/plans/archive/README.md",
+      "edits": [
+        {
+          "find": "| `ops-kitcopy-logs/ops-kitcopy-logs.json` |",
+          "add_before": "| `ops-triage-refresh.json` | Spent 2026-08-24, `--no-approval` disclosed (Tier 1: two maintainer/review docs, no code / schema / API / security surface). Re-verifies all 53 LIVE rows of `review/code-review-triage.md` against `HEAD`, **78 commits** after the 2026-08-20 triage was taken at `c167298`: **13 newly FIXED** (F37, F47, F57, F59, F70, F80, F91, F92, F93, F95, F98, F99, F100), F68 half-fixed, **40 still LIVE**. Appended rather than rewritten, so the 2026-08-20 evidence survives. Also collapses the duplicate enumeration: `.ai/BACKLOG.md` held its own 75-finding P2/P3 triage of the same review with different IDs, and the \"45 unverified\" it reported was an artifact of two records not naming each other \u2014 **every one of the 45 already had a verdict one directory over**. That entry is now a pointer; this file is the single record. **Three near-misses worth inheriting.** (1) `grep 'tail -20'` returns nothing and `grep 'tail -[0-9]'` returns eight sites \u2014 both true, only the second informative; F37 was fixed 20 \u2192 60 *and* by routing the full output to `hooks.log`, so the first grep would have called it fixed for the wrong reason. (2) F59's `+1` survives, so a shape-only read says LIVE; the comment three lines above says it deliberately reserves room for the append that follows \u2014 reading the code without the comment files a defect against working code. (3) \u00a76 cites `templates/hooks/`, which no longer exists \u2014 the hooks were *promoted* into `.claude/hooks/`, so its findings did not retire, they moved, and F61/F63/F65 lost the \"template-only, unwired\" mitigation and went **up** in priority. Plan: `plan-triage-refresh.md`. |\n"
+        }
+      ]
+    }
+  ]
+}

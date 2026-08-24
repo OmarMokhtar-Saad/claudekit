@@ -1,0 +1,23 @@
+{
+  "plan": "enforcement-trio",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "config.schema.json",
+      "edits": [
+        {
+          "find": "\"description\": \"Blocks access to sensitive files matching 195+ patterns (secrets, credentials, keys, certificates)\"",
+          "replace": "\"description\": \"Warns on paths matching the sensitive-file classifier's 18 categories (env files, credentials, keys, certificates, wallets, production data). ADVISORY: the wrapper file-guard-gate.sh exits 0 always and runs only under ECC_HOOK_PROFILE=strict. A pattern count is deliberately not quoted here -- the previous \\\"195+\\\" overstated a ~47-pattern script by about 4x, and a hand-written count drifts the moment the script is edited.\""
+        },
+        {
+          "find": "\"description\": { \"type\": \"string\", \"default\": \"Blocks access to sensitive files matching 195+ patterns\" }",
+          "replace": "\"description\": { \"type\": \"string\", \"default\": \"Warns (advisory, strict profile only) on sensitive-looking paths\" }"
+        },
+        {
+          "find": "\"description\": \"Detects when code comments are replaced with implementation stubs or placeholders\"",
+          "replace": "\"description\": \"Detects when code comments are replaced with implementation stubs or placeholders. SHIPPED BUT NOT WIRED: it has zero references in .claude/settings.json, so nothing invokes it. Documented here so the option block is not mistaken for a running hook; wiring it is a separate, owner-gated decision.\""
+        }
+      ]
+    }
+  ]
+}

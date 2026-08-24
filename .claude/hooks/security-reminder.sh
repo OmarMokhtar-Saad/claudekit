@@ -7,8 +7,16 @@
 # ECC_HOOK_PROFILE: runs in standard + strict (not minimal)
 [ "${ECC_HOOK_PROFILE:-standard}" = "minimal" ] && exit 0
 
-LOG=".claude/hooks/hooks.log"
-log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] [security-reminder] [$1] $2" >> "$LOG" 2>/dev/null; }
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+[ -f "$SCRIPT_DIR/lib.sh" ] && . "$SCRIPT_DIR/lib.sh"
+HOOK_NAME="security-reminder"
+# `$SCRIPT_DIR`, not a cwd-relative path: this hook wrote to `.claude/hooks/hooks.log`
+# relative to the CURRENT DIRECTORY, so its log landed elsewhere (or nowhere) whenever
+# the cwd was not the repo root. Three hooks shared that bug and a third `LOG_FILE=`
+# form (finding F107); the same class already misplaces `command-log-audit.sh`'s audit
+# trail (F55). `hlog` also uses `$*`, so an argument past the second no longer vanishes.
+LOG_FILE="$SCRIPT_DIR/hooks.log"
+log() { hlog "$@"; }
 
 TOOL_INPUT=$(cat)
 

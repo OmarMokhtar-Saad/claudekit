@@ -1,0 +1,15 @@
+{
+  "plan": "enforcement-trio",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".gitignore",
+      "edits": [
+        {
+          "find": ".claude-core.lock\n",
+          "replace": ".claude-core.lock\n# The ops executor's lock. It used to be unlinked by `ExecutionLock.release()`, which was\n# the race that fix removed -- so the file now PERSISTS after a run, holding the last\n# holder's pid as a diagnostic. It is runtime state, never a source artifact.\n.codemanifest.lock\n"
+        }
+      ]
+    }
+  ]
+}

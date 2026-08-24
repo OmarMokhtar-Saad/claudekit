@@ -1,0 +1,15 @@
+{
+  "plan": "triage-refresh",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".ai/BACKLOG.md",
+      "edits": [
+        {
+          "find": "- [ ] **[MEDIUM] `review-record.py check` manufactures DRIFT",
+          "add_before": "- [ ] **[MEDIUM] `check-plan-artifacts.py` silently skips 59% of the configs it counts.**\n  Observed 2026-08-24: `check-plan-artifacts: OK (151 config(s), 363 path(s) verified)` followed\n  by `NOTE: 89 config(s) resolved to no plan and were not checked`. So **62 of 151** configs are\n  actually checked, and the headline number counts all 151. The script's own comment at\n  `scripts/check-plan-artifacts.py:259-261` already names this failure mode \u2014 \"a config count\n  alone cannot tell a real pass from a gate that checked nothing\" \u2014 and the NOTE is printed\n  rather than failed on, so the 59% has grown quietly.\n\n  **Cause, and it is mostly self-inflicted.** `_resolve_plan` tries `plan-<slug>.md` and\n  `<slug>.md` for the config's declared `plan` key. Configs declaring a *sub-slug* \u2014 one plan\n  executed through several configs, e.g. `\"plan\": \"triage-refresh-records\"` against\n  `plan-triage-refresh.md` \u2014 resolve to nothing and are skipped. **Six of the 89 are mine**, from\n  this period: I named each config after its step rather than its plan, and the gate skipped all\n  six without failing. Two candidate fixes: declare the parent slug in every config (convention,\n  no code), or have `_resolve_plan` fall back to the longest `plan-*.md` prefix of the declared\n  slug (code, and it must not match across unrelated plans). **Prefer the convention fix** \u2014 a\n  prefix fallback is the kind of loose matcher that `ops-dispatcher-payload.json`'s L1 lesson was\n  about.\n\n  **Do not \"fix\" it by making the NOTE fatal first.** 89 configs are already archived and spent;\n  failing on them reddens CI for history nobody can change. Fix the resolution, watch the number\n  fall, then make it fatal \u2014 in that order, or the gate gets routed around.\n\n"
+        }
+      ]
+    }
+  ]
+}

@@ -499,14 +499,18 @@ def _lock_holder(project, ready, hold):
                              str(ready), str(hold)], cwd=str(project))
 
 
-def test_executor_lock_refuses_a_second_run_and_leaves_no_stale_lock(project, tmp_path):
+def test_executor_lock_refuses_a_second_run_and_does_not_block_the_next(project, tmp_path):
     """E2E-31/33, reconciled to the property the design actually has.
 
     `ExecutionLock` (execute-json-ops.py) is project-wide and non-blocking, and NOTHING
     in tests/ references it: `ExecutionLock` and `.codemanifest.lock` appear in no test
     file. Two halves matter and neither is timing-dependent: a run that meets a held lock
     must refuse rather than interleave, and a refused run must not poison the next one
-    (E2E-31's "no stale lock left behind that blocks the next run")."""
+    (E2E-31's "no stale lock left behind that blocks the next run").
+
+    Renamed 2026-08-24: the old name said "leaves no stale lock", which is a stronger and
+    different claim than E2E-31's "no stale lock that BLOCKS the next run". `release()` now
+    keeps the file on purpose -- see the comment at the final assertion."""
     env = env_for(project, "minimal", tmp_path)
     config = project / "ops.json"
     config.write_text(json.dumps(_ops_payload(plan="locked")), encoding="utf-8")
@@ -538,8 +542,21 @@ def test_executor_lock_refuses_a_second_run_and_leaves_no_stale_lock(project, tm
     recovered = run_script(EXECUTOR, [str(config)], project, env)
     assert recovered.returncode == 0, recovered.stdout + recovered.stderr
     assert (project / "src" / "app.py").read_text(encoding="utf-8") == PATCHED
-    assert not (project / ".codemanifest.lock").exists(), \
-        "a completed run left its lock behind; the next run would be blocked by it"
+    # E2E-31's original wording was "no stale lock left behind that BLOCKS the next run",
+    # and this assertion had shortened that to "no lock file left behind" -- two different
+    # properties. The design falsifies the short one: mutual exclusion is `fcntl.flock`,
+    # so a leftover path is inert, and the two assertions immediately above already prove
+    # it by running the executor to success with the file present. `release()` deliberately
+    # stopped unlinking (2026-08-24) because the unlink WAS a race: a process blocked on
+    # flock against the inode could have it removed from under it while a third created a
+    # fresh path and acquired that, leaving two executors live. So the property asserted
+    # here is the one E2E-31 asked for -- the next run is not blocked -- plus the reason
+    # the file is worth keeping.
+    lock = project / ".codemanifest.lock"
+    if lock.exists():
+        assert lock.read_text(encoding="utf-8").strip().isdigit(), \
+            "the lock file that is no longer unlinked must carry the holder pid, or it " \
+            "is litter rather than a diagnostic"
 
 
 def test_wired_edit_chain_blocks_a_cross_project_edit(project, tmp_path):

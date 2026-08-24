@@ -34,6 +34,34 @@ classify() {
     local basename
     basename=$(basename "$filepath")
 
+    # 0. Public-by-construction and test material, checked BEFORE any denylist.
+    #
+    # The extension set below is right -- a `.pem` usually IS a key. The problem was
+    # that "usually" had no escape hatch: `public.pem`, `id_rsa.pub`, `ca-bundle.crt`
+    # and every `.pem` under `tests/fixtures/` classified as `certificates`, and this
+    # classifier is wired through an ADVISORY hook (`file-guard-gate.sh` exits 0 always,
+    # `strict` profile only). So the cost was not a blocked edit -- it was a warning that
+    # cries wolf, and an advisory nobody believes is worse than none.
+    #
+    # An allowlist rather than a narrower denylist, deliberately: hard rule 6 calls this
+    # a speed bump, and a speed bump needs a marked exit or people drive around it.
+    #
+    # Narrow on purpose. A `public`/`pub` STEM (not substring: `publickeys.pem` is not
+    # freed), a test/fixture/example/sample PATH COMPONENT (not substring: `latest.pem`
+    # is not freed), and the two conventional CA bundle names.
+    case "$basename" in
+        public.*|*.pub|ca-bundle.*|ca-certificates.*)
+            echo ""; return ;;
+    esac
+    case "/$filepath" in
+        */test/*|*/tests/*|*/testdata/*|*/fixtures/*|*/spec/fixtures/*|*/__fixtures__/*)
+            echo ""; return ;;
+    esac
+    case "$basename" in
+        example.*|sample.*|dummy.*)
+            echo ""; return ;;
+    esac
+
     # 1. Env files
     case "$basename" in
         .env|.envrc) echo "env-files"; return ;;
@@ -121,9 +149,13 @@ classify() {
     fi
 
     # 12. Production data
-    if [[ "$filepath" == *"production/"*"data"* ]] || \
-       [[ "$filepath" == *"customer"*"data"* ]] || \
-       [[ "$filepath" == *"pii/"* ]]; then
+    # `*"customer"*"data"*` matched `customer_data_schema.sql` -- a SCHEMA is a
+    # description of data, not data. Same for a model doc. Narrowed by excluding the
+    # two words that mean "shape of", rather than by dropping the pattern.
+    if [[ "$basename" != *schema* ]] && [[ "$basename" != *model* ]] && \
+       { [[ "$filepath" == *"production/"*"data"* ]] || \
+         [[ "$filepath" == *"customer"*"data"* ]] || \
+         [[ "$filepath" == *"pii/"* ]]; }; then
         echo "production-data"; return
     fi
 

@@ -1,0 +1,15 @@
+{
+  "plan": "enforcement-trio",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "scripts/check-fileguard-differential.py",
+      "edits": [
+        {
+          "find": "import argparse\nimport os\nimport re\nimport shutil\nimport subprocess",
+          "replace": "import argparse\nimport re\nimport subprocess"
+        }
+      ]
+    }
+  ]
+}
