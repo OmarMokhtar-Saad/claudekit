@@ -1,0 +1,39 @@
+{
+  "plan": "b1r3-headings",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/i18n-patterns/SKILL.md",
+      "description": "MINOR-4: Relative Time is a formatting topic; it was stranded at ## level between Translation Workflow and file formats",
+      "edits": [
+        {
+          "find": "---\n\n## Relative Time\n\n- Use `Intl.RelativeTimeFormat` or equivalent\n- Examples: \"3 days ago\", \"in 2 hours\", \"yesterday\"\n\n",
+          "replace": "---\n\n"
+        },
+        {
+          "find": "### Common Pitfalls",
+          "add_before": "### Relative Time\n\n- Use `Intl.RelativeTimeFormat` or equivalent\n- Examples: \"3 days ago\", \"in 2 hours\", \"yesterday\"\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/i18n-patterns/SKILL.md",
+      "description": "MINOR-5: MD022 -- a heading needs a blank line before it",
+      "edits": [
+        {
+          "find": "  tags or Unicode isolate characters\n### RTL Checklist",
+          "replace": "  tags or Unicode isolate characters\n\n### RTL Checklist"
+        },
+        {
+          "find": "6. The build compiles translation files into the app bundle\n### Process",
+          "replace": "6. The build compiles translation files into the app bundle\n\n### Process"
+        },
+        {
+          "find": "---\n## i18n Checklist",
+          "replace": "---\n\n## i18n Checklist"
+        }
+      ]
+    }
+  ]
+}

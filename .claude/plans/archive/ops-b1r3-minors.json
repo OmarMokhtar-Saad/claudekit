@@ -1,0 +1,38 @@
+{
+  "plan": "b1r3-minors",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "src/claudekit/cli/main.py",
+      "description": "use skills.renamed_map instead of re-implementing it: the alias read existed twice, one copy unused",
+      "edits": [
+        {
+          "find": "                aliases = data.get(\"renamed\")\n                aliases = aliases if isinstance(aliases, dict) else {}",
+          "replace": "                # Read through skills.renamed_map so the parse lives in ONE place. It\n                # was re-implemented inline here at first, which recreated the\n                # duplicate-alias-logic defect in the same commit that deleted the\n                # original instance of it.\n                from claudekit.skills import renamed_map\n                aliases = renamed_map(data)"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "src/claudekit/cli/main.py",
+      "description": "a shadowing alias must not tell the user to remove a reference to a skill that exists",
+      "edits": [
+        {
+          "find": "                for old, new in sorted(aliases.items()):\n                    stale = []",
+          "replace": "                for old, new in sorted(aliases.items()):\n                    if old in skill_ids or old in fs_skills:\n                        # gen-registry --check refuses this, but it never runs in an\n                        # installed tree -- which is the only place doctor runs. Left\n                        # unhandled, the scan below tells the user to stop referencing\n                        # a skill they still have.\n                        warn(f\"  Registry: alias '{old}' shadows a skill that still \"\n                             f\"exists; remove it from `renamed`\")\n                        checks_warned += 1\n                        continue\n                    stale = []"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "scripts/gen-registry.py",
+      "description": "an empty alias key is a substring of every file and flags the whole tree",
+      "edits": [
+        {
+          "find": "    for _old, _new in sorted(_aliases.items()):",
+          "replace": "    for _old, _new in sorted(_aliases.items()):\n        if not _old or not isinstance(_new, str) or not _new:\n            print(f\"ERROR: renamed: {_old!r} -> {_new!r} is not a usable alias \"\n                  f\"(an empty key matches every file)\", file=sys.stderr)\n            return 1"
+        }
+      ]
+    }
+  ]
+}

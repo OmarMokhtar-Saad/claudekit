@@ -1,0 +1,16 @@
+{
+  "plan": "b1r3-md022-tail",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/i18n-patterns/SKILL.md",
+      "description": "add_before appends no newline; the inserted block abutted the next heading",
+      "edits": [
+        {
+          "find": "- Examples: \"3 days ago\", \"in 2 hours\", \"yesterday\"\n### Common Pitfalls",
+          "replace": "- Examples: \"3 days ago\", \"in 2 hours\", \"yesterday\"\n\n### Common Pitfalls"
+        }
+      ]
+    }
+  ]
+}
