@@ -1,0 +1,16 @@
+{
+  "plan": "ops-refine-trim",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/commands/refine.md",
+      "description": "Three usage examples of a command with ONE flag, restating what the flag table above already says, collapsed to one line. Trimmed rather than re-baselined: the taxonomy fix added 2 lines and `ck lint`'s ratchet caught it, and answering a ratchet by raising it is how the ratchet stops meaning anything. refine.md is the corpus's worst offender at 468 lines, so it is the right file to take the trim.",
+      "edits": [
+        {
+          "find": "## Flags\n\n| Flag | Default | Description |\n|------|---------|-------------|\n| `--max-iter N` | 5 | Maximum plan-review cycles before escalation |\n\n## Usage Examples\n\n- `/refine \"add rate limiting to the API\"` — up to 5 iterations, threshold 90\n- `/refine \"refactor auth middleware\" --max-iter 3` — tighter iteration budget\n- `/refine \"implement user notification system\"` — full refinement with automatic convergence\n",
+          "replace": "## Flags\n\n| Flag | Default | Description |\n|------|---------|-------------|\n| `--max-iter N` | 5 | Maximum plan-review cycles before escalation |\n\n`/refine \"add rate limiting to the API\"` · `/refine \"refactor auth\" --max-iter 3`\n"
+        }
+      ]
+    }
+  ]
+}

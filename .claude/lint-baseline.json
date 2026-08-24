@@ -58,7 +58,9 @@
     "worktree.md": 66,
     "xpipe.md": 69
   },
-  "skill_agent_waivers": {
+  "skill_agent_waivers_removed_2026_08_24": "gan-harness and opensource-pipeline both cite INVOCATION.md now; the narrowed rule passes on merit. See .claude/plans/archive/ for the reasoning.",
+  "skill_agent_waivers": {},
+  "_former_waivers": {
     "gan-harness": "Genuinely orchestrates agents (Generator -> fresh Evaluator -> Adjudicator), so the Agent grant is real, not accidental. Waived rather than fixed because converting an orchestration skill into an agent is agent-corpus work that belongs with task 008 batch 3, not with the batch that added this rule. Filed in .ai/BACKLOG.md.",
     "opensource-pipeline": "Same shape: a 3-stage Sanitizer -> Forker -> Packager pipeline that spawns each stage. Waived on the same reasoning and filed alongside it."
   }

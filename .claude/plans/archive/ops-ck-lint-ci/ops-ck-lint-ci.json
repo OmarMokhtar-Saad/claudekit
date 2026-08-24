@@ -1,0 +1,27 @@
+{
+  "plan": "ops-ck-lint-ci",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".github/workflows/ci.yml",
+      "description": "Wire `ck lint` into the same job that already gates the other corpus-derived invariants. Placed here, not in a new job, because it is the same class of check: cheap, no matrix, fails on drift. Runs from the checkout via PYTHONPATH rather than installing the package -- this job installs nothing today and adding a pip step for one command would triple its runtime.",
+      "edits": [
+        {
+          "find": "      - name: Every path an ops config writes is named in its plan\n        run: python3 scripts/check-plan-artifacts.py --check",
+          "replace": "      - name: Every path an ops config writes is named in its plan\n        run: python3 scripts/check-plan-artifacts.py --check\n      - name: Prompt corpus lint (command budget, skill tool grants, triggers)\n        run: PYTHONPATH=src python3 -m claudekit.cli.main lint"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "description": "User-visible: the gate is now enforced, not advisory.",
+      "edits": [
+        {
+          "find": "## [Unreleased]\n\n### Changed\n",
+          "add_after": "\n- **`ck lint` now runs in CI.** It shipped as an advisory gate; it is now enforced\n  alongside the other corpus invariants (component counts, model policy, context\n  floor, plan artifacts). A command that grows past its recorded size, a skill\n  that grants `Agent` without a named waiver, or two skills competing for one\n  prompt now fail the build rather than being noticed later.\n"
+        }
+      ]
+    }
+  ]
+}

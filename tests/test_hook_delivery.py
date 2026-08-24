@@ -56,7 +56,8 @@ def _kit_copy(dest):
     shutil.copytree(
         REPO, dest, symlinks=True,
         ignore=shutil.ignore_patterns(
-            ".git", "__pycache__", "*.pyc", "node_modules", ".venv", "backups"
+            ".git", "__pycache__", "*.pyc", "node_modules", ".venv", "backups",
+            "*.log",
         ),
     )
     return dest

@@ -1,0 +1,53 @@
+{
+  "plan": "ops-spawning-skills",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "src/claudekit/lint.py",
+      "description": "Narrow skill-agent-costume to what INVOCATION.md actually mandates. The original rationale -- 'a skill granted Agent belongs in .claude/agents/' -- CONTRADICTED `.claude/agents/_shared/INVOCATION.md:4`, which says 'Any command, agent, or skill that spawns another agent MUST follow this' and 'if another doc disagrees with this one, this one wins'. A spawning skill is a sanctioned category, so the rule would have driven two correct skills into a pointless conversion. It now flags the thing that carries the risk: spawning while citing none of the contract that constrains spawning.",
+      "edits": [
+        {
+          "find": "def check_skill_agent_costume(root):\n    \"\"\"A skill granted the Agent tool is an agent wearing a skill's frontmatter.\n\n    Skills are loaded INTO an agent's context; one that can spawn agents inverts that\n    and routes around `.claude/agents/_shared/INVOCATION.md`, where spawning is scoped.\n\n    Two skills in this corpus already do it, and they are WAIVED by name in\n    `.claude/lint-baseline.json` rather than hidden: both are genuine orchestration\n    prose, converting them is agent-corpus work this rule's batch does not own, and a\n    rule that failed the DoD on day one would be turned off. Same ratchet shape as the\n    command budget -- record what exists, block what is new.\n    \"\"\"\n",
+          "replace": "def check_skill_agent_costume(root):\n    \"\"\"A spawning skill must follow the doc that governs spawning.\n\n    The first version of this rule asserted that a skill granted `Agent` \"belongs in\n    .claude/agents/\". That was WRONG, and `.claude/agents/_shared/INVOCATION.md:4`\n    says so outright: \"Any command, agent, or skill that spawns another agent MUST\n    follow this. If another doc disagrees with this one, this one wins.\" A spawning\n    skill is a sanctioned category, so a rule demanding its conversion contradicted the\n    corpus's own single source of truth -- and would have driven two correct skills into\n    a pointless refactor.\n\n    What INVOCATION.md actually mandates is that the spawner follow IT: scope with\n    `--allowedTools`, never `--dangerously-skip-permissions`. So the rule now checks the\n    thing that carries the risk -- a skill that spawns agents while citing none of the\n    contract that constrains spawning. Measured when it was narrowed: `gan-harness` and\n    `opensource-pipeline` both granted `Agent` and both cited nothing, which is a real\n    defect the original framing would have \"fixed\" by deleting the skills.\n    \"\"\"\n"
+        },
+        {
+          "find": "    findings = []\n    waived = load_waivers(root)\n    for path in skill_files(root):\n        name = os.path.basename(os.path.dirname(path))\n        tools = declared_tools(_read(path))\n        offending = sorted(t for t in tools if t in SPAWNING_TOOLS)\n        if not offending:\n            continue\n        if name in waived:\n            continue\n        findings.append(Finding(\n            \"skill-agent-costume\", os.path.relpath(path, root),\n            \"grants %s. A skill that can spawn agents belongs in .claude/agents/, \"\n            \"where INVOCATION.md scopes what it may spawn. If this is deliberate, add \"\n            \"it to `skill_agent_waivers` in .claude/%s with a reason.\"\n            % (\" and \".join(offending), BASELINE_NAME)))\n    return findings\n\n\n",
+          "replace": "    findings = []\n    waived = load_waivers(root)\n    for path in skill_files(root):\n        name = os.path.basename(os.path.dirname(path))\n        body = _read(path)\n        tools = declared_tools(body)\n        offending = sorted(t for t in tools if t in SPAWNING_TOOLS)\n        if not offending:\n            continue\n        if name in waived:\n            continue\n        if \"INVOCATION.md\" in body:\n            continue\n        findings.append(Finding(\n            \"skill-agent-costume\", os.path.relpath(path, root),\n            \"grants %s but cites no spawning contract. INVOCATION.md is the single \"\n            \"source of truth for how anything spawns an agent -- reference it and \"\n            \"scope the spawn with `--allowedTools`, or drop the grant. A waiver in \"\n            \"`skill_agent_waivers` (.claude/%s) is the escape hatch, with a reason.\"\n            % (\" and \".join(offending), BASELINE_NAME)))\n    return findings\n\n\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/gan-harness/SKILL.md",
+      "description": "Real defect, found by narrowing the rule: it spawns a fresh Evaluator every iteration and cited no spawning contract at all.",
+      "edits": [
+        {
+          "find": "# GAN Harness Skill",
+          "add_after": "\n---\n\n## Spawning contract\n\nThis skill spawns agents, which `.claude/agents/_shared/INVOCATION.md` governs: it is the\nsingle source of truth for how anything in ClaudeKit spawns an agent, and it applies to\ncommands, agents **and skills** alike. Follow it rather than restating it here. In\nparticular: scope every spawn with `--allowedTools` to the narrowest set the stage needs,\nand never pass `--dangerously-skip-permissions` (banned corpus-wide and CI-gated)."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/opensource-pipeline/SKILL.md",
+      "description": "Same defect: it names three agents by role across three stages and cited no spawning contract.",
+      "edits": [
+        {
+          "find": "# Open-Source Pipeline Skill",
+          "add_after": "\n---\n\n## Spawning contract\n\nThis skill spawns agents, which `.claude/agents/_shared/INVOCATION.md` governs: it is the\nsingle source of truth for how anything in ClaudeKit spawns an agent, and it applies to\ncommands, agents **and skills** alike. Follow it rather than restating it here. In\nparticular: scope every spawn with `--allowedTools` to the narrowest set the stage needs,\nand never pass `--dangerously-skip-permissions` (banned corpus-wide and CI-gated)."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/lint-baseline.json",
+      "description": "Both waivers are DELETED, not carried: the skills now satisfy the narrowed rule on their merits. A waiver that is no longer needed is a standing invitation to stop meeting the rule.",
+      "edits": [
+        {
+          "find": "  \"skill_agent_waivers\": {\n    \"gan-harness\":",
+          "replace": "  \"skill_agent_waivers_removed_2026_08_24\": \"gan-harness and opensource-pipeline both cite INVOCATION.md now; the narrowed rule passes on merit. See .claude/plans/archive/ for the reasoning.\",\n  \"skill_agent_waivers\": {},\n  \"_former_waivers\": {\n    \"gan-harness\":"
+        }
+      ]
+    }
+  ]
+}

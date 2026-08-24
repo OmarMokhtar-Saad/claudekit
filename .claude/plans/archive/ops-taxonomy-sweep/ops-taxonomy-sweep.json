@@ -1,0 +1,46 @@
+{
+  "plan": "ops-taxonomy-sweep",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/commands/refine.md",
+      "description": "The FIFTH copy of the contradicting taxonomy, missed by batch 4 because it is punctuated differently: '`REVISE` (score < 70)' rather than 'REVISE = score < 70'. It contradicts the canonical rule, under which REVISE means an open CRITICAL/MAJOR at ANY score.",
+      "edits": [
+        {
+          "find": "Note: `CONDITIONAL` (score 70–89) and `REVISE` (score < 70) are revision signals — they fall\nthrough to the increment and loop back. They do NOT trigger early exit.",
+          "replace": "Note: `CONDITIONAL` and `REVISE` are both revision signals — they fall through to the\nincrement and loop back. They do NOT trigger early exit. Which one applies is decided by\nthe findings, not by the score alone; see the canonical taxonomy in\n`.claude/agents/HANDOFF_PROTOCOL.md#reviewer-decision-taxonomy`."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/reviewer.md",
+      "description": "The handoff descriptions are worth keeping, but their headings still derive a decision from the score alone, which is what the canonical taxonomy exists to stop. Re-titled by DECISION; the score is named only as the typical case.",
+      "edits": [
+        {
+          "find": "### Score >= 90: APPROVED",
+          "replace": "### APPROVED (typically score >= 90, and zero open CRITICAL/MAJOR)"
+        },
+        {
+          "find": "### Score 70-89: CONDITIONAL APPROVAL",
+          "replace": "### CONDITIONAL (only MINOR findings open)"
+        },
+        {
+          "find": "### Score < 70: REJECTED",
+          "replace": "### REJECTED (score < 70, or the approach itself is invalid)"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_single_source_contracts.py",
+      "description": "The mechanical check promised at the third instance of `claim-not-corrected-everywhere-it-was-made`. An exact-string assertion is what let a fifth copy survive; this matches the CLAIM in any punctuation, across the whole corpus rather than three named files.",
+      "edits": [
+        {
+          "find": "class TestTheRoutingTableHasOneDefinition:",
+          "replace": "    #: Score-band restatements, in every punctuation batch 4's first sweep missed.\n    #: The literal `REVISE = score < 70` was removed from three files and a FIFTH copy\n    #: survived in `commands/refine.md` reading \"`REVISE` (score < 70)\" -- same claim,\n    #: different punctuation, so an exact-string assertion sailed past it. This is the\n    #: third instance of `claim-not-corrected-everywhere-it-was-made`, which is the\n    #: count at which the class was said to earn a mechanical check. This is it.\n    BAND_PATTERNS = [\n        re.compile(r\"REVISE.{0,12}(?:score\\s*)?[<\\u2264]\\s*70\", re.I),\n        re.compile(r\"score.{0,6}[<\\u2264]\\s*70.{0,20}REVISE\", re.I),\n        re.compile(r\"CONDITIONAL.{0,20}70\\s*[-\\u2013]\\s*89\", re.I),\n        re.compile(r\"70\\s*[-\\u2013]\\s*89.{0,20}CONDITIONAL\", re.I),\n    ]\n\n    def _corpus_files(self):\n        for rel in (\".claude/agents\", \".claude/commands\", \".claude/skills\"):\n            base = os.path.join(ROOT, rel)\n            for dirpath, _dirs, files in os.walk(base):\n                for name in files:\n                    if name.endswith(\".md\"):\n                        yield os.path.join(dirpath, name)\n\n    def test_no_file_restates_a_score_band_in_any_punctuation(self):\n        \"\"\"The canonical taxonomy says findings gate BEFORE score -- an open\n        CRITICAL/MAJOR is REVISE at any score. Any file re-deriving a band from the\n        number alone contradicts that, however it is punctuated.\"\"\"\n        hits = []\n        for path in self._corpus_files():\n            with open(path, encoding=\"utf-8\", errors=\"replace\") as fh:\n                body = fh.read()\n            if \"HANDOFF_PROTOCOL.md#reviewer-decision-taxonomy\" in body and \\\n                    \"single definition\" in body:\n                continue          # the file that POINTS at the definition may quote it\n            for pattern in self.BAND_PATTERNS:\n                found = pattern.search(body)\n                if found:\n                    hits.append(\"%s: %r\" % (\n                        os.path.relpath(path, ROOT), found.group(0)))\n        assert hits == [], \"score bands restated outside the one definition: %s\" % hits\n\n\nclass TestTheRoutingTableHasOneDefinition:"
+        }
+      ]
+    }
+  ]
+}

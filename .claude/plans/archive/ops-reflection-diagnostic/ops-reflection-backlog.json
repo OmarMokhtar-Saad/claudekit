@@ -1,0 +1,20 @@
+{
+  "plan": "ops-reflection-backlog",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".ai/BACKLOG.md",
+      "description": "Fold the duplicate entry into the existing UNEXPLAINED-intermittent record and withdraw its unsupported cause; add the new signature to the entry that owns this family.",
+      "edits": [
+        {
+          "find": "- [ ] **[LOW] `tests/test_reflection_ledger.py::test_receipt_via_cli_clears_the_checkpoint` is flaky.** Measured 2026-08-24 on the real tree at `bd49c7f`, unrelated to any batch: roughly 1 failure in 9 runs, `read_session_token(SESSION)` returning empty so the CLI sees `--session-token` with no value and argparse exits 2. Passes in isolation; only observed inside a full-suite run. Fix: make the fixture wait for (or create) the token file rather than assuming the session-start hook has written it.",
+          "replace": "- [ ] **[LOW] ~~`test_receipt_via_cli_clears_the_checkpoint` is flaky~~ — FOLDED into the UNEXPLAINED-intermittent entry above, where it already belonged.** Filing it separately was a duplicate: that entry was WIDENED on 2026-08-22 to cover this exact test as a member of the family. The stated cause here — `read_session_token` returning empty — was **checked and does not hold**: `read_session_token` returns `Optional[str]`, never `\"\"`; a `None` token raises `TypeError` in the parent before `subprocess` runs, and an empty string parses fine (`rc=0`). So neither value produces the observed `--session-token: expected one argument`. **No cause is claimed.** What the 2026-08-24 observation does add is a NEW SIGNATURE, recorded on the entry above."
+        },
+        {
+          "find": "  added and the assertion itself is unchanged. Do not close this until a CAPTURED failure\n  explains it.",
+          "replace": "  added and the assertion itself is unchanged. Do not close this until a CAPTURED failure\n  explains it.\n\n  **NEW SIGNATURE 2026-08-24** (full-suite run, worktree at `bd49c7f`, ~1 failure in 9):\n  the CLI variant failed with **argparse exit 2** — `reflection.py receipt: error:\n  argument --session-token: expected one argument` — not with the exit-0 /\n  checkpoint-not-cleared shape every prior sighting had. Two candidate values were\n  checked and BOTH ruled out: `read_session_token` returns `Optional[str]` and never\n  `\"\"`; a `None` token raises `TypeError` in the parent before `subprocess` is reached,\n  and `\"\"` parses cleanly to `rc=0`. So the observed error requires the token argument to\n  have been absent or option-shaped, which neither return value explains. `record_failure`\n  calling `ensure_session_token` and **discarding its return** (`reflection.py:606`) is\n  noted as a place where a silent token-creation failure would go unobserved — a LEAD,\n  not a diagnosis. **Capture widened accordingly**: the CLI variant had no\n  `receipt_diagnostic()` at all despite being a recorded family member since the\n  2026-08-22 widening, and the diagnostic recorded no argv — the one field that would\n  have settled this signature. Both fixed; the next occurrence arrives with the evidence\n  this one lacked. Still no cause claimed."
+        }
+      ]
+    }
+  ]
+}

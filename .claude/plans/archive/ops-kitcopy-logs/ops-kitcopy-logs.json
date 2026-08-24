@@ -1,0 +1,16 @@
+{
+  "plan": "ops-kitcopy-logs",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_hook_delivery.py",
+      "description": "`_kit_copy` copied the whole repo INCLUDING a gitignored, 4.7 MB `.claude/hooks/hooks.log` that other tests append to via real hook invocations during a full-suite run. Three sibling files already ignore logs for this reason (test_dispatch_merge.py:881, test_install.py:212, test_pipeline_e2e.py:99); this one was the outlier. A full-suite run on 2026-08-24 failed here with shutil.Error from copytree while passing in isolation and passing the whole file in isolation -- consistent with a concurrent append, though NOT proven to be the cause. The change is right regardless: duplicating a churning multi-megabyte log into a throwaway kit copy is waste and a race surface, and the convention already existed.",
+      "edits": [
+        {
+          "find": "        ignore=shutil.ignore_patterns(\n            \".git\", \"__pycache__\", \"*.pyc\", \"node_modules\", \".venv\", \"backups\"\n        ),",
+          "replace": "        ignore=shutil.ignore_patterns(\n            \".git\", \"__pycache__\", \"*.pyc\", \"node_modules\", \".venv\", \"backups\",\n            \"*.log\",\n        ),"
+        }
+      ]
+    }
+  ]
+}

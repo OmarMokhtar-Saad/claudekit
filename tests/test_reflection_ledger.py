@@ -49,7 +49,7 @@ def fail(ref, target="target-a", failure_class="tool-failure", observation=None)
     )
 
 
-def receipt_diagnostic(ref, proc, env):
+def receipt_diagnostic(ref, proc, env, argv=None, token=None):
     """Evidence for the UNEXPLAINED intermittent tracked in .ai/BACKLOG.md:
     test_receipt_via_json_stdin_clears_the_checkpoint has failed three times with the CLI
     itself exiting 0, and has never reproduced on demand. This builds the capture the
@@ -77,6 +77,9 @@ def receipt_diagnostic(ref, proc, env):
         "ledger bytes:   %s" % raw,
         "active entries: %s" % json.dumps(ref.active_entries(SESSION), indent=2),
         "pending:        %s" % json.dumps(ref.pending_checkpoint(SESSION), indent=2),
+        "argv:           %s" % json.dumps(argv),
+        "token repr:     %r (len=%s)" % (
+            token, "n/a" if token is None else len(token)),
         "cli returncode: %s" % proc.returncode,
         "cli stdout:     %s" % proc.stdout,
         "cli stderr:     %s" % proc.stderr,
@@ -390,14 +393,23 @@ class TestCli:
         assert json.loads(proc.stdout)["checkpoint"]["trigger"] == "second-failure"
 
     def test_receipt_via_cli_clears_the_checkpoint(self, ref):
+        """A recorded member of the receipt-clears-checkpoint intermittent family
+        (.ai/BACKLOG.md), so it carries the same diagnostic as its json-stdin sibling.
+        It did not, and a 2026-08-24 full-suite occurrence was therefore undiagnosable:
+        argparse exited 2 with `--session-token: expected one argument`, a signature the
+        ledger-only capture cannot explain and which neither a None nor an empty token
+        reproduces."""
         fail(ref, target="a")
         fail(ref, target="b")
         token = ref.read_session_token(SESSION)
         payload = json.dumps(valid_receipt(ref))
-        proc = self.run("receipt", "--session-id", SESSION,
-                        "--session-token", token, "--json", payload)
-        assert proc.returncode == 0, proc.stderr
-        assert ref.pending_checkpoint(SESSION) is None
+        argv = ["receipt", "--session-id", SESSION,
+                "--session-token", token, "--json", payload]
+        proc = self.run(*argv)
+        assert proc.returncode == 0, receipt_diagnostic(
+            ref, proc, dict(os.environ), argv, token)
+        assert ref.pending_checkpoint(SESSION) is None, receipt_diagnostic(
+            ref, proc, dict(os.environ), argv, token)
 
     def test_receipt_via_inbox_keeps_free_text_out_of_the_command_line(self, ref, tmp_path):
         """MAJOR-3 decoupling: the argv carries flags only, never receipt prose - so
@@ -430,9 +442,12 @@ class TestCli:
             input=json.dumps(valid_receipt(ref)), capture_output=True, text=True,
             env=env, timeout=30,
         )
-        assert proc.returncode == 0, receipt_diagnostic(ref, proc, env)
+        argv = ["receipt", "--session-id", SESSION,
+                "--session-token", token, "--json-stdin"]
+        assert proc.returncode == 0, receipt_diagnostic(
+            ref, proc, env, argv, token)
         assert ref.pending_checkpoint(SESSION) is None, receipt_diagnostic(
-            ref, proc, env)
+            ref, proc, env, argv, token)
 
     def test_cli_refuses_a_bad_receipt_with_exit_2(self, ref):
         fail(ref, target="a")
