@@ -241,7 +241,7 @@ Coordinator → Documenter
 
 ### Docs Pipeline (Update Existing Documentation)
 ```
-Coordinator → DocUpdater
+Coordinator → docs (mode: update)
 ```
 
 ### Explore Pipeline

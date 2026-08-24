@@ -1,0 +1,16 @@
+{
+  "plan": "008-b3c4-08-doctor-command-names",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "src/claudekit/cli/main.py",
+      "description": "The alias scan could not tell an AGENT reference from a slash-command of the same name, so cluster 4 -- which merges the doc-updater agent away while /doc-updater the command survives -- turned `ck doctor --strict` red on two files that are both correct. Two exemptions, each exactly one shape wide: the command file whose own name is the alias key, and `/<name>` occurrences, which are command references by construction. The scan still flags a bare or backticked agent reference anywhere.",
+      "edits": [
+        {
+          "find": "    stale = []\n    for sub in (\"agents\", \"commands\", \"skills\"):\n        base = claude_dir / sub\n        if not base.is_dir():\n            continue\n        for path in base.rglob(\"*.md\"):\n            if path == own_path:\n                continue\n            try:\n                if old_name in path.read_text(encoding=\"utf-8\", errors=\"replace\"):\n                    stale.append(path.relative_to(claude_dir))\n            except OSError:\n                continue\n    return stale",
+          "replace": "    stale = []\n    for sub in (\"agents\", \"commands\", \"skills\"):\n        base = claude_dir / sub\n        if not base.is_dir():\n            continue\n        for path in base.rglob(\"*.md\"):\n            if path == own_path:\n                continue\n            # A COMMAND may legitimately keep the name of a merged-away AGENT: task 008\n            # batch 3 cluster 4 merged the `doc-updater` agent away while `/doc-updater`\n            # the command survives, routing to the merged agent in update mode. Two\n            # exemptions, each exactly one shape wide: the command file of the same name,\n            # and `/<name>` occurrences, which reference a command and never an agent.\n            if path.parent.name == \"commands\" and path.stem == old_name:\n                continue\n            try:\n                text = path.read_text(encoding=\"utf-8\", errors=\"replace\")\n            except OSError:\n                continue\n            if text.replace(\"/\" + old_name, \"\").find(old_name) != -1:\n                stale.append(path.relative_to(claude_dir))\n    return stale"
+        }
+      ]
+    }
+  ]
+}

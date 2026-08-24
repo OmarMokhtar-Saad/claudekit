@@ -7,6 +7,14 @@
       "to": "refactor-cleaner",
       "kind": "agent"
     },
+    "doc-updater": {
+      "to": "docs",
+      "kind": "agent"
+    },
+    "documenter": {
+      "to": "docs",
+      "kind": "agent"
+    },
     "python-reviewer": {
       "to": "python-review-checklist",
       "kind": "skill"
@@ -61,6 +69,7 @@
         "database-architect",
         "debugger",
         "devops",
+        "docs",
         "documenter",
         "explore",
         "gitOps",
@@ -87,6 +96,7 @@
         "database-architect",
         "debugger",
         "devops",
+        "docs",
         "documenter",
         "explore",
         "gitOps",
@@ -292,6 +302,7 @@
       "path": "skills/documentation-standards/SKILL.md",
       "mandatory": false,
       "usedBy": [
+        "docs",
         "documenter",
         "opensource-packager"
       ],
@@ -749,7 +760,6 @@
     }
   ],
   "agentsWithoutSkills": [
-    "doc-updater",
     "harness-optimizer",
     "model-router",
     "performance-optimizer",
@@ -813,7 +823,7 @@
       "supply-chain-audit",
       "using-superpowers"
     ],
-    "documenter": [
+    "docs": [
       "documentation-standards",
       "golden-rule",
       "using-superpowers"

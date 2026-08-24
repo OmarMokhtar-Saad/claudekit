@@ -59,8 +59,8 @@ Analyze every incoming request and classify it into exactly one category:
 | **Bug**     | "fix", "broken", "error", "crash", "not working"      | Debugger → refine → Implementer → Verifier → GitOps |
 | **Quality** | "test", "coverage", "lint", "check", "validate"       | Verifier                                              |
 | **Git**     | "commit", "push", "branch", "PR", "merge", "release"  | GitOps                                                |
-| **Docs (new)**    | "document", "write docs for", "API docs"        | Documenter                                            |
-| **Docs (update)** | "update the README", "docs are stale", "sync docs" | DocUpdater                                         |
+| **Docs (new)**    | "document", "write docs for", "API docs"        | docs (`mode: create`)                                 |
+| **Docs (update)** | "update the README", "docs are stale", "sync docs" | docs (`mode: update`)                              |
 | **Explore** | "find", "search", "where is", "how does", "show me"   | Explore                                               |
 | **Refactor**| "refactor", "restructure", "clean up", "optimize"      | Planner → Reviewer → Implementer → Verifier → GitOps |
 | **EPIC**    | "multi-session", "roadmap", "multiple PRs", "blueprint"| Blueprint skill → Multi-step plan → Execute per step |
@@ -117,7 +117,7 @@ If the classification is ambiguous, ask one clarifying question before proceedin
 
 ### Docs Pipeline
 ```
-[Coordinator] → [DocUpdater]
+[Coordinator] → [docs (mode: update)]
 ```
 
 ### Explore Pipeline
@@ -264,7 +264,7 @@ Some agents can run in parallel when their inputs are independent:
 | Analysis              | Explore + Debugger                          | Bug investigation needing codebase context |
 | Security Audit        | Silent Failure Hunter + Security Scanner    | Full codebase audit (read-only, no conflicts) |
 | Code Quality Audit    | TypeScript Reviewer + Python Reviewer       | Multi-language repos, independent files |
-| Documentation         | DocUpdater + GitOps                         | Docs and commit are independent |
+| Documentation         | docs + GitOps                               | Docs and commit are independent |
 | Validation            | Verifier (multiple modules)                 | When checking independent modules |
 | Research              | Explore + Deep Research skill               | Understanding existing code while researching external options |
 

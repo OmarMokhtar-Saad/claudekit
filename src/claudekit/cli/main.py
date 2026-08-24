@@ -35,7 +35,7 @@ __version__ = _resolve_version()
 
 # BEGIN GENERATED:counts - owned by scripts/gen-docs.py; never hand-edit.
 # Regenerate with: python3 scripts/gen-docs.py
-EXPECTED_AGENTS = 25
+EXPECTED_AGENTS = 24
 EXPECTED_COMMANDS = 55
 EXPECTED_SKILLS = 73
 # END GENERATED:counts
@@ -261,11 +261,19 @@ def _stale_alias_references(claude_dir, old_name, own_path):
         for path in base.rglob("*.md"):
             if path == own_path:
                 continue
+            # A COMMAND may legitimately keep the name of a merged-away AGENT: task 008
+            # batch 3 cluster 4 merged the `doc-updater` agent away while `/doc-updater`
+            # the command survives, routing to the merged agent in update mode. Two
+            # exemptions, each exactly one shape wide: the command file of the same name,
+            # and `/<name>` occurrences, which reference a command and never an agent.
+            if path.parent.name == "commands" and path.stem == old_name:
+                continue
             try:
-                if old_name in path.read_text(encoding="utf-8", errors="replace"):
-                    stale.append(path.relative_to(claude_dir))
+                text = path.read_text(encoding="utf-8", errors="replace")
             except OSError:
                 continue
+            if text.replace("/" + old_name, "").find(old_name) != -1:
+                stale.append(path.relative_to(claude_dir))
     return stale
 
 

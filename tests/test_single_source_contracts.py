@@ -129,7 +129,7 @@ class TestTheRoutingTableHasOneDefinition:
         deduplication would be exactly the batch-1 mistake in a new costume."""
         body = _read(CMD_COORD)
         assert "planner" in body.lower() and "refine" in body
-        assert "doc-updater" in body and "documenter" in body
+        assert "mode: create" in body and "mode: update" in body
 
     def test_the_docs_route_distinguishes_create_from_update(self):
         """The old single Docs row named one destination while HANDOFF_PROTOCOL.md has

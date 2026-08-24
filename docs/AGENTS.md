@@ -1,6 +1,6 @@
 # Agents
 
-ClaudeKit ships 25 specialized agents, each with a single responsibility. The
+ClaudeKit ships 24 specialized agents, each with a single responsibility. The
 core orchestration agents are documented in detail below; run `ck agents` (or
 `claudekit agents`) to list every installed agent, including the extended suite.
 
@@ -14,7 +14,7 @@ core orchestration agents are documented in detail below; run `ck agents` (or
 | Implementer | `implementer.md` | Green | Sonnet | READ, WRITE, EXECUTE |
 | Verifier | `verifier.md` | Purple | Haiku | READ, EXECUTE |
 | Debugger | `debugger.md` | Red | Opus | READ |
-| Documenter | `documenter.md` | Teal | Haiku | READ, WRITE (docs only) |
+| Docs | `docs.md` | Teal | Haiku | READ, WRITE (docs only) |
 | GitOps | `gitOps.md` | Orange | Haiku | READ, WRITE, EXECUTE (git) |
 | Explore | `explore.md` | Yellow | Sonnet | READ |
 | Tester | `tester.md` | Lime | Sonnet | READ, WRITE, EXECUTE |

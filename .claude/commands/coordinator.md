@@ -45,10 +45,11 @@ Use this table to determine which agent(s) to invoke:
 
 **The routing table lives in one place: [.claude/agents/coordinator.md](../agents/coordinator.md#task-classification).**
 A second copy lived here and the two disagreed on five of eight intents (a feature lost
-`Verifier → GitOps`; a bug lost both; docs split between `DocUpdater` and `documenter`).
+`Verifier → GitOps`; a bug lost both; docs split between two agents now merged into one).
 Route from the canonical table. Two conventions it now states, which lived only here:
 `refine` **is** the looped planner → reviewer cycle, not an alternative to it; and docs
-route by mode — new documentation to `documenter`, updates to `doc-updater`.
+route by mode — the one `docs` agent, `mode: create` for new documentation and
+`mode: update` for syncing what exists.
 
 ## Parallel Groups
 

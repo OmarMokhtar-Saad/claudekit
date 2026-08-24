@@ -1,0 +1,16 @@
+{
+  "plan": "008-b3c4-07-alias",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/skills-registry.json",
+      "description": "Both names resolve to the merged agent.",
+      "edits": [
+        {
+          "find": "    \"python-reviewer\": {",
+          "replace": "    \"doc-updater\": {\n      \"to\": \"docs\",\n      \"kind\": \"agent\"\n    },\n    \"documenter\": {\n      \"to\": \"docs\",\n      \"kind\": \"agent\"\n    },\n    \"python-reviewer\": {"
+        }
+      ]
+    }
+  ]
+}

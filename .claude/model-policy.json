@@ -55,12 +55,8 @@
       "accountable_for": "CI/CD, container, and deployment configuration.",
       "tier": "balanced"
     },
-    "doc-updater": {
-      "accountable_for": "Syncing existing docs and docstrings with code that changed.",
-      "tier": "fast"
-    },
-    "documenter": {
-      "accountable_for": "Authoring new reference documentation from source.",
+    "docs": {
+      "accountable_for": "Documentation derived from code, never invented -- authored (mode: create) or synced with changed code (mode: update).",
       "tier": "fast"
     },
     "explore": {

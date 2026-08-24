@@ -31,7 +31,7 @@ def plant_gate(root):
 AGENTS_DIR = os.path.join(REPO_ROOT, '.claude', 'agents')
 
 # Confusable pairs allowed to keep ONE routing example each.
-EXAMPLE_ALLOWLIST = {'reviewer.md', 'code-reviewer.md', 'doc-updater.md', 'documenter.md'}
+EXAMPLE_ALLOWLIST = {'reviewer.md', 'code-reviewer.md', 'docs.md'}
 
 
 def run_gate(*args):
