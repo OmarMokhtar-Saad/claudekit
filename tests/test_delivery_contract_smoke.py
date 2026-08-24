@@ -260,27 +260,85 @@ def test_refine_scripted_messages_are_not_self_contradictory():
         assert "wrapper" in lowered and ("saves" in lowered or "captures" in lowered), msg
 
 
+ARCHIVE_DIR_NAME = "archive"
+
+
+def _queued_ops_configs(plans_dir):
+    """Every queued ops config under `plans_dir`, INCLUDING the `ops-<slug>/` form.
+
+    The first version of this listed `os.listdir(plans_dir)` and kept the entries
+    where `os.path.isfile`, i.e. **top-level files only** -- which is the one shape
+    no config in this repo has used since the multi-config directory convention
+    started. Measured when that was found, 2026-08-24 on `cfc8a09`: **0** top-level
+    configs, **50** in 16 `ops-*/` subdirectories, **35 of them already failing
+    validation**. The gate had been scanning an empty set and passing vacuously
+    while the exact condition it exists to report accumulated underneath it.
+
+    `archive/` is pruned BY NAME, deliberately and not as an accident of the walk:
+    spent and stale configs belong there (see its README), and their anchors are
+    consumed by their own edits, so validating them would report every archived
+    config forever.
+
+    Takes the directory as an argument so the widening can be proven against a
+    constructed tree instead of depending on the real repo happening to contain a
+    violation -- which is the failure mode this function is the fix for.
+    """
+    found = []
+    for root, dirs, files in os.walk(plans_dir):
+        dirs[:] = sorted(d for d in dirs if d != ARCHIVE_DIR_NAME)
+        found.extend(os.path.join(root, f) for f in files if f.endswith(".json"))
+    return sorted(found)
+
+
+def test_the_queued_ops_scan_reaches_subdirectories(tmp_path):
+    """The mutation proof for `_queued_ops_configs`, on a throwaway tree.
+
+    Red against the top-level-only version: `ops-x/bad.json` would not be returned.
+    Also pins the other half -- an archived config must NOT be returned, or the
+    gate below would report every spent config in the repo's history.
+    """
+    plans = tmp_path / "plans"
+    top = plans / "top.json"
+    nested = plans / "ops-x" / "bad.json"
+    archived = plans / ARCHIVE_DIR_NAME / "ops-y" / "bad.json"
+    deep = plans / "ops-z" / "sub" / "deeper.json"
+    for path in (top, nested, archived, deep):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("{}", encoding="utf-8")
+    # A non-config file must not be picked up just for living in the tree.
+    (plans / "plan-x.md").write_text("# not a config", encoding="utf-8")
+
+    found = _queued_ops_configs(str(plans))
+    top, nested, archived, deep = (str(p) for p in (top, nested, archived, deep))
+
+    assert nested in found, "the scan does not reach ops-<slug>/ -- the whole defect"
+    assert top in found, "a top-level config must still be scanned"
+    assert deep in found, "the walk must not stop at one level of nesting"
+    assert archived not in found, "archive/ must stay pruned, or every spent config reports"
+    assert not any(p.endswith(".md") for p in found)
+
+
 def test_queued_ops_configs_validate_against_head():
     """Every queued (non-archived) ops config in .claude/plans/ must validate against
     the current tree. A stale config -- authored against files that have since changed --
     fails at execution time at best, or silently re-applies superseded text at worst
     (found live 2026-07-31: an archived config's replacement text would have reintroduced
     the `PLAN TO REVIEW: $PLAN_CONTENT` payload leak). Spent or stale configs belong in
-    .claude/plans/archive/ (see its README), which this test deliberately skips."""
+    .claude/plans/archive/ (see its README), which this test deliberately skips.
+
+    See `_queued_ops_configs` for why this once scanned nothing at all."""
     plans_dir = os.path.join(REPO_ROOT, ".claude", "plans")
-    queued = sorted(
-        f for f in os.listdir(plans_dir)
-        if f.endswith(".json") and os.path.isfile(os.path.join(plans_dir, f))
-    )
     failures = []
-    for name in queued:
+    for path in _queued_ops_configs(plans_dir):
         result = subprocess.run(
-            [sys.executable, os.path.join(SCRIPTS_DIR, "validate-config-json.py"),
-             os.path.join(plans_dir, name)],
+            [sys.executable, os.path.join(SCRIPTS_DIR, "validate-config-json.py"), path],
             capture_output=True, text=True, cwd=REPO_ROOT,
         )
         if result.returncode != 0:
-            failures.append(f"{name}: {result.stdout.strip().splitlines()[-1] if result.stdout.strip() else result.stderr.strip()}")
+            rel = os.path.relpath(path, plans_dir)
+            detail = (result.stdout.strip().splitlines()[-1] if result.stdout.strip()
+                      else result.stderr.strip())
+            failures.append(f"{rel}: {detail}")
     assert not failures, (
         "queued ops config(s) no longer validate against HEAD -- regenerate via /plan "
         "or move to .claude/plans/archive/ with a README entry:\n" + "\n".join(failures)
