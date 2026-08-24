@@ -24,11 +24,11 @@ index never outranks the current files.
 |---|---:|
 | `drifted` | 3 |
 | `approved` | 49 |
-| `planned` | 9 |
-| `executed` | 14 |
+| `planned` | 10 |
+| `executed` | 15 |
 | `not_started` | 15 |
 | `legacy` | 3 |
-| **total** | **93** |
+| **total** | **95** |
 
 ## Plans
 
@@ -53,6 +53,7 @@ index never outranks the current files.
 | `.claude/plans/plan-capability-tiers-followup.md` | `approved` | 1 |  |
 | `.claude/plans/plan-capability-tiers.md` | `drifted` | 1 |  |
 | `.claude/plans/plan-ck-adapt.md` | `approved` | 1 |  |
+| `.claude/plans/plan-cli-live-findings.md` | `executed` | 4 |  |
 | `.claude/plans/plan-code-review-triage.md` | `approved` | 1 |  |
 | `.claude/plans/plan-command-bash-placeholders.md` | `executed` | 2 |  |
 | `.claude/plans/plan-context-budget-lazy-skills.md` | `not_started` | 0 |  |
@@ -72,6 +73,7 @@ index never outranks the current files.
 | `.claude/plans/plan-gate-scope.md` | `approved` | 1 |  |
 | `.claude/plans/plan-generators-that-cannot-drift.md` | `approved` | 1 |  |
 | `.claude/plans/plan-harness-findings.md` | `approved` | 1 |  |
+| `.claude/plans/plan-hook-live-findings.md` | `planned` | 2 |  |
 | `.claude/plans/plan-hook-profiles.md` | `approved` | 1 |  |
 | `.claude/plans/plan-install-receipts.md` | `approved` | 1 |  |
 | `.claude/plans/plan-installer-python-hooks.md` | `approved` | 1 |  |

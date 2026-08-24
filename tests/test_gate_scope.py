@@ -29,9 +29,14 @@ HOOKS_CONFIG = REPO / ".claude" / "hooks" / "config.json"
 # tests pin it so a developer's `.claude/settings.local.json` cannot change results.
 ENV = dict(os.environ, ECC_HOOK_PROFILE="minimal")
 
-# doctor prints colourised status marks; match the verdict line, not the exit code.
-OK_MARK = "\033[0;32m[\u2713]\033[0m"
-FAIL_MARK = "\033[0;31m[\u2717]\033[0m"
+# doctor prints status marks; match the verdict line, not the exit code.
+# NOT colourised here on purpose: `_run` captures through a pipe, and since
+# 2026-08-24 doctor honours NO_COLOR and a non-tty stdout, so no escape codes are
+# emitted into a capture. The previous form embedded the raw ANSI and therefore
+# asserted the old defect -- that colour was unconditional -- as if it were the
+# contract. Set FORCE_COLOR in the env if a test ever needs the coloured form.
+OK_MARK = "[\u2713]"
+FAIL_MARK = "[\u2717]"
 SCHEMA_LABEL = "Hooks config.json matches config.schema.json"
 
 

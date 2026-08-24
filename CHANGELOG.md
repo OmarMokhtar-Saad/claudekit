@@ -12,6 +12,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`ck` no longer writes ANSI escape codes into pipes, files and CI logs.** Colour was
+  unconditional, so every command emitted escapes whether or not anything could render
+  them. It now follows the conventional precedence: `NO_COLOR` set to any value disables
+  colour (per no-color.org), a non-tty `stdout` disables it, and `FORCE_COLOR` /
+  `CLICOLOR_FORCE` turn it back on — for the caller who deliberately pipes into a
+  colour-aware pager or CI viewer. **If you were grepping `ck` output for escape
+  sequences, that will no longer match; grep the plain marks (`[✓]`, `[✗]`, `[-]`) or set
+  `FORCE_COLOR=1`.** One of this repo's own tests was doing exactly that, and it was
+  asserting the defect as if it were the contract.
+
+- **`ck doctor` no longer hangs on a wedged `bash` or `git`.** Both version probes ran with
+  `capture_output` and no timeout, so a binary that never exits hung the command people run
+  *when something is already wrong* — with no output at all. Both now time out after 5
+  seconds, and a timeout is reported as its own condition ("did not respond") rather than as
+  a missing dependency: installed-but-not-answering is a broken PATH entry or a hung mount,
+  and needs a different fix than installing bash.
+
+- **`ck config <key>` reports a broken `config.json` instead of raising a traceback.** It
+  was the only JSON reader in the CLI with no guard around `json.loads` — five siblings
+  already had one — so a truncated `.claude/hooks/config.json` produced a Python traceback
+  from the command whose entire job is reading that file. Now: the path, the parser's
+  message, exit 1. A missing *key* is still reported distinctly from an unreadable *file*.
+
+- **`ck rollback` with neither `--backup` nor `--list`** behaves exactly as before (it
+  lists), but the two byte-identical branches that produced that behaviour are now one,
+  with the reason written down: restoring an unnamed backup would be a guess at which one.
+  `--list` was being read from the parsed args and thrown away.
+
 ### Removed
 
 - **Nine agents merged away: 29 → 21.** Each one folded into an agent or skill that
