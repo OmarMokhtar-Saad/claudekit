@@ -269,11 +269,11 @@ ISSUES:
 (write ISSUES: none if no issues found)
 === END REVIEW ITERATION <N> ===
 
-DECISION RULES:
-APPROVED = score >= 90 AND CRITICAL_MAJOR_COUNT == 0
-CONDITIONAL = score 70-89 OR CRITICAL_MAJOR_COUNT > 0
-REVISE = score < 70
-REJECTED = no ops.json, invalid ops.json, destructive ops without rollback$DELTA_BLOCK"
+DECISION RULES (canonical: .claude/agents/HANDOFF_PROTOCOL.md#reviewer-decision-taxonomy; reproduced inline because a prompt cannot follow a link):
+APPROVED = score >= 90 AND zero open CRITICAL/MAJOR
+CONDITIONAL = score >= 70 AND only MINOR open
+REVISE = >= 1 open CRITICAL/MAJOR, fixable in place, at ANY score
+REJECTED = score < 70, or the approach is invalid, or AUTO-REJECT (no ops.json, invalid ops.json, destructive ops without rollback)$DELTA_BLOCK"
 
 REVIEW_MODEL=$([ -n "$DELTA_BLOCK" ] && echo sonnet || echo opus)
 review_output=$(echo "$REVIEWER_MSG" | claude -p --agent reviewer --model "$REVIEW_MODEL" --allowedTools "Read,Grep,Glob")

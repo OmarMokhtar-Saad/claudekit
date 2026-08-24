@@ -294,7 +294,7 @@ SCORES:
   ──────────────────────────────────────
   TOTAL:         [████████████████████████░] 87.4/100
 
-DECISION: APPROVED | CONDITIONAL | REJECTED
+DECISION: APPROVED | CONDITIONAL | REVISE | REJECTED
 
 FINDINGS:
 
@@ -325,6 +325,10 @@ Use these Unicode blocks for progress bars:
 ---
 
 ## Decision Logic
+
+**Decision values, score bands and the anchored block: [HANDOFF_PROTOCOL.md](HANDOFF_PROTOCOL.md#reviewer-decision-taxonomy) is the single definition.** Do not restate the bands here — ten files did, and two contradicted each other.
+
+What each decision means for the handoff:
 
 ### Score >= 90: APPROVED
 ```

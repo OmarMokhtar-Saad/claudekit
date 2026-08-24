@@ -171,6 +171,45 @@ Report: <path to debug report>
 
 ---
 
+---
+
+## Reviewer Decision Taxonomy
+
+**One definition, referenced everywhere.** Ten files defined their own before task 008
+batch 4, and two of them contradicted: `commands/review.md` mapped a score below 70 to
+`REVISE` while `agents/reviewer.md` mapped the same score to `REJECTED`, and
+`reviewer.md` declared four decisions in its anchored block but only three in its
+summary template and three score bands — leaving `REVISE`, which
+`operations/scripts/review-record.py` accepts, with no band at all. That is not
+theoretical: batch 2's round-1 verdict came back `REVISE` at 84, which both files' own
+tables would have called `CONDITIONAL`.
+
+The four values are exhaustive and mutually exclusive. **Findings decide first, score
+second** — a score cannot approve past an open blocker:
+
+| Decision | Condition | What happens next |
+|---|---|---|
+| `APPROVED` | score >= 90 **and** zero open CRITICAL or MAJOR | Proceed. Open MINORs are suggestions; record them, do not gate on them. |
+| `CONDITIONAL` | score >= 70, only MINOR findings open | Proceed **after** fixing the named MINORs. No new review round — the fixes are mechanical and need no re-verification. |
+| `REVISE` | >= 1 open CRITICAL or MAJOR that is fixable in place, **at any score** | Fix, then a new round reads **only the diff** since this verdict. This is the verdict for "the approach is right, the execution has a hole". |
+| `REJECTED` | score < 70, **or** a finding that invalidates the approach itself, **or** any AUTO-REJECT trigger: no `ops.json`, invalid `ops.json`, or destructive operations with no rollback | Re-plan. Not a fix-and-resubmit; the artifact goes back to the planner. |
+
+`review-record.py` enforces exactly these four spellings (`VALID_DECISIONS`), and only
+`APPROVED` authorises `execute-json-ops.py` to run. A verdict the parser cannot read
+cannot gate execution, so the anchored block is mandatory:
+
+```
+=== REVIEW ===
+SCORE: <integer 0-100>
+DECISION: APPROVED | CONDITIONAL | REVISE | REJECTED
+- [CRITICAL|MAJOR|MINOR] <one finding per line, file:line + what is wrong>
+=== END REVIEW ===
+```
+
+**Round ceiling is 3.** Stop at the first round with zero blocking findings. If you
+reach the ceiling with something still open, report that to the owner rather than
+opening a fourth round.
+
 ## Pipeline Flow Reference
 
 ### Feature Pipeline

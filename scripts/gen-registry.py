@@ -167,6 +167,44 @@ def main():
             print(f"ERROR: renamed: '{_old}' -> '{_new}', which does not exist",
                   file=sys.stderr)
             return 1
+    # The `renamedAgents` map is the AGENT half of the one-release rename window, and it
+    # had to exist before batch 3 could delete an agent at all: `renamed` resolves its
+    # targets against `.claude/skills/`, so aliasing `python-reviewer -> code-reviewer`
+    # was rejected with "which does not exist". Measured before this was written.
+    #
+    # Its value is an object, not a bare name, because batch 3 turns three agents INTO
+    # skills -- so the alias has to say which namespace to validate the target against.
+    # Derived HERE, not borrowed from later in the function: the first draft
+    # referenced `fs_agents_set`, which is assigned further down, so the
+    # check raised UnboundLocalError the moment a non-empty map reached it --
+    # latent behind `--check` passing on a registry with no aliases yet, and
+    # caught by the fixtures rather than by the repo's own green run.
+    fs_agents_set = set(derive_agent_ids())
+    _agent_aliases = registry.get("renamedAgents", {})
+    if not isinstance(_agent_aliases, dict):
+        print("ERROR: renamedAgents: expected an object mapping old agent id -> "
+              f"{{to, kind}}, got {type(_agent_aliases).__name__}", file=sys.stderr)
+        return 1
+    for _old, _spec in sorted(_agent_aliases.items()):
+        if not _old or not isinstance(_spec, dict):
+            print(f"ERROR: renamedAgents: {_old!r} -> {_spec!r} is not an object "
+                  f"(an empty key matches every file)", file=sys.stderr)
+            return 1
+        _to, _kind = _spec.get("to"), _spec.get("kind")
+        if not isinstance(_to, str) or not _to or _kind not in ("agent", "skill"):
+            print(f"ERROR: renamedAgents: '{_old}' needs a non-empty 'to' and a 'kind' "
+                  f"of 'agent' or 'skill'; got to={_to!r} kind={_kind!r}",
+                  file=sys.stderr)
+            return 1
+        if _old in fs_agents_set:
+            print(f"ERROR: renamedAgents: '{_old}' is aliased but still exists on disk",
+                  file=sys.stderr)
+            return 1
+        _universe = fs_agents_set if _kind == "agent" else fs_skills
+        if _to not in _universe:
+            print(f"ERROR: renamedAgents: '{_old}' -> '{_to}' ({_kind}), which does not "
+                  f"exist", file=sys.stderr)
+            return 1
     unregistered = sorted(fs_skills - reg_skills)
     orphaned = sorted(reg_skills - fs_skills)
 

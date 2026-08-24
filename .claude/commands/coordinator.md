@@ -43,19 +43,12 @@ Do NOT use the coordinator for:
 
 Use this table to determine which agent(s) to invoke:
 
-| User Intent                        | Primary Agent  | Follow-up Agent(s)         |
-|------------------------------------|----------------|----------------------------|
-| "Build feature X"                  | refine         | implementer -> verifier    |
-| "Fix bug Y"                        | debugger       | refine -> implementer      |
-| "Refactor module Z"               | refine         | implementer -> verifier    |
-| "Why is X broken?"                | debugger       | (optional) refine          |
-| "Add tests for X"                 | refine         | implementer -> verifier    |
-| "Refactor X"                      | refine         | implementer -> verifier    |
-| "Document X"                      | documenter     | (none)                     |
-| "Deploy / release"                | gitOps         | verifier -> gitOps         |
-| "Review my changes"               | verifier       | (optional) reviewer        |
-| "Create PR"                       | gitOps         | (none)                     |
-| "Full project setup"              | refine         | implementer -> verifier -> documenter -> gitOps |
+**The routing table lives in one place: [.claude/agents/coordinator.md](../agents/coordinator.md#task-classification).**
+A second copy lived here and the two disagreed on five of eight intents (a feature lost
+`Verifier → GitOps`; a bug lost both; docs split between `DocUpdater` and `documenter`).
+Route from the canonical table. Two conventions it now states, which lived only here:
+`refine` **is** the looped planner → reviewer cycle, not an alternative to it; and docs
+route by mode — new documentation to `documenter`, updates to `doc-updater`.
 
 ## Parallel Groups
 

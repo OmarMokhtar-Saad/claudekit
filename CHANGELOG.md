@@ -14,6 +14,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **New: `ck lint` checks the prompt corpus itself.** Every existing gate checked a
+  *derived* artifact — counts, the registry, the model policy, the context floor —
+  and nothing checked the prose. Three rules: `command-budget`,
+  `skill-agent-costume` (a skill granted the `Agent` tool is an agent wearing a
+  skill's frontmatter, routing around `INVOCATION.md`), and `duplicate-triggers`
+  (two skills competing to answer one prompt — the mis-routing hazard batch 2
+  removed by hand).
+
+  `skill-agent-costume` found two real violations on arrival: `gan-harness` and
+  `opensource-pipeline` both grant `Agent`. Both are genuine orchestration prose, so
+  both are **waived by name with a reason** in `.claude/lint-baseline.json` rather
+  than silently excluded, and converting them is filed as agent-corpus work. Waivers
+  are per-name — never a pattern, which would cover the next skill added.
+
+  The command budget is a **ratchet, not a cliff.** The 008 spec asked for <=40 lines
+  per command; measured, **0 of 55 commands met that**, and complying would rewrite
+  5,138 of 7,338 lines of prose. So <=40 binds **new** commands, existing ones may
+  not grow past `.claude/lint-baseline.json`, and shrinking always passes and
+  tightens the ratchet. A gate the corpus cannot satisfy is a gate someone turns off.
+- **One reviewer decision taxonomy, and two contradictions removed.** Ten files
+  defined their own; `commands/review.md` mapped a score below 70 to `REVISE` while
+  `agents/reviewer.md` mapped the same score to `REJECTED`, and `reviewer.md`
+  declared four decisions in its anchored block but only three in its summary
+  template and three score bands — leaving `REVISE`, which `review-record.py`
+  accepts, with no band at all. `HANDOFF_PROTOCOL.md` now carries the single
+  definition, in which **findings gate before score**, so a high score cannot
+  approve past an open blocker.
+- **One coordinator routing table.** The agent and command copies disagreed on five
+  of eight intents — a feature routed through `Verifier → GitOps` in one and stopped
+  at `implementer → verifier` in the other; a bug lost Verifier and GitOps entirely;
+  docs went to `DocUpdater` in one and `documenter` in the other. The agent file owns
+  the table; documentation now routes by mode (new → `documenter`, update →
+  `doc-updater`), which is what `HANDOFF_PROTOCOL.md`'s two Docs pipelines always
+  implied.
+
 - **Five near-duplicate skills merged away: 76 → 71.** `autonomous-loops` →
   `autonomous-loop`, `verification-loop` → `verification-before-completion`,
   `dependency-audit` → `supply-chain-audit`, and both `session-continuity` and

@@ -242,6 +242,40 @@ def _readiness_score(passed, warned, failed):
     return round(100 * (passed + 0.5 * warned) / total)
 
 
+def _stale_alias_references(claude_dir, old_name, own_path):
+    """Files under .claude/ that still name a removed asset, excluding its replacement.
+
+    Factored out rather than written twice: review caught the agent-alias scan being a
+    verbatim copy of the skill-alias scan, which means a later fix to one (symlinks,
+    an excluded directory, an encoding case) silently would not reach the other. The
+    `own_path` exemption is exactly one file wide -- the asset that REPLACED the removed
+    one is allowed to say what it absorbed, because a merge that cannot say what it
+    merged is a merge nobody can audit. Anything wider and the scan stops meaning
+    anything.
+    """
+    stale = []
+    for sub in ("agents", "commands", "skills"):
+        base = claude_dir / sub
+        if not base.is_dir():
+            continue
+        for path in base.rglob("*.md"):
+            if path == own_path:
+                continue
+            try:
+                if old_name in path.read_text(encoding="utf-8", errors="replace"):
+                    stale.append(path.relative_to(claude_dir))
+            except OSError:
+                continue
+    return stale
+
+
+def _stale_reference_summary(stale):
+    """The `a, b, c (+N more)` tail both alias scans print."""
+    shown = ", ".join(str(p) for p in sorted(stale)[:5])
+    more = f" (+{len(stale) - 5} more)" if len(stale) > 5 else ""
+    return f"{shown}{more}"
+
+
 def cmd_doctor(args):
     """Run health checks on the current ClaudeKit installation."""
     print(f"\n{C.CYAN}ClaudeKit Doctor v{__version__}{C.NC}\n")
@@ -409,30 +443,29 @@ def cmd_doctor(args):
                              f"exists; remove it from `renamed`")
                         checks_warned += 1
                         continue
-                    stale = []
-                    # The rename TARGET is the one file allowed to name
-                    # the old id: a merge that cannot say what it
-                    # absorbed is a merge nobody can audit. Exactly one
-                    # file wide -- anything else is still a real stale
-                    # reference, or this scan stops meaning anything.
-                    own = claude_dir / "skills" / new / "SKILL.md"
-                    for sub in ("agents", "commands", "skills"):
-                        base = claude_dir / sub
-                        if not base.is_dir():
-                            continue
-                        for path in base.rglob("*.md"):
-                            if path == own:
-                                continue
-                            try:
-                                if old in path.read_text(encoding="utf-8", errors="replace"):
-                                    stale.append(path.relative_to(claude_dir))
-                            except OSError:
-                                continue
+                    stale = _stale_alias_references(
+                        claude_dir, old, claude_dir / "skills" / new / "SKILL.md")
                     if stale:
-                        shown = ", ".join(str(p) for p in sorted(stale)[:5])
-                        more = f" (+{len(stale) - 5} more)" if len(stale) > 5 else ""
                         warn(f"  Registry: '{old}' was renamed to '{new}'; still "
-                             f"referenced by {shown}{more}")
+                             f"referenced by {_stale_reference_summary(stale)}")
+                        checks_warned += 1
+                # The agent half of the rename window, over the SAME shared scan as
+                # the skill half above -- written as a copy first, and review was right
+                # that a copy drifts.
+                from claudekit.skills import renamed_agents_map
+                for old, spec in sorted(renamed_agents_map(data).items()):
+                    new, kind = spec["to"], spec["kind"]
+                    if (claude_dir / "agents" / f"{old}.md").is_file():
+                        warn(f"  Registry: agent alias '{old}' shadows an agent that "
+                             f"still exists; remove it from `renamedAgents`")
+                        checks_warned += 1
+                        continue
+                    own = (claude_dir / "agents" / f"{new}.md" if kind == "agent"
+                           else claude_dir / "skills" / new / "SKILL.md")
+                    stale = _stale_alias_references(claude_dir, old, own)
+                    if stale:
+                        warn(f"  Registry: agent '{old}' became the {kind} '{new}'; "
+                             f"still referenced by {_stale_reference_summary(stale)}")
                         checks_warned += 1
                 check(f"Skills registry valid: {len(skill_ids)} skills, {len(data.get('agentMapping', {}))} agents", True)
             except (json.JSONDecodeError, KeyError) as e:
@@ -2095,6 +2128,41 @@ def _split_server_command(argv):
     return argv[:index], argv[index + 1:]
 
 
+def cmd_lint(args):
+    """Lint the prompt corpus itself: command size ratchet, skill tool grants, triggers.
+
+    Every other gate in the DoD checks a DERIVED artifact -- counts, the registry, the
+    model policy, the context floor. Nothing checked the prose. See src/claudekit/lint.py
+    for why the command budget is a ratchet rather than the flat <=40 the spec asked for.
+    """
+    from claudekit import lint as lint_mod
+
+    root = os.path.abspath(args.path)
+    if args.update_baseline:
+        counts = lint_mod.current_command_lines(root)
+        lint_mod.write_baseline(root, counts)
+        print(f"{C.GREEN}[OK]{C.NC} Recorded {len(counts)} command sizes in "
+              f".claude/{lint_mod.BASELINE_NAME}")
+        return 0
+
+    only = set(args.rule) if args.rule else None
+    try:
+        findings = lint_mod.run(root, only=only)
+    except RuntimeError as e:
+        print(f"{C.RED}[FAIL]{C.NC} {e}")
+        return 1
+
+    ran = len(only) if only else len(lint_mod.RULES)
+    if findings:
+        for finding in findings:
+            print(f"{C.RED}[{finding.rule}]{C.NC} {finding.path}: {finding.message}")
+        print(f"\n{C.RED}[FAIL]{C.NC} {len(findings)} finding(s) from "
+              f"{ran} rule{'s' if ran != 1 else ''}")
+        return 1
+
+    print(f"{C.GREEN}[OK]{C.NC} corpus lint clean ({ran} rule{'s' if ran != 1 else ''})")
+    return 0
+
 def main():
     parser = argparse.ArgumentParser(
         prog="claudekit",
@@ -2115,6 +2183,16 @@ def main():
     p.add_argument("--force", action="store_true", help="Overwrite existing installation")
     p.add_argument("--yes", "--non-interactive", dest="yes", action="store_true",
                    help="Assume yes to prompts (non-interactive)")
+
+    # lint
+    p = sub.add_parser("lint", help="Lint the prompt corpus (command size, skill grants)")
+    p.add_argument("path", nargs="?", default=".", help="Project root (default: .)")
+    p.add_argument("--rule", action="append", metavar="NAME",
+                   help="Run only this rule (repeatable): command-budget, "
+                        "skill-agent-costume, duplicate-triggers")
+    p.add_argument("--update-baseline", action="store_true",
+                   help="Re-record the command-size ratchet from the current corpus "
+                        "(use after a deliberate reduction)")
 
     # doctor
     p = sub.add_parser("doctor", help="Run health checks on installation")
@@ -2280,6 +2358,7 @@ def main():
     commands = {
         "init": cmd_init,
         "doctor": cmd_doctor,
+        "lint": cmd_lint,
         "validate": cmd_validate,
         "execute": cmd_execute,
         "rollback": cmd_rollback,

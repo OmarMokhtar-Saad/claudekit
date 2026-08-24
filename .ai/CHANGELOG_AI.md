@@ -1,6 +1,59 @@
 # AI Session Changelog
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
+## 2026-08-24 — task 008 batch 4 + batch 3 phase 0 EXECUTED
+
+Seven ops configs, zero errors. Batch 4 ships `ck lint`; batch 3 phase 0 ships only its
+blocker. 2492 tests pass, 0 failures.
+
+- **The spec's command budget was unreachable, and the ratchet is the honest answer.**
+  0 of 55 commands meet ≤40 lines (min 47, median 129, max 466); complying is a
+  5138-of-7338-line rewrite. ≤40 now binds NEW commands with a no-growth ratchet on the
+  rest. **The gate immediately caught batch 4's own edits growing three commands** —
+  and the fix was to tighten those edits to net −9 lines, not to re-baseline, because
+  re-baselining would have demonstrated the escape hatch on day one.
+- **The reviewer taxonomy had FOUR contradicting definitions, not duplication.**
+  `review.md:88` mapped score <70 to REVISE; `reviewer.md:346` mapped it to REJECTED;
+  `reviewer.md` declared four decisions in its anchored block and three in its template
+  with no REVISE band; `refine.md:276` had a fourth. **Batch 2's own round-1 verdict —
+  REVISE at 84 — matched none of them.** One definition now, where findings gate before
+  score, so a high score cannot approve past an open blocker. Closes a filed BACKLOG item.
+- **The round-1 CRITICAL was mine, and it is the lesson of the session.** The
+  `skill-agent-costume` rule read `allowed-tools` only as a same-line value. Two skills
+  declare it as a YAML block list containing `Agent` — `gan-harness` and
+  `opensource-pipeline` — so the rule silently skipped the exact grant it existed to
+  catch, and its "the shipped corpus is clean" test passed over both. I had written that
+  false claim into the module docstring, the plan, and the CHANGELOG. **Third gate in
+  this repo to pass against a mutant, in the batch whose stated purpose is preventing
+  that.** Fixed, then I PROBED the parser instead of reasoning about it and found four
+  more evasions review never reported (inline flow list, quoted scalar, quoted block
+  item, trailing comment). 13 spellings now swept with a negative case; round 3 invented
+  30 more and found none.
+- **Waived, not hidden.** The two real violations are waived BY NAME with a reason each
+  — never by pattern, which would cover the next skill added — and `--update-baseline`
+  cannot silently drop a waiver. Both filed to BACKLOG as conversion candidates.
+- **A class earned its second entry: `claim-not-corrected-everywhere-it-was-made`.**
+  The same false claim was fixed in the module, found again in the plan, then found
+  again in a test docstring one round later. A third instance should earn a grep gate.
+- **Batch 3's blocker is gone.** `renamed` resolved targets against `.claude/skills/`
+  only, so `renamed: 'python-reviewer' -> 'code-reviewer'` was a hard error and no agent
+  could be deleted. `renamedAgents` maps to `{to, kind}` because three of batch 3's
+  clusters move agents INTO the skill namespace. **Its tests caught a real bug in my
+  first draft** — `fs_agents_set` referenced before assignment, invisible while the map
+  was empty and fatal the moment a merge filled it.
+- **Review found a verbatim copy and it was right.** The new doctor agent-alias scan
+  duplicated the skill-alias scan; both now share one helper, rewritten in the same
+  config so there is never a moment with two copies.
+
+**Follow-ups filed:** the two waived orchestration skills; a genuine pre-existing flake
+in `test_reflection_ledger.py` (~1 in 9, unrelated to any batch); wiring `ck lint` into
+CI (owner-gated — it turns three advisory rules into a merge blocker); five valid-YAML
+forms `declared_tools()` does not read, each with 0 corpus occurrences.
+
+**Batch 3 is unblocked, not started.** Seven clusters, one plan and PR each, 29 → ~20
+agents. The accepted risk is unchanged: routing cannot be demonstrated unchanged
+without the eval cassettes, and every cluster PR must say so.
+
 ## 2026-08-24 — task 008 batch 2 EXECUTED (76 → 71 skills)
 
 17 ops configs executed on the real tree (16 planned + `008-b2-17-seam-fixes`, a

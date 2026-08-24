@@ -79,6 +79,50 @@ def resolve_skill_id(doc: Dict[str, Any], skill_id: str) -> str:
     """
     return renamed_map(doc).get(skill_id, skill_id)
 
+def renamed_agents_map(doc: Dict[str, Any]) -> Dict[str, Dict[str, str]]:
+    """The registry's `renamedAgents` map: removed agent id -> {"to", "kind"}.
+
+    Separate from `renamed` (which is skills-only) for two reasons measured before it
+    was written, not assumed:
+
+    * **The target can be in the other namespace.** Task 008 batch 3 turns three agents
+      into skills -- `python-reviewer` and `typescript-reviewer` become per-language
+      checklist skills, `tdd-guide` folds into `test-driven-development`. An alias whose
+      value is a bare name cannot say which directory to validate it against, so the
+      value carries an explicit `kind`.
+    * **The two namespaces can collide.** No name is in both today, but batch 3 creates
+      exactly that pressure, and a single flat map would silently resolve an agent name
+      to a skill of the same name.
+
+    Tolerant of malformed entries the same way `renamed_map` is: a junk value degrades
+    to 'not an alias' rather than crashing a caller that only wanted to resolve a name.
+    """
+    aliases = doc.get("renamedAgents")
+    if not isinstance(aliases, dict):
+        return {}
+    out: Dict[str, Dict[str, str]] = {}
+    for key, value in aliases.items():
+        if not isinstance(value, dict):
+            continue
+        target = value.get("to")
+        kind = value.get("kind")
+        if isinstance(target, str) and target and kind in ("agent", "skill"):
+            out[str(key)] = {"to": target, "kind": kind}
+    return out
+
+
+def resolve_agent_id(doc: Dict[str, Any], agent_id: str) -> Dict[str, str]:
+    """What `agent_id` is now: itself, or the asset that replaced it.
+
+    Returns `{"to": <name>, "kind": "agent"|"skill"}`. Single hop, for the same reason
+    `resolve_skill_id` is single hop: a chain would mean two releases of aliases
+    outliving their one-release deprecation window.
+    """
+    alias = renamed_agents_map(doc).get(agent_id)
+    if alias is None:
+        return {"to": agent_id, "kind": "agent"}
+    return dict(alias)
+
 def load_registry(root: Path) -> Dict[str, Any]:
     path = registry_path(root)
     if not path.is_file():
