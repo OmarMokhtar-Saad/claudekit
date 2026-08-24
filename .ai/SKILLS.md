@@ -25,19 +25,19 @@ Python backend in `.claude/operations/scripts/`:
 Safety model in five bullets: (1) plans are data, not actions; (2) validation is deterministic and fail-closed; (3) every execution is preceded by backups and is atomic; (4) protected files can never be deleted; (5) rollback is always available (`/rollback`, `ck rollback`).
 
 ### Verification & testing
-`verification-before-completion` (evidence before claims), `verification-loop` (6-phase QA: build/types/lint/tests/security/diff), `test-driven-development`, `property-based-testing`, `eval-harness`, `requesting-code-review` / `receiving-code-review`.
+`verification-before-completion` (evidence before claims **and** the 6-phase QA runbook: build/types/lint/tests/security/diff — `verification-loop` merged in), `test-driven-development`, `property-based-testing`, `eval-harness`, `requesting-code-review` / `receiving-code-review`.
 
 ### Security
-`security-checklist` (OWASP Top 10), `differential-security-review` (diff-focused), `insecure-defaults`, `supply-chain-audit` (typosquatting, CVE cross-ref), `dependency-audit`, `prompt-injection-defense` (27+ patterns), `safe-command-approval` (allowlist/blocklist + AST analysis), `static-analysis-integration` (semgrep/bandit/eslint-security, SARIF).
+`security-checklist` (OWASP Top 10), `differential-security-review` (diff-focused), `insecure-defaults`, `supply-chain-audit` (typosquatting, CVE cross-ref **and** the semver/upgrade lifecycle — `dependency-audit` merged in), `prompt-injection-defense` (27+ patterns), `safe-command-approval` (allowlist/blocklist + AST analysis), `static-analysis-integration` (semgrep/bandit/eslint-security, SARIF).
 
 ### Architecture & domain
 `clean-architecture`, `api-design-patterns`, `database-migration-patterns` (expand-contract, zero-downtime), `error-handling`, `performance-guidelines`, `accessibility-standards` (WCAG 2.1 AA), `i18n-patterns`, `containerization-patterns`, `ci-cd-pipeline`, `monitoring-observability`, `incident-response`.
 
 ### Context & token management
-`context-budget`, `token-optimization` (3 compression levels), `token-budget-advisor` (user-selectable 25/50/75/100% depth), `context-priming`, `context-keeper` (structured save/resume), `session-continuity` (freshness: <4h trust, 4–24h verify, >72h stale), `codebase-mapping`, `codebase-onboarding` (4-phase → guide + starter CLAUDE.md), `project-adaptation` (adapt the kit itself to any project/language: detect install state → learn project → configure config.json/CLAUDE.md/CONSTITUTION/hooks → verify with evidence → enhance via /hookify + /learn; backs `/adapt`), `usage-monitoring`, `hook-profiling`.
+`context-budget`, `token-optimization` (3 compression levels), `token-budget-advisor` (user-selectable 25/50/75/100% depth), `context-keeper` (the whole session lifecycle: structured save/resume, freshness <4h trust / 4–24h verify / >72h stale, and the priming sequence — `session-continuity` and `context-priming` merged in), `codebase-mapping`, `codebase-onboarding` (4-phase → guide + starter CLAUDE.md), `project-adaptation` (adapt the kit itself to any project/language: detect install state → learn project → configure config.json/CLAUDE.md/CONSTITUTION/hooks → verify with evidence → enhance via /hookify + /learn; backs `/adapt`), `usage-monitoring`, `hook-profiling`.
 
 ### Multi-agent & orchestration
-`multi-agent-coordination`, `dispatching-parallel-agents`, `subagent-driven-development` (fresh subagent per task), `autonomous-loop` **and** `autonomous-loops` (near-duplicates — merge, task 008), `gan-harness` (generate → fresh evaluator → iterate, anti-anchoring), `santa-method` (dual Opus+Sonnet independent review, both must approve), `council` (Architect/Skeptic/Pragmatist/Critic parallel debate), `deep-research`, `mcp-integration` (Context7/Sequential-Thinking/Playwright/Memory/Filesystem guidance).
+`multi-agent-coordination`, `dispatching-parallel-agents`, `subagent-driven-development` (fresh subagent per task), `autonomous-loop` (the 6-phase pipeline **and** the general loop contract — `autonomous-loops` merged in), `gan-harness` (generate → fresh evaluator → iterate, anti-anchoring), `santa-method` (dual Opus+Sonnet independent review, both must approve), `council` (Architect/Skeptic/Pragmatist/Critic parallel debate), `deep-research`, `mcp-integration` (Context7/Sequential-Thinking/Playwright/Memory/Filesystem guidance).
 
 ### Git & delivery
 `git-workflow`, `using-git-worktrees`, `finishing-a-development-branch`, `opensource-pipeline` (3-stage hard-gated).
@@ -51,6 +51,6 @@ SKILL.md structure: frontmatter (name/description with when-to-use triggers) + p
 
 ## Known issues
 
-- Near-duplicates queued for merge (008): `autonomous-loop`/`autonomous-loops`, `verification-before-completion`/`verification-loop`, token/context trio, `codebase-mapping`/`codebase-onboarding`, `dependency-audit`/`supply-chain-audit`.
+- Near-duplicate merges (008 batch 2, DONE): `autonomous-loops`, `verification-loop`, `dependency-audit`, `session-continuity` and `context-priming` are gone, 76 → 71, each name resolving through the registry `renamed` map. `token-budget-advisor`, `codebase-mapping` and `codebase-onboarding` were measured and KEPT — see `.claude/plans/plan-008-batch2-skill-merges.md`.
 - `templates/skills/` duplicates 14 shipped skills; two have already diverged — delete after consolidation sign-off.
 - Registry `mandatory` flags (2) understate practice — coordinator's prompt loads ~12 skills; roadmap §2.4 caps mandatory loads at ≤2 with inline digests.

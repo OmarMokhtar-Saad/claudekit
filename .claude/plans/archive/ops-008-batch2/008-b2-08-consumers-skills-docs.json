@@ -1,0 +1,75 @@
+{
+  "plan": "008-b2-08-consumers-skills-docs",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/usage-monitoring/SKILL.md",
+      "description": "Both merged-away names appear here; both now point at context-keeper.",
+      "edits": [
+        {
+          "find": "| Agent re-exploring already-mapped code | Load project index first (context-priming) |",
+          "replace": "| Agent re-exploring already-mapped code | Load project index first (context-keeper) |"
+        },
+        {
+          "find": "- **session-continuity** includes usage summary in session state",
+          "replace": "- **context-keeper** includes usage summary in session state"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/incident-response/SKILL.md",
+      "description": "session-continuity merged away.",
+      "edits": [
+        {
+          "find": "- **session-continuity** preserves incident investigation context across sessions",
+          "replace": "- **context-keeper** preserves incident investigation context across sessions"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/codebase-mapping/SKILL.md",
+      "description": "context-priming merged away.",
+      "edits": [
+        {
+          "find": "- The project index is loaded by the **context-priming** skill on session start",
+          "replace": "- The project index is loaded by the **context-keeper** skill when priming a session"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "README.md",
+      "description": "dependency-audit merged into supply-chain-audit.",
+      "edits": [
+        {
+          "find": "| **DevOps** | ci-cd-pipeline, monitoring-observability, dependency-audit, incident-response |",
+          "replace": "| **DevOps** | ci-cd-pipeline, monitoring-observability, supply-chain-audit, incident-response |"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "docs/SKILLS.md",
+      "description": "dependency-audit merged into supply-chain-audit.",
+      "edits": [
+        {
+          "find": "| dependency-audit | CVE assessment, semver compatibility, safe incremental upgrades | Verifier, Reviewer, Security Scanner |\n",
+          "replace": ""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "docs/ARCHITECTURE.md",
+      "description": "dependency-audit merged into supply-chain-audit.",
+      "edits": [
+        {
+          "find": "| Security | security-checklist, dependency-audit, supply-chain-audit, insecure-defaults, differential-security-review, static-analysis-integration | Reviewer, Verifier, Security-Scanner |",
+          "replace": "| Security | security-checklist, supply-chain-audit, insecure-defaults, differential-security-review, static-analysis-integration | Reviewer, Verifier, Security-Scanner |"
+        }
+      ]
+    }
+  ]
+}

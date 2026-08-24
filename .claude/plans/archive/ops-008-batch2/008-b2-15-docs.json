@@ -1,0 +1,91 @@
+{
+  "plan": "008-b2-15-docs",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "description": "User-visible: five skills merged, three sign-off rows measured and kept, alias map for one release.",
+      "edits": [
+        {
+          "find": "## [Unreleased]\n\n### Changed\n",
+          "add_after": "\n- **Five near-duplicate skills merged away: 76 → 71.** `autonomous-loops` →\n  `autonomous-loop`, `verification-loop` → `verification-before-completion`,\n  `dependency-audit` → `supply-chain-audit`, and both `session-continuity` and\n  `context-priming` → `context-keeper`. Every merge kept the **union** of operative\n  rules, so the survivors grew rather than shrank — the pairs were complementary, not\n  redundant: a six-phase pipeline plus the general loop contract, a completion\n  discipline plus its executable runbook, threat detection plus the upgrade lifecycle.\n  Proven by token diff (every backtick span and dotted identifier from the deleted file\n  present in the survivor), not by comparing headings.\n\n  Three names the sign-off sheet listed for removal were **kept**, because measurement\n  disagreed with the sheet: `token-budget-advisor` shares no section with either\n  token skill (it is a response-depth menu, not token accounting); `codebase-mapping`\n  is the authoring contract for `project-graph.py` and is not near-duplicate prose;\n  and in the session pair the sheet had the survivor backwards — `context-keeper` owns\n  the file `.claude/hooks/session-start.sh` actually reads, while\n  `session-continuity`'s `.claude/session-state.json` had no reader or writer anywhere\n  in the repo.\n\n  Every removed name resolves for one release through the registry `renamed` alias map,\n  which `ck doctor` reads — consumers see a rename, not a deletion.\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".ai/SKILLS.md",
+      "description": "the merged-away names are no longer live components",
+      "edits": [
+        {
+          "find": "`verification-before-completion` (evidence before claims), `verification-loop` (6-phase QA: build/types/lint/tests/security/diff), `test-driven-development`",
+          "replace": "`verification-before-completion` (evidence before claims **and** the 6-phase QA runbook: build/types/lint/tests/security/diff — `verification-loop` merged in), `test-driven-development`"
+        },
+        {
+          "find": "`supply-chain-audit` (typosquatting, CVE cross-ref), `dependency-audit`, `prompt-injection-defense`",
+          "replace": "`supply-chain-audit` (typosquatting, CVE cross-ref **and** the semver/upgrade lifecycle — `dependency-audit` merged in), `prompt-injection-defense`"
+        },
+        {
+          "find": "`context-budget`, `token-optimization` (3 compression levels), `token-budget-advisor` (user-selectable 25/50/75/100% depth), `context-priming`, `context-keeper` (structured save/resume), `session-continuity` (freshness: <4h trust, 4–24h verify, >72h stale), `codebase-mapping`",
+          "replace": "`context-budget`, `token-optimization` (3 compression levels), `token-budget-advisor` (user-selectable 25/50/75/100% depth), `context-keeper` (the whole session lifecycle: structured save/resume, freshness <4h trust / 4–24h verify / >72h stale, and the priming sequence — `session-continuity` and `context-priming` merged in), `codebase-mapping`"
+        },
+        {
+          "find": "`autonomous-loop` **and** `autonomous-loops` (near-duplicates — merge, task 008), `gan-harness`",
+          "replace": "`autonomous-loop` (the 6-phase pipeline **and** the general loop contract — `autonomous-loops` merged in), `gan-harness`"
+        },
+        {
+          "find": "- Near-duplicates queued for merge (008): `autonomous-loop`/`autonomous-loops`, `verification-before-completion`/`verification-loop`, token/context trio, `codebase-mapping`/`codebase-onboarding`, `dependency-audit`/`supply-chain-audit`.",
+          "replace": "- Near-duplicate merges (008 batch 2, DONE): `autonomous-loops`, `verification-loop`, `dependency-audit`, `session-continuity` and `context-priming` are gone, 76 → 71, each name resolving through the registry `renamed` map. `token-budget-advisor`, `codebase-mapping` and `codebase-onboarding` were measured and KEPT — see `.claude/plans/plan-008-batch2-skill-merges.md`."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".ai/PLAYBOOK.md",
+      "description": "batch 2's merge list is now history, and it is not the list the sheet had",
+      "edits": [
+        {
+          "find": "2. Merge order: skills first (autonomous-loop→autonomous-loops, verification pair, token/context trio, onboarding pair, dependency pair), then agents",
+          "replace": "2. Merge order: skills first (DONE — `autonomous-loops`, `verification-loop`, `dependency-audit`, `session-continuity`, `context-priming` merged away, 76 → 71; the onboarding pair and `token-budget-advisor` were measured and kept), then agents"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".ai/AGENTS_PIPELINE_1.md",
+      "description": "coordinator's skill list loses one member and renames another",
+      "edits": [
+        {
+          "find": "**Dependencies.** Loads 12 skills: `using-superpowers`, `golden-rule`, `multi-agent-coordination`, `dispatching-parallel-agents`, `subagent-driven-development`, `context-first-workflow`, `verification-before-completion`, `autonomous-loop`, `context-budget`, `session-continuity`, `search-first`, `verification-loop`.",
+          "replace": "**Dependencies.** Loads 10 skills: `using-superpowers`, `golden-rule`, `multi-agent-coordination`, `dispatching-parallel-agents`, `subagent-driven-development`, `context-first-workflow`, `verification-before-completion` (which absorbed `verification-loop`), `autonomous-loop`, `context-budget`, `context-keeper` (which absorbed `session-continuity`), `search-first`."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".ai/AGENTS_SPECIALISTS_1.md",
+      "description": "security-scanner and devops load the survivor",
+      "edits": [
+        {
+          "find": "**Dependencies.** Skills: `using-superpowers`, `golden-rule`, `security-checklist`, `dependency-audit`; conditionally",
+          "replace": "**Dependencies.** Skills: `using-superpowers`, `golden-rule`, `security-checklist`, `supply-chain-audit`; conditionally"
+        },
+        {
+          "find": "conditionally `security-checklist`, `dependency-audit`, `database-migration-patterns`.",
+          "replace": "conditionally `security-checklist`, `supply-chain-audit`, `database-migration-patterns`."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".ai/MODEL_ONBOARDING.md",
+      "description": "the example of unconsolidated duplication is no longer true",
+      "edits": [
+        {
+          "find": "- Duplicating instead of consolidating (`autonomous-loop` vs `autonomous-loops` skills still exist — task 008).",
+          "replace": "- Duplicating instead of consolidating (task 008; batch 2 closed the skill pairs — `autonomous-loop` vs `autonomous-loops` is gone — batch 3 has the agent pairs still open)."
+        }
+      ]
+    }
+  ]
+}

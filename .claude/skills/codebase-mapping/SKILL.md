@@ -1,6 +1,6 @@
 ---
 name: codebase-mapping
-description: "Use when you need to auto-generate a project structure map -- scans directories, identifies patterns, maps dependencies, and creates an annotated project index."
+description: "Use when you need machine-readable structure for a project -- scans directories, maps dependencies with confidence tiers, and emits .claude/project-index.md plus the .claude/project-graph.json sidecar that explore, planner and refactor-cleaner query instead of re-grepping."
 ---
 
 # Codebase Mapping
@@ -190,7 +190,7 @@ targets get `kind: external` stubs. Then:
 
 ## Integration
 
-- The project index is loaded by the **context-priming** skill on session start
+- The project index is loaded by the **context-keeper** skill when priming a session
 - The **coordinator** agent uses it to route tasks to the correct part of the codebase
 - The **planner** agent uses it to understand impact scope of planned changes
 - The **explore**, **refactor-cleaner** and **planner** agents query the graph

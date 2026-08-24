@@ -161,6 +161,6 @@ Artifact state: PARTIAL — review before use
 ## Integration with Other Skills
 
 - Pair with **santa-method** for final adversarial review after GAN convergence
-- Pair with **verification-loop** for post-GAN build/test gate
+- Pair with **verification-before-completion** for post-GAN build/test gate
 - Use **context-keeper** to save GAN session state for long-running generations
 - Use **model-router** to select Generator model based on task complexity

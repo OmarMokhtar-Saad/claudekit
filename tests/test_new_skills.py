@@ -18,9 +18,8 @@ NEW_SKILLS = [
     "spec-driven-development",
     "token-optimization",
     "codebase-mapping",
-    "session-continuity",
+    "context-keeper",
     "autonomous-loop",
-    "context-priming",
     "hook-profiling",
     "safe-command-approval",
     "usage-monitoring",
@@ -98,4 +97,4 @@ class TestOneCanonicalTree:
             if os.path.isdir(os.path.join(SKILLS_DIR, d))
             and os.path.isfile(os.path.join(SKILLS_DIR, d, "SKILL.md"))
         ]
-        assert len(skills) >= 76, f"Expected >= 76 skills, found {len(skills)}"
+        assert len(skills) >= 71, f"Expected >= 71 skills, found {len(skills)}"

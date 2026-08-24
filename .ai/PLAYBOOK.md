@@ -21,7 +21,7 @@ Check `review/tasks/` first (it's probably specced) → for surface changes get 
 ## Execute task 008 (corpus consolidation) — when approved
 
 1. Produce the migration table: each merged asset → absorbing asset, registry updates, coordinator-routing updates, QUICK_START/INVOCATION rows, README/docs mentions.
-2. Merge order: skills first (autonomous-loop→autonomous-loops, verification pair, token/context trio, onboarding pair, dependency pair), then agents (python/ts-reviewer + silent-failure-hunter → code-reviewer; documenter + doc-updater; code-simplifier → refactor-cleaner; tdd-guide + model-router → skills; harness-optimizer → /context-budget), then delete `templates/skills/`.
+2. Merge order: skills first (DONE — `autonomous-loops`, `verification-loop`, `dependency-audit`, `session-continuity`, `context-priming` merged away, 76 → 71; the onboarding pair and `token-budget-advisor` were measured and kept), then agents (python/ts-reviewer + silent-failure-hunter → code-reviewer; documenter + doc-updater; code-simplifier → refactor-cleaner; tdd-guide + model-router → skills; harness-optimizer → /context-budget), then delete `templates/skills/`.
 3. Per merge: port unique content, delete file, `gen-docs.py` (counts change!), grep old name repo-wide (zero hits), registry + routing updated, full DoD gate.
 4. CHANGELOG `Changed` with a user-facing migration note; bump docs counts everywhere via gen-docs.
 

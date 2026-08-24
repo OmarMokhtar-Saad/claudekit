@@ -1,0 +1,20 @@
+{
+  "plan": "008-b2-10-delete-2",
+  "operations": [
+    {
+      "type": "file_delete",
+      "path": ".agents/skills/verification-loop/SKILL.md",
+      "reason": "task 008 batch 2: merged into verification-before-completion in an earlier config of this batch (union proven by token diff); the name enters the registry `renamed` alias map. `.agents/skills/` is the unshipped Codex mirror and is deleted in lockstep per owner decision 3 -- it holds no operative rule the canonical tree lacks."
+    },
+    {
+      "type": "file_delete",
+      "path": ".claude/skills/dependency-audit/SKILL.md",
+      "reason": "task 008 batch 2: merged into supply-chain-audit in an earlier config of this batch (union proven by token diff); the name enters the registry `renamed` alias map. `.agents/skills/` is the unshipped Codex mirror and is deleted in lockstep per owner decision 3 -- it holds no operative rule the canonical tree lacks."
+    },
+    {
+      "type": "file_delete",
+      "path": ".agents/skills/dependency-audit/SKILL.md",
+      "reason": "task 008 batch 2: merged into supply-chain-audit in an earlier config of this batch (union proven by token diff); the name enters the registry `renamed` alias map. `.agents/skills/` is the unshipped Codex mirror and is deleted in lockstep per owner decision 3 -- it holds no operative rule the canonical tree lacks."
+    }
+  ]
+}

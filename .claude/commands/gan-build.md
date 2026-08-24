@@ -12,7 +12,7 @@ Runs the GAN harness — a generate-evaluate-iterate loop where an independent E
 
 - **using-superpowers** - Core capabilities
 - **gan-harness** - GAN loop protocol, roles, anti-anchoring rules
-- **verification-loop** - Post-convergence quality gate
+- **verification-before-completion** - Post-convergence quality gate
 
 ## Task
 

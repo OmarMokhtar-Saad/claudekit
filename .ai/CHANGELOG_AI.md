@@ -1,6 +1,96 @@
 # AI Session Changelog
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
+## 2026-08-24 — task 008 batch 2 EXECUTED (76 → 71 skills)
+
+17 ops configs executed on the real tree (16 planned + `008-b2-17-seam-fixes`, a
+disclosed Tier-1 follow-up for two prose defects introduced by the batch itself — see
+below). Zero errors. Archived to `.claude/plans/archive/ops-008-batch2/` with a
+README row; plan at `.claude/plans/archive/plan-008-batch2-skill-merges.md`. Two
+adversarial `reviewer` rounds ran first (84/100 REVISE → 93/100 APPROVED), each
+recorded via `review-record.py` against every config's own sha256 — the full batch
+was simulated end-to-end in a throwaway worktree before either round, and re-simulated
+after round 1's fixes.
+
+- **The sign-off sheet was wrong in two more places, and measurement caught both.**
+  `token-budget-advisor` shares no section with either token skill (it is a
+  response-depth menu); `codebase-mapping` is the authoring contract for
+  `project-graph.py` with test coverage, not near-duplicate prose. And the session
+  pair's survivor was **backwards**: `context-keeper` owns the file
+  `.claude/hooks/session-start.sh:133` reads, while `session-continuity`'s
+  `.claude/session-state.json` has no reader or writer in the repo. Following the sheet
+  would have deleted the wired skill and kept the dead one. Owner re-scoped to five
+  removals, 76 → 71.
+- **A second skills tree nobody had counted.** `.agents/skills/` is tracked, 76
+  directories, 42 of them divergent from `.claude/skills/`, and carries a skill name
+  the canonical tree does not have. Unshipped, so it is hygiene rather than consumer
+  exposure — but it doubles the deletion count, and batch 1's "one canonical tree"
+  claim does not cover it. Owner decision: mirror the deletions, carry the divergence.
+- **Simulation caught two failures that 16 clean validations missed.** `ck doctor
+  --strict` went red *because the merges were documented*: batch 1's alias scan warns
+  when a file still names a removed skill, `--strict` fails on any warning, and every
+  union survivor names what it absorbed in its seam. Fixed by exempting exactly one
+  file — the alias target's own `SKILL.md` — with a test that fails against a blanket
+  exemption. Second miss: `test_new_skills.py::test_total_skill_count` asserted `>= 76`
+  and names no skill, so no grep for a removed name would have found it. Same class as
+  batch 1's `TEMPLATE_DIR` constant.
+- **The merges are unions, so the survivors grew.** 200→452, 190→459, 179→334,
+  169→489 lines. The corpus loses 5 names and roughly zero tokens; the payoff is the
+  mis-routing fix, not size. Union proven by token diff — every backtick span and
+  dotted identifier from each deleted file present in its survivor, derived rather
+  than spot-checked, and the 127 test fragments were generated from those token sets.
+- **Both new gates were mutation-proven before being offered.** Deleting one grafted
+  section turns 2 tests red; widening the doctor exemption turns the second alias test
+  red while the first still passes.
+- **Batch 4 measured, not started.** 0 of 55 commands meet the spec's ≤40 lines (min
+  47, median 129, max 466); meeting it is a 5138-line rewrite. Put to the owner with
+  options rather than assumed. The other three batch-4 items are confirmed real,
+  including that `.claude/agents/_shared/HANDOFF_PROTOCOL.md` does not exist.
+
+**Round 1 found three things I had wrong, all in the plan's own claims,
+none in the underlying re-scope evidence:**
+- **[CRITICAL]** `.claude/plans/plan-skill-loading-contract.md` was named as a
+  consumer to update and no config touched it. Fixed by scoping it out explicitly —
+  it's a spent, archived plan (`plans/archive/plan-skill-loading-contract.ops.json`
+  confirms it), and editing a dated record falsifies it. The gap was real; the fix is
+  disclosure, not a retroactive edit.
+- **[MAJOR]** The consumer-acceptance test scanned 3 directories while the plan's own
+  proof-table claim promised 6 + `README.md` — the exact "test asserts a property it
+  does not exercise" shape this repo keeps re-deriving. Widened to `LIVE_ROOTS` (8
+  locations + README), with a test that asserts the scope itself so a future narrowing
+  goes red on its own.
+- **[MAJOR]** The token-diff union proof (backtick spans + dotted identifiers) had a
+  blind spot: prose carrying neither, like `NEVER save secrets, credentials, or API
+  keys in the state file` or `One dependency at a time. One version bump at a time.
+  Tests after every change.`, was invisible to it. Widened to bold spans and ALL-CAPS
+  imperative bullets — 127 → 163 asserted fragments — which also surfaced 5 seam
+  labels I had paraphrased instead of carrying verbatim (`Use when:`, `Run this
+  skill:`, etc.), now exact.
+
+**Two round-1 MINORs, both fixed:** an intra-operation edit-ordering dependency in
+`008-b2-01` (reordered so the graft no longer depends on the rename having already
+run); a sentence implying `docs/SKILLS.md`/`docs/ARCHITECTURE.md` might be
+generator-owned (they aren't — the only generated block in either file is
+`README.md:315-322`; measured and stated with line numbers).
+
+**On the real tree: 2420 passed, 0 failed** (better than the worktree simulation's 17
+pre-existing failures, which were worktree/untracked-file artifacts). `ck doctor
+--strict` exits 0. Both new gates are mutation-proven: deleting a grafted section
+reddens 2 of 165 tests; widening the doctor exemption from one file to every file
+reddens its own guard test while the paired test stays green.
+
+**`008-b2-17-seam-fixes` (disclosed `--no-approval`, Tier 1 docs-only):** a duplicated
+`e.g.` from an earlier fix to the same graft, and three missing blank lines before a
+`---` rule — `add_after` does not append a newline (CLAUDE.md already warns of this
+class), so three grafts landed directly against a table row with no separating blank
+line. Cosmetic; caught by re-reading the applied diffs, not by any test.
+
+**Follow-ups.** Batch 4, then batch 3 LAST. Batch 4's command-line-budget question is
+still owner-gated (0 of 55 commands meet ≤40; meeting it is a 5138-line rewrite); its
+other three items are confirmed real and unblocked. Batch 3's stated blocker — the
+`renamed` alias map is skills-only, `gen-registry.py` refuses aliasing an agent name —
+is still unsolved.
+
 ## 2026-08-23 — task 008 batch 1 executed: one canonical tree
 
 Batch 1 is done. 21 ops configs, 79 operations, zero errors, executed in INDEX order

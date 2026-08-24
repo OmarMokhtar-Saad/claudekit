@@ -243,7 +243,7 @@ These files cannot be deleted via operations config:
 
 ## Skills
 
-ClaudeKit includes 76 reusable skills that agents load on-demand:
+ClaudeKit includes 71 reusable skills that agents load on-demand:
 
 | Category | Skills |
 |----------|--------|
@@ -251,7 +251,7 @@ ClaudeKit includes 76 reusable skills that agents load on-demand:
 | **Quality** | clean-architecture, test-driven-development, verification-before-completion, systematic-debugging, refactoring-patterns, error-handling |
 | **Security** | security-checklist, golden-rule (no changes without approval) |
 | **API & Data** | api-design-patterns, database-migration-patterns |
-| **DevOps** | ci-cd-pipeline, monitoring-observability, dependency-audit, incident-response |
+| **DevOps** | ci-cd-pipeline, monitoring-observability, supply-chain-audit, incident-response |
 | **Accessibility & i18n** | accessibility-standards, i18n-patterns |
 | **Git** | git-workflow, using-git-worktrees, finishing-a-development-branch |
 | **Collaboration** | multi-agent-coordination, dispatching-parallel-agents, subagent-driven-development, clarify, requesting-code-review, receiving-code-review |
@@ -317,7 +317,7 @@ Each project gets a `CONSTITUTION.md` — a governance document that agents enfo
 |-----------|------:|
 | Agents    | 29 |
 | Commands  | 55 |
-| Skills    | 76 |
+| Skills    | 71 |
 | Hooks     | 26 |
 <!-- END GENERATED:inventory -->
 
@@ -339,7 +339,7 @@ claudekit/
 │   │   ├── explore.md
 │   │   └── _shared/                  # Templates and protocols
 │   ├── commands/                     # 55 slash commands
-│   ├── skills/                       # 76 domain skills + registry
+│   ├── skills/                       # 71 domain skills + registry
 │   ├── hooks/                        # 26 workflow hooks + lib.sh
 │   ├── operations/scripts/           # Validate, execute, restore
 │   └── local/                        # CLAUDE.md + CONSTITUTION.md templates

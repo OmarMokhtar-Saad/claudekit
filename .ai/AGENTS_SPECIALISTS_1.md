@@ -61,7 +61,7 @@ TaskCreate:
 
 **Internal workflow.** Phase 1 dependency audit (npm audit / pip-audit / cargo audit / govulncheck / bundle-audit; exploitability and reachability assessment; EOL and single-maintainer flags) → Phase 2 SAST (injection, auth flaws, weak crypto, insecure deserialization, dynamic code eval) → Phase 3 configuration (security headers, TLS ≥1.2, CORS, rate limiting, error leakage) → Phase 4 secret detection (source, .gitignore coverage, unexpected places, git history sampling) → Phase 5 report with severity scoring table (9–10 CRITICAL blocks release … 1–3 LOW).
 
-**Dependencies.** Skills: `using-superpowers`, `golden-rule`, `security-checklist`, `dependency-audit`; conditionally `ci-cd-pipeline`, `performance-guidelines`, `incident-response`. Runs in parallel with silent-failure-hunter in the Security Audit pipeline. Downstream: planner.
+**Dependencies.** Skills: `using-superpowers`, `golden-rule`, `security-checklist`, `supply-chain-audit`; conditionally `ci-cd-pipeline`, `performance-guidelines`, `incident-response`. Runs in parallel with silent-failure-hunter in the Security Audit pipeline. Downstream: planner.
 
 **Memory/context.** Read-only; Edit/Write FORBIDDEN. Redacts all secret values in reports.
 
@@ -93,7 +93,7 @@ echo "Run a full security scan on the auth module before release. Produce the Se
 
 **Internal workflow.** Pre-flight checklist (project runtime, existing CI/container/K8s/env files, golden-rule approval) → generate per templates: 8-stage pipeline structure (trigger → env → lint → test → build → security → staging deploy → production with manual gate); 3-stage Docker builds; K8s resource structure with probes, security contexts, HPA, NetworkPolicy.
 
-**Dependencies.** Skills: `using-superpowers`, `golden-rule`, `ci-cd-pipeline`, `containerization-patterns`, `monitoring-observability`; conditionally `security-checklist`, `dependency-audit`, `database-migration-patterns`. Handoff targets: planner, security-scanner.
+**Dependencies.** Skills: `using-superpowers`, `golden-rule`, `ci-cd-pipeline`, `containerization-patterns`, `monitoring-observability`; conditionally `security-checklist`, `supply-chain-audit`, `database-migration-patterns`. Handoff targets: planner, security-scanner.
 
 **Memory/context.** Writes infra files only; no `.claude/state` usage documented.
 

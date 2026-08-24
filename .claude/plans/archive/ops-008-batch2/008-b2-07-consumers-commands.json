@@ -1,0 +1,57 @@
+{
+  "plan": "008-b2-07-consumers-commands",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/commands/loop-start.md",
+      "description": "verification-loop merged away.",
+      "edits": [
+        {
+          "find": "- **verification-loop** - 6-phase quality gate",
+          "replace": "- **verification-before-completion** - 6-phase quality gate"
+        },
+        {
+          "find": "- **Task complete:** Worker signals completion AND verification-loop passes all 6 gates",
+          "replace": "- **Task complete:** Worker signals completion AND verification-before-completion passes all 6 gates"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/commands/gan-build.md",
+      "description": "verification-loop merged away.",
+      "edits": [
+        {
+          "find": "- **verification-loop** - Post-convergence quality gate",
+          "replace": "- **verification-before-completion** - Post-convergence quality gate"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/commands/prp-implement.md",
+      "description": "verification-loop merged away.",
+      "edits": [
+        {
+          "find": "- **verification-loop** - 6-phase quality gate",
+          "replace": "- **verification-before-completion** - 6-phase quality gate"
+        },
+        {
+          "find": "Then run the 6-phase verification-loop gate:",
+          "replace": "Then run the 6-phase verification-before-completion gate:"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/gan-harness/SKILL.md",
+      "description": "verification-loop merged away.",
+      "edits": [
+        {
+          "find": "- Pair with **verification-loop** for post-GAN build/test gate",
+          "replace": "- Pair with **verification-before-completion** for post-GAN build/test gate"
+        }
+      ]
+    }
+  ]
+}
