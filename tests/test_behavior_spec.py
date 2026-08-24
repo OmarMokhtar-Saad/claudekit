@@ -313,7 +313,7 @@ class TestContractConsistency:
     def test_invocation_table_covers_spawned_roles(self):
         text = _read(SHARED, "INVOCATION.md")
         for role in ("planner", "reviewer", "explore", "debugger", "verifier",
-                     "implementer", "security-scanner", "silent-failure-hunter"):
+                     "implementer", "security-scanner"):
             assert f"| {role}" in text, f"INVOCATION.md tool table missing row: {role}"
 
     def test_implementer_reads_validation_from_plan_not_opsjson(self):

@@ -168,7 +168,6 @@ Triggers: "find", "search", "where is", "how does"
     database-architect.md    → Database design agent
     tdd-guide.md             → Test-first development agent
     refactor-cleaner.md      → Dead code removal agent
-    silent-failure-hunter.md → Error handling audit agent
     harness-optimizer.md     → .claude/ token optimization agent
     performance-optimizer.md → Performance bottleneck agent
     typescript-reviewer.md   → TypeScript review specialist

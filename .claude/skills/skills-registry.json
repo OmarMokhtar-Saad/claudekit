@@ -6,6 +6,10 @@
     "code-simplifier": {
       "to": "refactor-cleaner",
       "kind": "agent"
+    },
+    "silent-failure-hunter": {
+      "to": "code-reviewer",
+      "kind": "agent"
     }
   },
   "renamed": {
@@ -723,7 +727,6 @@
     "performance-optimizer",
     "python-reviewer",
     "refactor-cleaner",
-    "silent-failure-hunter",
     "tdd-guide",
     "typescript-reviewer",
     "web-researcher"

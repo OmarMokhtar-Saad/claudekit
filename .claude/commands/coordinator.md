@@ -53,7 +53,7 @@ route by mode — new documentation to `documenter`, updates to `doc-updater`.
 ## Parallel Groups
 
 Read-only agents with independent inputs (explore, debugger, security-scanner,
-silent-failure-hunter, verifier-as-reader) MUST be spawned together in ONE message — never
+code-reviewer, verifier-as-reader) MUST be spawned together in ONE message — never
 one per turn. Two independent read-only tasks already justify a parallel group. Only
 implementer and gitOps are strictly serialized (they write). Spawn mechanism per routing
 row: slash commands where one exists (e.g. `/refine`, `/debug`), otherwise

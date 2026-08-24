@@ -1,0 +1,16 @@
+{
+  "plan": "008-b3c2-04-alias",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/skills-registry.json",
+      "description": "Alias.",
+      "edits": [
+        {
+          "find": "    \"code-simplifier\": {\n      \"to\": \"refactor-cleaner\",\n      \"kind\": \"agent\"\n    }",
+          "replace": "    \"code-simplifier\": {\n      \"to\": \"refactor-cleaner\",\n      \"kind\": \"agent\"\n    },\n    \"silent-failure-hunter\": {\n      \"to\": \"code-reviewer\",\n      \"kind\": \"agent\"\n    }"
+        }
+      ]
+    }
+  ]
+}

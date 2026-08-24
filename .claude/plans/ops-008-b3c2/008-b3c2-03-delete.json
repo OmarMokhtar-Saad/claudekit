@@ -1,0 +1,10 @@
+{
+  "plan": "008-b3c2-03-delete",
+  "operations": [
+    {
+      "type": "file_delete",
+      "path": ".claude/agents/silent-failure-hunter.md",
+      "reason": "task 008 batch 3 cluster 2: merged into code-reviewer as Dimension 6 in this same batch (union proven by token diff). Enters `renamedAgents`."
+    }
+  ]
+}

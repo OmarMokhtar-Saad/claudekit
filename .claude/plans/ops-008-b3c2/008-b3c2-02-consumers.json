@@ -1,0 +1,106 @@
+{
+  "plan": "008-b3c2-02-consumers",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/commands/audit.md",
+      "description": "The routing change, stated not hidden: /audit's third parallel slot was silent-failure-hunter and is now code-reviewer carrying Dimension 6. Still three agents in parallel -- the fan-out width is unchanged, only the third agent's name. Four sites, not one: the display-name form 'Silent Failure Hunter' appeared in the --errors route, the agent roster and the coverage template as well as the header diagram. The hyphenated id was clean; the prose name was not, and only the acceptance test found the difference.",
+      "edits": [
+        {
+          "find": "description: \"Comprehensive codebase audit — runs Explore + Silent Failure Hunter + Security Scanner in parallel\"",
+          "replace": "description: \"Comprehensive codebase audit — runs Explore + Code Reviewer (silent-failure dimension) + Security Scanner in parallel\""
+        },
+        {
+          "find": "[Silent Failure Hunter]    ←── parallel ──→    [Security Scanner]",
+          "replace": "[Code Reviewer: dim 6]     ←── parallel ──→    [Security Scanner]"
+        },
+        {
+          "find": "Routes to Silent Failure Hunter agent.",
+          "replace": "Routes to Code Reviewer, Dimension 6 (silent failures)."
+        },
+        {
+          "find": "**Agent 1 — Silent Failure Hunter:** Scan for empty catches, swallowed errors, dangerous fallbacks",
+          "replace": "**Agent 1 — Code Reviewer (Dimension 6):** Scan for empty catches, swallowed errors, dangerous fallbacks"
+        },
+        {
+          "find": "- Error handling: [count reported by Silent Failure Hunter — never invent this]",
+          "replace": "- Error handling: [count reported by Code Reviewer, Dimension 6 — never invent this]"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/_shared/INVOCATION.md",
+      "description": "Both tool-grant tables named the removed agent. code-reviewer already has its own row in each, so the rows are deleted rather than merged.",
+      "edits": [
+        {
+          "find": "| silent-failure-hunter | `Read,Grep,Glob`                                                | Read-only scanning.                                  |\n",
+          "replace": ""
+        },
+        {
+          "find": "| silent-failure-hunter | `Read, Grep, Glob, Bash` |\n",
+          "replace": ""
+        },
+        {
+          "find": "`security-scanner`, and `silent-failure-hunter` are documented above as read-only",
+          "replace": "`security-scanner`, and `code-reviewer` are documented above as read-only"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/QUICK_START.md",
+      "description": "Inventory.",
+      "edits": [
+        {
+          "find": "    silent-failure-hunter.md → Error handling audit agent\n",
+          "replace": ""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/commands/coordinator.md",
+      "description": "The parallel-group roster named the removed agent.",
+      "edits": [
+        {
+          "find": "silent-failure-hunter, verifier-as-reader)",
+          "replace": "code-reviewer, verifier-as-reader)"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/model-policy.json",
+      "description": "Drop the removed role.",
+      "edits": [
+        {
+          "find": "    \"silent-failure-hunter\": {\n      \"accountable_for\": \"Swallowed errors, bad fallbacks, and missing propagation.\",\n      \"tier\": \"balanced\"\n    },\n",
+          "replace": ""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_model_policy.py",
+      "description": "Expected-tier table.",
+      "edits": [
+        {
+          "find": "\"reviewer\": \"sonnet\", \"silent-failure-hunter\": \"sonnet\",",
+          "replace": "\"reviewer\": \"sonnet\","
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_behavior_spec.py",
+      "description": "Agent roster.",
+      "edits": [
+        {
+          "find": "\"implementer\", \"security-scanner\", \"silent-failure-hunter\")",
+          "replace": "\"implementer\", \"security-scanner\")"
+        }
+      ]
+    }
+  ]
+}

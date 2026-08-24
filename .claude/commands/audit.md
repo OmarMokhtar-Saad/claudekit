@@ -1,5 +1,5 @@
 ---
-description: "Comprehensive codebase audit — runs Explore + Silent Failure Hunter + Security Scanner in parallel"
+description: "Comprehensive codebase audit — runs Explore + Code Reviewer (silent-failure dimension) + Security Scanner in parallel"
 argument-hint: "[--security|--errors|--performance|--all]"
 model: sonnet
 ---
@@ -27,7 +27,7 @@ Run audit: $ARGUMENTS
 Runs three specialist agents in parallel:
 
 ```
-[Silent Failure Hunter]    ←── parallel ──→    [Security Scanner]
+[Code Reviewer: dim 6]     ←── parallel ──→    [Security Scanner]
          ↓                                              ↓
          └──────────── [Synthesized Report] ───────────┘
                                  ↓
@@ -38,7 +38,7 @@ Runs three specialist agents in parallel:
 Routes to Security Scanner agent.
 
 ### `--errors` — Error handling audit only  
-Routes to Silent Failure Hunter agent.
+Routes to Code Reviewer, Dimension 6 (silent failures).
 
 ### `--performance` — Performance bottleneck audit only
 Routes to Performance Optimizer agent.
@@ -75,7 +75,7 @@ Spawn ALL specialists in ONE message (they are read-only; spawning one per turn 
 the audit). Spawn per `.claude/agents/_shared/INVOCATION.md` with each agent's scoped tool
 row (`Read,Grep,Glob` for the scanners):
 
-**Agent 1 — Silent Failure Hunter:** Scan for empty catches, swallowed errors, dangerous fallbacks
+**Agent 1 — Code Reviewer (Dimension 6):** Scan for empty catches, swallowed errors, dangerous fallbacks
 **Agent 2 — Security Scanner:** Run static analysis, check for OWASP Top 10, dependency CVEs
 **Agent 3 — Performance Optimizer** (only with `--all`/`--performance`): hot paths, N+1, allocations
 
@@ -101,7 +101,7 @@ Files audited: N | Critical: N | High: N | Medium: N | Low: N
 ...
 
 ### Audit Coverage
-- Error handling: [count reported by Silent Failure Hunter — never invent this]
+- Error handling: [count reported by Code Reviewer, Dimension 6 — never invent this]
 - Security checks: [count reported by Security Scanner — never invent this]
 - Dependencies: [count reported by Security Scanner — never invent this]
 
