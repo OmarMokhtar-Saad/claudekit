@@ -129,9 +129,11 @@ class TestTheRoutingChangeIsHonest:
                         continue
                     if name == "skills-registry.json":
                         continue
-                    if name == os.path.basename(__file__):
-                        # This file names the removed agent throughout, by design.
-                        # Batch 2 hit the same self-reference trap.
+                    if name.startswith("test_008_b3c"):
+                        # The batch-3 acceptance suite names removed agents by design:
+                        # cluster 7's closing table lists all nine. Exactly this one
+                        # shape is exempt -- not tests/ as a whole, which would stop
+                        # catching a stale agent roster in an ordinary test.
                         continue
                     path = os.path.join(dirpath, name)
                     if os.path.abspath(path) == allowed:

@@ -1,0 +1,16 @@
+{
+  "plan": "ops-b3c2-scan",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_008_b3c2_silent_failure_merge.py",
+      "description": "The scan excluded its OWN file but not sibling batch-3 acceptance files, and cluster 7's batch-wide closing table names all nine removed agents by design. The self-reference trap generalised: a test that asserts a name is gone must name it. Exemption widened by exactly one shape -- the batch-3 acceptance suite -- not to tests/ as a whole, which would stop catching a stale agent roster in an ordinary test.",
+      "edits": [
+        {
+          "find": "                    if name == os.path.basename(__file__):\n                        # This file names the removed agent throughout, by design.\n                        # Batch 2 hit the same self-reference trap.\n                        continue",
+          "replace": "                    if name.startswith(\"test_008_b3c\"):\n                        # The batch-3 acceptance suite names removed agents by design:\n                        # cluster 7's closing table lists all nine. Exactly this one\n                        # shape is exempt -- not tests/ as a whole, which would stop\n                        # catching a stale agent roster in an ordinary test.\n                        continue"
+        }
+      ]
+    }
+  ]
+}

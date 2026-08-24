@@ -67,10 +67,6 @@
       "accountable_for": "Branching, committing, pushing, and PR mechanics.",
       "tier": "fast"
     },
-    "harness-optimizer": {
-      "accountable_for": "Reliability and cost of the local agent harness configuration.",
-      "tier": "balanced"
-    },
     "implementer": {
       "accountable_for": "Executing an approved ops.json through the operations engine. Never edits.",
       "tier": "fast"

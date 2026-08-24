@@ -1,0 +1,10 @@
+{
+  "plan": "008-b3c7-03-delete",
+  "operations": [
+    {
+      "type": "file_delete",
+      "path": ".claude/agents/harness-optimizer.md",
+      "reason": "task 008 batch 3 cluster 7: merged into the context-budget skill in this same batch (union proven by token diff). /context-budget already loads that skill, so the agent was a second spawn re-deriving the invoker's numbers. Enters `renamedAgents` with kind=skill. FINAL cluster of batch 3."
+    }
+  ]
+}

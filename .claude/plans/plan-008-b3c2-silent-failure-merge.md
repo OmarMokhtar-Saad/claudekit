@@ -18,6 +18,8 @@ classification and reporting format are grafted in full: 304 → 580 lines.
 
 ## This cluster changes routing, and that is the accepted risk
 
+**Routing is not demonstrated unchanged.**
+
 `/audit` spawned `silent-failure-hunter` as one of **three parallel agents**. It now
 spawns `code-reviewer` for Dimension 6. **The eval cassettes that were batch 3's designed
 gate do not exist, so nothing proves the fan-out behaves equivalently.** What is proven is

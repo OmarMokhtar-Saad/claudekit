@@ -1,0 +1,38 @@
+{
+  "plan": "008-b3c7-02-consumers",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/QUICK_START.md",
+      "description": "Inventory.",
+      "edits": [
+        {
+          "find": "    harness-optimizer.md     → .claude/ token optimization agent\n",
+          "replace": ""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_model_policy.py",
+      "description": "Expected tiers.",
+      "edits": [
+        {
+          "find": "\"harness-optimizer\": \"sonnet\", \"loop-operator\": \"sonnet\",",
+          "replace": "\"loop-operator\": \"sonnet\","
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/model-policy.json",
+      "description": "Drop the removed role.",
+      "edits": [
+        {
+          "find": "    \"harness-optimizer\": {\n      \"accountable_for\": \"Reliability and cost of the local agent harness configuration.\",\n      \"tier\": \"balanced\"\n    },\n",
+          "replace": ""
+        }
+      ]
+    }
+  ]
+}

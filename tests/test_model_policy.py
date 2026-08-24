@@ -95,7 +95,7 @@ class ModelPolicyIsTheSourceOfTruth(unittest.TestCase):
         "security-scanner": "opus",
         "build-error-resolver": "sonnet",
         "coordinator": "sonnet", "database-architect": "sonnet", "devops": "sonnet",
-        "harness-optimizer": "sonnet", "loop-operator": "sonnet",
+        "loop-operator": "sonnet",
         "opensource-sanitizer": "sonnet", "performance-optimizer": "sonnet",
         "refactor-cleaner": "sonnet",
         "reviewer": "sonnet",

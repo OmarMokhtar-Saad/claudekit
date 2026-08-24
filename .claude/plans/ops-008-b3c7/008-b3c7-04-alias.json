@@ -1,0 +1,16 @@
+{
+  "plan": "008-b3c7-04-alias",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/skills-registry.json",
+      "description": "Final alias.",
+      "edits": [
+        {
+          "find": "    \"model-router\": {",
+          "replace": "    \"harness-optimizer\": {\n      \"to\": \"context-budget\",\n      \"kind\": \"skill\"\n    },\n    \"model-router\": {"
+        }
+      ]
+    }
+  ]
+}
