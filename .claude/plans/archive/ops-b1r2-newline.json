@@ -1,0 +1,16 @@
+{
+  "plan": "b1r2-alias-consumer-newline",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "src/claudekit/cli/main.py",
+      "description": "add_before does not append a newline; the inserted block ran into the anchor",
+      "edits": [
+        {
+          "find": "                        checks_warned += 1                check(f\"Skills registry valid: {len(skill_ids)} skills, {len(data.get('agentMapping', {}))} agents\", True)",
+          "replace": "                        checks_warned += 1\ncheck(f\"Skills registry valid: {len(skill_ids)} skills, {len(data.get('agentMapping', {}))} agents\", True)"
+        }
+      ]
+    }
+  ]
+}

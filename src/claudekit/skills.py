@@ -54,6 +54,31 @@ def title_from_name(name: str) -> str:
     return " ".join(part.capitalize() for part in name.split("-"))
 
 
+def renamed_map(doc: Dict[str, Any]) -> Dict[str, str]:
+    """The registry's `renamed` alias map: old skill id -> the id that replaced it.
+
+    A removed skill name must stay RESOLVABLE for one release, so the downstream
+    repos that consume this corpus experience a rename rather than a dangling
+    reference (a condition of the task-008 sign-off). Tolerant of a malformed value:
+    a registry with a junk `renamed` should degrade to 'no aliases', never crash a
+    caller that only wanted to look up a skill.
+    """
+    aliases = doc.get("renamed")
+    if not isinstance(aliases, dict):
+        return {}
+    return {str(k): str(v) for k, v in aliases.items() if isinstance(v, str)}
+
+
+def resolve_skill_id(doc: Dict[str, Any], skill_id: str) -> str:
+    """`skill_id` itself if it is live, otherwise what it was renamed to.
+
+    Single hop on purpose. A chain (a -> b -> c) would mean two releases of aliases
+    outliving their deprecation window, which is the thing the one-release rule
+    exists to prevent; the generator refuses to register an alias whose target does
+    not exist, so a chain cannot form silently.
+    """
+    return renamed_map(doc).get(skill_id, skill_id)
+
 def load_registry(root: Path) -> Dict[str, Any]:
     path = registry_path(root)
     if not path.is_file():

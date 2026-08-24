@@ -1,0 +1,16 @@
+{
+  "plan": "b1r2-indent",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "src/claudekit/cli/main.py",
+      "description": "restore the indentation my lstrip removed",
+      "edits": [
+        {
+          "find": "\ncheck(f\"Skills registry valid: {len(skill_ids)} skills, {len(data.get('agentMapping', {}))} agents\", True)\n",
+          "replace": "\n                check(f\"Skills registry valid: {len(skill_ids)} skills, {len(data.get('agentMapping', {}))} agents\", True)\n"
+        }
+      ]
+    }
+  ]
+}

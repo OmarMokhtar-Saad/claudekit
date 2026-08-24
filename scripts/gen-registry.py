@@ -141,10 +141,20 @@ def main():
     fs_skills = set(derive_skill_ids())
     reg_skills = {s["id"] for s in registry.get("skills", [])}
 
-    # Alias targets are checked before the skills reconciliation below, so a broken
-    # alias is reported by BOTH `--check` and the rewrite rather than only the one
-    # that happens to run first.
-    for _old, _new in sorted(registry.get("renamed", {}).items()):
+    # The `renamed` alias map is how a REMOVED skill name stays resolvable for one
+    # release, so the 16 downstream repos see a rename and not a deletion (a condition
+    # of the task-008 sign-off). It is hand-maintained -- nothing on disk can derive it,
+    # since the whole point is that the old name is gone -- so the generator's job is to
+    # keep it HONEST rather than to write it. `ck doctor` is what READS it.
+    #
+    # Checked here, before the skills reconciliation below, so a broken alias is
+    # reported by BOTH `--check` and the rewrite rather than only whichever runs first.
+    _aliases = registry.get("renamed", {})
+    if not isinstance(_aliases, dict):
+        print("ERROR: renamed: expected an object mapping old id -> new id, got "
+              f"{type(_aliases).__name__}", file=sys.stderr)
+        return 1
+    for _old, _new in sorted(_aliases.items()):
         if _old in fs_skills:
             print(f"ERROR: renamed: '{_old}' is aliased but still exists on disk",
                   file=sys.stderr)
@@ -210,25 +220,6 @@ def main():
               "Run: python3 scripts/gen-registry.py", file=sys.stderr)
         return 1
 
-    # The `renamed` alias map is how a REMOVED skill name stays resolvable for one
-    # release, so the 16 downstream repos see a rename and not a deletion (a
-    # condition of the task-008 sign-off). It is hand-maintained -- nothing on disk
-    # can derive it, since the whole point is that the old name is gone -- so the
-    # generator's job is to keep it HONEST rather than to write it.
-    aliases = registry.get("renamed", {})
-    alias_errors = []
-    for old, new in sorted(aliases.items()):
-        if old in fs_skills:
-            alias_errors.append(
-                f"'{old}' is aliased to '{new}' but still exists on disk: an alias"
-                f" that shadows a live skill resolves the wrong way")
-        if new not in fs_skills:
-            alias_errors.append(
-                f"'{old}' is aliased to '{new}', which does not exist")
-    if alias_errors:
-        for err in alias_errors:
-            print(f"ERROR: renamed: {err}", file=sys.stderr)
-        return 1
     registry["agentMapping"] = derived
     registry["agentsWithoutSkills"] = unmapped
     for sid in unregistered:

@@ -75,17 +75,39 @@ class TestI18nSkill:
         path = os.path.join(SKILLS_DIR, "i18n-patterns", "SKILL.md")
         assert os.path.isfile(path)
 
+    #: Derived by a TOKEN DIFF of the deleted `templates/skills/i18n-workflow/SKILL.md`
+    #: at 80a2e74 against the merged file -- every backtick code span and dotted
+    #: identifier -- not by reading the headings and not by a reviewer's spot-check.
+    #: Both of the narrower methods have already failed here once each: batch 1 checked
+    #: five HEADINGS and passed while three whole sections were missing, and the fix for
+    #: that checked the fragments review happened to name and still missed the
+    #: per-language formatting APIs.
+    #:
+    #: Four tokens from the old file are deliberately absent, having equivalents rather
+    #: than being losses: `auth.login.button` (the merged file uses
+    #: `auth.login.title`/`submit_button` for the same semantic-key rule) and
+    #: `dashboard.json`/`errors.json` (its File Organization block uses
+    #: `common.json`/`auth.json`/`settings.json`).
     FOLDED_FROM_I18N_WORKFLOW = [
         # headings
         "Gender / Select", "Nested (select wrapping plural)", "Relative Time",
         "Translation File Formats by Ecosystem", "Translation Quality Checks",
         "Anti-Patterns", "Externalization APIs by Language", "The CI Round-Trip",
         "RTL Testing",
-        # operative content -- headings alone passed while the bodies were missing
+        # externalization APIs
         "NSLocalizedString", "gettext", "getString", "intl.formatMessage",
-        "Crowdin", "Lokalise", "Phrase", "bdi", "scrollbars",
+        # formatting APIs, per language -- the merged table said only "locale library"
+        "DateTimeFormatter", "strftime", "locale.format_string",
+        "NumberFormat.getCurrencyInstance", "babel.numbers.format_currency",
+        # the currency-pairing rule, which the "use a formatter" pitfall row does not say
+        "currency: 'USD'",
+        # translation platforms and the round-trip
+        "Crowdin", "Lokalise", "Phrase",
+        # RTL specifics
+        "bdi", "scrollbars",
+        # separator variance across three locales, not two
+        "1 234,56",
     ]
-
     @pytest.mark.parametrize("fragment", FOLDED_FROM_I18N_WORKFLOW)
     def test_the_i18n_workflow_fold_survives(self, fragment):
         """`i18n-workflow` was deleted and its content folded into `i18n-patterns`.

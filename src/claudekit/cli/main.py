@@ -366,11 +366,24 @@ def cmd_doctor(args):
             try:
                 data = json.loads(registry.read_text())
                 skill_ids = {s["id"] for s in data.get("skills", [])}
+                # A removed skill name stays resolvable for one release through the
+                # `renamed` alias map, so a consumer sees a RENAME and not a dangling
+                # reference. Without something reading it the map is stored data that
+                # changes no behaviour anywhere -- which is what it was when review
+                # first asked who consumes it.
+                aliases = data.get("renamed")
+                aliases = aliases if isinstance(aliases, dict) else {}
                 for agent, skills in data.get("agentMapping", {}).items():
                     for sid in skills:
-                        if sid not in skill_ids:
+                        if sid in skill_ids:
+                            continue
+                        if sid in aliases:
+                            warn(f"  Registry: agent '{agent}' references '{sid}', "
+                                 f"which was renamed to '{aliases[sid]}' — update the "
+                                 f"reference before the alias is retired")
+                        else:
                             warn(f"  Registry: agent '{agent}' references unknown skill '{sid}'")
-                            checks_warned += 1
+                        checks_warned += 1
                 # A skill on disk that nobody registered is invisible drift:
                 # no agentMapping can reference it and no gate used to look for it.
                 fs_skills = {d.name for d in (claude_dir / "skills").glob("*")
@@ -379,6 +392,27 @@ def cmd_doctor(args):
                     warn(f"  Registry: skill '{sid}' exists on disk but is not "
                          f"registered (create skills with `ck skill new`)")
                     checks_warned += 1
+                # The half a consumer actually needs: WHICH of their files still
+                # name the old id. An alias nobody can act on is an alias that
+                # expires while the references are still broken.
+                for old, new in sorted(aliases.items()):
+                    stale = []
+                    for sub in ("agents", "commands", "skills"):
+                        base = claude_dir / sub
+                        if not base.is_dir():
+                            continue
+                        for path in base.rglob("*.md"):
+                            try:
+                                if old in path.read_text(encoding="utf-8", errors="replace"):
+                                    stale.append(path.relative_to(claude_dir))
+                            except OSError:
+                                continue
+                    if stale:
+                        shown = ", ".join(str(p) for p in sorted(stale)[:5])
+                        more = f" (+{len(stale) - 5} more)" if len(stale) > 5 else ""
+                        warn(f"  Registry: '{old}' was renamed to '{new}'; still "
+                             f"referenced by {shown}{more}")
+                        checks_warned += 1
                 check(f"Skills registry valid: {len(skill_ids)} skills, {len(data.get('agentMapping', {}))} agents", True)
             except (json.JSONDecodeError, KeyError) as e:
                 check("Skills registry", False, f"Invalid JSON: {e}")

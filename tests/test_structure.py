@@ -3,6 +3,7 @@
 import glob
 import json
 import os
+import re
 
 import pytest
 
@@ -220,65 +221,142 @@ class TestHookWiringIsHonest:
     """A shipped hook is wired, resolved by a wrapper, or declared inert -- never
     silently none of the three.
 
-    `README.md` and `docs/HOOKS.md` said "26 hooks ship ... all are wired" while two of
-    them were referenced by nothing at all. The count moved 22 -> 26 with the promotion
-    in task 008 batch 1 and the prose around it did not, so a generated number turned a
-    true sentence into a false one. A reader who believes `auto-checkpoint.sh` is
-    protecting their session and never configures a real checkpoint is exactly the
-    failure hard rule 6 exists to prevent: inert scripts advertised as active
-    guardrails.
+    `README.md` and `docs/HOOKS.md` said "26 hooks ship ... all are wired" while three
+    were referenced by nothing. A reader who believes `auto-checkpoint.sh` is protecting
+    their session and never configures a real checkpoint is exactly the failure hard
+    rule 6 exists to prevent: inert scripts advertised as active guardrails.
 
-    Adding a hook to UNWIRED is a deliberate, reviewable act. Adding one to neither
-    fails here.
+    Reachability is derived STRUCTURALLY. The first version of this test concatenated
+    every hook's source and asked whether a name appeared anywhere in the blob, which
+    granted reachability from prose. Review demonstrated two holes with it green:
+    deleting every `pre-push.sh` row from settings.json AND dispatch-registry.json left
+    it passing, because `dispatch.sh` mentions `pre-push.sh` in a COMMENT; and a
+    brand-new inert `.py` hook passed while `gen-docs` counted it into the published
+    number, because the glob was `*.sh` only.
+
+    The hook set is taken from `gen-docs` itself, so what is tested is exactly what is
+    counted -- a hook that is published but untested is the gap that let a `.py` file
+    through.
     """
 
     UNWIRED = {
-        # Opt-in material: promoted out of templates/hooks/, where nothing invoked them
-        # either. Promotion changed where they live, not whether they run.
+        # Opt-in material, promoted out of templates/hooks/ in task 008 batch 1 where
+        # nothing invoked them either. Promotion changed where they live, not whether
+        # they run.
         "auto-checkpoint.sh",
         "check-comment-replacement.sh",
-        # Ships deliberately unwired, and said so in docs/HOOKS.md long before this
-        # test existed -- which is how that file came to contradict its own opening
-        # sentence. Found by this test, not by a reader.
+        # Ships deliberately unwired and said so at docs/HOOKS.md long before this test
+        # existed -- which is how that file came to contradict its own opening sentence.
         "post-implement.sh",
-        # Shared library, not a hook.
-        "lib.sh",
     }
 
-    def _hooks(self):
-        return sorted(os.path.basename(p) for p in
-                      glob.glob(os.path.join(CLAUDE_DIR, "hooks", "*.sh")))
+    @staticmethod
+    def _gen_docs():
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "_gen_docs", os.path.join(ROOT, "scripts", "gen-docs.py"))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
 
-    def test_every_hook_is_wired_or_declared_inert(self):
-        settings = os.path.join(CLAUDE_DIR, "settings.json")
-        with open(settings, encoding="utf-8") as fh:
-            wiring = fh.read()
+    @staticmethod
+    def _published_hooks():
+        """Exactly the set gen-docs publishes a count for: every hook file minus the
+        helper libraries it already excludes structurally."""
+        gd = TestHookWiringIsHonest._gen_docs()
+        files = gd._hook_files()
+        return sorted(p.name for p in files if not gd._is_helper_module(p, files))
+
+    @staticmethod
+    def _strip_comments(text, path):
+        """Comment text is documentation, not an invocation."""
+        marker = "#"
+        out = []
+        for line in text.splitlines():
+            stripped = line.lstrip()
+            if stripped.startswith(marker):
+                continue
+            out.append(line.split(" " + marker, 1)[0] if " " + marker in line else line)
+        return "\n".join(out)
+
+    @classmethod
+    def _wired(cls):
+        """Names reachable from a declaration: a settings.json command string or a
+        dispatch-registry row. Parsed, not grepped."""
+        wired = set()
+        with open(os.path.join(CLAUDE_DIR, "settings.json"), encoding="utf-8") as fh:
+            settings = fh.read()
+        wired.update(re.findall(r"\.claude/hooks/([A-Za-z0-9._-]+)", settings))
+
         registry = os.path.join(CLAUDE_DIR, "hooks", "dispatch-registry.json")
         if os.path.isfile(registry):
             with open(registry, encoding="utf-8") as fh:
-                wiring += fh.read()
-        # A wrapper resolving a hook by name counts as reachable.
-        for path in glob.glob(os.path.join(CLAUDE_DIR, "hooks", "*.sh")):
-            with open(path, encoding="utf-8") as fh:
-                wiring += fh.read().replace(os.path.basename(path), "")
+                doc = json.load(fh)
+            for rows in doc.get("events", {}).values():
+                for row in rows:
+                    if isinstance(row, dict) and row.get("file"):
+                        wired.add(row["file"])
+        return wired
 
-        unreachable = [h for h in self._hooks()
-                       if h not in TestHookWiringIsHonest.UNWIRED and h not in wiring]
+    @classmethod
+    def _wrapper_resolved(cls, published):
+        """Names a REACHABLE hook resolves at runtime. A hook that is itself unreachable
+        cannot confer reachability, so the inert set is excluded -- otherwise a comment
+        inside a file nothing runs would keep another hook 'reachable'."""
+        resolved = set()
+        reachable_sources = [n for n in published if n not in cls.UNWIRED]
+        for name in reachable_sources:
+            path = os.path.join(CLAUDE_DIR, "hooks", name)
+            if not os.path.isfile(path):
+                continue
+            with open(path, encoding="utf-8", errors="replace") as fh:
+                body = cls._strip_comments(fh.read(), path)
+            body = body.replace(name, "")
+            for other in published:
+                if other != name and other in body:
+                    resolved.add(other)
+        return resolved
+
+    def test_every_hook_is_wired_or_declared_inert(self):
+        published = self._published_hooks()
+        reachable = self._wired() | self._wrapper_resolved(published)
+        unreachable = [h for h in published
+                       if h not in reachable and h not in TestHookWiringIsHonest.UNWIRED]
         assert unreachable == [], (
             f"hooks reachable from nothing and not declared inert: {unreachable}")
 
     def test_the_inert_list_does_not_hide_a_wired_hook(self):
-        """The allowlist must not grow to cover hooks that ARE wired -- that would
-        make the test pass by shrinking what it checks."""
-        with open(os.path.join(CLAUDE_DIR, "settings.json"), encoding="utf-8") as fh:
-            settings = fh.read()
-        wired_but_listed = [h for h in TestHookWiringIsHonest.UNWIRED if h in settings]
+        """The allowlist must not grow to cover hooks that ARE wired -- that would make
+        the test pass by shrinking what it checks. Reads the dispatch registry too: the
+        first version checked only settings.json, so a dispatcher-wired hook could be
+        declared inert unchallenged."""
+        wired_but_listed = sorted(TestHookWiringIsHonest.UNWIRED & self._wired())
         assert wired_but_listed == [], (
-            f"declared inert but wired in settings.json: {wired_but_listed}")
+            f"declared inert but actually wired: {wired_but_listed}")
+
+    def test_the_inert_list_names_only_hooks_that_exist(self):
+        """A stale entry silently shrinks the checked set."""
+        published = set(self._published_hooks())
+        ghosts = sorted(TestHookWiringIsHonest.UNWIRED - published)
+        assert ghosts == [], f"UNWIRED names hooks that do not ship: {ghosts}"
+
+    def test_the_published_reachable_count_matches_the_docs(self):
+        """The prose carries a hand-written "23 are reachable" next to a generated 26.
+        That pairing is exactly how "26 ... all are wired" went stale. Derived here so
+        the sentence cannot drift from the tree."""
+        published = self._published_hooks()
+        reachable = len(published) - len(TestHookWiringIsHonest.UNWIRED)
+        for rel in ("README.md", "docs/HOOKS.md"):
+            with open(os.path.join(ROOT, rel), encoding="utf-8") as fh:
+                # Normalised: the docs hard-wrap, so "23 are\nreachable" is the same
+                # sentence as "23 are reachable" and a raw substring misses it.
+                body = " ".join(fh.read().split())
+            assert f"{reachable} are reachable" in body, (
+                f"{rel} does not state the derived reachable count ({reachable})")
 
     def test_the_docs_do_not_claim_every_hook_is_wired(self):
-        """The specific false sentence, pinned. Reads the docs, because the two tests
-        above pass just as well beside prose that contradicts them."""
+        """The specific false sentence, pinned. The tests above pass just as well beside
+        prose that contradicts them."""
         for rel in ("README.md", "docs/HOOKS.md"):
             with open(os.path.join(ROOT, rel), encoding="utf-8") as fh:
                 body = fh.read()

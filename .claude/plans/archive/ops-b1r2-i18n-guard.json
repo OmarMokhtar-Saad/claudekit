@@ -1,0 +1,27 @@
+{
+  "plan": "b1r2-i18n-guard",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/i18n-patterns/SKILL.md",
+      "description": "the French thin-space separator: a third shape, not a restatement of the other two",
+      "edits": [
+        {
+          "find": "| Numbers | `Intl.NumberFormat` | `NumberFormat` | `locale.format_string` | \"1,234.56\" vs \"1.234,56\" |",
+          "replace": "| Numbers | `Intl.NumberFormat` | `NumberFormat` | `locale.format_string` | \"1,234.56\" (en) vs \"1.234,56\" (de) vs \"1 234,56\" (fr) |"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_i18n.py",
+      "description": "guard list rebuilt from the token diff, with the four deliberate omissions named",
+      "edits": [
+        {
+          "find": "    FOLDED_FROM_I18N_WORKFLOW = [\n        # headings\n        \"Gender / Select\", \"Nested (select wrapping plural)\", \"Relative Time\",\n        \"Translation File Formats by Ecosystem\", \"Translation Quality Checks\",\n        \"Anti-Patterns\", \"Externalization APIs by Language\", \"The CI Round-Trip\",\n        \"RTL Testing\",\n        # operative content -- headings alone passed while the bodies were missing\n        \"NSLocalizedString\", \"gettext\", \"getString\", \"intl.formatMessage\",\n        \"Crowdin\", \"Lokalise\", \"Phrase\", \"bdi\", \"scrollbars\",\n    ]\n\n",
+          "replace": "    #: Derived by a TOKEN DIFF of the deleted `templates/skills/i18n-workflow/SKILL.md`\n    #: at 80a2e74 against the merged file -- every backtick code span and dotted\n    #: identifier -- not by reading the headings and not by a reviewer's spot-check.\n    #: Both of the narrower methods have already failed here once each: batch 1 checked\n    #: five HEADINGS and passed while three whole sections were missing, and the fix for\n    #: that checked the fragments review happened to name and still missed the\n    #: per-language formatting APIs.\n    #:\n    #: Four tokens from the old file are deliberately absent, having equivalents rather\n    #: than being losses: `auth.login.button` (the merged file uses\n    #: `auth.login.title`/`submit_button` for the same semantic-key rule) and\n    #: `dashboard.json`/`errors.json` (its File Organization block uses\n    #: `common.json`/`auth.json`/`settings.json`).\n    FOLDED_FROM_I18N_WORKFLOW = [\n        # headings\n        \"Gender / Select\", \"Nested (select wrapping plural)\", \"Relative Time\",\n        \"Translation File Formats by Ecosystem\", \"Translation Quality Checks\",\n        \"Anti-Patterns\", \"Externalization APIs by Language\", \"The CI Round-Trip\",\n        \"RTL Testing\",\n        # externalization APIs\n        \"NSLocalizedString\", \"gettext\", \"getString\", \"intl.formatMessage\",\n        # formatting APIs, per language -- the merged table said only \"locale library\"\n        \"DateTimeFormatter\", \"strftime\", \"locale.format_string\",\n        \"NumberFormat.getCurrencyInstance\", \"babel.numbers.format_currency\",\n        # the currency-pairing rule, which the \"use a formatter\" pitfall row does not say\n        \"currency: 'USD'\",\n        # translation platforms and the round-trip\n        \"Crowdin\", \"Lokalise\", \"Phrase\",\n        # RTL specifics\n        \"bdi\", \"scrollbars\",\n        # separator variance across three locales, not two\n        \"1 234,56\",\n    ]\n"
+        }
+      ]
+    }
+  ]
+}
