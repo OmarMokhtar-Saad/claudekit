@@ -14,6 +14,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Session context is scanned before it reaches the transcript.** `session-start.sh` printed
+  the first 20 lines of `.claude/session-context.md` straight into the session, before any
+  scanner saw them — and indenting text with `sed` is not neutralising it. The existing
+  injection scanner did not cover this path: `injection-scan-gate.sh` scans the
+  `UserPromptSubmit` payload's `prompt` field and nothing else. The excerpt is now scanned
+  first; a match **withholds the content**, leaves the file untouched, and tells you which file
+  to inspect. Not gated to `ECC_HOOK_PROFILE=strict`, because `session-start.sh` runs in every
+  profile. Bounds, stated plainly: writing that file needs local write access, so the realistic
+  vector is a shared or cloned repo, or an earlier agent run — not a remote hole. What it closes
+  is a mechanical exception to the project's own rule that retrieved text is evidence, never an
+  instruction channel.
+
+- **`security-reminder.sh` no longer stops scanning at character 3000.** Every pattern it
+  checks — `shell=True`, SQL concatenation, `innerHTML`, disabled TLS verification, weak crypto,
+  permissive CORS — matched a **truncated** copy of the edit, so a risk at character 3001 was
+  never scanned and the hook exited 0 with no indication that coverage was partial. 3000
+  characters is about 75 lines. The cap is now 200,000 **and it announces itself**: a truncated
+  scan prints `PARTIAL SCAN: N of M characters checked`. The silence was the defect, not the
+  number.
+
+- **Weak-crypto detection was backwards.** `\bMD5\b` is case-sensitive, so `hashlib.md5(data)`
+  — the way weak crypto is actually written in Python — **never** triggered a warning, while a
+  comment saying "do not use MD5" did. Verified against the previous version before changing it.
+  Now the API-call shapes match case-insensitively, the bare uppercase word matches only on
+  non-comment lines, and `hashlib.sha256` does not fire.
+
 - **`file-guard` no longer warns about public keys and test fixtures.** Its extension set
   (`cert|crt|pem|key|p12|pfx`) had no escape hatch, so `public.pem`, `id_rsa.pub`,
   `ca-bundle.crt` and every `.pem` under `tests/fixtures/` were reported as

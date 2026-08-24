@@ -84,6 +84,17 @@ OBSOLETE 5 · UNVERIFIABLE 1. Still zero P0 and zero P1.
 | F99 | the shipped default config violates the shipped schema | `ck doctor --strict` → `[✓] Hooks config.json matches config.schema.json` |
 | F100 | nothing validates against `config.schema.json` | `_check_config_schema` in the CLI, gated by `tests/test_config_schema.py` and `tests/test_gate_scope.py:178-185` (Gate 3) |
 
+
+### Update 2026-08-24 (second pass) — 40 LIVE → 38
+
+**F44 and F54 fixed**, the two highest-value rows in the LIVE set: both were *coverage that
+isn't* rather than tidiness. See their rows above for the evidence.
+
+**F107 is partly narrower than recorded and partly wider.** Three hooks were fixed (they wrote
+to a cwd-relative `LOG=".claude/hooks/hooks.log"`), but a **fourth** form was found while working
+F44: `prompt-injection-scanner.sh:12` also sets `LOG_FILE=".claude/hooks/hooks.log"` relative to
+the cwd. F107 stays LIVE, and its count of forms should be read as measured-not-final.
+
 ### Path drift: §6 no longer exists as written
 
 The triage's §6 is titled ``templates/hooks/`` and its eight LIVE rows cite
@@ -109,12 +120,12 @@ Re-confirmed by execution, grouped by what would fix them.
 | F39 | `post-implement.sh:3` | `set -e` against a run-all-three-steps design |
 | F40 | `pre-plan.sh:69` | one `python3` per existing plan file, on a UserPromptSubmit hook |
 | F41 | `pre-plan.sh:88+` | warns, returns 0 unconditionally — `vacuous-check` |
-| F44 | `session-start.sh:136` | `head -20 "$CONTEXT_FILE" \| sed 's/^/  /'` — unsanitised file into the transcript. The only LIVE finding with a security shape |
+| F44 | ~~`session-start.sh:136`~~ | **FIXED 2026-08-24.** The excerpt is scanned by `prompt-injection-scanner.sh` before printing; a match withholds the content (the file is left unchanged) and names the file to inspect. Not gated to `strict`, because `session-start.sh` runs in every profile. `tests/test_session_context_scan.py` asserts the payload string is **absent** from stdout — asserting only that a warning appeared would pass while still echoing it |
 | F49 | `cost-tracker.sh:26-33` | counts hook-log lines; prints "Session Summary" while the file is still named `cost-tracker.sh` |
 | F51 | `format-typecheck.sh:49` | unquoted command substitution into an array; correct only because `IFS=$'\n'` |
 | F52 | `format-typecheck.sh:92-93` | `grep -c "error TS"` over a report containing formatter output; `"?"` flows into `fail:${TSC_ERRORS}_errors` |
 | F53 | `format-typecheck.sh:34` | `sleep 1` as synchronisation |
-| F54 | `security-reminder.sh:55,81` | 3000-char silent truncation **and** unanchored `\bMD5\b\|\bSHA1\b\|\bRC4\b` |
+| F54 | ~~`security-reminder.sh:55,81`~~ | **FIXED 2026-08-24.** Cap raised 3000 → 200,000 **and made loud**: a truncated scan prints `PARTIAL SCAN: N of M characters checked` with both numbers, because the silence was the defect rather than the number. Crypto half went further than the finding: `\bMD5\b` is case-SENSITIVE, so `hashlib.md5(data)` — the way weak crypto is actually written — **never matched**, while a comment saying "MD5" did. Exactly backwards. Now API shapes match case-insensitively, the bare uppercase word only on non-comment lines, `hashlib.sha256` does not fire |
 | F55 | `command-log-audit.sh:10` | `AUDIT_LOG=".claude/hooks/bash-commands.log"` is cwd-relative while `:9` uses `$SCRIPT_DIR` |
 | F60 | `auto-checkpoint.sh:200` | `awk '{print $2}'` on `--porcelain`; display-only |
 | F61 | `.claude/hooks/file-guard.sh:94-96` | `cert\|crt\|pem\|key\|p12\|pfx` with no allowlist; `:125` `*"customer"*"data"*`. **Job 4** |

@@ -25,8 +25,8 @@ index never outranks the current files.
 | `drifted` | 3 |
 | `approved` | 49 |
 | `planned` | 9 |
-| `executed` | 23 |
-| `not_started` | 17 |
+| `executed` | 24 |
+| `not_started` | 16 |
 | `legacy` | 3 |
 | **total** | **104** |
 
@@ -114,7 +114,7 @@ index never outranks the current files.
 | `.claude/plans/plan-review-round-history.md` | `approved` | 1 |  |
 | `.claude/plans/plan-review-truthfulness-batch.md` | `approved` | 1 |  |
 | `.claude/plans/plan-run-command-op.md` | `not_started` | 0 |  |
-| `.claude/plans/plan-scanner-coverage.md` | `not_started` | 0 |  |
+| `.claude/plans/plan-scanner-coverage.md` | `executed` | 8 |  |
 | `.claude/plans/plan-session-close-fix.md` | `executed` | 2 |  |
 | `.claude/plans/plan-session-close.md` | `executed` | 4 |  |
 | `.claude/plans/plan-shellcheck-version-drift.md` | `planned` | 1 |  |

@@ -1,0 +1,23 @@
+{
+  "plan": "scanner-coverage",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "review/code-review-triage.md",
+      "edits": [
+        {
+          "find": "| F44 | `session-start.sh:136` | `head -20 \"$CONTEXT_FILE\" \\| sed 's/^/  /'` \u2014 unsanitised file into the transcript. The only LIVE finding with a security shape |",
+          "replace": "| F44 | ~~`session-start.sh:136`~~ | **FIXED 2026-08-24.** The excerpt is scanned by `prompt-injection-scanner.sh` before printing; a match withholds the content (the file is left unchanged) and names the file to inspect. Not gated to `strict`, because `session-start.sh` runs in every profile. `tests/test_session_context_scan.py` asserts the payload string is **absent** from stdout \u2014 asserting only that a warning appeared would pass while still echoing it |"
+        },
+        {
+          "find": "| F54 | `security-reminder.sh:55,81` | 3000-char silent truncation **and** unanchored `\\bMD5\\b\\|\\bSHA1\\b\\|\\bRC4\\b` |",
+          "replace": "| F54 | ~~`security-reminder.sh:55,81`~~ | **FIXED 2026-08-24.** Cap raised 3000 \u2192 200,000 **and made loud**: a truncated scan prints `PARTIAL SCAN: N of M characters checked` with both numbers, because the silence was the defect rather than the number. Crypto half went further than the finding: `\\bMD5\\b` is case-SENSITIVE, so `hashlib.md5(data)` \u2014 the way weak crypto is actually written \u2014 **never matched**, while a comment saying \"MD5\" did. Exactly backwards. Now API shapes match case-insensitively, the bare uppercase word only on non-comment lines, `hashlib.sha256` does not fire |"
+        },
+        {
+          "find": "### Path drift: \u00a76 no longer exists as written",
+          "add_before": "\n### Update 2026-08-24 (second pass) \u2014 40 LIVE \u2192 38\n\n**F44 and F54 fixed**, the two highest-value rows in the LIVE set: both were *coverage that\nisn't* rather than tidiness. See their rows above for the evidence.\n\n**F107 is partly narrower than recorded and partly wider.** Three hooks were fixed (they wrote\nto a cwd-relative `LOG=\".claude/hooks/hooks.log\"`), but a **fourth** form was found while working\nF44: `prompt-injection-scanner.sh:12` also sets `LOG_FILE=\".claude/hooks/hooks.log\"` relative to\nthe cwd. F107 stays LIVE, and its count of forms should be read as measured-not-final.\n\n"
+        }
+      ]
+    }
+  ]
+}
