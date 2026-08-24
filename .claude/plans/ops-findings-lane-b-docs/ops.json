@@ -1,0 +1,21 @@
+{
+  "plan": "findings-lane-b-docs",
+  "operations": [
+    {
+      "type": "code_edit",
+      "id": "docs-01-checklists",
+      "description": "Plan-Id trailer + plan-index gate in .ai/CHECKLISTS.md (maintainer docs are not counted by the always-on context floor, and CLAUDE.md has 32 chars of headroom)",
+      "path": ".ai/CHECKLISTS.md",
+      "edits": [
+        {
+          "find": "- [ ] `shellcheck install.sh .claude/hooks/*.sh` clean (if shell touched)",
+          "replace": "- [ ] `shellcheck install.sh .claude/hooks/*.sh` clean (if shell touched)\n- [ ] `python3 scripts/gen-plan-index.py --check` clean (plan-lifecycle index drift)"
+        },
+        {
+          "find": "- [ ] Conventional commit + Co-Authored-By (AI work)",
+          "replace": "- [ ] Conventional commit + Co-Authored-By (AI work)\n- [ ] `Plan-Id: <slug>` trailer when the commit executes `.claude/plans/plan-<slug>.md`.\n      That trailer is the ONLY evidence `scripts/gen-plan-index.py` accepts for\n      `executed`; without it the plan reports `approved` forever."
+        }
+      ]
+    }
+  ]
+}

@@ -12,6 +12,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **The issue ledger can now hold a finding that is not fixed yet.** The ledger
+  (`.claude/operations/scripts/knowledge-ledger.py`) shipped with exactly one writer —
+  `record`, gated on the Verifier PASS checkpoint — and the Token & Model Policy says
+  the verifier never auto-runs. So the gate had no upstream and the ledger stayed
+  **empty**. A new `open` subcommand writes at *discovery* time: `status` (`open` /
+  `fixed` / `wontfix` / `regressed`), `origin` (`code` / `workflow` / `project` — the
+  workflow lane had nowhere to live before), and an optional `plan:` pointer to the plan
+  that closes it. `close --status wontfix --reason ...` retires one deliberately.
+
+  **`fixed` still means verified.** `record` keeps both refusals — `--verified` required,
+  reusability + novelty >= threshold — and remains the only writer of `verified: true`;
+  `open` is a separate subcommand, never a flag that relaxes the gate. Two tests exist
+  solely to fail if that erodes. `prune` no longer archives an `open` or `regressed`
+  entry whose files have all moved: silently retiring a live finding is the failure this
+  lane exists to prevent, so those are reported under `STALE-OPEN` instead.
+
+- **`.claude/plans/INDEX.md` — a generated answer to "which plans are done?"** 84 plan
+  documents had no status; `scripts/gen-plan-index.py` **derives** each one from evidence
+  already on disk: ops.json presence, `review-record.py check` verdicts, and `Plan-Id:`
+  commit trailers. Nothing is hand-maintained, and `--check` joins the other drift gates
+  in CI. `drifted` (ops.json changed after approval) is reported loudly and can never be
+  presented as `approved` — it surfaced three such plans on arrival.
+
+  Two honest limits are stated in the index itself: a gitignored `backups/` manifest is
+  advisory and never proof of execution, and a pre-convention plan with no `Plan-Id:`
+  commit reads `legacy` rather than being guessed at.
+
+### Fixed
+
+- **Ledger `--date` was a frontmatter-injection sink.** Every other free-text field
+  passed through `scalar()` or `parse_files()`; `--date` passed through neither. A date
+  carrying a newline and `---` terminated the frontmatter block early, so the real
+  `status:` and `verified:` lines became body text — an unverified entry with no root
+  cause then **read as `status: fixed`, `verified: true`**, and `prune --apply` archived
+  the live finding at exit 0. Both writers now whitelist ISO `YYYY-MM-DD` and refuse
+  anything else (exit 2, nothing written); the renderer refuses too, as a second line of
+  defense. Found by adversarial review before release, with a regression test per path.
+
+- **An unrecognized `status:` value no longer fails open into `fixed`.** A one-character
+  typo (`opne`) made `prune --apply` archive a live finding. An *absent* key still reads
+  as `fixed` — every entry predating the key carries `verified: true`, so that is the only
+  honest reading of history — but a *present-but-unknown* value now reads as unfixed, so
+  the data-destroying path fails closed.
+
 ### Changed
 
 - **`ck lint` now runs in CI.** It shipped as an advisory gate; it is now enforced

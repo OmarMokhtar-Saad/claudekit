@@ -1,0 +1,17 @@
+{
+  "plan": "findings-changelog",
+  "operations": [
+    {
+      "type": "code_edit",
+      "id": "cl-01",
+      "description": "CHANGELOG [Unreleased] entries for the findings ledger + plan index lanes",
+      "path": "CHANGELOG.md",
+      "edits": [
+        {
+          "find": "## [Unreleased]\n\n### Changed\n",
+          "replace": "## [Unreleased]\n\n### Added\n\n- **The issue ledger can now hold a finding that is not fixed yet.** The ledger\n  (`.claude/operations/scripts/knowledge-ledger.py`) shipped with exactly one writer \u2014\n  `record`, gated on the Verifier PASS checkpoint \u2014 and the Token & Model Policy says\n  the verifier never auto-runs. So the gate had no upstream and the ledger stayed\n  **empty**. A new `open` subcommand writes at *discovery* time: `status` (`open` /\n  `fixed` / `wontfix` / `regressed`), `origin` (`code` / `workflow` / `project` \u2014 the\n  workflow lane had nowhere to live before), and an optional `plan:` pointer to the plan\n  that closes it. `close --status wontfix --reason ...` retires one deliberately.\n\n  **`fixed` still means verified.** `record` keeps both refusals \u2014 `--verified` required,\n  reusability + novelty >= threshold \u2014 and remains the only writer of `verified: true`;\n  `open` is a separate subcommand, never a flag that relaxes the gate. Two tests exist\n  solely to fail if that erodes. `prune` no longer archives an `open` or `regressed`\n  entry whose files have all moved: silently retiring a live finding is the failure this\n  lane exists to prevent, so those are reported under `STALE-OPEN` instead.\n\n- **`.claude/plans/INDEX.md` \u2014 a generated answer to \"which plans are done?\"** 84 plan\n  documents had no status; `scripts/gen-plan-index.py` **derives** each one from evidence\n  already on disk: ops.json presence, `review-record.py check` verdicts, and `Plan-Id:`\n  commit trailers. Nothing is hand-maintained, and `--check` joins the other drift gates\n  in CI. `drifted` (ops.json changed after approval) is reported loudly and can never be\n  presented as `approved` \u2014 it surfaced three such plans on arrival.\n\n  Two honest limits are stated in the index itself: a gitignored `backups/` manifest is\n  advisory and never proof of execution, and a pre-convention plan with no `Plan-Id:`\n  commit reads `legacy` rather than being guessed at.\n\n### Fixed\n\n- **Ledger `--date` was a frontmatter-injection sink.** Every other free-text field\n  passed through `scalar()` or `parse_files()`; `--date` passed through neither. A date\n  carrying a newline and `---` terminated the frontmatter block early, so the real\n  `status:` and `verified:` lines became body text \u2014 an unverified entry with no root\n  cause then **read as `status: fixed`, `verified: true`**, and `prune --apply` archived\n  the live finding at exit 0. Both writers now whitelist ISO `YYYY-MM-DD` and refuse\n  anything else (exit 2, nothing written); the renderer refuses too, as a second line of\n  defense. Found by adversarial review before release, with a regression test per path.\n\n- **An unrecognized `status:` value no longer fails open into `fixed`.** A one-character\n  typo (`opne`) made `prune --apply` archive a live finding. An *absent* key still reads\n  as `fixed` \u2014 every entry predating the key carries `verified: true`, so that is the only\n  honest reading of history \u2014 but a *present-but-unknown* value now reads as unfixed, so\n  the data-destroying path fails closed.\n\n### Changed\n"
+        }
+      ]
+    }
+  ]
+}

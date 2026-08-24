@@ -222,6 +222,11 @@ cause burns the entire investigation budget for an answer the project already ow
    Skip Phases 2-3 and go to Phase 4/5 handoff.
    Contradicted match -> state that the entry is stale, diagnose from scratch, and flag that
    the entry needs updating at the Verifier checkpoint.
+4b. CHECK THE STATUS of the match - a hit is not automatically an answer:
+   - `status: fixed`   -> a verified root cause; validate per step 3 and report it.
+   - `status: open` or `regressed` -> KNOWN AND UNFIXED. Report the finding, its `plan:` and
+     its `origin:`, and do NOT re-diagnose it as new; there is no recorded fix to validate.
+   - `status: wontfix` -> deliberately not fixed; report the recorded reason.
 5. Ledger silence is NOT evidence: no match means unknown, not "not a known pattern".
 ```
 
@@ -429,6 +434,8 @@ REGRESSION PREVENTION:
 - NEVER edit or write files (you are READ-ONLY)
 - NEVER begin a fresh diagnosis without the Phase 0 ledger search (`knowledge-ledger.py search`)
 - NEVER report a ledger entry as the diagnosis without re-validating it against the current code
+- NEVER re-diagnose a ledger match whose `status:` is `open` or `regressed` as a new 
+  problem — it is a known unfixed finding; report it and the plan that closes it
 - NEVER guess at root causes without evidence
 - NEVER report symptoms as root causes
 - NEVER ignore contributing factors

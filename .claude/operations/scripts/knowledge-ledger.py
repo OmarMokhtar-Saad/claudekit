@@ -7,9 +7,16 @@ cause instead of re-diagnosing a bug this project already fixed.
 
 Subcommands:
   search   keyword / error-signature retrieval (debugger agent, Phase 0)
-  record   write gate - fires only at the Verifier PASS checkpoint
-  list     show every entry
+  open     record a finding at DISCOVERY time (status: open, verified: false)
+  record   write gate - fires only at the Verifier PASS checkpoint (status: fixed)
+  close    retire a finding deliberately not fixed (status: wontfix)
+  list     show every entry (filterable by --status / --origin)
   prune    archive entries whose referenced files no longer exist
+
+`open` and `record` are deliberately DIFFERENT subcommands, not one command with a
+flag: `verified: true` has exactly one writer (`record`), and `record` keeps both of
+its refusals (--verified required, combined rubric score >= threshold). `open` never
+relaxes them - it only gives the ledger an upstream earlier than the Verifier.
 
 Exit codes:
   0  success (search: at least one match; prune: nothing stale / archived)
@@ -43,6 +50,23 @@ CONFIG_REL = (".claude", "hooks", "config.json")
 # line that prune's split_files() reads back, so it is refused at write time.
 FORBIDDEN_FILE_CHARS = "[],\"'\r\n"
 DEFAULT_LIMIT = 5
+# Lifecycle. An entry with NO `status:` key reads as "fixed" - every entry written
+# before this key existed carries `verified: true`, so that is the only honest reading.
+STATUSES = ("open", "fixed", "wontfix", "regressed")
+# A `status:` value that is present but unrecognized (a typo, or the tail of a
+# corrupted frontmatter block). It is NOT "fixed": reading it as fixed made prune
+# archive live findings on a one-character typo, so it reads as unfixed instead.
+MALFORMED_STATUS = "malformed"
+UNFIXED = ("open", "regressed", MALFORMED_STATUS)  # never archived by prune; a live signal
+# `date:` is the ONE frontmatter value that cannot be flattened by scalar() into
+# something inert: a single line containing `---` still terminates the frontmatter
+# block early, which hides the real status/verified lines from parse_entry() and makes
+# an unverified entry read as a verified fix. A whitelist is the only safe contract.
+DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+TERMINAL = ("fixed", "wontfix")      # `open` refuses over these unless --reopen
+DEFAULT_STATUS = "fixed"
+ORIGINS = ("code", "workflow", "project")
+DEFAULT_ORIGIN = "code"
 
 
 def project_root() -> Path:
@@ -157,6 +181,34 @@ def scalar(value: str) -> str:
     return " ".join(value.replace('"', "'").split())
 
 
+def entry_status(meta: Dict[str, str]) -> str:
+    """Lifecycle status of a parsed entry.
+
+    Two readings that must NOT be conflated:
+      * key ABSENT   -> `fixed`. Every entry written before this key existed carries
+        `verified: true`, so that is the only honest reading of history.
+      * key PRESENT but unrecognized -> `malformed`, which counts as UNFIXED. Reading a
+        typo as `fixed` let prune archive a live finding, which is the silent-retirement
+        failure this lane exists to prevent. Fail closed on the data-destroying path.
+    """
+    if "status" not in meta:
+        return DEFAULT_STATUS
+    value = meta.get("status", "").strip()
+    return value if value in STATUSES else MALFORMED_STATUS
+
+
+def safe_date(value: str) -> str:
+    """An ISO date, or "" if the value is anything else. Never raises."""
+    value = value.strip()
+    return value if DATE_RE.match(value) else ""
+
+
+def safe_origin(value: str) -> str:
+    """Normalize a parsed `origin:` value; anything unrecognized reads as the default."""
+    value = value.strip()
+    return value if value in ORIGINS else DEFAULT_ORIGIN
+
+
 # ---------------------------------------------------------------------------
 # search
 # ---------------------------------------------------------------------------
@@ -198,8 +250,14 @@ def cmd_search(args: argparse.Namespace) -> int:
         print("  root_cause: %s" % meta.get("root_cause", "?"))
         print("  fix:        %s" % meta.get("fix", "?"))
         print("  files:      %s" % meta.get("files", "?"))
+        print("  status:     %s  origin: %s  plan: %s"
+              % (entry_status(meta), safe_origin(meta.get("origin", "")),
+                 meta.get("plan", "-") or "-"))
         print("  date:       %s  verified: %s" % (meta.get("date", "?"), meta.get("verified", "?")))
     print("")
+    if any(entry_status(m) in UNFIXED for _, _, m, _ in scored[: args.limit]):
+        print("At least one match is UNFIXED (status: open/regressed): report the finding and "
+              "the plan: that closes it - do not re-diagnose it as new.")
     print("Report the known root cause/fix above; re-diagnose only if the evidence contradicts it.")
     return 0
 
@@ -208,48 +266,194 @@ def cmd_search(args: argparse.Namespace) -> int:
 # record (the write gate)
 # ---------------------------------------------------------------------------
 
-def render_entry(args: argparse.Namespace, files: List[str], combined: int,
-                 threshold: int) -> str:
-    today = args.date or _date.today().isoformat()
-    lines = [
+def render_entry_text(slug: str, signature: str, root_cause: str, fix: str,
+                      files: List[str], date: str, status: str, origin: str,
+                      plan: str, severity: str, verified: bool,
+                      extra: List[str]) -> str:
+    """Render one entry. Every free-text value passes through scalar() before it lands
+    on a frontmatter line, so no writer can break the one-line `key: value` contract.
+
+    `date` is whitelisted rather than flattened: scalar() cannot make a `---` inert, and
+    a stray `---` inside frontmatter terminates the block early, hiding the real
+    status/verified lines from every reader. A caller that reaches here with a bad date
+    has already been refused at the CLI boundary; this is the second line of defense."""
+    if not DATE_RE.match(date):
+        raise ValueError("date must be ISO YYYY-MM-DD, got %r" % date)
+    head = [
         "---",
-        'signature: "%s"' % scalar(args.signature),
-        'root_cause: "%s"' % scalar(args.root_cause),
-        'fix: "%s"' % scalar(args.fix),
+        'signature: "%s"' % scalar(signature),
+        'root_cause: "%s"' % scalar(root_cause),
+        'fix: "%s"' % scalar(fix),
         "files: [%s]" % ", ".join(files),
-        "date: %s" % today,
-        "verified: true",
+        "date: %s" % date,
+        "status: %s" % status,
+        "origin: %s" % origin,
+    ]
+    if plan:
+        head.append("plan: %s" % scalar(plan))
+    if severity:
+        head.append("severity: %s" % scalar(severity))
+    head.extend([
+        "verified: %s" % ("true" if verified else "false"),
         "---",
         "",
-        "# %s" % args.slug,
+        "# %s" % slug,
         "",
         "## Signature",
         "",
-        scalar(args.signature),
+        scalar(signature),
         "",
         "## Root cause",
         "",
-        args.root_cause.strip(),
+        root_cause.strip() or "(not diagnosed yet - status: %s)" % status,
         "",
         "## Fix",
         "",
-        args.fix.strip(),
+        fix.strip() or "(not fixed yet - status: %s)" % status,
         "",
         "## Files",
         "",
-    ]
-    lines.extend(["- %s" % f for f in files] or ["- (none recorded)"])
-    lines.extend([
-        "",
-        "## Scoring (continuous-learning rubric)",
-        "",
-        "reusability: %d | novelty: %d | combined: %d (threshold %d)"
-        % (args.reusability, args.novelty, combined, threshold),
-        "",
-        "Recorded at the Verifier PASS checkpoint.",
-        "",
     ])
-    return "\n".join(lines)
+    head.extend(["- %s" % f for f in files] or ["- (none recorded)"])
+    head.extend(extra)
+    return "\n".join(head)
+
+
+def render_fixed(args: argparse.Namespace, files: List[str], combined: int, threshold: int,
+                 origin: str, plan: str, severity: str) -> str:
+    return render_entry_text(
+        args.slug, args.signature, args.root_cause, args.fix, files,
+        args.date or _date.today().isoformat(), "fixed", origin, plan, severity, True,
+        [
+            "",
+            "## Scoring (continuous-learning rubric)",
+            "",
+            "reusability: %d | novelty: %d | combined: %d (threshold %d)"
+            % (args.reusability, args.novelty, combined, threshold),
+            "",
+            "Recorded at the Verifier PASS checkpoint.",
+            "",
+        ],
+    )
+
+
+def render_open(args: argparse.Namespace, files: List[str], origin: str, plan: str,
+                severity: str, status: str) -> str:
+    return render_entry_text(
+        args.slug, args.signature, "", "", files,
+        args.date or _date.today().isoformat(), status, origin, plan, severity, False,
+        [
+            "",
+            "## Status",
+            "",
+            "Opened at discovery time and NOT verified. Only `record --verified` with a "
+            "combined rubric score at or above the threshold may move this entry to "
+            "`fixed`; `close --status wontfix --reason \"...\"` retires it unfixed.",
+            "",
+        ],
+    )
+
+
+def render_closed(slug: str, meta: Dict[str, str], files: List[str], status: str,
+                  reason: str) -> str:
+    return render_entry_text(
+        slug, meta.get("signature", ""), meta.get("root_cause", ""), meta.get("fix", ""),
+        files, safe_date(meta.get("date", "")) or _date.today().isoformat(), status,
+        safe_origin(meta.get("origin", "")), meta.get("plan", ""),
+        meta.get("severity", ""), False,
+        [
+            "",
+            "## Not fixed (%s)" % status,
+            "",
+            scalar(reason),
+            "",
+        ],
+    )
+
+
+# ---------------------------------------------------------------------------
+# open / close (discovery-time writers - they can never write verified: true)
+# ---------------------------------------------------------------------------
+
+def cmd_open(args: argparse.Namespace) -> int:
+    if not SLUG_RE.match(args.slug):
+        print("open: invalid slug %r (expected ^[a-z0-9][a-z0-9._-]{0,63}$)" % args.slug,
+              file=sys.stderr)
+        return 2
+    if not args.signature.strip():
+        print("open: --signature must be non-empty", file=sys.stderr)
+        return 2
+    if args.origin not in ORIGINS:
+        print("open: invalid --origin %r (expected one of %s)"
+              % (args.origin, ", ".join(ORIGINS)), file=sys.stderr)
+        return 2
+    if args.date and not DATE_RE.match(args.date.strip()):
+        print("open: invalid --date %r - expected ISO YYYY-MM-DD. A date carrying a "
+              "newline or '---' terminates the frontmatter block early, which makes an "
+              "unverified entry read as a verified fix." % args.date, file=sys.stderr)
+        return 2
+    try:
+        files = parse_files(args.files or "")
+    except ValueError as exc:
+        print("open: invalid --files entry %r - a file path may not contain '[', ']', "
+              "',', a quote or a newline; those corrupt the `files:` frontmatter that "
+              "prune parses back." % str(exc), file=sys.stderr)
+        return 2
+
+    directory = ledger_dir()
+    target = directory / ("%s.md" % args.slug)
+    signature = normalize(args.signature)
+    for path in entry_paths(directory):
+        if path.name == target.name:
+            continue
+        if normalize(parse_entry(path).get("signature", "")) == signature:
+            print("open: REFUSED - signature already recorded in %s (update that entry "
+                  "instead of opening a second one)." % path.name, file=sys.stderr)
+            return 1
+
+    status = "open"
+    if target.exists():
+        prior = entry_status(parse_entry(target))
+        if prior in TERMINAL and not args.reopen:
+            print("open: REFUSED - %s already exists with status: %s (use --reopen to "
+                  "record a regression)." % (target.name, prior), file=sys.stderr)
+            return 1
+        if args.reopen and prior == "fixed":
+            status = "regressed"
+
+    directory.mkdir(parents=True, exist_ok=True)
+    target.write_text(
+        render_open(args, files, args.origin, args.plan, args.severity, status),
+        encoding="utf-8")
+    print("OPENED %s (status: %s, verified: false)" % (target, status))
+    return 0
+
+
+def cmd_close(args: argparse.Namespace) -> int:
+    if not SLUG_RE.match(args.slug):
+        print("close: invalid slug %r (expected ^[a-z0-9][a-z0-9._-]{0,63}$)" % args.slug,
+              file=sys.stderr)
+        return 2
+    if not args.reason.strip():
+        print("close: --reason must be non-empty - a finding is retired unfixed only with "
+              "a stated reason.", file=sys.stderr)
+        return 2
+    target = ledger_dir() / ("%s.md" % args.slug)
+    if not target.is_file():
+        print("close: REFUSED - no entry %s to close." % target.name, file=sys.stderr)
+        return 1
+    meta = parse_entry(target)
+    files = split_files(meta.get("files", ""))
+    bad = [f for f in files if any(ch in f for ch in FORBIDDEN_FILE_CHARS)]
+    if bad:
+        print("close: REFUSED - %s carries a file token %r that would not round-trip "
+              "through the `files:` line prune parses back." % (target.name, bad[0]),
+              file=sys.stderr)
+        return 2
+    target.write_text(render_closed(args.slug, meta, files, args.status, args.reason),
+                      encoding="utf-8")
+    print("CLOSED %s (status: %s, verified: false)" % (target, args.status))
+    return 0
 
 
 def cmd_record(args: argparse.Namespace) -> int:
@@ -259,6 +463,11 @@ def cmd_record(args: argparse.Namespace) -> int:
         return 2
     if not args.signature.strip() or not args.root_cause.strip() or not args.fix.strip():
         print("record: --signature, --root-cause and --fix must be non-empty", file=sys.stderr)
+        return 2
+    if args.date and not DATE_RE.match(args.date.strip()):
+        print("record: invalid --date %r - expected ISO YYYY-MM-DD (a date carrying a "
+              "newline or '---' truncates the frontmatter it is written into)."
+              % args.date, file=sys.stderr)
         return 2
     try:
         files = parse_files(args.files or "")
@@ -289,13 +498,29 @@ def cmd_record(args: argparse.Namespace) -> int:
             print("record: REFUSED - signature already recorded in %s (use --force to "
                   "overwrite that entry instead)." % path.name, file=sys.stderr)
             return 1
-    if target.exists() and not args.force:
+    prior: Dict[str, str] = parse_entry(target) if target.exists() else {}
+    prior_status = entry_status(prior) if prior else ""
+    # An entry sitting at `open`/`regressed` is this command's own upstream, so it is
+    # overwritten in place. `fixed`/`wontfix` keep the pre-existing --force rule.
+    if target.exists() and prior_status not in UNFIXED and not args.force:
         print("record: REFUSED - %s already exists (use --force to update)." % target.name,
               file=sys.stderr)
         return 1
+    origin = scalar(args.origin)
+    if origin and origin not in ORIGINS:
+        print("record: invalid --origin %r (expected one of %s)"
+              % (origin, ", ".join(ORIGINS)), file=sys.stderr)
+        return 2
+    if not origin:
+        origin = safe_origin(prior.get("origin", ""))
+    plan = scalar(args.plan) or prior.get("plan", "")
+    severity = scalar(args.severity) or prior.get("severity", "")
 
     directory.mkdir(parents=True, exist_ok=True)
-    target.write_text(render_entry(args, files, combined, threshold), encoding="utf-8")
+    target.write_text(render_fixed(args, files, combined, threshold, origin, plan, severity),
+                      encoding="utf-8")
+    if prior_status in UNFIXED:
+        print("TRANSITION %s: %s -> fixed" % (target.name, prior_status))
     print("RECORDED %s" % target)
     return 0
 
@@ -309,11 +534,24 @@ def cmd_list(args: argparse.Namespace) -> int:
     if not paths:
         print("LEDGER: empty (%s)" % ledger_dir())
         return 0
-    print("LEDGER: %d entr(ies) in %s" % (len(paths), ledger_dir()))
+    rows = []
     for path in paths:
         meta = parse_entry(path)
-        print("  %-40s %s  %s" % (path.stem, meta.get("date", "?"),
-                                  meta.get("signature", "?")[:60]))
+        status = entry_status(meta)
+        origin = safe_origin(meta.get("origin", ""))
+        if args.status and status != args.status:
+            continue
+        if args.origin and origin != args.origin:
+            continue
+        rows.append((path, meta, status, origin))
+    if not rows:
+        print("LEDGER: 0 of %d entr(ies) match the filter (%s)" % (len(paths), ledger_dir()))
+        return 0
+    print("LEDGER: %d entr(ies) in %s" % (len(rows), ledger_dir()))
+    for path, meta, status, origin in rows:
+        print("  %-40s %-9s %-8s %s  %s"
+              % (path.stem, status, origin, meta.get("date", "?"),
+                 meta.get("signature", "?")[:60]))
     return 0
 
 
@@ -321,18 +559,31 @@ def cmd_prune(args: argparse.Namespace) -> int:
     root = project_root()
     directory = ledger_dir()
     stale: List[Path] = []
+    stale_open: List[Path] = []
     for path in entry_paths(directory):
-        files = split_files(parse_entry(path).get("files", ""))
+        meta = parse_entry(path)
+        files = split_files(meta.get("files", ""))
         if not files:
             continue  # nothing to check against - never prune on absence of data
-        if all(not (root / f).exists() for f in files):
-            stale.append(path)
-    if not stale:
+        if not all(not (root / f).exists() for f in files):
+            continue
+        # Archiving an UNFIXED finding because its files moved would silently retire a
+        # live bug. Those are reported separately and never touched.
+        (stale_open if entry_status(meta) in UNFIXED else stale).append(path)
+    if not stale and not stale_open:
         print("LEDGER: clean - 0 stale entries")
         return 0
-    print("LEDGER: %d stale entr(ies) - every referenced file is gone:" % len(stale))
-    for path in stale:
-        print("  %s" % path.name)
+    if stale_open:
+        print("STALE-OPEN: %d unfixed entr(ies) whose referenced files are all gone - NOT "
+              "archived; re-scope the finding or close it:" % len(stale_open))
+        for path in stale_open:
+            print("  %s" % path.name)
+    if stale:
+        print("LEDGER: %d stale entr(ies) - every referenced file is gone:" % len(stale))
+        for path in stale:
+            print("  %s" % path.name)
+    if not stale:
+        return 1
     if not args.apply:
         print("Re-run with --apply to archive them.")
         return 1
@@ -341,7 +592,7 @@ def cmd_prune(args: argparse.Namespace) -> int:
     for path in stale:
         path.rename(archive / path.name)
         print("ARCHIVED %s" % (archive / path.name))
-    return 0
+    return 1 if stale_open else 0
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -362,12 +613,36 @@ def build_parser() -> argparse.ArgumentParser:
     record.add_argument("--reusability", type=int, required=True)
     record.add_argument("--novelty", type=int, required=True)
     record.add_argument("--date", default="")
+    record.add_argument("--origin", default="", choices=("",) + ORIGINS,
+                        help="lane of the issue; carried forward from an open entry")
+    record.add_argument("--plan", default="", help="plan slug that closed this finding")
+    record.add_argument("--severity", default="")
     record.add_argument("--verified", action="store_true",
                         help="assert the Verifier returned PASS for this fix")
     record.add_argument("--force", action="store_true")
     record.set_defaults(func=cmd_record)
 
+    opening = sub.add_parser("open", help="record a finding at discovery time (unverified)")
+    opening.add_argument("--slug", required=True)
+    opening.add_argument("--signature", required=True)
+    opening.add_argument("--origin", required=True, choices=ORIGINS)
+    opening.add_argument("--plan", default="", help="plan slug expected to close this")
+    opening.add_argument("--severity", default="")
+    opening.add_argument("--files", default="")
+    opening.add_argument("--date", default="")
+    opening.add_argument("--reopen", action="store_true",
+                        help="a fixed entry regressed: rewrite it as status: regressed")
+    opening.set_defaults(func=cmd_open)
+
+    closing = sub.add_parser("close", help="retire a finding deliberately not fixed")
+    closing.add_argument("--slug", required=True)
+    closing.add_argument("--status", required=True, choices=("wontfix",))
+    closing.add_argument("--reason", required=True)
+    closing.set_defaults(func=cmd_close)
+
     listing = sub.add_parser("list", help="show every entry")
+    listing.add_argument("--status", default="", choices=("",) + STATUSES)
+    listing.add_argument("--origin", default="", choices=("",) + ORIGINS)
     listing.set_defaults(func=cmd_list)
 
     prune = sub.add_parser("prune", help="archive entries whose files no longer exist")
