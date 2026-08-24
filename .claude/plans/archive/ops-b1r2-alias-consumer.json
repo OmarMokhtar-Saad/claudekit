@@ -1,0 +1,38 @@
+{
+  "plan": "b1r2-alias-consumer",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "src/claudekit/skills.py",
+      "description": "resolution helper: the alias map becomes readable behaviour, not stored data",
+      "edits": [
+        {
+          "find": "def load_registry(root: Path) -> Dict[str, Any]:",
+          "add_before": "def renamed_map(doc: Dict[str, Any]) -> Dict[str, str]:\n    \"\"\"The registry's `renamed` alias map: old skill id -> the id that replaced it.\n\n    A removed skill name must stay RESOLVABLE for one release, so the downstream\n    repos that consume this corpus experience a rename rather than a dangling\n    reference (a condition of the task-008 sign-off). Tolerant of a malformed value:\n    a registry with a junk `renamed` should degrade to 'no aliases', never crash a\n    caller that only wanted to look up a skill.\n    \"\"\"\n    aliases = doc.get(\"renamed\")\n    if not isinstance(aliases, dict):\n        return {}\n    return {str(k): str(v) for k, v in aliases.items() if isinstance(v, str)}\n\n\ndef resolve_skill_id(doc: Dict[str, Any], skill_id: str) -> str:\n    \"\"\"`skill_id` itself if it is live, otherwise what it was renamed to.\n\n    Single hop on purpose. A chain (a -> b -> c) would mean two releases of aliases\n    outliving their deprecation window, which is the thing the one-release rule\n    exists to prevent; the generator refuses to register an alias whose target does\n    not exist, so a chain cannot form silently.\n    \"\"\"\n    return renamed_map(doc).get(skill_id, skill_id)\n\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "src/claudekit/cli/main.py",
+      "description": "doctor resolves a dangling skill reference through the alias map and says what to change",
+      "edits": [
+        {
+          "find": "                skill_ids = {s[\"id\"] for s in data.get(\"skills\", [])}\n                for agent, skills in data.get(\"agentMapping\", {}).items():\n                    for sid in skills:\n                        if sid not in skill_ids:\n                            warn(f\"  Registry: agent '{agent}' references unknown skill '{sid}'\")\n                            checks_warned += 1",
+          "replace": "                skill_ids = {s[\"id\"] for s in data.get(\"skills\", [])}\n                # A removed skill name stays resolvable for one release through the\n                # `renamed` alias map, so a consumer sees a RENAME and not a dangling\n                # reference. Without something reading it the map is stored data that\n                # changes no behaviour anywhere -- which is what it was when review\n                # first asked who consumes it.\n                aliases = data.get(\"renamed\")\n                aliases = aliases if isinstance(aliases, dict) else {}\n                for agent, skills in data.get(\"agentMapping\", {}).items():\n                    for sid in skills:\n                        if sid in skill_ids:\n                            continue\n                        if sid in aliases:\n                            warn(f\"  Registry: agent '{agent}' references '{sid}', \"\n                                 f\"which was renamed to '{aliases[sid]}' \u2014 update the \"\n                                 f\"reference before the alias is retired\")\n                        else:\n                            warn(f\"  Registry: agent '{agent}' references unknown skill '{sid}'\")\n                        checks_warned += 1"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "src/claudekit/cli/main.py",
+      "description": "name the files that still reference a renamed skill; that is the actionable half",
+      "edits": [
+        {
+          "find": "                check(f\"Skills registry valid: {len(skill_ids)} skills, {len(data.get('agentMapping', {}))} agents\", True)",
+          "add_before": "                # The half a consumer actually needs: WHICH of their files still\n                # name the old id. An alias nobody can act on is an alias that\n                # expires while the references are still broken.\n                for old, new in sorted(aliases.items()):\n                    stale = []\n                    for sub in (\"agents\", \"commands\", \"skills\"):\n                        base = claude_dir / sub\n                        if not base.is_dir():\n                            continue\n                        for path in base.rglob(\"*.md\"):\n                            try:\n                                if old in path.read_text(encoding=\"utf-8\", errors=\"replace\"):\n                                    stale.append(path.relative_to(claude_dir))\n                            except OSError:\n                                continue\n                    if stale:\n                        shown = \", \".join(str(p) for p in sorted(stale)[:5])\n                        more = f\" (+{len(stale) - 5} more)\" if len(stale) > 5 else \"\"\n                        warn(f\"  Registry: '{old}' was renamed to '{new}'; still \"\n                             f\"referenced by {shown}{more}\")\n                        checks_warned += 1"
+        }
+      ]
+    }
+  ]
+}

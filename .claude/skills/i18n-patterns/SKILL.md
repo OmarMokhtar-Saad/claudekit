@@ -50,7 +50,6 @@ greeting = t("welcome") + userName + t("you_have") + count + t("notifications")
 
 ---
 
-
 ### Externalization APIs by Language
 
 Replace each user-visible literal with the platform's translation call, not a
@@ -129,12 +128,19 @@ never split a sentence across multiple keys.
 
 Use locale-aware formatting APIs:
 
-| Data Type | Approach | Example |
-|---|---|---|
-| Dates | `Intl.DateTimeFormat` / locale library | "March 16, 2026" vs "16 mars 2026" |
-| Numbers | `Intl.NumberFormat` / locale library | "1,234.56" vs "1.234,56" |
-| Currency | `Intl.NumberFormat` with currency | "$1,234.56" vs "1.234,56 EUR" |
-| Relative time | `Intl.RelativeTimeFormat` | "3 days ago" vs "il y a 3 jours" |
+| Data Type | JavaScript | Java/Kotlin | Python | Example |
+|---|---|---|---|---|
+| Dates | `Intl.DateTimeFormat` | `DateTimeFormatter` | `strftime` with locale | "March 16, 2026" vs "16 mars 2026" |
+| Numbers | `Intl.NumberFormat` | `NumberFormat` | `locale.format_string` | "1,234.56" (en) vs "1.234,56" (de) vs "1 234,56" (fr) |
+| Currency | `Intl.NumberFormat` with `style: 'currency'` | `NumberFormat.getCurrencyInstance` | `babel.numbers.format_currency` | "$1,234.56" vs "1.234,56 EUR" |
+| Relative time | `Intl.RelativeTimeFormat` | `RelativeDateTimeFormatter` | `babel.dates.format_timedelta` | "3 days ago" vs "il y a 3 jours" |
+
+Prefer format *options* (short, medium, long, full) over format strings — a format
+string is a hardcoded locale wearing a costume.
+
+**Always pair a currency code with the amount** — `{ amount: 1234.56, currency: 'USD' }`,
+never a bare number plus a symbol. Symbol position varies by locale (`$100` vs `100$`),
+and the amount alone does not say which currency it is.
 
 ### Common Pitfalls
 
@@ -167,6 +173,16 @@ Use logical properties instead of physical properties:
 | `float: left` | `float: inline-start` |
 | `left: 10px` | `inset-inline-start: 10px` |
 
+### RTL Testing
+
+- Test every page in both LTR and RTL
+- Verify form inputs align correctly
+- Verify icons flip where appropriate — directional ones (arrows, progress) flip,
+  non-directional ones (search, settings) must NOT
+- Verify scrollbars appear on the correct side
+- Verify toast and notification positioning
+- Bidirectional text (Arabic with embedded English) needs proper isolation: `<bdi>`
+  tags or Unicode isolate characters
 ### RTL Checklist
 
 - [ ] Document direction set via `<html dir="rtl" lang="ar">`
@@ -198,6 +214,14 @@ locales/
     settings.json
 ```
 
+### The CI Round-Trip
+
+1. A developer adds strings to the base locale (e.g. `en`)
+2. CI extracts new or changed keys and generates a diff
+3. The translation platform (Crowdin, Lokalise, Phrase) picks up the new keys
+4. Translators translate and review
+5. CI pulls completed translations back into the repo
+6. The build compiles translation files into the app bundle
 ### Process
 
 1. Developer adds keys with source language text
@@ -226,29 +250,6 @@ locales/
 | PO/POT | Python/PHP/Ruby | `.po` / `.pot` |
 | YAML | Rails/Flutter | `.yml` |
 | ARB | Flutter/Dart | `.arb` |
-
----
-
-
-### The CI Round-Trip
-
-1. A developer adds strings to the base locale (e.g. `en`)
-2. CI extracts new or changed keys and generates a diff
-3. The translation platform (Crowdin, Lokalise, Phrase) picks up the new keys
-4. Translators translate and review
-5. CI pulls completed translations back into the repo
-6. The build compiles translation files into the app bundle
-
-### RTL Testing
-
-- Test every page in both LTR and RTL
-- Verify form inputs align correctly
-- Verify icons flip where appropriate — directional ones (arrows, progress) flip,
-  non-directional ones (search, settings) must NOT
-- Verify scrollbars appear on the correct side
-- Verify toast and notification positioning
-- Bidirectional text (Arabic with embedded English) needs proper isolation: `<bdi>`
-  tags or Unicode isolate characters
 
 ---
 

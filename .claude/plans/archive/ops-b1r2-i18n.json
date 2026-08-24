@@ -1,0 +1,35 @@
+{
+  "plan": "b1r2-i18n-content",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/i18n-patterns/SKILL.md",
+      "description": "per-language formatting APIs and the currency-pairing rule the fold dropped",
+      "edits": [
+        {
+          "find": "| Data Type | Approach | Example |\n|---|---|---|\n| Dates | `Intl.DateTimeFormat` / locale library | \"March 16, 2026\" vs \"16 mars 2026\" |\n| Numbers | `Intl.NumberFormat` / locale library | \"1,234.56\" vs \"1.234,56\" |\n| Currency | `Intl.NumberFormat` with currency | \"$1,234.56\" vs \"1.234,56 EUR\" |\n| Relative time | `Intl.RelativeTimeFormat` | \"3 days ago\" vs \"il y a 3 jours\" |",
+          "replace": "| Data Type | JavaScript | Java/Kotlin | Python | Example |\n|---|---|---|---|---|\n| Dates | `Intl.DateTimeFormat` | `DateTimeFormatter` | `strftime` with locale | \"March 16, 2026\" vs \"16 mars 2026\" |\n| Numbers | `Intl.NumberFormat` | `NumberFormat` | `locale.format_string` | \"1,234.56\" vs \"1.234,56\" |\n| Currency | `Intl.NumberFormat` with `style: 'currency'` | `NumberFormat.getCurrencyInstance` | `babel.numbers.format_currency` | \"$1,234.56\" vs \"1.234,56 EUR\" |\n| Relative time | `Intl.RelativeTimeFormat` | `RelativeDateTimeFormatter` | `babel.dates.format_timedelta` | \"3 days ago\" vs \"il y a 3 jours\" |\n\nPrefer format *options* (short, medium, long, full) over format strings \u2014 a format\nstring is a hardcoded locale wearing a costume.\n\n**Always pair a currency code with the amount** \u2014 `{ amount: 1234.56, currency: 'USD' }`,\nnever a bare number plus a symbol. Symbol position varies by locale (`$100` vs `100$`),\nand the amount alone does not say which currency it is."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/i18n-patterns/SKILL.md",
+      "description": "RTL Testing was filed under Translation File Formats; a reader of the RTL section never reached it",
+      "edits": [
+        {
+          "find": "### The CI Round-Trip\n\n1. A developer adds strings to the base locale (e.g. `en`)\n2. CI extracts new or changed keys and generates a diff\n3. The translation platform (Crowdin, Lokalise, Phrase) picks up the new keys\n4. Translators translate and review\n5. CI pulls completed translations back into the repo\n6. The build compiles translation files into the app bundle\n\n### RTL Testing\n\n- Test every page in both LTR and RTL\n- Verify form inputs align correctly\n- Verify icons flip where appropriate \u2014 directional ones (arrows, progress) flip,\n  non-directional ones (search, settings) must NOT\n- Verify scrollbars appear on the correct side\n- Verify toast and notification positioning\n- Bidirectional text (Arabic with embedded English) needs proper isolation: `<bdi>`\n  tags or Unicode isolate characters\n\n---\n\n",
+          "replace": ""
+        },
+        {
+          "find": "### RTL Checklist",
+          "add_before": "### RTL Testing\n\n- Test every page in both LTR and RTL\n- Verify form inputs align correctly\n- Verify icons flip where appropriate \u2014 directional ones (arrows, progress) flip,\n  non-directional ones (search, settings) must NOT\n- Verify scrollbars appear on the correct side\n- Verify toast and notification positioning\n- Bidirectional text (Arabic with embedded English) needs proper isolation: `<bdi>`\n  tags or Unicode isolate characters\n"
+        },
+        {
+          "find": "### Process\n",
+          "add_before": "### The CI Round-Trip\n\n1. A developer adds strings to the base locale (e.g. `en`)\n2. CI extracts new or changed keys and generates a diff\n3. The translation platform (Crowdin, Lokalise, Phrase) picks up the new keys\n4. Translators translate and review\n5. CI pulls completed translations back into the repo\n6. The build compiles translation files into the app bundle\n"
+        }
+      ]
+    }
+  ]
+}

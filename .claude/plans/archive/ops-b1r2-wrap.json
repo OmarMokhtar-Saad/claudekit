@@ -1,0 +1,16 @@
+{
+  "plan": "b1r2-wrap-normalise",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_structure.py",
+      "description": "the docs hard-wrap, so match on normalised whitespace",
+      "edits": [
+        {
+          "find": "        for rel in (\"README.md\", \"docs/HOOKS.md\"):\n            with open(os.path.join(ROOT, rel), encoding=\"utf-8\") as fh:\n                body = fh.read()\n            assert f\"{reachable} are reachable\" in body, (\n                f\"{rel} does not state the derived reachable count ({reachable})\")",
+          "replace": "        for rel in (\"README.md\", \"docs/HOOKS.md\"):\n            with open(os.path.join(ROOT, rel), encoding=\"utf-8\") as fh:\n                # Normalised: the docs hard-wrap, so \"23 are\\nreachable\" is the same\n                # sentence as \"23 are reachable\" and a raw substring misses it.\n                body = \" \".join(fh.read().split())\n            assert f\"{reachable} are reachable\" in body, (\n                f\"{rel} does not state the derived reachable count ({reachable})\")"
+        }
+      ]
+    }
+  ]
+}

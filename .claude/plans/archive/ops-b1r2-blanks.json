@@ -1,0 +1,20 @@
+{
+  "plan": "b1r2-i18n-blanks",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/i18n-patterns/SKILL.md",
+      "description": "stray double blank lines left at the fold seams",
+      "edits": [
+        {
+          "find": "erName + t(\"you_have\") + count + t(\"notifications\")\n```\n\n---\n\n\n### Externalization APIs by Language\n\nReplace each user-visible lit",
+          "replace": "erName + t(\"you_have\") + count + t(\"notifications\")\n```\n\n---\n\n### Externalization APIs by Language\n\nReplace each user-visible lit"
+        },
+        {
+          "find": "ails/Flutter | `.yml` |\n| ARB | Flutter/Dart | `.arb` |\n\n---\n\n\n## Translation Quality Checks\n\n- **Completeness**: every key in the",
+          "replace": "ails/Flutter | `.yml` |\n| ARB | Flutter/Dart | `.arb` |\n\n---\n\n## Translation Quality Checks\n\n- **Completeness**: every key in the"
+        }
+      ]
+    }
+  ]
+}
