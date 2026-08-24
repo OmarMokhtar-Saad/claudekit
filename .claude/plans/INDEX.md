@@ -25,10 +25,10 @@ index never outranks the current files.
 | `drifted` | 3 |
 | `approved` | 49 |
 | `planned` | 9 |
-| `executed` | 13 |
+| `executed` | 14 |
 | `not_started` | 15 |
 | `legacy` | 3 |
-| **total** | **92** |
+| **total** | **93** |
 
 ## Plans
 
@@ -106,7 +106,8 @@ index never outranks the current files.
 | `.claude/plans/plan-review-round-history.md` | `approved` | 1 |  |
 | `.claude/plans/plan-review-truthfulness-batch.md` | `approved` | 1 |  |
 | `.claude/plans/plan-run-command-op.md` | `not_started` | 0 |  |
-| `.claude/plans/plan-session-close.md` | `executed` | 2 |  |
+| `.claude/plans/plan-session-close-fix.md` | `executed` | 2 |  |
+| `.claude/plans/plan-session-close.md` | `executed` | 4 |  |
 | `.claude/plans/plan-shellcheck-version-drift.md` | `planned` | 1 |  |
 | `.claude/plans/plan-silent-failure-lint.md` | `approved` | 1 |  |
 | `.claude/plans/plan-skill-loading-contract.md` | `approved` | 1 |  |

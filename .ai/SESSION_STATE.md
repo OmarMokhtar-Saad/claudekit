@@ -6,15 +6,24 @@
 COMPLETE and its paper trail is closed.** Three more items landed after it; one decision is
 open and is the owner's.
 
-You are on `main`, working tree clean, **26 commits ahead of `origin/main` (`f76f5d5`) and
-unpushed. Pushing is owner-gated and has never been authorised — do not push.**
+You are on `main`, working tree clean, and **unpushed. Pushing is owner-gated and has never
+been authorised — do not push.** `origin/main` is at `f76f5d5`; for the count, run
+`git rev-list --count origin/main..main` — it was **25** immediately after the commit that
+wrote this line (naming that commit's sha here would be wrong the next time it is amended).
+
+That is written as a command rather than a number on purpose. This figure was stated as
+**26** (a prediction of one commit per plan), corrected to **24**, and the correction commit
+itself made it **25**. A count written inside a commit is stale the moment it lands.
 
 **21 agents · 55 commands · 73 skills · 26 hooks · 7 modes** (generator-derived).
 **2902 tests pass, 0 failures.** Every gate green: gen-docs, gen-registry, gen-model-policy,
 gen-plan-index, check-context-floor, check-plan-artifacts, ruff, mypy, shellcheck,
 `ck lint`, `ck doctor --strict`.
 
-**What landed this period**
+**What landed this period** — **three** commits (`cfc8a09`, `f7a4469`, `76d7387`); the
+last bundles items 3 and 4 plus this close, because they share `.ai/BACKLOG.md`,
+`archive/README.md` and `INDEX.md` and splitting would have meant partial-staging the same
+files. Its message says so and carries a `Plan-Id:` trailer per plan.
 
 1. `cfc8a09` — task 008's paper trail: batch 3 in `CHANGELOG.md` (written for users), the
    resume point rewritten, and `TASK-008-SIGNOFF.md` recording the five places that sheet
