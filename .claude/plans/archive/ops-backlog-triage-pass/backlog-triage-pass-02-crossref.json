@@ -1,0 +1,16 @@
+{
+  "plan": "backlog-triage-pass-02-crossref",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".ai/BACKLOG.md",
+      "description": "The entry presented 75 without saying it is the P2/P3 subset, and did not mention that an unexecuted plan already owns this ground with a different count (103, all severities) and a different prescribed deliverable. A number without its scope is how this entry got to 76 and 88 in the first place.",
+      "edits": [
+        {
+          "find": "Parsed structurally (a `### P2/P3 —` heading, or a bullet opening\n  `**P2**`/`**P3**`), the file holds **75** findings. Neither 76 nor 88 was ever the number\n  of findings, and no verdict below should be quoted without re-checking the file it names.\n",
+          "replace": "Parsed structurally (a `### P2/P3 —` heading, or a bullet opening\n  `**P2**`/`**P3**`), the file holds **75** findings. Neither 76 nor 88 was ever the number\n  of findings, and no verdict below should be quoted without re-checking the file it names.\n\n  **75 is the P2/P3 count, not the file's total.** `plan-code-review-triage.md` (Workstream\n  13, unexecuted) counts **103** findings across every severity, and that is the right\n  number for a full triage. It also prescribes a different shape from this entry — a new\n  `review/code-review-triage.md`, with `.ai/**` explicitly out of scope because the owner\n  holds the BACKLOG. This pass edited the entry because the handoff asked for exactly that;\n  **if the owner prefers Workstream 13's shape, the verdicts below move to that file and\n  this entry goes back to a pointer.** Flagged, not decided here.\n"
+        }
+      ]
+    }
+  ]
+}

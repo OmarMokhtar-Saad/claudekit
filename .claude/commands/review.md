@@ -112,7 +112,7 @@ printf '%s' "$review_output" | \
    python3 .claude/operations/scripts/review-record.py resolve "$PLAN_FILE"
    ```
    ```bash
-   python3 .claude/operations/scripts/review-record.py write "$PLAN_FILE" "<resolved-ops-path>" --from-review <saved-output-file>
+   python3 .claude/operations/scripts/review-record.py write "$PLAN_FILE" "<resolved-ops-path>" --from-review "<saved-output-file>"
    ```
    Skipping this step means `/implement`'s STEP 0 gate refuses with exit 3 (no record) —
    it fails closed, not silently.

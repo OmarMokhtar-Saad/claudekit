@@ -1,6 +1,50 @@
 # AI Session Changelog
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
+## 2026-08-24 (second period) — task 008's paper trail, a gate that scanned nothing, and 688 lines of unlinted bash
+
+Four commits, all documentation or test surface. Suite green throughout.
+
+- **The paper trail was a DoD violation on `main`.** `CHANGELOG.md` documented batches 1, 2
+  and 4 and said nothing about batch 3 — nine agent names users invoke, removed. Written
+  now for users, with the routing risk in consumer terms rather than left in
+  `.claude/plans/`. `SESSION_STATE.md` and `TASK-008-SIGNOFF.md` brought to task 008
+  complete, the sign-off recording **the five places it was measurably wrong**.
+- **`test_queued_ops_configs_validate_against_head` was decoration.** It listed top-level
+  `.claude/plans/*.json`, of which this repo has **zero** — every config lives in an
+  `ops-<slug>/` subdirectory. 50 configs there, **35 already failing validation**: the
+  exact condition the gate reports, accumulated underneath it. **Probed, not reasoned
+  about** — an invalid config in a subdirectory leaves the test green, the same bytes at
+  top level turn it red. Widened to a walk that prunes `archive/` by name, with the
+  widening proven on a *constructed* tree, because coverage that depends on the repo
+  containing a violation is the failure being fixed. **Fourth vacuous gate found here in a
+  month.**
+  - Archive-first, widen-second, one commit: widening first reddens the suite on 35
+    pre-existing failures, which is how a gate gets reverted instead of fixed.
+  - **The widened gate then caught this plan's own configs twice.** Working on first run.
+- **`review/code-review.md` triage, partial and honest about it.** The BACKLOG count was
+  wrong twice (76, then 88 — both counts of *mentions*, including the severity legend);
+  structurally the file holds **75** findings. 30 verified: **19 already fixed** (mostly
+  incidentally, including the `atomic_write` mode-stripping P2 that had already cost real
+  damage), **11 still real** with a current file:line each. **45 recorded as UNVERIFIED,
+  not implied fine.** Two near-miss verdicts recorded: §6's findings look retired because
+  `templates/hooks/` is gone, but batch 1 *promoted* those hooks and four are still live;
+  and `lib.sh` existing is not the duplicate-`log()` fix, because `lib.sh` does not define
+  `log()` and 14 hooks still do. Both came from reasoning about a fix instead of grepping.
+- **688 lines of command bash, never linted, six parse errors.** Job 5's assigned framing
+  was not achievable — there is no `refine.md` script to extract, only fragments with
+  `<TASK>`/`<N>` and no loop wrapper, which the test module's own docstring already said —
+  so the goal was reached the other way: lint the bash where it lives. **An angle-bracket
+  placeholder in a shell command position is an input redirection, not a placeholder.**
+  `git branch -D agent/<slug>` deletes branch `agent/`. Six sites fixed, two usage synopses
+  re-fenced as `text`, **0 parse errors left across 25 files**. Fixing one exposed a second
+  in the same file: shellcheck stops at the first, so the class hides behind itself.
+- **One decision left open rather than taken:** the parse-error gate that would keep the
+  last item closed is small and currently green, and **not landed**, because enabling a new
+  CI gate is owner-gated and the pytest suite is CI.
+- **No independent review.** `CLAUDE.md`'s review floor asks for a fresh `code-reviewer` on
+  every diff; this session was instructed not to spawn agents. Every plan says so.
+
 ## 2026-08-24 — task 008 batch 3 EXECUTED (seven clusters) + its paper trail
 
 Nine agents removed, **29 → 21**, one plan and one commit per cluster. 2901 tests pass,

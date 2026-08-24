@@ -121,6 +121,23 @@ defects discovered during execution. See CHANGELOG `[Unreleased]` and the plans 
   added and the assertion itself is unchanged. Do not close this until a CAPTURED failure
   explains it.
 
+  **SIGHTING 2026-08-24 (second), and the evidence was LOST AGAIN — by me, in a new
+  costume.** One full-suite run on `main` at the paper-trail/gate work failed exactly one
+  member of the family, `test_receipt_via_cli_clears_the_checkpoint`, at
+  `tests/test_reflection_ledger.py:409` (the `pending_checkpoint(SESSION) is None`
+  assertion, not the argparse shape). It did **not** reproduce: the test passed standalone
+  and the whole file passed 54/54 immediately after, and a full re-run was **2902 passed,
+  0 failed**. Consistent with every prior sighting.
+  **The `receipt_diagnostic()` capture fired and I threw it away**: the run was piped
+  through `tail -4` to keep the transcript small, so only the summary line survived. This
+  entry already records the identical mistake made with `/dev/null` on 2026-08-21 and says
+  it "is precisely the mistake this item exists to prevent" — so the lesson is that the
+  capture is not the weak link, **the harness around the run is**, and a summary-only
+  invocation defeats it just as completely as a redirect to nowhere.
+  **Rule for the next runner: never pipe a full-suite run through `tail`/`head` when this
+  family can fire. Write the whole output to a file and summarise from the file.** No cause
+  is claimed and no retry was added.
+
   **NEW SIGNATURE 2026-08-24** (full-suite run, worktree at `bd49c7f`, ~1 failure in 9):
   the CLI variant failed with **argparse exit 2** — `reflection.py receipt: error:
   argument --session-token: expected one argument` — not with the exit-0 /
@@ -136,17 +153,69 @@ defects discovered during execution. See CHANGELOG `[Unreleased]` and the plans 
   2026-08-22 widening, and the diagnostic recorded no argv — the one field that would
   have settled this signature. Both fixed; the next occurrence arrives with the evidence
   this one lacked. Still no cause claimed.
-- [ ] **Triage `review/code-review.md` — 76 unfixed P2/P3 findings, and one of them just cost real
-  damage.** The ops engine's mode-stripping bug was documented there at `:286` as a P2 **with its fix
-  already written out** ("Copy the original mode … before replace"), and left unfixed until it
-  silently shipped `.claude/hooks/ops-enforcement.sh` and `scripts/gen-docs.py` as 100755 => 100644 in
-  `d878496` and took `install.sh` to 0600 in `749e34d`. It was caught only by an incidental
-  `git log --diff-filter=M --summary` audit. Two more from the same block are live: `ExecutionLock`
-  is not a real lock on Windows (`O_CREAT|O_TRUNC` always succeeds) and `release()` unlinks the lock
-  file even if another process now holds it; and the validator checks `find` patterns against the
-  ORIGINAL file while the executor applies edits sequentially. That last one is a **second confirmed
-  instance** of the class below — two entries, one short of the ratchet's three-entry threshold.
-  A stack of known defects with known fixes is worth more attention than the next feature.
+- [ ] **Triage `review/code-review.md` — partially done 2026-08-24. 30 of 75 P2/P3 findings
+  verified: 19 already fixed, 11 still real. 45 unverified.**
+
+  **The count in this entry was wrong twice, and re-deriving it is the first lesson.** It
+  read "76 unfixed P2/P3 findings"; a later grep for `P2|P3` returned **88**, which is a
+  count of *mentions* — it includes the severity-scale legend at `:7` and prose that merely
+  names a severity. Parsed structurally (a `### P2/P3 —` heading, or a bullet opening
+  `**P2**`/`**P3**`), the file holds **75** findings. Neither 76 nor 88 was ever the number
+  of findings, and no verdict below should be quoted without re-checking the file it names.
+
+  **75 is the P2/P3 count, not the file's total.** `plan-code-review-triage.md` (Workstream
+  13, unexecuted) counts **103** findings across every severity, and that is the right
+  number for a full triage. It also prescribes a different shape from this entry — a new
+  `review/code-review-triage.md`, with `.ai/**` explicitly out of scope because the owner
+  holds the BACKLOG. This pass edited the entry because the handoff asked for exactly that;
+  **if the owner prefers Workstream 13's shape, the verdicts below move to that file and
+  this entry goes back to a pointer.** Flagged, not decided here.
+
+  **Verified STILL REAL (11)** — each checked against the current file, not against this
+  entry:
+
+  | Finding | Evidence today |
+  | --- | --- |
+  | `ExecutionLock` is not a lock on Windows, and `release()` unlinks unconditionally | `execute-json-ops.py:159-183` — no `fcntl`, so `O_CREAT\|O_TRUNC` always succeeds; `release()` unlinks whoever holds it |
+  | `cmd_config` parses `config.json` unguarded | `src/claudekit/cli/main.py:1836` — a malformed file gives a traceback, not an error |
+  | `subprocess.run` with no `timeout=` | `main.py:325` (`bash --version`), `:340` (`git --version`) — a wedged binary hangs `ck doctor` |
+  | `cmd_rollback`'s `elif`/`else` branches are identical | `main.py:717-720` — both append `--list` |
+  | ANSI colour is unconditional | `main.py:45-46` — no `NO_COLOR`, no `isatty()` |
+  | `log()` is copy-pasted across hooks | **14** hooks define their own; `lib.sh` exists but does **not** define it, so the shared-library fix stopped short |
+  | failure output truncated to `tail -20` | `post-implement.sh:98,130`, `pre-push.sh:150` — the root cause is usually above the last 20 lines |
+  | `file-guard.sh` blocks by extension with no allowlist | `file-guard.sh:95` — `cert\|crt\|pem\|key\|p12\|pfx` still catches `public.pem` and test fixtures |
+  | `config.schema.json` overpromises and documents unwired hooks | `config.schema.json:75` still claims "195+ patterns"; `file-guard`, `prompt-injection-scanner` and `check-comment-replacement` have **0** references in `.claude/settings.json` |
+  | `auto-checkpoint.sh` prune math + unlocked registry | `auto-checkpoint.sh:90-91` — `checkpoints[:len-max+1]`, and read/modify/write with no lock |
+  | `PM_INSTALL`/`PM_RUN` are dead | `session-start.sh:17-51` — assigned eight times, read never |
+
+  **Verified ALREADY FIXED (19).** The large first bucket the triage predicted, and most of
+  it was closed incidentally rather than by working this list: the three-place version
+  contract (hard rule 7) and the dead `setuptools-scm` dependency; `license = "MIT"` plus the
+  3.13 classifier and `optional-dependencies`; `install.sh`'s `curl \| bash` guard, its
+  `CK_VAR_*` env substitution replacing `sed` templating, and computed `$CMD_COUNT` /
+  `$SKILL_COUNT` / `$HOOK_COUNT` instead of hard-coded totals; `block-no-verify.sh`'s
+  substring false positive; the `\x27`-inside-a-character-class bug (`lib.sh:79`,
+  `pre-commit.sh:145`); `suggest-compact.sh`'s stale-lock recovery and its `date -r`
+  portability; `auto-checkpoint.sh` recording a stash **SHA** and reporting a failed apply
+  loudly; the `awk '{print $2}'` porcelain mangling; `atomic_write` preserving the target's
+  mode — **this is the mode-stripping P2 that cost real damage**, now closed; an edit whose
+  `find` pattern is missing failing closed instead of continuing, with ambiguous matches
+  refused too; `path_guard`'s substring `PROTECTED_PATTERNS` match, its relative-symlink base
+  and its magic depth constant; the dead imports in `main.py`; and `*.md` being permanently
+  undeletable.
+
+  **45 findings remain unverified.** Not "probably fine" — unchecked. Most are in §5
+  (`.claude/hooks/`, 27 findings) and §7 (`.claude/operations/scripts/`). Do the same thing
+  to them: open the file, check the line, record fixed / still real / no longer applicable
+  with the evidence inline.
+
+  **Two traps this pass hit, worth inheriting.** (1) `templates/hooks/` no longer exists, so
+  §6's eight findings *look* retired — but batch 1 **promoted** those hooks into
+  `.claude/hooks/`, and four of the eight are still live against the promoted files. A
+  finding whose path moved is not a finding that went away. (2) `lib.sh` existing looked like
+  the duplicate-`log()` fix; it is not, because `lib.sh` does not define `log()`. Both errors
+  came from reasoning about the fix instead of grepping for it.
+
 - [ ] **The validator does not bind the executor.** `operations-schema.json` sets
   `additionalProperties: false`, but `execute-json-ops.py` silently IGNORES unknown edit fields.
   A config `validate-config-json.py` REJECTS still executes — and if the unknown field carried
