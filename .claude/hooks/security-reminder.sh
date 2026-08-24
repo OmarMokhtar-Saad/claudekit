@@ -81,6 +81,10 @@ try:
     for key in ['new_string', 'content', 'new_content', 'text']:
         if key in inp:
             value = inp[key]
+            # A list-valued \`content\` gave len() == 2, so a 300,000-character payload
+            # reported length 2, triggered no PARTIAL SCAN, and was scanned as a repr.
+            if not isinstance(value, str):
+                break
             print(len(value))
             print(value[:limit])
             break
@@ -95,9 +99,18 @@ unset _PAYLOAD
 
 [ -z "$CONTENT" ] && exit 0
 
-if [ "${CONTENT_LEN:-0}" -gt "$SCAN_LIMIT" ] 2>/dev/null; then
+# `case` rather than a bare `-gt`: CONTENT_LEN is a line of python output, and a
+# non-numeric value made the comparison a shell error rather than a decision.
+case "$CONTENT_LEN" in
+    ''|*[!0-9]*) CONTENT_LEN=0 ;;
+esac
+if [ "$CONTENT_LEN" -gt "$SCAN_LIMIT" ]; then
+    # STDOUT, not stderr. The warnings this notice qualifies go to stdout, and a
+    # PreToolUse hook exiting 0 does not surface stderr -- so a truncation notice on
+    # stderr was still silent in the only place that matters, and the test passed only
+    # because it merged the two streams.
     printf '[%s] PARTIAL SCAN: %s of %s characters checked in %s. The remainder was NOT scanned.\n' \
-        "$HOOK_NAME" "$SCAN_LIMIT" "$CONTENT_LEN" "$TARGET_PATH" >&2
+        "$HOOK_NAME" "$SCAN_LIMIT" "$CONTENT_LEN" "$TARGET_PATH"
     log "WARN" "partial scan: $SCAN_LIMIT of $CONTENT_LEN chars in $TARGET_PATH"
 fi
 
@@ -106,7 +119,21 @@ fi
 # above -- what was left was comments inside source files. Pattern checks that look for
 # CODE shapes (`shell=True`, `innerHTML =`) keep the full text, because a commented-out
 # line is not the target either way and stripping is only needed where a bare word is.
-CONTENT_CODE=$(printf '%s\n' "$CONTENT" | grep -vE '^[[:space:]]*(#|//|\*|/\*)' || true)
+# Whole-line comments dropped, THEN end-of-line comments stripped. Line-leading only was
+# not enough, and the miss was self-inflicted: this fix was prompted by a fixture whose
+# match came from a TRAILING `# MD5 digest`, and the first version still matched exactly
+# that. All four of these warned before:
+#   x = 1  # never use MD5 here      (prose)
+#   AES_KEY = 1  # RC4 was removed   (prose)
+#   BANNED = ["RC4", "MD5"]          (a denylist)
+#   """Return the SHA1 of HEAD."""   (a docstring)
+# The last two are string literals rather than comments, so the bare-word branch cannot be
+# made safe by stripping alone -- which is why branch 1 below carries the real signal and
+# the bare word is only a fallback.
+CONTENT_CODE=$(printf '%s\n' "$CONTENT" \
+    | grep -vE '^[[:space:]]*(#|//|\*|/\*)' \
+    | sed -e 's,[[:space:]]#.*$,,' -e 's,[[:space:]]//.*$,,' \
+          -e 's,/\*.*\*/,,g' -e 's,""".*""",,g' -e "s,'''.*''',,g" || true)
 
 WARNINGS=()
 
@@ -133,11 +160,24 @@ fi
 #   1. API call shapes, case-insensitively: this is the one that catches real code.
 #   2. The bare uppercase word, on non-comment lines only: catches `MD5.new()` and
 #      constants without firing on prose.
-if echo "$CONTENT_CODE" | grep -qiE '(hashlib|crypto|openssl|digest)[._:]*(md5|sha1|rc4)|(md5|sha1|rc4)\.new\(|new (md5|sha1|rc4)\b'; then
-    WARNINGS+=("Weak cryptographic algorithm (MD5/SHA1/RC4)")
-elif echo "$CONTENT_CODE" | grep -qE '\bMD5\b|\bSHA1\b|\bRC4\b'; then
+# `\b(md5|sha1|rc4)[[:space:]]*\(` subsumes every aliased spelling. The module-adjacent
+# pattern alone caught ONE spelling of real code and missed the second-commonest:
+#   import hashlib as _h; _h.md5()      silent
+#   from hashlib import md5; md5()      silent
+#   hashlib . md5(data)                 silent
+#   getattr(hashlib, "md5")             silent
+# A call to something NAMED md5/sha1/rc4 is the signal; a rare false positive on a
+# same-named helper is the right trade for a non-blocking warning.
+if echo "$CONTENT_CODE" | grep -qiE '(hashlib|crypto|openssl|digest)[._:[:space:]]*(md5|sha1|rc4)|\b(md5|sha1|rc4)[[:space:]]*\(|\b(md5|sha1|rc4)\.new[[:space:]]*\(|getattr\([[:space:]]*hashlib|\bimport[[:space:]]+[^#]*\b(md5|sha1|rc4)\b'; then
     WARNINGS+=("Weak cryptographic algorithm (MD5/SHA1/RC4)")
 fi
+# THE BARE-WORD FALLBACK IS GONE, deliberately. `\bMD5\b` on a non-comment line still
+# matched string literals -- `BANNED = ["RC4", "MD5"]`, a DENYLIST, warned as if it were
+# weak crypto -- and stripping cannot fix that, because a literal is not a comment. Every
+# real shape is a CALL, and calls are what the pattern above matches (`MD5.new(` included).
+# A check that fires on a file forbidding MD5 is the false positive that makes an advisory
+# worth ignoring, which is the whole finding this hook's crypto branch has now produced
+# twice in opposite directions.
 
 if echo "$CONTENT" | grep -qE 'Access-Control-Allow-Origin.*\*|cors.*\*'; then
     WARNINGS+=("Overly permissive CORS policy")

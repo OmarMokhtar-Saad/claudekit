@@ -105,11 +105,14 @@ def test_a_refused_acquire_does_not_destroy_the_holders_pid(executor, tmp_path):
     holder, contender = executor.ExecutionLock(str(path)), executor.ExecutionLock(str(path))
     assert holder.acquire()
     try:
-        recorded = path.read_text().strip()
-        assert recorded == str(os.getpid())
+        # A SENTINEL, not the pid. Holder and contender share this process's pid, so
+        # comparing the file to os.getpid() cannot distinguish "the holder's content
+        # survived" from "the contender truncated it and wrote the same pid back" -- a
+        # truncate-then-write mutation passed that assertion.
+        path.write_text("SENTINEL-DO-NOT-TRUNCATE\n")
         assert not contender.acquire()
-        assert path.read_text().strip() == recorded, (
-            "a refused acquire truncated the lock file and destroyed the holder's pid"
+        assert path.read_text() == "SENTINEL-DO-NOT-TRUNCATE\n", (
+            "a refused acquire truncated the lock file out from under the holder"
         )
     finally:
         holder.release()
@@ -122,6 +125,17 @@ def test_the_lock_file_is_not_world_readable(executor, tmp_path):
     lock = executor.ExecutionLock(str(path))
     assert lock.acquire()
     lock.release()
+    assert (path.stat().st_mode & 0o077) == 0, oct(path.stat().st_mode & 0o777)
+
+    # AND the pre-existing-file path, which the assertion above never reaches. The mode
+    # argument to os.open applies only on creation, so a lock left by an older run kept
+    # its permissive mode forever -- this test asserted less than its own docstring.
+    path.unlink()
+    path.write_text("")
+    path.chmod(0o666)
+    again = executor.ExecutionLock(str(path))
+    assert again.acquire()
+    again.release()
     assert (path.stat().st_mode & 0o077) == 0, oct(path.stat().st_mode & 0o777)
 
 

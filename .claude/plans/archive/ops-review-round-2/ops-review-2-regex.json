@@ -1,0 +1,15 @@
+{
+  "plan": "review-2",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_command_bash_parse.py",
+      "edits": [
+        {
+          "find": "        for tag in re.findall(r\"^\\s*```\\s*([A-Za-z][\\w+-]*)\", path.read_text(), re.M):",
+          "replace": "        # `[ \\t]*`, never `\\s*`: in Python `\\s` matches a NEWLINE, so `^\\s*```\\s*(\\w+)`\n        # read the first word of the line AFTER an untagged fence and reported it as a\n        # language tag -- ```Every, ```Status, ```FOR. The denylist version of this test\n        # never showed it, because none of those words was on its suspicious list.\n        for tag in re.findall(r\"^[ \\t]*```[ \\t]*([A-Za-z][\\w+-]*)\", path.read_text(), re.M):"
+        }
+      ]
+    }
+  ]
+}

@@ -71,6 +71,62 @@ def test_comments_and_strong_crypto_do_not_warn(content):
     assert "Weak cryptographic algorithm" not in run_hook(content)
 
 
+# ---------------------------------------------------------------------------
+# Every case the second adversarial review found. The suite passed before each of
+# these, which is the point: the fixtures had been written around the implementation.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("content", [
+    "import hashlib as _h\nh = _h.md5(x)",        # aliased import
+    "from hashlib import md5\nd = md5(x)",        # direct import
+    "h = hashlib . md5(data)",                    # spaced attribute access
+    'f = getattr(hashlib, "md5")',                # dynamic lookup
+    "cipher = MD5.new()",                         # PyCrypto style
+])
+def test_aliased_and_indirect_weak_crypto_warns(content):
+    """The module-adjacent pattern caught ONE spelling. These are the rest."""
+    assert "Weak cryptographic algorithm" in run_hook(content)
+
+
+@pytest.mark.parametrize("content", [
+    "x = 1  # never use MD5 here",                # TRAILING comment -- the original miss
+    "AES_KEY = 1  // RC4 was removed",
+    'BANNED = ["RC4", "MD5"]',                    # a DENYLIST, not weak crypto
+    '"""Return the SHA1 of HEAD."""',             # a docstring
+    "h = hashlib.sha256(d)",
+    "k = crypto.randomBytes(32)",
+    "p = sha1sum_path",
+])
+def test_prose_literals_and_strong_crypto_do_not_warn(content):
+    """A check that fires on a file FORBIDDING md5 is the false positive that makes an
+    advisory ignorable. The trailing-comment case is the one this hook got wrong twice,
+    in opposite directions."""
+    assert "Weak cryptographic algorithm" not in run_hook(content)
+
+
+def test_the_partial_scan_notice_is_on_stdout():
+    """It qualifies the warnings, which are on stdout; a PreToolUse hook exiting 0 does
+    not surface stderr. Asserting against merged streams hid this."""
+    payload = json.dumps({"tool_name": "Edit",
+                          "tool_input": {"file_path": "src/a.py",
+                                         "new_string": "a" * 200_050}})
+    env = dict(os.environ, ECC_HOOK_PROFILE="standard")
+    proc = subprocess.run(["bash", str(HOOK)], input=payload, capture_output=True,
+                          text=True, env=env, cwd=str(REPO))
+    assert "PARTIAL SCAN" in proc.stdout, "the notice is not on stdout"
+
+
+def test_a_non_string_content_value_is_not_scanned_as_a_repr():
+    """A list-valued `content` gave len() == 2, so a 300,000-char payload reported a
+    length of 2, triggered no PARTIAL SCAN, and was scanned as a Python repr."""
+    payload = json.dumps({"tool_name": "Edit",
+                          "tool_input": {"file_path": "src/a.py",
+                                         "content": ["x" * 300_000, "y"]}})
+    env = dict(os.environ, ECC_HOOK_PROFILE="standard")
+    proc = subprocess.run(["bash", str(HOOK)], input=payload, capture_output=True,
+                          text=True, env=env, cwd=str(REPO))
+    assert proc.stdout.strip() == "", proc.stdout
+
 def test_documentation_targets_are_still_skipped():
     """The path skip list predates this change and must survive it."""
     assert run_hook("hashlib.md5(x)", path="docs/notes.md").strip() == ""

@@ -162,17 +162,26 @@ def test_no_shell_fence_uses_an_unlinted_language_tag():
     using another spelling for shell, that must be a deliberate change to SHELL_TAGS and
     not a silent hole. Anything whose tag looks shell-ish but is not covered fails here."""
     import re
-    suspicious = []
+    # ALLOWLIST, not a denylist of shell-ish spellings. The first version listed seven
+    # names it considered suspicious, so a new spelling (`shellsession`, `terminal`,
+    # `bashrc`) passed silently -- and since the corpus contains only bash/markdown/json/
+    # text, that test could not fail at all. A census that cannot fail is not a census.
+    KNOWN_SAFE = SHELL_TAGS | {
+        "markdown", "md", "json", "text", "txt", "yaml", "yml", "toml", "diff",
+        "python", "py", "javascript", "js", "typescript", "ts", "html", "css", "xml",
+    }
+    unknown = []
     for path in sorted(COMMANDS.glob("*.md")):
-        for tag in re.findall(r"^\s*```\s*([A-Za-z][\w+-]*)", path.read_text(), re.M):
-            low = tag.lower()
-            if low in SHELL_TAGS:
-                continue
-            if low in {"console", "shell-session", "sh-session", "bash-session", "ksh",
-                       "fish", "shellscript"}:
-                suspicious.append(f"{path.name}: ```{tag}")
-    assert not suspicious, (
-        "shell-ish fences the parse gate does not lint:\n" + "\n".join(suspicious)
+        # `[ \t]*`, never `\s*`: in Python `\s` matches a NEWLINE, so `^\s*```\s*(\w+)`
+        # read the first word of the line AFTER an untagged fence and reported it as a
+        # language tag -- ```Every, ```Status, ```FOR. The denylist version of this test
+        # never showed it, because none of those words was on its suspicious list.
+        for tag in re.findall(r"^[ \t]*```[ \t]*([A-Za-z][\w+-]*)", path.read_text(), re.M):
+            if tag.lower() not in KNOWN_SAFE:
+                unknown.append(f"{path.name}: ```{tag}")
+    assert not unknown, (
+        "unrecognised fence languages. If any of these is shell, add it to SHELL_TAGS so "
+        "the parse gate lints it; otherwise add it to KNOWN_SAFE:\n" + "\n".join(unknown)
     )
 
 

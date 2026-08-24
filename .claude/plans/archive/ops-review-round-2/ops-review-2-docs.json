@@ -1,0 +1,43 @@
+{
+  "plan": "review-round-2",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "edits": [
+        {
+          "find": "  below did not catch it: its corpus contained no non-certificate secret under a test\n  component, having been drawn from the widening it was meant to police. Both are fixed\n  and both directions are now proven.",
+          "replace": "  below did not catch it: its corpus contained no non-certificate secret under a test\n  component, having been drawn from the widening it was meant to police.\n  **Corrected AGAIN, same day, after a second review of that repair.** Gating the allowlist\n  on the file's EXTENSION was not the same as scoping it to the CATEGORY: `classify()`\n  returns on the first match, so every `.key`/`.pem` reached the certificate branch before\n  the k8s, PII, api-token and ssh branches could claim it \u2014 `k8s/tests/tls.key`,\n  `tests/api_key.key` and `pii/tests/customers.key` were all still silent. The allowlist now\n  lives outside the classifier and is applied to the *verdict*, only when no stronger\n  category fires and only when the certificate suffix, once stripped, reveals nothing\n  stronger; and it refuses any path under `k8s/`, `pii/`, `production/`, `secrets/`,\n  `credentials/`, `.ssh/`, `.aws/`, `vault/` or `keys/`. A **generated** invariant (12\n  categories \u00d7 6 test-shaped directories \u00d7 6 certificate extensions) replaces the\n  hand-written corpora that were blind twice; it failed 151 cases on its first run."
+        },
+        {
+          "find": "  first; a match **withholds the content**, leaves the file untouched, and tells you which file\n  to inspect.",
+          "replace": "  first; a match **withholds the content**, leaves the file untouched, and tells you which file\n  to inspect. **Scope, stated honestly and downgraded from the original wording:** the scanner\n  is a 25-phrase keyword denylist, so this catches naive injection shapes \u2014 a payload written\n  to evade it (\"Disregard the safety rules above\") still prints. It is not a filter you should\n  rely on. The scanner is also resolved from the hook's own directory only: a cwd-relative\n  candidate meant anyone who could write the context file could drop their own `exit 0`\n  scanner beside it. And a scanner *crash* is no longer reported as a detection \u2014 `set -e`\n  plus a cwd-relative log path made it exit non-zero on benign input in any directory without\n  `.claude/hooks/`, so it claimed an injection in an innocent file."
+        },
+        {
+          "find": "  non-comment lines, and `hashlib.sha256` does not fire.",
+          "replace": "  non-comment lines, and `hashlib.sha256` does not fire. **Extended after review:** the\n  bare-word branch is **removed** \u2014 `BANNED = [\"RC4\", \"MD5\"]`, a denylist, warned as if it were\n  weak crypto, and a string literal is not a comment that stripping can remove. Every real\n  shape is a call or an import, and those are matched directly, including the aliased forms\n  (`import hashlib as _h; _h.md5()`, `from hashlib import md5`, `getattr(hashlib, \"md5\")`)\n  that the module-adjacent pattern missed. The `PARTIAL SCAN` notice moved from stderr to\n  **stdout**, because a PreToolUse hook exiting 0 does not surface stderr \u2014 the notice was\n  still silent in the only place that mattered."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".ai/SESSION_STATE.md",
+      "edits": [
+        {
+          "find": "**The independent review happened, and it found real defects.**",
+          "replace": "**TWO reviews happened, and each found real High findings in the previous one's fix.** Round 2 is in `plan-review-round-2.md`: the round-1 repair gated the file-guard allowlist on the file's EXTENSION, which is not its CATEGORY, so `k8s/tests/tls.key` and friends were still silent. A **generated** invariant (12 categories x 6 test dirs x 6 cert extensions) now replaces the hand-written corpora that were blind twice; it failed 151 cases on first run. **No third review has been run, and the prior that one would find something is not low.** Round 1 record follows:"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/plans/archive/README.md",
+      "edits": [
+        {
+          "find": "| `ops-review-d945278/*.json` |",
+          "add_before": "| `ops-review-round-2/*.json` | Spent 2026-08-24, `--no-approval` disclosed (repairs the commits it reviews). **Second adversarial review: 5 High, 4 Medium, 8 Low, all confirmed by execution \u2014 and the High findings are in the FIX for round 1.** Round 1 gated the file-guard allowlist on the file's EXTENSION; `classify()` returns on the first match, so every `.key`/`.pem` reached the certificate branch before the k8s/PII/api-token/ssh branches could claim it. `k8s/tests/secret-tls.key`, `tests/api_key.key`, `pii/tests/customers.key` and `tests/fixtures/.ssh/deploy.key` were all still clean. \"Unreachable for any other extension\" was true and irrelevant \u2014 the same sentence the round-1 reviewer had written about round-1's claim. Fix: the allowlist left `classify()` entirely and is applied to the VERDICT, only when no stronger category fires, only when stripping the certificate suffix reveals nothing stronger, and never under `k8s/`/`pii/`/`production/`/`secrets/`/`credentials/`/`.ssh/`/`.aws/`/`vault/`/`keys/`. **The durable part is the RATCHET:** three occurrences of `exclusion-wider-than-the-predicate-it-corrects` earned a GENERATED invariant (12 category exemplars x 6 test-shaped prefixes x 6 cert extensions) instead of more hand-picked paths. It failed **151** cases on first run and exposed a sub-class nobody had named \u2014 appending a cert suffix breaks the EXACT-basename match that `credentials.json`, `wallet.dat`, `prod.sqlite` and `backup.bak` rely on. Then the differential gate caught one the generator could not (`k8s/tests/tls.key`: branch 13 needs the literal word \"secret\"), so each mechanism caught what the other missed. Also: a CLAIM WITHDRAWN \u2014 the injection scanner is a 25-phrase keyword denylist and a payload written to evade it still prints, so the CHANGELOG no longer implies coverage; the scanner's cwd-relative candidate (anyone who can write the context file could supply an `exit 0` scanner) and its cwd-relative `LOG_FILE` (which made `set -e` report a phantom injection about benign files, and was F107's fourth form) are both closed; the crypto bare-word branch is GONE because `BANNED = [\"RC4\", \"MD5\"]` warned; and the `PARTIAL SCAN` notice moved to stdout, since stderr is not surfaced for a hook exiting 0. **My own fence-census test could not fail at all** (denylist of seven tags, corpus contains four), and inverting it exposed my regex bug: Python `\\s` matches newlines, so it read the first word after an untagged fence. Plan: `plan-review-round-2.md`. |\n"
+        }
+      ]
+    }
+  ]
+}

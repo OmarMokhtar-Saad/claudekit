@@ -168,6 +168,15 @@ class ExecutionLock:
             self._fd = os.open(self.lock_path, os.O_CREAT | os.O_WRONLY, 0o600)
             if _HAS_FCNTL:
                 fcntl.flock(self._fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            # `fchmod`, not just the `0o600` on open: the mode argument applies ONLY when
+            # the file is created, and release() deliberately no longer unlinks -- so a
+            # lock file left by a pre-fix run keeps its old mode forever (measured 0o666
+            # under a permissive umask). The file persists now, so its mode is not a
+            # create-time detail.
+            try:
+                os.fchmod(self._fd, 0o600)
+            except OSError:
+                pass
             os.ftruncate(self._fd, 0)
             os.write(self._fd, f"{os.getpid()}\n".encode())
             return True

@@ -1,0 +1,15 @@
+{
+  "plan": "review-2",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/security-reminder.sh",
+      "edits": [
+        {
+          "find": "CONTENT_CODE=$(printf '%s\\n' \"$CONTENT\" | grep -vE '^[[:space:]]*(#|//|\\*|/\\*)' || true)",
+          "replace": "# Whole-line comments dropped, THEN end-of-line comments stripped. Line-leading only was\n# not enough, and the miss was self-inflicted: this fix was prompted by a fixture whose\n# match came from a TRAILING `# MD5 digest`, and the first version still matched exactly\n# that. All four of these warned before:\n#   x = 1  # never use MD5 here      (prose)\n#   AES_KEY = 1  # RC4 was removed   (prose)\n#   BANNED = [\"RC4\", \"MD5\"]          (a denylist)\n#   \"\"\"Return the SHA1 of HEAD.\"\"\"   (a docstring)\n# The last two are string literals rather than comments, so the bare-word branch cannot be\n# made safe by stripping alone -- which is why branch 1 below carries the real signal and\n# the bare word is only a fallback.\nCONTENT_CODE=$(printf '%s\\n' \"$CONTENT\" \\\n    | grep -vE '^[[:space:]]*(#|//|\\*|/\\*)' \\\n    | sed -e 's,[[:space:]]#.*$,,' -e 's,[[:space:]]//.*$,,' \\\n          -e 's,/\\*.*\\*/,,g' -e 's,\"\"\".*\"\"\",,g' -e \"s,'''.*''',,g\" || true)"
+        }
+      ]
+    }
+  ]
+}

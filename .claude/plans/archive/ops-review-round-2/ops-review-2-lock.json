@@ -1,0 +1,29 @@
+{
+  "plan": "review-2",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/execute-json-ops.py",
+      "edits": [
+        {
+          "find": "            os.ftruncate(self._fd, 0)\n            os.write(self._fd, f\"{os.getpid()}\\n\".encode())",
+          "replace": "            # `fchmod`, not just the `0o600` on open: the mode argument applies ONLY when\n            # the file is created, and release() deliberately no longer unlinks -- so a\n            # lock file left by a pre-fix run keeps its old mode forever (measured 0o666\n            # under a permissive umask). The file persists now, so its mode is not a\n            # create-time detail.\n            try:\n                os.fchmod(self._fd, 0o600)\n            except OSError:\n                pass\n            os.ftruncate(self._fd, 0)\n            os.write(self._fd, f\"{os.getpid()}\\n\".encode())"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_execution_lock.py",
+      "edits": [
+        {
+          "find": "    holder, contender = executor.ExecutionLock(str(path)), executor.ExecutionLock(str(path))\n    assert holder.acquire()\n    try:\n        recorded = path.read_text().strip()\n        assert recorded == str(os.getpid())\n        assert not contender.acquire()\n        assert path.read_text().strip() == recorded, (\n            \"a refused acquire truncated the lock file and destroyed the holder's pid\"\n        )\n    finally:\n        holder.release()",
+          "replace": "    holder, contender = executor.ExecutionLock(str(path)), executor.ExecutionLock(str(path))\n    assert holder.acquire()\n    try:\n        # A SENTINEL, not the pid. Holder and contender share this process's pid, so\n        # comparing the file to os.getpid() cannot distinguish \"the holder's content\n        # survived\" from \"the contender truncated it and wrote the same pid back\" -- a\n        # truncate-then-write mutation passed that assertion.\n        path.write_text(\"SENTINEL-DO-NOT-TRUNCATE\\n\")\n        assert not contender.acquire()\n        assert path.read_text() == \"SENTINEL-DO-NOT-TRUNCATE\\n\", (\n            \"a refused acquire truncated the lock file out from under the holder\"\n        )\n    finally:\n        holder.release()"
+        },
+        {
+          "find": "    path = tmp_path / \"exec.lock\"\n    lock = executor.ExecutionLock(str(path))\n    assert lock.acquire()\n    lock.release()\n    assert (path.stat().st_mode & 0o077) == 0, oct(path.stat().st_mode & 0o777)",
+          "replace": "    path = tmp_path / \"exec.lock\"\n    lock = executor.ExecutionLock(str(path))\n    assert lock.acquire()\n    lock.release()\n    assert (path.stat().st_mode & 0o077) == 0, oct(path.stat().st_mode & 0o777)\n\n    # AND the pre-existing-file path, which the assertion above never reaches. The mode\n    # argument to os.open applies only on creation, so a lock left by an older run kept\n    # its permissive mode forever -- this test asserted less than its own docstring.\n    path.unlink()\n    path.write_text(\"\")\n    path.chmod(0o666)\n    again = executor.ExecutionLock(str(path))\n    assert again.acquire()\n    again.release()\n    assert (path.stat().st_mode & 0o077) == 0, oct(path.stat().st_mode & 0o777)"
+        }
+      ]
+    }
+  ]
+}

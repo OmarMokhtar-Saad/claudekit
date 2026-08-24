@@ -85,6 +85,42 @@ def test_a_missing_scanner_withholds_rather_than_prints(tmp_path):
     assert "not shown" in out
 
 
+def test_the_scanner_is_resolved_from_the_hook_directory_only(tmp_path):
+    """A cwd-relative scanner candidate let a hostile cwd supply its own scanner that
+    exits 0 -- and the payload printed. Under the stated threat model (someone who can
+    write the context file) that defeated the whole check, so the candidate is gone."""
+    body = (HOOKS / "session-start.sh").read_text()
+    assert '".claude/hooks/prompt-injection-scanner.sh"' not in body, (
+        "a cwd-relative scanner candidate is back"
+    )
+    assert '"$SCRIPT_DIR/prompt-injection-scanner.sh"' in body
+
+
+def test_a_scanner_crash_is_not_reported_as_a_detection(tmp_path):
+    """Exit 1 is the scanner's DETECTION code; anything else is the scanner failing.
+    Reporting a crash as "injection detected" is a lie about a benign file, and the two
+    were indistinguishable -- a cwd without `.claude/hooks/` made the scanner exit
+    non-zero on its own log write, for any benign input."""
+    hooks = tmp_path / ".claude" / "hooks"
+    hooks.mkdir(parents=True)
+    for name in ("session-start.sh", "lib.sh"):
+        shutil.copy(HOOKS / name, hooks / name)
+    (hooks / "prompt-injection-scanner.sh").write_text("#!/bin/bash\nexit 3\n")
+    (tmp_path / ".claude" / "session-context.md").write_text("# Session\n- benign\n")
+    out = _run(tmp_path, hooks / "session-start.sh")
+    assert "scanner failed" in out
+    assert "matched a known injection pattern" not in out, (
+        "a scanner crash was reported as a finding about the file"
+    )
+
+
+def test_a_single_huge_line_is_bounded_by_bytes_not_just_lines(tmp_path):
+    """`head -20` bounds lines. A 2 MB single-line context file passed that bound and was
+    printed in full (measured 2,000,154 characters)."""
+    hook = _kit(tmp_path, "A" * 2_000_000 + "\n")
+    out = _run(tmp_path, hook)
+    assert out.count("A") < 10_000, f"printed {out.count('A')} characters"
+
 def test_the_scan_is_not_gated_to_the_strict_profile(tmp_path):
     """`session-start.sh` runs in every profile; a check that only guards `strict` is
     decoration, because `strict` is not what maintainers set."""

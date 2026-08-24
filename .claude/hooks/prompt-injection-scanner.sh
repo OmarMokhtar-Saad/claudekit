@@ -9,7 +9,13 @@ set -e
 # =============================================================================
 
 HOOK_NAME="prompt-injection-scanner"
-LOG_FILE=".claude/hooks/hooks.log"
+# `$SCRIPT_DIR`, not cwd-relative. This was the FOURTH cwd-relative log-path form in this
+# directory (finding F107). It was not cosmetic here: `set -e` on line 2 plus a log write
+# to a non-existent `./.claude/hooks/` made the scanner exit NON-ZERO on a benign input,
+# and `session-start.sh` reads any non-zero as "injection detected" -- so a session whose
+# cwd lacked that directory reported a phantom finding about an innocent file.
+SCANNER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LOG_FILE="${LOG_FILE:-$SCANNER_DIR/hooks.log}"
 
 log() {
     local level="$1"

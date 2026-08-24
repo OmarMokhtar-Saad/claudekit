@@ -1,0 +1,25 @@
+{
+  "plan": "review-2",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/file-guard.sh",
+      "edits": [
+        {
+          "find": "    if [ \"$category\" = \"certificates\" ]; then\n        local stronger\n        stronger=$(classify \"$filepath\" skip_certs)\n        if [ -n \"$stronger\" ]; then\n            category=\"$stronger\"\n        elif public_material \"$filepath\"; then\n            category=\"\"\n        fi",
+          "replace": "    if [ \"$category\" = \"certificates\" ]; then\n        local stronger\n        stronger=$(classify \"$filepath\" skip_certs)\n        # ALSO ask what the file is with the certificate extension REMOVED. A generated\n        # invariant (tests/test_fileguard_allowlist.py) found 150 paths of this shape that\n        # the two hand-written corpora both missed: `credentials.json.pem`,\n        # `wallet.dat.key`, `prod.sqlite.crt`, `secrets/backup.bak.p12` -- appending a\n        # certificate suffix breaks the EXACT-basename match those categories rely on, so\n        # only branch 8 fires and the allowlist frees it under a test directory. Strip the\n        # suffix and the real category reappears.\n        if [ -z \"$stronger\" ]; then\n            stronger=$(classify \"${filepath%.*}\" skip_certs)\n        fi\n        if [ -n \"$stronger\" ]; then\n            category=\"$stronger\"\n        elif public_material \"$filepath\"; then\n            category=\"\"\n        fi"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_fileguard_allowlist.py",
+      "edits": [
+        {
+          "find": "def test_the_allowlist_runs_before_the_denylist():\n    \"\"\"Ordering is the mechanism: a later allowlist would never be reached.\"\"\"\n    body = GUARD.read_text()\n    allow = body.index(\"# 0. Public-by-construction\")\n    certs = body.index(\"# 8. Certificates and private keys\")\n    assert allow < certs",
+          "replace": "def test_the_allowlist_is_applied_to_the_classification_not_ahead_of_it():\n    \"\"\"Structure is the mechanism, and the structure changed twice for the same reason.\n\n    The allowlist used to sit at the top of `classify()`, where it exempted every\n    category. It now lives in `check_file()`, applied only once `classify()` has said\n    `certificates` AND no stronger category claims the file. This asserts that shape\n    directly, because it is the property the two prior defects violated.\n    \"\"\"\n    body = GUARD.read_text()\n    assert \"public_material\" in body\n    # The allowlist must NOT be inside classify(): everything between `classify() {` and\n    # `check_file() {` is the classifier, and a return-early exemption there is the bug.\n    classifier = body[body.index(\"classify() {\"):body.index(\"public_material() {\")]\n    assert \"public_material\" not in classifier, (\n        \"the allowlist is inside classify() again -- classify() returns on the first \"\n        \"match, so an exemption there applies to every category below it\"\n    )\n    assert \"stronger=$(classify\" in body, \"the stronger-category check is gone\""
+        }
+      ]
+    }
+  ]
+}

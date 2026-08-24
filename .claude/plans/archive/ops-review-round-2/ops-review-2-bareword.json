@@ -1,0 +1,19 @@
+{
+  "plan": "review-2",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/security-reminder.sh",
+      "edits": [
+        {
+          "find": "if echo \"$CONTENT_CODE\" | grep -qiE '(hashlib|crypto|openssl|digest)[._:[:space:]]*(md5|sha1|rc4)|\\b(md5|sha1|rc4)[[:space:]]*\\(|getattr\\([[:space:]]*hashlib'; then",
+          "replace": "if echo \"$CONTENT_CODE\" | grep -qiE '(hashlib|crypto|openssl|digest)[._:[:space:]]*(md5|sha1|rc4)|\\b(md5|sha1|rc4)[[:space:]]*\\(|\\b(md5|sha1|rc4)\\.new[[:space:]]*\\(|getattr\\([[:space:]]*hashlib'; then"
+        },
+        {
+          "find": "elif echo \"$CONTENT_CODE\" | grep -qE '\\bMD5\\b|\\bSHA1\\b|\\bRC4\\b'; then\n    WARNINGS+=(\"Weak cryptographic algorithm (MD5/SHA1/RC4)\")\nfi",
+          "replace": "fi\n# THE BARE-WORD FALLBACK IS GONE, deliberately. `\\bMD5\\b` on a non-comment line still\n# matched string literals -- `BANNED = [\"RC4\", \"MD5\"]`, a DENYLIST, warned as if it were\n# weak crypto -- and stripping cannot fix that, because a literal is not a comment. Every\n# real shape is a CALL, and calls are what the pattern above matches (`MD5.new(` included).\n# A check that fires on a file forbidding MD5 is the false positive that makes an advisory\n# worth ignoring, which is the whole finding this hook's crypto branch has now produced\n# twice in opposite directions."
+        }
+      ]
+    }
+  ]
+}

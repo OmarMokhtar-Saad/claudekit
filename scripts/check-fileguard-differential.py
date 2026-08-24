@@ -54,6 +54,14 @@ CORPUS: List[str] = [
     # lost its flag` while ten real secret shapes went silent. A corpus drawn from the
     # change under test can only confirm it. Every category must therefore appear under a
     # test component as well as at the root.
+    # Cert-EXTENSIONED members of other categories. The corpus lacked every one of these
+    # because it was rebuilt around the previous hole: v2's allowlist was gated on the
+    # extension, so a corpus whose test-component entries all avoided that extension set
+    # could not see the hole. `k8s/tests/tls.key` is the canonical checked-in TLS secret.
+    "k8s/tests/tls.key", "tests/fixtures/.ssh/deploy.key", "tests/api_key.key",
+    "pii/tests/customers.key", "production/tests/data.key",
+    "tests/credentials.json.pem", "testdata/wallet.dat.key", "fixtures/prod.sqlite.crt",
+    "secrets/tests/db.bak.p12",
     "tests/fixtures/.env", "test/secrets.json", "tests/credentials.json",
     "tests/id_rsa", "testdata/wallet.dat", "spec/fixtures/terraform.tfstate",
     "home/tests/.aws/credentials", "k8s/tests/secret-db.yaml",
@@ -126,7 +134,18 @@ DISCLOSED_WIDENINGS: List[Dict[str, str]] = [
     },
 ]
 
-_CATEGORY = re.compile(r"BLOCKED \[([a-z-]+)\]")
+# `[a-z0-9-]`, with the digit: `k8s-secrets` did not match, so a legitimate category was
+# reported as the `flagged-uncategorised` sentinel meant for a BROKEN guard -- and a
+# genuinely unparseable output became indistinguishable from a normal one.
+# Root-level, category-diverse, none under a test component: any guard that classifies at
+# all flags these. Used as the vacuity floor for a baseline (see main()).
+BASELINE_FLOOR = [
+    ".env", "id_rsa", "credentials.json", "secrets.yaml", "private.pem",
+    "wallet.dat", "passwd", ".npmrc", "prod.sqlite", ".pgpass",
+    "k8s/secret-db.yaml", "pii/customers.csv",
+]
+
+_CATEGORY = re.compile(r"BLOCKED \[([a-z0-9-]+)\]")
 
 
 def _git(repo_root: Path, *args: str) -> Optional[str]:
@@ -213,6 +232,22 @@ def main() -> int:
                       "truncated or broken, and comparing against it would pass "
                       "vacuously." % canary)
                 return 1
+        # Two named canaries are not enough: a baseline flagging ONLY those two makes every
+        # other corpus path look already-clean, so no regression can be recorded and the
+        # gate prints OK. The floor is a fixed set of ROOT-LEVEL canonical secrets rather
+        # than a fraction of CORPUS, deliberately: a fraction also fires when the baseline
+        # merely has a BUG that frees some paths (measured: `d945278` flags 31 of 76,
+        # because that is the commit whose allowlist this gate exists to have caught), and
+        # conflating "broken baseline" with "buggy baseline" would make the gate refuse to
+        # run in exactly the case it is for. These twelve are category-diverse and none
+        # sits under a test component, so any guard that classifies at all flags them.
+        floor_missing = [p for p in BASELINE_FLOOR if classify(before_path, p) is None]
+        if len(floor_missing) > 2:
+            print("FAIL: the baseline guard does not flag %d of %d canonical root-level "
+                  "secrets (%s). It is empty, truncated or broken, and comparing against "
+                  "it would pass vacuously."
+                  % (len(floor_missing), len(BASELINE_FLOOR), ", ".join(floor_missing)))
+            return 1
 
         regressions: List[Tuple[str, str]] = []
         disclosed: List[Tuple[str, str]] = []
