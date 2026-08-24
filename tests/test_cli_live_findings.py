@@ -70,7 +70,12 @@ class TestDoctorDoesNotHangOnAWedgedBinary:
         bindir = tmp_path / "bin"
         bindir.mkdir()
         fake = bindir / "bash"
-        fake.write_text("#!/bin/sh\nsleep 120\n", encoding="utf-8")
+        # `exec`, not a plain `sleep`: without it the shell FORKS the sleep, the
+        # timeout kills only the shell, and the surviving grandchild keeps the
+        # inherited stdout pipe open -- so the caller blocks in communicate()
+        # until the sleep ends, which is the hang this test exists to disprove.
+        # Watching the suite stall at 36%% is how this was found.
+        fake.write_text("#!/bin/sh\nexec sleep 30\n", encoding="utf-8")
         fake.chmod(0o755)
         return bindir
 

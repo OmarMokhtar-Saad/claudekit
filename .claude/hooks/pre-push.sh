@@ -147,7 +147,10 @@ run_tests() {
     else
         log "ERROR" "Tests failed"
         echo "[pre-push] Tests: FAILED"
-        echo "$output" | tail -20
+        # 60, not 20: the first error of a failed build or test run is almost never
+        # in the last 20 lines of a summary, and truncating past it is how a hook
+        # reports a failure nobody can act on.
+        echo "$output" | tail -60
         echo ""
         echo "ERROR: Tests must pass before pushing."
         return 1
@@ -180,7 +183,9 @@ run_lint() {
     else
         log "ERROR" "Lint failed"
         echo "[pre-push] Lint: FAILED"
-        echo "$output" | tail -20
+        # 60, not 20: see the test path above -- the first error of a failed run
+        # is almost never inside the last 20 lines of its own summary.
+        echo "$output" | tail -60
         echo ""
         echo "ERROR: Lint must pass before pushing."
         return 1
@@ -213,7 +218,9 @@ run_build() {
     else
         log "ERROR" "Build failed"
         echo "[pre-push] Build: FAILED"
-        echo "$output" | tail -20
+        # 60, not 20: see the test path above -- the first error of a failed run
+        # is almost never inside the last 20 lines of its own summary.
+        echo "$output" | tail -60
         echo ""
         echo "ERROR: Build must succeed before pushing."
         return 1

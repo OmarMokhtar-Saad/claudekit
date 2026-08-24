@@ -60,6 +60,44 @@ except:
 }
 
 # ---------------------------------------------------------------------------
+# Registry mutex.
+#
+# `mkdir` is an atomic, portable lock (flock is Linux-only) -- the same idiom
+# `suggest-compact.sh` uses, with the same `find -mmin` stale recovery, because
+# `date -r`/`stat` differ across platforms.
+#
+# One deliberate difference from that sibling: it SKIPS its work when the lock is
+# held, since a lost counter increment costs nothing. A skipped checkpoint costs
+# the user's uncommitted work, so this waits briefly and then proceeds anyway with
+# a WARN. The protected sections are short; the failure mode chosen is a possible
+# size overshoot, never a lost checkpoint.
+# ---------------------------------------------------------------------------
+REGISTRY_LOCK=""
+
+registry_lock() {
+    REGISTRY_LOCK="${REGISTRY_FILE}.lockdir"
+    if [ -d "$REGISTRY_LOCK" ]; then
+        find "$REGISTRY_LOCK" -maxdepth 0 -mmin +1 -exec rmdir {} \; 2>/dev/null
+    fi
+    local i=0
+    while [ "$i" -lt 20 ]; do
+        if mkdir "$REGISTRY_LOCK" 2>/dev/null; then
+            return 0
+        fi
+        sleep 0.1
+        i=$((i + 1))
+    done
+    log "WARN" "Registry lock held for 2s; proceeding unlocked rather than dropping a checkpoint"
+    REGISTRY_LOCK=""
+    return 0
+}
+
+registry_unlock() {
+    [ -n "$REGISTRY_LOCK" ] && rmdir "$REGISTRY_LOCK" 2>/dev/null
+    REGISTRY_LOCK=""
+}
+
+# ---------------------------------------------------------------------------
 # Prune oldest checkpoints if over limit
 # ---------------------------------------------------------------------------
 prune_old_checkpoints() {
@@ -72,6 +110,7 @@ prune_old_checkpoints() {
 
     log "INFO" "Checkpoint limit reached ($count/$MAX_CHECKPOINTS), pruning oldest"
 
+    registry_lock
     python3 -c "
 import json, sys
 
@@ -82,7 +121,16 @@ with open(registry_path, 'r') as f:
     data = json.load(f)
 
 checkpoints = data.get('checkpoints', [])
-if len(checkpoints) <= max_cp:
+# Strictly less-than, not less-or-equal: the shell guard above already decided to
+# prune at count >= MAX_CHECKPOINTS, and the +1 below reserves room for the
+# checkpoint about to be appended. With <= the two guards disagreed at exactly
+# count == max, the append pushed the registry to max + 1, and the next run pruned
+# it back -- measured as an oscillation 3 -> 4 -> 3 -> 4 at max=3, i.e. the
+# configured cap exceeded on every other checkpoint, each overshoot a retained
+# git stash.
+# (No backticks in this comment on purpose: it lives inside a double-quoted shell
+# string, where a backtick is command substitution and not quoting.)
+if len(checkpoints) < max_cp:
     sys.exit(0)
 
 # Sort by timestamp ascending and remove oldest
@@ -113,6 +161,7 @@ for cp in pruned:
             log "INFO" "Checkpoint stash already gone: $stash_ref"
         fi
     done
+    registry_unlock
 }
 
 # ---------------------------------------------------------------------------
@@ -188,6 +237,7 @@ create_checkpoint() {
     local stash_ref="$stash_sha"
 
     # Record in registry
+    registry_lock
     python3 -c "
 import json, sys
 
@@ -220,6 +270,7 @@ data['checkpoints'].append({
 with open(registry_path, 'w') as f:
     json.dump(data, f, indent=2)
 " "$REGISTRY_FILE" "$cp_id" "$cp_name" "$reason" "$stash_ref" "$timestamp" "$branch" "$short_hash" "$files_changed" "$files_list" 2>/dev/null
+    registry_unlock
 
     log "INFO" "Checkpoint created: $cp_id ($cp_name) - $files_changed files, branch: $branch"
     echo "[$HOOK_NAME] Checkpoint saved: $cp_name ($files_changed files)$restore_note" >&2

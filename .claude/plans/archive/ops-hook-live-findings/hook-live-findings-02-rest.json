@@ -1,0 +1,57 @@
+{
+  "plan": "hook-live-findings-02-rest",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/auto-checkpoint.sh",
+      "description": "The second registry read-modify-write -- the append after the stash -- was also unprotected. Held under the same mutex. Deliberately NOT held across `git stash push` above it: that is the slow half, and serialising it would make concurrent sessions wait on each other's git operations for no correctness gain.",
+      "edits": [
+        {
+          "find": "    # Record in registry\n    python3 -c \"",
+          "replace": "    # Record in registry\n    registry_lock\n    python3 -c \""
+        },
+        {
+          "find": " \"$REGISTRY_FILE\" \"$cp_id\" \"$cp_name\" \"$reason\" \"$stash_ref\" \"$timestamp\" \"$branch\" \"$short_hash\" \"$files_changed\" \"$files_list\" 2>/dev/null\n\n    log \"INFO\" \"Checkpoint created",
+          "replace": " \"$REGISTRY_FILE\" \"$cp_id\" \"$cp_name\" \"$reason\" \"$stash_ref\" \"$timestamp\" \"$branch\" \"$short_hash\" \"$files_changed\" \"$files_list\" 2>/dev/null\n    registry_unlock\n\n    log \"INFO\" \"Checkpoint created"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/session-start.sh",
+      "description": "PM_INSTALL and PM_RUN were assigned eight times and read never. Dead code that reads as a feature: the startup summary prints only $PM, so a maintainer would reasonably assume the install/run commands were surfaced somewhere. Detection of $PM itself is unchanged.",
+      "edits": [
+        {
+          "find": "PM=\"unknown\"\nPM_INSTALL=\"\"\nPM_RUN=\"\"\n\nif [ -f \"bun.lockb\" ] || [ -f \"bunfig.toml\" ]; then\n    PM=\"bun\"\n    PM_INSTALL=\"bun install\"\n    PM_RUN=\"bun run\"\nelif [ -f \"pnpm-lock.yaml\" ]; then\n    PM=\"pnpm\"\n    PM_INSTALL=\"pnpm install\"\n    PM_RUN=\"pnpm run\"\nelif [ -f \"yarn.lock\" ]; then\n    PM=\"yarn\"\n    PM_INSTALL=\"yarn install\"\n    PM_RUN=\"yarn\"\nelif [ -f \"package-lock.json\" ]; then\n    PM=\"npm\"\n    PM_INSTALL=\"npm install\"\n    PM_RUN=\"npm run\"\nelif [ -f \"Cargo.toml\" ]; then\n    PM=\"cargo\"\n    PM_INSTALL=\"cargo build\"\n    PM_RUN=\"cargo run\"\nelif [ -f \"go.mod\" ]; then\n    PM=\"go\"\n    PM_INSTALL=\"go mod tidy\"\n    PM_RUN=\"go run\"\nelif [ -f \"pyproject.toml\" ] || [ -f \"requirements.txt\" ]; then\n    PM=\"python\"\n    PM_INSTALL=\"pip install -e .\"\n    PM_RUN=\"python\"\nelif [ -f \"Gemfile\" ]; then\n    PM=\"bundler\"\n    PM_INSTALL=\"bundle install\"\n    PM_RUN=\"bundle exec\"\nfi",
+          "replace": "# Only the NAME is used -- the startup summary prints `$PM` and nothing else.\n# `PM_INSTALL`/`PM_RUN` were assigned eight times here and read nowhere (SC2034);\n# a reader reasonably assumed the summary showed them.\nPM=\"unknown\"\n\nif [ -f \"bun.lockb\" ] || [ -f \"bunfig.toml\" ]; then\n    PM=\"bun\"\nelif [ -f \"pnpm-lock.yaml\" ]; then\n    PM=\"pnpm\"\nelif [ -f \"yarn.lock\" ]; then\n    PM=\"yarn\"\nelif [ -f \"package-lock.json\" ]; then\n    PM=\"npm\"\nelif [ -f \"Cargo.toml\" ]; then\n    PM=\"cargo\"\nelif [ -f \"go.mod\" ]; then\n    PM=\"go\"\nelif [ -f \"pyproject.toml\" ] || [ -f \"requirements.txt\" ]; then\n    PM=\"python\"\nelif [ -f \"Gemfile\" ]; then\n    PM=\"bundler\"\nfi"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/post-implement.sh",
+      "description": "Failure output was truncated to the last 20 lines, which for a test or build run is the summary and not the cause -- the reader is left with 'FAILED' and no first error. Raised to 60 with the reason recorded, in both the build and test paths.",
+      "edits": [
+        {
+          "find": "        log \"ERROR\" \"Build failed: $output\"\n        echo \"[post-implement] Build: FAILED\"\n        echo \"$output\" | tail -20",
+          "replace": "        log \"ERROR\" \"Build failed: $output\"\n        echo \"[post-implement] Build: FAILED\"\n        # 60, not 20: the first error of a failed build or test run is almost never\n        # in the last 20 lines of a summary, and truncating past it is how a hook\n        # reports a failure nobody can act on.\n        echo \"$output\" | tail -60"
+        },
+        {
+          "find": "        log \"WARN\" \"Tests failed: $output\"\n        echo \"[post-implement] Tests: FAILED\"\n        echo \"$output\" | tail -20",
+          "replace": "        log \"WARN\" \"Tests failed: $output\"\n        echo \"[post-implement] Tests: FAILED\"\n        # 60, not 20: the first error of a failed build or test run is almost never\n        # in the last 20 lines of a summary, and truncating past it is how a hook\n        # reports a failure nobody can act on.\n        echo \"$output\" | tail -60"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/pre-push.sh",
+      "description": "Same truncation on the pre-push test gate, which is the one that stops a push -- so the output it prints is the only thing the user has to act on.",
+      "edits": [
+        {
+          "find": "        log \"ERROR\" \"Tests failed\"\n        echo \"[pre-push] Tests: FAILED\"\n        echo \"$output\" | tail -20",
+          "replace": "        log \"ERROR\" \"Tests failed\"\n        echo \"[pre-push] Tests: FAILED\"\n        # 60, not 20: the first error of a failed build or test run is almost never\n        # in the last 20 lines of a summary, and truncating past it is how a hook\n        # reports a failure nobody can act on.\n        echo \"$output\" | tail -60"
+        }
+      ]
+    }
+  ]
+}

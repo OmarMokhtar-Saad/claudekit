@@ -471,6 +471,34 @@ def now_iso() -> str:
 # --------------------------------------------------------------------------- token
 
 
+def _new_token() -> str:
+    """A session token that cannot be mistaken for a command-line flag.
+
+    `secrets.token_urlsafe` draws from the base64url alphabet, which contains `-`,
+    so ~1.5% of tokens begin with one (measured: 306 of 20000). Every caller passes
+    the token as `--session-token <value>`, and argparse reads a leading-dash value
+    as the next OPTION -- producing `argument --session-token: expected one
+    argument` and an exit 2. That was the "UNEXPLAINED intermittent" in
+    `.ai/BACKLOG.md`, unreproducible for weeks because it depends on a coin flip
+    inside the secret itself.
+
+    The token is also PRINTED to the user at session start and pasted onto command
+    lines by agents, so hardening one caller would not have been enough; the fix
+    belongs here, where every consumer inherits it.
+
+    Redraws rather than strips: dropping the leading character would shorten the
+    secret, and replacing it would bias the first character. Entropy per token is
+    unchanged.
+    """
+    for _ in range(64):
+        token = secrets.token_urlsafe(24)
+        if not token.startswith("-"):
+            return token
+    # Unreachable in practice (p ≈ 2**-380); prefixing keeps it flag-safe and is
+    # better than returning something argparse will reject.
+    return "s" + secrets.token_urlsafe(24)
+
+
 def read_session_token(session_id: str) -> Optional[str]:
     if not valid_session(session_id):
         return None
@@ -501,7 +529,7 @@ def ensure_session_token(session_id: str) -> Optional[str]:
     if ensure_ledger_dir() is None:
         return None
     path = token_path(session_id)
-    token = secrets.token_urlsafe(24)
+    token = _new_token()
     try:
         fd = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         with os.fdopen(fd, "w") as handle:

@@ -68,6 +68,13 @@ _COLOUR = _colour_enabled()
 # How long doctor waits for a `--version` probe. Generous for a binary that is
 # working and short enough that a wedged one does not hang the command people run
 # when something is already broken.
+#
+# Known limit, measured rather than assumed: `subprocess.run(timeout=)` kills the
+# process it spawned, but not a GRANDCHILD that inherited the stdout pipe -- and
+# `communicate()` then blocks until that grandchild exits. So a `bash` that forks
+# and returns can still outlast this timeout. Closing that needs
+# `start_new_session=True` plus a process-group kill, i.e. a Popen rewrite of both
+# probes; filed rather than folded into this fix.
 PROBE_TIMEOUT = 5
 
 

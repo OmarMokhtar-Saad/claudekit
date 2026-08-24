@@ -404,7 +404,7 @@ class TestCli:
         token = ref.read_session_token(SESSION)
         payload = json.dumps(valid_receipt(ref))
         argv = ["receipt", "--session-id", SESSION,
-                "--session-token", token, "--json", payload]
+                f"--session-token={token}", "--json", payload]
         proc = self.run(*argv)
         assert proc.returncode == 0, receipt_diagnostic(
             ref, proc, dict(os.environ), argv, token)
@@ -423,10 +423,10 @@ class TestCli:
         inbox.parent.mkdir(parents=True, exist_ok=True)
         inbox.write_text(json.dumps(payload), encoding="utf-8")
         proc = self.run("receipt", "--session-id", SESSION,
-                        "--session-token", token, "--inbox")
+                        f"--session-token={token}", "--inbox")
         assert proc.returncode == 0, proc.stderr
         assert "subprocess.run" not in " ".join(
-            ["receipt", "--session-id", SESSION, "--session-token", token, "--inbox"]
+            ["receipt", "--session-id", SESSION, f"--session-token={token}", "--inbox"]
         )
         assert ref.pending_checkpoint(SESSION) is None
         assert not inbox.exists(), "the drop box must be consumed, never replayable"
@@ -438,12 +438,12 @@ class TestCli:
         env = dict(os.environ)
         proc = subprocess.run(
             [sys.executable, str(MODULE_PATH), "receipt", "--session-id", SESSION,
-             "--session-token", token, "--json-stdin"],
+             f"--session-token={token}", "--json-stdin"],
             input=json.dumps(valid_receipt(ref)), capture_output=True, text=True,
             env=env, timeout=30,
         )
         argv = ["receipt", "--session-id", SESSION,
-                "--session-token", token, "--json-stdin"]
+                f"--session-token={token}", "--json-stdin"]
         assert proc.returncode == 0, receipt_diagnostic(
             ref, proc, env, argv, token)
         assert ref.pending_checkpoint(SESSION) is None, receipt_diagnostic(

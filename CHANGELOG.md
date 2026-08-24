@@ -29,7 +29,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   *when something is already wrong* — with no output at all. Both now time out after 5
   seconds, and a timeout is reported as its own condition ("did not respond") rather than as
   a missing dependency: installed-but-not-answering is a broken PATH entry or a hung mount,
-  and needs a different fix than installing bash.
+  and needs a different fix than installing bash. One honest limit: the timeout kills
+  the probe, not a grandchild it may have forked that still holds the output pipe, so a
+  binary that forks and returns can still outlast it — closing that needs a process-group
+  kill and is filed, not silently claimed.
 
 - **`ck config <key>` reports a broken `config.json` instead of raising a traceback.** It
   was the only JSON reader in the CLI with no guard around `json.loads` — five siblings
@@ -41,6 +44,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   lists), but the two byte-identical branches that produced that behaviour are now one,
   with the reason written down: restoring an unnamed backup would be a guess at which one.
   `--list` was being read from the parsed args and thrown away.
+
+- **A flaky test that was never the test's fault: session tokens could start with `-`.**
+  `secrets.token_urlsafe` draws from the base64url alphabet, so about **1.5% of session
+  tokens began with a dash** — and `reflection.py receipt --session-token <token>` then had
+  argparse read that value as the *next flag*, failing with `expected one argument`. Because
+  the coin flip lives inside the secret, it looked like an unexplainable intermittent for
+  three weeks. Tokens are now generated so they cannot be mistaken for a flag (redrawn, not
+  truncated — the secret keeps its full length), and callers that pass an existing token use
+  `--session-token=<value>`, which is immune whatever the value starts with. **If you have a
+  token already on disk that starts with `-`, either form now works.**
+
+- **`auto-checkpoint` kept one more checkpoint than you configured, on every other run.**
+  Two guards disagreed by one: the shell decided to prune at `count >= MAX_CHECKPOINTS`
+  while the pruner skipped at `count == MAX_CHECKPOINTS`, so the new checkpoint pushed the
+  registry to `max + 1` and the next run pruned it back. Measured by running the pruner
+  against fixtures: with `MAX_CHECKPOINTS=3` the size oscillated `3 → 4 → 3 → 4` from every
+  starting point. Bounded, so not a leak — but each overshoot was a **git stash retained
+  that you asked to have dropped**. It now settles at exactly the configured maximum.
+
+- **The checkpoint registry is no longer corruptible by two sessions at once.** It was
+  read-modify-written twice per checkpoint with no mutex, and ClaudeKit treats concurrent
+  sessions as real — `session-start` warns about them. Now guarded by the same portable
+  `mkdir` lock the compaction hook uses, with stale-lock recovery. **Contention never drops
+  a checkpoint**: if the lock cannot be taken within two seconds the hook proceeds anyway
+  and logs it, because a skipped checkpoint is your uncommitted work and a possible size
+  overshoot is not.
+
+- **A failing hook now shows you the error instead of the summary.** `post-implement` and
+  `pre-push` printed only the last 20 lines of a failed build, test, lint or coverage run —
+  and the first error is almost never in the last 20 lines of a test summary, so the hook
+  reported a failure nobody could act on. Now 60 lines on every failure path. Success
+  summaries stay short. **The review that found this named three sites; asserting the
+  property rather than patching those three found six**, including the lint and build gates
+  that block `git push`.
 
 ### Removed
 

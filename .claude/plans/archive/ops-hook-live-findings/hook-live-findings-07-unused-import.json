@@ -1,0 +1,16 @@
+{
+  "plan": "hook-live-findings-07-unused-import",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_hook_live_findings.py",
+      "description": "F401: `os` was imported for a fixture design that changed during authoring (tmp_path replaced manual paths).",
+      "edits": [
+        {
+          "find": "import json\nimport os\nimport re\n",
+          "replace": "import json\nimport re\n"
+        }
+      ]
+    }
+  ]
+}

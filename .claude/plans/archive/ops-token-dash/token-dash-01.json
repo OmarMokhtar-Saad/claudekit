@@ -1,0 +1,27 @@
+{
+  "plan": "token-dash-01",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/reflection.py",
+      "description": "THE CAUSE OF THE DOCUMENTED UNEXPLAINED INTERMITTENT. `secrets.token_urlsafe` draws from the base64url alphabet, which includes `-`, so about 1.53%% of tokens START with a dash -- measured over 20000 draws. Every caller passes it as `--session-token <token>`, and argparse reads a leading-dash value as the NEXT OPTION, failing with exactly the recorded signature `argument --session-token: expected one argument`. Reproduced deterministically. The token is printed to the user at session start and pasted onto command lines by agents, so the fix belongs at generation: a secret that cannot be mistaken for a flag. Entropy is unchanged -- the leading character is redrawn, not stripped.",
+      "edits": [
+        {
+          "find": "    token = secrets.token_urlsafe(24)",
+          "replace": "    token = _new_token()"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/reflection.py",
+      "description": "The generator, with the reasoning at the point of the fix so nobody 'simplifies' it back to a bare token_urlsafe call.",
+      "edits": [
+        {
+          "find": "def read_session_token(session_id: str) -> Optional[str]:",
+          "replace": "def _new_token() -> str:\n    \"\"\"A session token that cannot be mistaken for a command-line flag.\n\n    `secrets.token_urlsafe` draws from the base64url alphabet, which contains `-`,\n    so ~1.5% of tokens begin with one (measured: 306 of 20000). Every caller passes\n    the token as `--session-token <value>`, and argparse reads a leading-dash value\n    as the next OPTION -- producing `argument --session-token: expected one\n    argument` and an exit 2. That was the \"UNEXPLAINED intermittent\" in\n    `.ai/BACKLOG.md`, unreproducible for weeks because it depends on a coin flip\n    inside the secret itself.\n\n    The token is also PRINTED to the user at session start and pasted onto command\n    lines by agents, so hardening one caller would not have been enough; the fix\n    belongs here, where every consumer inherits it.\n\n    Redraws rather than strips: dropping the leading character would shorten the\n    secret, and replacing it would bias the first character. Entropy per token is\n    unchanged.\n    \"\"\"\n    for _ in range(64):\n        token = secrets.token_urlsafe(24)\n        if not token.startswith(\"-\"):\n            return token\n    # Unreachable in practice (p ≈ 2**-380); prefixing keeps it flag-safe and is\n    # better than returning something argparse will reject.\n    return \"s\" + secrets.token_urlsafe(24)\n\n\ndef read_session_token(session_id: str) -> Optional[str]:"
+        }
+      ]
+    }
+  ]
+}
