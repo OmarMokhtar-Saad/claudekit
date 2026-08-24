@@ -1,0 +1,64 @@
+{
+  "plan": "cli-live-findings-01",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "src/claudekit/cli/main.py",
+      "description": "ANSI was emitted unconditionally, so every ck command wrote escape codes into pipes, files and CI logs. Conventional precedence: NO_COLOR disables, a non-tty stdout disables, FORCE_COLOR/CLICOLOR_FORCE re-enables. Computed once at import so a single expression decides it everywhere.",
+      "edits": [
+        {
+          "find": "# Colors\nclass C:\n    RED = '\\033[0;31m'\n    GREEN = '\\033[0;32m'\n    YELLOW = '\\033[1;33m'\n    BLUE = '\\033[0;34m'\n    CYAN = '\\033[0;36m'\n    BOLD = '\\033[1m'\n    NC = '\\033[0m'\n",
+          "replace": "# Colors\ndef _colour_enabled() -> bool:\n    \"\"\"Whether to emit ANSI at all, in the conventional precedence.\n\n    Unconditional colour was a real defect, not a style question: every `ck`\n    command wrote escape codes into pipes, files and CI logs, where nothing\n    renders them. `FORCE_COLOR` wins because a caller that deliberately pipes\n    `ck` into a pager or a colour-aware CI viewer must be able to ask for them\n    back; `NO_COLOR` (any value, per no-color.org) beats the tty check because it\n    is an explicit refusal.\n    \"\"\"\n    if os.environ.get(\"FORCE_COLOR\") or os.environ.get(\"CLICOLOR_FORCE\"):\n        return True\n    if os.environ.get(\"NO_COLOR\") is not None:\n        return False\n    try:\n        return bool(sys.stdout.isatty())\n    except (AttributeError, ValueError):\n        # A replaced or closed stdout (pytest capture, a wedged pipe) is not a\n        # terminal, and must not raise out of module import.\n        return False\n\n\n_COLOUR = _colour_enabled()\n\n\nclass C:\n    RED = '\\033[0;31m' if _COLOUR else ''\n    GREEN = '\\033[0;32m' if _COLOUR else ''\n    YELLOW = '\\033[1;33m' if _COLOUR else ''\n    BLUE = '\\033[0;34m' if _COLOUR else ''\n    CYAN = '\\033[0;36m' if _COLOUR else ''\n    BOLD = '\\033[1m' if _COLOUR else ''\n    NC = '\\033[0m' if _COLOUR else ''\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "src/claudekit/cli/main.py",
+      "description": "`bash --version` and `git --version` ran with capture_output and no timeout, so a wedged binary hung `ck doctor` forever -- the command people run when something is already wrong. A timeout is reported as a DISTINCT condition from absence: 'installed but not responding' and 'not installed' need different fixes.",
+      "edits": [
+        {
+          "find": "    try:\n        result = subprocess.run([\"bash\", \"--version\"], capture_output=True, text=True)\n        bash_ver = result.stdout.split(\"\\n\")[0]\n        check(f\"Bash available: {bash_ver[:60]}\", True)\n    except FileNotFoundError:\n        check(\"Bash available\", False, \"Bash 4.0+ required\")",
+          "replace": "    try:\n        result = subprocess.run([\"bash\", \"--version\"], capture_output=True, text=True,\n                                timeout=PROBE_TIMEOUT)\n        bash_ver = result.stdout.split(\"\\n\")[0]\n        check(f\"Bash available: {bash_ver[:60]}\", True)\n    except FileNotFoundError:\n        check(\"Bash available\", False, \"Bash 4.0+ required\")\n    except subprocess.TimeoutExpired:\n        # Distinct from absence on purpose: a bash that exists but will not answer\n        # `--version` is a broken PATH entry or a hung filesystem, not a missing\n        # dependency, and doctor must say which.\n        check(\"Bash available\", False,\n              f\"`bash --version` did not respond within {PROBE_TIMEOUT}s\")"
+        },
+        {
+          "find": "    try:\n        result = subprocess.run([\"git\", \"--version\"], capture_output=True, text=True)\n        check(f\"Git: {result.stdout.strip()}\", True)\n    except FileNotFoundError:\n        check(\"Git available\", False, \"Git 2.0+ required\")",
+          "replace": "    try:\n        result = subprocess.run([\"git\", \"--version\"], capture_output=True, text=True,\n                                timeout=PROBE_TIMEOUT)\n        check(f\"Git: {result.stdout.strip()}\", True)\n    except FileNotFoundError:\n        check(\"Git available\", False, \"Git 2.0+ required\")\n    except subprocess.TimeoutExpired:\n        check(\"Git available\", False,\n              f\"`git --version` did not respond within {PROBE_TIMEOUT}s\")"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "src/claudekit/cli/main.py",
+      "description": "One named timeout for doctor's version probes rather than a literal at each call site, so the next probe added inherits it.",
+      "edits": [
+        {
+          "find": "_COLOUR = _colour_enabled()\n",
+          "replace": "_COLOUR = _colour_enabled()\n\n# How long doctor waits for a `--version` probe. Generous for a binary that is\n# working and short enough that a wedged one does not hang the command people run\n# when something is already broken.\nPROBE_TIMEOUT = 5\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "src/claudekit/cli/main.py",
+      "description": "The `elif args.list` and `else` bodies were byte-identical, so args.list was read and discarded. Behaviour preserved exactly -- listing IS the deliberate default when no backup is named -- with the intent written down instead of implied by a dead branch.",
+      "edits": [
+        {
+          "find": "    cmd = [sys.executable, str(script)]\n    if args.backup:\n        cmd.extend([\"--backup\", args.backup])\n    elif args.list:\n        cmd.append(\"--list\")\n    else:\n        cmd.append(\"--list\")",
+          "replace": "    cmd = [sys.executable, str(script)]\n    if args.backup:\n        cmd.extend([\"--backup\", args.backup])\n    else:\n        # No backup named -> list them. This is the deliberate default, not a\n        # fallthrough: restoring an unnamed backup would be a guess at which one.\n        # `--list` used to be appended by two byte-identical branches, which read\n        # `args.list` and threw the answer away.\n        cmd.append(\"--list\")"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "src/claudekit/cli/main.py",
+      "description": "cmd_config was the only reader in this module parsing JSON unguarded -- five siblings already catch JSONDecodeError -- so a truncated .claude/hooks/config.json produced a traceback from the command whose whole job is reading that file.",
+      "edits": [
+        {
+          "find": "    if args.key:\n        data = json.loads(config_path.read_text())\n        keys = args.key.split(\".\")",
+          "replace": "    if args.key:\n        try:\n            data = json.loads(config_path.read_text())\n        except (json.JSONDecodeError, OSError) as e:\n            # Every other reader in this module already guards this; cmd_config\n            # was the odd one out, and a traceback is not a diagnosis.\n            err(f\"Cannot read {config_path}: {e}\")\n            return 1\n        keys = args.key.split(\".\")"
+        }
+      ]
+    }
+  ]
+}

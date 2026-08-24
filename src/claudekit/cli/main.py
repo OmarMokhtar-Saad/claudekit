@@ -41,14 +41,44 @@ EXPECTED_SKILLS = 73
 # END GENERATED:counts
 
 # Colors
+def _colour_enabled() -> bool:
+    """Whether to emit ANSI at all, in the conventional precedence.
+
+    Unconditional colour was a real defect, not a style question: every `ck`
+    command wrote escape codes into pipes, files and CI logs, where nothing
+    renders them. `FORCE_COLOR` wins because a caller that deliberately pipes
+    `ck` into a pager or a colour-aware CI viewer must be able to ask for them
+    back; `NO_COLOR` (any value, per no-color.org) beats the tty check because it
+    is an explicit refusal.
+    """
+    if os.environ.get("FORCE_COLOR") or os.environ.get("CLICOLOR_FORCE"):
+        return True
+    if os.environ.get("NO_COLOR") is not None:
+        return False
+    try:
+        return bool(sys.stdout.isatty())
+    except (AttributeError, ValueError):
+        # A replaced or closed stdout (pytest capture, a wedged pipe) is not a
+        # terminal, and must not raise out of module import.
+        return False
+
+
+_COLOUR = _colour_enabled()
+
+# How long doctor waits for a `--version` probe. Generous for a binary that is
+# working and short enough that a wedged one does not hang the command people run
+# when something is already broken.
+PROBE_TIMEOUT = 5
+
+
 class C:
-    RED = '\033[0;31m'
-    GREEN = '\033[0;32m'
-    YELLOW = '\033[1;33m'
-    BLUE = '\033[0;34m'
-    CYAN = '\033[0;36m'
-    BOLD = '\033[1m'
-    NC = '\033[0m'
+    RED = '\033[0;31m' if _COLOUR else ''
+    GREEN = '\033[0;32m' if _COLOUR else ''
+    YELLOW = '\033[1;33m' if _COLOUR else ''
+    BLUE = '\033[0;34m' if _COLOUR else ''
+    CYAN = '\033[0;36m' if _COLOUR else ''
+    BOLD = '\033[1m' if _COLOUR else ''
+    NC = '\033[0m' if _COLOUR else ''
 
 def info(msg): print(f"{C.BLUE}[*]{C.NC} {msg}")
 def ok(msg): print(f"{C.GREEN}[✓]{C.NC} {msg}")
@@ -322,11 +352,18 @@ def cmd_doctor(args):
 
     # Bash version
     try:
-        result = subprocess.run(["bash", "--version"], capture_output=True, text=True)
+        result = subprocess.run(["bash", "--version"], capture_output=True, text=True,
+                                timeout=PROBE_TIMEOUT)
         bash_ver = result.stdout.split("\n")[0]
         check(f"Bash available: {bash_ver[:60]}", True)
     except FileNotFoundError:
         check("Bash available", False, "Bash 4.0+ required")
+    except subprocess.TimeoutExpired:
+        # Distinct from absence on purpose: a bash that exists but will not answer
+        # `--version` is a broken PATH entry or a hung filesystem, not a missing
+        # dependency, and doctor must say which.
+        check("Bash available", False,
+              f"`bash --version` did not respond within {PROBE_TIMEOUT}s")
 
     # Shell-lint tooling (used by the repo's own DoD gate, not installed by default)
     shellcheck_path = shutil.which("shellcheck")
@@ -337,10 +374,14 @@ def cmd_doctor(args):
 
     # Git
     try:
-        result = subprocess.run(["git", "--version"], capture_output=True, text=True)
+        result = subprocess.run(["git", "--version"], capture_output=True, text=True,
+                                timeout=PROBE_TIMEOUT)
         check(f"Git: {result.stdout.strip()}", True)
     except FileNotFoundError:
         check("Git available", False, "Git 2.0+ required")
+    except subprocess.TimeoutExpired:
+        check("Git available", False,
+              f"`git --version` did not respond within {PROBE_TIMEOUT}s")
 
     # .claude directory
     claude_dir = Path(".claude")
@@ -714,9 +755,11 @@ def cmd_rollback(args):
     cmd = [sys.executable, str(script)]
     if args.backup:
         cmd.extend(["--backup", args.backup])
-    elif args.list:
-        cmd.append("--list")
     else:
+        # No backup named -> list them. This is the deliberate default, not a
+        # fallthrough: restoring an unnamed backup would be a guess at which one.
+        # `--list` used to be appended by two byte-identical branches, which read
+        # `args.list` and threw the answer away.
         cmd.append("--list")
     if args.force:
         cmd.append("--force")
@@ -1833,7 +1876,13 @@ def cmd_config(args):
         return 1
 
     if args.key:
-        data = json.loads(config_path.read_text())
+        try:
+            data = json.loads(config_path.read_text())
+        except (json.JSONDecodeError, OSError) as e:
+            # Every other reader in this module already guards this; cmd_config
+            # was the odd one out, and a traceback is not a diagnosis.
+            err(f"Cannot read {config_path}: {e}")
+            return 1
         keys = args.key.split(".")
         val = data
         for k in keys:

@@ -1,0 +1,16 @@
+{
+  "plan": "cli-live-findings-04-changelog",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "description": "Three of the four fixes are user-visible CLI behaviour, and the colour change can break a consumer that greps for escape sequences -- so it is stated as a migration note rather than buried.",
+      "edits": [
+        {
+          "find": "## [Unreleased]\n",
+          "add_after": "\n### Fixed\n\n- **`ck` no longer writes ANSI escape codes into pipes, files and CI logs.** Colour was\n  unconditional, so every command emitted escapes whether or not anything could render\n  them. It now follows the conventional precedence: `NO_COLOR` set to any value disables\n  colour (per no-color.org), a non-tty `stdout` disables it, and `FORCE_COLOR` /\n  `CLICOLOR_FORCE` turn it back on — for the caller who deliberately pipes into a\n  colour-aware pager or CI viewer. **If you were grepping `ck` output for escape\n  sequences, that will no longer match; grep the plain marks (`[✓]`, `[✗]`, `[-]`) or set\n  `FORCE_COLOR=1`.** One of this repo's own tests was doing exactly that, and it was\n  asserting the defect as if it were the contract.\n\n- **`ck doctor` no longer hangs on a wedged `bash` or `git`.** Both version probes ran with\n  `capture_output` and no timeout, so a binary that never exits hung the command people run\n  *when something is already wrong* — with no output at all. Both now time out after 5\n  seconds, and a timeout is reported as its own condition (\"did not respond\") rather than as\n  a missing dependency: installed-but-not-answering is a broken PATH entry or a hung mount,\n  and needs a different fix than installing bash.\n\n- **`ck config <key>` reports a broken `config.json` instead of raising a traceback.** It\n  was the only JSON reader in the CLI with no guard around `json.loads` — five siblings\n  already had one — so a truncated `.claude/hooks/config.json` produced a Python traceback\n  from the command whose entire job is reading that file. Now: the path, the parser's\n  message, exit 1. A missing *key* is still reported distinctly from an unreadable *file*.\n\n- **`ck rollback` with neither `--backup` nor `--list`** behaves exactly as before (it\n  lists), but the two byte-identical branches that produced that behaviour are now one,\n  with the reason written down: restoring an unnamed backup would be a guess at which one.\n  `--list` was being read from the parsed args and thrown away.\n"
+        }
+      ]
+    }
+  ]
+}

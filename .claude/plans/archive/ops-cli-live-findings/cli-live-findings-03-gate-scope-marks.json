@@ -1,0 +1,16 @@
+{
+  "plan": "cli-live-findings-03-gate-scope-marks",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_gate_scope.py",
+      "description": "These two assertions encoded the defect as the contract: they matched raw ANSI in output captured through a PIPE, i.e. they required doctor to emit escape codes where nothing can render them. Now that colour respects NO_COLOR/tty, they assert the plain verdict marks -- which is what this file's own comment says it wants ('match the verdict line, not the exit code') and is what a reader of the failure message will see.",
+      "edits": [
+        {
+          "find": "# doctor prints colourised status marks; match the verdict line, not the exit code.\nOK_MARK = \"\\033[0;32m[\\u2713]\\033[0m\"\nFAIL_MARK = \"\\033[0;31m[\\u2717]\\033[0m\"",
+          "replace": "# doctor prints status marks; match the verdict line, not the exit code.\n# NOT colourised here on purpose: `_run` captures through a pipe, and since\n# 2026-08-24 doctor honours NO_COLOR and a non-tty stdout, so no escape codes are\n# emitted into a capture. The previous form embedded the raw ANSI and therefore\n# asserted the old defect -- that colour was unconditional -- as if it were the\n# contract. Set FORCE_COLOR in the env if a test ever needs the coloured form.\nOK_MARK = \"[\\u2713]\"\nFAIL_MARK = \"[\\u2717]\""
+        }
+      ]
+    }
+  ]
+}
