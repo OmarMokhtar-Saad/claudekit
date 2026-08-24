@@ -98,3 +98,19 @@ def test_hlog_keeps_arguments_past_the_second():
         subprocess.run(["bash", "-c", script, "-", str(logf), str(HOOKS)],
                        capture_output=True, text=True)
         assert "one two three" in logf.read_text()
+
+
+@pytest.mark.parametrize("name", sorted(DELEGATED))
+def test_a_missing_lib_sh_stays_silent(tmp_path, name):
+    """The `[ -f ... ] &&` source guard promises graceful degradation; `log() { hlog "$@"; }`
+    removed it. With `lib.sh` absent the hook printed "hlog: command not found" on stderr
+    for every log call -- the old body ended in `2>/dev/null`. A no-op `hlog` fallback keeps
+    the promise the guard makes. Mutation: delete the `command -v hlog` line and this fails.
+    """
+    solo = tmp_path / "solo"
+    solo.mkdir()
+    shutil.copy(HOOKS / name, solo / name)
+    env = dict(os.environ, ECC_HOOK_PROFILE=DELEGATED[name])
+    proc = subprocess.run(["bash", str(solo / name)], cwd=str(solo), input="{}",
+                          capture_output=True, text=True, env=env)
+    assert "command not found" not in proc.stderr, proc.stderr

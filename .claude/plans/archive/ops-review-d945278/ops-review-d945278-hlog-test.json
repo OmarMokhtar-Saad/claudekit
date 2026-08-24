@@ -1,0 +1,15 @@
+{
+  "plan": "review-d945278",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_hook_log_delegation.py",
+      "edits": [
+        {
+          "find": "        assert \"one two three\" in logf.read_text()\n",
+          "add_after": "\n\n@pytest.mark.parametrize(\"name\", sorted(DELEGATED))\ndef test_a_missing_lib_sh_stays_silent(tmp_path, name):\n    \"\"\"The `[ -f ... ] &&` source guard promises graceful degradation; `log() { hlog \"$@\"; }`\n    removed it. With `lib.sh` absent the hook printed \"hlog: command not found\" on stderr\n    for every log call -- the old body ended in `2>/dev/null`. A no-op `hlog` fallback keeps\n    the promise the guard makes. Mutation: delete the `command -v hlog` line and this fails.\n    \"\"\"\n    solo = tmp_path / \"solo\"\n    solo.mkdir()\n    shutil.copy(HOOKS / name, solo / name)\n    env = dict(os.environ, ECC_HOOK_PROFILE=DELEGATED[name])\n    proc = subprocess.run([\"bash\", str(solo / name)], cwd=str(solo), input=\"{}\",\n                          capture_output=True, text=True, env=env)\n    assert \"command not found\" not in proc.stderr, proc.stderr\n"
+        }
+      ]
+    }
+  ]
+}

@@ -21,7 +21,12 @@ to expect next time too.
 by omission). **Two new CI gates now run:** `scripts/check-fileguard-differential.py` and
 `tests/test_command_bash_parse.py`.
 
-**No independent review exists for any of it.** The review floor asks for a fresh adversarial
+**The independent review happened, and it found real defects.** See
+`plan-review-d945278.md`: 3 High, 4 Medium, 2 Low, all confirmed by execution. The two High
+findings were one defect seen twice — the file-guard allowlist was scoped far wider than claimed
+(thirteen real secret shapes lost their flag), and the differential gate written in the same
+commit could not see it because its corpus was drawn from the widening. Both fixed, both
+directions proven. **A second review of the fix has not been run.** Superseded note follows: The review floor asks for a fresh adversarial
 `code-reviewer`; none was spawned this period, so every plan says so. That is the largest open
 risk on this work, and it is not a small one — the file-guard allowlist is a deliberate widening
 of a deny-shaped decision.

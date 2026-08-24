@@ -160,9 +160,15 @@ class ExecutionLock:
 
     def acquire(self) -> bool:
         try:
-            self._fd = os.open(self.lock_path, os.O_CREAT | os.O_WRONLY | os.O_TRUNC)
+            # NO `O_TRUNC`. It truncates on OPEN, which happens BEFORE the `flock`
+            # below -- so a contender that goes on to be refused still empties the file
+            # first, destroying the holder's pid in exactly the situation the pid exists
+            # for. Measured: A holds and the file reads "45575"; B is refused; the file
+            # now reads "". Truncate only after the lock is actually ours.
+            self._fd = os.open(self.lock_path, os.O_CREAT | os.O_WRONLY, 0o600)
             if _HAS_FCNTL:
                 fcntl.flock(self._fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            os.ftruncate(self._fd, 0)
             os.write(self._fd, f"{os.getpid()}\n".encode())
             return True
         except (OSError, IOError):
@@ -186,19 +192,36 @@ class ExecutionLock:
             # under it, C creates a fresh path and acquires it -- and now B and C both
             # think they hold the lock while flocking two different inodes. Presence of
             # the file means nothing; the flock means everything, so there is nothing to
-            # clean up. What is left is a zero-byte file holding the last holder's pid
-            # (written in acquire()), which is a diagnostic rather than a leak.
+            # clean up. What is left is a small file holding the last holder's pid
+            # (written in acquire() after the lock is ours), which is a diagnostic rather
+            # than a leak. "Zero-byte file holding the pid" is what this comment said
+            # first, which is a contradiction -- and it was true in the worst case,
+            # because `O_TRUNC` let a refused contender empty it.
             #
             # On Windows there is no flock at all -- see the class docstring, which says
             # so plainly rather than implying protection that is not there. Not unlinking
             # does not fix that, and no msvcrt shim is being invented here on a platform
             # this project cannot test.
 
+    def _holder_hint(self) -> str:
+        """The pid recorded in the lock file, for the refusal message. Best-effort."""
+        try:
+            with open(self.lock_path, encoding="utf-8") as handle:
+                return handle.read().strip() or "unrecorded"
+        except OSError:
+            return "unreadable"
+
     def __enter__(self):
         if not self.acquire():
             raise RuntimeError(
                 f"Another CodeManifest executor is running (lock: {self.lock_path}).\n"
-                "Wait for it to finish or remove the lock file if stale."
+                f"It holds an flock; the file names its pid ({self._holder_hint()}). "
+                "Check whether that process is alive and wait for it.\n"
+                "DO NOT delete the lock file to get past this: the file's presence is not "
+                "the lock, the flock is, so removing it lets a second executor acquire a "
+                "fresh path while the first still holds the old one -- two executors, one "
+                "tree. If the pid is dead, the flock is already gone and a retry will "
+                "simply succeed."
             )
         return self
 

@@ -9,6 +9,13 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 [ -f "$SCRIPT_DIR/lib.sh" ] && . "$SCRIPT_DIR/lib.sh"
+# The `[ -f ... ] &&` guard above promises graceful degradation, and delegating
+# `log()` to `hlog` removes it: with `lib.sh` absent the hook printed
+# "hlog: command not found" to stderr on every call, where the old body was
+# `>> "$LOG" 2>/dev/null`. `lib.sh` ships beside the hooks so a fresh install is
+# fine; the exposure is a surgical fleet sync that copies one hook and not the
+# library. A no-op keeps the promise the guard makes.
+command -v hlog >/dev/null 2>&1 || hlog() { :; }
 HOOK_NAME="security-reminder"
 # `$SCRIPT_DIR`, not a cwd-relative path: this hook wrote to `.claude/hooks/hooks.log`
 # relative to the CURRENT DIRECTORY, so its log landed elsewhere (or nowhere) whenever

@@ -1,0 +1,35 @@
+{
+  "plan": "review-d945278",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "edits": [
+        {
+          "find": "  **This is a widening**, and every path it frees is enumerated with its reason in\n  `scripts/check-fileguard-differential.py`'s `DISCLOSED_WIDENINGS`.",
+          "replace": "  **This is a widening**, and it is reachable only when the file carries a\n  `cert|crt|pem|key|p12|pfx|pub` extension \u2014 every other category keeps its flag under\n  any directory name. Each freed path is enumerated with its reason in\n  `scripts/check-fileguard-differential.py`'s `DISCLOSED_WIDENINGS`.\n  **Corrected 2026-08-24, same day, after an adversarial review:** the first version of\n  this allowlist returned *before* all thirteen category branches, so a `tests/` or\n  `fixtures/` path component exempted `.env`, `credentials.json`, `id_rsa`, `wallet.dat`,\n  `terraform.tfstate`, `passwd`, k8s secrets and `pii/` as well \u2014 thirteen real secret\n  shapes went silent, and this entry's claim that every freed path was enumerated was\n  false, because a path-component rule frees an unbounded set. The differential gate\n  below did not catch it: its corpus contained no non-certificate secret under a test\n  component, having been drawn from the widening it was meant to police. Both are fixed\n  and both directions are now proven."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".ai/SESSION_STATE.md",
+      "edits": [
+        {
+          "find": "**No independent review exists for any of it.**",
+          "replace": "**The independent review happened, and it found real defects.** See\n`plan-review-d945278.md`: 3 High, 4 Medium, 2 Low, all confirmed by execution. The two High\nfindings were one defect seen twice \u2014 the file-guard allowlist was scoped far wider than claimed\n(thirteen real secret shapes lost their flag), and the differential gate written in the same\ncommit could not see it because its corpus was drawn from the widening. Both fixed, both\ndirections proven. **A second review of the fix has not been run.** Superseded note follows:"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/plans/archive/README.md",
+      "edits": [
+        {
+          "find": "| `ops-enforcement-trio/*.json` (count deliberately not written here",
+          "add_before": "| `ops-review-d945278/*.json` | Spent 2026-08-24, `--no-approval` disclosed (repairs the commit it reviews; no second reviewer was available). **Discharges the adversarial review of `d945278` \u2014 3 High, 4 Medium, 2 Low, every one CONFIRMED by execution.** The two High findings are one defect twice: the file-guard allowlist `return`ed before all thirteen category branches, so a `tests/`/`fixtures/` path component was not a certificate exemption but a blanket one \u2014 `tests/fixtures/.env`, `test/secrets.json`, `tests/id_rsa`, `testdata/wallet.dat`, `spec/fixtures/terraform.tfstate`, `home/tests/.aws/credentials`, `k8s/tests/secret-db.yaml` and five `pii/`/dump shapes all lost their flag \u2014 and the differential gate written in the same commit reported OK, because **its corpus contained no non-certificate secret under a test component: it was drawn from the widening it was meant to police.** Once that commit reached `origin/main`, `--baseline auto` would have resolved to a merge-base containing the allowlist, so the blindness was permanent, not a one-run miss. Fixes: the allowlist is nested inside `case \"${basename##*.}\" in cert|crt|pem|key|p12|pfx|pub)` so it is unreachable for any other extension; `pii/` and `production/*data*` became unconditional (the schema/model exclusion had been conjoined ahead of all three predicates, freeing `pii/model_training_data.csv`); 19 corpus paths added, one per category under a test component. Also: `O_TRUNC` truncated the lock file on OPEN, i.e. before the flock, so a REFUSED contender destroyed the holder's pid in the one case it exists for (now `ftruncate` after acquisition, mode `0600`); the refusal message told operators to \"remove the lock file if stale\", which reopens the race now that a leftover file is normal; the reversed e2e assertion was `if lock.exists(): assert ...` \u2014 guarded by the very property it should assert, so restoring the unlink left it green; the parse gate matched only ```` ```bash ````, so ```` ```sh ```` and ```` ``` bash ```` evaded it; and `log() { hlog \"$@\"; }` broke the graceful degradation its own `[ -f lib.sh ] &&` guard promises. **The lesson: every one of these is 'I proved the property I was thinking about, not the property that mattered.' Four mutation proofs of mine missed what one adversarial reader found in eight minutes.** Plan: `plan-review-d945278.md`. |\n"
+        }
+      ]
+    }
+  ]
+}

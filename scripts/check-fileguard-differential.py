@@ -45,6 +45,23 @@ LEGACY_GUARD_PATHS = ["templates/hooks/file-guard.sh"]
 # in scope -- so a change that widens INTO them shows up as a tightening.
 CORPUS: List[str] = [
     # Genuine secrets. A regression here is the failure this gate exists for.
+    #
+    # THE BLOCK BELOW EXISTS BECAUSE THIS CORPUS FAILED ONCE, ON THE FIRST WIDENING IT
+    # WAS WRITTEN TO POLICE. Not one of the original "genuine secret" entries carried a
+    # `test`/`tests`/`testdata`/`fixtures` path component, while all four component-bearing
+    # entries were `.pem`/`.key`/`.p12`/`.crt` -- the allowlist's own targets. So a rule
+    # that freed EVERY category under a test directory produced `OK: no undisclosed path
+    # lost its flag` while ten real secret shapes went silent. A corpus drawn from the
+    # change under test can only confirm it. Every category must therefore appear under a
+    # test component as well as at the root.
+    "tests/fixtures/.env", "test/secrets.json", "tests/credentials.json",
+    "tests/id_rsa", "testdata/wallet.dat", "spec/fixtures/terraform.tfstate",
+    "home/tests/.aws/credentials", "k8s/tests/secret-db.yaml",
+    "tests/fixtures/passwd", "__fixtures__/server.key.gpg", "testdata/prod.sqlite",
+    "tests/.npmrc", "test/.pgpass", "tests/fixtures/vault-secrets.yml",
+    # `pii/` and `production/` must not be freed by the schema/model exclusion.
+    "pii/model_training_data.csv", "pii/customer_model.csv", "pii/datamodel.csv",
+    "customer-data-schema-dump.sql", "model-customer-data.csv",
     ".env", ".env.local", "config/.env.production", "secrets.yaml",
     "id_rsa", "server.key", "private.pem", "client.p12", "cert.pfx",
     "keystore.json", "wallet.dat", "credentials.json", ".npmrc", ".pypirc",
@@ -185,6 +202,17 @@ def main() -> int:
         before_path = Path(tmp) / "file-guard.sh"
         before_path.write_text(shown.stdout, encoding="utf-8")
         after_path = repo_root / GUARD_PATH
+
+        # A baseline that classifies NOTHING makes every path look already-clean, so no
+        # regression can be recorded and the gate prints OK. `bash` on an empty script
+        # exits 0, so a truncated or empty `git show` would do exactly that. Refuse to
+        # trust a baseline that cannot flag a canonical secret.
+        for canary in (".env", "id_rsa"):
+            if classify(before_path, canary) is None:
+                print("FAIL: the baseline guard does not flag %s -- it is empty, "
+                      "truncated or broken, and comparing against it would pass "
+                      "vacuously." % canary)
+                return 1
 
         regressions: List[Tuple[str, str]] = []
         disclosed: List[Tuple[str, str]] = []

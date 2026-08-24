@@ -552,11 +552,17 @@ def test_executor_lock_refuses_a_second_run_and_does_not_block_the_next(project,
     # fresh path and acquired that, leaving two executors live. So the property asserted
     # here is the one E2E-31 asked for -- the next run is not blocked -- plus the reason
     # the file is worth keeping.
+    # UNCONDITIONAL, both halves. This was `if lock.exists(): assert ...isdigit()` --
+    # guarded by exactly the property it should have been asserting, so restoring the
+    # `os.unlink` in `release()` made the branch dead and left this test green. An
+    # assertion whose guard is the condition under test cannot fail.
     lock = project / ".codemanifest.lock"
-    if lock.exists():
-        assert lock.read_text(encoding="utf-8").strip().isdigit(), \
-            "the lock file that is no longer unlinked must carry the holder pid, or it " \
-            "is litter rather than a diagnostic"
+    assert lock.exists(), \
+        "release() must LEAVE the lock file: unlinking it is the race (a contender can " \
+        "hold an flock on the unlinked inode while a third process acquires a fresh path)"
+    assert lock.read_text(encoding="utf-8").strip().isdigit(), \
+        "the retained lock file must carry the holder pid, or it is litter rather than " \
+        "a diagnostic"
 
 
 def test_wired_edit_chain_blocks_a_cross_project_edit(project, tmp_path):

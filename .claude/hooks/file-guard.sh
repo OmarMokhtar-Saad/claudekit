@@ -46,20 +46,34 @@ classify() {
     # An allowlist rather than a narrower denylist, deliberately: hard rule 6 calls this
     # a speed bump, and a speed bump needs a marked exit or people drive around it.
     #
-    # Narrow on purpose. A `public`/`pub` STEM (not substring: `publickeys.pem` is not
-    # freed), a test/fixture/example/sample PATH COMPONENT (not substring: `latest.pem`
-    # is not freed), and the two conventional CA bundle names.
-    case "$basename" in
-        public.*|*.pub|ca-bundle.*|ca-certificates.*)
-            echo ""; return ;;
-    esac
-    case "/$filepath" in
-        */test/*|*/tests/*|*/testdata/*|*/fixtures/*|*/spec/fixtures/*|*/__fixtures__/*)
-            echo ""; return ;;
-    esac
-    case "$basename" in
-        example.*|sample.*|dummy.*)
-            echo ""; return ;;
+    # SCOPED TO THE EXTENSION SET THAT MOTIVATED IT. The first version of this allowlist
+    # (2026-08-24, same day) `return`ed before branches 1-13, so a `test`/`fixtures` path
+    # component was not a certificate exemption -- it was a blanket exemption from ALL
+    # thirteen categories. An adversarial review executed it and found ten regressions,
+    # every one a real secret shape: `tests/fixtures/.env`, `test/secrets.json`,
+    # `tests/credentials.json`, `tests/id_rsa`, `testdata/wallet.dat`,
+    # `spec/fixtures/terraform.tfstate`, `k8s/tests/secret-db.yaml` and three under `pii/`.
+    # A checked-in `.env` under `tests/fixtures/` and a `terraform.tfstate` under
+    # `testdata/` are the two commonest real shapes of a leaked secret, and both went
+    # silent. The differential gate written in the same commit reported OK, because its
+    # corpus was drawn from the widening it was meant to police.
+    #
+    # So the gate is now the extension itself: the allowlist is reachable ONLY for the
+    # certificate/key extensions whose false positives justified it. `pub` is in the set
+    # because `id_rsa.pub` is the canonical public-key case; nothing else changes.
+    case "${basename##*.}" in
+        cert|crt|pem|key|p12|pfx|pub)
+            # Narrow on purpose, and STEM/COMPONENT matching, never substring:
+            # `publickeys.pem`, `samples.key` and `latest.pem` all stay flagged.
+            case "$basename" in
+                public.*|*.pub|ca-bundle.*|ca-certificates.*|example.*|sample.*|dummy.*)
+                    echo ""; return ;;
+            esac
+            case "/$filepath" in
+                */test/*|*/tests/*|*/testdata/*|*/fixtures/*|*/spec/fixtures/*|*/__fixtures__/*)
+                    echo ""; return ;;
+            esac
+            ;;
     esac
 
     # 1. Env files
@@ -149,13 +163,20 @@ classify() {
     fi
 
     # 12. Production data
-    # `*"customer"*"data"*` matched `customer_data_schema.sql` -- a SCHEMA is a
-    # description of data, not data. Same for a model doc. Narrowed by excluding the
-    # two words that mean "shape of", rather than by dropping the pattern.
-    if [[ "$basename" != *schema* ]] && [[ "$basename" != *model* ]] && \
-       { [[ "$filepath" == *"production/"*"data"* ]] || \
-         [[ "$filepath" == *"customer"*"data"* ]] || \
-         [[ "$filepath" == *"pii/"* ]]; }; then
+    # `production/*data*` and `pii/*` are UNCONDITIONAL. The schema/model exclusion below
+    # exists only to stop `*"customer"*"data"*` matching `customer_data_schema.sql`, and
+    # the first version of it was conjoined ahead of all three predicates -- so it also
+    # vetoed `pii/`, freeing `pii/model_training_data.csv` (ML training data in a PII
+    # directory: real data, freed by a rule justified as "a schema describes data").
+    # An exclusion may never be wider than the predicate it corrects.
+    if [[ "$filepath" == *"production/"*"data"* ]] || [[ "$filepath" == *"pii/"* ]]; then
+        echo "production-data"; return
+    fi
+    # Anchored to the `-schema.`/`_schema.` and `-model.`/`_model.` SHAPES, not to the bare
+    # substrings: `customer-data-schema-dump.sql` is a dump -- it IS data -- and stays
+    # flagged, where a bare `*schema*` freed it.
+    if [[ "$filepath" == *"customer"*"data"* ]] &&
+       [[ "$basename" != *[-_]schema.* ]] && [[ "$basename" != *[-_]model.* ]]; then
         echo "production-data"; return
     fi
 
