@@ -1,0 +1,53 @@
+{
+  "plan": "008-b4-03-reviewer-taxonomy",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/HANDOFF_PROTOCOL.md",
+      "description": "The canonical taxonomy. Findings gate before score, so a high score cannot approve past an open blocker -- which is the ambiguity that let batch 2's round-1 verdict be REVISE at 84 while two files' tables both said CONDITIONAL.",
+      "edits": [
+        {
+          "find": "## Pipeline Flow Reference",
+          "add_before": "---\n\n## Reviewer Decision Taxonomy\n\n**One definition, referenced everywhere.** Ten files defined their own before task 008\nbatch 4, and two of them contradicted: `commands/review.md` mapped a score below 70 to\n`REVISE` while `agents/reviewer.md` mapped the same score to `REJECTED`, and\n`reviewer.md` declared four decisions in its anchored block but only three in its\nsummary template and three score bands — leaving `REVISE`, which\n`operations/scripts/review-record.py` accepts, with no band at all. That is not\ntheoretical: batch 2's round-1 verdict came back `REVISE` at 84, which both files' own\ntables would have called `CONDITIONAL`.\n\nThe four values are exhaustive and mutually exclusive. **Findings decide first, score\nsecond** — a score cannot approve past an open blocker:\n\n| Decision | Condition | What happens next |\n|---|---|---|\n| `APPROVED` | score >= 90 **and** zero open CRITICAL or MAJOR | Proceed. Open MINORs are suggestions; record them, do not gate on them. |\n| `CONDITIONAL` | score >= 70, only MINOR findings open | Proceed **after** fixing the named MINORs. No new review round — the fixes are mechanical and need no re-verification. |\n| `REVISE` | >= 1 open CRITICAL or MAJOR that is fixable in place, **at any score** | Fix, then a new round reads **only the diff** since this verdict. This is the verdict for \"the approach is right, the execution has a hole\". |\n| `REJECTED` | score < 70, **or** a finding that invalidates the approach itself, **or** any AUTO-REJECT trigger: no `ops.json`, invalid `ops.json`, or destructive operations with no rollback | Re-plan. Not a fix-and-resubmit; the artifact goes back to the planner. |\n\n`review-record.py` enforces exactly these four spellings (`VALID_DECISIONS`), and only\n`APPROVED` authorises `execute-json-ops.py` to run. A verdict the parser cannot read\ncannot gate execution, so the anchored block is mandatory:\n\n```\n=== REVIEW ===\nSCORE: <integer 0-100>\nDECISION: APPROVED | CONDITIONAL | REVISE | REJECTED\n- [CRITICAL|MAJOR|MINOR] <one finding per line, file:line + what is wrong>\n=== END REVIEW ===\n```\n\n**Round ceiling is 3.** Stop at the first round with zero blocking findings. If you\nreach the ceiling with something still open, report that to the owner rather than\nopening a fourth round.\n\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/reviewer.md",
+      "description": "Delete the contradicting local bands (>=90/70-89/<70 with no REVISE band) and the 3-value summary template that disagreed with this same file's own 4-value anchored block; point at the one definition.",
+      "edits": [
+        {
+          "find": "DECISION: APPROVED | CONDITIONAL | REJECTED\n",
+          "replace": "DECISION: APPROVED | CONDITIONAL | REVISE | REJECTED\n"
+        },
+        {
+          "find": "## Decision Logic\n\n### Score >= 90: APPROVED",
+          "replace": "## Decision Logic\n\n**Decision values, score bands and the anchored block: [HANDOFF_PROTOCOL.md](HANDOFF_PROTOCOL.md#reviewer-decision-taxonomy) is the single definition.** Do not restate the bands here — ten files did, and two contradicted each other.\n\nWhat each decision means for the handoff:\n\n### Score >= 90: APPROVED"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/commands/review.md",
+      "description": "Its formula contradicted reviewer.md outright (REVISE = score < 70 here, REJECTED = score < 70 there) and REJECTED appeared in no formula at all. Deleted, not annotated — single-sourcing means the local copy goes away, and the deletion is net-negative on the line budget the same batch introduces.",
+      "edits": [
+        {
+          "find": "APPROVED = score >= 90 AND CRITICAL_MAJOR_COUNT == 0\nCONDITIONAL = score 70-89 OR CRITICAL_MAJOR_COUNT > 0\nREVISE = score < 70",
+          "replace": "**Decision values and score bands: [HANDOFF_PROTOCOL.md](../agents/HANDOFF_PROTOCOL.md#reviewer-decision-taxonomy) is the single definition — findings gate before score.**"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/commands/refine.md",
+      "description": "refine.md's only copy of the formula is the prompt actually sent to the reviewer agent, so it carries the canonical rules INLINE -- a prompt cannot follow a markdown link. It was a FOURTH distinct definition (`REJECTED = no ops.json`); that trigger is real per CLAUDE.md's quality gates, so the canonical taxonomy absorbs it rather than dropping it. One edit, not two: an earlier draft had a second edit whose anchor the first consumed -- the intra-operation coupling batch 2's review flagged.",
+      "edits": [
+        {
+          "find": "DECISION RULES:\nAPPROVED = score >= 90 AND CRITICAL_MAJOR_COUNT == 0\nCONDITIONAL = score 70-89 OR CRITICAL_MAJOR_COUNT > 0\nREVISE = score < 70\nREJECTED = no ops.json, invalid ops.json, destructive ops without rollback$DELTA_BLOCK\"",
+          "replace": "DECISION RULES (canonical: .claude/agents/HANDOFF_PROTOCOL.md#reviewer-decision-taxonomy; reproduced inline because a prompt cannot follow a link):\nAPPROVED = score >= 90 AND zero open CRITICAL/MAJOR\nCONDITIONAL = score >= 70 AND only MINOR open\nREVISE = >= 1 open CRITICAL/MAJOR, fixable in place, at ANY score\nREJECTED = score < 70, or the approach is invalid, or AUTO-REJECT (no ops.json, invalid ops.json, destructive ops without rollback)$DELTA_BLOCK\""
+        }
+      ]
+    }
+  ]
+}

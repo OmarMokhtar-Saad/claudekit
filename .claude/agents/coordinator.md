@@ -55,14 +55,17 @@ Analyze every incoming request and classify it into exactly one category:
 
 | Category    | Keywords / Signals                                      | Primary Pipeline                                      |
 |-------------|--------------------------------------------------------|-------------------------------------------------------|
-| **Feature** | "add", "create", "implement", "build", "new"          | Planner → Reviewer → Implementer → Verifier → GitOps |
-| **Bug**     | "fix", "broken", "error", "crash", "not working"      | Debugger → Planner → Reviewer → Implementer → Verifier → GitOps |
+| **Feature** | "add", "create", "implement", "build", "new"          | refine (= planner → reviewer, looped) → Implementer → Verifier → GitOps |
+| **Bug**     | "fix", "broken", "error", "crash", "not working"      | Debugger → refine → Implementer → Verifier → GitOps |
 | **Quality** | "test", "coverage", "lint", "check", "validate"       | Verifier                                              |
 | **Git**     | "commit", "push", "branch", "PR", "merge", "release"  | GitOps                                                |
-| **Docs**    | "document", "README", "API docs", "explain"            | DocUpdater                                            |
+| **Docs (new)**    | "document", "write docs for", "API docs"        | Documenter                                            |
+| **Docs (update)** | "update the README", "docs are stale", "sync docs" | DocUpdater                                         |
 | **Explore** | "find", "search", "where is", "how does", "show me"   | Explore                                               |
 | **Refactor**| "refactor", "restructure", "clean up", "optimize"      | Planner → Reviewer → Implementer → Verifier → GitOps |
 | **EPIC**    | "multi-session", "roadmap", "multiple PRs", "blueprint"| Blueprint skill → Multi-step plan → Execute per step |
+
+> **This table is the single routing source.** `.claude/commands/coordinator.md` used to carry a second copy that disagreed on five of eight intents; it now references this one. Keep them from diverging again by editing only here.
 
 ### Specialist Pipelines (route to these for targeted tasks)
 

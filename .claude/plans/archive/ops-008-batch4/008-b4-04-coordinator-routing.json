@@ -1,0 +1,31 @@
+{
+  "plan": "008-b4-04-coordinator-routing",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/coordinator.md",
+      "description": "This is now the ONE routing table. Two corrections it needed to be canonical: `refine` is named as what it is (the looped planner → reviewer cycle, per commands/coordinator.md's own note) instead of spelling the pair out as if it were a manual sequence; and the single Docs row is split by mode, which is why HANDOFF_PROTOCOL.md has carried two Docs pipelines all along while this table offered one destination.",
+      "edits": [
+        {
+          "find": "| **Feature** | \"add\", \"create\", \"implement\", \"build\", \"new\"          | Planner → Reviewer → Implementer → Verifier → GitOps |\n| **Bug**     | \"fix\", \"broken\", \"error\", \"crash\", \"not working\"      | Debugger → Planner → Reviewer → Implementer → Verifier → GitOps |\n| **Quality** | \"test\", \"coverage\", \"lint\", \"check\", \"validate\"       | Verifier                                              |\n| **Git**     | \"commit\", \"push\", \"branch\", \"PR\", \"merge\", \"release\"  | GitOps                                                |\n| **Docs**    | \"document\", \"README\", \"API docs\", \"explain\"            | DocUpdater                                            |",
+          "replace": "| **Feature** | \"add\", \"create\", \"implement\", \"build\", \"new\"          | refine (= planner → reviewer, looped) → Implementer → Verifier → GitOps |\n| **Bug**     | \"fix\", \"broken\", \"error\", \"crash\", \"not working\"      | Debugger → refine → Implementer → Verifier → GitOps |\n| **Quality** | \"test\", \"coverage\", \"lint\", \"check\", \"validate\"       | Verifier                                              |\n| **Git**     | \"commit\", \"push\", \"branch\", \"PR\", \"merge\", \"release\"  | GitOps                                                |\n| **Docs (new)**    | \"document\", \"write docs for\", \"API docs\"        | Documenter                                            |\n| **Docs (update)** | \"update the README\", \"docs are stale\", \"sync docs\" | DocUpdater                                         |"
+        },
+        {
+          "find": "### Specialist Pipelines (route to these for targeted tasks)",
+          "replace": "> **This table is the single routing source.** `.claude/commands/coordinator.md` used to carry a second copy that disagreed on five of eight intents; it now references this one. Keep them from diverging again by editing only here.\n\n### Specialist Pipelines (route to these for targeted tasks)"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/commands/coordinator.md",
+      "description": "Replace the duplicate table with a reference plus the two conventions this file was the only source of, so nothing is lost by deleting it.",
+      "edits": [
+        {
+          "find": "| User Intent                        | Primary Agent  | Follow-up Agent(s)         |\n|------------------------------------|----------------|----------------------------|\n| \"Build feature X\"                  | refine         | implementer -> verifier    |\n| \"Fix bug Y\"                        | debugger       | refine -> implementer      |\n| \"Refactor module Z\"               | refine         | implementer -> verifier    |\n| \"Why is X broken?\"                | debugger       | (optional) refine          |\n| \"Add tests for X\"                 | refine         | implementer -> verifier    |\n| \"Refactor X\"                      | refine         | implementer -> verifier    |\n| \"Document X\"                      | documenter     | (none)                     |\n| \"Deploy / release\"                | gitOps         | verifier -> gitOps         |\n| \"Review my changes\"               | verifier       | (optional) reviewer        |\n| \"Create PR\"                       | gitOps         | (none)                     |\n| \"Full project setup\"              | refine         | implementer -> verifier -> documenter -> gitOps |",
+          "replace": "**The routing table lives in one place: [.claude/agents/coordinator.md](../agents/coordinator.md#task-classification).**\nA second copy lived here and the two disagreed on five of eight intents (a feature lost\n`Verifier → GitOps`; a bug lost both; docs split between `DocUpdater` and `documenter`).\nRoute from the canonical table. Two conventions it now states, which lived only here:\n`refine` **is** the looped planner → reviewer cycle, not an alternative to it; and docs\nroute by mode — new documentation to `documenter`, updates to `doc-updater`."
+        }
+      ]
+    }
+  ]
+}

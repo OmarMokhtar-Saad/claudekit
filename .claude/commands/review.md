@@ -83,9 +83,7 @@ ISSUES:
 === END REVIEW ===
 
 DECISION RULES:
-APPROVED = score >= 90 AND CRITICAL_MAJOR_COUNT == 0
-CONDITIONAL = score 70-89 OR CRITICAL_MAJOR_COUNT > 0
-REVISE = score < 70
+**Decision values and score bands: [HANDOFF_PROTOCOL.md](../agents/HANDOFF_PROTOCOL.md#reviewer-decision-taxonomy) is the single definition — findings gate before score.**
 REJECTED = no ops.json, invalid ops.json, destructive ops without rollback$DELTA_BLOCK"
 
 review_output=$(echo "$REVIEWER_MSG" | claude -p --agent reviewer --model sonnet --allowedTools "Read,Grep,Glob")
