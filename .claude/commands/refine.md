@@ -200,7 +200,7 @@ them yourself. Respond in EXACTLY this format: [format block below]."
 
 Immediately after parsing iteration 1's verdict, RECORD it so later iterations can delta:
 ```bash
-python3 .claude/operations/scripts/review-record.py write "$PLAN_FILE" "$OPS_FILE" --from-review <saved-output-file>
+python3 .claude/operations/scripts/review-record.py write "$PLAN_FILE" "$OPS_FILE" --from-review "<saved-output-file>"
 ```
 
 **Iterations 2+ — DELTA review (this is the token fix; a full re-review of a large plan

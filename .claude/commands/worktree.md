@@ -26,7 +26,7 @@ You MUST load and apply the following skills before proceeding:
 All lifecycle operations go through the manager script — never improvise raw
 `git worktree` commands:
 
-```bash
+```text
 python3 .claude/operations/scripts/worktree-manager.py create <slug> [--base <ref>] [--copy <path>] [--json]
 python3 .claude/operations/scripts/worktree-manager.py list [--json]
 python3 .claude/operations/scripts/worktree-manager.py remove <slug> [--force]
@@ -54,7 +54,7 @@ What the manager guarantees:
 ```bash
 python3 .claude/operations/scripts/worktree-manager.py prune
 git worktree list                       # verify
-git branch -D agent/<slug>              # only after merge or explicit abandon
+git branch -D "agent/<slug>"            # only after merge or explicit abandon
 ```
 
 ## Usage Examples

@@ -25,10 +25,10 @@ index never outranks the current files.
 | `drifted` | 3 |
 | `approved` | 49 |
 | `planned` | 9 |
-| `executed` | 9 |
+| `executed` | 13 |
 | `not_started` | 15 |
 | `legacy` | 3 |
-| **total** | **88** |
+| **total** | **92** |
 
 ## Plans
 
@@ -46,6 +46,7 @@ index never outranks the current files.
 | `.claude/plans/plan-adapt-eject-interaction.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-agent-tool-grants.md` | `approved` | 1 |  |
 | `.claude/plans/plan-approval-machinery.md` | `approved` | 1 |  |
+| `.claude/plans/plan-backlog-triage-pass.md` | `executed` | 2 |  |
 | `.claude/plans/plan-callsite-audit-line-level.md` | `approved` | 1 |  |
 | `.claude/plans/plan-canonical-skill-wins.md` | `approved` | 1 |  |
 | `.claude/plans/plan-capability-tiers-audit.md` | `approved` | 1 |  |
@@ -53,6 +54,7 @@ index never outranks the current files.
 | `.claude/plans/plan-capability-tiers.md` | `drifted` | 1 |  |
 | `.claude/plans/plan-ck-adapt.md` | `approved` | 1 |  |
 | `.claude/plans/plan-code-review-triage.md` | `approved` | 1 |  |
+| `.claude/plans/plan-command-bash-placeholders.md` | `executed` | 2 |  |
 | `.claude/plans/plan-context-budget-lazy-skills.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-context-economy-rules.md` | `approved` | 1 |  |
 | `.claude/plans/plan-day-one-blockers.md` | `approved` | 1 |  |
@@ -73,6 +75,7 @@ index never outranks the current files.
 | `.claude/plans/plan-hook-profiles.md` | `approved` | 1 |  |
 | `.claude/plans/plan-install-receipts.md` | `approved` | 1 |  |
 | `.claude/plans/plan-installer-python-hooks.md` | `approved` | 1 |  |
+| `.claude/plans/plan-intermittent-sighting.md` | `executed` | 1 |  |
 | `.claude/plans/plan-iron-law-enforcement-hook.md` | `approved` | 1 |  |
 | `.claude/plans/plan-iron-law-scope-and-hook-count.md` | `approved` | 1 |  |
 | `.claude/plans/plan-issue-ledger.md` | `approved` | 1 |  |
@@ -103,6 +106,7 @@ index never outranks the current files.
 | `.claude/plans/plan-review-round-history.md` | `approved` | 1 |  |
 | `.claude/plans/plan-review-truthfulness-batch.md` | `approved` | 1 |  |
 | `.claude/plans/plan-run-command-op.md` | `not_started` | 0 |  |
+| `.claude/plans/plan-session-close.md` | `executed` | 2 |  |
 | `.claude/plans/plan-shellcheck-version-drift.md` | `planned` | 1 |  |
 | `.claude/plans/plan-silent-failure-lint.md` | `approved` | 1 |  |
 | `.claude/plans/plan-skill-loading-contract.md` | `approved` | 1 |  |

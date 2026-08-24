@@ -1,0 +1,71 @@
+{
+  "plan": "command-bash-placeholders-01",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/commands/worktree.md",
+      "description": "An angle-bracket placeholder sitting in a shell command position is not a placeholder to bash -- it is an input REDIRECTION. An agent copy-pasting this line runs the command with its arguments swallowed and stdin redirected from a file literally named after the placeholder. Quoted, it parses, still reads as a placeholder, and fails loudly instead of strangely if pasted verbatim.",
+      "edits": [
+        {
+          "find": "git branch -D agent/<slug>              # only after merge or explicit abandon",
+          "replace": "git branch -D \"agent/<slug>\"            # only after merge or explicit abandon"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/commands/prp-commit.md",
+      "description": "An angle-bracket placeholder sitting in a shell command position is not a placeholder to bash -- it is an input REDIRECTION. An agent copy-pasting this line runs the command with its arguments swallowed and stdin redirected from a file literally named after the placeholder. Quoted, it parses, still reads as a placeholder, and fails loudly instead of strangely if pasted verbatim.",
+      "edits": [
+        {
+          "find": "git add <specific matched files>",
+          "replace": "git add \"<specific matched files>\""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/commands/prp-implement.md",
+      "description": "An angle-bracket placeholder sitting in a shell command position is not a placeholder to bash -- it is an input REDIRECTION. An agent copy-pasting this line runs the command with its arguments swallowed and stdin redirected from a file literally named after the placeholder. Quoted, it parses, still reads as a placeholder, and fails loudly instead of strangely if pasted verbatim.",
+      "edits": [
+        {
+          "find": "python3 -m py_compile <file>                    # Python",
+          "replace": "python3 -m py_compile \"<file>\"                  # Python"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/commands/gan-build.md",
+      "description": "An angle-bracket placeholder sitting in a shell command position is not a placeholder to bash -- it is an input REDIRECTION. An agent copy-pasting this line runs the command with its arguments swallowed and stdin redirected from a file literally named after the placeholder. Quoted, it parses, still reads as a placeholder, and fails loudly instead of strangely if pasted verbatim.",
+      "edits": [
+        {
+          "find": "[ -f \"pyproject.toml\" ] && { python3 -m py_compile <generated files>; echo \"py_compile exit: $?\"; }",
+          "replace": "[ -f \"pyproject.toml\" ] && { python3 -m py_compile \"<generated files>\"; echo \"py_compile exit: $?\"; }"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/commands/refine.md",
+      "description": "An angle-bracket placeholder sitting in a shell command position is not a placeholder to bash -- it is an input REDIRECTION. An agent copy-pasting this line runs the command with its arguments swallowed and stdin redirected from a file literally named after the placeholder. Quoted, it parses, still reads as a placeholder, and fails loudly instead of strangely if pasted verbatim.",
+      "edits": [
+        {
+          "find": "python3 .claude/operations/scripts/review-record.py write \"$PLAN_FILE\" \"$OPS_FILE\" --from-review <saved-output-file>",
+          "replace": "python3 .claude/operations/scripts/review-record.py write \"$PLAN_FILE\" \"$OPS_FILE\" --from-review \"<saved-output-file>\""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/commands/review.md",
+      "description": "An angle-bracket placeholder sitting in a shell command position is not a placeholder to bash -- it is an input REDIRECTION. An agent copy-pasting this line runs the command with its arguments swallowed and stdin redirected from a file literally named after the placeholder. Quoted, it parses, still reads as a placeholder, and fails loudly instead of strangely if pasted verbatim.",
+      "edits": [
+        {
+          "find": "python3 .claude/operations/scripts/review-record.py write \"$PLAN_FILE\" \"<resolved-ops-path>\" --from-review <saved-output-file>",
+          "replace": "python3 .claude/operations/scripts/review-record.py write \"$PLAN_FILE\" \"<resolved-ops-path>\" --from-review \"<saved-output-file>\""
+        }
+      ]
+    }
+  ]
+}

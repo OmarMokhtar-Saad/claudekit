@@ -1,0 +1,16 @@
+{
+  "plan": "session-close-02-overwrite-note",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".ai/SESSION_STATE.md",
+      "description": "Record the plan-file overwrite in the resume point. A mistake that only git status could catch belongs where the next session reads first, not only in an archive row.",
+      "edits": [
+        {
+          "find": "**No independent review this period.** The review floor asks for a fresh `code-reviewer` on\nevery diff; this session was instructed not to spawn agents, so nothing here carries an\nindependent verdict. Each plan says so in its own words.\n",
+          "replace": "**No independent review this period.** The review floor asks for a fresh `code-reviewer` on\nevery diff; this session was instructed not to spawn agents, so nothing here carries an\nindependent verdict. Each plan says so in its own words.\n\n**One author error, recorded where it will be hit again.** An early draft of the triage plan\nwas written with a heredoc onto `.claude/plans/plan-code-review-triage.md`, which **already\nexisted** — Workstream 13, unexecuted — and was silently overwritten. Restored from `HEAD`;\nthat work re-slugged to `plan-backlog-triage-pass.md`. **Nothing in the operations engine\nwas involved to prevent it**: a shell heredoc onto a plan path bypasses every control this\nrepo has, and `git status` showing `M` rather than `??` was the only signal. Workstream 13\nalso disagrees with the pass that clobbered it — 103 findings (all severities) to 75 (P2/P3\nonly), and it holds `.ai/**` out of scope — so **the BACKLOG entry this pass edited may be\nthe wrong home for those verdicts.** That is an owner call and is flagged in both files.\n"
+        }
+      ]
+    }
+  ]
+}

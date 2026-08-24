@@ -1,0 +1,27 @@
+{
+  "plan": "command-bash-placeholders-02-synopsis-fences",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/commands/prp-implement.md",
+      "description": "This block is a SYNOPSIS, not a script: `<commands from plan>` is the whole content, and as bash it parses as a redirection. Fenced as text, which is what it always was. The quoted `\"<file>\"` above stays bash because that block does run.",
+      "edits": [
+        {
+          "find": "```bash\n# Run commands from plan's \"Verification Commands\" section\n<commands from plan>\n```",
+          "replace": "```text\n# Run commands from plan's \"Verification Commands\" section\n<commands from plan>\n```"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/commands/worktree.md",
+      "description": "A usage synopsis with <slug>/[--base <ref>] placeholders in command position: as bash, six competing redirections (SC2261). Fenced as text -- it documents an interface, it is not a script to run.",
+      "edits": [
+        {
+          "find": "```bash\npython3 .claude/operations/scripts/worktree-manager.py create <slug> [--base <ref>] [--copy <path>] [--json]",
+          "replace": "```text\npython3 .claude/operations/scripts/worktree-manager.py create <slug> [--base <ref>] [--copy <path>] [--json]"
+        }
+      ]
+    }
+  ]
+}

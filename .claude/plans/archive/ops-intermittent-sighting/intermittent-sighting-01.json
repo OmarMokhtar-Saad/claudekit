@@ -1,0 +1,16 @@
+{
+  "plan": "intermittent-sighting-01",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".ai/BACKLOG.md",
+      "description": "Record today's sighting of the documented receipt-clears-checkpoint intermittent, and that its diagnostic was lost a second time -- this time to `tail -4` rather than /dev/null. The entry's own warning was about the redirect; the general form is that any summary-only invocation defeats the capture, so the rule is stated explicitly for the next runner.",
+      "edits": [
+        {
+          "find": "  **NEW SIGNATURE 2026-08-24** (full-suite run, worktree at `bd49c7f`, ~1 failure in 9):\n",
+          "replace": "  **SIGHTING 2026-08-24 (second), and the evidence was LOST AGAIN — by me, in a new\n  costume.** One full-suite run on `main` at the paper-trail/gate work failed exactly one\n  member of the family, `test_receipt_via_cli_clears_the_checkpoint`, at\n  `tests/test_reflection_ledger.py:409` (the `pending_checkpoint(SESSION) is None`\n  assertion, not the argparse shape). It did **not** reproduce: the test passed standalone\n  and the whole file passed 54/54 immediately after, and a full re-run was **2902 passed,\n  0 failed**. Consistent with every prior sighting.\n  **The `receipt_diagnostic()` capture fired and I threw it away**: the run was piped\n  through `tail -4` to keep the transcript small, so only the summary line survived. This\n  entry already records the identical mistake made with `/dev/null` on 2026-08-21 and says\n  it \"is precisely the mistake this item exists to prevent\" — so the lesson is that the\n  capture is not the weak link, **the harness around the run is**, and a summary-only\n  invocation defeats it just as completely as a redirect to nowhere.\n  **Rule for the next runner: never pipe a full-suite run through `tail`/`head` when this\n  family can fire. Write the whole output to a file and summarise from the file.** No cause\n  is claimed and no retry was added.\n\n  **NEW SIGNATURE 2026-08-24** (full-suite run, worktree at `bd49c7f`, ~1 failure in 9):\n"
+        }
+      ]
+    }
+  ]
+}

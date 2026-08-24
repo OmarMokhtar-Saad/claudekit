@@ -151,7 +151,7 @@ After the loop exits with CONVERGED status, run verification:
 # Apply the artifact (write files or apply diff)
 # Then run appropriate checks for the project type — capture EXIT CODES, not truncated tails:
 [ -f "tsconfig.json" ] && { npx tsc --noEmit; echo "tsc exit: $?"; }
-[ -f "pyproject.toml" ] && { python3 -m py_compile <generated files>; echo "py_compile exit: $?"; }
+[ -f "pyproject.toml" ] && { python3 -m py_compile "<generated files>"; echo "py_compile exit: $?"; }
 [ -f "go.mod" ] && { go build ./...; echo "go build exit: $?"; }
 # And run the test suite for the touched areas — compiling is not passing:
 # <project test command scoped to affected modules>; echo "tests exit: $?"

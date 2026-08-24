@@ -75,7 +75,7 @@ After each file modified:
 # Syntax check (language-appropriate)
 tsc --noEmit 2>&1 | grep "error TS" | wc -l   # TypeScript
 # OR
-python3 -m py_compile <file>                    # Python
+python3 -m py_compile "<file>"                  # Python
 # OR
 go build ./...                                  # Go
 ```
@@ -86,7 +86,7 @@ If a syntax error appears, fix it immediately before moving to the next step.
 
 After all steps complete, run the plan's verification commands:
 
-```bash
+```text
 # Run commands from plan's "Verification Commands" section
 <commands from plan>
 ```

@@ -48,7 +48,7 @@ Map the user's description to specific files. Examples:
 
 ```bash
 # Stage only the relevant files (NOT git add -A)
-git add <specific matched files>
+git add "<specific matched files>"
 
 # Verify what's staged
 git diff --cached --stat
