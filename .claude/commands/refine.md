@@ -328,8 +328,10 @@ iteration += 1
 → continue to Cycle A (planner revision with reviewer_feedback)
 ```
 
-Note: `CONDITIONAL` (score 70–89) and `REVISE` (score < 70) are revision signals — they fall
-through to the increment and loop back. They do NOT trigger early exit.
+Note: `CONDITIONAL` and `REVISE` are both revision signals — they fall through to the
+increment and loop back. They do NOT trigger early exit. Which one applies is decided by
+the findings, not by the score alone; see the canonical taxonomy in
+`.claude/agents/HANDOFF_PROTOCOL.md#reviewer-decision-taxonomy`.
 
 Print per-cycle summary:
 ```
@@ -422,11 +424,7 @@ Suggested actions:
 |------|---------|-------------|
 | `--max-iter N` | 5 | Maximum plan-review cycles before escalation |
 
-## Usage Examples
-
-- `/refine "add rate limiting to the API"` — up to 5 iterations, threshold 90
-- `/refine "refactor auth middleware" --max-iter 3` — tighter iteration budget
-- `/refine "implement user notification system"` — full refinement with automatic convergence
+`/refine "add rate limiting to the API"` · `/refine "refactor auth" --max-iter 3`
 
 ## Notes
 

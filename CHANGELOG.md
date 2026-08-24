@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **`ck lint` now runs in CI.** It shipped as an advisory gate; it is now enforced
+  alongside the other corpus invariants (component counts, model policy, context
+  floor, plan artifacts). A command that grows past its recorded size, a skill
+  that grants `Agent` without a named waiver, or two skills competing for one
+  prompt now fail the build rather than being noticed later.
+
 - **New: `ck lint` checks the prompt corpus itself.** Every existing gate checked a
   *derived* artifact — counts, the registry, the model policy, the context floor —
   and nothing checked the prose. Three rules: `command-budget`,

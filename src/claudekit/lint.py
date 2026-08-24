@@ -280,32 +280,42 @@ SPAWNING_TOOLS = ("Agent", "Task")
 
 
 def check_skill_agent_costume(root):
-    """A skill granted the Agent tool is an agent wearing a skill's frontmatter.
+    """A spawning skill must follow the doc that governs spawning.
 
-    Skills are loaded INTO an agent's context; one that can spawn agents inverts that
-    and routes around `.claude/agents/_shared/INVOCATION.md`, where spawning is scoped.
+    The first version of this rule asserted that a skill granted `Agent` "belongs in
+    .claude/agents/". That was WRONG, and `.claude/agents/_shared/INVOCATION.md:4`
+    says so outright: "Any command, agent, or skill that spawns another agent MUST
+    follow this. If another doc disagrees with this one, this one wins." A spawning
+    skill is a sanctioned category, so a rule demanding its conversion contradicted the
+    corpus's own single source of truth -- and would have driven two correct skills into
+    a pointless refactor.
 
-    Two skills in this corpus already do it, and they are WAIVED by name in
-    `.claude/lint-baseline.json` rather than hidden: both are genuine orchestration
-    prose, converting them is agent-corpus work this rule's batch does not own, and a
-    rule that failed the DoD on day one would be turned off. Same ratchet shape as the
-    command budget -- record what exists, block what is new.
+    What INVOCATION.md actually mandates is that the spawner follow IT: scope with
+    `--allowedTools`, never `--dangerously-skip-permissions`. So the rule now checks the
+    thing that carries the risk -- a skill that spawns agents while citing none of the
+    contract that constrains spawning. Measured when it was narrowed: `gan-harness` and
+    `opensource-pipeline` both granted `Agent` and both cited nothing, which is a real
+    defect the original framing would have "fixed" by deleting the skills.
     """
     findings = []
     waived = load_waivers(root)
     for path in skill_files(root):
         name = os.path.basename(os.path.dirname(path))
-        tools = declared_tools(_read(path))
+        body = _read(path)
+        tools = declared_tools(body)
         offending = sorted(t for t in tools if t in SPAWNING_TOOLS)
         if not offending:
             continue
         if name in waived:
             continue
+        if "INVOCATION.md" in body:
+            continue
         findings.append(Finding(
             "skill-agent-costume", os.path.relpath(path, root),
-            "grants %s. A skill that can spawn agents belongs in .claude/agents/, "
-            "where INVOCATION.md scopes what it may spawn. If this is deliberate, add "
-            "it to `skill_agent_waivers` in .claude/%s with a reason."
+            "grants %s but cites no spawning contract. INVOCATION.md is the single "
+            "source of truth for how anything spawns an agent -- reference it and "
+            "scope the spawn with `--allowedTools`, or drop the grant. A waiver in "
+            "`skill_agent_waivers` (.claude/%s) is the escape hatch, with a reason."
             % (" and ".join(offending), BASELINE_NAME)))
     return findings
 

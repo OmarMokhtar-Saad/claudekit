@@ -120,6 +120,22 @@ defects discovered during execution. See CHANGELOG `[Unreleased]` and the plans 
   "checkpoint contents" this entry asked for. **Still no cause is claimed**; no retry was
   added and the assertion itself is unchanged. Do not close this until a CAPTURED failure
   explains it.
+
+  **NEW SIGNATURE 2026-08-24** (full-suite run, worktree at `bd49c7f`, ~1 failure in 9):
+  the CLI variant failed with **argparse exit 2** — `reflection.py receipt: error:
+  argument --session-token: expected one argument` — not with the exit-0 /
+  checkpoint-not-cleared shape every prior sighting had. Two candidate values were
+  checked and BOTH ruled out: `read_session_token` returns `Optional[str]` and never
+  `""`; a `None` token raises `TypeError` in the parent before `subprocess` is reached,
+  and `""` parses cleanly to `rc=0`. So the observed error requires the token argument to
+  have been absent or option-shaped, which neither return value explains. `record_failure`
+  calling `ensure_session_token` and **discarding its return** (`reflection.py:606`) is
+  noted as a place where a silent token-creation failure would go unobserved — a LEAD,
+  not a diagnosis. **Capture widened accordingly**: the CLI variant had no
+  `receipt_diagnostic()` at all despite being a recorded family member since the
+  2026-08-22 widening, and the diagnostic recorded no argv — the one field that would
+  have settled this signature. Both fixed; the next occurrence arrives with the evidence
+  this one lacked. Still no cause claimed.
 - [ ] **Triage `review/code-review.md` — 76 unfixed P2/P3 findings, and one of them just cost real
   damage.** The ops engine's mode-stripping bug was documented there at `:286` as a P2 **with its fix
   already written out** ("Copy the original mode … before replace"), and left unfixed until it
@@ -550,7 +566,7 @@ to its bytes.
 - [ ] **[LOW] Degenerate ops filenames collide onto record key `_`.** `.json`, `.ops.json`, `plan-.json`, `ops-.json` all key as `_` under `ops_slug()` while `_approval_slugs()` returns `[]`. The disagreement direction is fail-CLOSED (NO RECORD), so it is a curiosity rather than a hole.
 
 - [ ] **[MEDIUM] Two skills are agents in skill costume, waived in `ck lint` rather than fixed.** `gan-harness` and `opensource-pipeline` both declare `allowed-tools` containing `Agent`, so they can spawn agents while being loaded INTO an agent's context — routing around `.claude/agents/_shared/INVOCATION.md`, where spawning is scoped. Both are genuine orchestration prose (Generator → fresh Evaluator → Adjudicator; Sanitizer → Forker → Packager), so converting them is agent-corpus work that belongs with task 008 batch 3, not with batch 4 which added the rule. Waived BY NAME with a reason each in `.claude/lint-baseline.json`; `ck lint` fails on any un-waived grant. Fix: convert both to agents, or state that an orchestration skill is a deliberate category and narrow the rule's rationale.
-- [ ] **[LOW] `tests/test_reflection_ledger.py::test_receipt_via_cli_clears_the_checkpoint` is flaky.** Measured 2026-08-24 on the real tree at `bd49c7f`, unrelated to any batch: roughly 1 failure in 9 runs, `read_session_token(SESSION)` returning empty so the CLI sees `--session-token` with no value and argparse exits 2. Passes in isolation; only observed inside a full-suite run. Fix: make the fixture wait for (or create) the token file rather than assuming the session-start hook has written it.
+- [ ] **[LOW] ~~`test_receipt_via_cli_clears_the_checkpoint` is flaky~~ — FOLDED into the UNEXPLAINED-intermittent entry above, where it already belonged.** Filing it separately was a duplicate: that entry was WIDENED on 2026-08-22 to cover this exact test as a member of the family. The stated cause here — `read_session_token` returning empty — was **checked and does not hold**: `read_session_token` returns `Optional[str]`, never `""`; a `None` token raises `TypeError` in the parent before `subprocess` runs, and an empty string parses fine (`rc=0`). So neither value produces the observed `--session-token: expected one argument`. **No cause is claimed.** What the 2026-08-24 observation does add is a NEW SIGNATURE, recorded on the entry above.
 - [ ] **[LOW] `ck lint` is not wired into CI.** Batch 4 shipped the gate and the DoD runs it by hand; adding it to `.github/workflows/ci.yml` is a separate, owner-gated decision because it turns three advisory rules into a merge blocker.
 - [ ] **[LOW] `declared_tools()` does not read five valid-YAML forms.** Multiline flow list, CRLF block list, a blank line before the first block item, a duplicate `allowed-tools` key (it reads the first, YAML takes the last), and a scoped grant like `Agent(*)`. Each verified to have 0 occurrences in the corpus, and listed in `src/claudekit/lint.py` as a measured boundary rather than an oversight. Adversarial-only: a skill author determined to hold `Agent` can take a waiver instead.
 

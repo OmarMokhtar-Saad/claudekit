@@ -191,12 +191,41 @@ class TestSkillAgentCostume:
             "impostor": _skill("x " * 400, "Read, Agent")})
         assert len(lint.check_skill_agent_costume(root)) == 1
 
-    def test_the_shipped_corpus_has_exactly_the_two_known_waivers(self):
-        """NOT "the corpus is clean" -- it is not. Two skills genuinely grant `Agent`
-        and are waived by name with a reason. Asserting cleanliness here is what made
-        the first version of this test vacuous."""
-        assert lint.load_waivers(REPO) == {"gan-harness", "opensource-pipeline"}
+    def test_the_shipped_corpus_passes_on_MERIT_not_on_waivers(self):
+        """The waivers are gone, and that is the point.
+
+        History worth keeping, because it took three tries to get this rule right:
+        v1 asserted "the corpus is clean" and was VACUOUS -- it read only one of the two
+        YAML forms, so it passed over two real `Agent` grants. v2 read both forms, found
+        them, and WAIVED them by name. v3 narrowed the rule after reading
+        `.claude/agents/_shared/INVOCATION.md:4`, which sanctions "any command, agent, or
+        skill that spawns another agent" and wins any disagreement -- so v1's premise
+        (a spawning skill is misplaced) was wrong, and the two skills were not defects
+        for spawning. They WERE defective for spawning while citing no spawning
+        contract, which is now what the rule checks and what both were fixed to satisfy.
+
+        So: no waivers, and the rule still fires. Both halves asserted."""
+        assert lint.load_waivers(REPO) == set()
         assert lint.check_skill_agent_costume(REPO) == []
+        for name in ("gan-harness", "opensource-pipeline"):
+            path = os.path.join(REPO, ".claude", "skills", name, "SKILL.md")
+            with open(path, encoding="utf-8") as fh:
+                body = fh.read()
+            assert "Agent" in lint.declared_tools(body), name
+            assert "INVOCATION.md" in body, name
+
+    def test_a_spawning_skill_that_cites_nothing_is_still_flagged(self, tmp_path):
+        """The narrowing must not become a blanket pass."""
+        root = _corpus(tmp_path, skills={"loose": _skill("d", "Read, Agent")})
+        findings = lint.check_skill_agent_costume(root)
+        assert len(findings) == 1
+        assert "cites no spawning contract" in findings[0].message
+
+    def test_citing_the_contract_clears_it(self, tmp_path):
+        body = ("---\nname: ok\ndescription: d\nallowed-tools: Read, Agent\n---\n\n"
+                "# OK\n\nSpawns per .claude/agents/_shared/INVOCATION.md.\n")
+        root = _corpus(tmp_path, skills={"ok": body})
+        assert lint.check_skill_agent_costume(root) == []
 
 
 class TestDuplicateTriggers:

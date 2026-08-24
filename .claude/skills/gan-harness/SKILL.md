@@ -13,6 +13,15 @@ allowed-tools:
 ---
 
 # GAN Harness Skill
+---
+
+## Spawning contract
+
+This skill spawns agents, which `.claude/agents/_shared/INVOCATION.md` governs: it is the
+single source of truth for how anything in ClaudeKit spawns an agent, and it applies to
+commands, agents **and skills** alike. Follow it rather than restating it here. In
+particular: scope every spawn with `--allowedTools` to the narrowest set the stage needs,
+and never pass `--dangerously-skip-permissions` (banned corpus-wide and CI-gated).
 
 Implements a Generative Adversarial Network–inspired multi-agent loop for producing high-quality outputs through adversarial refinement. Three distinct roles ensure no single agent anchors the result.
 

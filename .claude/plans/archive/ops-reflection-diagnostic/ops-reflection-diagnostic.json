@@ -1,0 +1,28 @@
+{
+  "plan": "ops-reflection-diagnostic",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_reflection_ledger.py",
+      "description": "The diagnostic captures ledger state but not the command line or the token, and a 2026-08-24 occurrence produced a signature it could not explain: `--session-token: expected one argument`, argparse exit 2. Neither None nor an empty string reproduces that (both checked: None raises TypeError in the parent, '' parses fine), so the argv is the one piece of evidence that would settle it and it was not being recorded. Adds argv + token shape, and takes no position on cause.",
+      "edits": [
+        {
+          "find": "def receipt_diagnostic(ref, proc, env):",
+          "replace": "def receipt_diagnostic(ref, proc, env, argv=None, token=None):"
+        },
+        {
+          "find": "        \"cli returncode: %s\" % proc.returncode,",
+          "replace": "        \"argv:           %s\" % json.dumps(argv),\n        \"token repr:     %r (len=%s)\" % (\n            token, \"n/a\" if token is None else len(token)),\n        \"cli returncode: %s\" % proc.returncode,"
+        },
+        {
+          "find": "    def test_receipt_via_cli_clears_the_checkpoint(self, ref):\n        fail(ref, target=\"a\")\n        fail(ref, target=\"b\")\n        token = ref.read_session_token(SESSION)\n        payload = json.dumps(valid_receipt(ref))\n        proc = self.run(\"receipt\", \"--session-id\", SESSION,\n                        \"--session-token\", token, \"--json\", payload)\n        assert proc.returncode == 0, proc.stderr\n        assert ref.pending_checkpoint(SESSION) is None",
+          "replace": "    def test_receipt_via_cli_clears_the_checkpoint(self, ref):\n        \"\"\"A recorded member of the receipt-clears-checkpoint intermittent family\n        (.ai/BACKLOG.md), so it carries the same diagnostic as its json-stdin sibling.\n        It did not, and a 2026-08-24 full-suite occurrence was therefore undiagnosable:\n        argparse exited 2 with `--session-token: expected one argument`, a signature the\n        ledger-only capture cannot explain and which neither a None nor an empty token\n        reproduces.\"\"\"\n        fail(ref, target=\"a\")\n        fail(ref, target=\"b\")\n        token = ref.read_session_token(SESSION)\n        payload = json.dumps(valid_receipt(ref))\n        argv = [\"receipt\", \"--session-id\", SESSION,\n                \"--session-token\", token, \"--json\", payload]\n        proc = self.run(*argv)\n        assert proc.returncode == 0, receipt_diagnostic(\n            ref, proc, dict(os.environ), argv, token)\n        assert ref.pending_checkpoint(SESSION) is None, receipt_diagnostic(\n            ref, proc, dict(os.environ), argv, token)"
+        },
+        {
+          "find": "        assert proc.returncode == 0, receipt_diagnostic(ref, proc, env)\n        assert ref.pending_checkpoint(SESSION) is None, receipt_diagnostic(\n            ref, proc, env)",
+          "replace": "        argv = [\"receipt\", \"--session-id\", SESSION,\n                \"--session-token\", token, \"--json-stdin\"]\n        assert proc.returncode == 0, receipt_diagnostic(\n            ref, proc, env, argv, token)\n        assert ref.pending_checkpoint(SESSION) is None, receipt_diagnostic(\n            ref, proc, env, argv, token)"
+        }
+      ]
+    }
+  ]
+}

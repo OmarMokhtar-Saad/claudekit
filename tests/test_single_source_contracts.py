@@ -71,6 +71,46 @@ class TestTheTaxonomyHasOneDefinition:
         assert "HANDOFF_PROTOCOL.md" in _read(os.path.join(ROOT, path)), path
 
 
+    #: Score-band restatements, in every punctuation batch 4's first sweep missed.
+    #: The literal `REVISE = score < 70` was removed from three files and a FIFTH copy
+    #: survived in `commands/refine.md` reading "`REVISE` (score < 70)" -- same claim,
+    #: different punctuation, so an exact-string assertion sailed past it. This is the
+    #: third instance of `claim-not-corrected-everywhere-it-was-made`, which is the
+    #: count at which the class was said to earn a mechanical check. This is it.
+    BAND_PATTERNS = [
+        re.compile(r"REVISE.{0,12}(?:score\s*)?[<\u2264]\s*70", re.I),
+        re.compile(r"score.{0,6}[<\u2264]\s*70.{0,20}REVISE", re.I),
+        re.compile(r"CONDITIONAL.{0,20}70\s*[-\u2013]\s*89", re.I),
+        re.compile(r"70\s*[-\u2013]\s*89.{0,20}CONDITIONAL", re.I),
+    ]
+
+    def _corpus_files(self):
+        for rel in (".claude/agents", ".claude/commands", ".claude/skills"):
+            base = os.path.join(ROOT, rel)
+            for dirpath, _dirs, files in os.walk(base):
+                for name in files:
+                    if name.endswith(".md"):
+                        yield os.path.join(dirpath, name)
+
+    def test_no_file_restates_a_score_band_in_any_punctuation(self):
+        """The canonical taxonomy says findings gate BEFORE score -- an open
+        CRITICAL/MAJOR is REVISE at any score. Any file re-deriving a band from the
+        number alone contradicts that, however it is punctuated."""
+        hits = []
+        for path in self._corpus_files():
+            with open(path, encoding="utf-8", errors="replace") as fh:
+                body = fh.read()
+            if "HANDOFF_PROTOCOL.md#reviewer-decision-taxonomy" in body and \
+                    "single definition" in body:
+                continue          # the file that POINTS at the definition may quote it
+            for pattern in self.BAND_PATTERNS:
+                found = pattern.search(body)
+                if found:
+                    hits.append("%s: %r" % (
+                        os.path.relpath(path, ROOT), found.group(0)))
+        assert hits == [], "score bands restated outside the one definition: %s" % hits
+
+
 class TestTheRoutingTableHasOneDefinition:
     def test_the_agent_file_owns_the_table(self):
         body = _read(AGENT_COORD)

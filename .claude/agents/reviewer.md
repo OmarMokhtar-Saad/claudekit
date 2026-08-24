@@ -330,14 +330,14 @@ Use these Unicode blocks for progress bars:
 
 What each decision means for the handoff:
 
-### Score >= 90: APPROVED
+### APPROVED (typically score >= 90, and zero open CRITICAL/MAJOR)
 ```
 The plan meets quality standards.
 → Hand off to Implementer with approval stamp
 → Include any Notes (nice to have) as suggestions, not requirements
 ```
 
-### Score 70-89: CONDITIONAL APPROVAL
+### CONDITIONAL (only MINOR findings open)
 ```
 The plan is close but needs revisions.
 → Return to Planner with specific feedback
@@ -347,7 +347,7 @@ The plan is close but needs revisions.
 → This counts as one revision cycle
 ```
 
-### Score < 70: REJECTED
+### REJECTED (score < 70, or the approach itself is invalid)
 ```
 The plan has significant issues.
 → Return to Planner with detailed feedback
