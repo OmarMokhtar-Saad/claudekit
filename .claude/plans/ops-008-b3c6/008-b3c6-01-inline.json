@@ -1,0 +1,24 @@
+{
+  "plan": "008-b3c6-01-inline",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/coordinator.md",
+      "description": "The routing rubric moves inline, TRANSLATED to capability tiers. model-router.md named Haiku/Sonnet/Opus throughout while CLAUDE.md's policy says tiers only and model-policy.json is the one table -- so a verbatim fold would have imported exactly what the policy forbids. Two further sites named the removed agent: the Model Select routing row and the handoff-table row, the latter also naming vendor models in its output contract.",
+      "edits": [
+        {
+          "find": "- Every role's tier comes from `.claude/model-policy.json`; never pick a vendor model name by hand. Coordinator/decomposition and reviewers run `balanced`; planners run `most-capable` for architecture-heavy sub-plans and `balanced` otherwise (consult model-router when unsure); implementers and research run `fast`.",
+          "replace": "- Every role's tier comes from `.claude/model-policy.json`; never pick a vendor model name by hand. Coordinator/decomposition and reviewers run `balanced`; planners run `most-capable` for architecture-heavy sub-plans and `balanced` otherwise; implementers and research run `fast`.\n\n**When a task has no role row, score it.** Merged from the `model-router` agent, which is\ngone; the name resolves here through the registry `renamedAgents` alias map. **Translated\nto tiers, not transplanted:** that agent named Haiku/Sonnet/Opus throughout, which this\nrepo's own policy forbids — tiers are the vocabulary, and `model-policy.json` maps tier to\nmodel in exactly one place. Folding its table in verbatim would have imported the thing\nthe policy exists to prevent.\n\nScore each dimension 0–3, then sum (0–12):\n\n| Dimension | 0 | 1 | 2 | 3 |\n|---|---|---|---|---|\n| **Reasoning depth** | lookup, format, copy | single step, clear answer | multi-step, trade-offs | novel, adversarial, architectural |\n| **Output complexity** | < 200 tokens | 200–1000 | 1000–5000 (a file) | > 5000 (a feature) |\n| **Error cost** | trivially reversible | easily reversible | moderate to fix | expensive: security, migration, public API |\n| **Domain novelty** | clear precedent | slightly unusual | unfamiliar codebase | no best practice, requires synthesis |\n\n| Total | Tier |\n|---|---|\n| 0–3 | `fast` — simple, low-stakes, reversible |\n| 4–10 | `balanced` — standard engineering work |\n| 11–12 | `most-capable` — novel, high-stakes, deep reasoning |\n\n**Overrides beat the score:**\n- Security review of any kind → at least `balanced`, prefer `most-capable`\n- Code review for merge approval → `most-capable`; a cheap model missing a bug costs more than the tokens it saved\n- Documentation update → at most `balanced`\n- The routing decision itself → `fast`; recursive routing is silly\n\nThe 8–10 band collapsed into `balanced` on purpose: the old table's \"Sonnet (heavy)\" row\nnamed the same model as the row above it, so it was a distinction the tier vocabulary\ncannot express and the vendor vocabulary only appeared to."
+        },
+        {
+          "find": "| **Model Select**  | \"which model\", \"haiku or sonnet\", \"optimize cost\"           | Model Router |",
+          "replace": "| **Model Select**  | \"which model\", \"which tier\", \"optimize cost\"                | score it with § Model economy below, or `/model-route` |"
+        },
+        {
+          "find": "| **Model Router** | Task description | Model recommendation (haiku/sonnet/opus) + cost estimate |\n",
+          "replace": ""
+        }
+      ]
+    }
+  ]
+}

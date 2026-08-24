@@ -1,0 +1,16 @@
+{
+  "plan": "008-b3c6-04-alias",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/skills-registry.json",
+      "description": "Alias.",
+      "edits": [
+        {
+          "find": "    \"python-reviewer\": {",
+          "replace": "    \"model-router\": {\n      \"to\": \"coordinator\",\n      \"kind\": \"agent\"\n    },\n    \"python-reviewer\": {"
+        }
+      ]
+    }
+  ]
+}

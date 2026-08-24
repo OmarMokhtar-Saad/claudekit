@@ -79,10 +79,6 @@
       "accountable_for": "Supervising autonomous loops; pause on stagnation or error spirals.",
       "tier": "balanced"
     },
-    "model-router": {
-      "accountable_for": "Scoring a task and naming the capability tier it earns.",
-      "tier": "fast"
-    },
     "opensource-packager": {
       "accountable_for": "Generating open-source packaging for an already-sanitized repo.",
       "tier": "fast"

@@ -1,0 +1,10 @@
+{
+  "plan": "008-b3c6-03-delete",
+  "operations": [
+    {
+      "type": "file_delete",
+      "path": ".claude/agents/model-router.md",
+      "reason": "task 008 batch 3 cluster 6: its rubric is inline in coordinator.md, translated from vendor model names to capability tiers, and /model-route applies it directly. Enters `renamedAgents`."
+    }
+  ]
+}
