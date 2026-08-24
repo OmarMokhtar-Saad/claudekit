@@ -121,7 +121,7 @@ index never outranks the current files.
 | `.claude/plans/plan-token-dash.md` | `executed` | 6 |  |
 | `.claude/plans/plan-token-efficiency.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-token-waste-workflow-fixes.md` | `not_started` | 0 |  |
-| `.claude/plans/plan-triage-refresh.md` | `executed` | 8 |  |
+| `.claude/plans/plan-triage-refresh.md` | `executed` | 10 |  |
 | `.claude/plans/plan-uninstall-partial-owned-deadend.md` | `approved` | 1 |  |
 | `.claude/plans/plan-validator-base-normalisation.md` | `approved` | 1 |  |
 | `.claude/plans/plan-validator-comment-escape.md` | `approved` | 1 |  |

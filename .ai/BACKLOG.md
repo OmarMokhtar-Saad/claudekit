@@ -239,8 +239,13 @@ defects discovered during execution. See CHANGELOG `[Unreleased]` and the plans 
   executed *config* moves to `archive/` while **the plan stays at `.claude/plans/`** — moving the
   three plan documents would break the path resolution that comment exists to describe.
 
-- [ ] **Triage `review/code-review.md` — partially done 2026-08-24. 30 of 75 P2/P3 findings
-  verified: 19 already fixed, 11 still real. 45 unverified.**
+- [x] **Triage `review/code-review.md` — DONE. Pointer only; verdicts live in
+  `review/code-review-triage.md` (40 LIVE, 62 FIXED, 5 OBSOLETE, 1 UNVERIFIABLE at `d945278`).**
+
+  This headline used to read "30 of 75 P2/P3 findings verified ... 45 unverified", which the body
+  below already corrects — and leaving the wrong number in the *headline* is how the error
+  propagated in the first place, since that is the line a skim reads. A stale summary above an
+  accurate body is worse than no summary.
 
   **The count in this entry was wrong twice, and re-deriving it is the first lesson.** It
   read "76 unfixed P2/P3 findings"; a later grep for `P2|P3` returned **88**, which is a
