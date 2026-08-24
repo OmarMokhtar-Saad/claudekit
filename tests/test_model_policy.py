@@ -93,7 +93,7 @@ class ModelPolicyIsTheSourceOfTruth(unittest.TestCase):
     SHIPPED_MODELS = {
         "code-reviewer": "opus", "debugger": "opus", "planner": "opus",
         "security-scanner": "opus",
-        "build-error-resolver": "sonnet", "code-simplifier": "sonnet",
+        "build-error-resolver": "sonnet",
         "coordinator": "sonnet", "database-architect": "sonnet", "devops": "sonnet",
         "harness-optimizer": "sonnet", "loop-operator": "sonnet",
         "opensource-sanitizer": "sonnet", "performance-optimizer": "sonnet",

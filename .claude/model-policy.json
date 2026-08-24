@@ -35,10 +35,6 @@
       "accountable_for": "Adversarial review of an implementation diff; refute, do not approve.",
       "tier": "most-capable"
     },
-    "code-simplifier": {
-      "accountable_for": "Clarity and consistency of already-working code, behaviour preserved.",
-      "tier": "balanced"
-    },
     "coordinator": {
       "accountable_for": "Decomposition, file-ownership maps, and handoffs between agents.",
       "tier": "balanced",
@@ -114,7 +110,7 @@
       "tier": "balanced"
     },
     "refactor-cleaner": {
-      "accountable_for": "Dead code and duplicate removal, behaviour preserved.",
+      "accountable_for": "Dead code and duplicate removal, and simplification of code that is used, behaviour preserved either way.",
       "tier": "balanced"
     },
     "reviewer": {

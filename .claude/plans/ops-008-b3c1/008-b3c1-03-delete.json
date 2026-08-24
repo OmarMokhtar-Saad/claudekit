@@ -1,0 +1,10 @@
+{
+  "plan": "008-b3c1-03-delete",
+  "operations": [
+    {
+      "type": "file_delete",
+      "path": ".claude/agents/code-simplifier.md",
+      "reason": "task 008 batch 3 cluster 1: merged into refactor-cleaner in this same batch (union proven by token diff). The name enters the registry `renamedAgents` alias map -- the FIRST use of the mechanism batch 3 phase 0 landed, so a consumer sees a rename, not a deletion."
+    }
+  ]
+}

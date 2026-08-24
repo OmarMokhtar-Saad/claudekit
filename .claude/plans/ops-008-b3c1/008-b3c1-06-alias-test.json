@@ -1,0 +1,16 @@
+{
+  "plan": "008-b3c1-06-alias-test",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_agent_aliases.py",
+      "description": "Phase 0 asserted the alias map was empty because it shipped before the merges. Cluster 1 fills it, so the assertion inverts: the map must be non-empty AND every entry must satisfy the contract on disk. An empty map is indistinguishable from a map nothing reads.",
+      "edits": [
+        {
+          "find": "    def test_no_agent_aliases_exist_yet(self):\n        \"\"\"The mechanism lands BEFORE the merges that need it, so this is empty today.\n        Batch 3's first merge cluster is what fills it.\"\"\"\n        with open(os.path.join(REPO, \".claude\", \"skills\", \"skills-registry.json\"),\n                  encoding=\"utf-8\") as fh:\n            assert renamed_agents_map(json.load(fh)) == {}",
+          "replace": "    def test_the_mechanism_is_exercised_not_merely_present(self):\n        \"\"\"This asserted the map was EMPTY when phase 0 landed the mechanism ahead of\n        the merges that needed it. Cluster 1 filled it, which is the point -- and an\n        alias map with no entries is indistinguishable from one nothing reads, the\n        exact finding review made about the skills map when IT first shipped.\n\n        Every entry is checked against the contract rather than merely counted: the old\n        name must be gone from disk, and the target must exist in the namespace its\n        `kind` names.\"\"\"\n        with open(os.path.join(REPO, \".claude\", \"skills\", \"skills-registry.json\"),\n                  encoding=\"utf-8\") as fh:\n            aliases = renamed_agents_map(json.load(fh))\n        assert aliases, \"no agent alias recorded; batch 3 deleted an agent without one\"\n        for old, spec in aliases.items():\n            assert not os.path.isfile(\n                os.path.join(REPO, \".claude\", \"agents\", old + \".md\")), old\n            if spec[\"kind\"] == \"agent\":\n                target = os.path.join(REPO, \".claude\", \"agents\", spec[\"to\"] + \".md\")\n            else:\n                target = os.path.join(\n                    REPO, \".claude\", \"skills\", spec[\"to\"], \"SKILL.md\")\n            assert os.path.isfile(target), (old, spec)"
+        }
+      ]
+    }
+  ]
+}

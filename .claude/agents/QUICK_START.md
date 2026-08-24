@@ -171,7 +171,6 @@ Triggers: "find", "search", "where is", "how does"
     silent-failure-hunter.md → Error handling audit agent
     harness-optimizer.md     → .claude/ token optimization agent
     performance-optimizer.md → Performance bottleneck agent
-    code-simplifier.md       → Code complexity reduction agent
     typescript-reviewer.md   → TypeScript review specialist
     python-reviewer.md       → Python review specialist
     code-reviewer.md         → Actual code diff/PR review (not plan review)

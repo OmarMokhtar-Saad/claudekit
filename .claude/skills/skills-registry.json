@@ -2,6 +2,12 @@
   "version": "2.0",
   "lastUpdated": "2026-07-08",
   "description": "ClaudeKit skills registry \u2014 maps skills to agents",
+  "renamedAgents": {
+    "code-simplifier": {
+      "to": "refactor-cleaner",
+      "kind": "agent"
+    }
+  },
   "renamed": {
     "autonomous-loops": "autonomous-loop",
     "context-priming": "context-keeper",
@@ -711,7 +717,6 @@
     }
   ],
   "agentsWithoutSkills": [
-    "code-simplifier",
     "doc-updater",
     "harness-optimizer",
     "model-router",

@@ -1,0 +1,42 @@
+{
+  "plan": "008-b3c1-02-consumers",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/QUICK_START.md",
+      "description": "The agent inventory must not list an agent that is gone.",
+      "edits": [
+        {
+          "find": "    code-simplifier.md       → Code complexity reduction agent\n",
+          "replace": ""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/model-policy.json",
+      "description": "Drop the removed role and widen the survivor's accountability to cover what it absorbed. gen-model-policy.py --check gates this against the agent frontmatter, so it cannot silently drift.",
+      "edits": [
+        {
+          "find": "    \"code-simplifier\": {\n      \"accountable_for\": \"Clarity and consistency of already-working code, behaviour preserved.\",\n      \"tier\": \"balanced\"\n    },\n",
+          "replace": ""
+        },
+        {
+          "find": "    \"refactor-cleaner\": {\n      \"accountable_for\": \"Dead code and duplicate removal, behaviour preserved.\",\n      \"tier\": \"balanced\"\n    },",
+          "replace": "    \"refactor-cleaner\": {\n      \"accountable_for\": \"Dead code and duplicate removal, and simplification of code that is used, behaviour preserved either way.\",\n      \"tier\": \"balanced\"\n    },"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_model_policy.py",
+      "description": "The expected-tier table names the removed role.",
+      "edits": [
+        {
+          "find": "\"build-error-resolver\": \"sonnet\", \"code-simplifier\": \"sonnet\",",
+          "replace": "\"build-error-resolver\": \"sonnet\","
+        }
+      ]
+    }
+  ]
+}

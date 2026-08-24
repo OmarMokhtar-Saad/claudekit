@@ -143,9 +143,25 @@ class TestThisRepoIsStillClean:
                               capture_output=True, text=True)
         assert proc.returncode == 0, proc.stdout + proc.stderr
 
-    def test_no_agent_aliases_exist_yet(self):
-        """The mechanism lands BEFORE the merges that need it, so this is empty today.
-        Batch 3's first merge cluster is what fills it."""
+    def test_the_mechanism_is_exercised_not_merely_present(self):
+        """This asserted the map was EMPTY when phase 0 landed the mechanism ahead of
+        the merges that needed it. Cluster 1 filled it, which is the point -- and an
+        alias map with no entries is indistinguishable from one nothing reads, the
+        exact finding review made about the skills map when IT first shipped.
+
+        Every entry is checked against the contract rather than merely counted: the old
+        name must be gone from disk, and the target must exist in the namespace its
+        `kind` names."""
         with open(os.path.join(REPO, ".claude", "skills", "skills-registry.json"),
                   encoding="utf-8") as fh:
-            assert renamed_agents_map(json.load(fh)) == {}
+            aliases = renamed_agents_map(json.load(fh))
+        assert aliases, "no agent alias recorded; batch 3 deleted an agent without one"
+        for old, spec in aliases.items():
+            assert not os.path.isfile(
+                os.path.join(REPO, ".claude", "agents", old + ".md")), old
+            if spec["kind"] == "agent":
+                target = os.path.join(REPO, ".claude", "agents", spec["to"] + ".md")
+            else:
+                target = os.path.join(
+                    REPO, ".claude", "skills", spec["to"], "SKILL.md")
+            assert os.path.isfile(target), (old, spec)

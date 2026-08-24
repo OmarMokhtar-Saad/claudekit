@@ -1,0 +1,16 @@
+{
+  "plan": "008-b3c1-04-alias",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/skills-registry.json",
+      "description": "First entry in `renamedAgents`. kind=agent because the target is an agent; gen-registry.py refuses an alias whose old name is still on disk, so this config must run AFTER the delete.",
+      "edits": [
+        {
+          "find": "  \"renamed\": {",
+          "replace": "  \"renamedAgents\": {\n    \"code-simplifier\": {\n      \"to\": \"refactor-cleaner\",\n      \"kind\": \"agent\"\n    }\n  },\n  \"renamed\": {"
+        }
+      ]
+    }
+  ]
+}
