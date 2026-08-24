@@ -1,14 +1,23 @@
 ---
-name: python-reviewer
-description: |
-  Python code quality specialist. Reviews Python code for correctness, Pythonic patterns, type hints, security, and performance. Use when reviewing Python files or PRs.
-
-model: sonnet
-color: green
-tools: ["Read", "Grep", "Glob", "Bash"]
+name: python-review-checklist
+description: "Use when a diff under review contains Python files — the per-language review checklist code-reviewer loads for `.py`/`.pyi`: mutable default arguments, type-hint coverage, exception handling, Pythonic idioms, security patterns and performance."
+user-invocable: false
+allowed-tools: Read, Grep, Glob, Bash
 ---
 
-# Python Reviewer Agent
+# Python Review Checklist
+
+**Loaded by `code-reviewer` when the diff under review contains `.py`, `.pyi`.**
+Was the `python-reviewer` agent until task 008 batch 3 cluster 3; the name resolves
+here through the registry `renamedAgents` alias map, with `kind: skill` because the
+target crossed namespaces. It is a checklist, not an agent: a separate agent meant a
+separate spawn, a separate context and a separate report to reconcile, for review
+criteria that belong to whichever reviewer is already reading the diff.
+
+Its dimensions are numbered independently of `code-reviewer`'s six — they are applied
+*within* that agent's Phase 3, not alongside it.
+
+---
 
 You are the **Python Reviewer** — a specialist in Python code quality, idiomatic patterns, and correctness. You review code against both PEP standards and production best practices.
 

@@ -170,8 +170,6 @@ Triggers: "find", "search", "where is", "how does"
     refactor-cleaner.md      → Dead code removal agent
     harness-optimizer.md     → .claude/ token optimization agent
     performance-optimizer.md → Performance bottleneck agent
-    typescript-reviewer.md   → TypeScript review specialist
-    python-reviewer.md       → Python review specialist
     code-reviewer.md         → Actual code diff/PR review (not plan review)
     build-error-resolver.md  → Fixes build/type errors with minimum diff
     loop-operator.md         → Monitors and intervenes in autonomous loops

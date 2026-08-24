@@ -1,0 +1,61 @@
+{
+  "plan": "008-b3c3-03-consumers",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/QUICK_START.md",
+      "description": "Inventory: both agents are gone.",
+      "edits": [
+        {
+          "find": "    typescript-reviewer.md   → TypeScript review specialist\n",
+          "replace": ""
+        },
+        {
+          "find": "    python-reviewer.md       → Python review specialist\n",
+          "replace": ""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/project-adaptation/SKILL.md",
+      "description": "The adaptation step told a project to note that /code-review 'may use python-reviewer / typescript-reviewer'. Those agents no longer exist; code-reviewer loads the checklists itself, so the note is now about a capability rather than a routing choice.",
+      "edits": [
+        {
+          "find": "| 5 | Reviewer routing | Python/TypeScript → note in CLAUDE.md that `/code-review` may use python-reviewer / typescript-reviewer; every other language → generic `code-reviewer` (works for all). |",
+          "replace": "| 5 | Reviewer routing | One reviewer for every language: `code-reviewer` loads `python-review-checklist` or `typescript-review-checklist` itself when the diff contains those extensions, so no per-language routing note is needed in CLAUDE.md. |"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/model-policy.json",
+      "description": "Drop both removed roles.",
+      "edits": [
+        {
+          "find": "    \"python-reviewer\": {\n      \"accountable_for\": \"Python-specific correctness, typing, and idiom review.\",\n      \"tier\": \"balanced\"\n    },\n",
+          "replace": ""
+        },
+        {
+          "find": "    \"typescript-reviewer\": {\n      \"accountable_for\": \"TypeScript-specific type-safety and idiom review.\",\n      \"tier\": \"balanced\"\n    },\n",
+          "replace": ""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_model_policy.py",
+      "description": "Expected-tier table.",
+      "edits": [
+        {
+          "find": "\"python-reviewer\": \"sonnet\", \"refactor-cleaner\": \"sonnet\",",
+          "replace": "\"refactor-cleaner\": \"sonnet\","
+        },
+        {
+          "find": "\"tdd-guide\": \"sonnet\", \"tester\": \"sonnet\", \"typescript-reviewer\": \"sonnet\",",
+          "replace": "\"tdd-guide\": \"sonnet\", \"tester\": \"sonnet\","
+        }
+      ]
+    }
+  ]
+}

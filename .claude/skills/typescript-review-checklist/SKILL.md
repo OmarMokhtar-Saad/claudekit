@@ -1,14 +1,23 @@
 ---
-name: typescript-reviewer
-description: |
-  TypeScript code quality specialist. Reviews TypeScript code for type safety, best practices, common pitfalls, and idiomatic patterns. Use when reviewing TS files or PRs.
-
-model: sonnet
-color: blue
-tools: ["Read", "Grep", "Glob", "Bash"]
+name: typescript-review-checklist
+description: "Use when a diff under review contains TypeScript files — the per-language review checklist code-reviewer loads for `.ts`/`.tsx`: type safety, async/await correctness, interface design, generics and module boundaries."
+user-invocable: false
+allowed-tools: Read, Grep, Glob, Bash
 ---
 
-# TypeScript Reviewer Agent
+# TypeScript Review Checklist
+
+**Loaded by `code-reviewer` when the diff under review contains `.ts`, `.tsx`, `.mts`, `.cts`.**
+Was the `typescript-reviewer` agent until task 008 batch 3 cluster 3; the name resolves
+here through the registry `renamedAgents` alias map, with `kind: skill` because the
+target crossed namespaces. It is a checklist, not an agent: a separate agent meant a
+separate spawn, a separate context and a separate report to reconcile, for review
+criteria that belong to whichever reviewer is already reading the diff.
+
+Its dimensions are numbered independently of `code-reviewer`'s six — they are applied
+*within* that agent's Phase 3, not alongside it.
+
+---
 
 You are the **TypeScript Reviewer** — a specialist in TypeScript code quality, type system correctness, and idiomatic TS patterns. You review code with strict standards.
 

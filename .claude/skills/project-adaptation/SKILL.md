@@ -66,7 +66,7 @@ Load **codebase-onboarding** and run its reconnaissance (manifests, framework fi
 | 2 | `CONSTITUTION.md` | Render from `.claude/local/CONSTITUTION.template.md`; tune articles to reality: review thresholds (90/80 defaults), coverage targets the project can actually meet, protected files beyond the defaults (e.g., `migrations/`, `*.lock`). |
 | 3 | Hook profile | Recommend `ECC_HOOK_PROFILE`: `standard` for teams starting out, `strict` once commands are trusted, via `.claude/settings.local.json` (gitignored). Verify hooks are executable and `settings.json` paths resolve. |
 | 4 | `.agentignore` | Copy `templates/.agentignore`; add project's generated/vendored dirs so explore/planner skip them. |
-| 5 | Reviewer routing | Python/TypeScript → note in CLAUDE.md that `/code-review` may use python-reviewer / typescript-reviewer; every other language → generic `code-reviewer` (works for all). |
+| 5 | Reviewer routing | One reviewer for every language: `code-reviewer` loads `python-review-checklist` or `typescript-review-checklist` itself when the diff contains those extensions, so no per-language routing note is needed in CLAUDE.md. |
 | 6 | The four commands, IF the verb could not derive them | Set them yourself from Phase 1. **A value you set survives the next `ck adapt`:** the verb overwrites only a key it can evidence, and reports the ones it kept. Empty string `""` = hooks silently skip that step — valid for a language with no lint step, and better than a guess. **This one file drives pre-commit, pre-push, post-implement, format-typecheck.** |
 | 7 | Optional | MCP servers (`templates/mcp/`) only if the project benefits, and only within the budget the verb reported; a mode default (e.g., token-efficient for huge monorepos). |
 
