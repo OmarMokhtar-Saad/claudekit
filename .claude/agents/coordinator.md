@@ -71,7 +71,7 @@ Analyze every incoming request and classify it into exactly one category:
 
 | Category           | Keywords / Signals                                          | Specialist Agent |
 |-------------------|-------------------------------------------------------------|-----------------|
-| **TDD**           | "write tests first", "TDD", "test-driven"                   | TDD Guide |
+| **TDD**           | "write tests first", "TDD", "test-driven"                   | tester (loads `test-driven-development`) |
 | **Dead Code**     | "dead code", "unused", "clean up imports", "remove unused"  | Refactor Cleaner |
 | **Performance**   | "slow", "latency", "N+1", "memory leak", "bottleneck"       | Performance Optimizer |
 | **Error Audit**   | "silent failures", "swallowed errors", "error handling audit"| Silent Failure Hunter |
@@ -127,7 +127,7 @@ If the classification is ambiguous, ask one clarifying question before proceedin
 
 ### TDD Pipeline
 ```
-[Coordinator] → [TDD Guide] → [Verifier] → [GitOps]
+[Coordinator] → [tester] → [Verifier] → [GitOps]
 ```
 
 ### Dead Code Pipeline
@@ -278,7 +278,9 @@ wait for three.
 - NEVER run GitOps in parallel with Implementer
 - Reviewer MUST complete before Implementer starts
 - Verifier MUST complete before GitOps starts
-- TDD Guide MUST produce tests before Implementer writes code
+- tester MUST produce failing tests before implementer writes code (the RED step
+  cannot be recovered afterwards — a test written after the code passes for the wrong
+  reason). The rule lives in the `test-driven-development` skill tester loads.
 
 ---
 

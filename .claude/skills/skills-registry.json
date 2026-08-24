@@ -23,6 +23,10 @@
       "to": "code-reviewer",
       "kind": "agent"
     },
+    "tdd-guide": {
+      "to": "test-driven-development",
+      "kind": "skill"
+    },
     "typescript-reviewer": {
       "to": "typescript-review-checklist",
       "kind": "skill"
@@ -764,7 +768,6 @@
     "model-router",
     "performance-optimizer",
     "refactor-cleaner",
-    "tdd-guide",
     "web-researcher"
   ],
   "agentMapping": {

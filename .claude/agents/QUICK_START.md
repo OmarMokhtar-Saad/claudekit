@@ -165,7 +165,6 @@ Triggers: "find", "search", "where is", "how does"
     security-scanner.md      → Security audit agent
     devops.md                → CI/CD and infrastructure agent
     database-architect.md    → Database design agent
-    tdd-guide.md             → Test-first development agent
     refactor-cleaner.md      → Dead code removal agent
     harness-optimizer.md     → .claude/ token optimization agent
     performance-optimizer.md → Performance bottleneck agent

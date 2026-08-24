@@ -1,0 +1,10 @@
+{
+  "plan": "008-b3c5-03-delete",
+  "operations": [
+    {
+      "type": "file_delete",
+      "path": ".claude/agents/tdd-guide.md",
+      "reason": "task 008 batch 3 cluster 5: merged into the existing .claude/skills/test-driven-development skill in this same batch (union proven by token diff). `tester` already loaded that skill as role-core, so the agent was a second context holding rules the test-writer already had. Enters `renamedAgents` with kind=skill."
+    }
+  ]
+}

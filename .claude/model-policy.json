@@ -115,10 +115,6 @@
       "accountable_for": "Active SAST, CVE, secret, and hardening audit.",
       "tier": "most-capable"
     },
-    "tdd-guide": {
-      "accountable_for": "Enforcing RED/GREEN/REFACTOR order and coverage discipline.",
-      "tier": "balanced"
-    },
     "tester": {
       "accountable_for": "Authoring behavioural tests for existing code.",
       "tier": "balanced"
