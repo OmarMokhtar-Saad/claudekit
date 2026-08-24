@@ -1,0 +1,27 @@
+{
+  "plan": "hook-live-findings-10-timeout-limit",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "src/claudekit/cli/main.py",
+      "description": "Record the limit of this fix honestly at the point it applies. `subprocess.run(timeout=)` kills the process it spawned; a GRANDCHILD that inherited the stdout pipe keeps communicate() blocked, so the timeout does not bound the wall clock in that case. Found by my own test orphaning a `sleep` and stalling the suite -- evidence, not theory. Not fixed here: killing the process group would need start_new_session and a Popen rewrite of both probes, which is a larger change than the finding being closed.",
+      "edits": [
+        {
+          "find": "# How long doctor waits for a `--version` probe. Generous for a binary that is\n# working and short enough that a wedged one does not hang the command people run\n# when something is already broken.\nPROBE_TIMEOUT = 5",
+          "replace": "# How long doctor waits for a `--version` probe. Generous for a binary that is\n# working and short enough that a wedged one does not hang the command people run\n# when something is already broken.\n#\n# Known limit, measured rather than assumed: `subprocess.run(timeout=)` kills the\n# process it spawned, but not a GRANDCHILD that inherited the stdout pipe -- and\n# `communicate()` then blocks until that grandchild exits. So a `bash` that forks\n# and returns can still outlast this timeout. Closing that needs\n# `start_new_session=True` plus a process-group kill, i.e. a Popen rewrite of both\n# probes; filed rather than folded into this fix.\nPROBE_TIMEOUT = 5"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "description": "State the timeout's limit in the entry rather than implying it is absolute.",
+      "edits": [
+        {
+          "find": "  and needs a different fix than installing bash.",
+          "replace": "  and needs a different fix than installing bash. One honest limit: the timeout kills\n  the probe, not a grandchild it may have forked that still holds the output pipe, so a\n  binary that forks and returns can still outlast it — closing that needs a process-group\n  kill and is filed, not silently claimed."
+        }
+      ]
+    }
+  ]
+}

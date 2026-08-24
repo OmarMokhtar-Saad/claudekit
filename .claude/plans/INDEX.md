@@ -24,11 +24,11 @@ index never outranks the current files.
 |---|---:|
 | `drifted` | 3 |
 | `approved` | 49 |
-| `planned` | 10 |
-| `executed` | 15 |
+| `planned` | 9 |
+| `executed` | 17 |
 | `not_started` | 15 |
 | `legacy` | 3 |
-| **total** | **95** |
+| **total** | **96** |
 
 ## Plans
 
@@ -73,7 +73,7 @@ index never outranks the current files.
 | `.claude/plans/plan-gate-scope.md` | `approved` | 1 |  |
 | `.claude/plans/plan-generators-that-cannot-drift.md` | `approved` | 1 |  |
 | `.claude/plans/plan-harness-findings.md` | `approved` | 1 |  |
-| `.claude/plans/plan-hook-live-findings.md` | `planned` | 2 |  |
+| `.claude/plans/plan-hook-live-findings.md` | `executed` | 10 |  |
 | `.claude/plans/plan-hook-profiles.md` | `approved` | 1 |  |
 | `.claude/plans/plan-install-receipts.md` | `approved` | 1 |  |
 | `.claude/plans/plan-installer-python-hooks.md` | `approved` | 1 |  |
@@ -114,6 +114,7 @@ index never outranks the current files.
 | `.claude/plans/plan-silent-failure-lint.md` | `approved` | 1 |  |
 | `.claude/plans/plan-skill-loading-contract.md` | `approved` | 1 |  |
 | `.claude/plans/plan-task-014-supply-chain-hardening.md` | `planned` | 1 |  |
+| `.claude/plans/plan-token-dash.md` | `executed` | 6 |  |
 | `.claude/plans/plan-token-efficiency.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-token-waste-workflow-fixes.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-uninstall-partial-owned-deadend.md` | `approved` | 1 |  |

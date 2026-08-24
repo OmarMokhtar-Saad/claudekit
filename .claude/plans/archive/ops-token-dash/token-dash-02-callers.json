@@ -1,0 +1,32 @@
+{
+  "plan": "token-dash-02-callers",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_reflection_ledger.py",
+      "description": "Defence in depth for tokens ALREADY on disk, which the generator fix cannot reach: `--session-token=<value>` is parsed by argparse as one argument whatever the value starts with, while `--session-token <value>` is not. These five sites are the ones that pass a real generated token; the two elsewhere in the suite pass the literal `t`.",
+      "edits": [
+        {
+          "find": "\"--session-token\", token, \"--json\", payload]",
+          "replace": "f\"--session-token={token}\", \"--json\", payload]"
+        },
+        {
+          "find": "\"--session-token\", token, \"--inbox\")",
+          "replace": "f\"--session-token={token}\", \"--inbox\")"
+        },
+        {
+          "find": "\"--session-token\", token, \"--inbox\"]",
+          "replace": "f\"--session-token={token}\", \"--inbox\"]"
+        },
+        {
+          "find": "\"--session-token\", token, \"--json-stdin\"],",
+          "replace": "f\"--session-token={token}\", \"--json-stdin\"],"
+        },
+        {
+          "find": "\"--session-token\", token, \"--json-stdin\"]",
+          "replace": "f\"--session-token={token}\", \"--json-stdin\"]"
+        }
+      ]
+    }
+  ]
+}

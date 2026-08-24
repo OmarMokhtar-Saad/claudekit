@@ -1,0 +1,16 @@
+{
+  "plan": "token-dash-06-changelog",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "description": "User-visible: a CLI that rejected a legitimate token roughly 1.5% of the time.",
+      "edits": [
+        {
+          "find": "- **`auto-checkpoint` kept one more checkpoint than you configured, on every other run.**",
+          "add_before": "- **A flaky test that was never the test's fault: session tokens could start with `-`.**\n  `secrets.token_urlsafe` draws from the base64url alphabet, so about **1.5% of session\n  tokens began with a dash** — and `reflection.py receipt --session-token <token>` then had\n  argparse read that value as the *next flag*, failing with `expected one argument`. Because\n  the coin flip lives inside the secret, it looked like an unexplainable intermittent for\n  three weeks. Tokens are now generated so they cannot be mistaken for a flag (redrawn, not\n  truncated — the secret keeps its full length), and callers that pass an existing token use\n  `--session-token=<value>`, which is immune whatever the value starts with. **If you have a\n  token already on disk that starts with `-`, either form now works.**\n\n"
+        }
+      ]
+    }
+  ]
+}

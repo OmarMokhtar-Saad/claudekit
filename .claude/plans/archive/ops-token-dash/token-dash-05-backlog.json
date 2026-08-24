@@ -1,0 +1,16 @@
+{
+  "plan": "token-dash-05-backlog",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".ai/BACKLOG.md",
+      "description": "The intermittent is diagnosed and fixed. The original entry is retained in full rather than replaced: it records five hypotheses, two lost captures and one correct-but-unfollowed conclusion, which is the part worth keeping.",
+      "edits": [
+        {
+          "find": "- [ ] **UNEXPLAINED intermittent: `test_receipt_via_json_stdin_clears_the_checkpoint`**\n",
+          "replace": "- [x] **DIAGNOSED 2026-08-24 — it was a leading dash in the session token.** The entry\n  below is kept in full, because its value is the record of five wrong or half-right\n  hypotheses and two lost captures. **Cause:** `secrets.token_urlsafe` draws from the\n  base64url alphabet, which contains `-`, so **~1.5% of session tokens begin with one**\n  (measured: 306 of 20000 draws). Every caller passed the token as\n  `--session-token <value>`, and argparse reads a leading-dash value as the **next\n  option**, exiting 2 with `argument --session-token: expected one argument`. That is the\n  exact signature recorded below, and it is why the failure never reproduced: the coin flip\n  is **inside the secret**, so a re-run draws a different token.\n\n  **What finally caught it was keeping the whole suite output.** The two prior captures\n  were lost — once to `/dev/null`, once to `tail -4` — and this entry says as much. The run\n  that diagnosed it wrote the full output to a file, and the traceback showed the token\n  going onto argv followed immediately by `--inbox`.\n\n  **Fixed at generation, not at the call site**, because the token is printed to the user at\n  session start and pasted onto command lines by agents: `_new_token()` redraws until the\n  token does not start with `-` (redraw, not strip — stripping would shorten the secret).\n  Callers that pass a token already on disk now use `--session-token=<value>`, which\n  argparse parses whatever the value starts with. `tests/test_session_token_shape.py`\n  pins all of it, **including the premise** (that `token_urlsafe` really does emit leading\n  dashes), so the guard cannot pass vacuously if the alphabet ever changes.\n\n  **The earlier ruling-out was correct and still is:** `None` and `\"\"` were checked and\n  neither produces this error. The entry's own conclusion — \"the observed error requires\n  the token argument to have been absent or **option-shaped**\" — was right, and nobody\n  followed it to the alphabet.\n\n- [ ] **UNEXPLAINED intermittent (RESOLVED above; original record retained): `test_receipt_via_json_stdin_clears_the_checkpoint`**\n"
+        }
+      ]
+    }
+  ]
+}

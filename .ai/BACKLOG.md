@@ -88,7 +88,35 @@ defects discovered during execution. See CHANGELOG `[Unreleased]` and the plans 
   subdirectory, or refuse to operate without an explicit ledger root. Note this fallback is the most
   likely origin of a "flaky CLI test" reported 2026-08-19 that no in-process reproduction could
   produce — an ambient `CLAUDEKIT_REFLECTION_DIR` in a live session, misattributed to the test.
-- [ ] **UNEXPLAINED intermittent: `test_receipt_via_json_stdin_clears_the_checkpoint`**
+- [x] **DIAGNOSED 2026-08-24 — it was a leading dash in the session token.** The entry
+  below is kept in full, because its value is the record of five wrong or half-right
+  hypotheses and two lost captures. **Cause:** `secrets.token_urlsafe` draws from the
+  base64url alphabet, which contains `-`, so **~1.5% of session tokens begin with one**
+  (measured: 306 of 20000 draws). Every caller passed the token as
+  `--session-token <value>`, and argparse reads a leading-dash value as the **next
+  option**, exiting 2 with `argument --session-token: expected one argument`. That is the
+  exact signature recorded below, and it is why the failure never reproduced: the coin flip
+  is **inside the secret**, so a re-run draws a different token.
+
+  **What finally caught it was keeping the whole suite output.** The two prior captures
+  were lost — once to `/dev/null`, once to `tail -4` — and this entry says as much. The run
+  that diagnosed it wrote the full output to a file, and the traceback showed the token
+  going onto argv followed immediately by `--inbox`.
+
+  **Fixed at generation, not at the call site**, because the token is printed to the user at
+  session start and pasted onto command lines by agents: `_new_token()` redraws until the
+  token does not start with `-` (redraw, not strip — stripping would shorten the secret).
+  Callers that pass a token already on disk now use `--session-token=<value>`, which
+  argparse parses whatever the value starts with. `tests/test_session_token_shape.py`
+  pins all of it, **including the premise** (that `token_urlsafe` really does emit leading
+  dashes), so the guard cannot pass vacuously if the alphabet ever changes.
+
+  **The earlier ruling-out was correct and still is:** `None` and `""` were checked and
+  neither produces this error. The entry's own conclusion — "the observed error requires
+  the token argument to have been absent or **option-shaped**" — was right, and nobody
+  followed it to the alphabet.
+
+- [ ] **UNEXPLAINED intermittent (RESOLVED above; original record retained): `test_receipt_via_json_stdin_clears_the_checkpoint`**
   **WIDENED 2026-08-22 — it is a FAMILY, not one test.** Two consecutive full-suite runs on
   `main` at the merge of `perf/token-efficiency` each failed exactly one `TestCli`
   checkpoint-clearing test, and a DIFFERENT one each time: first

@@ -1,0 +1,31 @@
+{
+  "plan": "hook-live-findings-05-third-site",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/post-implement.sh",
+      "description": "A THIRD truncated failure path the first pass missed: the coverage runner's failure branch also printed `tail -10`. Found by the new test, not by re-reading -- which is the point of asserting the property (no short tail on a failure path) rather than patching the two sites I happened to notice. The SUCCESS branch keeps `tail -10`: a coverage summary is exactly what you want there.",
+      "edits": [
+        {
+          "find": "        log \"WARN\" \"Coverage report failed: $output\"\n        echo \"[post-implement] Coverage: FAILED\"\n        echo \"$output\" | tail -10",
+          "replace": "        log \"WARN\" \"Coverage report failed: $output\"\n        echo \"[post-implement] Coverage: FAILED\"\n        # 60, not 10: see the build/test paths above -- a failure's cause is not\n        # in the last few lines of its own summary.\n        echo \"$output\" | tail -60"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_hook_live_findings.py",
+      "description": "Two test defects of my own. (1) `_run_cycle` was handed a tmp subdirectory that was never created. (2) The PM assertion matched the literal string anywhere in the file, so it failed on the COMMENT explaining the removal -- a test that forbids naming the thing it removed cannot describe why. Now it asserts no ASSIGNMENT and no expansion.",
+      "edits": [
+        {
+          "find": "        registry = tmp_path / \"checkpoints.json\"",
+          "replace": "        tmp_path.mkdir(parents=True, exist_ok=True)\n        registry = tmp_path / \"checkpoints.json\""
+        },
+        {
+          "find": "        text = (HOOKS / \"session-start.sh\").read_text(encoding=\"utf-8\")\n        assert \"PM_INSTALL\" not in text, \"assigned eight times, read never (SC2034)\"\n        assert \"PM_RUN\" not in text",
+          "replace": "        text = (HOOKS / \"session-start.sh\").read_text(encoding=\"utf-8\")\n        # Assignments and expansions, not the bare name: the comment recording WHY\n        # they were removed names them, and a test that forbids that is a test that\n        # forbids the explanation.\n        for var in (\"PM_INSTALL\", \"PM_RUN\"):\n            assert not re.search(rf'^\\s*{var}=', text, re.M), (\n                f\"{var} is assigned again; it was assigned eight times and read \"\n                \"never (SC2034)\")\n            assert f\"${var}\" not in text and f\"${{{var}}}\" not in text"
+        }
+      ]
+    }
+  ]
+}

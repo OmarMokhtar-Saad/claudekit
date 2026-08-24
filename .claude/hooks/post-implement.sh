@@ -95,7 +95,10 @@ run_build() {
     else
         log "ERROR" "Build failed: $output"
         echo "[post-implement] Build: FAILED"
-        echo "$output" | tail -20
+        # 60, not 20: the first error of a failed build or test run is almost never
+        # in the last 20 lines of a summary, and truncating past it is how a hook
+        # reports a failure nobody can act on.
+        echo "$output" | tail -60
         return 1
     fi
 }
@@ -127,7 +130,10 @@ run_tests() {
     else
         log "WARN" "Tests failed: $output"
         echo "[post-implement] Tests: FAILED"
-        echo "$output" | tail -20
+        # 60, not 20: the first error of a failed build or test run is almost never
+        # in the last 20 lines of a summary, and truncating past it is how a hook
+        # reports a failure nobody can act on.
+        echo "$output" | tail -60
         return 1
     fi
 }
@@ -159,7 +165,9 @@ run_coverage() {
     else
         log "WARN" "Coverage report failed: $output"
         echo "[post-implement] Coverage: FAILED"
-        echo "$output" | tail -10
+        # 60, not 10: see the build/test paths above -- a failure's cause is not
+        # in the last few lines of its own summary.
+        echo "$output" | tail -60
         return 1
     fi
 }

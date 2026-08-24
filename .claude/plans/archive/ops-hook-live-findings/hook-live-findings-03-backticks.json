@@ -1,0 +1,16 @@
+{
+  "plan": "hook-live-findings-03-backticks",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/auto-checkpoint.sh",
+      "description": "My own comment, written one config earlier, put markdown backticks inside a `python3 -c \"...\"` double-quoted SHELL string -- where backticks are command substitution, not quoting. The shell would have executed `< max_cp` and `+ 1` and spliced the results into the Python source. shellcheck caught it as SC2006 within a minute of the edit landing, which is the argument for the command-bash lint gate this session filed and did not land. Rewritten without backticks.",
+      "edits": [
+        {
+          "find": "# `< max_cp`, not `<=`: the shell guard above already decided to prune at\n# count >= MAX_CHECKPOINTS, and the `+ 1` below reserves room for the checkpoint\n# about to be appended. With `<=` the two guards disagreed at exactly count ==\n# max, the append pushed the registry to max + 1, and the next run pruned it back\n# -- measured as an oscillation 3 -> 4 -> 3 -> 4 at max=3, i.e. the configured cap\n# exceeded on every other checkpoint, each overshoot a retained git stash.",
+          "replace": "# Strictly less-than, not less-or-equal: the shell guard above already decided to\n# prune at count >= MAX_CHECKPOINTS, and the +1 below reserves room for the\n# checkpoint about to be appended. With <= the two guards disagreed at exactly\n# count == max, the append pushed the registry to max + 1, and the next run pruned\n# it back -- measured as an oscillation 3 -> 4 -> 3 -> 4 at max=3, i.e. the\n# configured cap exceeded on every other checkpoint, each overshoot a retained\n# git stash.\n# (No backticks in this comment on purpose: it lives inside a double-quoted shell\n# string, where a backtick is command substitution and not quoting.)"
+        }
+      ]
+    }
+  ]
+}

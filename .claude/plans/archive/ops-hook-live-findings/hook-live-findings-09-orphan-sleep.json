@@ -1,0 +1,16 @@
+{
+  "plan": "hook-live-findings-09-orphan-sleep",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_cli_live_findings.py",
+      "description": "MY OWN test defect, found by watching the suite stall at 36%%. The fake `bash` was `#!/bin/sh\\nsleep 120`, so the shell FORKED sleep. subprocess.run's timeout kills the shell it spawned, but not the grandchild -- which keeps the inherited stdout pipe open, so doctor's own run() then blocks in communicate() until the sleep exits 120s later, and the orphans outlive the test. `exec` makes the fake BECOME the sleeping process, so the kill lands on the thing that holds the pipe. The 120 also drops to 30: nothing needs two minutes to prove a 5s timeout, and a shorter fake bounds the damage if a kill is ever missed.",
+      "edits": [
+        {
+          "find": "        fake.write_text(\"#!/bin/sh\\nsleep 120\\n\", encoding=\"utf-8\")",
+          "replace": "        # `exec`, not a plain `sleep`: without it the shell FORKS the sleep, the\n        # timeout kills only the shell, and the surviving grandchild keeps the\n        # inherited stdout pipe open -- so the caller blocks in communicate()\n        # until the sleep ends, which is the hang this test exists to disprove.\n        # Watching the suite stall at 36%% is how this was found.\n        fake.write_text(\"#!/bin/sh\\nexec sleep 30\\n\", encoding=\"utf-8\")"
+        }
+      ]
+    }
+  ]
+}

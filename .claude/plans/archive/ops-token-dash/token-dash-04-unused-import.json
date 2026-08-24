@@ -1,0 +1,16 @@
+{
+  "plan": "token-dash-04-unused-import",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_session_token_shape.py",
+      "description": "F401: json is not used -- the tests assert on argv shape and exit codes, never on a payload.",
+      "edits": [
+        {
+          "find": "import importlib.util\nimport json\nimport subprocess\n",
+          "replace": "import importlib.util\nimport subprocess\n"
+        }
+      ]
+    }
+  ]
+}

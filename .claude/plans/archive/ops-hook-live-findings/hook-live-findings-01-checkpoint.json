@@ -1,0 +1,42 @@
+{
+  "plan": "hook-live-findings-01-checkpoint",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/auto-checkpoint.sh",
+      "description": "Two guards disagreed by one: the shell guard prunes when count >= MAX_CHECKPOINTS, the python guard skipped when count == MAX_CHECKPOINTS, so the append then took the registry to max+1 and the next run pruned it back. Measured by executing this block against fixtures: with max=3 the size oscillates 3->4->3->4 from every starting size. Bounded, but the configured cap is exceeded on every other checkpoint and each extra entry is a retained git stash.",
+      "edits": [
+        {
+          "find": "checkpoints = data.get('checkpoints', [])\nif len(checkpoints) <= max_cp:\n    sys.exit(0)\n\n# Sort by timestamp ascending and remove oldest\ncheckpoints.sort(key=lambda c: c.get('timestamp', ''))\npruned = checkpoints[:len(checkpoints) - max_cp + 1]",
+          "replace": "checkpoints = data.get('checkpoints', [])\n# `< max_cp`, not `<=`: the shell guard above already decided to prune at\n# count >= MAX_CHECKPOINTS, and the `+ 1` below reserves room for the checkpoint\n# about to be appended. With `<=` the two guards disagreed at exactly count ==\n# max, the append pushed the registry to max + 1, and the next run pruned it back\n# -- measured as an oscillation 3 -> 4 -> 3 -> 4 at max=3, i.e. the configured cap\n# exceeded on every other checkpoint, each overshoot a retained git stash.\nif len(checkpoints) < max_cp:\n    sys.exit(0)\n\n# Sort by timestamp ascending and remove oldest\ncheckpoints.sort(key=lambda c: c.get('timestamp', ''))\npruned = checkpoints[:len(checkpoints) - max_cp + 1]"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/auto-checkpoint.sh",
+      "description": "The registry is read-modify-written twice per checkpoint (prune, then append) with no mutex, and this repo treats concurrent sessions as real -- session-start.sh warns about them. Uses the mkdir mutex idiom already shipped in suggest-compact.sh (flock is Linux-only) with the same find -mmin stale recovery. DIFFERENT in one deliberate way: suggest-compact SKIPS its work under contention because a lost counter increment is harmless; a skipped checkpoint is the user's uncommitted work, so this waits briefly and then proceeds with a logged WARN. The chosen failure mode is a possible size overshoot, never lost work.",
+      "edits": [
+        {
+          "find": "# ---------------------------------------------------------------------------\n# Prune oldest checkpoints if over limit\n# ---------------------------------------------------------------------------",
+          "replace": "# ---------------------------------------------------------------------------\n# Registry mutex.\n#\n# `mkdir` is an atomic, portable lock (flock is Linux-only) -- the same idiom\n# `suggest-compact.sh` uses, with the same `find -mmin` stale recovery, because\n# `date -r`/`stat` differ across platforms.\n#\n# One deliberate difference from that sibling: it SKIPS its work when the lock is\n# held, since a lost counter increment costs nothing. A skipped checkpoint costs\n# the user's uncommitted work, so this waits briefly and then proceeds anyway with\n# a WARN. The protected sections are short; the failure mode chosen is a possible\n# size overshoot, never a lost checkpoint.\n# ---------------------------------------------------------------------------\nREGISTRY_LOCK=\"\"\n\nregistry_lock() {\n    REGISTRY_LOCK=\"${REGISTRY_FILE}.lockdir\"\n    if [ -d \"$REGISTRY_LOCK\" ]; then\n        find \"$REGISTRY_LOCK\" -maxdepth 0 -mmin +1 -exec rmdir {} \\; 2>/dev/null\n    fi\n    local i=0\n    while [ \"$i\" -lt 20 ]; do\n        if mkdir \"$REGISTRY_LOCK\" 2>/dev/null; then\n            return 0\n        fi\n        sleep 0.1\n        i=$((i + 1))\n    done\n    log \"WARN\" \"Registry lock held for 2s; proceeding unlocked rather than dropping a checkpoint\"\n    REGISTRY_LOCK=\"\"\n    return 0\n}\n\nregistry_unlock() {\n    [ -n \"$REGISTRY_LOCK\" ] && rmdir \"$REGISTRY_LOCK\" 2>/dev/null\n    REGISTRY_LOCK=\"\"\n}\n\n# ---------------------------------------------------------------------------\n# Prune oldest checkpoints if over limit\n# ---------------------------------------------------------------------------"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/auto-checkpoint.sh",
+      "description": "Hold the mutex across prune's read-modify-write. The lock is released after the stash-drop loop rather than before it: splitting the pipeline into a temp file to unlock earlier was the first draft and it left the loop's `done` reading from nothing -- a broken script for a few milliseconds of contention. The loop is bounded by the number pruned (usually one), so holding across it is the cheaper correctness.",
+      "edits": [
+        {
+          "find": "    log \"INFO\" \"Checkpoint limit reached ($count/$MAX_CHECKPOINTS), pruning oldest\"\n\n    python3 -c \"",
+          "replace": "    log \"INFO\" \"Checkpoint limit reached ($count/$MAX_CHECKPOINTS), pruning oldest\"\n\n    registry_lock\n    python3 -c \""
+        },
+        {
+          "find": "            log \"INFO\" \"Checkpoint stash already gone: $stash_ref\"\n        fi\n    done\n}",
+          "replace": "            log \"INFO\" \"Checkpoint stash already gone: $stash_ref\"\n        fi\n    done\n    registry_unlock\n}"
+        }
+      ]
+    }
+  ]
+}

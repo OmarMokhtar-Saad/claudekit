@@ -1,0 +1,31 @@
+{
+  "plan": "hook-live-findings-06-property",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/pre-push.sh",
+      "description": "Two MORE truncated failure paths -- lint and build -- that neither the review nor my first pass listed. Found by the property test ('no short tail on a failure branch') rather than by re-reading the file, which is the argument for asserting the property instead of patching the sites one happens to notice. These two are on the gate that STOPS A PUSH, so their output is the only thing the user has to act on.",
+      "edits": [
+        {
+          "find": "        log \"ERROR\" \"Lint failed\"\n        echo \"[pre-push] Lint: FAILED\"\n        echo \"$output\" | tail -20",
+          "replace": "        log \"ERROR\" \"Lint failed\"\n        echo \"[pre-push] Lint: FAILED\"\n        # 60, not 20: see the test path above -- the first error of a failed run\n        # is almost never inside the last 20 lines of its own summary.\n        echo \"$output\" | tail -60"
+        },
+        {
+          "find": "        log \"ERROR\" \"Build failed\"\n        echo \"[pre-push] Build: FAILED\"\n        echo \"$output\" | tail -20",
+          "replace": "        log \"ERROR\" \"Build failed\"\n        echo \"[pre-push] Build: FAILED\"\n        # 60, not 20: see the test path above -- the first error of a failed run\n        # is almost never inside the last 20 lines of its own summary.\n        echo \"$output\" | tail -60"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_hook_live_findings.py",
+      "description": "The property could not tell a SUCCESS branch's short tail (a coverage summary, which is exactly what you want there) from a FAILURE branch's. It now classifies each site by the marker printed immediately above it, which is how the hooks themselves distinguish the two.",
+      "edits": [
+        {
+          "find": "    def test_the_three_failure_paths_show_more_than_twenty_lines(self):\n        for name in (\"post-implement.sh\", \"pre-push.sh\"):\n            text = (HOOKS / name).read_text(encoding=\"utf-8\")\n            failure_tails = re.findall(r'echo \"\\$output\" \\| tail -(\\d+)', text)\n            assert failure_tails, name\n            for n in failure_tails:\n                assert int(n) >= 60 or int(n) <= 5, (\n                    f\"{name}: `tail -{n}` on a failure path truncates past the \"\n                    \"root cause (a short tail is only for the SUCCESS summary)\")",
+          "replace": "    def _tail_sites(self, name):\n        \"\"\"Every `tail -N` of a captured run, tagged failure or success.\n\n        Classified by the marker the hook prints immediately above it -- the same\n        signal the hook uses -- because the number alone cannot tell a coverage\n        SUMMARY (short on purpose) from a truncated failure.\n        \"\"\"\n        lines = (HOOKS / name).read_text(encoding=\"utf-8\").splitlines()\n        sites = []\n        for i, line in enumerate(lines):\n            m = re.search(r'echo \"\\$output\" \\| tail -(\\d+)', line)\n            if not m:\n                continue\n            context = \"\\n\".join(lines[max(0, i - 4):i])\n            failing = \"FAILED\" in context or \"ERROR\" in context\n            sites.append((i + 1, int(m.group(1)), failing))\n        return sites\n\n    def test_every_failure_path_shows_more_than_twenty_lines(self):\n        checked = 0\n        for name in (\"post-implement.sh\", \"pre-push.sh\"):\n            for lineno, n, failing in self._tail_sites(name):\n                if not failing:\n                    continue\n                checked += 1\n                assert n >= 60, (\n                    f\"{name}:{lineno}: `tail -{n}` on a failure path truncates \"\n                    \"past the root cause\")\n        assert checked >= 5, (\n            f\"only {checked} failure paths found; this property is what caught \"\n            \"the sites the review never listed, so it must not silently match none\")\n\n    def test_success_summaries_are_left_short(self):\n        \"\"\"The fix must not turn every summary into a wall of output.\"\"\"\n        short = [(n, ln) for name in (\"post-implement.sh\", \"pre-push.sh\")\n                 for ln, n, failing in self._tail_sites(name) if not failing]\n        assert short, \"the success branches still print a short tail\"\n        assert all(n <= 20 for n, _ in short), short"
+        }
+      ]
+    }
+  ]
+}

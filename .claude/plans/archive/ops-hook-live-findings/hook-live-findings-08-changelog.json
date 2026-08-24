@@ -1,0 +1,16 @@
+{
+  "plan": "hook-live-findings-08-changelog",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "description": "Three user-visible hook behaviours: a configured cap that was exceeded, a corruptible registry, and failure output truncated past its own cause.",
+      "edits": [
+        {
+          "find": "- **`ck rollback` with neither `--backup` nor `--list`** behaves exactly as before (it\n  lists), but the two byte-identical branches that produced that behaviour are now one,\n  with the reason written down: restoring an unnamed backup would be a guess at which one.\n  `--list` was being read from the parsed args and thrown away.\n",
+          "add_after": "\n- **`auto-checkpoint` kept one more checkpoint than you configured, on every other run.**\n  Two guards disagreed by one: the shell decided to prune at `count >= MAX_CHECKPOINTS`\n  while the pruner skipped at `count == MAX_CHECKPOINTS`, so the new checkpoint pushed the\n  registry to `max + 1` and the next run pruned it back. Measured by running the pruner\n  against fixtures: with `MAX_CHECKPOINTS=3` the size oscillated `3 → 4 → 3 → 4` from every\n  starting point. Bounded, so not a leak — but each overshoot was a **git stash retained\n  that you asked to have dropped**. It now settles at exactly the configured maximum.\n\n- **The checkpoint registry is no longer corruptible by two sessions at once.** It was\n  read-modify-written twice per checkpoint with no mutex, and ClaudeKit treats concurrent\n  sessions as real — `session-start` warns about them. Now guarded by the same portable\n  `mkdir` lock the compaction hook uses, with stale-lock recovery. **Contention never drops\n  a checkpoint**: if the lock cannot be taken within two seconds the hook proceeds anyway\n  and logs it, because a skipped checkpoint is your uncommitted work and a possible size\n  overshoot is not.\n\n- **A failing hook now shows you the error instead of the summary.** `post-implement` and\n  `pre-push` printed only the last 20 lines of a failed build, test, lint or coverage run —\n  and the first error is almost never in the last 20 lines of a test summary, so the hook\n  reported a failure nobody could act on. Now 60 lines on every failure path. Success\n  summaries stay short. **The review that found this named three sites; asserting the\n  property rather than patching those three found six**, including the lint and build gates\n  that block `git push`.\n"
+        }
+      ]
+    }
+  ]
+}

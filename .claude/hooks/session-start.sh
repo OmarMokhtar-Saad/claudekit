@@ -13,42 +13,27 @@ log "INFO" "Session started | pwd=$(pwd) | user=$(whoami)"
 # ---------------------------------------------------------------------------
 # 1. Detect package manager
 # ---------------------------------------------------------------------------
+# Only the NAME is used -- the startup summary prints `$PM` and nothing else.
+# `PM_INSTALL`/`PM_RUN` were assigned eight times here and read nowhere (SC2034);
+# a reader reasonably assumed the summary showed them.
 PM="unknown"
-PM_INSTALL=""
-PM_RUN=""
 
 if [ -f "bun.lockb" ] || [ -f "bunfig.toml" ]; then
     PM="bun"
-    PM_INSTALL="bun install"
-    PM_RUN="bun run"
 elif [ -f "pnpm-lock.yaml" ]; then
     PM="pnpm"
-    PM_INSTALL="pnpm install"
-    PM_RUN="pnpm run"
 elif [ -f "yarn.lock" ]; then
     PM="yarn"
-    PM_INSTALL="yarn install"
-    PM_RUN="yarn"
 elif [ -f "package-lock.json" ]; then
     PM="npm"
-    PM_INSTALL="npm install"
-    PM_RUN="npm run"
 elif [ -f "Cargo.toml" ]; then
     PM="cargo"
-    PM_INSTALL="cargo build"
-    PM_RUN="cargo run"
 elif [ -f "go.mod" ]; then
     PM="go"
-    PM_INSTALL="go mod tidy"
-    PM_RUN="go run"
 elif [ -f "pyproject.toml" ] || [ -f "requirements.txt" ]; then
     PM="python"
-    PM_INSTALL="pip install -e ."
-    PM_RUN="python"
 elif [ -f "Gemfile" ]; then
     PM="bundler"
-    PM_INSTALL="bundle install"
-    PM_RUN="bundle exec"
 fi
 
 if [ "$PM" != "unknown" ]; then
