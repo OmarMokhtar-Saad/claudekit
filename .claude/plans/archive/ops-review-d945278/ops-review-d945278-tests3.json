@@ -1,0 +1,25 @@
+{
+  "plan": "review-d945278",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_command_bash_parse.py",
+      "edits": [
+        {
+          "find": "    path = COMMANDS / f\"{stem}.md\"\n    assert _bash_blocks(path), f\"{path.name} has no ```bash fences to lint\"\n",
+          "add_after": "\n\ndef test_no_shell_fence_uses_an_unlinted_language_tag():\n    \"\"\"The census, asserted. The gate covers `bash|sh|shell|zsh`; if a command file starts\n    using another spelling for shell, that must be a deliberate change to SHELL_TAGS and\n    not a silent hole. Anything whose tag looks shell-ish but is not covered fails here.\"\"\"\n    import re\n    suspicious = []\n    for path in sorted(COMMANDS.glob(\"*.md\")):\n        for tag in re.findall(r\"^\\s*```\\s*([A-Za-z][\\w+-]*)\", path.read_text(), re.M):\n            low = tag.lower()\n            if low in SHELL_TAGS:\n                continue\n            if low in {\"console\", \"shell-session\", \"sh-session\", \"bash-session\", \"ksh\",\n                       \"fish\", \"shellscript\"}:\n                suspicious.append(f\"{path.name}: ```{tag}\")\n    assert not suspicious, (\n        \"shell-ish fences the parse gate does not lint:\\n\" + \"\\n\".join(suspicious)\n    )\n\n\ndef test_an_unclosed_or_alternate_fence_is_still_linted(tmp_path):\n    \"\"\"```sh must be linted exactly like ```bash -- the evasion this closes.\"\"\"\n    for tag in (\"sh\", \"shell\", \"zsh\", \" bash\"):\n        victim = tmp_path / f\"m{tag.strip()}.md\"\n        victim.write_text(f\"# M\\n\\n```{tag}\\nif [ <N> -gt 3 ]; then echo hi\\n```\\n\")\n        assert parse_errors(victim), f\"```{tag} was not linted\"\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_execution_lock.py",
+      "edits": [
+        {
+          "find": "    doc = executor.ExecutionLock.__doc__ or \"\"\n    assert \"Windows\" in doc and \"fcntl\" in doc\n",
+          "add_after": "\n\ndef test_a_refused_acquire_does_not_destroy_the_holders_pid(executor, tmp_path):\n    \"\"\"`O_TRUNC` truncated on OPEN, i.e. before the flock that decides ownership.\n\n    So a contender that went on to be REFUSED still emptied the file first, destroying\n    the pid in the one situation it exists for. Measured before the fix: A holds and the\n    file reads a pid; B is refused; the file reads \"\". The earlier tests could not see it\n    because none of them had a contender.\n    \"\"\"\n    if not executor._HAS_FCNTL:\n        pytest.skip(\"no fcntl on this platform; the class documents that it is unprotected\")\n    path = tmp_path / \"exec.lock\"\n    holder, contender = executor.ExecutionLock(str(path)), executor.ExecutionLock(str(path))\n    assert holder.acquire()\n    try:\n        recorded = path.read_text().strip()\n        assert recorded == str(os.getpid())\n        assert not contender.acquire()\n        assert path.read_text().strip() == recorded, (\n            \"a refused acquire truncated the lock file and destroyed the holder's pid\"\n        )\n    finally:\n        holder.release()\n\n\ndef test_the_lock_file_is_not_world_readable(executor, tmp_path):\n    \"\"\"It persists now, so its mode matters. `os.open` without a mode argument takes\n    0o666 & ~umask, which on a permissive umask is world-readable.\"\"\"\n    path = tmp_path / \"exec.lock\"\n    lock = executor.ExecutionLock(str(path))\n    assert lock.acquire()\n    lock.release()\n    assert (path.stat().st_mode & 0o077) == 0, oct(path.stat().st_mode & 0o777)\n\n\ndef test_the_refusal_message_does_not_tell_the_operator_to_delete_the_lock(executor, tmp_path):\n    \"\"\"The shipped message said \"remove the lock file if stale\". Following it while a\n    holder is live lets a third process acquire a FRESH path -- two executors, one tree.\n    A leftover file is now the normal post-run state, so an operator sees that advice\n    routinely.\"\"\"\n    path = tmp_path / \"exec.lock\"\n    holder = executor.ExecutionLock(str(path))\n    assert holder.acquire()\n    try:\n        with pytest.raises(RuntimeError) as excinfo:\n            with executor.ExecutionLock(str(path)):\n                pass\n        message = str(excinfo.value)\n        assert \"remove the lock file if stale\" not in message\n        assert \"DO NOT delete the lock file\" in message\n        assert str(os.getpid()) in message, \"the message must name the holding pid\"\n    finally:\n        holder.release()\n"
+        }
+      ]
+    }
+  ]
+}

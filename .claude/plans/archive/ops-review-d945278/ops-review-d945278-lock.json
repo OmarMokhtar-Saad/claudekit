@@ -1,0 +1,27 @@
+{
+  "plan": "review-d945278",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/execute-json-ops.py",
+      "edits": [
+        {
+          "find": "            self._fd = os.open(self.lock_path, os.O_CREAT | os.O_WRONLY | os.O_TRUNC)\n            if _HAS_FCNTL:\n                fcntl.flock(self._fd, fcntl.LOCK_EX | fcntl.LOCK_NB)\n            os.write(self._fd, f\"{os.getpid()}\\n\".encode())\n            return True",
+          "replace": "            # NO `O_TRUNC`. It truncates on OPEN, which happens BEFORE the `flock`\n            # below -- so a contender that goes on to be refused still empties the file\n            # first, destroying the holder's pid in exactly the situation the pid exists\n            # for. Measured: A holds and the file reads \"45575\"; B is refused; the file\n            # now reads \"\". Truncate only after the lock is actually ours.\n            self._fd = os.open(self.lock_path, os.O_CREAT | os.O_WRONLY, 0o600)\n            if _HAS_FCNTL:\n                fcntl.flock(self._fd, fcntl.LOCK_EX | fcntl.LOCK_NB)\n            os.ftruncate(self._fd, 0)\n            os.write(self._fd, f\"{os.getpid()}\\n\".encode())\n            return True"
+        },
+        {
+          "find": "            # clean up. What is left is a zero-byte file holding the last holder's pid\n            # (written in acquire()), which is a diagnostic rather than a leak.",
+          "replace": "            # clean up. What is left is a small file holding the last holder's pid\n            # (written in acquire() after the lock is ours), which is a diagnostic rather\n            # than a leak. \"Zero-byte file holding the pid\" is what this comment said\n            # first, which is a contradiction -- and it was true in the worst case,\n            # because `O_TRUNC` let a refused contender empty it."
+        },
+        {
+          "find": "    def __enter__(self):\n        if not self.acquire():",
+          "replace": "    def _holder_hint(self) -> str:\n        \"\"\"The pid recorded in the lock file, for the refusal message. Best-effort.\"\"\"\n        try:\n            with open(self.lock_path, encoding=\"utf-8\") as handle:\n                return handle.read().strip() or \"unrecorded\"\n        except OSError:\n            return \"unreadable\"\n\n    def __enter__(self):\n        if not self.acquire():"
+        },
+        {
+          "find": "                f\"Another CodeManifest executor is running (lock: {self.lock_path}).\\n\"\n                \"Wait for it to finish or remove the lock file if stale.\"",
+          "replace": "                f\"Another CodeManifest executor is running (lock: {self.lock_path}).\\n\"\n                f\"It holds an flock; the file names its pid ({self._holder_hint()}). \"\n                \"Check whether that process is alive and wait for it.\\n\"\n                \"DO NOT delete the lock file to get past this: the file's presence is not \"\n                \"the lock, the flock is, so removing it lets a second executor acquire a \"\n                \"fresh path while the first still holds the old one -- two executors, one \"\n                \"tree. If the pid is dead, the flock is already gone and a retry will \"\n                \"simply succeed.\""
+        }
+      ]
+    }
+  ]
+}

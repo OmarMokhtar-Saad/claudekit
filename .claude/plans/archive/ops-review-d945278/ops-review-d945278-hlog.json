@@ -1,0 +1,35 @@
+{
+  "plan": "review-d945278",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/format-typecheck.sh",
+      "edits": [
+        {
+          "find": "[ -f \"$SCRIPT_DIR/lib.sh\" ] && . \"$SCRIPT_DIR/lib.sh\"\nHOOK_NAME=\"format-typecheck\"\n",
+          "replace": "[ -f \"$SCRIPT_DIR/lib.sh\" ] && . \"$SCRIPT_DIR/lib.sh\"\n# The `[ -f ... ] &&` guard above promises graceful degradation, and delegating\n# `log()` to `hlog` removes it: with `lib.sh` absent the hook printed\n# \"hlog: command not found\" to stderr on every call, where the old body was\n# `>> \"$LOG\" 2>/dev/null`. `lib.sh` ships beside the hooks so a fresh install is\n# fine; the exposure is a surgical fleet sync that copies one hook and not the\n# library. A no-op keeps the promise the guard makes.\ncommand -v hlog >/dev/null 2>&1 || hlog() { :; }\nHOOK_NAME=\"format-typecheck\"\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/security-reminder.sh",
+      "edits": [
+        {
+          "find": "[ -f \"$SCRIPT_DIR/lib.sh\" ] && . \"$SCRIPT_DIR/lib.sh\"\nHOOK_NAME=\"security-reminder\"\n",
+          "replace": "[ -f \"$SCRIPT_DIR/lib.sh\" ] && . \"$SCRIPT_DIR/lib.sh\"\n# The `[ -f ... ] &&` guard above promises graceful degradation, and delegating\n# `log()` to `hlog` removes it: with `lib.sh` absent the hook printed\n# \"hlog: command not found\" to stderr on every call, where the old body was\n# `>> \"$LOG\" 2>/dev/null`. `lib.sh` ships beside the hooks so a fresh install is\n# fine; the exposure is a surgical fleet sync that copies one hook and not the\n# library. A no-op keeps the promise the guard makes.\ncommand -v hlog >/dev/null 2>&1 || hlog() { :; }\nHOOK_NAME=\"security-reminder\"\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/session-start.sh",
+      "edits": [
+        {
+          "find": "[ -f \"$SCRIPT_DIR/lib.sh\" ] && . \"$SCRIPT_DIR/lib.sh\"\nHOOK_NAME=\"session-start\"\n",
+          "replace": "[ -f \"$SCRIPT_DIR/lib.sh\" ] && . \"$SCRIPT_DIR/lib.sh\"\n# The `[ -f ... ] &&` guard above promises graceful degradation, and delegating\n# `log()` to `hlog` removes it: with `lib.sh` absent the hook printed\n# \"hlog: command not found\" to stderr on every call, where the old body was\n# `>> \"$LOG\" 2>/dev/null`. `lib.sh` ships beside the hooks so a fresh install is\n# fine; the exposure is a surgical fleet sync that copies one hook and not the\n# library. A no-op keeps the promise the guard makes.\ncommand -v hlog >/dev/null 2>&1 || hlog() { :; }\nHOOK_NAME=\"session-start\"\n"
+        }
+      ]
+    }
+  ]
+}

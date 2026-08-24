@@ -15,7 +15,17 @@ go green the moment a widening is disclosed, while these assertions state what t
 classifier must do regardless.
 
 Matching is by STEM and by PATH COMPONENT, never substring -- `publickeys.pem` and
-`latest.pem` must stay flagged. Those two cases are the point of this file.
+`latest.pem` must stay flagged. Those two cases were the original point of this file, and
+they were never the risk.
+
+**The risk was scope, not substrings.** The first allowlist `return`ed before all thirteen
+category branches, so a `tests/`/`fixtures/` path component was not a certificate
+exemption -- it exempted `.env`, `credentials.json`, `id_rsa`, `wallet.dat`,
+`terraform.tfstate`, `passwd`, k8s secrets and `pii/` too. An adversarial review executed
+it and found ten regressions. Both this file and the differential gate passed, because
+neither asserted a NON-certificate secret under a test component. The allowlist is now
+reachable only when the extension is in `cert|crt|pem|key|p12|pfx|pub`, and the
+`STILL_FLAGGED` block below pins one path per category so the same hole cannot reopen.
 """
 
 import subprocess
@@ -48,6 +58,30 @@ FREED = [
 ]
 
 STILL_FLAGGED = [
+    # EVERY CATEGORY UNDER A TEST COMPONENT. This block is the assertion this file was
+    # missing: `FREED` contained `test/data.p12`, generalising past anything asserted, so
+    # a rule that freed all thirteen categories under a test directory passed both this
+    # file and the differential gate. Ten real secret shapes went silent. The allowlist is
+    # now reachable only for the cert/key extensions that motivated it, and these pin it.
+    ("tests/fixtures/.env", "env-files"),
+    ("test/secrets.json", "api-tokens"),
+    ("tests/credentials.json", "credential-files"),
+    ("tests/id_rsa", "ssh-keys"),
+    ("testdata/wallet.dat", "crypto-wallets"),
+    ("home/tests/.aws/credentials", "cloud-configs"),
+    ("tests/fixtures/passwd", "password-files"),
+    ("testdata/prod.sqlite", "database-files"),
+    ("test/.pgpass", "database-files"),
+    ("tests/.npmrc", "credential-files"),
+    ("tests/fixtures/vault-secrets.yml", "cicd-secrets"),
+    # `pii/` and `production/` are unconditional: the schema/model exclusion corrects only
+    # the `customer`+`data` predicate and must not reach past it.
+    ("pii/model_training_data.csv", "production-data"),
+    ("pii/customer_model.csv", "production-data"),
+    ("pii/datamodel.csv", "production-data"),
+    # A dump IS data. Anchored to the `-schema.`/`_schema.` shape, not the bare substring.
+    ("customer-data-schema-dump.sql", "production-data"),
+    ("model-customer-data.csv", "production-data"),
     # The near misses. These are the assertions that make the allowlist narrow.
     ("publickeys.pem", "certificates"),      # `public` as a substring, not a stem
     ("latest.pem", "certificates"),          # `test` inside a basename, not a component

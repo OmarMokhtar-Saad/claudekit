@@ -39,13 +39,28 @@ COMMANDS = REPO / ".claude" / "commands"
 PARSE_CODES = {"SC1072", "SC1073", "SC1009"}
 
 
+SHELL_TAGS = {"bash", "sh", "shell", "zsh"}
+
+
+def _is_shell_fence(stripped):
+    """True for ```bash / ```sh / ```shell / ```zsh, with optional space and attributes."""
+    tag = stripped[3:].strip().split()[0] if stripped[3:].strip() else ""
+    return tag.split("{")[0].lower() in SHELL_TAGS
+
+
 def _bash_blocks(path):
     """(first_body_line_1indexed, [lines]) for every ```bash fence in a markdown file."""
     lines = path.read_text().splitlines(keepends=True)
     out = []
     i = 0
     while i < len(lines):
-        if lines[i].strip().startswith("```bash"):
+        # Every shell spelling, with or without a space after the fence. Matching only
+        # "```bash" made the gate evadable by fence spelling: ```sh and ``` bash both
+        # returned zero findings for a body that ```bash flags. No such fence exists in
+        # the corpus today, so this was a drift hole rather than a live miss -- and
+        # nothing enforced the spelling, which is what made it one.
+        stripped = lines[i].strip()
+        if stripped.startswith("```") and _is_shell_fence(stripped):
             start = i + 2
             body = []
             i += 1
@@ -140,3 +155,30 @@ def test_the_corpus_actually_has_fences_to_check(stem):
     """Coverage floor: a gate over an empty extraction is a gate over nothing."""
     path = COMMANDS / f"{stem}.md"
     assert _bash_blocks(path), f"{path.name} has no ```bash fences to lint"
+
+
+def test_no_shell_fence_uses_an_unlinted_language_tag():
+    """The census, asserted. The gate covers `bash|sh|shell|zsh`; if a command file starts
+    using another spelling for shell, that must be a deliberate change to SHELL_TAGS and
+    not a silent hole. Anything whose tag looks shell-ish but is not covered fails here."""
+    import re
+    suspicious = []
+    for path in sorted(COMMANDS.glob("*.md")):
+        for tag in re.findall(r"^\s*```\s*([A-Za-z][\w+-]*)", path.read_text(), re.M):
+            low = tag.lower()
+            if low in SHELL_TAGS:
+                continue
+            if low in {"console", "shell-session", "sh-session", "bash-session", "ksh",
+                       "fish", "shellscript"}:
+                suspicious.append(f"{path.name}: ```{tag}")
+    assert not suspicious, (
+        "shell-ish fences the parse gate does not lint:\n" + "\n".join(suspicious)
+    )
+
+
+def test_an_unclosed_or_alternate_fence_is_still_linted(tmp_path):
+    """```sh must be linted exactly like ```bash -- the evasion this closes."""
+    for tag in ("sh", "shell", "zsh", " bash"):
+        victim = tmp_path / f"m{tag.strip()}.md"
+        victim.write_text(f"# M\n\n```{tag}\nif [ <N> -gt 3 ]; then echo hi\n```\n")
+        assert parse_errors(victim), f"```{tag} was not linted"

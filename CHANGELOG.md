@@ -21,8 +21,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   describes data; it is not data. An allowlist now runs **before** the denylist, matching
   by **stem** and by **path component**, never by substring: `public.pem` is freed and
   `publickeys.pem` is not; `tests/fixtures/test.pem` is freed and `latest.pem` is not.
-  **This is a widening**, and every path it frees is enumerated with its reason in
-  `scripts/check-fileguard-differential.py`'s `DISCLOSED_WIDENINGS`. Honest framing, per
+  **This is a widening**, and it is reachable only when the file carries a
+  `cert|crt|pem|key|p12|pfx|pub` extension — every other category keeps its flag under
+  any directory name. Each freed path is enumerated with its reason in
+  `scripts/check-fileguard-differential.py`'s `DISCLOSED_WIDENINGS`.
+  **Corrected 2026-08-24, same day, after an adversarial review:** the first version of
+  this allowlist returned *before* all thirteen category branches, so a `tests/` or
+  `fixtures/` path component exempted `.env`, `credentials.json`, `id_rsa`, `wallet.dat`,
+  `terraform.tfstate`, `passwd`, k8s secrets and `pii/` as well — thirteen real secret
+  shapes went silent, and this entry's claim that every freed path was enumerated was
+  false, because a path-component rule frees an unbounded set. The differential gate
+  below did not catch it: its corpus contained no non-certificate secret under a test
+  component, having been drawn from the widening it was meant to police. Both are fixed
+  and both directions are now proven. Honest framing, per
   the project's own rule: file-guard is a denylist speed bump behind an **advisory** hook
   (`file-guard-gate.sh` exits 0 always, `ECC_HOOK_PROFILE=strict` only), so the defect
   fixed here was noise on a warning channel, not a blocked edit — and noise is what makes

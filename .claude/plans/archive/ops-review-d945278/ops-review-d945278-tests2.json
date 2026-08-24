@@ -1,0 +1,29 @@
+{
+  "plan": "review-d945278",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_pipeline_e2e.py",
+      "edits": [
+        {
+          "find": "    lock = project / \".codemanifest.lock\"\n    if lock.exists():\n        assert lock.read_text(encoding=\"utf-8\").strip().isdigit(), \\\n            \"the lock file that is no longer unlinked must carry the holder pid, or it \" \\\n            \"is litter rather than a diagnostic\"\n",
+          "replace": "    # UNCONDITIONAL, both halves. This was `if lock.exists(): assert ...isdigit()` --\n    # guarded by exactly the property it should have been asserting, so restoring the\n    # `os.unlink` in `release()` made the branch dead and left this test green. An\n    # assertion whose guard is the condition under test cannot fail.\n    lock = project / \".codemanifest.lock\"\n    assert lock.exists(), \\\n        \"release() must LEAVE the lock file: unlinking it is the race (a contender can \" \\\n        \"hold an flock on the unlinked inode while a third process acquires a fresh path)\"\n    assert lock.read_text(encoding=\"utf-8\").strip().isdigit(), \\\n        \"the retained lock file must carry the holder pid, or it is litter rather than \" \\\n        \"a diagnostic\"\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_command_bash_parse.py",
+      "edits": [
+        {
+          "find": "def _bash_blocks(path):\n",
+          "replace": "SHELL_TAGS = {\"bash\", \"sh\", \"shell\", \"zsh\"}\n\n\ndef _is_shell_fence(stripped):\n    \"\"\"True for ```bash / ```sh / ```shell / ```zsh, with optional space and attributes.\"\"\"\n    tag = stripped[3:].strip().split()[0] if stripped[3:].strip() else \"\"\n    return tag.split(\"{\")[0].lower() in SHELL_TAGS\n\n\ndef _bash_blocks(path):\n"
+        },
+        {
+          "find": "        if lines[i].strip().startswith(\"```bash\"):\n",
+          "replace": "        # Every shell spelling, with or without a space after the fence. Matching only\n        # \"```bash\" made the gate evadable by fence spelling: ```sh and ``` bash both\n        # returned zero findings for a body that ```bash flags. No such fence exists in\n        # the corpus today, so this was a drift hole rather than a live miss -- and\n        # nothing enforced the spelling, which is what made it one.\n        stripped = lines[i].strip()\n        if stripped.startswith(\"```\") and _is_shell_fence(stripped):\n"
+        }
+      ]
+    }
+  ]
+}

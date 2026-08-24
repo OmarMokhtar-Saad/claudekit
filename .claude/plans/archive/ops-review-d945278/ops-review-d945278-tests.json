@@ -1,0 +1,19 @@
+{
+  "plan": "review-d945278",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_fileguard_allowlist.py",
+      "edits": [
+        {
+          "find": "STILL_FLAGGED = [\n    # The near misses. These are the assertions that make the allowlist narrow.\n",
+          "replace": "STILL_FLAGGED = [\n    # EVERY CATEGORY UNDER A TEST COMPONENT. This block is the assertion this file was\n    # missing: `FREED` contained `test/data.p12`, generalising past anything asserted, so\n    # a rule that freed all thirteen categories under a test directory passed both this\n    # file and the differential gate. Ten real secret shapes went silent. The allowlist is\n    # now reachable only for the cert/key extensions that motivated it, and these pin it.\n    (\"tests/fixtures/.env\", \"env-files\"),\n    (\"test/secrets.json\", \"api-tokens\"),\n    (\"tests/credentials.json\", \"credential-files\"),\n    (\"tests/id_rsa\", \"ssh-keys\"),\n    (\"testdata/wallet.dat\", \"crypto-wallets\"),\n    (\"home/tests/.aws/credentials\", \"cloud-configs\"),\n    (\"tests/fixtures/passwd\", \"password-files\"),\n    (\"testdata/prod.sqlite\", \"database-files\"),\n    (\"test/.pgpass\", \"database-files\"),\n    (\"tests/.npmrc\", \"credential-files\"),\n    (\"tests/fixtures/vault-secrets.yml\", \"cicd-secrets\"),\n    # `pii/` and `production/` are unconditional: the schema/model exclusion corrects only\n    # the `customer`+`data` predicate and must not reach past it.\n    (\"pii/model_training_data.csv\", \"production-data\"),\n    (\"pii/customer_model.csv\", \"production-data\"),\n    (\"pii/datamodel.csv\", \"production-data\"),\n    # A dump IS data. Anchored to the `-schema.`/`_schema.` shape, not the bare substring.\n    (\"customer-data-schema-dump.sql\", \"production-data\"),\n    (\"model-customer-data.csv\", \"production-data\"),\n    # The near misses. These are the assertions that make the allowlist narrow.\n"
+        },
+        {
+          "find": "Matching is by STEM and by PATH COMPONENT, never substring -- `publickeys.pem` and\n`latest.pem` must stay flagged. Those two cases are the point of this file.\n",
+          "replace": "Matching is by STEM and by PATH COMPONENT, never substring -- `publickeys.pem` and\n`latest.pem` must stay flagged. Those two cases were the original point of this file, and\nthey were never the risk.\n\n**The risk was scope, not substrings.** The first allowlist `return`ed before all thirteen\ncategory branches, so a `tests/`/`fixtures/` path component was not a certificate\nexemption -- it exempted `.env`, `credentials.json`, `id_rsa`, `wallet.dat`,\n`terraform.tfstate`, `passwd`, k8s secrets and `pii/` too. An adversarial review executed\nit and found ten regressions. Both this file and the differential gate passed, because\nneither asserted a NON-certificate secret under a test component. The allowlist is now\nreachable only when the extension is in `cert|crt|pem|key|p12|pfx|pub`, and the\n`STILL_FLAGGED` block below pins one path per category so the same hole cannot reopen.\n"
+        }
+      ]
+    }
+  ]
+}
