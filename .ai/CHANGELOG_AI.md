@@ -1,6 +1,47 @@
 # AI Session Changelog
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
+## 2026-08-24 (third period) — eight live findings fixed, and a three-week mystery solved
+
+Two commits. 2932 tests pass, 0 failures.
+
+- **`7aa0e45` — four `cli/main.py` findings.** Colour was unconditional (ANSI into every
+  pipe, file and CI log); `ck doctor` hung forever on a wedged `bash`/`git`; `ck config`
+  raised a traceback on a malformed `config.json`; `cmd_rollback` had two byte-identical
+  branches. **One existing test had to change and that was itself the finding:**
+  `test_gate_scope.py` asserted raw ANSI in output captured through a pipe, so it *required*
+  the defect — and was the only thing in the repo that would have "caught" the fix.
+- **`0e35e91` — three hook findings.** The checkpoint cap was exceeded on every other run
+  (the shell guard pruned at `count >= max` while the pruner skipped at `count == max`;
+  measured as a 3→4→3→4 oscillation, each overshoot a retained git stash); the registry was
+  read-modify-written twice with no mutex; failure output was cut to `tail -20`, i.e. the
+  summary rather than the cause. **The review named three truncation sites — asserting the
+  property found six**, including the lint and build gates that block `git push`.
+- **THE `UNEXPLAINED` INTERMITTENT IS DIAGNOSED.** `secrets.token_urlsafe` draws from the
+  base64url alphabet, so **1.53% of session tokens begin with `-`** (306 of 20 000), and
+  every caller passed `--session-token <value>` — argparse read the token as the next flag
+  and exited 2 with the exact recorded signature. Unreproducible for three weeks because
+  **the coin flip is inside the secret**. Fixed at generation (redraw, not strip — stripping
+  shortens the secret), with `--session-token=` at the call sites for tokens already on disk.
+  Tests pin the behaviour, the length, both CLI forms, **and the premise**, so the guard
+  cannot go vacuous if the alphabet changes.
+  **What caught it was the rule adopted one commit earlier: keep the whole suite output in
+  a file.** `receipt_diagnostic()` had fired twice before and the harness discarded it both
+  times — `/dev/null` once, `tail -4` once, the second of those mine, earlier the same day.
+- **Four defects of my own, and they are the useful part.** Markdown backticks inside a
+  `python3 -c "..."` shell string, where the shell would have *executed* them — shellcheck
+  caught it, which is the argument for the command-bash gate still unlanded. A test that
+  forbade the bare string it was documenting. A fake wedged `bash` that forked a `sleep`
+  and orphaned it, proving `timeout=` does **not** bound the wall clock when the probe forks
+  — **the limit is now recorded at `PROBE_TIMEOUT` rather than claimed away**. And
+  `git checkout --` to undo a mutation, which also reverted a not-yet-committed fix.
+- **One mutation proof reported GREEN for the wrong reason.** BSD `sed` silently ignores the
+  `0,/re/` address, so the mutant never applied. A mutation proof is only evidence if the
+  mutation landed — the same lesson as a gate that cannot fail, one level up.
+- **Deferred with numbers, not a shrug:** the `log()` dedup across 14 hooks. Four distinct
+  implementations, and only 2 of the 14 source `lib.sh` at all, so it is a 12-file change to
+  the hook layer for deduplication with no user-visible defect behind it.
+
 ## 2026-08-24 (second period) — task 008's paper trail, a gate that scanned nothing, and 688 lines of unlinted bash
 
 Three commits, all documentation or test surface. Suite green throughout — the last

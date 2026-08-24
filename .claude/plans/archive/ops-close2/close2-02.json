@@ -1,0 +1,27 @@
+{
+  "plan": "close2-02",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".ai/CHANGELOG_AI.md",
+      "description": "Session entry for the third working period.",
+      "edits": [
+        {
+          "find": "## 2026-08-24 (second period) — task 008's paper trail, a gate that scanned nothing, and 688 lines of unlinted bash\n",
+          "add_before": "## 2026-08-24 (third period) — eight live findings fixed, and a three-week mystery solved\n\nTwo commits. 2932 tests pass, 0 failures.\n\n- **`7aa0e45` — four `cli/main.py` findings.** Colour was unconditional (ANSI into every\n  pipe, file and CI log); `ck doctor` hung forever on a wedged `bash`/`git`; `ck config`\n  raised a traceback on a malformed `config.json`; `cmd_rollback` had two byte-identical\n  branches. **One existing test had to change and that was itself the finding:**\n  `test_gate_scope.py` asserted raw ANSI in output captured through a pipe, so it *required*\n  the defect — and was the only thing in the repo that would have \"caught\" the fix.\n- **`0e35e91` — three hook findings.** The checkpoint cap was exceeded on every other run\n  (the shell guard pruned at `count >= max` while the pruner skipped at `count == max`;\n  measured as a 3→4→3→4 oscillation, each overshoot a retained git stash); the registry was\n  read-modify-written twice with no mutex; failure output was cut to `tail -20`, i.e. the\n  summary rather than the cause. **The review named three truncation sites — asserting the\n  property found six**, including the lint and build gates that block `git push`.\n- **THE `UNEXPLAINED` INTERMITTENT IS DIAGNOSED.** `secrets.token_urlsafe` draws from the\n  base64url alphabet, so **1.53% of session tokens begin with `-`** (306 of 20 000), and\n  every caller passed `--session-token <value>` — argparse read the token as the next flag\n  and exited 2 with the exact recorded signature. Unreproducible for three weeks because\n  **the coin flip is inside the secret**. Fixed at generation (redraw, not strip — stripping\n  shortens the secret), with `--session-token=` at the call sites for tokens already on disk.\n  Tests pin the behaviour, the length, both CLI forms, **and the premise**, so the guard\n  cannot go vacuous if the alphabet changes.\n  **What caught it was the rule adopted one commit earlier: keep the whole suite output in\n  a file.** `receipt_diagnostic()` had fired twice before and the harness discarded it both\n  times — `/dev/null` once, `tail -4` once, the second of those mine, earlier the same day.\n- **Four defects of my own, and they are the useful part.** Markdown backticks inside a\n  `python3 -c \"...\"` shell string, where the shell would have *executed* them — shellcheck\n  caught it, which is the argument for the command-bash gate still unlanded. A test that\n  forbade the bare string it was documenting. A fake wedged `bash` that forked a `sleep`\n  and orphaned it, proving `timeout=` does **not** bound the wall clock when the probe forks\n  — **the limit is now recorded at `PROBE_TIMEOUT` rather than claimed away**. And\n  `git checkout --` to undo a mutation, which also reverted a not-yet-committed fix.\n- **One mutation proof reported GREEN for the wrong reason.** BSD `sed` silently ignores the\n  `0,/re/` address, so the mutant never applied. A mutation proof is only evidence if the\n  mutation landed — the same lesson as a gate that cannot fail, one level up.\n- **Deferred with numbers, not a shrug:** the `log()` dedup across 14 hooks. Four distinct\n  implementations, and only 2 of the 14 source `lib.sh` at all, so it is a 12-file change to\n  the hook layer for deduplication with no user-visible defect behind it.\n\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".ai/SESSION_STATE.md",
+      "description": "The 'only one open decision' line predated the third period, which added two more owner-gated items. Corrected rather than left, since the whole point of that line is to be the short answer to 'what needs me?'.",
+      "edits": [
+        {
+          "find": "**The open decision, and it is the only one:** the parse-error gate for command bash is",
+          "replace": "**Open decisions — three now, not one** (the line below said \"the only one\" before the third\nperiod added two): the **enforcement trio** from the code-review triage (`ExecutionLock` on\nWindows, `file-guard.sh`'s extension blocking, `config.schema.json`'s \"195+ patterns\" claim),\nand the **`log()` dedup across 14 hooks** (12 files would gain a `lib.sh` source line).\nBoth are described above. The third:\n\n**The command-bash parse-error gate:** it is"
+        }
+      ]
+    }
+  ]
+}

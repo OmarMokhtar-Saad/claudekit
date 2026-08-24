@@ -1,0 +1,27 @@
+{
+  "plan": "close2-01",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".ai/SESSION_STATE.md",
+      "description": "Resume point for the second stretch: eight of eleven live findings fixed, the UNEXPLAINED intermittent diagnosed, and the four own-goals plus the false-green mutation proof recorded where the next session will hit them.",
+      "edits": [
+        {
+          "find": "**What landed this period** — **three** commits (`cfc8a09`, `f7a4469`, `76d7387`); the\nlast bundles items 3 and 4 plus this close, because they share `.ai/BACKLOG.md`,\n`archive/README.md` and `INDEX.md` and splitting would have meant partial-staging the same\nfiles. Its message says so and carries a `Plan-Id:` trailer per plan.\n",
+          "replace": "**What landed this period** — **three** commits (`cfc8a09`, `f7a4469`, `76d7387`); the\nlast bundles items 3 and 4 plus this close, because they share `.ai/BACKLOG.md`,\n`archive/README.md` and `INDEX.md` and splitting would have meant partial-staging the same\nfiles. Its message says so and carries a `Plan-Id:` trailer per plan.\n\n**A second stretch followed, and it closed a three-week-old mystery.** Commits `7aa0e45`\nand `0e35e91` fix **eight of the eleven** findings the triage confirmed live, and diagnose\nthe `UNEXPLAINED` intermittent.\n\n- **`7aa0e45` — four `cli/main.py` findings.** Colour was unconditional (ANSI into every\n  pipe and CI log; now `NO_COLOR`/tty/`FORCE_COLOR`); `ck doctor` hung forever on a wedged\n  `bash` or `git`; `ck config` raised a traceback on a malformed `config.json`;\n  `cmd_rollback` had two byte-identical branches. **One existing test had to change and that\n  was itself a finding** — `test_gate_scope.py` asserted raw ANSI in output captured through\n  a pipe, so it *required* the defect and was the only thing that would have \"caught\" the fix.\n- **`0e35e91` — three hook findings + the intermittent.** The checkpoint cap was exceeded on\n  every other run (two guards disagreeing by one, measured as a 3→4→3→4 oscillation); the\n  registry was read-modify-written twice with no mutex; failure output was truncated to\n  `tail -20`. **The review named three truncation sites; asserting the property found six.**\n- **THE INTERMITTENT IS DIAGNOSED.** `secrets.token_urlsafe` emits a leading `-` about\n  **1.53%** of the time (306 of 20 000), and every caller passed `--session-token <value>`,\n  so argparse read the token as the next flag — exactly the recorded signature. It never\n  reproduced because **the coin flip is inside the secret**. Fixed at generation (redraw, not\n  strip) plus `--session-token=` at the call sites; tests pin the behaviour **and the\n  premise**. `.ai/BACKLOG.md` keeps the original record in full.\n  **What caught it was the rule adopted one commit earlier: keep the whole suite output.**\n  The capture had fired twice before and the harness threw it away both times.\n\n**Four defects of my own this stretch, each recorded where it will be hit again:** markdown\nbackticks inside a `python3 -c \"...\"` shell string (the shell would have executed them —\nshellcheck caught it, which is the argument for the unlanded command-bash gate); a test that\nforbade the bare string it was documenting; a fake wedged `bash` that forked a `sleep` and\norphaned it, so `timeout=` did not bound the wall clock (**the product limit is now recorded\nat `PROBE_TIMEOUT`** rather than claimed away); and `git checkout --` used to undo a mutation,\nwhich also reverted an uncommitted fix. **One mutation proof reported GREEN for the wrong\nreason** — BSD `sed` silently ignores `0,/re/`, so the mutant never applied. A mutation proof\nis only evidence if the mutation landed.\n\n**Still deferred, with numbers rather than a shrug:** the `log()` dedup across 14 hooks.\n`lib.sh` already ships `hlog()` and one hook already delegates, but the 14 definitions are\n**four distinct implementations** and **only 2 of the 14 source `lib.sh` at all** — a 12-file\nchange to the hook layer for deduplication with no user-visible defect behind it.\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".ai/SESSION_STATE.md",
+      "description": "The open-items list still says the 11 confirmed findings are outstanding; eight are now fixed and three are the owner-gated enforcement trio.",
+      "edits": [
+        {
+          "find": "2. **The 45 unverified `code-review.md` findings**, and the 11 confirmed ones — three of\n   which touch the enforcement layer (`ExecutionLock` is not a lock on Windows,\n   `file-guard.sh`'s extension blocking, `config.schema.json:75` advertising \"195+ patterns\"\n   for a ~60-pattern hook wired into nothing) and are owner-gated.",
+          "replace": "2. **The 45 unverified `code-review.md` findings.** Of the 11 confirmed live, **8 are now\n   fixed** (`7aa0e45`, `0e35e91`). The remaining three are the **enforcement trio and stay\n   owner-gated**: `ExecutionLock` is not a lock on Windows and its `release()` unlinks a lock\n   another process may hold, `file-guard.sh` blocks `.pem`/`.key`/`.crt` by extension with no\n   allowlist, and `config.schema.json:75` advertises \"195+ patterns\" for a ~60-pattern hook\n   that is wired into nothing."
+        }
+      ]
+    }
+  ]
+}
