@@ -1,0 +1,23 @@
+{
+  "plan": "scanner-coverage",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/plans/plan-scanner-coverage.md",
+      "edits": [
+        {
+          "find": "**Status:** **EXECUTED 2026-08-24.** Both fixes landed and are mutation-proven: reverting F44 fails 3 of its 5 tests, reverting F54 fails 5 of its 10. **F54 went further than the finding** \u2014 its crypto half turned out to be backwards (`hashlib.md5(` never matched; a comment saying MD5 did), which the finding did not say. Artifacts: `.claude/hooks/session-start.sh`, `.claude/hooks/security-reminder.sh`, `tests/test_session_context_scan.py`, `tests/test_security_reminder_coverage.py`, `review/code-review-triage.md`, `CHANGELOG.md`, `.claude/plans/plan-scanner-coverage.md`, `.claude/plans/archive/README.md`. Original status line: PLANNED 2026-08-24. Tier 2 \u2014 two hook scripts plus tests. Both are *security-shaped*",
+          "replace": "**Status:** **EXECUTED 2026-08-24.** Tier 2 \u2014 two hook scripts plus tests. Both are\n*security-shaped* but neither is enforcement: `security-reminder.sh` only warns and\n`session-start.sh` only prints, so no verdict flips.\n\nMutation-proven: reverting F44 fails 3 of its 5 tests, reverting F54 fails 5 of its 10.\n**F54 went further than the finding said**, and that is recorded in its section below \u2014\nits crypto half was backwards, not merely noisy."
+        },
+        {
+          "find": "**Held, not blocked:** an adversarial `code-reviewer` is currently reading\n`session-start.sh` and `security-reminder.sh` as part of the `d945278` review. Editing those two\nfiles underneath it would invalidate its verdict, so this plan is written first and executed\nafter that verdict lands. If the review finds something in either file, this plan absorbs it\nbefore any ops config runs.",
+          "replace": "**Sequencing, and why this ran before its review rather than after.** The previous review of\n`d945278` read these same two files, so editing them underneath a running reviewer would have\ninvalidated its verdict \u2014 this plan was written first and held. It then executed BEFORE its own\nreview, deliberately, so that one adversarial pass can cover `a1d695f` and this work together\ninstead of two passes racing each other over the same files. **That review is queued, not\nskipped**, and until it reports this plan carries no independent verdict."
+        },
+        {
+          "find": "**The second half of F54 \u2014 unanchored `\\bMD5\\b|\\bSHA1\\b|\\bRC4\\b` \u2014 is narrowed, not removed.**\nThe finding says these fire on comments and documentation. Documentation is already largely\nexcluded: `:49-54` skips `docs/`, `README`, `CHANGELOG`, `templates/`, `.claude/{skills,agents,commands,hooks}/`\nand any `.md`/`.txt`/`.rst` target. What remains is **comment lines inside source files**, which is\nreal: a comment reading \"do not use MD5 here\" triggers a weak-crypto warning. Fix: match the\nkeyword only on lines that are not obviously comments (leading `#`, `//`, `*`). Kept as a warning\neither way \u2014 this hook cannot block.",
+          "replace": "**The second half of F54 is not what the finding says it is \u2014 it is worse, and in the opposite\ndirection.** The finding calls the crypto keywords \"unanchored\", firing on comments and\ndocumentation. Documentation was already largely excluded (`:49-54` skips `docs/`, `README`,\n`CHANGELOG`, `templates/`, `.claude/{skills,agents,commands,hooks}/` and any `.md`/`.txt`/`.rst`\ntarget), so the noise half was real only for comment lines inside source files. **But `\\bMD5\\b`\nis case-SENSITIVE.** So:\n\n    hashlib.md5(data)          -> NO warning   (the commonest real form)\n    # do not use MD5 here      -> warning      (a comment)\n\nThe check fired on prose and stayed silent on code. Verified against the pre-fix version before\ntouching it. Fix, both directions: API-call shapes (`hashlib.md5(`, `MD5.new()`,\n`from Crypto.Hash import SHA1`) match case-insensitively; the bare uppercase word matches only on\nnon-comment lines; and `hashlib.sha256` must not fire, which is asserted.\n\n**I got this wrong once in the course of fixing it.** My first check reported that real MD5 use\nwarned \u2014 but the fixture was `h = hashlib.md5(data)  # MD5 digest`, and the match came from the\nuppercase text in the *trailing comment*, not from the code. Re-running with lowercase only\nreturned 0. A passing test whose pass comes from the wrong half of the fixture is the same\nmistake as a mutation that never landed."
+        }
+      ]
+    }
+  ]
+}

@@ -60,20 +60,53 @@ for skip in '.claude/skills/' '.claude/agents/' '.claude/commands/' '.claude/hoo
 done
 echo "$TARGET_PATH" | grep -qE '\.(md|txt|rst)$' && exit 0
 
-CONTENT=$(echo "$TOOL_INPUT" | python3 -c "
+# SCAN_LIMIT, and the limit ANNOUNCES ITSELF. This was `inp[key][:3000]`, so every
+# pattern below matched a truncated copy: a `shell=True` at character 3001 was never
+# scanned, the hook exited 0, and nothing anywhere said coverage had been partial. 3000
+# characters is about 75 lines, which a routine edit exceeds. The defect is the SILENCE,
+# not the number -- the same class as `tail -20` and as a gate that skips most of its
+# inputs. The cap stays (a PreToolUse hook must not chew through a pathological paste)
+# but a truncated scan now says so, on stderr, with the numbers.
+#
+# The length prefix keeps this to ONE python3 spawn: three PreToolUse hooks already cost
+# about ten interpreter startups per guarded tool call (finding F105), and asking for the
+# original length separately would have added an eleventh.
+SCAN_LIMIT=200000
+_PAYLOAD=$(echo "$TOOL_INPUT" | python3 -c "
 import sys, json
+limit = int(sys.argv[1])
 try:
     d = json.load(sys.stdin)
     inp = d.get('tool_input', d.get('input', d))
     for key in ['new_string', 'content', 'new_content', 'text']:
         if key in inp:
-            print(inp[key][:3000])
+            value = inp[key]
+            print(len(value))
+            print(value[:limit])
             break
-except:
+except Exception:
     pass
-" 2>/dev/null)
+" "$SCAN_LIMIT" 2>/dev/null)
+
+[ -z "$_PAYLOAD" ] && exit 0
+CONTENT_LEN=$(printf '%s' "$_PAYLOAD" | head -1)
+CONTENT=$(printf '%s' "$_PAYLOAD" | tail -n +2)
+unset _PAYLOAD
 
 [ -z "$CONTENT" ] && exit 0
+
+if [ "${CONTENT_LEN:-0}" -gt "$SCAN_LIMIT" ] 2>/dev/null; then
+    printf '[%s] PARTIAL SCAN: %s of %s characters checked in %s. The remainder was NOT scanned.\n' \
+        "$HOOK_NAME" "$SCAN_LIMIT" "$CONTENT_LEN" "$TARGET_PATH" >&2
+    log "WARN" "partial scan: $SCAN_LIMIT of $CONTENT_LEN chars in $TARGET_PATH"
+fi
+
+# Comment lines are stripped for the KEYWORD checks only. A comment reading "do not use
+# MD5 here" is not a weak-crypto finding, and documentation paths are already skipped
+# above -- what was left was comments inside source files. Pattern checks that look for
+# CODE shapes (`shell=True`, `innerHTML =`) keep the full text, because a commented-out
+# line is not the target either way and stripping is only needed where a bare word is.
+CONTENT_CODE=$(printf '%s\n' "$CONTENT" | grep -vE '^[[:space:]]*(#|//|\*|/\*)' || true)
 
 WARNINGS=()
 
@@ -93,7 +126,16 @@ if echo "$CONTENT" | grep -qE 'verify\s*=\s*False|ssl_verify.*False|check_hostna
     WARNINGS+=("TLS verification disabled")
 fi
 
-if echo "$CONTENT" | grep -qE '\bMD5\b|\bSHA1\b|\bRC4\b'; then
+# Two shapes, because the bare-word pattern missed the commonest real one. `\bMD5\b` is
+# case-SENSITIVE, so `hashlib.md5(data)` -- the way weak crypto is actually written in
+# Python -- never matched, while a comment saying "MD5" did. Verified against the previous
+# version: lowercase `hashlib.md5(` produced no warning at all.
+#   1. API call shapes, case-insensitively: this is the one that catches real code.
+#   2. The bare uppercase word, on non-comment lines only: catches `MD5.new()` and
+#      constants without firing on prose.
+if echo "$CONTENT_CODE" | grep -qiE '(hashlib|crypto|openssl|digest)[._:]*(md5|sha1|rc4)|(md5|sha1|rc4)\.new\(|new (md5|sha1|rc4)\b'; then
+    WARNINGS+=("Weak cryptographic algorithm (MD5/SHA1/RC4)")
+elif echo "$CONTENT_CODE" | grep -qE '\bMD5\b|\bSHA1\b|\bRC4\b'; then
     WARNINGS+=("Weak cryptographic algorithm (MD5/SHA1/RC4)")
 fi
 

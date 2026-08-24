@@ -1,0 +1,35 @@
+{
+  "plan": "scanner-coverage",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "edits": [
+        {
+          "find": "## [Unreleased]\n\n### Fixed\n\n",
+          "replace": "## [Unreleased]\n\n### Fixed\n\n- **Session context is scanned before it reaches the transcript.** `session-start.sh` printed\n  the first 20 lines of `.claude/session-context.md` straight into the session, before any\n  scanner saw them \u2014 and indenting text with `sed` is not neutralising it. The existing\n  injection scanner did not cover this path: `injection-scan-gate.sh` scans the\n  `UserPromptSubmit` payload's `prompt` field and nothing else. The excerpt is now scanned\n  first; a match **withholds the content**, leaves the file untouched, and tells you which file\n  to inspect. Not gated to `ECC_HOOK_PROFILE=strict`, because `session-start.sh` runs in every\n  profile. Bounds, stated plainly: writing that file needs local write access, so the realistic\n  vector is a shared or cloned repo, or an earlier agent run \u2014 not a remote hole. What it closes\n  is a mechanical exception to the project's own rule that retrieved text is evidence, never an\n  instruction channel.\n\n- **`security-reminder.sh` no longer stops scanning at character 3000.** Every pattern it\n  checks \u2014 `shell=True`, SQL concatenation, `innerHTML`, disabled TLS verification, weak crypto,\n  permissive CORS \u2014 matched a **truncated** copy of the edit, so a risk at character 3001 was\n  never scanned and the hook exited 0 with no indication that coverage was partial. 3000\n  characters is about 75 lines. The cap is now 200,000 **and it announces itself**: a truncated\n  scan prints `PARTIAL SCAN: N of M characters checked`. The silence was the defect, not the\n  number.\n\n- **Weak-crypto detection was backwards.** `\\bMD5\\b` is case-sensitive, so `hashlib.md5(data)`\n  \u2014 the way weak crypto is actually written in Python \u2014 **never** triggered a warning, while a\n  comment saying \"do not use MD5\" did. Verified against the previous version before changing it.\n  Now the API-call shapes match case-insensitively, the bare uppercase word matches only on\n  non-comment lines, and `hashlib.sha256` does not fire.\n\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/plans/plan-scanner-coverage.md",
+      "edits": [
+        {
+          "find": "**Status:** PLANNED 2026-08-24.",
+          "replace": "**Status:** **EXECUTED 2026-08-24.** Both fixes landed and are mutation-proven: reverting F44 fails 3 of its 5 tests, reverting F54 fails 5 of its 10. **F54 went further than the finding** \u2014 its crypto half turned out to be backwards (`hashlib.md5(` never matched; a comment saying MD5 did), which the finding did not say. Artifacts: `.claude/hooks/session-start.sh`, `.claude/hooks/security-reminder.sh`, `tests/test_session_context_scan.py`, `tests/test_security_reminder_coverage.py`, `review/code-review-triage.md`, `CHANGELOG.md`, `.claude/plans/plan-scanner-coverage.md`, `.claude/plans/archive/README.md`. Original status line: PLANNED 2026-08-24."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/plans/archive/README.md",
+      "edits": [
+        {
+          "find": "| `ops-review-d945278/*.json` |",
+          "add_before": "| `ops-scanner-coverage/*.json` | Spent 2026-08-24, `--no-approval` disclosed (owner approved F44+F54 in session; the review of this work is queued, not skipped). The two highest-value rows left in `review/code-review-triage.md`'s LIVE set, both *coverage that isn't* rather than tidiness \u2014 40 LIVE becomes 38. **F44:** `session-start.sh` printed 20 lines of `.claude/session-context.md` into the transcript before any scanner saw them; `injection-scan-gate.sh` covers only the `UserPromptSubmit` `prompt` field, so the mitigation existed and was never applied to this path. Now scanned first, content **withheld** on a match, file left unchanged, and NOT gated to `strict` because this hook runs in every profile. The binding assertion checks the payload string is ABSENT from stdout \u2014 asserting a warning appeared would pass while still echoing it. **F54:** `print(inp[key][:3000])` meant every pattern matched a truncated copy, so a `shell=True` at char 3001 was never scanned and the hook exited 0 silently. Cap now 200,000 and a truncated scan prints both numbers \u2014 the silence was the defect, not the number. **The crypto half turned out to be backwards, which the finding did not say:** `\\bMD5\\b` is case-SENSITIVE, so `hashlib.md5(data)` never matched while a comment saying \"MD5\" did; I claimed \"real MD5 use warns\" from a test whose uppercase text sat in a trailing comment, and caught it by re-running with lowercase only. Also found and NOT fixed: `prompt-injection-scanner.sh:12` is a **fourth** cwd-relative log-path form, so F107 stays live and its count is measured-not-final. Plan: `plan-scanner-coverage.md`. |\n"
+        }
+      ]
+    }
+  ]
+}

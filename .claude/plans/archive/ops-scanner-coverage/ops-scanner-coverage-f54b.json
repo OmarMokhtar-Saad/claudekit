@@ -1,0 +1,15 @@
+{
+  "plan": "scanner-coverage",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/security-reminder.sh",
+      "edits": [
+        {
+          "find": "if echo \"$CONTENT_CODE\" | grep -qE '\\bMD5\\b|\\bSHA1\\b|\\bRC4\\b'; then\n    WARNINGS+=(\"Weak cryptographic algorithm (MD5/SHA1/RC4)\")\nfi",
+          "replace": "# Two shapes, because the bare-word pattern missed the commonest real one. `\\bMD5\\b` is\n# case-SENSITIVE, so `hashlib.md5(data)` -- the way weak crypto is actually written in\n# Python -- never matched, while a comment saying \"MD5\" did. Verified against the previous\n# version: lowercase `hashlib.md5(` produced no warning at all.\n#   1. API call shapes, case-insensitively: this is the one that catches real code.\n#   2. The bare uppercase word, on non-comment lines only: catches `MD5.new()` and\n#      constants without firing on prose.\nif echo \"$CONTENT_CODE\" | grep -qiE '(hashlib|crypto|openssl|digest)[._:]*(md5|sha1|rc4)|(md5|sha1|rc4)\\.new\\(|new (md5|sha1|rc4)\\b'; then\n    WARNINGS+=(\"Weak cryptographic algorithm (MD5/SHA1/RC4)\")\nelif echo \"$CONTENT_CODE\" | grep -qE '\\bMD5\\b|\\bSHA1\\b|\\bRC4\\b'; then\n    WARNINGS+=(\"Weak cryptographic algorithm (MD5/SHA1/RC4)\")\nfi"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "plan": "scanner-coverage",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/security-reminder.sh",
+      "edits": [
+        {
+          "find": "CONTENT=$(echo \"$TOOL_INPUT\" | python3 -c \"\nimport sys, json\ntry:\n    d = json.load(sys.stdin)\n    inp = d.get('tool_input', d.get('input', d))\n    for key in ['new_string', 'content', 'new_content', 'text']:\n        if key in inp:\n            print(inp[key][:3000])\n            break\nexcept:\n    pass\n\" 2>/dev/null)\n\n[ -z \"$CONTENT\" ] && exit 0\n",
+          "replace": "# SCAN_LIMIT, and the limit ANNOUNCES ITSELF. This was `inp[key][:3000]`, so every\n# pattern below matched a truncated copy: a `shell=True` at character 3001 was never\n# scanned, the hook exited 0, and nothing anywhere said coverage had been partial. 3000\n# characters is about 75 lines, which a routine edit exceeds. The defect is the SILENCE,\n# not the number -- the same class as `tail -20` and as a gate that skips most of its\n# inputs. The cap stays (a PreToolUse hook must not chew through a pathological paste)\n# but a truncated scan now says so, on stderr, with the numbers.\n#\n# The length prefix keeps this to ONE python3 spawn: three PreToolUse hooks already cost\n# about ten interpreter startups per guarded tool call (finding F105), and asking for the\n# original length separately would have added an eleventh.\nSCAN_LIMIT=200000\n_PAYLOAD=$(echo \"$TOOL_INPUT\" | python3 -c \"\nimport sys, json\nlimit = int(sys.argv[1])\ntry:\n    d = json.load(sys.stdin)\n    inp = d.get('tool_input', d.get('input', d))\n    for key in ['new_string', 'content', 'new_content', 'text']:\n        if key in inp:\n            value = inp[key]\n            print(len(value))\n            print(value[:limit])\n            break\nexcept Exception:\n    pass\n\" \"$SCAN_LIMIT\" 2>/dev/null)\n\n[ -z \"$_PAYLOAD\" ] && exit 0\nCONTENT_LEN=$(printf '%s' \"$_PAYLOAD\" | head -1)\nCONTENT=$(printf '%s' \"$_PAYLOAD\" | tail -n +2)\nunset _PAYLOAD\n\n[ -z \"$CONTENT\" ] && exit 0\n\nif [ \"${CONTENT_LEN:-0}\" -gt \"$SCAN_LIMIT\" ] 2>/dev/null; then\n    printf '[%s] PARTIAL SCAN: %s of %s characters checked in %s. The remainder was NOT scanned.\\n' \\\n        \"$HOOK_NAME\" \"$SCAN_LIMIT\" \"$CONTENT_LEN\" \"$TARGET_PATH\" >&2\n    log \"WARN\" \"partial scan: $SCAN_LIMIT of $CONTENT_LEN chars in $TARGET_PATH\"\nfi\n\n# Comment lines are stripped for the KEYWORD checks only. A comment reading \"do not use\n# MD5 here\" is not a weak-crypto finding, and documentation paths are already skipped\n# above -- what was left was comments inside source files. Pattern checks that look for\n# CODE shapes (`shell=True`, `innerHTML =`) keep the full text, because a commented-out\n# line is not the target either way and stripping is only needed where a bare word is.\nCONTENT_CODE=$(printf '%s\\n' \"$CONTENT\" | grep -vE '^[[:space:]]*(#|//|\\*|/\\*)' || true)\n"
+        },
+        {
+          "find": "if echo \"$CONTENT\" | grep -qE '\\bMD5\\b|\\bSHA1\\b|\\bRC4\\b'; then",
+          "replace": "if echo \"$CONTENT_CODE\" | grep -qE '\\bMD5\\b|\\bSHA1\\b|\\bRC4\\b'; then"
+        }
+      ]
+    }
+  ]
+}

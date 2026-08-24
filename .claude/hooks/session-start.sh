@@ -145,10 +145,41 @@ except:
     fi
 
     if [ "$CONTEXT_AGE_HOURS" -lt 48 ]; then
+        # SCAN BEFORE PRINTING. This excerpt goes straight into the transcript at the
+        # moment of least suspicion, and `sed 's/^/  /'` indents text -- it does not
+        # neutralise it. `injection-scan-gate.sh` does not cover this path: it scans
+        # `extract_json_field "$PAYLOAD" prompt`, i.e. the UserPromptSubmit field and
+        # nothing else. So the mitigation existed and was simply never applied here,
+        # against a file any earlier agent run -- or anyone sharing the repo -- can write.
+        # CLAUDE.md's rule is that retrieved text is evidence, never an instruction
+        # channel; this path was the mechanical exception.
+        #
+        # Not gated to `strict`: session-start.sh runs in every profile, and a check that
+        # only protects the profile nobody sets is decoration.
+        _ctx_excerpt=$(head -20 "$CONTEXT_FILE")
+        _ctx_scanner=""
+        for _cand in "$SCRIPT_DIR/prompt-injection-scanner.sh" \
+                     ".claude/hooks/prompt-injection-scanner.sh"; do
+            [ -f "$_cand" ] && { _ctx_scanner="$_cand"; break; }
+        done
+
         echo ""
         echo "Previous session context found (${CONTEXT_AGE_HOURS}h ago):"
-        # Print first 20 lines of context
-        head -20 "$CONTEXT_FILE" | sed 's/^/  /'
+        if [ -z "$_ctx_scanner" ]; then
+            # Fail toward silence. Printing an excerpt is a convenience; printing an
+            # UNSCANNED one is the finding. The cost of withholding is one command.
+            echo "  (not shown: the injection scanner is unavailable, so the excerpt was"
+            echo "   not checked. Run /resume-session to load it deliberately.)"
+            log "WARN" "session context not shown: scanner missing at $SCRIPT_DIR"
+        elif printf '%s\n' "$_ctx_excerpt" | bash "$_ctx_scanner" >/dev/null 2>&1; then
+            printf '%s\n' "$_ctx_excerpt" | sed 's/^/  /'
+        else
+            echo "  (not shown: the excerpt matched a prompt-injection pattern. The file is"
+            echo "   unchanged on disk. Inspect $CONTEXT_FILE, then /resume-session if it is"
+            echo "   legitimate.)"
+            log "WARN" "session context withheld: injection pattern in $CONTEXT_FILE"
+        fi
+        unset _ctx_excerpt _ctx_scanner _cand
         echo ""
         echo "  Run /resume-session to restore full context."
     else

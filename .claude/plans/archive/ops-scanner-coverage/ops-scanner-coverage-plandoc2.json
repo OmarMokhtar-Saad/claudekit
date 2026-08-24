@@ -1,0 +1,15 @@
+{
+  "plan": "scanner-coverage",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/plans/plan-scanner-coverage.md",
+      "edits": [
+        {
+          "find": "its crypto half was backwards, not merely noisy.\nbut neither is enforcement: `security-reminder.sh` only warns, and `session-start.sh` only prints.\nNo verdict flips, so this is not Tier 3.\n",
+          "replace": "its crypto half was backwards, not merely noisy.\n\n## Artifacts\n\n| Path | Config |\n| --- | --- |\n| `.claude/hooks/session-start.sh` | `-f44` |\n| `.claude/hooks/security-reminder.sh` | `-f54`, `-f54b` |\n| `tests/test_session_context_scan.py`, `tests/test_security_reminder_coverage.py` | `-tests` |\n| `review/code-review-triage.md` | `-triage` |\n| `CHANGELOG.md`, `.claude/plans/plan-scanner-coverage.md`, `.claude/plans/archive/README.md` | `-docs`, `-plandoc` |\n"
+        }
+      ]
+    }
+  ]
+}
