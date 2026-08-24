@@ -1,5 +1,5 @@
 ---
-description: "Route a task to the optimal Claude model (haiku/sonnet/opus) based on complexity scoring"
+description: "Score a task and name the capability tier it earns (fast/balanced/most-capable)"
 argument-hint: "<task-description>"
 model: haiku
 ---
@@ -21,42 +21,32 @@ Route this task to the optimal model: $ARGUMENTS
 
 ## Execution
 
-Invoke the model-router agent with the task description.
+Score the task with the rubric in
+[`.claude/agents/coordinator.md` § Model economy](../agents/coordinator.md#6-model-economy)
+— four dimensions, 0–3 each, summed — then apply the overrides. Report the **tier**
+(`fast` / `balanced` / `most-capable`) and the score that produced it, never a vendor
+model name: `.claude/model-policy.json` is the one place a tier becomes a model.
 
-The model-router will:
+Applying the rubric, you will:
 1. Score the task on 4 dimensions (0–3 each, total 0–12)
-2. Apply override rules (security → min Sonnet, docs → max Sonnet)
-3. Return: recommended model, score breakdown, cost ratio, reasoning
+2. Apply the overrides, which beat the score
+3. Return: the TIER, the score breakdown, and the reasoning
 
-### Scoring Dimensions
-
-| Dimension | 0 | 1 | 2 | 3 |
-|-----------|---|---|---|---|
-| Reasoning depth | Lookup/format | Simple 1-step | Multi-step with trade-offs | Novel/adversarial |
-| Output complexity | <200 tokens | 200-1k | 1k-5k | >5k |
-| Error cost | Trivially reversible | Easily reversible | Moderate to fix | Expensive to fix |
-| Domain novelty | Routine with precedent | Slightly unusual | Unfamiliar codebase | Novel problem |
-
-### Decision Table
-
-| Score | Recommendation |
-|-------|---------------|
-| 0–3 | Haiku |
-| 4–7 | Sonnet |
-| 8–10 | Sonnet (heavy) |
-| 11–12 | Opus |
+The dimensions and the score→tier table are **not repeated here** — they live once, in
+`coordinator.md` § Model economy. This file carried its own copy in vendor model names,
+which is both the duplication task 008 exists to remove and the vocabulary the model
+policy forbids.
 
 ---
 
 ## Usage Examples
 
-- `/model-route "update the README with new installation steps"` → Haiku
-- `/model-route "implement JWT refresh token rotation"` → Sonnet
-- `/model-route "design the new multi-tenant auth architecture"` → Opus
-- `/model-route "review this PR for security vulnerabilities"` → Opus
+- `/model-route "update the README"` → `fast`
+- `/model-route "implement JWT refresh rotation"` → `balanced`
+- `/model-route "design multi-tenant auth"` → `most-capable`
+- `/model-route "review this PR for security"` → `most-capable` (override)
 
 ## Notes
 
-- This command itself runs on Haiku — routing is always cheap
-- Use before spawning expensive agents to optimize cost
-- Override rules: security review → min Sonnet; docs → max Sonnet
+- Routing runs at `fast`; recursive routing is silly
+- Overrides beat the score — see the rubric

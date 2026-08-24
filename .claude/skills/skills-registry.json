@@ -15,6 +15,10 @@
       "to": "docs",
       "kind": "agent"
     },
+    "model-router": {
+      "to": "coordinator",
+      "kind": "agent"
+    },
     "python-reviewer": {
       "to": "python-review-checklist",
       "kind": "skill"
@@ -765,7 +769,6 @@
   ],
   "agentsWithoutSkills": [
     "harness-optimizer",
-    "model-router",
     "performance-optimizer",
     "refactor-cleaner",
     "web-researcher"

@@ -1,0 +1,80 @@
+{
+  "plan": "008-b3c6-02-command",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/commands/model-route.md",
+      "description": "/model-route becomes thin: it applies the coordinator's rubric itself instead of spawning an agent to do it, and reports a TIER. Its usage examples and notes reported vendor model names as OUTPUTS, which is the thing the tier vocabulary exists to prevent; they now report tiers. Net effect also brings the file back under its ratchet.",
+      "edits": [
+        {
+          "find": "Invoke the model-router agent with the task description.",
+          "replace": "Score the task with the rubric in\n[`.claude/agents/coordinator.md` § Model economy](../agents/coordinator.md#6-model-economy)\n— four dimensions, 0–3 each, summed — then apply the overrides. Report the **tier**\n(`fast` / `balanced` / `most-capable`) and the score that produced it, never a vendor\nmodel name: `.claude/model-policy.json` is the one place a tier becomes a model."
+        },
+        {
+          "find": "The model-router will:",
+          "replace": "Applying the rubric, you will:"
+        },
+        {
+          "find": "- `/model-route \"update the README with new installation steps\"` → Haiku\n- `/model-route \"implement JWT refresh token rotation\"` → Sonnet\n- `/model-route \"design the new multi-tenant auth architecture\"` → Opus\n- `/model-route \"review this PR for security vulnerabilities\"` → Opus",
+          "replace": "- `/model-route \"update the README\"` → `fast`\n- `/model-route \"implement JWT refresh rotation\"` → `balanced`\n- `/model-route \"design multi-tenant auth\"` → `most-capable`\n- `/model-route \"review this PR for security\"` → `most-capable` (override)"
+        },
+        {
+          "find": "- This command itself runs on Haiku — routing is always cheap\n- Use before spawning expensive agents to optimize cost\n- Override rules: security review → min Sonnet; docs → max Sonnet",
+          "replace": "- Routing runs at `fast`; recursive routing is silly\n- Overrides beat the score — see the rubric"
+        },
+        {
+          "find": "2. Apply override rules (security → min Sonnet, docs → max Sonnet)\n3. Return: recommended model, score breakdown, cost ratio, reasoning\n\n### Scoring Dimensions\n\n| Dimension | 0 | 1 | 2 | 3 |\n|-----------|---|---|---|---|\n| Reasoning depth | Lookup/format | Simple 1-step | Multi-step with trade-offs | Novel/adversarial |\n| Output complexity | <200 tokens | 200-1k | 1k-5k | >5k |\n| Error cost | Trivially reversible | Easily reversible | Moderate to fix | Expensive to fix |\n| Domain novelty | Routine with precedent | Slightly unusual | Unfamiliar codebase | Novel problem |\n\n### Decision Table\n\n| Score | Recommendation |\n|-------|---------------|\n| 0–3 | Haiku |\n| 4–7 | Sonnet |\n| 8–10 | Sonnet (heavy) |\n| 11–12 | Opus |\n",
+          "replace": "2. Apply the overrides, which beat the score\n3. Return: the TIER, the score breakdown, and the reasoning\n\nThe dimensions and the score→tier table are **not repeated here** — they live once, in\n`coordinator.md` § Model economy. This file carried its own copy in vendor model names,\nwhich is both the duplication task 008 exists to remove and the vocabulary the model\npolicy forbids.\n"
+        },
+        {
+          "find": "description: \"Route a task to the optimal Claude model (haiku/sonnet/opus) based on complexity scoring\"",
+          "replace": "description: \"Score a task and name the capability tier it earns (fast/balanced/most-capable)\""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/gan-harness/SKILL.md",
+      "description": "gan-harness pointed at the removed agent for Generator model choice.",
+      "edits": [
+        {
+          "find": "- Use **model-router** to select Generator model based on task complexity",
+          "replace": "- Score Generator complexity with the rubric in `coordinator.md` § Model economy and pick a TIER"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/QUICK_START.md",
+      "description": "Inventory.",
+      "edits": [
+        {
+          "find": "    model-router.md          → Routes tasks to optimal model by complexity\n",
+          "replace": ""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/model-policy.json",
+      "description": "Drop the removed role.",
+      "edits": [
+        {
+          "find": "    \"model-router\": {\n      \"accountable_for\": \"Scoring a task and naming the capability tier it earns.\",\n      \"tier\": \"fast\"\n    },\n",
+          "replace": ""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_model_policy.py",
+      "description": "Expected tiers.",
+      "edits": [
+        {
+          "find": "\"gitOps\": \"haiku\", \"implementer\": \"haiku\", \"model-router\": \"haiku\",",
+          "replace": "\"gitOps\": \"haiku\", \"implementer\": \"haiku\","
+        }
+      ]
+    }
+  ]
+}

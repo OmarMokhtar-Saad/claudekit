@@ -85,7 +85,7 @@ Analyze every incoming request and classify it into exactly one category:
 | **Build Fix**     | "build fails", "type errors", "tsc errors", "compilation"   | Build Error Resolver |
 | **Open Source**   | "open source this", "publish repo", "release publicly"      | OpenSource Pipeline (Sanitizer → Packager) |
 | **Loop Monitor**  | "loop is stuck", "agent is spinning", "loop not progressing"| Loop Operator |
-| **Model Select**  | "which model", "haiku or sonnet", "optimize cost"           | Model Router |
+| **Model Select**  | "which model", "which tier", "optimize cost"                | score it with § Model economy below, or `/model-route` |
 
 If the classification is ambiguous, ask one clarifying question before proceeding.
 
@@ -385,7 +385,6 @@ Quick reference for what each agent expects and produces:
 | **Loop Operator** | Loop state + iteration logs | Health report or intervention (pause/emergency stop) |
 | **OpenSource Sanitizer** | Codebase to scan | PASS/FAIL report with file:line findings |
 | **OpenSource Packager** | Sanitized codebase | CLAUDE.md, setup.sh, README, LICENSE, CONTRIBUTING, .github/ |
-| **Model Router** | Task description | Model recommendation (haiku/sonnet/opus) + cost estimate |
 
 ---
 
@@ -476,5 +475,37 @@ nested review rounds) and display as finished while incomplete.
 - After implementer(s) report, STOP and ask the user: "Implementation complete. Run verifier?" Run verifier ONLY on explicit user approval.
 
 ### 6. Model economy
-- Every role's tier comes from `.claude/model-policy.json`; never pick a vendor model name by hand. Coordinator/decomposition and reviewers run `balanced`; planners run `most-capable` for architecture-heavy sub-plans and `balanced` otherwise (consult model-router when unsure); implementers and research run `fast`.
+- Every role's tier comes from `.claude/model-policy.json`; never pick a vendor model name by hand. Coordinator/decomposition and reviewers run `balanced`; planners run `most-capable` for architecture-heavy sub-plans and `balanced` otherwise; implementers and research run `fast`.
+
+**When a task has no role row, score it.** Merged from the `model-router` agent, which is
+gone; the name resolves here through the registry `renamedAgents` alias map. **Translated
+to tiers, not transplanted:** that agent named Haiku/Sonnet/Opus throughout, which this
+repo's own policy forbids — tiers are the vocabulary, and `model-policy.json` maps tier to
+model in exactly one place. Folding its table in verbatim would have imported the thing
+the policy exists to prevent.
+
+Score each dimension 0–3, then sum (0–12):
+
+| Dimension | 0 | 1 | 2 | 3 |
+|---|---|---|---|---|
+| **Reasoning depth** | lookup, format, copy | single step, clear answer | multi-step, trade-offs | novel, adversarial, architectural |
+| **Output complexity** | < 200 tokens | 200–1000 | 1000–5000 (a file) | > 5000 (a feature) |
+| **Error cost** | trivially reversible | easily reversible | moderate to fix | expensive: security, migration, public API |
+| **Domain novelty** | clear precedent | slightly unusual | unfamiliar codebase | no best practice, requires synthesis |
+
+| Total | Tier |
+|---|---|
+| 0–3 | `fast` — simple, low-stakes, reversible |
+| 4–10 | `balanced` — standard engineering work |
+| 11–12 | `most-capable` — novel, high-stakes, deep reasoning |
+
+**Overrides beat the score:**
+- Security review of any kind → at least `balanced`, prefer `most-capable`
+- Code review for merge approval → `most-capable`; a cheap model missing a bug costs more than the tokens it saved
+- Documentation update → at most `balanced`
+- The routing decision itself → `fast`; recursive routing is silly
+
+The 8–10 band collapsed into `balanced` on purpose: the old table's "Sonnet (heavy)" row
+named the same model as the row above it, so it was a distinction the tier vocabulary
+cannot express and the vendor vocabulary only appeared to.
 - Session fallback chain (user settings fallbackModel) degrades one tier on limits: keep flows running, never stall a half-finished fan-out.

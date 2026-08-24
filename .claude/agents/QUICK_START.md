@@ -173,7 +173,6 @@ Triggers: "find", "search", "where is", "how does"
     loop-operator.md         → Monitors and intervenes in autonomous loops
     opensource-sanitizer.md  → Stage 1: scans for secrets before open-sourcing
     opensource-packager.md   → Stage 3: generates release packaging
-    model-router.md          → Routes tasks to optimal model by complexity
     HANDOFF_PROTOCOL.md      → Agent-to-agent handoff format
     QUICK_START.md           → This file
   hooks/
