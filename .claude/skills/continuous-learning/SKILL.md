@@ -16,7 +16,7 @@ This skill governs how Claude extracts reusable patterns at session end and save
 
 ## When Pattern Extraction Triggers
 
-Extraction has TWO triggers:
+Extraction has THREE triggers:
 
 **A. Per-issue, at the Verifier PASS checkpoint (project-local ledger).** When a diagnosed bug
 is fixed and the Verifier returns PASS, score that one issue with the rubric below and — if it
@@ -34,6 +34,21 @@ when:
    - An error recovery strategy succeeded
 
 If the session was primarily reading/exploring with no novel problem-solving, skip extraction.
+
+**C. At discovery, when a finding is NOT yet fixed (open a ledger entry).** A review finding, a
+workflow defect (bad agent routing, a hook misfire) or a known bug you are deferring is
+recorded immediately as `status: open`, with **no** rubric score and `verified: false`:
+
+```bash
+python3 .claude/operations/scripts/knowledge-ledger.py open --slug <slug> \
+  --signature "<symptom>" --origin workflow --plan <plan-slug> --severity medium
+```
+
+**The rubric gates `fixed`, never `open`.** Scoring answers "is this worth keeping once
+solved" — it cannot answer that about a bug nobody has solved yet. Only
+`record --verified` with a clearing combined score moves an entry to `fixed`;
+`close --status wontfix --reason "..."` retires one unfixed. `open` is a separate
+subcommand precisely so trigger A's write gate has no bypass.
 
 ---
 
@@ -170,7 +185,10 @@ python3 .claude/operations/scripts/knowledge-ledger.py search "<signature or key
 python3 .claude/operations/scripts/knowledge-ledger.py prune [--apply]
 ```
 
-Entry frontmatter: `signature`, `root_cause`, `fix`, `files`, `date`, `verified`. File paths
+Entry frontmatter: `signature`, `root_cause`, `fix`, `files`, `date`, `status`
+(`open`/`fixed`/`wontfix`/`regressed`; absent reads as `fixed`), `origin`
+(`code`/`workflow`/`project`), optional `plan` and `severity`, and `verified`
+(true only via `record`). File paths
 passed to `--files` may not contain `[`, `]`, `,`, quotes or newlines — the script rejects
 them so the `files:` line always parses back cleanly during pruning.
 

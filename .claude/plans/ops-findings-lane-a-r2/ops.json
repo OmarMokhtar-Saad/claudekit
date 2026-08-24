@@ -1,0 +1,77 @@
+{
+  "plan": "findings-lane-a-r2",
+  "operations": [
+    {
+      "type": "code_edit",
+      "id": "r2-01-date-whitelist",
+      "description": "B1: a DATE_RE whitelist + MALFORMED status; unknown status no longer fails open into fixed (M1)",
+      "path": ".claude/operations/scripts/knowledge-ledger.py",
+      "edits": [
+        {
+          "find": "STATUSES = (\"open\", \"fixed\", \"wontfix\", \"regressed\")\nUNFIXED = (\"open\", \"regressed\")      # never archived by prune; a real, live signal",
+          "replace": "STATUSES = (\"open\", \"fixed\", \"wontfix\", \"regressed\")\n# A `status:` value that is present but unrecognized (a typo, or the tail of a\n# corrupted frontmatter block). It is NOT \"fixed\": reading it as fixed made prune\n# archive live findings on a one-character typo, so it reads as unfixed instead.\nMALFORMED_STATUS = \"malformed\"\nUNFIXED = (\"open\", \"regressed\", MALFORMED_STATUS)  # never archived by prune; a live signal\n# `date:` is the ONE frontmatter value that cannot be flattened by scalar() into\n# something inert: a single line containing `---` still terminates the frontmatter\n# block early, which hides the real status/verified lines from parse_entry() and makes\n# an unverified entry read as a verified fix. A whitelist is the only safe contract.\nDATE_RE = re.compile(r\"^\\d{4}-\\d{2}-\\d{2}$\")"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "id": "r2-02-safe-date-and-status",
+      "description": "safe_date() helper; entry_status distinguishes absent key from unknown value",
+      "path": ".claude/operations/scripts/knowledge-ledger.py",
+      "edits": [
+        {
+          "find": "    \"\"\"Lifecycle status of a parsed entry; an absent/unknown key reads as `fixed`.\"\"\"\n    value = meta.get(\"status\", \"\").strip()\n    return value if value in STATUSES else DEFAULT_STATUS",
+          "replace": "    \"\"\"Lifecycle status of a parsed entry.\n\n    Two readings that must NOT be conflated:\n      * key ABSENT   -> `fixed`. Every entry written before this key existed carries\n        `verified: true`, so that is the only honest reading of history.\n      * key PRESENT but unrecognized -> `malformed`, which counts as UNFIXED. Reading a\n        typo as `fixed` let prune archive a live finding, which is the silent-retirement\n        failure this lane exists to prevent. Fail closed on the data-destroying path.\n    \"\"\"\n    if \"status\" not in meta:\n        return DEFAULT_STATUS\n    value = meta.get(\"status\", \"\").strip()\n    return value if value in STATUSES else MALFORMED_STATUS\n\n\ndef safe_date(value: str) -> str:\n    \"\"\"An ISO date, or \"\" if the value is anything else. Never raises.\"\"\"\n    value = value.strip()\n    return value if DATE_RE.match(value) else \"\""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "id": "r2-03-render-guard",
+      "description": "Defense in depth: the renderer itself refuses a non-ISO date rather than emitting it",
+      "path": ".claude/operations/scripts/knowledge-ledger.py",
+      "edits": [
+        {
+          "find": "    \"\"\"Render one entry. Every free-text value passes through scalar() before it lands\n    on a frontmatter line, so no writer can break the one-line `key: value` contract.\"\"\"\n    head = [",
+          "replace": "    \"\"\"Render one entry. Every free-text value passes through scalar() before it lands\n    on a frontmatter line, so no writer can break the one-line `key: value` contract.\n\n    `date` is whitelisted rather than flattened: scalar() cannot make a `---` inert, and\n    a stray `---` inside frontmatter terminates the block early, hiding the real\n    status/verified lines from every reader. A caller that reaches here with a bad date\n    has already been refused at the CLI boundary; this is the second line of defense.\"\"\"\n    if not DATE_RE.match(date):\n        raise ValueError(\"date must be ISO YYYY-MM-DD, got %r\" % date)\n    head = ["
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "id": "r2-04-open-validates-date",
+      "description": "B1 primary fix: cmd_open refuses a non-ISO --date (exit 2) and writes nothing",
+      "path": ".claude/operations/scripts/knowledge-ledger.py",
+      "edits": [
+        {
+          "find": "    if args.origin not in ORIGINS:\n        print(\"open: invalid --origin %r (expected one of %s)\"\n              % (args.origin, \", \".join(ORIGINS)), file=sys.stderr)\n        return 2\n    try:\n        files = parse_files(args.files or \"\")",
+          "replace": "    if args.origin not in ORIGINS:\n        print(\"open: invalid --origin %r (expected one of %s)\"\n              % (args.origin, \", \".join(ORIGINS)), file=sys.stderr)\n        return 2\n    if args.date and not DATE_RE.match(args.date.strip()):\n        print(\"open: invalid --date %r - expected ISO YYYY-MM-DD. A date carrying a \"\n              \"newline or '---' terminates the frontmatter block early, which makes an \"\n              \"unverified entry read as a verified fix.\" % args.date, file=sys.stderr)\n        return 2\n    try:\n        files = parse_files(args.files or \"\")"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "id": "r2-05-record-validates-date",
+      "description": "Same whitelist on the record path (m1) - checked before the two write gates so it cannot mask them",
+      "path": ".claude/operations/scripts/knowledge-ledger.py",
+      "edits": [
+        {
+          "find": "    if not args.signature.strip() or not args.root_cause.strip() or not args.fix.strip():\n        print(\"record: --signature, --root-cause and --fix must be non-empty\", file=sys.stderr)\n        return 2",
+          "replace": "    if not args.signature.strip() or not args.root_cause.strip() or not args.fix.strip():\n        print(\"record: --signature, --root-cause and --fix must be non-empty\", file=sys.stderr)\n        return 2\n    if args.date and not DATE_RE.match(args.date.strip()):\n        print(\"record: invalid --date %r - expected ISO YYYY-MM-DD (a date carrying a \"\n              \"newline or '---' truncates the frontmatter it is written into).\"\n              % args.date, file=sys.stderr)\n        return 2"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "id": "r2-06-close-carry-forward",
+      "description": "close() carries a date forward from an existing entry - sanitize it, since that entry may predate the whitelist",
+      "path": ".claude/operations/scripts/knowledge-ledger.py",
+      "edits": [
+        {
+          "find": "        files, meta.get(\"date\", \"\") or _date.today().isoformat(), status,",
+          "replace": "        files, safe_date(meta.get(\"date\", \"\")) or _date.today().isoformat(), status,"
+        }
+      ]
+    }
+  ]
+}

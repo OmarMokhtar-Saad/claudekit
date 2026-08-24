@@ -84,6 +84,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          # gen-plan-index.py derives `executed` from `Plan-Id:` commit trailers, so a
+          # shallow clone would see no trailers and quietly derive `approved` instead —
+          # disagreeing with a developer's tree. Full history is load-bearing here.
+          fetch-depth: 0
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.12'
@@ -93,6 +98,8 @@ jobs:
         run: python3 scripts/gen-model-policy.py --check
       - name: Always-on context floor within budget
         run: python3 scripts/check-context-floor.py --check
+      - name: Plan lifecycle index matches derived state
+        run: python3 scripts/gen-plan-index.py --check
       - name: Every path an ops config writes is named in its plan
         run: python3 scripts/check-plan-artifacts.py --check
       - name: Prompt corpus lint (command budget, skill tool grants, triggers)

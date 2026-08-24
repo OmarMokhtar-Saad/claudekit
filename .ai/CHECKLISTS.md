@@ -8,9 +8,13 @@
 - [ ] `python3 scripts/check-plan-artifacts.py` clean (every path a config
       writes is named in its plan; CI runs it too)
 - [ ] `shellcheck install.sh .claude/hooks/*.sh` clean (if shell touched)
+- [ ] `python3 scripts/gen-plan-index.py --check` clean (plan-lifecycle index drift)
 - [ ] CHANGELOG `[Unreleased]` entry (user-visible changes)
 - [ ] Affected docs updated (README/docs/ for users; `.ai/` for maintainers)
 - [ ] Conventional commit + Co-Authored-By (AI work)
+- [ ] `Plan-Id: <slug>` trailer when the commit executes `.claude/plans/plan-<slug>.md`.
+      That trailer is the ONLY evidence `scripts/gen-plan-index.py` accepts for
+      `executed`; without it the plan reports `approved` forever.
 - [ ] Evidence captured: commands run, output seen — no unverified claims
 
 ## Pull request
