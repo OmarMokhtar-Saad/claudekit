@@ -21,7 +21,7 @@
 
 **Internal workflow.** (1) Receive and classify → (2) spawn first agent with structured handoff (Spawn Protocol) → (3) process agent output (success → advance; failure → escalation rules; revision → revision loop) → (4) revision loop: increment `revision_count`, escalate if >3, else route back to producing agent → (5) completion: compile summary, present to user, clean up state.
 
-**Dependencies.** Loads 12 skills: `using-superpowers`, `golden-rule`, `multi-agent-coordination`, `dispatching-parallel-agents`, `subagent-driven-development`, `context-first-workflow`, `verification-before-completion`, `autonomous-loop`, `context-budget`, `session-continuity`, `search-first`, `verification-loop`. References Blueprint, Council, Codebase Onboarding, and Deep Research skills in routing. Dispatches all other agents; the Handoff Table describes what each agent expects/produces.
+**Dependencies.** Loads 10 skills: `using-superpowers`, `golden-rule`, `multi-agent-coordination`, `dispatching-parallel-agents`, `subagent-driven-development`, `context-first-workflow`, `verification-before-completion` (which absorbed `verification-loop`), `autonomous-loop`, `context-budget`, `context-keeper` (which absorbed `session-continuity`), `search-first`. References Blueprint, Council, Codebase Onboarding, and Deep Research skills in routing. Dispatches all other agents; the Handoff Table describes what each agent expects/produces.
 
 **Memory/context.** In-memory `WORKFLOW STATE` block (task_id, classification, pipeline, current_step, status, revision_count, max_revisions: 3). Persists to `.claude/state/workflow-<task_id>.json` when the pipeline has >3 agents, a revision loop is triggered, or the user requests persistence.
 

@@ -1,0 +1,20 @@
+{
+  "plan": "008-b2-11-delete-3",
+  "operations": [
+    {
+      "type": "file_delete",
+      "path": ".claude/skills/session-continuity/SKILL.md",
+      "reason": "task 008 batch 2: merged into context-keeper in an earlier config of this batch (union proven by token diff); the name enters the registry `renamed` alias map. `.agents/skills/` is the unshipped Codex mirror and is deleted in lockstep per owner decision 3 -- it holds no operative rule the canonical tree lacks."
+    },
+    {
+      "type": "file_delete",
+      "path": ".agents/skills/session-continuity/SKILL.md",
+      "reason": "task 008 batch 2: merged into context-keeper in an earlier config of this batch (union proven by token diff); the name enters the registry `renamed` alias map. `.agents/skills/` is the unshipped Codex mirror and is deleted in lockstep per owner decision 3 -- it holds no operative rule the canonical tree lacks."
+    },
+    {
+      "type": "file_delete",
+      "path": ".claude/skills/context-priming/SKILL.md",
+      "reason": "task 008 batch 2: merged into context-keeper in an earlier config of this batch (union proven by token diff); the name enters the registry `renamed` alias map. `.agents/skills/` is the unshipped Codex mirror and is deleted in lockstep per owner decision 3 -- it holds no operative rule the canonical tree lacks."
+    }
+  ]
+}

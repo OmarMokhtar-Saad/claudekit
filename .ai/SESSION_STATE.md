@@ -2,22 +2,55 @@
 
 > Update this file at the end of every significant AI working session. It is the resume point.
 
-**Last updated:** 2026-08-23 · **By:** Claude (Opus 5) — **task 008 batch 1 is
-EXECUTED. Four commits on `fix/protected-docs-scope`, unpushed.**
+**Last updated:** 2026-08-24 · **By:** Claude (Opus 5) — **task 008 batch 2 is
+EXECUTED.** 17 ops configs, 0 errors, committed on `fix/protected-docs-scope`
+(unpushed). Two adversarial review rounds (84 REVISE → 93 APPROVED) before
+execution; simulated end-to-end in a throwaway worktree first.
 
-One canonical tree: 55 commands · 76 skills · 26 hooks · 7 modes · 29 agents
-(generator-derived). `templates/` holds no component files and `install.sh` has no
-executable reference to a second tree. A fresh `--full` install reports 100/100 on
-`ck doctor --strict`. 2190 tests pass.
+76 → 71 skills · 29 agents · 55 commands · 26 hooks · 7 modes (generator-derived).
+2420 tests pass, 1 skipped, 1 xfailed, **zero failures** — the 17 pre-existing
+failures seen in the throwaway-worktree simulation were worktree/untracked-file
+artifacts, absent on the real tree. `ck doctor --strict` exits 0.
 
-**Next action:** batch 2 — merge the near-duplicate skills (`autonomous-loops`,
-`verification-loop`, `token-budget-advisor`, `context-keeper`, `context-priming`,
-`codebase-mapping`, `dependency-audit`), 76 → ~69, every removed name into the registry
-`renamed` alias map. Then batch 4, then batch 3 LAST.
+**What executed.** Five skills merged away as UNIONS (content grows, not shrinks):
+`autonomous-loops` → `autonomous-loop` (200→452 lines), `verification-loop` →
+`verification-before-completion` (190→459), `dependency-audit` →
+`supply-chain-audit` (179→335), `session-continuity` + `context-priming` →
+`context-keeper` (169→489). Each removed name is in the registry `renamed` alias
+map for one release; `.agents/skills/` (the unshipped Codex mirror) deleted in
+lockstep. The onboarding pair got description-only fixes, not a merge —
+`codebase-mapping` is `project-graph.py`'s authoring contract, asserted by
+`tests/test_project_graph.py:436`, not near-duplicate prose. `ck doctor --strict`'s
+alias-scan gained a one-file exemption (the alias target's own `SKILL.md`) so a
+survivor documenting what it absorbed doesn't itself trip `--strict`; mutation-proven
+both ways. Full record: `.claude/plans/archive/plan-008-batch2-skill-merges.md` and
+the README row above `.claude/plans/archive/ops-008-batch2/`.
 
-**Read before planning any of them:** `plan-008-batch1-one-tree.md` § "The batch must
-be simulated before it runs". Every config validating clean is not evidence the batch
-works — that combination has already produced 110 red tests once.
+**Where the sign-off sheet was wrong, again — instances 3-4.** `token-budget-advisor`
+was kept, not merged (shares no section with either token skill — it is a
+response-depth menu). The session pair's survivor was backwards in the sheet:
+`context-keeper` owns the file `session-start.sh:133` actually reads;
+`session-continuity`'s `session-state.json` had no reader or writer anywhere.
+
+**What review round 1 caught (84/100 REVISE) that I had wrong:** a named consumer
+(`plan-skill-loading-contract.md`) was never updated by any config — resolved by
+scoping it out explicitly (it's a spent, archived plan; editing a dated record
+falsifies it), not by editing it. The consumer-acceptance test covered 3 directories
+while the plan's own claim promised 6 + README — widened, with a test asserting the
+scope itself so this can't silently narrow again. The token-diff union proof had no
+coverage for prose carrying neither a backtick span nor a dotted identifier — e.g.
+`NEVER save secrets, credentials, or API keys in the state file` — widened to bold
+spans and ALL-CAPS imperative bullets, 127 → 163 asserted fragments.
+
+**Next action:** batch 4, then batch 3 LAST. Batch 4 is measured and blocked on one
+owner decision (the ≤40-line command budget — 0 of 55 commands meet it, meeting it
+is a 5138-line rewrite); the other three batch-4 items are confirmed real and can
+proceed. Batch 3's stated blocker — the `renamed` alias map is skills-only, and
+`gen-registry.py` refuses aliasing an agent name — is still unsolved.
+
+**Read before planning either:** `plan-008-batch1-one-tree.md` § "The batch must be
+simulated before it runs", and now also `plan-008-batch2-skill-merges.md` § "Review
+round 1" for the shape of a test that asserts a property without exercising it.
 
 **Prior state, still true below:** PR #20 is one PRE-EXISTING red test away from
 mergeable; nothing is tagged; `origin/main` is still at `5e890f1`.

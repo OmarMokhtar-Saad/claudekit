@@ -12,7 +12,7 @@ Phase 2 of the Product Requirements Process. Loads a PRP plan and implements it 
 
 - **using-superpowers** - Core capabilities
 - **executing-plans** - Batch execution with checkpoints
-- **verification-loop** - 6-phase quality gate
+- **verification-before-completion** - 6-phase quality gate
 
 **On demand:** load **verification-before-completion** before accepting any completion claim.
 
@@ -91,7 +91,7 @@ After all steps complete, run the plan's verification commands:
 <commands from plan>
 ```
 
-Then run the 6-phase verification-loop gate:
+Then run the 6-phase verification-before-completion gate:
 1. Build — no errors
 2. Types — tsc clean
 3. Lint — no new violations

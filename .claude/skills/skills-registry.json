@@ -3,7 +3,12 @@
   "lastUpdated": "2026-07-08",
   "description": "ClaudeKit skills registry \u2014 maps skills to agents",
   "renamed": {
-    "i18n-workflow": "i18n-patterns"
+    "autonomous-loops": "autonomous-loop",
+    "context-priming": "context-keeper",
+    "dependency-audit": "supply-chain-audit",
+    "i18n-workflow": "i18n-patterns",
+    "session-continuity": "context-keeper",
+    "verification-loop": "verification-before-completion"
   },
   "skills": [
     {
@@ -364,17 +369,6 @@
       "description": "Zero-downtime migrations, expand-contract pattern, rollback strategies"
     },
     {
-      "id": "dependency-audit",
-      "name": "Dependency Audit",
-      "path": "skills/dependency-audit/SKILL.md",
-      "mandatory": false,
-      "usedBy": [
-        "devops",
-        "security-scanner"
-      ],
-      "description": "CVE assessment, semver compatibility, safe incremental upgrades"
-    },
-    {
       "id": "accessibility-standards",
       "name": "Accessibility Standards",
       "path": "skills/accessibility-standards/SKILL.md",
@@ -427,7 +421,9 @@
       "path": "skills/supply-chain-audit/SKILL.md",
       "mandatory": false,
       "usedBy": [
-        "opensource-sanitizer"
+        "devops",
+        "opensource-sanitizer",
+        "security-scanner"
       ],
       "description": "Dependency tree threat analysis, typosquatting detection, CVE cross-referencing"
     },
@@ -524,16 +520,6 @@
       "description": "Auto-generate project structure maps with dependency visualization"
     },
     {
-      "id": "session-continuity",
-      "name": "Session Continuity",
-      "path": "skills/session-continuity/SKILL.md",
-      "mandatory": false,
-      "usedBy": [
-        "coordinator"
-      ],
-      "description": "Maintain context across sessions via session-state.json"
-    },
-    {
       "id": "autonomous-loop",
       "name": "Autonomous Loop",
       "path": "skills/autonomous-loop/SKILL.md",
@@ -543,14 +529,6 @@
         "loop-operator"
       ],
       "description": "Autonomous development loop with exit conditions and safety controls"
-    },
-    {
-      "id": "context-priming",
-      "name": "Context Priming",
-      "path": "skills/context-priming/SKILL.md",
-      "mandatory": false,
-      "usedBy": [],
-      "description": "Systematic project context injection for optimal assistance"
     },
     {
       "id": "hook-profiling",
@@ -629,24 +607,6 @@
       "description": "Research-first approach \u2014 search npm/PyPI/MCP/GitHub before writing custom code"
     },
     {
-      "id": "verification-loop",
-      "name": "Verification Loop",
-      "path": "skills/verification-loop/SKILL.md",
-      "mandatory": false,
-      "usedBy": [
-        "coordinator"
-      ],
-      "description": "Six-phase QA: build, types, lint, tests, security scan, diff review"
-    },
-    {
-      "id": "autonomous-loops",
-      "name": "Autonomous Loops",
-      "path": "skills/autonomous-loops/SKILL.md",
-      "mandatory": false,
-      "usedBy": [],
-      "description": "Iterative agent loops with convergence criteria, safety guards, and progress tracking"
-    },
-    {
       "id": "codebase-onboarding",
       "name": "Codebase Onboarding",
       "path": "skills/codebase-onboarding/SKILL.md",
@@ -707,7 +667,9 @@
       "name": "Context Keeper",
       "path": "skills/context-keeper/SKILL.md",
       "mandatory": false,
-      "usedBy": [],
+      "usedBy": [
+        "coordinator"
+      ],
       "description": "Structured session save/resume \u2014 serialize task state, decisions, next steps across sessions"
     },
     {
@@ -777,17 +739,16 @@
       "autonomous-loop",
       "context-budget",
       "context-first-workflow",
+      "context-keeper",
       "cross-tool-collaboration",
       "dispatching-parallel-agents",
       "golden-rule",
       "multi-agent-coordination",
       "search-first",
-      "session-continuity",
       "subagent-driven-development",
       "using-git-worktrees",
       "using-superpowers",
-      "verification-before-completion",
-      "verification-loop"
+      "verification-before-completion"
     ],
     "database-architect": [
       "api-design-patterns",
@@ -810,10 +771,10 @@
       "ci-cd-pipeline",
       "containerization-patterns",
       "database-migration-patterns",
-      "dependency-audit",
       "golden-rule",
       "monitoring-observability",
       "security-checklist",
+      "supply-chain-audit",
       "using-superpowers"
     ],
     "documenter": [
@@ -871,11 +832,11 @@
     ],
     "security-scanner": [
       "ci-cd-pipeline",
-      "dependency-audit",
       "golden-rule",
       "incident-response",
       "performance-guidelines",
       "security-checklist",
+      "supply-chain-audit",
       "using-superpowers"
     ],
     "tester": [

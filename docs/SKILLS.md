@@ -95,7 +95,6 @@ Skills are markdown documents that provide domain expertise, workflow patterns, 
 | ci-cd-pipeline | Pipeline stage design, artifact promotion, environment gating | Planner, GitOps, DevOps |
 | monitoring-observability | Structured logging, distributed tracing, metric naming, SLO/SLA | Planner, Debugger, DevOps |
 | containerization-patterns | Docker multi-stage builds, security hardening, compose and K8s patterns | DevOps |
-| dependency-audit | CVE assessment, semver compatibility, safe incremental upgrades | Verifier, Reviewer, Security Scanner |
 
 ### Accessibility & i18n
 | Skill | Description | Used By |

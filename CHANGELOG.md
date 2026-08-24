@@ -13,6 +13,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+
+- **Five near-duplicate skills merged away: 76 → 71.** `autonomous-loops` →
+  `autonomous-loop`, `verification-loop` → `verification-before-completion`,
+  `dependency-audit` → `supply-chain-audit`, and both `session-continuity` and
+  `context-priming` → `context-keeper`. Every merge kept the **union** of operative
+  rules, so the survivors grew rather than shrank — the pairs were complementary, not
+  redundant: a six-phase pipeline plus the general loop contract, a completion
+  discipline plus its executable runbook, threat detection plus the upgrade lifecycle.
+  Proven by token diff (every backtick span and dotted identifier from the deleted file
+  present in the survivor), not by comparing headings.
+
+  Three names the sign-off sheet listed for removal were **kept**, because measurement
+  disagreed with the sheet: `token-budget-advisor` shares no section with either
+  token skill (it is a response-depth menu, not token accounting); `codebase-mapping`
+  is the authoring contract for `project-graph.py` and is not near-duplicate prose;
+  and in the session pair the sheet had the survivor backwards — `context-keeper` owns
+  the file `.claude/hooks/session-start.sh` actually reads, while
+  `session-continuity`'s `.claude/session-state.json` had no reader or writer anywhere
+  in the repo.
+
+  Every removed name resolves for one release through the registry `renamed` alias map,
+  which `ck doctor` reads — consumers see a rename, not a deletion.
 - **One canonical tree: `templates/` no longer ships a second copy of any component.**
   `install.sh` copied `templates/` and `.claude/` into the same destination, so which
   file you got was decided by copy order. The fix is not a deletion — measured against

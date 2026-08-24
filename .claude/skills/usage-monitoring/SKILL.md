@@ -153,7 +153,7 @@ Based on usage patterns, provide targeted recommendations:
 | Large files read fully | Use line-range reads (offset + limit) |
 | Many small tool calls | Batch operations where possible |
 | High input-to-output ratio (> 5:1) | Context is bloated -- compact or reset |
-| Agent re-exploring already-mapped code | Load project index first (context-priming) |
+| Agent re-exploring already-mapped code | Load project index first (context-keeper) |
 | Long prose explanations | Switch to token-efficient mode |
 | Repeated failed attempts | Step back, analyze root cause before retrying |
 
@@ -178,6 +178,6 @@ Usage data is stored in `.claude/usage-log.jsonl` (JSON Lines format):
 ## Integration
 
 - **token-optimization** skill is auto-activated when cost alerts trigger
-- **session-continuity** includes usage summary in session state
+- **context-keeper** includes usage summary in session state
 - **coordinator** uses usage data to select cheaper agents when appropriate (Haiku over Sonnet for simple tasks)
 - **hook-profiling** data correlates with usage data for full performance picture

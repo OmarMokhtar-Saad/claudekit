@@ -1,0 +1,27 @@
+{
+  "plan": "008-b2-05-onboarding-descriptions",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/codebase-mapping/SKILL.md",
+      "description": "Owner decision: the onboarding pair is NOT merged — codebase-mapping is the authoring contract for project-graph.py (graph sidecar, confidence tiers, staleness protocol) and is asserted by tests/test_project_graph.py. Only the description changes, so the two skills stop competing for the same routing.",
+      "edits": [
+        {
+          "find": "description: \"Use when you need to auto-generate a project structure map -- scans directories, identifies patterns, maps dependencies, and creates an annotated project index.\"",
+          "replace": "description: \"Use when you need machine-readable structure for a project -- scans directories, maps dependencies with confidence tiers, and emits .claude/project-index.md plus the .claude/project-graph.json sidecar that explore, planner and refactor-cleaner query instead of re-grepping.\""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/codebase-onboarding/SKILL.md",
+      "description": "The human-facing half of the same pair: says plainly that it produces prose artifacts for a person, not a graph for an agent.",
+      "edits": [
+        {
+          "find": "description: \"Use when first entering an unfamiliar project — generates structured onboarding guide and a starter CLAUDE.md from code analysis\"",
+          "replace": "description: \"Use when a person needs to understand an unfamiliar project — produces two prose artifacts from code analysis: an onboarding guide scannable in two minutes, and a starter CLAUDE.md. For a machine-readable dependency graph, use codebase-mapping instead.\""
+        }
+      ]
+    }
+  ]
+}

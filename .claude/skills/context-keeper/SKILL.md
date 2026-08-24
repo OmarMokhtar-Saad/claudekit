@@ -1,7 +1,7 @@
 ---
 name: Context Keeper
-description: Structured save/resume for session context. Serializes current task state (project, files touched, decisions made, next steps, open questions) to .claude/session-context.md. The session-start hook auto-loads this on next session start.
-trigger: Use before ending a session on an in-progress task, or when switching between tasks in the same project. Works with /save-session and /resume-session commands.
+description: Use for the whole session lifecycle — save and resume structured task state via .claude/session-context.md (auto-loaded by the session-start hook), and prime a fresh session with project identity, tech stack and conventions when there is nothing saved.
+trigger: Use before ending a session on an in-progress task, when resuming one, or when switching between tasks in the same project. Works with the /save-session, /resume-session and /load commands.
 ---
 
 # Context Keeper
@@ -167,3 +167,324 @@ The `session-start.sh` hook reads `.claude/session-context.md` automatically if 
 - NEVER include the full file contents — only paths and relevant snippets
 - NEVER save a context file longer than 200 lines (defeats the purpose)
 - NEVER resume without validating freshness — stale context causes wrong assumptions
+
+---
+
+# Structured State (merged from `session-continuity`)
+
+The save/resume protocol above is the *live* one: `/save-session` writes
+`.claude/session-context.md` and `.claude/hooks/session-start.sh` reads it. What
+follows is the richer machine-readable state model the `session-continuity` skill
+defined -- decision records with rationale and rejected alternatives, prioritised
+pending tasks, gotchas, and a capped history array. Nothing in the repo reads or
+writes `.claude/session-state.json` today, so treat this half as the schema to grow
+*into* when markdown stops being enough, and as the source of the save and load
+rules below -- which apply to `session-context.md` just as much. Merged from the
+`session-continuity` skill, which is gone; the name resolves here through the
+registry `renamed` alias map.
+
+## Session State File
+
+Location: `.claude/session-state.json`
+
+### Schema
+
+```json
+{
+  "version": "1.0",
+  "session_id": "uuid-v4",
+  "started_at": "ISO-8601 timestamp",
+  "ended_at": "ISO-8601 timestamp",
+  "status": "active | paused | completed",
+  "task": {
+    "description": "What the user is working on",
+    "goal": "The end-state being targeted",
+    "progress": "percentage or phase description"
+  },
+  "decisions": [
+    {
+      "timestamp": "ISO-8601",
+      "decision": "Description of what was decided",
+      "rationale": "Why this choice was made",
+      "alternatives_rejected": ["alt1", "alt2"]
+    }
+  ],
+  "modified_files": [
+    {
+      "path": "relative/path/to/file",
+      "action": "created | modified | deleted",
+      "summary": "One-line description of change"
+    }
+  ],
+  "pending_tasks": [
+    {
+      "description": "What still needs to be done",
+      "priority": "high | medium | low",
+      "blocked_by": "optional dependency description"
+    }
+  ],
+  "context": {
+    "key_files": ["paths to files that are central to current work"],
+    "tech_stack_notes": "Any discoveries about the tech stack",
+    "gotchas": ["Things to watch out for"],
+    "conventions": ["Patterns observed in the codebase"]
+  },
+  "history": [
+    {
+      "session_id": "previous-session-uuid",
+      "summary": "One-paragraph summary of what was accomplished"
+    }
+  ]
+}
+```
+
+---
+
+## Save Protocol (End of Session)
+
+Trigger: User says goodbye, session is ending, or `/session save` is invoked.
+
+### Steps
+
+1. **Summarize progress**: What was the task? What was accomplished? What remains?
+2. **Record decisions**: List every non-trivial decision made during the session with rationale
+3. **Track modifications**: List all files created, modified, or deleted
+4. **Identify blockers**: Note anything that prevented completing a task
+5. **Capture gotchas**: Document surprising discoveries about the codebase
+6. **Write state file**: Save to `.claude/session-state.json`
+7. **Confirm to user**: Display a summary of what was saved
+
+### Save Rules
+
+- ALWAYS save before the session ends if any meaningful work was done
+- NEVER save secrets, credentials, or API keys in the state file
+- ALWAYS use relative paths (relative to project root)
+- ALWAYS overwrite the previous session state (keep history array for past sessions)
+- Maximum 10 entries in the history array (oldest are dropped)
+
+---
+
+## Load Protocol (Start of Session)
+
+Trigger: New session begins, or `/session load` is invoked.
+
+### Steps
+
+1. **Check for state file**: Read `.claude/session-state.json` if it exists
+2. **Display context summary**:
+   ```
+   Resuming session from <timestamp>
+   Task: <task description>
+   Progress: <progress>
+   Last modified: <list of recently modified files>
+   Pending: <pending tasks>
+   Gotchas: <any warnings>
+   ```
+3. **Verify file state**: Check that modified files from the last session still exist and haven't been changed externally
+4. **Flag conflicts**: If files were modified outside the session, alert the user
+5. **Load key files**: Read the files listed in `context.key_files` to prime the context
+6. **Resume or restart**: Ask the user if they want to continue from where they left off or start fresh
+
+### Load Rules
+
+- ALWAYS check if state file exists before attempting to load
+- NEVER assume the codebase is unchanged since last session
+- ALWAYS verify file integrity before resuming work
+- If the state file is corrupted or invalid, report the issue and start fresh
+
+---
+
+## Session Summary Format
+
+When displaying the session summary (on save or load):
+
+```
+--- Session State ---
+Task:     Add JWT authentication to the API
+Progress: 60% -- middleware complete, route guards pending
+Status:   Paused
+
+Decisions:
+  1. Using RS256 algorithm (asymmetric) over HS256 for token signing
+  2. Storing refresh tokens in httpOnly cookies, not localStorage
+  3. Token expiry: 15min access, 7d refresh
+
+Modified Files:
+  + src/middleware/auth.ts         (created -- JWT validation middleware)
+  ~ src/routes/user.ts             (modified -- added auth guard)
+  ~ src/config/index.ts            (modified -- added JWT config)
+
+Pending:
+  [HIGH] Add auth guards to remaining 8 route files
+  [MED]  Write integration tests for auth middleware
+  [LOW]  Update API documentation with auth headers
+
+Gotchas:
+  - The existing session middleware conflicts with JWT -- must disable for API routes
+  - Test database does not have the users table yet
+---
+```
+
+---
+
+## Integration (state consumers)
+
+- the priming sequence in the second half of this skill loads session state
+- **planner** references pending tasks when creating new plans
+- **coordinator** uses session state to understand current work context
+- **git** agent can reference modified files for targeted commits
+
+---
+
+# Priming a Session (merged from `context-priming`)
+
+Saving and resuming is half of session lifecycle; the other half is what to load
+when there is nothing saved, or when the saved context covers only part of what the
+next task touches. Merged from the `context-priming` skill, which is gone; the name
+resolves here through the registry `renamed` alias map. There is no `/prime`
+command -- `/load` and `/resume-session` are the entry points.
+
+## Priming Sequence
+
+Execute these steps in order on session start or when `/prime` is invoked.
+
+### Step 1: Load Project Identity
+
+Read these files (if they exist):
+1. `CLAUDE.md` -- primary project instructions and conventions
+2. `CONSTITUTION.md` -- behavioral rules and constraints
+3. `.claude/session-state.json` -- the richer structured state described above,
+   if a project chooses to keep it; `.claude/session-context.md` is the file the
+   `session-start.sh` hook actually reads
+4. `.claude/project-index.md` -- project structure map (via codebase-mapping skill)
+5. `.claude/project-graph.json` -- dependency graph sidecar; do NOT inline it,
+   query via `python3 .claude/operations/scripts/project-graph.py`
+   (`query`/`hubs`/`path`) to stay inside the context budget
+
+### Step 2: Scan Project Structure
+
+If no project index exists, perform a lightweight scan:
+1. List top-level directory contents
+2. Identify the primary language from file extensions
+3. Read the main entry point file (first 50 lines)
+4. Read the primary config file (`package.json`, `pyproject.toml`, `Cargo.toml`, etc.)
+
+### Step 3: Read Key Config Files
+
+Parse and internalize:
+| File | Purpose |
+|------|---------|
+| `package.json` / `pyproject.toml` / `Cargo.toml` | Dependencies, scripts, project metadata |
+| `tsconfig.json` / `setup.cfg` / `rustfmt.toml` | Language/compiler configuration |
+| `.eslintrc` / `.prettierrc` / `ruff.toml` | Linting and formatting rules |
+| `Dockerfile` / `docker-compose.yml` | Container configuration |
+| `.github/workflows/*.yml` | CI/CD pipeline definition |
+| `.env.example` | Environment variable structure (NEVER read `.env`) |
+
+### Step 4: Identify Tech Stack
+
+Build a tech stack profile:
+```
+Language:    TypeScript 5.3
+Runtime:     Node.js 20
+Framework:   Express 4.18
+Database:    PostgreSQL 15 (via Prisma 5.7)
+Testing:     Jest 29 + Supertest 6
+Linting:     ESLint 8 + Prettier 3
+CI:          GitHub Actions
+Deployment:  Docker + AWS ECS
+```
+
+### Step 5: Load Active Conventions
+
+Extract coding conventions from:
+1. `CLAUDE.md` explicit rules
+2. Linter/formatter configuration
+3. Existing code patterns (naming, structure, error handling)
+4. Test patterns (framework, assertion style, file organization)
+5. Git conventions (commit message format from recent history)
+
+---
+
+## Priming Template
+
+After loading, internalize this context summary:
+
+```
+=== Project Context ===
+
+Project: <name> (<language>)
+Stack: <framework> + <database> + <testing>
+Architecture: <pattern detected>
+
+Conventions:
+- Naming: <camelCase/snake_case/PascalCase>
+- File structure: <by feature/by type/by layer>
+- Error handling: <pattern observed>
+- Testing: <framework, assertion style, coverage expectations>
+- Git: <commit format, branch naming>
+
+Active Task: <from session state, or "none">
+Key Files: <list of files central to current work>
+Gotchas: <from session state warnings>
+
+Constraints:
+- <from CLAUDE.md and CONSTITUTION.md>
+=== End Context ===
+```
+
+---
+
+## Selective Priming
+
+For large projects, prime only the relevant context:
+
+### By Task Type
+
+| Task Type | Prime These |
+|-----------|------------|
+| Feature development | Target module + its tests + related services |
+| Bug fix | Error location + related code paths + test files |
+| Refactoring | Target module + all dependents + all dependencies |
+| Documentation | Module being documented + existing docs + API surface |
+| Testing | Target module + existing tests + test utilities |
+| DevOps | CI configs + Dockerfile + deploy scripts + infrastructure |
+
+### By Scope
+
+| Scope | Depth |
+|-------|-------|
+| Single file | File + direct imports + corresponding test |
+| Module | All files in module + shared dependencies + module tests |
+| Cross-cutting | All affected modules + shared infrastructure + integration tests |
+| Full project | Complete priming sequence |
+
+---
+
+## Refresh Triggers
+
+Re-prime when:
+- User switches to a different area of the codebase
+- 30+ minutes have passed since last priming
+- User reports Claude is "forgetting" project conventions
+- After a `git pull` or `git merge` that changes project structure
+- User explicitly invokes `/prime`
+
+---
+
+## Performance
+
+- Full priming should complete in under 10 seconds
+- Selective priming should complete in under 3 seconds
+- Cache parsed config data in memory for the duration of the session
+- NEVER re-read files that haven't changed since last read
+
+---
+
+## Integration (priming consumers)
+
+- Invoked automatically by **coordinator** at session start
+- Uses **codebase-mapping** output if available, and its graph sidecar
+  (`.claude/project-graph.json`) — query it via the script, never inline it
+- Feeds context to all downstream agents
+

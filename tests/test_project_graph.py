@@ -9,7 +9,7 @@ and answers structural queries so agents stop re-grepping. Contract under test:
 - query/path/hubs answer from the stored graph; a miss or absent graph exits 3
   (the caller's signal to fall back to grep).
 - stale re-hashes file-backed nodes and exits 1 listing CHANGED/MISSING nodes.
-- the codebase-mapping and context-priming skills have exactly one copy each
+- the codebase-mapping and context-keeper skills have exactly one copy each
   (task 008 batch 1 deleted the templates/skills twins).
 
 All invocations run the real script as a subprocess against a temp project via
@@ -435,5 +435,5 @@ class TestSkillHasOneCopy:
     def test_codebase_mapping_has_exactly_one_copy(self):
         assert [p.name for p in self._copies("codebase-mapping")] == ["SKILL.md"]
 
-    def test_context_priming_has_exactly_one_copy(self):
-        assert [p.name for p in self._copies("context-priming")] == ["SKILL.md"]
+    def test_context_keeper_has_exactly_one_copy(self):
+        assert [p.name for p in self._copies("context-keeper")] == ["SKILL.md"]

@@ -12,7 +12,7 @@ Starts an autonomous agent loop with the `loop-operator` agent watching in the b
 
 - **using-superpowers** - Core capabilities
 - **autonomous-loop** - Autonomous execution with checkpoints
-- **verification-loop** - 6-phase quality gate
+- **verification-before-completion** - 6-phase quality gate
 
 **On demand:** load **verification-before-completion** before accepting the worker's completion claim.
 
@@ -129,7 +129,7 @@ Safety check (every iteration):
 
 The loop terminates when:
 
-- **Task complete:** Worker signals completion AND verification-loop passes all 6 gates
+- **Task complete:** Worker signals completion AND verification-before-completion passes all 6 gates
 - **Max iterations:** Loop-operator escalates with final state report
 - **Stagnation:** Loop-operator pauses for human input
 - **Emergency stop:** Immediate halt with destructive-action report

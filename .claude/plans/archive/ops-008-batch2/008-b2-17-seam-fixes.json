@@ -1,0 +1,49 @@
+{
+  "plan": "008-b2-17-seam-fixes",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/autonomous-loop/SKILL.md",
+      "description": "Prose typo introduced in this batch's own graft: the earlier token-diff fix that carried the survivor's `Use when:` label verbatim left a stray duplicated `e.g.` in the parenthetical it was inserted into. Tier 1 docs-only, disclosed here rather than hand-edited outside the operations engine.",
+      "edits": [
+        {
+          "find": "a task needs multiple attempts to get right (e.g. fixing all lint\nerrors, e.g.), quality must be verified after each step",
+          "replace": "a task needs multiple attempts to get right (e.g. fixing all lint\nerrors), quality must be verified after each step"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/supply-chain-audit/SKILL.md",
+      "description": "Seam gap: `add_after` does not append a newline (the same class the batch-1 handoff warned about), so the graft's `---\\n\\n` opener landed directly against the preceding table row with no blank line before the rule, an MD022-shaped gap.",
+      "edits": [
+        {
+          "find": "| Single-maintainer critical dep | Low | Monitor, have a contingency plan |\n---",
+          "replace": "| Single-maintainer critical dep | Low | Monitor, have a contingency plan |\n\n---"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/verification-before-completion/SKILL.md",
+      "description": "Same seam gap, third occurrence.",
+      "edits": [
+        {
+          "find": "4. Do NOT claim the work is complete - say \"implementation is done but unverified\"\n---",
+          "replace": "4. Do NOT claim the work is complete - say \"implementation is done but unverified\"\n\n---"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/context-keeper/SKILL.md",
+      "description": "Same seam gap, second occurrence.",
+      "edits": [
+        {
+          "find": "- NEVER resume without validating freshness — stale context causes wrong assumptions\n---",
+          "replace": "- NEVER resume without validating freshness — stale context causes wrong assumptions\n\n---"
+        }
+      ]
+    }
+  ]
+}

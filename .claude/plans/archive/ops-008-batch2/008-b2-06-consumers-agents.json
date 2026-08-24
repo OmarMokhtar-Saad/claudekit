@@ -1,0 +1,46 @@
+{
+  "plan": "008-b2-06-consumers-agents",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/coordinator.md",
+      "description": "coordinator listed BOTH halves of the verification pair; the merge-away line is removed and its trigger folded into the survivor's, so no routing condition is lost. session-continuity becomes context-keeper.",
+      "edits": [
+        {
+          "find": "- **verification-before-completion** — load before accepting any completion claim",
+          "replace": "- **verification-before-completion** — load before accepting any completion claim, or when iterating until checks pass"
+        },
+        {
+          "find": "- **session-continuity** — load when work spans multiple sessions",
+          "replace": "- **context-keeper** — load when work spans multiple sessions, or when priming a fresh one"
+        },
+        {
+          "find": "- **verification-loop** — load when iterating until checks pass\n",
+          "replace": ""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/devops.md",
+      "description": "dependency-audit merged into supply-chain-audit.",
+      "edits": [
+        {
+          "find": "- **dependency-audit** — load when scanning or upgrading dependencies",
+          "replace": "- **supply-chain-audit** — load when scanning or upgrading dependencies"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/security-scanner.md",
+      "description": "dependency-audit merged into supply-chain-audit.",
+      "edits": [
+        {
+          "find": "- **dependency-audit** — load when scanning or upgrading dependencies",
+          "replace": "- **supply-chain-audit** — load when scanning or upgrading dependencies"
+        }
+      ]
+    }
+  ]
+}

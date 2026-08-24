@@ -42,7 +42,7 @@ Forbidden tools:
 **On demand (load when the trigger fires — do NOT preload; preloading burns context):**
 
 - **golden-rule** — load before proposing or making any code change
-- **dependency-audit** — load when scanning or upgrading dependencies
+- **supply-chain-audit** — load when scanning or upgrading dependencies
 - **ci-cd-pipeline** — load when pipeline configuration is involved
 - **performance-guidelines** — load when the task involves latency, memory, or throughput
 - **incident-response** — load when handling an active production incident

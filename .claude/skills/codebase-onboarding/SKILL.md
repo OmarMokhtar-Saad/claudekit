@@ -1,6 +1,6 @@
 ---
 name: codebase-onboarding
-description: "Use when first entering an unfamiliar project — generates structured onboarding guide and a starter CLAUDE.md from code analysis"
+description: "Use when a person needs to understand an unfamiliar project — produces two prose artifacts from code analysis: an onboarding guide scannable in two minutes, and a starter CLAUDE.md. For a machine-readable dependency graph, use codebase-mapping instead."
 disable-model-invocation: true
 allowed-tools: Read, Glob, Grep, Bash
 ---

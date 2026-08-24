@@ -37,7 +37,7 @@ __version__ = _resolve_version()
 # Regenerate with: python3 scripts/gen-docs.py
 EXPECTED_AGENTS = 29
 EXPECTED_COMMANDS = 55
-EXPECTED_SKILLS = 76
+EXPECTED_SKILLS = 71
 # END GENERATED:counts
 
 # Colors
@@ -410,11 +410,19 @@ def cmd_doctor(args):
                         checks_warned += 1
                         continue
                     stale = []
+                    # The rename TARGET is the one file allowed to name
+                    # the old id: a merge that cannot say what it
+                    # absorbed is a merge nobody can audit. Exactly one
+                    # file wide -- anything else is still a real stale
+                    # reference, or this scan stops meaning anything.
+                    own = claude_dir / "skills" / new / "SKILL.md"
                     for sub in ("agents", "commands", "skills"):
                         base = claude_dir / sub
                         if not base.is_dir():
                             continue
                         for path in base.rglob("*.md"):
+                            if path == own:
+                                continue
                             try:
                                 if old in path.read_text(encoding="utf-8", errors="replace"):
                                     stale.append(path.relative_to(claude_dir))

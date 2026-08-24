@@ -79,5 +79,5 @@ Before ending a significant work period: update [SESSION_STATE.md](SESSION_STATE
 - Docs drifting from reality (13-vs-28 agent gap, three different skill counts, four version values at once).
 - Non-monotonic versioning (1.3.0 published after 2.0.0; renumbered to 2.1.0).
 - GNU-only shell constructs breaking macOS users.
-- Duplicating instead of consolidating (`autonomous-loop` vs `autonomous-loops` skills still exist — task 008).
+- Duplicating instead of consolidating (task 008; batch 2 closed the skill pairs — `autonomous-loop` vs `autonomous-loops` is gone — batch 3 has the agent pairs still open).
 - Trusting summaries (including this folder) over the tree. Verify.

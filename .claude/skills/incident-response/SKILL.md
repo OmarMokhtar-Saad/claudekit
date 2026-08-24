@@ -356,7 +356,7 @@ echo "Rolled back from <bad-version> to <good-version> at $(date -u)"
 - **git** agent handles rollback operations and identifying recent changes
 - **security scanner** is invoked if the incident involves security concerns
 - **coordinator** manages the multi-agent workflow during incident response
-- **session-continuity** preserves incident investigation context across sessions
+- **context-keeper** preserves incident investigation context across sessions
 
 <!-- Sections below were unique to the .claude/skills/ copy of this skill. Until
 2026-08-23 install.sh copied templates/skills LAST into the same destination, so the
