@@ -1,0 +1,50 @@
+{
+  "plan": "008-b3c4-03-routing",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/coordinator.md",
+      "description": "Batch 4 split the single Docs row by mode, which is exactly the shape this cluster implements -- so the destinations collapse to one agent while the two intents stay distinct.",
+      "edits": [
+        {
+          "find": "| **Docs (new)**    | \"document\", \"write docs for\", \"API docs\"        | Documenter                                            |\n| **Docs (update)** | \"update the README\", \"docs are stale\", \"sync docs\" | DocUpdater                                         |",
+          "replace": "| **Docs (new)**    | \"document\", \"write docs for\", \"API docs\"        | docs (`mode: create`)                                 |\n| **Docs (update)** | \"update the README\", \"docs are stale\", \"sync docs\" | docs (`mode: update`)                              |"
+        },
+        {
+          "find": "[Coordinator] → [DocUpdater]",
+          "replace": "[Coordinator] → [docs (mode: update)]"
+        },
+        {
+          "find": "| Documentation         | DocUpdater + GitOps                         | Docs and commit are independent |",
+          "replace": "| Documentation         | docs + GitOps                               | Docs and commit are independent |"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/commands/coordinator.md",
+      "description": "The convention note named both removed agents; it now names the one agent and its two modes, which is the same distinction preserved.",
+      "edits": [
+        {
+          "find": "route by mode — new documentation to `documenter`, updates to `doc-updater`.",
+          "replace": "route by mode — the one `docs` agent, `mode: create` for new documentation and\n`mode: update` for syncing what exists."
+        },
+        {
+          "find": "`Verifier → GitOps`; a bug lost both; docs split between `DocUpdater` and `documenter`).",
+          "replace": "`Verifier → GitOps`; a bug lost both; docs split between two agents now merged into one)."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/HANDOFF_PROTOCOL.md",
+      "description": "The handoff header named the removed agent.",
+      "edits": [
+        {
+          "find": "Coordinator → DocUpdater",
+          "replace": "Coordinator → docs (mode: update)"
+        }
+      ]
+    }
+  ]
+}

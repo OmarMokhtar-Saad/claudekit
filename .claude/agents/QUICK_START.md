@@ -158,8 +158,7 @@ Triggers: "find", "search", "where is", "how does"
     implementer.md           → Implementation agent
     verifier.md              → Quality gate agent
     debugger.md              → Bug diagnosis agent
-    documenter.md            → Creates new documentation
-    doc-updater.md           → Updates existing documentation
+    docs.md                  → Documentation, mode: create | update
     gitOps.md                → Git operations agent
     explore.md               → Codebase exploration agent
     tester.md                → Test writing agent

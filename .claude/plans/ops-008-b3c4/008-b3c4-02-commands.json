@@ -1,0 +1,39 @@
+{
+  "plan": "008-b3c4-02-commands",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/commands/docs.md",
+      "description": "/docs routes to the merged agent in create mode. Includes a REAL dangling path the doctor caught: the command pointed at @.claude/agents/documenter.md, a file this cluster deletes.",
+      "edits": [
+        {
+          "find": "description: \"Generate documentation via documenter agent\"",
+          "replace": "description: \"Generate documentation via the docs agent (mode: create)\""
+        },
+        {
+          "find": "Invoke the documenter agent to create or update project documentation.",
+          "replace": "Invoke the `docs` agent to create project documentation. It takes `mode: create` here; `/doc-updater` is the same agent in `mode: update`."
+        },
+        {
+          "find": "See @.claude/agents/documenter.md for the full agent specification.",
+          "replace": "See @.claude/agents/docs.md for the full agent specification."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/commands/doc-updater.md",
+      "description": "/doc-updater routes to the merged agent in update mode. The command keeps its name and its flags -- only the agent it hands off to moved.",
+      "edits": [
+        {
+          "find": "Invokes the `doc-updater` agent to sync existing documentation with recent code changes.",
+          "replace": "Invokes the `docs` agent in `mode: update` to sync existing documentation with recent code changes."
+        },
+        {
+          "find": "### Step 3: Route to doc-updater Agent\n\nHand off to `doc-updater` with:",
+          "replace": "### Step 3: Route to the docs Agent\n\nHand off to `docs` with `mode: update` and:"
+        }
+      ]
+    }
+  ]
+}

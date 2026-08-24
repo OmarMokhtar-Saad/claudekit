@@ -1,16 +1,16 @@
 ---
-description: "Generate documentation via documenter agent"
+description: "Generate documentation via the docs agent (mode: create)"
 argument-hint: "[target file, module, or scope]"
 model: haiku
 ---
 
 # Documenter Command
 
-Invoke the documenter agent to create or update project documentation.
+Invoke the `docs` agent to create project documentation. It takes `mode: create` here; `/doc-updater` is the same agent in `mode: update`.
 
 ## Agent Reference
 
-See @.claude/agents/documenter.md for the full agent specification.
+See @.claude/agents/docs.md for the full agent specification.
 
 ## Task
 

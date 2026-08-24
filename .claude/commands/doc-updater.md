@@ -6,7 +6,7 @@ model: haiku
 
 # Doc Updater Command
 
-Invokes the `doc-updater` agent to sync existing documentation with recent code changes. Targets READMEs, inline docstrings, JSDoc, and API reference files. Does NOT create new documentation from scratch — use `/docs` for that.
+Invokes the `docs` agent in `mode: update` to sync existing documentation with recent code changes. Targets READMEs, inline docstrings, JSDoc, and API reference files. Does NOT create new documentation from scratch — use `/docs` for that.
 
 ## Mandatory Skills
 
@@ -45,9 +45,9 @@ git diff HEAD~1 --name-only 2>/dev/null | head -20
 git diff --cached --name-only 2>/dev/null | head -10
 ```
 
-### Step 3: Route to doc-updater Agent
+### Step 3: Route to the docs Agent
 
-Hand off to `doc-updater` with:
+Hand off to `docs` with `mode: update` and:
 - List of recently changed source files
 - Scope filter (api / readme / docstrings / all)
 - Target directory

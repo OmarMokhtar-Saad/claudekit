@@ -1,0 +1,42 @@
+{
+  "plan": "008-b3c4-04-consumers",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/QUICK_START.md",
+      "description": "Inventory: one entry, two modes.",
+      "edits": [
+        {
+          "find": "    documenter.md            → Creates new documentation\n    doc-updater.md           → Updates existing documentation",
+          "replace": "    docs.md                  → Documentation, mode: create | update"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "docs/AGENTS.md",
+      "description": "User-facing agent table.",
+      "edits": [
+        {
+          "find": "| Documenter | `documenter.md` | Teal | Haiku | READ, WRITE (docs only) |",
+          "replace": "| Docs | `docs.md` | Teal | Haiku | READ, WRITE (docs only) |"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/model-policy.json",
+      "description": "Two roles become one. Accountability names the mode split, since that is the distinction the merge preserved rather than erased.",
+      "edits": [
+        {
+          "find": "    \"doc-updater\": {\n      \"accountable_for\": \"Syncing existing docs and docstrings with code that changed.\",\n      \"tier\": \"fast\"\n    },\n",
+          "replace": ""
+        },
+        {
+          "find": "    \"documenter\": {\n      \"accountable_for\": \"Authoring new reference documentation from source.\",\n      \"tier\": \"fast\"\n    },",
+          "replace": "    \"docs\": {\n      \"accountable_for\": \"Documentation derived from code, never invented -- authored (mode: create) or synced with changed code (mode: update).\",\n      \"tier\": \"fast\"\n    },"
+        }
+      ]
+    }
+  ]
+}

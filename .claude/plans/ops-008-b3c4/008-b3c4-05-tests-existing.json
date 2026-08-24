@@ -1,0 +1,60 @@
+{
+  "plan": "008-b3c4-05-tests-existing",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_model_policy.py",
+      "description": "Expected tiers.",
+      "edits": [
+        {
+          "find": "\"doc-updater\": \"haiku\", \"documenter\": \"haiku\", \"explore\": \"haiku\",",
+          "replace": "\"docs\": \"haiku\", \"explore\": \"haiku\","
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_context_floor.py",
+      "description": "The example-block allowlist named both removed files.",
+      "edits": [
+        {
+          "find": "EXAMPLE_ALLOWLIST = {'reviewer.md', 'code-reviewer.md', 'doc-updater.md', 'documenter.md'}",
+          "replace": "EXAMPLE_ALLOWLIST = {'reviewer.md', 'code-reviewer.md', 'docs.md'}"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_install.py",
+      "description": "Shipped-agent roster.",
+      "edits": [
+        {
+          "find": "'documenter.md', 'gitOps.md', 'explore.md'",
+          "replace": "'docs.md', 'gitOps.md', 'explore.md'"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_structure.py",
+      "description": "Expected agent ids.",
+      "edits": [
+        {
+          "find": "'coordinator', 'debugger', 'documenter', 'explore',",
+          "replace": "'coordinator', 'debugger', 'docs', 'explore',"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_single_source_contracts.py",
+      "description": "My own batch-4 test asserted the routing note names both agents. It now names one agent and two modes -- the distinction is preserved, which is what the test actually cares about.",
+      "edits": [
+        {
+          "find": "        assert \"doc-updater\" in body and \"documenter\" in body",
+          "replace": "        assert \"mode: create\" in body and \"mode: update\" in body"
+        }
+      ]
+    }
+  ]
+}

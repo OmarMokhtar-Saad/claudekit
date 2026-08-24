@@ -58,7 +58,7 @@ class TestAgentFiles:
     """Verify all 13 agents exist and have valid frontmatter."""
 
     EXPECTED_AGENTS = [
-        'coordinator', 'debugger', 'documenter', 'explore',
+        'coordinator', 'debugger', 'docs', 'explore',
         'gitOps', 'implementer', 'planner', 'reviewer', 'verifier',
         'tester', 'security-scanner', 'devops', 'database-architect'
     ]

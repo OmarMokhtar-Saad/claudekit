@@ -49,7 +49,7 @@ class TestInstallScript:
             expected_agents = [
                 'coordinator.md', 'planner.md', 'reviewer.md',
                 'implementer.md', 'verifier.md', 'debugger.md',
-                'documenter.md', 'gitOps.md', 'explore.md'
+                'docs.md', 'gitOps.md', 'explore.md'
             ]
             for agent in expected_agents:
                 assert os.path.exists(os.path.join(agents_dir, agent)), f"Missing agent: {agent}"

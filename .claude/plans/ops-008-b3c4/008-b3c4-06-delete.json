@@ -1,0 +1,15 @@
+{
+  "plan": "008-b3c4-06-delete",
+  "operations": [
+    {
+      "type": "file_delete",
+      "path": ".claude/agents/documenter.md",
+      "reason": "task 008 batch 3 cluster 4: merged into .claude/agents/docs.md as `mode: create` in this same batch (union proven by token diff). Enters `renamedAgents`."
+    },
+    {
+      "type": "file_delete",
+      "path": ".claude/agents/doc-updater.md",
+      "reason": "task 008 batch 3 cluster 4: merged into .claude/agents/docs.md as `mode: update` in this same batch. Its 'Generate from code, don't manually write' rule is hoisted above both modes, as the sign-off required."
+    }
+  ]
+}
