@@ -1,0 +1,15 @@
+{
+  "plan": "triage-refresh-final",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/plans/archive/README.md",
+      "edits": [
+        {
+          "find": "| `ops-triage-refresh/*.json` (5 configs, including the two that record this row) |",
+          "replace": "| `ops-triage-refresh/*.json` (7 configs \u2014 four do the work, three keep this row's own count and numbering honest, which is the cost of recording a period through the engine that records it) |"
+        }
+      ]
+    }
+  ]
+}

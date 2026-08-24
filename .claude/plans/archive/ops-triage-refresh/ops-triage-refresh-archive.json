@@ -1,0 +1,19 @@
+{
+  "plan": "triage-refresh-archive",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/plans/archive/README.md",
+      "edits": [
+        {
+          "find": "| `ops-triage-refresh.json` | Spent 2026-08-24, `--no-approval` disclosed (Tier 1: two maintainer/review docs",
+          "replace": "| `ops-triage-refresh/*.json` (3 configs) | Spent 2026-08-24, `--no-approval` disclosed (Tier 1: four maintainer/review docs"
+        },
+        {
+          "find": "Plan: `plan-triage-refresh.md`. |",
+          "replace": "**Config 3 corrects config 2:** the `.ai/TECH_DEBT.md` row landed as a second `| 16 |` because I read only the head of that file before choosing an ID \u2014 renumbered to 21 and moved after row 20 by its own ops config rather than by hand. Plan: `plan-triage-refresh.md`. |"
+        }
+      ]
+    }
+  ]
+}

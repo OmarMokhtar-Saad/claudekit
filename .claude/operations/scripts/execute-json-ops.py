@@ -180,10 +180,19 @@ class ExecutionLock:
             except (OSError, IOError):
                 pass
             self._fd = None
-            try:
-                os.unlink(self.lock_path)
-            except OSError:
-                pass
+            # The lock file is deliberately NOT unlinked. `release()` used to remove it
+            # unconditionally, which is what created the race it looked like it prevented:
+            # B opens the path and blocks on flock, A's release() unlinks the file from
+            # under it, C creates a fresh path and acquires it -- and now B and C both
+            # think they hold the lock while flocking two different inodes. Presence of
+            # the file means nothing; the flock means everything, so there is nothing to
+            # clean up. What is left is a zero-byte file holding the last holder's pid
+            # (written in acquire()), which is a diagnostic rather than a leak.
+            #
+            # On Windows there is no flock at all -- see the class docstring, which says
+            # so plainly rather than implying protection that is not there. Not unlinking
+            # does not fix that, and no msvcrt shim is being invented here on a platform
+            # this project cannot test.
 
     def __enter__(self):
         if not self.acquire():

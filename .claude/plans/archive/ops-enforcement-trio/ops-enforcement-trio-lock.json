@@ -1,0 +1,15 @@
+{
+  "plan": "enforcement-trio",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/execute-json-ops.py",
+      "edits": [
+        {
+          "find": "            self._fd = None\n            try:\n                os.unlink(self.lock_path)\n            except OSError:\n                pass\n",
+          "replace": "            self._fd = None\n            # The lock file is deliberately NOT unlinked. `release()` used to remove it\n            # unconditionally, which is what created the race it looked like it prevented:\n            # B opens the path and blocks on flock, A's release() unlinks the file from\n            # under it, C creates a fresh path and acquires it -- and now B and C both\n            # think they hold the lock while flocking two different inodes. Presence of\n            # the file means nothing; the flock means everything, so there is nothing to\n            # clean up. What is left is a zero-byte file holding the last holder's pid\n            # (written in acquire()), which is a diagnostic rather than a leak.\n            #\n            # On Windows there is no flock at all -- see the class docstring, which says\n            # so plainly rather than implying protection that is not there. Not unlinking\n            # does not fix that, and no msvcrt shim is being invented here on a platform\n            # this project cannot test.\n"
+        }
+      ]
+    }
+  ]
+}

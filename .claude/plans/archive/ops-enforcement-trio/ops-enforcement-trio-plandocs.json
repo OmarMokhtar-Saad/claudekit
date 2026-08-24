@@ -1,0 +1,35 @@
+{
+  "plan": "enforcement-trio",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/plans/plan-enforcement-trio.md",
+      "edits": [
+        {
+          "find": "## What I got wrong while writing this",
+          "add_before": "\n## Artifacts \u2014 EXECUTED 2026-08-24, owner-approved \"gate first, then widen\"\n\nEight ops configs. Every path any of them writes is named here, because\n`scripts/check-plan-artifacts.py` refuses a plan that hides its own artifacts \u2014 and it\ncaught this plan doing exactly that on the first run after execution.\n\n| Path | Config | What landed |\n| --- | --- | --- |\n| `scripts/check-fileguard-differential.py` | `-gate`, `-gate2`, `-disclose`, `-lint` | The gate, its pre-promotion path fallback, the ten disclosed widenings, and an unused-import fix |\n| `.github/workflows/ci.yml` | `-fileguard-test` | CI step \"No change may un-flag a secret without disclosing it\" |\n| `.claude/hooks/file-guard.sh` | `-fileguard` | Allowlist ahead of the denylist; `schema`/`model` excluded from `production-data` |\n| `tests/test_fileguard_allowlist.py` | `-fileguard-test` | 33 assertions, both directions, including four near-misses |\n| `.claude/operations/scripts/execute-json-ops.py` | `-lock` | `release()` no longer unlinks |\n| `tests/test_execution_lock.py` | `-lock-test` | 5 assertions; two fail if the unlink returns |\n| `config.schema.json` | `-schema` | \"195+ patterns\" replaced in both places; `check-comment-replacement` labelled shipped-but-not-wired |\n| `CHANGELOG.md` | `-changelog` | Fixed / Added / Changed entries |\n\n**Order actually followed: gate, then widen.** The gate landed and was proven against a real\nbaseline *before* the allowlist was written, then the allowlist was written and the gate\n**failed on all ten paths as undisclosed**, then each was disclosed with its reason. That is the\nsequence the owner chose, and it is why the ten widenings are individually on the record instead\nof being a diff nobody was asked about.\n\n**Two things the plan predicted wrongly, corrected by running them.**\n\n1. **The gate SKIPPED on its first run.** At `origin/main` there is no\n   `.claude/hooks/file-guard.sh` \u2014 batch 1 promoted it out of `templates/hooks/`, so\n   `git show <baseline>:<path>` failed and the script printed `SKIP` and returned 0. A gate that\n   skips is a gate that passes forever, which is the exact failure this repo has recorded four\n   times. Fixed with a `LEGACY_GUARD_PATHS` fallback; the run now prints\n   `Baseline guard found at its pre-promotion path: templates/hooks/file-guard.sh`.\n2. **`file-guard.sh` does not source `lib.sh`.** The plan's \u00a72 assumed the differential subject\n   would need `lib.sh` copied alongside a baseline extraction. It is self-contained, so the\n   temp-directory extraction is enough.\n\n**No independent review.** No `code-reviewer` verdict was obtained for this work. The review\nfloor asks for a fresh adversarial reviewer and this period did not run one, so this plan says\nso rather than implying otherwise.\n\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/plans/plan-command-bash-parse-gate.md",
+      "edits": [
+        {
+          "find": "## The honest caveat",
+          "add_before": "\n## Artifacts \u2014 EXECUTED 2026-08-24, owner-approved \"land it\"\n\n| Path | Config |\n| --- | --- |\n| `tests/test_command_bash_parse.py` | `ops-command-bash-parse-gate.json` |\n\nSeven tests. The corpus is clean, and the mutation proof is **inside the suite** rather than\nonly in this document: `test_the_gate_catches_a_reintroduced_placeholder` builds its own fixture\nso the mutation cannot fail to land \u2014 which is precisely how the first hand-run went wrong\n(`ship.md` has zero ```bash fences, so nothing was inserted and the gate reported GREEN).\n\nRe-proven against the **shipped** corpus at execution time: inserting `if [ <N> -gt 3 ]; then`\ninto `.claude/commands/adapt.md` at markdown line 38 fails\n`test_no_command_bash_has_a_parse_error` with `adapt.md:38: SC1009/SC1073/SC1072`; restoring the\nfile returns 7 passed. The mutation was confirmed present with `grep` before the result was read.\n\n**No independent review** \u2014 same as the sibling plans this period.\n\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/plans/plan-hook-log-dedup.md",
+      "edits": [
+        {
+          "find": "## Why this might be the wrong thing to do",
+          "add_before": "\n## Artifacts \u2014 EXECUTED 2026-08-24, owner-approved \"item 3 only\"\n\nScope as approved: **the three `$LOG` hooks only.** Items 1, 2 and 4 were NOT done.\n\n| Path | Config |\n| --- | --- |\n| `.claude/hooks/format-typecheck.sh` | `ops-hook-log-dedup.json` |\n| `.claude/hooks/security-reminder.sh` | `ops-hook-log-dedup.json` |\n| `.claude/hooks/session-start.sh` | `ops-hook-log-dedup.json` |\n| `tests/test_hook_log_delegation.py` | `ops-hook-log-dedup-test.json`, `-test2.json` |\n\n**The collision audit the plan promised was run first** and came back clean: each of the three\ndefines only `log()`, and none collides with any of `lib.sh`'s eleven exports (`resolve_root`,\n`hlog`, `extract_json_field`, `deny`, `ck_*`).\n\n**My behavioural test was vacuous on its first draft, and the mutation proof is what showed it.**\nRestoring the local `log()` in `session-start.sh` failed only the two *structural* assertions;\n`test_logs_land_beside_the_hook_not_in_the_cwd` still passed against the defect. Cause: the old\ncode appended with `2>/dev/null`, so with no `.claude/hooks/` directory in the foreign cwd the\nwrite failed silently and the \"no stray log\" assertion was trivially true. The fixture now\ncreates that directory on purpose, and the same mutation fails **three** tests. A test that\npasses against the defect it names is worse than no test.\n\n"
+        }
+      ]
+    }
+  ]
+}

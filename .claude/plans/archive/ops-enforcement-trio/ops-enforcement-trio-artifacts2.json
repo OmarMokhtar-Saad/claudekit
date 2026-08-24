@@ -1,0 +1,15 @@
+{
+  "plan": "enforcement-trio",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/plans/plan-enforcement-trio.md",
+      "edits": [
+        {
+          "find": "| `.claude/plans/archive/README.md` | `-archive`, `-count` |",
+          "add_before": "| `.ai/SESSION_STATE.md`, `.ai/CHANGELOG_AI.md` | `-close` | The period record for all three approved plans |\n"
+        }
+      ]
+    }
+  ]
+}

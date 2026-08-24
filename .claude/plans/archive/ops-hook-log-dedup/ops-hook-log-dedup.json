@@ -1,0 +1,39 @@
+{
+  "plan": "hook-log-dedup",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/format-typecheck.sh",
+      "edits": [
+        {
+          "find": "LOG=\".claude/hooks/hooks.log\"\n",
+          "replace": "SCRIPT_DIR=\"$(cd \"$(dirname \"${BASH_SOURCE[0]}\")\" && pwd)\"\n[ -f \"$SCRIPT_DIR/lib.sh\" ] && . \"$SCRIPT_DIR/lib.sh\"\nHOOK_NAME=\"format-typecheck\"\n# `$SCRIPT_DIR`, not a cwd-relative path: this hook wrote to `.claude/hooks/hooks.log`\n# relative to the CURRENT DIRECTORY, so its log landed elsewhere (or nowhere) whenever\n# the cwd was not the repo root. Three hooks shared that bug and a third `LOG_FILE=`\n# form (finding F107); the same class already misplaces `command-log-audit.sh`'s audit\n# trail (F55). `hlog` also uses `$*`, so an argument past the second no longer vanishes.\nLOG_FILE=\"$SCRIPT_DIR/hooks.log\"\nlog() { hlog \"$@\"; }\n"
+        },
+        {
+          "find": "log() { echo \"[$(date '+%Y-%m-%d %H:%M:%S')] [format-typecheck] [$1] $2\" >> \"$LOG\" 2>/dev/null; }\n",
+          "replace": ""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/security-reminder.sh",
+      "edits": [
+        {
+          "find": "LOG=\".claude/hooks/hooks.log\"\nlog() { echo \"[$(date '+%Y-%m-%d %H:%M:%S')] [security-reminder] [$1] $2\" >> \"$LOG\" 2>/dev/null; }\n",
+          "replace": "SCRIPT_DIR=\"$(cd \"$(dirname \"${BASH_SOURCE[0]}\")\" && pwd)\"\n[ -f \"$SCRIPT_DIR/lib.sh\" ] && . \"$SCRIPT_DIR/lib.sh\"\nHOOK_NAME=\"security-reminder\"\n# `$SCRIPT_DIR`, not a cwd-relative path: this hook wrote to `.claude/hooks/hooks.log`\n# relative to the CURRENT DIRECTORY, so its log landed elsewhere (or nowhere) whenever\n# the cwd was not the repo root. Three hooks shared that bug and a third `LOG_FILE=`\n# form (finding F107); the same class already misplaces `command-log-audit.sh`'s audit\n# trail (F55). `hlog` also uses `$*`, so an argument past the second no longer vanishes.\nLOG_FILE=\"$SCRIPT_DIR/hooks.log\"\nlog() { hlog \"$@\"; }\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/session-start.sh",
+      "edits": [
+        {
+          "find": "LOG=\".claude/hooks/hooks.log\"\nlog() { echo \"[$(date '+%Y-%m-%d %H:%M:%S')] [session-start] [$1] $2\" >> \"$LOG\" 2>/dev/null; }\n",
+          "replace": "SCRIPT_DIR=\"$(cd \"$(dirname \"${BASH_SOURCE[0]}\")\" && pwd)\"\n[ -f \"$SCRIPT_DIR/lib.sh\" ] && . \"$SCRIPT_DIR/lib.sh\"\nHOOK_NAME=\"session-start\"\n# `$SCRIPT_DIR`, not a cwd-relative path: this hook wrote to `.claude/hooks/hooks.log`\n# relative to the CURRENT DIRECTORY, so its log landed elsewhere (or nowhere) whenever\n# the cwd was not the repo root. Three hooks shared that bug and a third `LOG_FILE=`\n# form (finding F107); the same class already misplaces `command-log-audit.sh`'s audit\n# trail (F55). `hlog` also uses `$*`, so an argument past the second no longer vanishes.\nLOG_FILE=\"$SCRIPT_DIR/hooks.log\"\nlog() { hlog \"$@\"; }\n"
+        }
+      ]
+    }
+  ]
+}

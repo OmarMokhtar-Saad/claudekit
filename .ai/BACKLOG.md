@@ -181,6 +181,64 @@ defects discovered during execution. See CHANGELOG `[Unreleased]` and the plans 
   2026-08-22 widening, and the diagnostic recorded no argv — the one field that would
   have settled this signature. Both fixed; the next occurrence arrives with the evidence
   this one lacked. Still no cause claimed.
+- [ ] **[MEDIUM] `check-plan-artifacts.py` silently skips 59% of the configs it counts.**
+  Observed 2026-08-24: `check-plan-artifacts: OK (151 config(s), 363 path(s) verified)` followed
+  by `NOTE: 89 config(s) resolved to no plan and were not checked`. So **62 of 151** configs are
+  actually checked, and the headline number counts all 151. The script's own comment at
+  `scripts/check-plan-artifacts.py:259-261` already names this failure mode — "a config count
+  alone cannot tell a real pass from a gate that checked nothing" — and the NOTE is printed
+  rather than failed on, so the 59% has grown quietly.
+
+  **Cause, and it is mostly self-inflicted.** `_resolve_plan` tries `plan-<slug>.md` and
+  `<slug>.md` for the config's declared `plan` key. Configs declaring a *sub-slug* — one plan
+  executed through several configs, e.g. `"plan": "triage-refresh-records"` against
+  `plan-triage-refresh.md` — resolve to nothing and are skipped. **Six of the 89 are mine**, from
+  this period: I named each config after its step rather than its plan, and the gate skipped all
+  six without failing. Two candidate fixes: declare the parent slug in every config (convention,
+  no code), or have `_resolve_plan` fall back to the longest `plan-*.md` prefix of the declared
+  slug (code, and it must not match across unrelated plans). **Prefer the convention fix** — a
+  prefix fallback is the kind of loose matcher that `ops-dispatcher-payload.json`'s L1 lesson was
+  about.
+
+  **Do not "fix" it by making the NOTE fatal first.** 89 configs are already archived and spent;
+  failing on them reddens CI for history nobody can change. Fix the resolution, watch the number
+  fall, then make it fatal — in that order, or the gate gets routed around.
+
+- [ ] **[MEDIUM] `review-record.py check` manufactures DRIFT for a plan's second ops config.**
+  Diagnosed 2026-08-24 while working the three `drifted` plans `gen-plan-index.py --check`
+  reports. **Two of the three warnings are the tool's, not the tree's.** When a config has no
+  record under its own ops key, `resolve_ops`'s legacy fallback compares its bytes against the
+  *plan-slug* record — a different file's approved hash — and reports drift:
+
+      $ python3 .claude/operations/scripts/review-record.py check \
+          .claude/plans/plan-dispatcher-payload.md \
+          .claude/plans/archive/ops-dispatcher-payload-docs.json
+      NOTE: no record under ops key 'dispatcher-payload-docs'; using the legacy plan-slug record 'dispatcher-payload'.
+      DRIFT: ops.json changed after it was reviewed.
+
+  `archive/README.md:57` records that config as executed with `--no-approval` (Tier 1, docs) —
+  it never had a verdict, so it cannot have drifted from one. `ops-enforcement-runtime-wiring.json`
+  is the same shape. Each plan's *primary* config is clean: `ops-dispatcher-payload.json`
+  APPROVED 94, `ops-enforcement-runtime.json` APPROVED 93, both capability-tiers siblings 93/95.
+  Because `gen-plan-index.py`'s `PRECEDENCE` puts `drifted` first, one falsely-drifted addendum
+  condemns the whole plan. Fix: report *absence* (the existing rc=3 `planned`) when no record
+  exists under the ops key, instead of hashing against a different file's verdict. **Owner-gated —
+  it changes what the approval machinery calls approved, so it is Tier 3 and wants an adversarial
+  review.** Mutation proof required both ways: the two addenda 2 → 3, the four primary configs
+  unchanged at 0, and a hand-edited byte in a primary config still reporting 2.
+
+  **`plan-capability-tiers`'s drift is genuine and is NOT covered by that fix.** Its own key's
+  hash changed after the verdict. `archive/README.md:90` records it executed 8/8 with APPROVED 95,
+  and `review-record.py` names the probable cause itself — `--stamp-baseline` run after the
+  verdict was recorded, which rewrites the config's bytes. Probable, documented, benign, and
+  still not a verdict: **no approval will be re-recorded for it.** It stays `drifted` until a real
+  `/review` pass re-scores it, which is the only honest way out.
+
+  **The handoff's prescribed remedy does not apply.** "Archive it with a README row" conflicts
+  with the repo's own convention: `scripts/check-plan-artifacts.py:147-148` states that an
+  executed *config* moves to `archive/` while **the plan stays at `.claude/plans/`** — moving the
+  three plan documents would break the path resolution that comment exists to describe.
+
 - [ ] **Triage `review/code-review.md` — partially done 2026-08-24. 30 of 75 P2/P3 findings
   verified: 19 already fixed, 11 still real. 45 unverified.**
 
@@ -232,10 +290,19 @@ defects discovered during execution. See CHANGELOG `[Unreleased]` and the plans 
   and its magic depth constant; the dead imports in `main.py`; and `*.md` being permanently
   undeletable.
 
-  **45 findings remain unverified.** Not "probably fine" — unchecked. Most are in §5
-  (`.claude/hooks/`, 27 findings) and §7 (`.claude/operations/scripts/`). Do the same thing
-  to them: open the file, check the line, record fixed / still real / no longer applicable
-  with the evidence inline.
+  **SUPERSEDED 2026-08-24 — this entry is now a pointer.** The verdicts live in
+  **`review/code-review-triage.md`**, which triaged all 108 findings on 2026-08-20 (commit
+  `8f54f55`) and was re-verified against `HEAD` on 2026-08-24: **40 LIVE, 62 FIXED, 5
+  OBSOLETE, 1 UNVERIFIABLE**, still zero P0 and zero P1. Do not add verdicts here.
+
+  **The "45 unverified" above was never true.** This entry and the triage file were two
+  independent enumerations of one review — 75 P2/P3 findings here, 108 across all severities
+  there, different IDs, neither pointing at the other — so "unverified by this entry" got
+  read as "unverified". Every one of the 45 already had a verdict one directory over. That is
+  the `duplicate-asset` class task 008 exists to close, and it cost a working period.
+
+  **The two method lessons below are kept because they are about how to check, not what is
+  currently true.**
 
   **Two traps this pass hit, worth inheriting.** (1) `templates/hooks/` no longer exists, so
   §6's eight findings *look* retired — but batch 1 **promoted** those hooks into

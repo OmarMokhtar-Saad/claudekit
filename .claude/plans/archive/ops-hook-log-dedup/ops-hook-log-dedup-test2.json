@@ -1,0 +1,15 @@
+{
+  "plan": "hook-log-dedup",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_hook_log_delegation.py",
+      "edits": [
+        {
+          "find": "    elsewhere = tmp_path / \"elsewhere\"\n    elsewhere.mkdir()\n",
+          "replace": "    # `.claude/hooks/` is created in the foreign cwd ON PURPOSE. The replaced code\n    # appended with `2>/dev/null`, so without an existing directory the write failed\n    # SILENTLY and this assertion passed against the defect -- a vacuous test. Proven:\n    # with the old `log()` restored and no directory here, only the structural\n    # assertions failed. Now the stray path is writable, so the defect lands a file.\n    elsewhere = tmp_path / \"elsewhere\"\n    (elsewhere / \".claude\" / \"hooks\").mkdir(parents=True)\n"
+        }
+      ]
+    }
+  ]
+}

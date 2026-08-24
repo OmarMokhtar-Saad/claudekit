@@ -1,0 +1,39 @@
+{
+  "plan": "enforcement-trio",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/plans/plan-enforcement-trio.md",
+      "edits": [
+        {
+          "find": "| `CHANGELOG.md` | `-changelog` | Fixed / Added / Changed entries |\n",
+          "add_after": "| `.claude/plans/plan-enforcement-trio.md`, `.claude/plans/plan-command-bash-parse-gate.md`, `.claude/plans/plan-hook-log-dedup.md` | `-plandocs`, `-status` | These three plan documents: the artifact tables above and the status headers below. Named here because `check-plan-artifacts.py` flagged their omission twice \u2014 first the code artifacts, then the plan documents themselves. The gate is right both times: a plan that does not name what it wrote cannot be reviewed for it |\n"
+        },
+        {
+          "find": "# Implementation Plan: the enforcement trio \u2014 OWNER-GATED, NOT APPROVED\n\n**Status:** AWAITING OWNER APPROVAL, 2026-08-24. Tier 3 (enforcement layer). Nothing here has\nbeen executed and no ops.json has been run.",
+          "replace": "# Implementation Plan: the enforcement trio\n\n**Status:** **EXECUTED 2026-08-24** \u2014 owner approved \"gate first, then widen\" for the\nfile-guard allowlist. Tier 3 (enforcement layer). 9 ops configs; artifacts and evidence are\ntabled below. Written first as an approval request, which is why the sections below are phrased\nas proposals \u2014 they are kept in that voice deliberately, so the record shows what was asked and\nwhat was answered."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/plans/plan-command-bash-parse-gate.md",
+      "edits": [
+        {
+          "find": "# Implementation Plan: a parse-error gate for command bash \u2014 OWNER-GATED, NOT APPROVED\n\n**Status:** AWAITING OWNER APPROVAL, 2026-08-24. Written and **proven both ways** below;\nnothing has been landed. Enabling a new CI gate is owner-gated, and the pytest suite is CI.",
+          "replace": "# Implementation Plan: a parse-error gate for command bash\n\n**Status:** **EXECUTED 2026-08-24** \u2014 owner approved \"land it\". Enabling a new CI gate is\nowner-gated and the pytest suite is CI, so this needed the answer it got. Proven both ways\nbefore and after landing; see Artifacts."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/plans/plan-hook-log-dedup.md",
+      "edits": [
+        {
+          "find": "# Implementation Plan: the 14-hook `log()` dedup \u2014 OWNER-GATED, NOT APPROVED\n\n**Status:** AWAITING OWNER APPROVAL, 2026-08-24. Nothing executed.",
+          "replace": "# Implementation Plan: the 14-hook `log()` dedup\n\n**Status:** **PARTIALLY EXECUTED 2026-08-24** \u2014 owner approved **item 3 only**, the three\n`$LOG` hooks. Items 1, 2 and 4 were deliberately NOT done and remain open; the reasoning is in\n\"Why this might be the wrong thing to do\" below, which is the section that produced the\ndecision."
+        }
+      ]
+    }
+  ]
+}

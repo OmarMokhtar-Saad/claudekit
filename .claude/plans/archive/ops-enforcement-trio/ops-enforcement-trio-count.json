@@ -1,0 +1,15 @@
+{
+  "plan": "enforcement-trio",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/plans/archive/README.md",
+      "edits": [
+        {
+          "find": "| `ops-enforcement-trio/*.json` (9 configs) |",
+          "replace": "| `ops-enforcement-trio/*.json` (count deliberately not written here \u2014 `ls .claude/plans/archive/ops-enforcement-trio/`; my first attempt said 9 and the directory held 13, which is the same hand-written-count failure hard rule 8 exists for) |"
+        }
+      ]
+    }
+  ]
+}

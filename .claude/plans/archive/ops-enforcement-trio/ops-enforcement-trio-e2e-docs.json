@@ -1,0 +1,35 @@
+{
+  "plan": "enforcement-trio",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "edits": [
+        {
+          "find": "  said); no untestable shim was invented for it.\n",
+          "add_after": "\n  **One existing test asserted the opposite contract and was changed.**\n  `test_pipeline_e2e.py`'s lock test ended with `assert not (project /\n  \".codemanifest.lock\").exists()`, justified as \"the next run would be blocked by it\". That\n  justification is falsified two assertions earlier in the same test, which runs the executor\n  to success with the file present \u2014 mutual exclusion is `flock`, so a leftover path is inert.\n  The original requirement (E2E-31) said \"no stale lock **that blocks the next run**\"; the\n  assertion had quietly shortened it to \"no lock file\". It now asserts the requirement as\n  written, plus that the retained file carries the holder pid \u2014 otherwise it is litter rather\n  than a diagnostic. `.codemanifest.lock` is now gitignored, because not unlinking means it\n  persists in the working tree after every run.\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/plans/plan-enforcement-trio.md",
+      "edits": [
+        {
+          "find": "| `.gitignore` | `-gitignore` |",
+          "add_before": "| `tests/test_pipeline_e2e.py` | `-e2e` | A pre-existing assertion asserted the contract this change reverses: `assert not (project / \".codemanifest.lock\").exists()`, justified as \"the next run would be blocked by it\". **That justification is disproved two assertions earlier in the same test**, which runs the executor to success with the file present. E2E-31's requirement was \"no stale lock **that blocks the next run**\" and the assertion had shortened it to \"no lock file\" \u2014 a stronger, different, and false claim under `flock`. Reconciled to the requirement as written, plus a check that the retained file carries the holder pid. The test is renamed to match what it now proves |\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/plans/plan-enforcement-trio.md",
+      "edits": [
+        {
+          "find": "| `.gitignore` | `-gitignore` |",
+          "add_before": "| `tests/test_pipeline_e2e.py` | `-e2e` | Named here as its own row: this config writes the plan document too, and the gate correctly refused the first attempt for omitting it |\n"
+        }
+      ]
+    }
+  ]
+}

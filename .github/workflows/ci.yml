@@ -54,6 +54,11 @@ jobs:
       # change to widen it passed CI green.
       - name: No change may unprotect a file without disclosing it
         run: python3 scripts/check-protected-differential.py --baseline auto --require-baseline
+      # The THIRD deny-shaped decision: the file-guard classifier. It is shell, so the
+      # gate runs it as a subprocess on both sides. It had no differential gate at all
+      # until the day its first widening was proposed.
+      - name: No change may un-flag a secret without disclosing it
+        run: python3 scripts/check-fileguard-differential.py --baseline auto --require-baseline
       # Executes fuzzed shell payloads on purpose - contained (empty PATH, shadowed dangerous
       # commands, temp cwd, per-child ulimits, refused fork-bomb shapes) and on an ephemeral
       # runner. Shorter corpus than the differential gate: this one spawns a shell per payload.

@@ -1,0 +1,15 @@
+{
+  "plan": "enforcement-trio",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/plans/plan-enforcement-trio.md",
+      "edits": [
+        {
+          "find": "| `.ai/SESSION_STATE.md`, `.ai/CHANGELOG_AI.md` | `-close` |",
+          "add_before": "| `.gitignore` | `-gitignore` | **A consequence of my own fix that I did not predict.** Not unlinking the lock means `.codemanifest.lock` now PERSISTS in the repo root after every executor run. It was untracked and un-ignored, so the first `git status` after the change showed a new file in a tree that is supposed to stay clean \u2014 and `.gitignore` already carried a sibling entry (`.claude-core.lock`) that should have made this obvious while the plan was being written. Ignored, with the reason recorded beside the entry |\n"
+        }
+      ]
+    }
+  ]
+}

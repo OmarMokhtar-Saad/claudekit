@@ -25,10 +25,10 @@ index never outranks the current files.
 | `drifted` | 3 |
 | `approved` | 49 |
 | `planned` | 9 |
-| `executed` | 18 |
+| `executed` | 22 |
 | `not_started` | 15 |
 | `legacy` | 3 |
-| **total** | **97** |
+| **total** | **101** |
 
 ## Plans
 
@@ -56,6 +56,7 @@ index never outranks the current files.
 | `.claude/plans/plan-cli-live-findings.md` | `executed` | 4 |  |
 | `.claude/plans/plan-close2.md` | `executed` | 2 |  |
 | `.claude/plans/plan-code-review-triage.md` | `approved` | 1 |  |
+| `.claude/plans/plan-command-bash-parse-gate.md` | `executed` | 1 |  |
 | `.claude/plans/plan-command-bash-placeholders.md` | `executed` | 2 |  |
 | `.claude/plans/plan-context-budget-lazy-skills.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-context-economy-rules.md` | `approved` | 1 |  |
@@ -66,6 +67,7 @@ index never outranks the current files.
 | `.claude/plans/plan-e2e-lane-a.md` | `approved` | 1 |  |
 | `.claude/plans/plan-e2e-pipeline-test-task.md` | `approved` | 1 |  |
 | `.claude/plans/plan-enforcement-runtime.md` | `drifted` | 2 |  |
+| `.claude/plans/plan-enforcement-trio.md` | `executed` | 21 |  |
 | `.claude/plans/plan-eval-replay-engine.md` | `approved` | 1 |  |
 | `.claude/plans/plan-fable-behavior-corpus.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-findings-and-plan-lifecycle.md` | `not_started` | 0 |  |
@@ -75,6 +77,7 @@ index never outranks the current files.
 | `.claude/plans/plan-generators-that-cannot-drift.md` | `approved` | 1 |  |
 | `.claude/plans/plan-harness-findings.md` | `approved` | 1 |  |
 | `.claude/plans/plan-hook-live-findings.md` | `executed` | 10 |  |
+| `.claude/plans/plan-hook-log-dedup.md` | `executed` | 3 |  |
 | `.claude/plans/plan-hook-profiles.md` | `approved` | 1 |  |
 | `.claude/plans/plan-install-receipts.md` | `approved` | 1 |  |
 | `.claude/plans/plan-installer-python-hooks.md` | `approved` | 1 |  |
@@ -118,6 +121,7 @@ index never outranks the current files.
 | `.claude/plans/plan-token-dash.md` | `executed` | 6 |  |
 | `.claude/plans/plan-token-efficiency.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-token-waste-workflow-fixes.md` | `not_started` | 0 |  |
+| `.claude/plans/plan-triage-refresh.md` | `executed` | 8 |  |
 | `.claude/plans/plan-uninstall-partial-owned-deadend.md` | `approved` | 1 |  |
 | `.claude/plans/plan-validator-base-normalisation.md` | `approved` | 1 |  |
 | `.claude/plans/plan-validator-comment-escape.md` | `approved` | 1 |  |

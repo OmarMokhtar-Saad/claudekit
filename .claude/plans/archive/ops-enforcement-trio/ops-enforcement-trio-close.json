@@ -1,0 +1,25 @@
+{
+  "plan": "enforcement-trio",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".ai/SESSION_STATE.md",
+      "edits": [
+        {
+          "find": "**Three plans await a one-word answer** (`plan-enforcement-trio.md`,\n`plan-command-bash-parse-gate.md`, `plan-hook-log-dedup.md`). Each states what it would change,\nwhat it deliberately would not, and \u2014 for the last one \u2014 an argument for doing less than asked.",
+          "replace": "**All three owner-gated plans were approved in session and executed** \u2014\n`plan-enforcement-trio.md` (gate first, then widen), `plan-command-bash-parse-gate.md` (land it),\n`plan-hook-log-dedup.md` (**item 3 only** \u2014 the other three items remain open by decision, not\nby omission). **Two new CI gates now run:** `scripts/check-fileguard-differential.py` and\n`tests/test_command_bash_parse.py`.\n\n**No independent review exists for any of it.** The review floor asks for a fresh adversarial\n`code-reviewer`; none was spawned this period, so every plan says so. That is the largest open\nrisk on this work, and it is not a small one \u2014 the file-guard allowlist is a deliberate widening\nof a deny-shaped decision."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".ai/CHANGELOG_AI.md",
+      "edits": [
+        {
+          "find": "## 2026-08-24 (fourth period) \u2014 one record instead of two, and 13 findings that were already fixed\n\nDocs and records only. No code changed. Three plans written, none approved, none executed.",
+          "replace": "## 2026-08-24 (fourth period) \u2014 one record instead of two, and all six jobs closed\n\nTwo halves. The first was docs and records only; the second executed the three owner-gated\nplans after the owner approved each in session. **Two new CI gates landed.**\n\n**Second half \u2014 the three approved plans.**\n\n- **`plan-enforcement-trio.md`, and the order is the point.** The new\n  `scripts/check-fileguard-differential.py` landed and was proven against a real baseline\n  *before* the file-guard allowlist was written; the allowlist then **failed the gate on all ten\n  paths as undisclosed**; each was then disclosed with its reason. That is the sequence the owner\n  chose over the faster one. **The gate's first run SKIPPED** \u2014 at `origin/main` there is no\n  `.claude/hooks/file-guard.sh`, because batch 1 promoted it out of `templates/hooks/`, so\n  `git show` failed and the script returned 0. A renamed subject is not an absent one, and a gate\n  that skips passes forever; fixed with a legacy-path fallback. Also: `ExecutionLock.release()`\n  stopped unlinking the lock file (the unlink *was* the race it appeared to prevent), and\n  `config.schema.json`'s \"195+ patterns\" became a description with **no count at all**.\n- **`plan-command-bash-parse-gate.md`.** 682 lines of command bash, never linted, now gated on\n  parse errors only. **The near-miss:** the first hand-run mutation targeted `ship.md`, which has\n  zero ```bash fences, so nothing landed and the gate said GREEN \u2014 caught by `grep`, not by the\n  gate. The in-suite mutation test builds its own fixture for that reason.\n- **`plan-hook-log-dedup.md`, scoped down on purpose.** Item 3 only: the three hooks writing to a\n  **cwd-relative** log path. The other 11 `log()` definitions were left alone \u2014 delegating them\n  widens `lib.sh`'s blast radius from 11 hooks to 23 across 16 downstream repos with no defect\n  behind it. **My first behavioural test was vacuous**, and only the mutation proof showed it:\n  the old code appended with `2>/dev/null`, so with no directory in the foreign cwd the write\n  failed silently and \"no stray log\" was trivially true.\n\n**No independent review for any of the second half.** No `code-reviewer` was spawned; each plan\nrecords that rather than implying a verdict.\n\n**First half \u2014 docs and records only.**"
+        }
+      ]
+    }
+  ]
+}

@@ -3,6 +3,12 @@
 **Triaged:** 2026-08-20 · **Tree:** branch `perf/token-efficiency` @ `c167298` ·
 **Original review:** 2026-07-05 (46 days and ~90 commits stale)
 
+**This file is the single record for `review/code-review.md`'s findings.** `.ai/BACKLOG.md`
+holds a pointer, not a second set of verdicts. It used to carry its own 75-finding P2/P3
+enumeration alongside this file's 108, with different IDs and different totals — two triages
+of one review, neither naming the other. If you arrived from the BACKLOG, you are in the
+right place; if you are about to add a verdict there, add it here instead.
+
 Every verdict below was produced by reading or executing the current tree. Line numbers in
 the original review are stale and are not reproduced; the `Now` column is the current
 `file:line`. The original stays untouched as the historical record.
@@ -37,6 +43,103 @@ spelled out, and ignored for 46 days. On 2026-08-19 it stripped the exec bit fro
 `d878496` before an incidental `git log --diff-filter=M --summary` caught it. Repaired in
 `7ac7ca6`, root-caused in `4c57198`. **A P2 with a written fix is not a low-risk finding.
 It is an unexploded one.** Read the Priority column below with that in mind.
+
+---
+
+## Re-verification 2026-08-24 at `HEAD` — 53 LIVE → 40 LIVE
+
+**This section is an append, not a rewrite.** The 2026-08-20 verdicts above stay exactly as
+they were recorded, for the same reason the original review stays untouched: a verdict is
+evidence about a tree at a moment, and overwriting it destroys the only record of what was
+true then. Where this section and a row above disagree, **this section is current**.
+
+The triage was taken at `c167298` on branch `perf/token-efficiency`. Measured at `HEAD`:
+
+    $ git rev-list --count 8f54f55..HEAD
+    78
+
+Three working periods closed a batch of LIVE rows without amending this file. All 53 were
+re-checked by opening the file or running the code — **13 are now FIXED**, F68 is half-fixed,
+and §6's paths moved wholesale.
+
+**Counts as a delta, not a replacement:** LIVE **53 → 40** · FIXED **49 → 62** ·
+OBSOLETE 5 · UNVERIFIABLE 1. Still zero P0 and zero P1.
+
+### FIXED since the triage (13)
+
+| ID | Triage claim | Evidence at `HEAD` |
+| --- | --- | --- |
+| F37 | `tail -20` hides the root cause; full output written nowhere | `post-implement.sh:101,136,170` and `pre-push.sh:153,188,223` are all `tail -60`, with the reasoning in a comment at `:98-100`; `log "ERROR" "Build failed: $output"` (`:96`) writes the **full** output to `hooks.log`. Both halves of the finding are answered. Residual, not a defect: the stdout cap is 60 lines. `tail -5` at `:128` is a *success* branch |
+| F47 | suggestion echoed from a backgrounded subshell after exit | `.claude/settings.json:47` runs `suggest-compact.sh` synchronously — no trailing `&`. The premise is gone |
+| F57 | `git stash apply 2>/dev/null \|\| true` logs success on a failed restore | `auto-checkpoint.sh:226` is `if ! git stash apply 2>"$stash_err"; then`, and `:229,:231` name the recovery command **and** the stash SHA on both the log and stderr paths |
+| F59 | prune off-by-one + unlocked registry read/modify/write | Lock half: `registry_lock()` at `:77-90` uses the portable `mkdir` idiom (flock is Linux-only) and logs rather than silently dropping a checkpoint. Off-by-one half: the `+1` at `:138-139` is now **deliberate and documented** at `:125-127` — it reserves room for the append that follows. Two guards no longer disagree; one guard explains itself |
+| F68 (half) | `ExecutionLock` is not a lock, and `release()` unlinks another holder's lock | Locking half FIXED: `:164-165` takes `fcntl.flock(LOCK_EX\|LOCK_NB)` when available and the docstring at `:151-155` is honest about the Windows fallback. **Unlink half is still LIVE** — see below |
+| F70 | `normalize_config` annotated `-> dict`, returns `None` | `:272` is `def normalize_config(config: dict) -> Optional[dict]:` |
+| F80 | `PROTECTED_PATTERNS` includes `*.md`, so `file_delete` can never remove markdown | `shared.py:10-22`: the `*.md` glob is gone and the removal is documented with its measurement (97 archived configs, zero `file_delete` ops; task 008 stalled 16-of-19 REJECTED on this pattern) |
+| F91 | unguarded `json.loads` in `cmd_config` | `main.py:1886-1892` catches `JSONDecodeError` and `OSError` and calls `err()` |
+| F92 | doctor's magic thresholds `>= 9` / `>= 8` / `>= 27` | `main.py:38-40` `EXPECTED_AGENTS/COMMANDS/SKILLS`, **written by `scripts/gen-docs.py:181-183`** — so hard rule 8 now owns them and `gen-docs --check` catches drift. The strongest of the thirteen: a magic number became a gated one |
+| F93 | `subprocess.run` with no `timeout=` | `main.py:363,385` `timeout=PROBE_TIMEOUT`, with the measured limit of `subprocess.run(timeout=)` recorded at `:72` |
+| F95 | identical `elif args.list` / `else` in `cmd_rollback` | `main.py:769-770`, single branch, with a comment naming the dead one |
+| F98 | ANSI colours emitted unconditionally | `main.py:51-59`: `NO_COLOR` (any value, per no-color.org) beats an `isatty()` check |
+| F99 | the shipped default config violates the shipped schema | `ck doctor --strict` → `[✓] Hooks config.json matches config.schema.json` |
+| F100 | nothing validates against `config.schema.json` | `_check_config_schema` in the CLI, gated by `tests/test_config_schema.py` and `tests/test_gate_scope.py:178-185` (Gate 3) |
+
+### Path drift: §6 no longer exists as written
+
+The triage's §6 is titled ``templates/hooks/`` and its eight LIVE rows cite
+`templates/hooks/auto-checkpoint.sh`, `templates/hooks/file-guard.sh` and siblings.
+**`templates/hooks/` is not a directory in this tree** (`ls` → No such file or directory); the
+hooks were *promoted* into `.claude/hooks/`. Every §6 citation needs repointing, and the
+"template-only, unwired, so contained" mitigations attached to F61, F63 and F65 no longer
+hold — those patterns now run against real input via `file-guard-gate.sh` and
+`injection-scan-gate.sh`. This is a **priority increase**, not bookkeeping.
+
+### Still LIVE at `HEAD` (40, one reduced in scope)
+
+Re-confirmed by execution, grouped by what would fix them.
+
+| ID | Site at `HEAD` | Note |
+| --- | --- | --- |
+| F15 | `install.sh:186` | `ls -1 … \| grep -v -E … \| wc -l`. ShellCheck 0.11 does not flag this variant, so `shellcheck install.sh` stays clean — the lint gate will never catch it |
+| F16 | `install.sh:170` before `:174` | cosmetic banner order |
+| F17 | `install.sh:146` | every Kotlin-DSL file contains the string `kotlin` |
+| F27 | `config-protection.sh:19` | `'checkstyle' 'spotbugs' 'detekt'` bare substrings beside anchored siblings |
+| F35 | `pre-commit.sh:188` | per-pattern loop inside a per-file loop |
+| F38 | `.claude/hooks/` | **11** of the directory's scripts source `lib.sh`; **14** still define their own `log()`. Sharper than the triage's "9 of 19" |
+| F39 | `post-implement.sh:3` | `set -e` against a run-all-three-steps design |
+| F40 | `pre-plan.sh:69` | one `python3` per existing plan file, on a UserPromptSubmit hook |
+| F41 | `pre-plan.sh:88+` | warns, returns 0 unconditionally — `vacuous-check` |
+| F44 | `session-start.sh:136` | `head -20 "$CONTEXT_FILE" \| sed 's/^/  /'` — unsanitised file into the transcript. The only LIVE finding with a security shape |
+| F49 | `cost-tracker.sh:26-33` | counts hook-log lines; prints "Session Summary" while the file is still named `cost-tracker.sh` |
+| F51 | `format-typecheck.sh:49` | unquoted command substitution into an array; correct only because `IFS=$'\n'` |
+| F52 | `format-typecheck.sh:92-93` | `grep -c "error TS"` over a report containing formatter output; `"?"` flows into `fail:${TSC_ERRORS}_errors` |
+| F53 | `format-typecheck.sh:34` | `sleep 1` as synchronisation |
+| F54 | `security-reminder.sh:55,81` | 3000-char silent truncation **and** unanchored `\bMD5\b\|\bSHA1\b\|\bRC4\b` |
+| F55 | `command-log-audit.sh:10` | `AUDIT_LOG=".claude/hooks/bash-commands.log"` is cwd-relative while `:9` uses `$SCRIPT_DIR` |
+| F60 | `auto-checkpoint.sh:200` | `awk '{print $2}'` on `--porcelain`; display-only |
+| F61 | `.claude/hooks/file-guard.sh:94-96` | `cert\|crt\|pem\|key\|p12\|pfx` with no allowlist; `:125` `*"customer"*"data"*`. **Job 4** |
+| F62/F101 | `config.schema.json:75,81` | "195+ patterns" for a ~60-pattern script. Two sites, not the `:58,64` the triage recorded. **Job 4** |
+| F63 | `prompt-injection-scanner.sh:34,42,50` | `"you are now"`, `"developer mode"`, `"act as if"` unanchored — now reachable |
+| F65 | `check-comment-replacement.sh:39` | `raise NotImplementedError` in the exit-1 set |
+| F66 | `check-comment-replacement.sh:98` | `echo -e "$violations"` |
+| F68 | `execute-json-ops.py:183-186` | `release()` still `os.unlink(self.lock_path)` unconditionally. **Job 4**, reduced: with `flock` held the window is narrower than the triage described |
+| F69/F103 | `execute-json-ops.py:703-730` | per-edit anchor checks, no single-action enforcement; `add_after` precedence over `replace` unwarned |
+| F71 | `execute-json-ops.py:1091` | `operation.get('path', 'unknown')` — a sentinel in a path slot |
+| F72 | `execute-json-ops.py` | 119 `print(` vs 4 `logger.` — `--verbose` changes almost nothing |
+| F74 | `validate-config-json.py` | 31 distinct `GUARD n` tokens and a docstring saying 31 (count half fixed), but **15, 27 and 28 are absent** from the run |
+| F75 | `validate-config-json.py:504,664,788` | `file_op['path']` unguarded → `KeyError` traceback |
+| F76 | `validate-config-json.py:107,145` | null-byte checks duplicated across paths |
+| F77 | `restore-backup.py:31` | `sys.path.insert(0, dirname(__file__))`. Sharper than the triage: **one** script, not "all three" |
+| F78 | `restore-backup.py` | 12 `restored_files` occurrences |
+| F79 | `restore-backup.py:307` | `sorted(backups, reverse=True)` sorts by name; the timestamp coupling is uncommented |
+| F96 | `main.py:341,347` | `if condition is True` / `elif == "warn"` — a check returning `1` counts as a *failure* |
+| F97 | `main.py:799` | `line.startswith("name:")` as a frontmatter parser |
+| F104 | `.claude/hooks/` | `2>/dev/null` counts: `auto-checkpoint.sh` **14**, `session-start.sh` 10, `pre-commit.sh` 10, `format-typecheck.sh` 8. The triage's own scoping — "none on a call whose failure changes the verdict" — is the version worth acting on |
+| F105 | `command-guard.sh` 3, `ops-enforcement.sh` 7 | ten `python3` startups per guarded tool call |
+| F106 | `.claude/hooks/` | same as F38; **job 6** |
+| F107 | `.claude/hooks/` | **three** `LOG_FILE=` forms, not the two the triage recorded: `"$SCRIPT_DIR/hooks.log"`, `"${LOG_FILE:-$ROOT/…}"`, and a bare cwd-relative `".claude/hooks/hooks.log"` |
+
+Also unchanged: F64 stays UNVERIFIABLE (latent by construction), F102 stays OBSOLETE.
 
 ---
 
