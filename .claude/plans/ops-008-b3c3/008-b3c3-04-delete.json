@@ -1,0 +1,15 @@
+{
+  "plan": "008-b3c3-04-delete",
+  "operations": [
+    {
+      "type": "file_delete",
+      "path": ".claude/agents/python-reviewer.md",
+      "reason": "task 008 batch 3 cluster 3: became .claude/skills/python-review-checklist in this same batch (content carried whole, token diff clean). Enters `renamedAgents` with kind=skill -- the FIRST cross-namespace alias, which is the case the map's object-valued target exists for."
+    },
+    {
+      "type": "file_delete",
+      "path": ".claude/agents/typescript-reviewer.md",
+      "reason": "task 008 batch 3 cluster 3: became .claude/skills/typescript-review-checklist in this same batch. Enters `renamedAgents` with kind=skill."
+    }
+  ]
+}

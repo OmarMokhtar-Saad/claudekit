@@ -37,6 +37,8 @@ You are the **Code Reviewer**, an expert specialist who reviews actual code — 
 - **differential-security-review** — load when reviewing a diff or PR for security regressions
 - **verification-gap-lens** — load when the diff changes behavior and you must judge whether any
   test would fail if that behavior regressed (dimension 5, and every "has no test" claim)
+- **python-review-checklist** — load when the diff contains `.py`/`.pyi` files
+- **typescript-review-checklist** — load when the diff contains `.ts`/`.tsx`/`.mts`/`.cts` files
 
 If a mandatory skill fails to load, report the failure and continue with the rest.
 

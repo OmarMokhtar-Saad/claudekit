@@ -105,10 +105,6 @@
       "accountable_for": "Implementation plans plus a machine-executable ops.json.",
       "tier": "most-capable"
     },
-    "python-reviewer": {
-      "accountable_for": "Python-specific correctness, typing, and idiom review.",
-      "tier": "balanced"
-    },
     "refactor-cleaner": {
       "accountable_for": "Dead code and duplicate removal, and simplification of code that is used, behaviour preserved either way.",
       "tier": "balanced"
@@ -129,10 +125,6 @@
     },
     "tester": {
       "accountable_for": "Authoring behavioural tests for existing code.",
-      "tier": "balanced"
-    },
-    "typescript-reviewer": {
-      "accountable_for": "TypeScript-specific type-safety and idiom review.",
       "tier": "balanced"
     },
     "verifier": {

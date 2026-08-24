@@ -1,0 +1,27 @@
+{
+  "plan": "008-b3c3-05-alias",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/skills-registry.json",
+      "description": "First cross-namespace aliases: kind=skill, so gen-registry validates the target against .claude/skills/ rather than .claude/agents/. This is the case a bare-name alias map structurally could not express.",
+      "edits": [
+        {
+          "find": "    \"silent-failure-hunter\": {\n      \"to\": \"code-reviewer\",\n      \"kind\": \"agent\"\n    }",
+          "replace": "    \"python-reviewer\": {\n      \"to\": \"python-review-checklist\",\n      \"kind\": \"skill\"\n    },\n    \"silent-failure-hunter\": {\n      \"to\": \"code-reviewer\",\n      \"kind\": \"agent\"\n    },\n    \"typescript-reviewer\": {\n      \"to\": \"typescript-review-checklist\",\n      \"kind\": \"skill\"\n    }"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/skills-registry.json",
+      "description": "Registry rows for the two new skills. Added EXPLICITLY rather than left to gen-registry's auto-add: its agentMapping consistency check runs BEFORE the auto-add and returns 1 when an agent loads an unregistered skill, so the rewrite aborted and every downstream count check cascaded. Measured, not guessed at.",
+      "edits": [
+        {
+          "find": "  \"skills\": [\n",
+          "replace": "  \"skills\": [\n    {\n      \"id\": \"python-review-checklist\",\n      \"name\": \"Python Review Checklist\",\n      \"path\": \"skills/python-review-checklist/SKILL.md\",\n      \"mandatory\": false,\n      \"usedBy\": [\n        \"code-reviewer\"\n      ],\n      \"description\": \"Per-language review checklist code-reviewer loads for .py/.pyi\"\n    },\n    {\n      \"id\": \"typescript-review-checklist\",\n      \"name\": \"Typescript Review Checklist\",\n      \"path\": \"skills/typescript-review-checklist/SKILL.md\",\n      \"mandatory\": false,\n      \"usedBy\": [\n        \"code-reviewer\"\n      ],\n      \"description\": \"Per-language review checklist code-reviewer loads for .ts/.tsx\"\n    },\n"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "plan": "008-b3c3-02-wire-loader",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/code-reviewer.md",
+      "description": "code-reviewer loads the two checklists conditionally, by file extension. Placed in the on-demand list because preloading both for a diff that touches neither language burns context for nothing -- the reason the section says so.",
+      "edits": [
+        {
+          "find": "- **verification-gap-lens** — load when the diff changes behavior and you must judge whether any\n  test would fail if that behavior regressed (dimension 5, and every \"has no test\" claim)",
+          "replace": "- **verification-gap-lens** — load when the diff changes behavior and you must judge whether any\n  test would fail if that behavior regressed (dimension 5, and every \"has no test\" claim)\n- **python-review-checklist** — load when the diff contains `.py`/`.pyi` files\n- **typescript-review-checklist** — load when the diff contains `.ts`/`.tsx`/`.mts`/`.cts` files"
+        }
+      ]
+    }
+  ]
+}

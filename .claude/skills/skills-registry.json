@@ -7,9 +7,17 @@
       "to": "refactor-cleaner",
       "kind": "agent"
     },
+    "python-reviewer": {
+      "to": "python-review-checklist",
+      "kind": "skill"
+    },
     "silent-failure-hunter": {
       "to": "code-reviewer",
       "kind": "agent"
+    },
+    "typescript-reviewer": {
+      "to": "typescript-review-checklist",
+      "kind": "skill"
     }
   },
   "renamed": {
@@ -21,6 +29,26 @@
     "verification-loop": "verification-before-completion"
   },
   "skills": [
+    {
+      "id": "python-review-checklist",
+      "name": "Python Review Checklist",
+      "path": "skills/python-review-checklist/SKILL.md",
+      "mandatory": false,
+      "usedBy": [
+        "code-reviewer"
+      ],
+      "description": "Per-language review checklist code-reviewer loads for .py/.pyi"
+    },
+    {
+      "id": "typescript-review-checklist",
+      "name": "Typescript Review Checklist",
+      "path": "skills/typescript-review-checklist/SKILL.md",
+      "mandatory": false,
+      "usedBy": [
+        "code-reviewer"
+      ],
+      "description": "Per-language review checklist code-reviewer loads for .ts/.tsx"
+    },
     {
       "id": "using-superpowers",
       "name": "Using Superpowers",
@@ -725,10 +753,8 @@
     "harness-optimizer",
     "model-router",
     "performance-optimizer",
-    "python-reviewer",
     "refactor-cleaner",
     "tdd-guide",
-    "typescript-reviewer",
     "web-researcher"
   ],
   "agentMapping": {
@@ -739,7 +765,9 @@
     "code-reviewer": [
       "differential-security-review",
       "golden-rule",
+      "python-review-checklist",
       "security-checklist",
+      "typescript-review-checklist",
       "using-superpowers",
       "verification-gap-lens"
     ],
