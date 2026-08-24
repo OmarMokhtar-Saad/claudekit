@@ -1,0 +1,38 @@
+{
+  "plan": "session-close-fix-01-commit-count",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".ai/SESSION_STATE.md",
+      "description": "The commit count was a PREDICTION written before committing (26, assuming one commit per plan) and the period ended with three commits, so the true figure is 24. Corrected rather than left, because a wrong number in the resume point is the failure this period spent its time on.",
+      "edits": [
+        {
+          "find": "You are on `main`, working tree clean, **26 commits ahead of `origin/main` (`f76f5d5`) and\nunpushed.",
+          "replace": "You are on `main`, working tree clean, **24 commits ahead of `origin/main` (`f76f5d5`) and\nunpushed."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".ai/SESSION_STATE.md",
+      "description": "Name the three commits and the fact that the last one bundles three plans, so the numbered list below is not read as four separate commits.",
+      "edits": [
+        {
+          "find": "**What landed this period**\n",
+          "replace": "**What landed this period** — **three** commits (`cfc8a09`, `f7a4469`, `76d7387`); the\nlast bundles items 3 and 4 plus this close, because they share `.ai/BACKLOG.md`,\n`archive/README.md` and `INDEX.md` and splitting would have meant partial-staging the same\nfiles. Its message says so and carries a `Plan-Id:` trailer per plan.\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".ai/CHANGELOG_AI.md",
+      "description": "Same correction: 'Four commits' was written before committing and the period landed three.",
+      "edits": [
+        {
+          "find": "Four commits, all documentation or test surface. Suite green throughout.",
+          "replace": "Three commits, all documentation or test surface. Suite green throughout — the last\ncommit bundles three plans that share three files, with a `Plan-Id:` trailer for each."
+        }
+      ]
+    }
+  ]
+}

@@ -3,7 +3,8 @@
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
 ## 2026-08-24 (second period) — task 008's paper trail, a gate that scanned nothing, and 688 lines of unlinted bash
 
-Four commits, all documentation or test surface. Suite green throughout.
+Three commits, all documentation or test surface. Suite green throughout — the last
+commit bundles three plans that share three files, with a `Plan-Id:` trailer for each.
 
 - **The paper trail was a DoD violation on `main`.** `CHANGELOG.md` documented batches 1, 2
   and 4 and said nothing about batch 3 — nine agent names users invoke, removed. Written

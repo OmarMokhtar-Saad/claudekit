@@ -1,0 +1,16 @@
+{
+  "plan": "session-close-fix-02-derive-the-count",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".ai/SESSION_STATE.md",
+      "description": "A commit count written INSIDE a commit is stale by at least one the moment it lands -- 26 became 24 became 25 across two corrections. Replaced with the command that derives it, plus a snapshot labelled as a snapshot. The unpushed-and-owner-gated fact is what actually matters and does not decay.",
+      "edits": [
+        {
+          "find": "You are on `main`, working tree clean, **24 commits ahead of `origin/main` (`f76f5d5`) and\nunpushed. Pushing is owner-gated and has never been authorised — do not push.**",
+          "replace": "You are on `main`, working tree clean, and **unpushed. Pushing is owner-gated and has never\nbeen authorised — do not push.** `origin/main` is at `f76f5d5`; for the count, run\n`git rev-list --count origin/main..main` — it was **25** at `5ab5260`.\n\nThat is written as a command rather than a number on purpose. This figure was stated as\n**26** (a prediction of one commit per plan), corrected to **24**, and the correction commit\nitself made it **25**. A count written inside a commit is stale the moment it lands."
+        }
+      ]
+    }
+  ]
+}
