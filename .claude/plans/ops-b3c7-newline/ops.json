@@ -1,0 +1,16 @@
+{
+  "plan": "ops-b3c7-newline",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_008_b3c7_harness_fold.py",
+      "description": "W292: no newline at end of file. Mine, from cluster 7 -- the ops engine wrote the content as given and the generated string had no trailing newline.",
+      "edits": [
+        {
+          "find": "        assert len(found) >= 7, found",
+          "replace": "        assert len(found) >= 7, found\n"
+        }
+      ]
+    }
+  ]
+}
