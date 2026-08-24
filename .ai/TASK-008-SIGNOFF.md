@@ -120,6 +120,66 @@ Fleet-sync marker co-ownership: `ck adapt` owns the `CLAUDEKIT:` region in
 `.claude/local/CLAUDE.project.md`; fleet-sync keeps the root `CLAUDE.md` region.
 Two writers, two files. **Decision: carry it.** Not an oversight.
 
+---
+
+## WHAT ACTUALLY SHIPPED — 2026-08-24, all four batches EXECUTED
+
+Corpus: **21 agents · 55 commands · 73 skills · 26 hooks · 7 modes**, generator-derived
+(`scripts/gen-docs.py --check`). Started at 31 / 42 / 76 / 22. Full suite green.
+
+| Batch | Shipped | Verdicts |
+| --- | --- | --- |
+| 1 | one canonical tree; `templates/` no longer ships a second copy of any component; 24 components PROMOTED, 14 true duplicate skills deleted | 62 → 88 → 91 → 95 |
+| 2 | five near-duplicate skills merged away as UNIONS, 76 → 71 | 84 REVISE → 93 APPROVED |
+| 4 | `ck lint` exists; one reviewer taxonomy replacing four; one coordinator routing table replacing two | 75 → 80 → 94 APPROVED |
+| 3 | phase 0 (the `renamedAgents` blocker) + seven merge clusters; nine agents removed, 29 → 21 | 87 CONDITIONAL → 94 APPROVED on phase 0; one plan and one commit per cluster |
+
+Batch 3's blocker was real and had to be **built before anything could be deleted**:
+`gen-registry.py` resolved every `renamed` alias target against `.claude/skills/`, so
+`renamed: 'python-reviewer' -> 'code-reviewer'` was a hard error and **an agent name could
+not be aliased at all**. `renamedAgents` maps an old id to `{to, kind}` — the object-valued
+target is forced by this batch's own content, since four destinations are skills. Same
+shape as batch 1's blocker (the protected `*.md` glob), same treatment: land the mechanism,
+prove it, then delete.
+
+The compensating controls the owner decision required were all honoured — batch 3 landed
+last, one cluster per plan and per commit, every removed name in the alias map, each merge
+proven a union by token diff rather than by comparing headings, and the routing disclosure
+carried in all seven cluster plans. **The accepted risk is NOT retired**: the eval
+cassettes still do not exist, so routing equivalence remains undemonstrated. It is now
+also stated in `CHANGELOG.md`, where a consumer will actually read it.
+
+## The five places THIS SHEET was measurably wrong
+
+The two batch-1 errors are recorded in place above. Three more were found after it was
+written. They are listed as errors, not as "learnings", because the point of this file is
+that a document can be evidence-shaped, full of measurements, and still wrong — and that
+following it without re-measuring would have destroyed content twice.
+
+1. **Batch 1 — `templates/commands|hooks|modes` called a duplicate tree.** They were **24
+   unique components with zero name overlap** in `.claude/`. Deleting them as written
+   would have destroyed content rather than de-duplicated it. Promoted instead.
+2. **Batch 1 — three skills marked DIVERGED "needing a three-way merge"** differed by
+   exactly **one line** each: the `description:` frontmatter. `.claude/` already held a
+   strict superset of each body.
+3. **Batch 2 — the "token/context quintet" was three unrelated concerns.**
+   `token-budget-advisor` is a response-depth menu that shares no section with either
+   token skill, and was **kept**. `codebase-mapping`, also slated for removal, is the
+   authoring contract for `project-graph.py` and was kept too.
+4. **Batch 2 — the session pair's survivor was backwards.** The sheet named
+   `session-continuity` the survivor. `context-keeper` owns the file
+   `.claude/hooks/session-start.sh:133` actually reads, while `session-continuity`'s
+   `.claude/session-state.json` had **no reader or writer anywhere in the repo**.
+   Following the sheet would have deleted the wired skill and kept the dead one.
+5. **Batch 4 — the ≤40-line command budget is unreachable.** Measured: **0 of 55 commands
+   met it** (min 47 / median 129 / max 466), and complying meant rewriting **5,138 of
+   7,338 lines** of prose. It shipped as a ratchet instead — ≤40 binds new commands, no
+   growth past `.claude/lint-baseline.json` for existing ones — because a gate the corpus
+   cannot satisfy is a gate someone turns off.
+
+Rows 1, 2 and 4 are the same failure in three costumes: the sheet's recommendation and the
+filesystem disagreed, and the filesystem was right every time.
+
 ## Consumer impact
 
 16 downstream repos. The registry alias map means consumers see a rename, not a

@@ -25,10 +25,10 @@ index never outranks the current files.
 | `drifted` | 3 |
 | `approved` | 49 |
 | `planned` | 9 |
-| `executed` | 7 |
+| `executed` | 8 |
 | `not_started` | 15 |
 | `legacy` | 3 |
-| **total** | **86** |
+| **total** | **87** |
 
 ## Plans
 
@@ -42,6 +42,7 @@ index never outranks the current files.
 | `.claude/plans/plan-008-b3c6-model-router-fold.md` | `executed` | 0 |  |
 | `.claude/plans/plan-008-b3c7-harness-fold.md` | `executed` | 0 |  |
 | `.claude/plans/plan-008-batch1-one-tree.md` | `not_started` | 0 |  |
+| `.claude/plans/plan-008-paper-trail.md` | `executed` | 5 |  |
 | `.claude/plans/plan-adapt-eject-interaction.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-agent-tool-grants.md` | `approved` | 1 |  |
 | `.claude/plans/plan-approval-machinery.md` | `approved` | 1 |  |

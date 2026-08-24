@@ -1,0 +1,16 @@
+{
+  "plan": "008-paper-trail-04-seam",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".ai/SESSION_STATE.md",
+      "description": "The header rewrite pushed the older narrative down, so '**What landed this session**' now labels prior sessions and reads as if those commits are the current work. Relabelled rather than deleted -- the entries below are still the record.",
+      "edits": [
+        {
+          "find": "**What landed this session, each with its own adversarial verdict.**",
+          "replace": "**What landed in the sessions BEFORE this one, each with its own adversarial verdict.**"
+        }
+      ]
+    }
+  ]
+}
