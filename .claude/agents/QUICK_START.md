@@ -166,7 +166,6 @@ Triggers: "find", "search", "where is", "how does"
     devops.md                → CI/CD and infrastructure agent
     database-architect.md    → Database design agent
     refactor-cleaner.md      → Dead code removal agent
-    harness-optimizer.md     → .claude/ token optimization agent
     performance-optimizer.md → Performance bottleneck agent
     code-reviewer.md         → Actual code diff/PR review (not plan review)
     build-error-resolver.md  → Fixes build/type errors with minimum diff

@@ -1,0 +1,16 @@
+{
+  "plan": "ops-b3c2-disclosure",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/plans/plan-008-b3c2-silent-failure-merge.md",
+      "description": "Cluster 2 disclosed the uncovered routing risk in its own wording, so the batch-wide gate -- which greps for one canonical phrase -- did not see it. Same exact-string trap the taxonomy sweep hit: a disclosure that is real but unphrased consistently cannot be checked mechanically. The canonical sentence is added; the existing prose stays.",
+      "edits": [
+        {
+          "find": "## This cluster changes routing, and that is the accepted risk",
+          "replace": "## This cluster changes routing, and that is the accepted risk\n\n**Routing is not demonstrated unchanged.**"
+        }
+      ]
+    }
+  ]
+}

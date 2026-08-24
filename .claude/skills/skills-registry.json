@@ -15,6 +15,10 @@
       "to": "docs",
       "kind": "agent"
     },
+    "harness-optimizer": {
+      "to": "context-budget",
+      "kind": "skill"
+    },
     "model-router": {
       "to": "coordinator",
       "kind": "agent"
@@ -768,7 +772,6 @@
     }
   ],
   "agentsWithoutSkills": [
-    "harness-optimizer",
     "performance-optimizer",
     "refactor-cleaner",
     "web-researcher"
