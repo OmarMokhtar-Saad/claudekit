@@ -123,10 +123,6 @@
       "accountable_for": "Active SAST, CVE, secret, and hardening audit.",
       "tier": "most-capable"
     },
-    "silent-failure-hunter": {
-      "accountable_for": "Swallowed errors, bad fallbacks, and missing propagation.",
-      "tier": "balanced"
-    },
     "tdd-guide": {
       "accountable_for": "Enforcing RED/GREEN/REFACTOR order and coverage discipline.",
       "tier": "balanced"

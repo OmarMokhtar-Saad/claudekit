@@ -108,7 +108,6 @@ lands. It is not present today.
 | verifier              | `Read,Grep,Glob,Bash`                                           | Must execute build/test/lint to produce evidence.    |
 | implementer           | `Read,Grep,Glob,Bash(python3 .claude/operations/scripts/*)`     | Iron Law: changes flow through the ops engine only — never Edit/Write. **(headless only — see "Frontmatter `tools:` CANNOT scope Bash" below; the interactive Task path grants unscoped Bash and this scoping is NOT applied there.)** |
 | security-scanner      | `Read,Grep,Glob`                                                | Read-only scanning.                                  |
-| silent-failure-hunter | `Read,Grep,Glob`                                                | Read-only scanning.                                  |
 | code-reviewer         | `Read,Grep,Glob,Bash(git show *),Bash(git diff *),Bash(git rev-parse *),Bash(git ls-files *),Bash(git worktree *),Bash(gh pr *)` | Phase 0 must pin the revision under review before any finding: `gh pr diff/view`, `git diff <base>...<ref>`, `git show <ref>:<path>`, `git rev-parse HEAD`, `git ls-files --others` for untracked files, and a detached `git worktree` for whole-tree search. Non-mutating with respect to the repository under review — `git worktree` writes only to a detached tmpdir; no commit, no checkout of the shared tree. (Space-form specifiers verified honoured on this path, 2026-08-19.) |
 | gitOps                | `Read,Bash(git *)`                                              | Git operations only.                                 |
 
@@ -222,12 +221,11 @@ the wide rows is owned by each agent's maintainer.
 | verifier | `Read, Bash, Grep, Glob` |
 | implementer | `Read, Bash, Grep, Glob` |
 | security-scanner | `Read, Bash, Grep, Glob` |
-| silent-failure-hunter | `Read, Grep, Glob, Bash` |
 | code-reviewer | `Read, Grep, Glob, Bash` |
 | gitOps | `Read, Bash, Grep, Glob` |
 
 **Wider than their documented role (known drift, not yet narrowed):** `explore`,
-`security-scanner`, and `silent-failure-hunter` are documented above as read-only
+`security-scanner`, and `code-reviewer` are documented above as read-only
 `Read,Grep,Glob` but each declares `Bash` in frontmatter. `planner` declares bare `Bash`
 where the headless row scopes it to the ops validator. Recorded rather than hidden.
 

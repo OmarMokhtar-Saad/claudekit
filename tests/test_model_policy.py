@@ -98,7 +98,7 @@ class ModelPolicyIsTheSourceOfTruth(unittest.TestCase):
         "harness-optimizer": "sonnet", "loop-operator": "sonnet",
         "opensource-sanitizer": "sonnet", "performance-optimizer": "sonnet",
         "python-reviewer": "sonnet", "refactor-cleaner": "sonnet",
-        "reviewer": "sonnet", "silent-failure-hunter": "sonnet",
+        "reviewer": "sonnet",
         "tdd-guide": "sonnet", "tester": "sonnet", "typescript-reviewer": "sonnet",
         "verifier": "sonnet",
         "doc-updater": "haiku", "documenter": "haiku", "explore": "haiku",
