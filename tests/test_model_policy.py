@@ -99,7 +99,7 @@ class ModelPolicyIsTheSourceOfTruth(unittest.TestCase):
         "opensource-sanitizer": "sonnet", "performance-optimizer": "sonnet",
         "refactor-cleaner": "sonnet",
         "reviewer": "sonnet",
-        "tdd-guide": "sonnet", "tester": "sonnet",
+        "tester": "sonnet",
         "verifier": "sonnet",
         "docs": "haiku", "explore": "haiku",
         "gitOps": "haiku", "implementer": "haiku", "model-router": "haiku",

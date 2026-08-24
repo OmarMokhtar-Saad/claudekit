@@ -1,0 +1,57 @@
+{
+  "plan": "008-b3c5-02-routing",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/coordinator.md",
+      "description": "TDD routes to `tester`, which already loads test-driven-development as role-core. The MUST rule is rewritten to name the agents rather than the removed one -- it is an ordering constraint, not an agent.",
+      "edits": [
+        {
+          "find": "| **TDD**           | \"write tests first\", \"TDD\", \"test-driven\"                   | TDD Guide |",
+          "replace": "| **TDD**           | \"write tests first\", \"TDD\", \"test-driven\"                   | tester (loads `test-driven-development`) |"
+        },
+        {
+          "find": "[Coordinator] → [TDD Guide] → [Verifier] → [GitOps]",
+          "replace": "[Coordinator] → [tester] → [Verifier] → [GitOps]"
+        },
+        {
+          "find": "- TDD Guide MUST produce tests before Implementer writes code",
+          "replace": "- tester MUST produce failing tests before implementer writes code (the RED step\n  cannot be recovered afterwards — a test written after the code passes for the wrong\n  reason). The rule lives in the `test-driven-development` skill tester loads."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/QUICK_START.md",
+      "description": "Inventory.",
+      "edits": [
+        {
+          "find": "    tdd-guide.md             → Test-first development agent\n",
+          "replace": ""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/model-policy.json",
+      "description": "Drop the removed role.",
+      "edits": [
+        {
+          "find": "    \"tdd-guide\": {\n      \"accountable_for\": \"Enforcing RED/GREEN/REFACTOR order and coverage discipline.\",\n      \"tier\": \"balanced\"\n    },\n",
+          "replace": ""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_model_policy.py",
+      "description": "Expected tiers.",
+      "edits": [
+        {
+          "find": "\"tdd-guide\": \"sonnet\", \"tester\": \"sonnet\",",
+          "replace": "\"tester\": \"sonnet\","
+        }
+      ]
+    }
+  ]
+}

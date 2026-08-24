@@ -1,0 +1,16 @@
+{
+  "plan": "008-b3c5-04-alias",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/skills-registry.json",
+      "description": "Cross-namespace alias.",
+      "edits": [
+        {
+          "find": "    \"typescript-reviewer\": {",
+          "replace": "    \"tdd-guide\": {\n      \"to\": \"test-driven-development\",\n      \"kind\": \"skill\"\n    },\n    \"typescript-reviewer\": {"
+        }
+      ]
+    }
+  ]
+}
