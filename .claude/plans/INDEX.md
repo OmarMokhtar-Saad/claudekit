@@ -25,10 +25,10 @@ index never outranks the current files.
 | `drifted` | 3 |
 | `approved` | 49 |
 | `planned` | 9 |
-| `executed` | 8 |
+| `executed` | 9 |
 | `not_started` | 15 |
 | `legacy` | 3 |
-| **total** | **87** |
+| **total** | **88** |
 
 ## Plans
 
@@ -85,6 +85,7 @@ index never outranks the current files.
 | `.claude/plans/plan-ops-engine-file-modes.md` | `approved` | 1 |  |
 | `.claude/plans/plan-ops-hardening-implementer-contract.md` | `planned` | 1 |  |
 | `.claude/plans/plan-protected-docs-scope.md` | `approved` | 1 |  |
+| `.claude/plans/plan-queued-ops-gate.md` | `executed` | 3 |  |
 | `.claude/plans/plan-receipts-regressions.md` | `approved` | 1 |  |
 | `.claude/plans/plan-reflection-ledger-isolation.md` | `approved` | 1 |  |
 | `.claude/plans/plan-reflection-lifecycle-gates.md` | `approved` | 1 |  |

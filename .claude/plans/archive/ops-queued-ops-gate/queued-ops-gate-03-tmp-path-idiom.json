@@ -1,0 +1,16 @@
+{
+  "plan": "queued-ops-gate-03-tmp-path-idiom",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_delivery_contract_smoke.py",
+      "description": "Use pytest's tmp_path fixture, which is what every other temporary tree in this module uses (_prepare_fake_repo and both scripted-path tests). The first draft reached for tempfile.TemporaryDirectory and a function-local import, which reads as foreign here.",
+      "edits": [
+        {
+          "find": "def test_the_queued_ops_scan_reaches_subdirectories():\n    \"\"\"The mutation proof for `_queued_ops_configs`, on a throwaway tree.\n\n    Red against the top-level-only version: `ops-x/bad.json` would not be returned.\n    Also pins the other half -- an archived config must NOT be returned, or the\n    gate below would report every spent config in the repo's history.\n    \"\"\"\n    import tempfile\n\n    with tempfile.TemporaryDirectory() as tmp:\n        top = os.path.join(tmp, \"top.json\")\n        nested = os.path.join(tmp, \"ops-x\", \"bad.json\")\n        archived = os.path.join(tmp, ARCHIVE_DIR_NAME, \"ops-y\", \"bad.json\")\n        deep = os.path.join(tmp, \"ops-z\", \"sub\", \"deeper.json\")\n        for path in (top, nested, archived, deep):\n            os.makedirs(os.path.dirname(path), exist_ok=True)\n            with open(path, \"w\", encoding=\"utf-8\") as fh:\n                fh.write(\"{}\")\n        # A non-config file must not be picked up just for living in the tree.\n        with open(os.path.join(tmp, \"plan-x.md\"), \"w\", encoding=\"utf-8\") as fh:\n            fh.write(\"# not a config\")\n\n        found = _queued_ops_configs(tmp)\n\n    assert nested in found, \"the scan does not reach ops-<slug>/ -- the whole defect\"\n",
+          "replace": "def test_the_queued_ops_scan_reaches_subdirectories(tmp_path):\n    \"\"\"The mutation proof for `_queued_ops_configs`, on a throwaway tree.\n\n    Red against the top-level-only version: `ops-x/bad.json` would not be returned.\n    Also pins the other half -- an archived config must NOT be returned, or the\n    gate below would report every spent config in the repo's history.\n    \"\"\"\n    plans = tmp_path / \"plans\"\n    top = plans / \"top.json\"\n    nested = plans / \"ops-x\" / \"bad.json\"\n    archived = plans / ARCHIVE_DIR_NAME / \"ops-y\" / \"bad.json\"\n    deep = plans / \"ops-z\" / \"sub\" / \"deeper.json\"\n    for path in (top, nested, archived, deep):\n        path.parent.mkdir(parents=True, exist_ok=True)\n        path.write_text(\"{}\", encoding=\"utf-8\")\n    # A non-config file must not be picked up just for living in the tree.\n    (plans / \"plan-x.md\").write_text(\"# not a config\", encoding=\"utf-8\")\n\n    found = _queued_ops_configs(str(plans))\n    top, nested, archived, deep = (str(p) for p in (top, nested, archived, deep))\n\n    assert nested in found, \"the scan does not reach ops-<slug>/ -- the whole defect\"\n"
+        }
+      ]
+    }
+  ]
+}
