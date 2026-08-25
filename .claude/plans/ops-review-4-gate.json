@@ -1,0 +1,19 @@
+{
+  "plan": "review-round-4",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "scripts/check-fileguard-differential.py",
+      "edits": [
+        {
+          "find": "        baseline_categories = {classify(before_path, p) for p in CORPUS}\n        baseline_categories.discard(None)\n        if len(baseline_categories) < 8:\n            print(\"FAIL: the baseline guard produces only %d distinct categories across \"\n                  \"the corpus (%s). It classifies too little to reveal a regression.\"\n                  % (len(baseline_categories), \", \".join(sorted(baseline_categories))))\n            return 1",
+          "replace": "        # PER-CATEGORY AGAINST WHAT THE *HEAD* GUARD PRODUCES, not a bare count of 8.\n        # The count version was implied by the 12-path floor below and therefore bought\n        # nothing: BASELINE_FLOOR's twelve paths span 9-10 categories on their own, so any\n        # baseline clearing the floor cleared the count automatically. Measured against the\n        # exact adversary the comment named -- a baseline flagging only those twelve --\n        # 10 categories, 0 missing, both gates PASS, 78 of 90 corpus paths look clean.\n        #\n        # This version compares against HEAD: for every category HEAD produces somewhere in\n        # the corpus, the baseline must produce it somewhere too. A baseline that has gone\n        # blind to a whole category cannot reveal a regression in it, and that is exactly\n        # the state a floor is for.\n        head_categories = {classify(after_path, p) for p in CORPUS}\n        head_categories.discard(None)\n        base_categories = {classify(before_path, p) for p in CORPUS}\n        base_categories.discard(None)\n        blind_to = sorted(head_categories - base_categories)\n        if blind_to:\n            print(\"FAIL: the baseline guard produces no path in %d categor(ies) that HEAD \"\n                  \"does (%s). It cannot reveal a regression in a category it never \"\n                  \"reports.\" % (len(blind_to), \", \".join(blind_to)))\n            return 1"
+        },
+        {
+          "find": "    \".ssh/deploy.key.pub\", \".ssh/authorized_keys.pub\",",
+          "replace": "    \".ssh/deploy.key.pub\", \".ssh/authorized_keys.pub\",\n    # WRAPPED chains: one non-certificate link interposed. The peel loop stopped at the\n    # first of these, so 100 of 360 generated cases were freed -- a compressed or\n    # backed-up key is the likeliest real form and no chain in this corpus had one.\n    \"tests/credentials.json.gz.key\", \"tests/id_rsa.tar.pem\", \"tests/passwd.bak.crt\",\n    \"tests/wallet.dat.zip.p12\", \"testdata/prod.sqlite.gz.key\",\n    # An author-asserted name inside a secret directory. THIS COMMIT'S OWN predecessor\n    # freed these by hoisting `example.*`/`sample.*`/`dummy.*` above the veto, and this\n    # gate reported \"no undisclosed path lost its flag\" because not one corpus path had\n    # such a basename in such a directory -- the corpus was extended along the PREVIOUS\n    # hole's axis and not along the change being made.\n    \"secrets/example.key\", \"vault/sample.pem\", \"keys/dummy.key\", \".aws/example.pem\",\n    \".gnupg/sample.key\", \"production/dummy.p12\",\n    # Uppercase directory forms: the veto was case-sensitive on a case-insensitive\n    # filesystem, so these were the same files as their lowercase siblings and clean.\n    \"SECRETS/tests/x.pem\", \"PII/tests/x.pem\", \"K8s/tests/tls.key\","
+        }
+      ]
+    }
+  ]
+}

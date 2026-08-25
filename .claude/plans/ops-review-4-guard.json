@@ -1,0 +1,27 @@
+{
+  "plan": "review-round-4",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/file-guard.sh",
+      "edits": [
+        {
+          "find": "    case \"$basename\" in\n        public.*|ca-bundle.*|ca-certificates.*|example.*|sample.*|dummy.*)\n            return 0 ;;",
+          "replace": "    # ONLY names that assert a CRYPTOGRAPHIC ROLE sit above the veto. `public.*` and a CA\n    # bundle say \"this is the half you publish\", which is true in any directory.\n    # `example.`/`sample.`/`dummy.` assert an AUTHOR'S INTENT -- exactly the class of claim\n    # the veto below exists to distrust, since the veto's own reasoning is that a `tests/`\n    # component \"is not evidence that the file is not a secret\" and a filename prefix is\n    # under identical authorial control. Placing them above it freed `secrets/example.key`,\n    # `vault/sample.pem`, `keys/dummy.key`, `.aws/example.pem` and `.gnupg/sample.key`, and\n    # the differential gate certified that widening as clean because no corpus path had an\n    # example/sample/dummy basename inside a secret directory. They now sit BELOW the veto.\n    case \"$basename\" in\n        public.*|ca-bundle.*|ca-certificates.*)\n            return 0 ;;"
+        },
+        {
+          "find": "    case \"/$filepath/\" in\n        */k8s/*|*/kubernetes/*|*/.kube/*|*/pii/*|*/production/*|*/prod/*|\\\n        */secret/*|*/secrets/*|*/credential/*|*/credentials/*|*/.ssh/*|*/.aws/*|\\\n        */.gcloud/*|*/.docker/*|*/.gnupg/*|*/.gpg/*|*/vault/*|*/key/*|*/keys/*|\\\n        */certs/*|*/certificates/*|*/ssl/*|*/tls/*|*/private/*)\n            return 1 ;;\n    esac\n",
+          "replace": "    # LOWERCASED. The veto was case-sensitive, so `K8s/tests/tls.key` -- the canonical case\n    # it was written for -- was freed by one capital letter, and `SECRETS/`, `PII/`,\n    # `Production/` and `.SSH/` with it. On the case-insensitive APFS this project targets\n    # those are THE SAME DIRECTORIES as their lowercase forms, so it was a live bypass\n    # rather than a typo. The guard already lowercases extensions in three places.\n    local _lc\n    _lc=\"$(printf '%s' \"$filepath\" | tr '[:upper:]' '[:lower:]')\"\n    case \"/$_lc/\" in\n        */k8s/*|*/kubernetes/*|*/.kube/*|*/pii/*|*/production/*|*/prod/*|\\\n        */secret/*|*/secrets/*|*/credential/*|*/credentials/*|*/.ssh/*|*/.aws/*|\\\n        */.gcloud/*|*/.docker/*|*/.gnupg/*|*/.gpg/*|*/vault/*|*/key/*|*/keys/*|\\\n        */certs/*|*/certificates/*|*/ssl/*|*/tls/*|*/private/*)\n            return 1 ;;\n    esac\n"
+        },
+        {
+          "find": "    case \"/$filepath\" in\n        */test/*|*/tests/*|*/testdata/*|*/fixtures/*|*/spec/fixtures/*|*/__fixtures__/*)\n            return 0 ;;\n    esac\n    return 1",
+          "replace": "    case \"$basename\" in\n        example.*|sample.*|dummy.*) return 0 ;;\n    esac\n    case \"/$_lc\" in\n        */test/*|*/tests/*|*/testdata/*|*/fixtures/*|*/spec/fixtures/*|*/__fixtures__/*)\n            return 0 ;;\n    esac\n    return 1"
+        },
+        {
+          "find": "            local _peeled=\"$filepath\" _peeled_base _peeled_ext\n            while :; do\n                _peeled_base=$(basename \"$_peeled\")\n                case \"$_peeled_base\" in *.*) ;; *) break ;; esac\n                _peeled_ext=\"$(printf '%s' \"${_peeled_base##*.}\" \\\n                    | tr '[:upper:]' '[:lower:]')\"\n                case \"$_peeled_ext\" in\n                    cert|crt|pem|key|p12|pfx|pub) ;;\n                    *) break ;;\n                esac\n                _peeled=\"${_peeled%.*}\"\n                stronger=$(classify \"$_peeled\" skip_certs)\n                [ -n \"$stronger\" ] && break\n            done",
+          "replace": "            # PEEL ANY SUFFIX, not only certificate ones. Restricting the walk to a chain\n            # made entirely of cert extensions was the FIFTH occurrence of the same class:\n            # branch 8 matches the LAST element of a chain and cares nothing for what\n            # precedes it, so one interposed `.gz`/`.bak`/`.tar`/`.zip` -- a COMPRESSED OR\n            # BACKED-UP key, the likeliest real form -- stopped the walk before it reached\n            # the real category. Measured: 100 of 360 generated cases freed, including\n            # `tests/credentials.json.gz.key`, `tests/id_rsa.tar.pem` and\n            # `tests/passwd.bak.crt`, while every `.pem.key` control passed.\n            #\n            # Over-peeling is SAFE by construction and that is why the restriction was pure\n            # loss: `classify` on a shorter stem can only ever return a category, never\n            # remove one, so a wrong extra peel can add a flag but never drop one. The\n            # `*.*` guard below is the only bound that matters -- it stops the walk at the\n            # basename so a dotted DIRECTORY is never entered.\n            local _peeled=\"$filepath\" _peeled_base\n            while :; do\n                _peeled_base=\"${_peeled##*/}\"\n                case \"$_peeled_base\" in *.*) ;; *) break ;; esac\n                _peeled=\"${_peeled%.*}\"\n                stronger=$(classify \"$_peeled\" skip_certs)\n                [ -n \"$stronger\" ] && break\n            done"
+        }
+      ]
+    }
+  ]
+}
