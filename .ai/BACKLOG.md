@@ -6,7 +6,7 @@ Priority-ordered. Sources: `review/tasks/` (file-level specs — read them befor
 
 - [ ] **Tag v2.1.0 + PyPI publish** (recipe: [PLAYBOOK.md](PLAYBOOK.md)). Everything is staged.
 - [ ] Decision: plugin packaging as primary channel (task 007) — approve/defer.
-- [ ] Decision: consolidation merge list sign-off (task 008).
+- [x] Decision: consolidation merge list sign-off (task 008). **Signed off 2026-08-23, all four batches; executed 2026-08-25.** Record: `.ai/TASK-008-SIGNOFF.md`.
 - [ ] **Decision 21 second half — do maintainers stop defaulting to `ECC_HOOK_PROFILE=minimal`?**
   Option A shipped 2026-08-19 (`.ai/DECISIONS.md` entry 21, commit `d878496`): `.ops-source-globs`
   makes `.claude/{agents,commands,skills,hooks,operations}/*` count as SOURCE in this checkout,
