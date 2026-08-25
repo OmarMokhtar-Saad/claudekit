@@ -126,8 +126,19 @@ Descriptions should be optimized for agent skill-matching:
 ### Length
 
 - **Minimum**: 30 lines (anything shorter is probably too thin to be useful)
-- **Maximum**: 150 lines (anything longer should be split into multiple skills)
-- **Sweet spot**: 60-100 lines
+- **Maximum**: 500 lines, and prefer far less. Past ~150 lines, ask whether the overflow is
+  *reference material* rather than method — if it is, move it to `references/` beside the
+  SKILL.md and link it, so the always-loaded body stays the method and the detail is fetched
+  only when needed.
+- **Sweet spot**: 60-100 lines for a rule or protocol; up to ~250 for a method skill that
+  carries worked examples, where the examples ARE the content.
+
+The old hard cap here was 150 lines, which the corpus had already outgrown: a method skill
+whose examples are its substance (`whitebox-invariant-testing`, the per-language review
+checklists) is not improved by being split into two skills that must then be loaded together.
+Split on *concern*, never on line count — `defect-pinning` is separate from
+`whitebox-invariant-testing` because the pinning protocol applies to any confirmed defect
+however it was found, not because either file was getting long.
 
 ### Tone
 
@@ -148,6 +159,24 @@ Every skill SHOULD include a section on what goes wrong:
 - Common rationalizations for skipping the process
 - Mistakes that look right but are wrong
 - Patterns that indicate the skill is not being followed
+
+
+### Authoring Conventions (adapted from Trail of Bits)
+
+Adapted from the authoring conventions in [`trailofbits/skills`](https://github.com/trailofbits/skills)
+(CC BY-SA 4.0). These are conventions, not copied text; the one file in this corpus that
+carries adapted *content* is listed in `THIRD-PARTY-LICENSES.md`.
+
+| Convention | Why |
+|---|---|
+| **Body under 500 lines; overflow to `references/`** | The body is what a model reads to decide *how* to work. Reference tables and long enumerations are what it reads *while* working — different moments, different budgets. |
+| **Situational trigger in the description** | The description is always in context, and it is the only thing the model sees when deciding whether to load. "Use when a diff contains `.java` files" routes; "Java best practices" does not. |
+| **Capability-gate the expensive sections** | Tell the reader to detect before invoking — run detekt only when the build file declares it. A section that assumes a tool is configured produces failures the reader then has to explain away. |
+| **Declare `allowed-tools` explicitly** | An undeclared tool list is a guess at the next author's expense, and it is part of this corpus's security posture for skill-invoked `Bash`. |
+
+**Cross-link rather than restate.** This repo is consolidating near-duplicate assets: if two
+skills need the same paragraph, one of them owns it and the other points. A skill that
+restates a neighbour's content is the duplication task 008 exists to remove.
 
 ---
 

@@ -11,6 +11,13 @@ allowed-tools: Read, Write, Bash, Glob, Grep
 
 **Define success before you build.** Write the evaluation criteria first, then implement until the evaluations pass. This is the AI equivalent of test-driven development.
 
+**This is the CI-gated baseline, and the downstream half of a pair.** While you are still
+changing a prompt — comparing candidates, deciding which criterion actually moved — use
+`prompt-evaluation`: isolated judges, one per criterion, over a small versioned eval set, fast
+and cheap and gating nothing. Bring a change here once it proves out there. Running the
+exploratory loop as a merge gate, or building a versioned baseline inside it, is the mistake
+each skill exists to keep the other from making.
+
 > "An agent without evaluations is a feature without tests — you don't know if it works until it breaks in production."
 
 ---
