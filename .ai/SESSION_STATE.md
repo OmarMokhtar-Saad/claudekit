@@ -2,18 +2,33 @@
 
 > Update this file at the end of every significant AI working session. It is the resume point.
 
-**Last updated:** 2026-08-25 · **By:** Claude (Opus 5) — **Phase A of the fleet skill
-enhancement is in; Phases B, C and D are owner-gated and untouched.** `code-reviewer` now
-routes all four languages, and the three non-actionable skills are actionable.
+**Last updated:** 2026-08-25 · **By:** Claude (Opus 5) — **Phases A and B are done.**
+Phase A shipped in claudekit; Phase B distributed it to 12 kitted fleet repos, all left
+uncommitted. **Half the approved dedupe list is HELD and needs a decision.**
 
-**Start here if you are picking this up.** Phase A of `plan-fleet-skill-enhancement.md` is
-executed and green (7 ops, zero errors; full suite 3645 passed; every gate clean, context
-floor included). The plan's remaining phases are **decided but not done**: B3's dedupe of the
-6 superseded duplicate skills across 14 fleet projects is **owner-approved with the
-diff-guard** and is the obvious next job (B1/B2 distribution comes with it); **C1
-(rest-framework full refresh) is deferred to its own session** and **C2 (qa-agent-pro) is
-skipped by decision**. Phase D (external adoptions) has never been reviewed. Nothing
-downstream has been touched — no fleet repo was written to this session.
+**Start here if you are picking this up.** Read
+`.claude/reports/fleet-sync-2026-08-25.md` first — it opens with the one open decision.
+The B3 dedupe was approved for six superseded skills with a diff-guard against local
+customisation. That guard passed everywhere (all six are byte-identical fleet-wide), but
+it does not ask whether anything still LOADS the skill. Three of the six are named in
+**84 `## Skill Loading` directives across 12 repos**, and downstream registries carry no
+`renamed` alias map, so deleting them as approved would have left 84 dangling loads. The
+three unreferenced ones were deleted (36 directories); `session-continuity`,
+`dependency-audit` and `verification-loop` are HELD. Closing it needs either an 84-site
+reference rewrite (48 renames + 36 line removals, because those files already name the
+successor too) or a `renamed` alias map shipped downstream. **That decision is the next
+job.**
+
+**`.claude/operations/scripts/fleet-sync.py` now exists** — the tooling BACKLOG §9 asked
+for. It is idempotent (a dry-run against the current fleet reports 0/0/0), skips-and-logs
+rather than forcing, diff-guards every delete against the modal fleet copy, and refuses
+to delete a skill anything still references. Re-run it after any future claudekit change
+that the fleet should receive; edit `STACKS` when a project's languages change.
+
+**The plan's §2.1 stack matrix was wrong** and the report records the corrections:
+AppiumLens is Java (2054 tracked `.java`, 2 `.kts` build scripts), not Kotlin; qaforge-ai
+and AppiumLens are dual-stack. The recurring "~34 `.py`" that made every Java project look
+dual-stack is ClaudeKit's own `.claude/operations/scripts/` plus `.claude.bak-*` copies.
 
 **Two traps this session paid for, in the order you will hit them.** (1) `gen-registry.py`
 will NOT auto-register a skill that an agent already routes to — its unknown-skill guard
