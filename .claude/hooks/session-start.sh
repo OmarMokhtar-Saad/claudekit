@@ -58,7 +58,8 @@ fi
 # ---------------------------------------------------------------------------
 # 2. Load project config for key commands
 # ---------------------------------------------------------------------------
-CONFIG=".claude/hooks/config.json"
+# Hook-owned; the other readers of this file already resolve it via $SCRIPT_DIR.
+CONFIG="$SCRIPT_DIR/config.json"
 BUILD_CMD=""
 TEST_CMD=""
 LINT_CMD=""
@@ -84,7 +85,10 @@ echo "  Project: $(basename "$(pwd)")"
 # 3.4 Concurrent-session detection (warning only — never blocks)
 # One lock file per live session pid under .claude/locks/; dead pids pruned.
 # ---------------------------------------------------------------------------
-LOCKS_DIR=".claude/locks"
+# PROJECT state from here down -- these must name the repo being worked in, not the
+# hooks directory, so they resolve through $CK_ROOT.
+CK_ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+LOCKS_DIR="$CK_ROOT/.claude/locks"
 mkdir -p "$LOCKS_DIR" 2>/dev/null
 OTHER_SESSIONS=0
 for lock in "$LOCKS_DIR"/session-*; do
@@ -113,8 +117,8 @@ fi
 # ---------------------------------------------------------------------------
 # 3.5 Project graph status (no new hook — rides this one; never blocks)
 # ---------------------------------------------------------------------------
-GRAPH_SCRIPT=".claude/operations/scripts/project-graph.py"
-GRAPH_FILE=".claude/project-graph.json"
+GRAPH_SCRIPT="$CK_ROOT/.claude/operations/scripts/project-graph.py"
+GRAPH_FILE="$CK_ROOT/.claude/project-graph.json"
 if command -v python3 &>/dev/null && [ -f "$GRAPH_SCRIPT" ]; then
     if [ -f "$GRAPH_FILE" ]; then
         if python3 "$GRAPH_SCRIPT" stale >/dev/null 2>&1; then
@@ -130,7 +134,7 @@ fi
 # ---------------------------------------------------------------------------
 # 4. Load previous session context if available
 # ---------------------------------------------------------------------------
-CONTEXT_FILE=".claude/session-context.md"
+CONTEXT_FILE="$CK_ROOT/.claude/session-context.md"
 if [ -f "$CONTEXT_FILE" ]; then
     CONTEXT_AGE_HOURS=0
     if command -v python3 &>/dev/null; then

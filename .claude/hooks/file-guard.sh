@@ -9,8 +9,15 @@ set -e
 # Blocked files are reported to stderr with category and path.
 # =============================================================================
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# `$SCRIPT_DIR` for files the HOOK owns, `$CK_ROOT` for files the PROJECT owns.
+# Measured 2026-08-25 as a property rather than as the sites anyone noticed: 16
+# cwd-relative `.claude/` paths across 8 hooks, while exactly ONE of the 11 hooks
+# wired in settings.json is invoked with a `cd` to the project root. A hook may not
+# assume its working directory. `tests/test_hook_paths.py` now asserts the property,
+# so the count cannot grow again while nobody is counting.
 HOOK_NAME="file-guard"
-LOG_FILE=".claude/hooks/hooks.log"
+LOG_FILE="$SCRIPT_DIR/hooks.log"
 
 log() {
     local level="$1"
@@ -158,9 +165,47 @@ classify() {
     local _stem="${basename%%.*}"
     local _ext
     _ext="$(printf '%s' "${basename##*.}" | tr '[:upper:]' '[:lower:]')"
+    # THE FORMAT LIST NARROWED, because three of its members were not description formats.
+    # It read `sql|md|json|yaml|yml|graphql|prisma|proto|xsd|rst|txt`, justified by "a
+    # `.sql`/`.md`/`.json` schema is a description" -- false for its own examples:
+    #   * `.sql` is the standard container for an `INSERT INTO` DUMP, not only for DDL;
+    #   * `.json`/`.yaml` are the dominant EXPORT formats;
+    #   * `.txt` is not a description format at all -- this guard's own corpus lists
+    #     `password.txt` as a secret.
+    # Freed as a result: `db/customer-data/full_schema.sql`,
+    # `export/customer/data/rows_model.json`, `customer-data-model.txt`.
+    #
+    # `.md`/`.rst` are PROSE, and `.graphql`/`.prisma`/`.proto`/`.xsd` are schema
+    # languages with no data representation at all -- those stay. `.sql`/`.json`/`.yaml`
+    # remain eligible but only when nothing in the path says export, dump or backup, since
+    # that is what distinguishes a description of data from a copy of it.
     local _is_description=0
     case "$_ext" in
-        sql|md|json|yaml|yml|graphql|prisma|proto|xsd|rst|txt) _is_description=1 ;;
+        md|rst|graphql|prisma|proto|xsd) _is_description=1 ;;
+        sql|json|yaml|yml)
+            # A LOCAL lowercase copy. My first version referenced `$_lc`, which is declared
+            # in `public_material()` -- a different function -- so it expanded to EMPTY
+            # here, `"//"` fell through to the catch-all, and every one of these stayed a
+            # "description". Caught by running it: `export/customer/data/rows_model.json`
+            # was still clean. A variable borrowed across a function boundary in shell
+            # fails silently and in the permissive direction.
+            local _dlc
+            _dlc="$(printf '%s' "$filepath" | tr '[:upper:]' '[:lower:]')"
+            # SUBSTRINGS, not whole components -- and this is the opposite choice from
+            # `public_material()`'s veto on purpose. There, a component match is right
+            # because the path is being read as a NAME ASSERTION and a substring would
+            # over-claim. Here the marker is evidence about the file's CONTENT, so "dump"
+            # anywhere in the path counts. Component matching freed:
+            #   customer/data/full-dump_model.sql     (marker in the basename)
+            #   customer-data/pg_dump/rows_model.sql  (the canonical pg_dump directory)
+            #   customer-data/db-dumps/rows_model.sql (compound directory)
+            #   extracts/customer_data_model.sql      (the one plural the list omitted)
+            # Over-flagging is the safe direction for an advisory; under-flagging is not.
+            case "$_dlc" in
+                *export*|*dump*|*backup*|*snapshot*|*extract*|*archive*) ;;
+                *) _is_description=1 ;;
+            esac
+            ;;
     esac
     if [[ "$filepath" == *"customer"* ]] && [[ "$filepath" == *"data"* ]]; then
         if [ "$_is_description" -eq 1 ] &&

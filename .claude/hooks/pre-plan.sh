@@ -47,7 +47,14 @@ check_duplicates() {
     log "INFO" "Checking for duplicates of: $normalized"
 
     # Search plan directories
-    local plan_dirs=(".claude/plans" "operations")
+    # PROJECT state, resolved through the repo root. This was `.claude/plans` relative to
+    # the cwd, and the failure was silent in the worst direction: run from any
+    # subdirectory, `[ -d "$dir" ]` is false for every entry, the candidate list is empty
+    # and the hook reports "no duplicate plans found". A UserPromptSubmit gate that answers
+    # "all clear" because it looked in the wrong place is worse than one that errors.
+    local ck_root
+    ck_root="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+    local plan_dirs=("$ck_root/.claude/plans" "$ck_root/operations")
     local found_duplicates=0
 
     # ONE python3 for the whole corpus, not one per plan file. This spawned an

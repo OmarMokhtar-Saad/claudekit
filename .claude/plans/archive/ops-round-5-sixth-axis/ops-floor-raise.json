@@ -1,0 +1,15 @@
+{
+  "plan": "floor-and-tail",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "src/claudekit/context_floor.py",
+      "edits": [
+        {
+          "find": "BUDGETS: Dict[str, int] = {\n    \"agent descriptions\": 10000,\n    \"skill descriptions\": 9000,\n    \"command descriptions\": 6000,\n    \"CLAUDE.md\": 31000,\n    \"pipeline agent bodies\": 43000,\n}",
+          "replace": "# CLAUDE.md 31000 -> 32000, 2026-08-25, with owner sign-off and the reason on the record.\n#\n# What crossed it: `929fc42` added two lines to the Commands block -- a widened `ruff` scope\n# that finally covers `.claude/operations/scripts/` and the new Codex-mirror gate. That is\n# ~110 raw chars, which the x4 delivery weighting turns into ~440, and the file landed at\n# 31272 against 31000. **The overrun was 68 RAW CHARACTERS.**\n#\n# Why raised rather than trimmed. The available trims are instruction text: the alternative\n# was cutting ~70 chars of guidance an agent actually reads, to fit a round number, in the\n# file most likely to be re-grown next week. The two new lines close a real CI scope gap --\n# `fleet-sync.py` shipped with three type errors because the engine was outside every\n# declared lint scope -- so they earn their weight.\n#\n# What this does NOT do: relax the ratchet. A raise is a decision on the record, exactly\n# like a DISCLOSED_WIDENINGS entry, and the point of the gate is that it forces one. If the\n# next 1000 chars arrive without a comparable justification, trim instead -- and the honest\n# trim is to move content OUT of CLAUDE.md into the agent that consumes it, which the\n# delivery weighting is designed to reward.\nBUDGETS: Dict[str, int] = {\n    \"agent descriptions\": 10000,\n    \"skill descriptions\": 9000,\n    \"command descriptions\": 6000,\n    \"CLAUDE.md\": 32000,\n    \"pipeline agent bodies\": 43000,\n}"
+        }
+      ]
+    }
+  ]
+}

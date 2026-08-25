@@ -31,8 +31,10 @@ LOG_FILE="$SCRIPT_DIR/hooks.log"
 log() { hlog "$@"; }
 # Files actually edited this response come from post-tool-use.sh (Edit/Write
 # targets). bash-commands.log only holds Bash commands and misses tool edits.
-EDITED_LOG=".claude/hooks/edited-files.log"
-REPORT=".claude/hooks/format-typecheck-last.log"
+# Hook-owned scratch files: `post-tool-use.sh` writes `edited-files.log` beside itself,
+# so a cwd-relative reader here looked for it somewhere else entirely.
+EDITED_LOG="$SCRIPT_DIR/edited-files.log"
+REPORT="$SCRIPT_DIR/format-typecheck-last.log"
 
 
 # Run async — non-blocking

@@ -1,0 +1,15 @@
+{
+  "plan": "floor-and-tail",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_hook_paths.py",
+      "edits": [
+        {
+          "find": "def test_every_hook_that_uses_ck_root_defines_it():\n    \"\"\"`$CK_ROOT` empty would resolve to `/.claude/...` -- an absolute path into the\n    filesystem root, which fails in a different and louder way, but still fails.\"\"\"\n    for hook in _shell_hooks():\n        body = hook.read_text()\n        if \"$CK_ROOT\" in body:\n            assert re.search(r'^CK_ROOT=', body, re.M), f\"{hook.name} uses $CK_ROOT unset\"\n\n\ndef test_every_hook_that_uses_script_dir_defines_it():\n    for hook in _shell_hooks():\n        body = hook.read_text()\n        if \"$SCRIPT_DIR\" in body:\n            assert re.search(r'^SCRIPT_DIR=', body, re.M), f\"{hook.name} uses $SCRIPT_DIR unset\"",
+          "replace": "# `lib.sh` is SOURCED, not executed: it inherits `$SCRIPT_DIR` from whichever hook sources\n# it, and defining its own would shadow the caller's. Exempt by nature, not by convenience.\nSOURCED_LIBRARIES = {\"lib.sh\"}\n\n\ndef _code_only(body):\n    \"\"\"Comment lines dropped. Both of these checks first failed on PROSE -- the banner\n    comment explaining the $SCRIPT_DIR/$CK_ROOT rule mentions both names, so a hook that\n    merely documents the convention read as one that depends on it. A test that cannot\n    tell code from a comment about code will report the comment.\"\"\"\n    return \"\\n\".join(line for line in body.splitlines()\n                      if not line.lstrip().startswith(\"#\"))\n\n\ndef test_every_hook_that_uses_ck_root_defines_it():\n    \"\"\"`$CK_ROOT` unset resolves to `/.claude/...` -- an absolute path at the filesystem\n    root. Louder than a cwd-relative path, but still wrong.\"\"\"\n    for hook in _shell_hooks():\n        if hook.name in SOURCED_LIBRARIES:\n            continue\n        code = _code_only(hook.read_text())\n        if \"$CK_ROOT\" in code:\n            assert re.search(r'^CK_ROOT=', code, re.M), f\"{hook.name} uses $CK_ROOT unset\"\n\n\ndef test_every_hook_that_uses_script_dir_defines_it():\n    for hook in _shell_hooks():\n        if hook.name in SOURCED_LIBRARIES:\n            continue\n        code = _code_only(hook.read_text())\n        if \"$SCRIPT_DIR\" in code:\n            assert re.search(r'^SCRIPT_DIR=', code, re.M), f\"{hook.name} uses $SCRIPT_DIR unset\"\n\n\ndef test_the_sourced_library_exemption_is_still_accurate():\n    \"\"\"If `lib.sh` ever defines its own `SCRIPT_DIR`, the exemption above stops being a\n    statement about how sourcing works and becomes a hole.\"\"\"\n    body = (HOOKS / \"lib.sh\").read_text()\n    assert not re.search(r'^SCRIPT_DIR=', body, re.M), (\n        \"lib.sh now defines SCRIPT_DIR, which shadows its caller's -- remove it from \"\n        \"SOURCED_LIBRARIES and fix the shadowing\"\n    )"
+        }
+      ]
+    }
+  ]
+}

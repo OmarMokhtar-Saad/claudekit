@@ -1,0 +1,35 @@
+{
+  "plan": "review-round-5",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/file-guard.sh",
+      "edits": [
+        {
+          "find": "            case \"/$_dlc/\" in\n                */export/*|*/exports/*|*/dump/*|*/dumps/*|*/backup/*|*/backups/*|\\\n                */snapshot/*|*/snapshots/*|*/extract/*) ;;\n                *) _is_description=1 ;;\n            esac",
+          "replace": "            # SUBSTRINGS, not whole components -- and this is the opposite choice from\n            # `public_material()`'s veto on purpose. There, a component match is right\n            # because the path is being read as a NAME ASSERTION and a substring would\n            # over-claim. Here the marker is evidence about the file's CONTENT, so \"dump\"\n            # anywhere in the path counts. Component matching freed:\n            #   customer/data/full-dump_model.sql     (marker in the basename)\n            #   customer-data/pg_dump/rows_model.sql  (the canonical pg_dump directory)\n            #   customer-data/db-dumps/rows_model.sql (compound directory)\n            #   extracts/customer_data_model.sql      (the one plural the list omitted)\n            # Over-flagging is the safe direction for an advisory; under-flagging is not.\n            case \"$_dlc\" in\n                *export*|*dump*|*backup*|*snapshot*|*extract*|*archive*) ;;\n                *) _is_description=1 ;;\n            esac"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/auto-checkpoint.sh",
+      "edits": [
+        {
+          "find": "CK_ROOT=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\"\n",
+          "replace": "# DERIVED FROM THE REPO, then required to be inside it. `CLAUDE_PROJECT_DIR` is honoured\n# only when it actually names the work tree git is operating on: otherwise the registry was\n# written to one directory while the stash landed in another repo, so a later restore read\n# `stash@{0}` refs that resolve nowhere. Measured: registry created in a non-repo directory\n# while the stash went to the repo the cwd belonged to.\nCK_GIT_ROOT=\"$(git rev-parse --show-toplevel 2>/dev/null || true)\"\nCK_ROOT=\"${CLAUDE_PROJECT_DIR:-${CK_GIT_ROOT:-$(pwd)}}\"\nif [ -n \"$CK_GIT_ROOT\" ] && [ \"$CK_ROOT\" != \"$CK_GIT_ROOT\" ]; then\n    case \"$CK_ROOT\" in\n        \"$CK_GIT_ROOT\"/*) ;;\n        *) CK_ROOT=\"$CK_GIT_ROOT\" ;;\n    esac\nfi\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/suggest-compact.sh",
+      "edits": [
+        {
+          "find": "mkdir -p .claude/hooks 2>/dev/null",
+          "replace": "mkdir -p \"$SCRIPT_DIR\" 2>/dev/null"
+        }
+      ]
+    }
+  ]
+}

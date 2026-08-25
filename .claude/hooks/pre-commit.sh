@@ -1,5 +1,9 @@
 #!/bin/bash
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# The ops configs this hook validates are PROJECT state; `find .claude/plans/` relative to
+# the cwd validated nothing at all from a subdirectory, and `find` on a missing path is a
+# stderr line this hook discards.
+CK_ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 set -e
 
 # =============================================================================
@@ -117,7 +121,7 @@ except Exception as e:
         else
             log "INFO" "Valid: $ops_file"
         fi
-    done < <(find .claude/plans/ "${OPS_FIND_EXPR[@]}" 2>/dev/null)
+    done < <(find "$CK_ROOT/.claude/plans/" "${OPS_FIND_EXPR[@]}" 2>/dev/null)
 
     return $has_errors
 }

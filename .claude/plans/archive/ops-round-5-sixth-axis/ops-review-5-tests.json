@@ -1,0 +1,29 @@
+{
+  "plan": "review-round-5",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_fileguard_allowlist.py",
+      "edits": [
+        {
+          "find": "    start = body.index(\"classify() {\")\n    classifier = body[start:body.index(\"\\n}\\n\", start)]\n    assert \"public_material\" not in classifier, (",
+          "replace": "    start = body.index(\"classify() {\")\n    classifier = body[start:body.index(\"\\n}\\n\", start)]\n    # COMMENTS STRIPPED. A comment inside classify() that explains why the allowlist must\n    # NOT live there -- or that merely names `public_material` while documenting a\n    # different bug -- read as a violation of the rule it documents, and turned the suite\n    # red. `tests/test_hook_paths.py:_code_only` was added for exactly this shape in the\n    # same change; the fix belonged here too.\n    classifier = \"\\n\".join(line for line in classifier.splitlines()\n                           if not line.lstrip().startswith(\"#\"))\n    assert \"public_material\" not in classifier, ("
+        },
+        {
+          "find": "def test_the_allowlist_is_applied_to_the_classification_not_ahead_of_it():",
+          "add_before": "def _description_formats():\n    \"\"\"Branch 12's description-format list, read out of the guard.\"\"\"\n    body = _GUARD_TEXT[_GUARD_TEXT.index(\"_is_description=0\"):]\n    found = re.findall(r\"^\\s*([a-z0-9|]+)\\)\\s*_is_description=1\", body, re.M)\n    assert found, \"could not extract the unconditional description formats\"\n    unconditional = [e for e in found[0].split(\"|\") if e]\n    conditional = re.findall(r\"^\\s*([a-z0-9|]+)\\)\\s*$\", body[:body.index(\"esac\")], re.M)\n    return unconditional, [e for e in (conditional[0].split(\"|\") if conditional else []) if e]\n\n\ndef _export_markers():\n    \"\"\"The export/dump markers that disqualify a `.sql`/`.json`/`.yaml` description.\"\"\"\n    body = _GUARD_TEXT[_GUARD_TEXT.index(\"_is_description=0\"):]\n    block = body[:body.index(\"esac\", body.index(\"_dlc\"))]\n    return sorted(set(re.findall(r\"\\*([a-z]+)\\*\", block)))\n\n\nDESC_UNCONDITIONAL, DESC_CONDITIONAL = _description_formats()\nEXPORT_MARKERS = _export_markers()\n\n\ndef test_the_branch_12_extractions_are_not_empty():\n    \"\"\"H2's lesson: the derived corpus derived nothing from the branch being CHANGED. It\n    extracted branch 8's predicates and crossed them thoroughly, while branch 12's change\n    was covered by twelve hand-picked paths -- and a sixth axis passed straight through.\"\"\"\n    assert \"md\" in DESC_UNCONDITIONAL, DESC_UNCONDITIONAL\n    assert \"sql\" in DESC_CONDITIONAL, DESC_CONDITIONAL\n    assert {\"dump\", \"export\", \"backup\"} <= set(EXPORT_MARKERS), EXPORT_MARKERS\n\n\ndef _derived_marker_cases():\n    \"\"\"{marker} x {POSITION} x {conditional format}. Position is the axis that was missed:\n    a component-only match sees `dumps/` and not `pg_dump/`, `db-dumps/` or\n    `full-dump_model.sql`.\"\"\"\n    for marker in EXPORT_MARKERS:\n        for fmt in DESC_CONDITIONAL:\n            yield f\"customer-data/{marker}/rows_model.{fmt}\"          # whole component\n            yield f\"customer-data/{marker}s/rows_model.{fmt}\"         # plural component\n            yield f\"customer-data/db-{marker}s/rows_model.{fmt}\"      # compound directory\n            yield f\"customer-data/pg_{marker}/rows_model.{fmt}\"       # prefixed directory\n            yield f\"customer/data/full-{marker}_model.{fmt}\"          # in the BASENAME\n            yield f\"customer/data/rows_{marker}_model.{fmt}\"          # infix in basename\n            yield f\"customer-data/{marker}s.d/x_model.{fmt}\"          # dotted directory\n\n\n@pytest.mark.parametrize(\"path\", sorted(set(_derived_marker_cases())))\ndef test_a_data_copy_is_flagged_wherever_the_marker_sits(path):\n    assert classify(path) is not None, f\"{path} was freed as a 'description'\"\n\n\n@pytest.mark.parametrize(\"fmt\", DESC_UNCONDITIONAL)\ndef test_an_unconditional_description_format_stays_freed(fmt):\n    \"\"\"Prose and schema languages have no data representation, so a marker in the path\n    does not make them a copy of anything.\"\"\"\n    assert classify(f\"customer-data/exports/rows_model.{fmt}\") is None\n\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_hook_paths.py",
+      "edits": [
+        {
+          "find": "_CWD_RELATIVE = re.compile(r'^([A-Z_]+)=(\"|\\')\\.claude/', re.M)",
+          "replace": "# WIDENED. The first version matched only an unindented UPPERCASE scalar assignment with a\n# quote, while the docstring claimed the property \"no hook assumes its working directory\".\n# Live offenders it missed, both found by review: `pre-plan.sh` declared\n# `local plan_dirs=(\".claude/plans\" ...)` -- a UserPromptSubmit hook whose duplicate\n# detection then reports \"no duplicates\" from any subdirectory, a silent wrong answer --\n# and `pre-commit.sh` passed `.claude/plans/` as a bare `find` argument.\n_CWD_RELATIVE = re.compile(\n    r'^\\s*(?:local\\s+|export\\s+|declare\\s+(?:-[a-zA-Z]+\\s+)?)?'   # local/export/declare\n    r'(\\w+)=\\(?[\"\\']?\\.claude/',                                    # scalar or array\n    re.M)\n\n# `.claude/...` as a bare word in a command position: `find .claude/plans`, `cd .claude`,\n# `mkdir -p .claude/hooks`. Quoted or not.\n_CWD_RELATIVE_ARG = re.compile(r'(?<![\\w$/\"\\'])\\.claude/[\\w./*-]*', re.M)"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "plan": "floor-and-tail",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/check-comment-replacement.sh",
+      "edits": [
+        {
+          "find": "HOOK_NAME=\"check-comment-replacement\"\nLOG_FILE=\".claude/hooks/hooks.log\"",
+          "replace": "SCRIPT_DIR=\"$(cd \"$(dirname \"${BASH_SOURCE[0]}\")\" && pwd)\"\n# `$SCRIPT_DIR` for files the HOOK owns, `$CK_ROOT` for files the PROJECT owns.\n# Measured 2026-08-25 as a property rather than as the sites anyone noticed: 16\n# cwd-relative `.claude/` paths across 8 hooks, while exactly ONE of the 11 hooks\n# wired in settings.json is invoked with a `cd` to the project root. A hook may not\n# assume its working directory. `tests/test_hook_paths.py` now asserts the property,\n# so the count cannot grow again while nobody is counting.\nHOOK_NAME=\"check-comment-replacement\"\nLOG_FILE=\"$SCRIPT_DIR/hooks.log\""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/file-guard.sh",
+      "edits": [
+        {
+          "find": "HOOK_NAME=\"file-guard\"\nLOG_FILE=\".claude/hooks/hooks.log\"",
+          "replace": "SCRIPT_DIR=\"$(cd \"$(dirname \"${BASH_SOURCE[0]}\")\" && pwd)\"\n# `$SCRIPT_DIR` for files the HOOK owns, `$CK_ROOT` for files the PROJECT owns.\n# Measured 2026-08-25 as a property rather than as the sites anyone noticed: 16\n# cwd-relative `.claude/` paths across 8 hooks, while exactly ONE of the 11 hooks\n# wired in settings.json is invoked with a `cd` to the project root. A hook may not\n# assume its working directory. `tests/test_hook_paths.py` now asserts the property,\n# so the count cannot grow again while nobody is counting.\nHOOK_NAME=\"file-guard\"\nLOG_FILE=\"$SCRIPT_DIR/hooks.log\""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/auto-checkpoint.sh",
+      "edits": [
+        {
+          "find": "HOOK_NAME=\"auto-checkpoint\"\nLOG_FILE=\".claude/hooks/hooks.log\"\nCHECKPOINT_DIR=\".claude/checkpoints\"",
+          "replace": "SCRIPT_DIR=\"$(cd \"$(dirname \"${BASH_SOURCE[0]}\")\" && pwd)\"\n# `$SCRIPT_DIR` for files the HOOK owns, `$CK_ROOT` for files the PROJECT owns.\n# Measured 2026-08-25 as a property rather than as the sites anyone noticed: 16\n# cwd-relative `.claude/` paths across 8 hooks, while exactly ONE of the 11 hooks\n# wired in settings.json is invoked with a `cd` to the project root. A hook may not\n# assume its working directory. `tests/test_hook_paths.py` now asserts the property,\n# so the count cannot grow again while nobody is counting.\nCK_ROOT=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\"\nHOOK_NAME=\"auto-checkpoint\"\nLOG_FILE=\"$SCRIPT_DIR/hooks.log\"\n# Checkpoints are PROJECT state -- they must land in the repo being checkpointed, not\n# beside the hook -- so this one resolves through $CK_ROOT rather than $SCRIPT_DIR.\nCHECKPOINT_DIR=\"$CK_ROOT/.claude/checkpoints\""
+        }
+      ]
+    }
+  ]
+}

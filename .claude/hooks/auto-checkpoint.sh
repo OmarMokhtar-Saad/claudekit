@@ -8,9 +8,31 @@ set -e
 # Max 20 checkpoints with automatic pruning of oldest entries.
 # =============================================================================
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# `$SCRIPT_DIR` for files the HOOK owns, `$CK_ROOT` for files the PROJECT owns.
+# Measured 2026-08-25 as a property rather than as the sites anyone noticed: 16
+# cwd-relative `.claude/` paths across 8 hooks, while exactly ONE of the 11 hooks
+# wired in settings.json is invoked with a `cd` to the project root. A hook may not
+# assume its working directory. `tests/test_hook_paths.py` now asserts the property,
+# so the count cannot grow again while nobody is counting.
+# DERIVED FROM THE REPO, then required to be inside it. `CLAUDE_PROJECT_DIR` is honoured
+# only when it actually names the work tree git is operating on: otherwise the registry was
+# written to one directory while the stash landed in another repo, so a later restore read
+# `stash@{0}` refs that resolve nowhere. Measured: registry created in a non-repo directory
+# while the stash went to the repo the cwd belonged to.
+CK_GIT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+CK_ROOT="${CLAUDE_PROJECT_DIR:-${CK_GIT_ROOT:-$(pwd)}}"
+if [ -n "$CK_GIT_ROOT" ] && [ "$CK_ROOT" != "$CK_GIT_ROOT" ]; then
+    case "$CK_ROOT" in
+        "$CK_GIT_ROOT"/*) ;;
+        *) CK_ROOT="$CK_GIT_ROOT" ;;
+    esac
+fi
 HOOK_NAME="auto-checkpoint"
-LOG_FILE=".claude/hooks/hooks.log"
-CHECKPOINT_DIR=".claude/checkpoints"
+LOG_FILE="$SCRIPT_DIR/hooks.log"
+# Checkpoints are PROJECT state -- they must land in the repo being checkpointed, not
+# beside the hook -- so this one resolves through $CK_ROOT rather than $SCRIPT_DIR.
+CHECKPOINT_DIR="$CK_ROOT/.claude/checkpoints"
 REGISTRY_FILE="$CHECKPOINT_DIR/registry.json"
 MAX_CHECKPOINTS=20
 
