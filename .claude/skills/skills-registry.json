@@ -84,6 +84,7 @@
         "docs",
         "documenter",
         "explore",
+        "flow-analyst",
         "gitOps",
         "implementer",
         "loop-operator",
@@ -128,6 +129,7 @@
       "mandatory": false,
       "usedBy": [
         "coordinator",
+        "flow-analyst",
         "planner"
       ],
       "description": "Explore before modifying"
@@ -769,6 +771,26 @@
         "verifier"
       ],
       "description": "Judge whether tests would actually catch a regression \u2014 four gap shapes, the Demonstration, and proving a check binds by mutation"
+    },
+    {
+      "id": "java-review-checklist",
+      "name": "Java Review Checklist",
+      "path": "skills/java-review-checklist/SKILL.md",
+      "mandatory": false,
+      "usedBy": [
+        "code-reviewer"
+      ],
+      "description": "Use when a diff under review contains `.java` files \u2014 null/Optional misuse, equals/hashCode contracts, exceptions, concurrency, security and performance."
+    },
+    {
+      "id": "kotlin-review-checklist",
+      "name": "Kotlin Review Checklist",
+      "path": "skills/kotlin-review-checklist/SKILL.md",
+      "mandatory": false,
+      "usedBy": [
+        "code-reviewer"
+      ],
+      "description": "Use when a diff under review contains `.kt` files \u2014 nullability, coroutine scope and cancellation, immutability, security, Java interop and idiom."
     }
   ],
   "agentsWithoutSkills": [
@@ -784,6 +806,8 @@
     "code-reviewer": [
       "differential-security-review",
       "golden-rule",
+      "java-review-checklist",
+      "kotlin-review-checklist",
       "python-review-checklist",
       "security-checklist",
       "typescript-review-checklist",
@@ -839,6 +863,10 @@
     ],
     "explore": [
       "golden-rule",
+      "using-superpowers"
+    ],
+    "flow-analyst": [
+      "context-first-workflow",
       "using-superpowers"
     ],
     "gitOps": [

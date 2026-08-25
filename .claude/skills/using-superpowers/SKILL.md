@@ -50,6 +50,8 @@ These govern HOW you work:
 - `golden-rule` - before any code modification
 - `context-first-workflow` - before any code exploration
 - `verification-before-completion` - before claiming anything is done
+- `verification-gap-lens` - when judging whether any test would fail if the change regressed
+- `context-budget` - when a session is loading more than it needs
 
 ### 2. Implementation Skills (invoke SECOND)
 
@@ -96,7 +98,8 @@ When you are unsure which skill applies:
 |---|---|
 | "Fix this bug" | `systematic-debugging` then `golden-rule` |
 | "Add a feature" | `context-first-workflow` then `writing-plans` |
-| "Review this code" | `receiving-code-review` or `requesting-code-review` |
+| "Review this code" | `code-reviewer` agent + the per-language checklist (`python-`/`typescript-`/`java-`/`kotlin-review-checklist`) |
+| "Give me feedback on my PR" | `requesting-code-review`; `receiving-code-review` when you are the one being reviewed |
 | "Refactor this" | `refactoring-patterns` then `golden-rule` |
 | "Is this done?" | `verification-before-completion` |
 | "Create a plan" | `writing-plans` then `brainstorming` |
@@ -112,6 +115,9 @@ If you produce a response without checking skills:
 3. Invoke the relevant skill
 4. Redo your response following the skill's guidance
 
-There is no penalty for invoking a skill that turns out to be irrelevant. There IS a penalty for skipping a skill that was relevant.
+Invoking an irrelevant skill is not free — its body stays in context for the rest of the
+session (`context-budget`). But skipping a relevant one is the more expensive mistake by
+a wide margin. So: when two candidates look plausible, read both descriptions first and
+invoke one. When you are unsure whether ANY skill applies, invoke the closest match.
 
 **When in doubt, invoke the skill.**

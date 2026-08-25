@@ -189,6 +189,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **All four per-language review checklists stopped emitting a score.** `code-reviewer`'s
+  Exit Rule is explicit — "the code-review gate is a blocking-finding count, not a score:
+  a number invites another round over findings that do not block" — and all four checklists
+  shipped a `### Score: XX/100` line anyway; the two new ones inherited it from the two
+  incumbents. All four now report `Blocking findings: N Critical, M High`, and a
+  parametrized test holds the four skills and the agent's rule together so they cannot
+  drift apart again.
 - **Three skills that existed but did not do their job.** `using-superpowers` routed
   "Review this code" at `receiving-code-review`/`requesting-code-review` — PR etiquette, not
   review — instead of the `code-reviewer` agent plus the per-language checklist, and told the

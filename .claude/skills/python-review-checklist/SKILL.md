@@ -207,7 +207,9 @@ grep -rn "shell=True" src/ --include="*.py"
 ```
 ## Python Code Review
 
-### Score: XX/100
+### Blocking findings: N Critical, M High
+*(The gate is the blocking-finding count, not a score -- see `code-reviewer`'s Exit
+Rule. A number invites another round over findings that do not block.)*
 ### Python Version: [detected]
 ### Type Coverage: XX% of public functions annotated
 

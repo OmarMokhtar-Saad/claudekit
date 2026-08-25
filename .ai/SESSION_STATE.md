@@ -2,11 +2,39 @@
 
 > Update this file at the end of every significant AI working session. It is the resume point.
 
-**Last updated:** 2026-08-24 (fourth period) · **By:** Claude (Opus 5) — **the
-code-review backlog now has ONE record, and 13 of its 53 LIVE findings turned out to be
-already fixed.** Three plans are written and await owner approval; none has been executed.
+**Last updated:** 2026-08-25 · **By:** Claude (Opus 5) — **Phase A of the fleet skill
+enhancement is in; Phases B, C and D are owner-gated and untouched.** `code-reviewer` now
+routes all four languages, and the three non-actionable skills are actionable.
 
-**Start here if you are picking this up.** `review/code-review-triage.md` is the single
+**Start here if you are picking this up.** Phase A of `plan-fleet-skill-enhancement.md` is
+executed and green (7 ops, zero errors; full suite 3645 passed; every gate clean, context
+floor included). The plan's remaining phases are **decided but not done**: B3's dedupe of the
+6 superseded duplicate skills across 14 fleet projects is **owner-approved with the
+diff-guard** and is the obvious next job (B1/B2 distribution comes with it); **C1
+(rest-framework full refresh) is deferred to its own session** and **C2 (qa-agent-pro) is
+skipped by decision**. Phase D (external adoptions) has never been reviewed. Nothing
+downstream has been touched — no fleet repo was written to this session.
+
+**Two traps this session paid for, in the order you will hit them.** (1) `gen-registry.py`
+will NOT auto-register a skill that an agent already routes to — its unknown-skill guard
+returns before its own `skill_entry_from_disk` path — so register the skill *before* wiring
+the agent, or bootstrap the row by hand through that same function. (2) A spent ops.json fails
+`test_queued_ops_configs_validate_against_head` the moment it succeeds; archive it under
+`.claude/plans/archive/` with a README row as part of the same commit, not afterwards.
+
+**Do not trust a context-floor number measured at session start.** It read 44186/43000 at
+08:27 and 42816 at 09:25 with nothing in this work touching a pipeline agent — a concurrent
+session executed `ops-retro-fixups.json` in between. Measure when you need the number.
+
+**One thing is open and is an owner call:** `.agents/skills/` is a tracked 71-skill mirror of
+`.claude/skills/` (75) that no generator writes, nothing references, and no document explains.
+It is 4 skills behind. Give it a generator or delete it.
+
+---
+
+## Previous period (2026-08-24, fourth period)
+
+**The code-review backlog has ONE record.** `review/code-review-triage.md` is the single
 record for `review/code-review.md`'s findings — **40 LIVE, 62 FIXED, 5 OBSOLETE, 1
 UNVERIFIABLE**, zero P0, zero P1. `.ai/BACKLOG.md`'s entry is a pointer now, not a second
 enumeration. The previous handoff asked for 45 "unverified" findings to be triaged; **all 45

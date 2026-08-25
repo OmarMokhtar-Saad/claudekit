@@ -1,6 +1,58 @@
 # AI Session Changelog
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
+## 2026-08-25 — the JVM half of per-language review, and three skills that did not do their job
+
+**Phase A of `plan-fleet-skill-enhancement.md`.** Phases B (fleet distribution) and C/D
+(stragglers, external adoptions) are owner-gated and NOT executed; the owner's decisions this
+session were: **B3 dedupe approved with the diff-guard**, **C1 rest-framework refresh deferred
+to its own session**, **C2 qa-agent-pro skipped**, and the context-floor failure to be fixed in
+session — which turned out to need no action (see below).
+
+**What shipped.** Two new skills (`java-review-checklist`, `kotlin-review-checklist`) plus
+`code-reviewer` routing for `.java`/`.kt`, and repairs to `using-superpowers`,
+`mcp-integration` and `security-checklist`. 7 operations, zero errors, backup at
+`backups/fleet-skill-enhancement-phaseA-20260825-060931-011120/`. Full suite 3645 passed after
+the archive fix; ruff, mypy, shellcheck, gen-docs, gen-registry, gen-model-policy and
+check-context-floor all green.
+
+**Three review rounds: 78 REJECTED → 82 REVISE → 91 APPROVED**, recorded with `rounds[]`
+history. Both non-approving rounds found the SAME defect class one layer apart: *a plan step
+with no operation behind it*. R1 — A9 promised behavioral tests and no operation created any.
+R2 — the test that got added then asserted registry rows that **no ops.json can produce**,
+because `allowed_run_commands()` is allowlisted to formatters (`black`, `ruff`, `prettier`, …)
+so an operations config cannot invoke a generator at all, and regen is out-of-band by design.
+Resolved by asserting the **invariant** (`gen-registry.py --check` exits 0) rather than the
+post-state — which also catches a hand-edited registry, where asserting the two rows would not.
+
+**The finding that mattered was the MINOR one, and execution found it, not review.** R3
+objected that the Detect-block test's docstring claimed `bash -n` guards against a silently
+wrong regex, which it cannot. Correct — and the real bug had already been caught by *running*
+the blocks: `grep: repetition-operator operand invalid`, from `yaml\.load\((?!.*SafeLoader)`,
+a PCRE negative lookahead in an ERE pattern. bash parsed it happily. **Python's `re` accepts it
+too**, so a `re.compile` check would have passed the exact bug it was meant to catch. The test
+now hands all 25 extracted patterns to `grep` against `/dev/null` and fails on exit 2;
+mutation-proven against the original pattern.
+
+**Two things found while executing that are worth knowing next time.**
+
+1. **`gen-registry.py` cannot auto-register a skill that an agent already declares.** It has a
+   `skill_entry_from_disk` path for unregistered skills, but its unknown-skill guard (`ERROR:
+   <agent> loads skills missing from the registry`) returns 1 *before* that path runs. So
+   create-then-route order matters: `ck skill new` registers as it creates, and a skill created
+   any other way must be bootstrapped into the registry before the agent routes to it.
+2. **The context-floor failure was already gone.** It read 44186/43000 at session start and
+   42816 at the end without this work touching a pipeline agent — a concurrent session executed
+   `ops-retro-fixups.json` at 08:58, which reclaimed the floor by moving RATIONALE out of
+   `planner.md`/`reviewer.md`. This repo has a documented history of concurrent sessions on one
+   tree; **measure the floor at the moment you need the number, not at session start.**
+
+**Open / not done.** `.agents/skills/` is a tracked 71-skill mirror of `.claude/skills/` (75),
+already missing `python-review-checklist`, `typescript-review-checklist` and
+`verification-gap-lens`. No generator writes it, nothing in `scripts/`, `src/` or `install.sh`
+references it, and it is documented nowhere. It is now 4 behind. Either give it a generator or
+delete it — but that is an owner call, not a side effect of this plan.
+
 ## 2026-08-24 (fourth period) — one record instead of two, and all six jobs closed
 
 Two halves. The first was docs and records only; the second executed the three owner-gated
