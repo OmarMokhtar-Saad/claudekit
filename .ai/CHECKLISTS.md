@@ -4,6 +4,7 @@
 
 - [ ] `python3 -m pytest tests/ -q` → 516+ pass, 0 fail
 - [ ] `ruff check src/ tests/ scripts/ .claude/operations/scripts/` clean · `mypy` clean
+- [ ] `python3 scripts/gen-agents-mirror.py --check` clean (Codex mirror membership parity; CI-gated. NOT in CLAUDE.md's command list — that file sits at its x4-weighted context budget and a line there costs 4x its length)
 - [ ] `python3 scripts/gen-docs.py --check` clean
 - [ ] `python3 scripts/check-plan-artifacts.py` clean (every path a config
       writes is named in its plan; CI runs it too)

@@ -1,0 +1,16 @@
+{
+  "plan": "gate-test",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_fleet_skill_phase_a.py",
+      "description": "the gate moved out of CLAUDE.md, which sits at its x4-weighted ceiling",
+      "edits": [
+        {
+          "find": "    def test_the_gate_is_wired_where_it_will_run(self):\n        ci = open(os.path.join(ROOT, \".github/workflows/ci.yml\"), encoding=\"utf-8\").read()\n        assert \"gen-agents-mirror.py --check\" in ci\n        claude_md = open(os.path.join(ROOT, \"CLAUDE.md\"), encoding=\"utf-8\").read()\n        assert \"gen-agents-mirror.py --check\" in claude_md",
+          "replace": "    def test_the_gate_is_wired_where_it_will_run(self):\n        \"\"\"CI is what enforces it; the checklist is what a human follows. Deliberately\n        NOT in CLAUDE.md's command block -- that file is weighted x4 in the context\n        floor and was 8 chars from its ceiling, so a 66-char line there costs 264 and\n        pushes the row OVER. Enforcement does not depend on it being listed twice.\"\"\"\n        ci = open(os.path.join(ROOT, \".github/workflows/ci.yml\"), encoding=\"utf-8\").read()\n        assert \"gen-agents-mirror.py --check\" in ci\n        checklist = open(os.path.join(ROOT, \".ai/CHECKLISTS.md\"), encoding=\"utf-8\").read()\n        assert \"gen-agents-mirror.py --check\" in checklist"
+        }
+      ]
+    }
+  ]
+}

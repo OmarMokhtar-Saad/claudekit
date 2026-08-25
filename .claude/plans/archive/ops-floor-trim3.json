@@ -1,0 +1,16 @@
+{
+  "plan": "floor-trim3",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "CLAUDE.md",
+      "description": "one source char over the x4-weighted ceiling",
+      "edits": [
+        {
+          "find": "ruff check src/ tests/ scripts/ .claude/operations/scripts/  # lint (len 100)",
+          "replace": "ruff check src/ tests/ scripts/ .claude/operations/scripts/ # lint (100)"
+        }
+      ]
+    }
+  ]
+}

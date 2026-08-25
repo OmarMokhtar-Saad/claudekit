@@ -1,0 +1,20 @@
+{
+  "plan": "floor-trim",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "CLAUDE.md",
+      "description": "my two added command lines pushed CLAUDE.md 102 chars over its x4-weighted budget",
+      "edits": [
+        {
+          "find": "ruff check src/ tests/ scripts/ .claude/operations/scripts/  # lint (line-length 100)",
+          "replace": "ruff check src/ tests/ scripts/ .claude/operations/scripts/  # lint (len 100)"
+        },
+        {
+          "find": "python3 scripts/gen-agents-mirror.py --check # Codex corpus mirror (membership, not content)",
+          "replace": "python3 scripts/gen-agents-mirror.py --check # Codex mirror parity"
+        }
+      ]
+    }
+  ]
+}
