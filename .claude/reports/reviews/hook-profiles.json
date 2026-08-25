@@ -1,0 +1,11 @@
+{
+  "plan": ".claude/plans/plan-hook-profiles.md",
+  "ops_path": ".claude/plans/plan-hook-profiles.ops.json",
+  "ops_sha256": "7749aa1d522f18a9456e11b117021a3b09d9c753072c3bda20bcba3481f7f339",
+  "score": 94,
+  "decision": "APPROVED",
+  "findings": [],
+  "recorded_utc": "2026-08-21T16:12:39Z",
+  "operations": 17,
+  "edits": 17
+}

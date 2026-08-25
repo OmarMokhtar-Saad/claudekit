@@ -1,0 +1,12 @@
+{
+  "plan": ".claude/plans/plan-dispatcher-payload.md",
+  "slug": "dispatcher-payload",
+  "ops_path": ".claude/plans/ops-dispatcher-payload.json",
+  "ops_sha256": "e7de5834737a28086b2ad2a86db1cd5b1c6cf1d1ea11c18a1d340eb0718e1c8c",
+  "score": 94,
+  "decision": "APPROVED",
+  "findings": [],
+  "recorded_utc": "2026-08-22T16:19:23Z",
+  "operations": 18,
+  "edits": 25
+}

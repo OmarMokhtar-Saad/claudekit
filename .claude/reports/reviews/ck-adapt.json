@@ -1,0 +1,14 @@
+{
+  "plan": ".claude/plans/plan-ck-adapt.md",
+  "slug": "ck-adapt",
+  "ops_path": ".claude/plans/ops-ck-adapt.json",
+  "ops_sha256": "1654caada8e928aa94e9511cea65f7e2f7f288d5dcfc7239b868a721d185cd14",
+  "score": 96,
+  "decision": "APPROVED",
+  "findings": [],
+  "recorded_utc": "2026-08-23T00:56:39Z",
+  "operations": 10,
+  "edits": 22,
+  "rounds": [],
+  "round": 1
+}

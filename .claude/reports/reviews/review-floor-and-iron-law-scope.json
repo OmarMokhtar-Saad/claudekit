@@ -1,0 +1,14 @@
+{
+  "plan": ".claude/plans/plan-review-floor-and-iron-law-scope.md",
+  "ops_path": ".claude/plans/plan-review-floor-and-iron-law-scope.ops.json",
+  "ops_sha256": "4b461b09ce5fc70743498b94586b3bea8d719bf899fc5d0b0e2d4dc4c0794d39",
+  "score": 93,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] plan:208 states stale \"524-char headroom\" from the pre-revision version; table at plan:62 and risk at plan:181 correctly say 532 weighted. Plan prose only, ops content correct.",
+    "[MINOR] op-1 content is 300 chars + inserted newline = 301 raw; arithmetic safe either way (7617 raw / 30468 weighted < 31000)."
+  ],
+  "recorded_utc": "2026-08-19T07:43:55Z",
+  "operations": 2,
+  "edits": 2
+}

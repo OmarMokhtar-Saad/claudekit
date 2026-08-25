@@ -1,0 +1,16 @@
+{
+  "plan": ".claude/plans/plan-ops-approval-gate.md",
+  "ops_path": ".claude/plans/plan-ops-approval-gate.ops.json",
+  "ops_sha256": "9bd9fefbc65b4634b1ab7296da5d77b7a5bc47accf82025c7f9e67ecb5ecf29b",
+  "score": 91,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] check_approval computes recorded before _gate_applies; a transient lookup fault refuses even ungated ad-hoc configs. Fix: call _gate_applies first, refuse on lookup exception only when gated. TICKETED",
+    "[MINOR] Refusal message can name slugs[0] when the plan-document branch triggered gating, pointing at a slug with no plan. Remediation hint only, verdict correct. TICKETED.",
+    "[MINOR] The default-flip migration to blanket gating exists only as prose; no test, no ECC_OPS_GATE_ALL=1 CI job, no backlog entry. TICKETED at integration.",
+    "[MINOR] Two success-path tests still pass with the gate deleted; legitimate non-regression controls, but the binding strength rests on the six refusal tests. Not 13 gate-binding tests. NOTED."
+  ],
+  "recorded_utc": "2026-08-19T07:50:34Z",
+  "operations": 3,
+  "edits": 5
+}

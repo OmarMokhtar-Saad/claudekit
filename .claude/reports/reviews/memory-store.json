@@ -1,0 +1,11 @@
+{
+  "plan": ".claude/plans/plan-memory-store.md",
+  "ops_path": ".claude/plans/plan-memory-store.ops.json",
+  "ops_sha256": "8f1e8802367f3a273d14717042bd462653aecd96675ed4ab0ff311cf16328e09",
+  "score": 96,
+  "decision": "APPROVED",
+  "findings": [],
+  "recorded_utc": "2026-08-21T17:39:00Z",
+  "operations": 7,
+  "edits": 8
+}

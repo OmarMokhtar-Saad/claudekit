@@ -1,0 +1,15 @@
+{
+  "plan": ".claude/plans/plan-agent-tool-grants.md",
+  "ops_path": ".claude/plans/plan-agent-tool-grants.ops.json",
+  "ops_sha256": "5d06daabcf3a4032f27bd5e2600bca4daba03980e3e32ae3967a72fddbe7cf32",
+  "score": 92,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] Round-2 MAJOR (mechanism claim outran the differential, which varied both declaration site and spawn path) resolved in round 3 by running Arm E: bare frontmatter plus the identical rule moved to --all",
+    "[MINOR] Settings allow-rule arm blocked by the workspace trust dialog; planner correctly declined to edit the user trust config for its own experiment and recorded the blocker. TICKETED.",
+    "[MINOR] Drift gate covers only the 10 agents in the allowedTools table; 19 others ungated. TICKETED in BACKLOG."
+  ],
+  "recorded_utc": "2026-08-19T11:23:44Z",
+  "operations": 5,
+  "edits": 4
+}

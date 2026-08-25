@@ -1,0 +1,14 @@
+{
+  "plan": ".claude/plans/plan-doctor-score-eject.md",
+  "slug": "doctor-score-eject",
+  "ops_path": ".claude/plans/ops-doctor-score-eject.json",
+  "ops_sha256": "d74656d56e64ae95626101eb52f0e492285270d15159193af50f87b9cbaae8de",
+  "score": 95,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] tests/test_doctor_score.py::test_skipped_checks_never_reach_the_score is a vacuous self-comparison and doesn't actually test the exclusion contract it names; tighten in a follow-up."
+  ],
+  "recorded_utc": "2026-08-22T22:37:56Z",
+  "operations": 7,
+  "edits": 15
+}

@@ -1,0 +1,11 @@
+{
+  "plan": ".claude/plans/plan-callsite-audit-line-level.md",
+  "ops_path": ".claude/plans/plan-callsite-audit-line-level.ops.json",
+  "ops_sha256": "f3255829c3e261d7f33ee683482828906a6521b8436b62acdae796ba62000b58",
+  "score": 90,
+  "decision": "APPROVED",
+  "findings": [],
+  "recorded_utc": "2026-08-21T07:19:51Z",
+  "operations": 1,
+  "edits": 1
+}

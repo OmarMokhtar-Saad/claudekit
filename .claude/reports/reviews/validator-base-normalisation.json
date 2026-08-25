@@ -1,0 +1,11 @@
+{
+  "plan": "validator-base-normalisation",
+  "ops_path": ".claude/plans/plan-validator-base-normalisation.ops.json",
+  "ops_sha256": "efc2b304f2b92962ad61a9b5d9e239151f1c6c7dfe127d69bc20e50f5ab58e35",
+  "score": 93,
+  "decision": "APPROVED",
+  "findings": [],
+  "recorded_utc": "2026-08-21T09:11:49Z",
+  "operations": 4,
+  "edits": 9
+}

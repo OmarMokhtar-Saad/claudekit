@@ -1,0 +1,15 @@
+{
+  "plan": ".claude/plans/plan-doctor-gate.md",
+  "ops_path": ".claude/plans/plan-doctor-gate.ops.json",
+  "ops_sha256": "03401c43d06e1bd4c88b62fb6a4f7f3ac210507a0b8cbb6df129f517b6f83f2c",
+  "score": 92,
+  "decision": "APPROVED",
+  "findings": [
+    "[MAJOR] jsonschema stub was a vacuous green -- fixed in revision 4.",
+    "[MINOR] two guards passed vacuously against unfixed code -- fixed in revision 4.",
+    "[MINOR] pre-push rc on a zero-commit repo -- confirmed by reading, pending DoD run."
+  ],
+  "recorded_utc": "2026-08-20T11:38:30Z",
+  "operations": 7,
+  "edits": 18
+}

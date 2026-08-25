@@ -1,0 +1,16 @@
+{
+  "plan": ".claude/plans/plan-installer-python-hooks.md",
+  "ops_path": ".claude/plans/plan-installer-python-hooks.ops.json",
+  "ops_sha256": "a4756f005843abf92c8c51e9fec5fe85320ff73ce61f360866323c29232fd02a",
+  "score": 92,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] Round-1 MAJOR (text-regex required every .claude/hooks/<token> to exist, so a hooks.log reference would have blocked installation for everyone) fixed and MEASURED: both extractors subtract the copy de",
+    "[MINOR] is_file() replaces exists(); _cleanup_on_failure called before exit 1; editor debris denylisted; count message clarified. Boundedness re-measured by reverting each step in an applied copy (Step 1 -> 6",
+    "[MINOR] Absolute and ~-rooted hook wiring remains invisible to the extractor - documented in the plan Risk section, TICKETED.",
+    "[MINOR] Ops engine strips the executable bit on code_edit (install.sh 0755 -> 0600); chmod +x required post-execution. Engine defect, TICKETED separately."
+  ],
+  "recorded_utc": "2026-08-19T12:37:49Z",
+  "operations": 7,
+  "edits": 5
+}

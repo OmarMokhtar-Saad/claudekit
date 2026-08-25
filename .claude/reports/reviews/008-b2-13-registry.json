@@ -1,0 +1,16 @@
+{
+  "plan": ".claude/plans/plan-008-batch2-skill-merges.md",
+  "slug": "008-b2-13-registry",
+  "ops_path": ".claude/plans/ops-008-batch2/008-b2-13-registry.json",
+  "ops_sha256": "7033a1fb85e4f533784fc11869a6cceb2b8028e43ddcd8d22023cbeda892afec",
+  "score": 93,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] .claude/plans/ops-008-batch2/008-b2-14-tests.json LIVE_ROOTS/consumer-scan excludes the entire .claude/plans/ directory (not just the named spent plan), so a live, non-spent plan referencing a deleted"
+  ],
+  "recorded_utc": "2026-08-24T07:13:58Z",
+  "operations": 1,
+  "edits": 6,
+  "rounds": [],
+  "round": 1
+}

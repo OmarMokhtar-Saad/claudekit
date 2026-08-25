@@ -1,0 +1,16 @@
+{
+  "plan": ".claude/plans/plan-008-batch2-skill-merges.md",
+  "slug": "008-b2-16-doctor-alias-scope",
+  "ops_path": ".claude/plans/ops-008-batch2/008-b2-16-doctor-alias-scope.json",
+  "ops_sha256": "17bbf65b2c297586301a9563d5d0a84c51d79a70f617a64da029852ad73898ee",
+  "score": 93,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] .claude/plans/ops-008-batch2/008-b2-14-tests.json LIVE_ROOTS/consumer-scan excludes the entire .claude/plans/ directory (not just the named spent plan), so a live, non-spent plan referencing a deleted"
+  ],
+  "recorded_utc": "2026-08-24T07:13:58Z",
+  "operations": 2,
+  "edits": 1,
+  "rounds": [],
+  "round": 1
+}

@@ -1,0 +1,11 @@
+{
+  "plan": "validator-gate-hardening",
+  "ops_path": ".claude/plans/plan-validator-gate-hardening.ops.json",
+  "ops_sha256": "8670a042bb94c7e42c001841a8818fc24bfdb789d71508e07586512e19ee785e",
+  "score": 92,
+  "decision": "APPROVED",
+  "findings": [],
+  "recorded_utc": "2026-08-21T09:49:02Z",
+  "operations": 5,
+  "edits": 5
+}

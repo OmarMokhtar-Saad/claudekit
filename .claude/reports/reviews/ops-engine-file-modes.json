@@ -1,0 +1,15 @@
+{
+  "plan": ".claude/plans/plan-ops-engine-file-modes.md",
+  "ops_path": ".claude/plans/plan-ops-engine-file-modes.ops.json",
+  "ops_sha256": "44354566abf6087955e01a56efa797bc7808676e894c1d6801c0dc49c76d621a",
+  "score": 92,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] Round-1 findings applied: file_create widening (0600 -> 0644) now stated explicitly in Risks with mitigation, \"strictly better\" removed; create-over-existing test added and bound (fails unpatched, 060",
+    "[MINOR] Measured binding: unpatched 6 failed / 1 passed, patched 7 passed. The 1 always-passing test is the rollback copy2 regression guard, correctly labelled unbound to this fix.",
+    "[MINOR] Pre-diagnosed at review/code-review.md:286 as a P2 with the fix spelled out and left unfixed. 75 further findings in that file remain untriaged - TICKETED."
+  ],
+  "recorded_utc": "2026-08-20T05:14:43Z",
+  "operations": 2,
+  "edits": 5
+}

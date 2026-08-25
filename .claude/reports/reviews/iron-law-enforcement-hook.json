@@ -1,0 +1,18 @@
+{
+  "plan": ".claude/plans/plan-iron-law-enforcement-hook.md",
+  "ops_path": ".claude/plans/plan-iron-law-enforcement-hook.ops.json",
+  "ops_sha256": "e674a7243feb45f45e89424fac084662af6ed9f0f952d5b9493b30af1c40bcb6",
+  "score": 93,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] Round-5 MAJOR (dispatch order exempted interpreters from the PATH-only rule, so /tmp/evil/python3 running the ops engine was ALLOWED) fixed by moving the path check above the _PYTHON_HEADS dispatch; o",
+    "[MINOR] Mutant overclaim corrected: each of 8 mutants now asserts EXACT set equality of flipped cases across all 93 blocked payloads, with collateral declared per mutant. The previous claim that each flipped ",
+    "[MINOR] R7 residual-surface figure corrected 21 -> 40, itemised per table and generated from the shipped tables rather than recalled - hard rule 6.",
+    "[MINOR] Vacuous log test replaced with a positional-outside-root refusal where the path IS the interpolated value, backed by a safe()-removal mutant. Stale corpus counts reconciled.",
+    "[MINOR] Five review rounds, each finding a distinct live bypass: reflection deadlock and sed -n w; pytest --log-file, git branch -D, secret logging, blocked DoD gates; ruff --add-noqa and pytest --debug; git ",
+    "[MINOR] Owner-authorised ceiling waiver recorded. FOLLOW_UPs deferred: looks_like_credential blind spot; relative-symlink textual check. R4 hook count 20->21 is orchestrator-owned and gates DoD-green."
+  ],
+  "recorded_utc": "2026-08-20T09:09:49Z",
+  "operations": 3,
+  "edits": 1
+}

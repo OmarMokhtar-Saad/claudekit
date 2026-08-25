@@ -1,0 +1,15 @@
+{
+  "plan": ".claude/plans/plan-iron-law-scope-and-hook-count.md",
+  "ops_path": ".claude/plans/plan-iron-law-scope-and-hook-count.ops.json",
+  "ops_sha256": "17f965e0aa8d42bd6c4ade8626207244140dcd1eb7e85e20bc712ed8bb9758d7",
+  "score": 92,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] Four cheap findings applied after approval (fix to the final round own findings, no new round per the stopping rule): denylist guard now bound via test_denylist_beats_an_over_broad_glob (deleting the ",
+    "[MINOR] test_every_wired_hook_is_counted proves wired subset-of counted only; cannot catch an over-count. Accepted - heuristic deliberately broader so post-implement.sh (wired via deprecated config.json) stil",
+    "[MINOR] CHANGELOG and the DECISIONS.md status flip are orchestrator-owned; gen-docs.py must be run post-execution before the suite is green."
+  ],
+  "recorded_utc": "2026-08-19T12:20:09Z",
+  "operations": 4,
+  "edits": 8
+}

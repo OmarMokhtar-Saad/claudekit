@@ -1,0 +1,17 @@
+{
+  "plan": ".claude/plans/plan-reflection-ledger-isolation.md",
+  "ops_path": ".claude/plans/plan-reflection-ledger-isolation.ops.json",
+  "ops_sha256": "9c8b9170239773d264e2800f2b5e6552dfc3a8a1d7b7fed4239ac844ffe9ca2f",
+  "score": 92,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] Round-1 MAJORs all fixed and re-measured with three SURGICAL mutants (not aggregate neutering): each produced exactly 1 failed / 2 passed, killing only its own test - inbox early-return, SessionStart ",
+    "[MINOR] Vacuous inbox test replaced: seed_two_failures() now runs first (otherwise :361-363 returns 0 before the inbox check); both tautological assertions deleted; the false boundness claim in the plan corre",
+    "[MINOR] Real-tree mutation removed: fixture monkeypatches TMPDIR and CLAUDE_PROJECT_DIR in-process as well as in the subprocess dict; no git rev-parse fall-through, no <repo>/.claude/reflection created. Orche",
+    "[MINOR] Silent degradation fixed with _warn_untrusted_root (one stderr line per process, never stdout, never non-zero exit, bound test). Leaf-vs-parent audit asymmetry documented. git rev-parse latency on Pre",
+    "[MINOR] Security claims independently reproduced by orchestrator and reviewer: mkdir(exist_ok=True) follows a planted symlink; sizing honest in both directions per hard rule 6 - unreachable on single-user mac"
+  ],
+  "recorded_utc": "2026-08-20T08:29:08Z",
+  "operations": 4,
+  "edits": 13
+}

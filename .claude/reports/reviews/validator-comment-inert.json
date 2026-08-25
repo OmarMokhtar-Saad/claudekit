@@ -1,0 +1,11 @@
+{
+  "plan": "validator-comment-inert",
+  "ops_path": ".claude/plans/plan-validator-comment-inert.ops.json",
+  "ops_sha256": "2ae1279e0142f72cf0a4eabc5a92091f78e186b623e815b22cca5fbc46d280dc",
+  "score": 93,
+  "decision": "APPROVED",
+  "findings": [],
+  "recorded_utc": "2026-08-21T07:12:00Z",
+  "operations": 4,
+  "edits": 7
+}

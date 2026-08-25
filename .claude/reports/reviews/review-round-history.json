@@ -1,0 +1,14 @@
+{
+  "plan": ".claude/plans/plan-review-round-history.md",
+  "slug": "review-round-history",
+  "ops_path": ".claude/plans/ops-review-round-history.json",
+  "ops_sha256": "7a6f46ce3c8915250e8cf695a381e5f7fd63e7fbba8f23ede95c389e9959dcbd",
+  "score": 96,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] The `# noqa: BLE001` on the broadened `except Exception` is inert \u2014 ruff's select list omits BLE. Already removed; that removal is the only delta from the reviewed bytes."
+  ],
+  "recorded_utc": "2026-08-22T23:26:02Z",
+  "operations": 3,
+  "edits": 5
+}

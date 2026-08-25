@@ -1,0 +1,11 @@
+{
+  "plan": "validator-bash-oracle",
+  "ops_path": ".claude/plans/plan-validator-bash-oracle.ops.json",
+  "ops_sha256": "0654a60de9bcd3cec03aa95bf89dd797e292c65e57a71f258864c86ee6736a0c",
+  "score": 92,
+  "decision": "APPROVED",
+  "findings": [],
+  "recorded_utc": "2026-08-21T12:25:22Z",
+  "operations": 6,
+  "edits": 3
+}

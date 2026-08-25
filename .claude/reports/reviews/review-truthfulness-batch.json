@@ -1,0 +1,14 @@
+{
+  "plan": "review-truthfulness-batch",
+  "slug": "review-truthfulness-batch",
+  "ops_path": ".claude/plans/ops-review-truthfulness-batch.json",
+  "ops_sha256": "fcc1e237422c1fa7d87588a34f30540dfe7a72c9bc9c74075d50ae02a2ab59b5",
+  "score": 94,
+  "decision": "APPROVED",
+  "findings": [],
+  "recorded_utc": "2026-08-23T10:06:17Z",
+  "operations": 8,
+  "edits": 19,
+  "rounds": [],
+  "round": 1
+}

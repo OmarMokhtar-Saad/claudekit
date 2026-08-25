@@ -1,0 +1,11 @@
+{
+  "plan": "validator-comment-test-hardening",
+  "ops_path": ".claude/plans/plan-validator-comment-test-hardening.ops.json",
+  "ops_sha256": "76a873667066ebde15acb0c3e4a956a33affdea72b7e3f74037640c98ae5e9e1",
+  "score": 94,
+  "decision": "APPROVED",
+  "findings": [],
+  "recorded_utc": "2026-08-21T07:56:12Z",
+  "operations": 2,
+  "edits": 3
+}

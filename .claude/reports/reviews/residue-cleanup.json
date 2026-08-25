@@ -1,0 +1,14 @@
+{
+  "plan": ".claude/plans/plan-residue-cleanup.md",
+  "ops_path": ".claude/plans/plan-residue-cleanup.ops.json",
+  "ops_sha256": "d39a70ed2a71fc39a68269403ea601c0dee154b947c37c8c7637875a002ed752",
+  "score": 94,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] The ITEM 4 step description says the helper uses pathlib; it only uses Path-typed",
+    "[MINOR] The new REVIEW_GUIDE row's \"nothing yet ... fixed in 8cfdb6e\" phrasing is slightly"
+  ],
+  "recorded_utc": "2026-08-21T14:23:27Z",
+  "operations": 7,
+  "edits": 11
+}

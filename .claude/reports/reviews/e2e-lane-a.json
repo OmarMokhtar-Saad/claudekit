@@ -1,0 +1,18 @@
+{
+  "plan": ".claude/plans/plan-e2e-lane-a.md",
+  "ops_path": ".claude/plans/plan-e2e-lane-a.ops.json",
+  "ops_sha256": "b7f6ff2cce9dec445dd14b7733ad144ffece124f50a48c4eb89728ce5858c2bd",
+  "score": 92,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] Round-1 MAJOR 1a fixed: ExecutionLock had ZERO test hits repo-wide; E2E-31 reclassified from ALREADY-COVERED to NEW and E2E-33 withdrawal reversed with a deterministic design (lock held by a child, no",
+    "[MINOR] Round-1 MAJOR 1b fixed: ops-enforcement.sh cross-project deny had zero test hits; now covered via a second sibling project, bound by M11.",
+    "[MINOR] Round-1 MAJOR 2 fixed: the false no-collateral claim is withdrawn, the column is relabelled module-scoped, and suite-wide collateral is MEASURED where claimed - M1 = 5 failed/1210 passed, M3 = 33 fail",
+    "[MINOR] MAJOR 3 fixed: E2E-07, E2E-09 and E2E-16 downgraded to PARTIAL with residue named and routed to follow-ups rather than folded in. E2E-28 deferral reversed and landed narrowed.",
+    "[MINOR] HONEST NEGATIVE RECORDED: M12 removed the executor _result_emitted latch and NOTHING went red. That documented behaviour is unbound by any test in the suite. Reported rather than hidden. TICKETED.",
+    "[MINOR] The TMPDIR trap is promoted into the fixture docstring as an explicit do-not-tidy-into-tmp_path warning with the exempt paths named - ops-enforcement.sh:43 exits 0 for /var/folders/*, which on macOS w"
+  ],
+  "recorded_utc": "2026-08-20T10:33:30Z",
+  "operations": 2,
+  "edits": 1
+}

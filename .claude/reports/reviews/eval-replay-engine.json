@@ -1,0 +1,11 @@
+{
+  "plan": ".claude/plans/plan-eval-replay-engine.md",
+  "ops_path": ".claude/plans/plan-eval-replay-engine.ops.json",
+  "ops_sha256": "2f060ce66571d1a11ebe2b5e398a6e2779221d5495ab6f4b2268b978a388c97a",
+  "score": 92,
+  "decision": "APPROVED",
+  "findings": [],
+  "recorded_utc": "2026-08-21T07:47:48Z",
+  "operations": 7,
+  "edits": 5
+}

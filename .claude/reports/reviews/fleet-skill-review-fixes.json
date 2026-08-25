@@ -1,0 +1,37 @@
+{
+  "plan": ".claude/plans/plan-fleet-skill-enhancement.md",
+  "slug": "fleet-skill-review-fixes",
+  "ops_path": ".claude/plans/ops-fleet-skill-review-fixes.json",
+  "ops_sha256": "4677fa29e8f5b99781c4363456f2a351f4baffd9c8e7ec197c3c744db0cb13ec",
+  "score": 92,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] java-review-checklist:211 Bad comment still blames boxing while the new Good comment admits the good form also boxes",
+    "[MINOR] _GREP_PATTERN silently skips unquoted, backticked and --long-opt-preceded grep patterns; guarded only by the count floor",
+    "[MINOR] Score: XX/100 in all four review checklists contradicts code-reviewer.md; the class has hit 4 entries and earns a mechanical check"
+  ],
+  "verdict_origin": "rubric",
+  "recorded_utc": "2026-08-25T06:55:39Z",
+  "operations": 7,
+  "edits": 12,
+  "rounds": [
+    {
+      "score": 75,
+      "decision": "REVISE",
+      "findings": [
+        "[MAJOR] Commit 273c162 fails gen-docs.py --check: 13 stale counts; the regen exists only as uncommitted working-tree changes",
+        "[MAJOR] Phase A was merged mid-review into 273c162, a 38-file commit for an unrelated concern",
+        "[MAJOR] The staged unit was never independently gate-clean: skills-registry.json carried flow-analyst rows with no agent file",
+        "[MINOR] .claude/commands/mcp.md still ships the four-server roster; Sequential Thinking guidance dropped with no replacement",
+        "[MINOR] test_fleet_skill_phase_a.py pattern extractor misses double-quoted and piped greps and greedily mangles 6 of 25 patterns",
+        "[MINOR] java-review-checklist uses Java 16+ instanceof pattern as canonical Good example with no version caveat",
+        "[MINOR] java-review-checklist annotates counts.merge as avoiding boxing; it does not",
+        "[MINOR] Both new checklists emit Score XX/100 while code-reviewer.md forbids numeric scores (pre-existing sibling pattern)"
+      ],
+      "recorded_utc": "2026-08-25T06:51:16Z",
+      "ops_sha256": "87c425b6bd83b9040aecd780fbe7cd9e664a17dbc71dbb4bad4845962a846d1b",
+      "verdict_origin": "rubric"
+    }
+  ],
+  "round": 2
+}

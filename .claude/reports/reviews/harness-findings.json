@@ -1,0 +1,14 @@
+{
+  "plan": ".claude/plans/plan-harness-findings.md",
+  "ops_path": ".claude/plans/plan-harness-findings.ops.json",
+  "ops_sha256": "596b3b9c6211b28f8f7624ebfb4a75241240bbee27ae4ea96aba59c99817c60b",
+  "score": 95,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] REVIEW_GUIDE op2: no pointer to the pre-existing vacuous-check ratchet",
+    "[MINOR] Could distinguish \"not inventing a synonym row\" from \"the class's ratchet"
+  ],
+  "recorded_utc": "2026-08-20T11:53:31Z",
+  "operations": 3,
+  "edits": 3
+}

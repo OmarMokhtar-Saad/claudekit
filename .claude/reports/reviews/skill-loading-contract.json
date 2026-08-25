@@ -1,0 +1,11 @@
+{
+  "plan": ".claude/plans/plan-skill-loading-contract.md",
+  "ops_path": ".claude/plans/plan-skill-loading-contract.ops.json",
+  "ops_sha256": "4edc4423e8691a4c3bd15d8553b9f6d6b7d72be3d39233c0cd1df12546857dd9",
+  "score": 90,
+  "decision": "APPROVED",
+  "findings": [],
+  "recorded_utc": "2026-08-21T07:55:01Z",
+  "operations": 18,
+  "edits": 17
+}

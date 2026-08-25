@@ -1,0 +1,18 @@
+{
+  "plan": ".claude/plans/plan-008-batch4-command-diet-and-lint.md",
+  "slug": "008-b4-03-reviewer-taxonomy",
+  "ops_path": ".claude/plans/ops-008-batch4/008-b4-03-reviewer-taxonomy.json",
+  "ops_sha256": "d998e693e399a6438e9e9b6e883a283af95dbe2ab9a09861c514a27be9d8e25a",
+  "score": 94,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] Module docstring grouped skill-agent-costume with duplicate-triggers as flagging nothing because the corpus is clean; it is silent only via waiver. Addressed after the verdict.",
+    "[MINOR] declared_tools() misses valid-YAML forms (multiline flow list, CRLF block list, blank line before first block item, duplicate keys, scoped Agent(*)); none present in corpus. Documented as a measured b",
+    "[MINOR] Comment called one pair \"the single closest\" at 0.1538; execution shows a 4-way tie. Corrected."
+  ],
+  "recorded_utc": "2026-08-24T08:40:11Z",
+  "operations": 4,
+  "edits": 5,
+  "rounds": [],
+  "round": 1
+}

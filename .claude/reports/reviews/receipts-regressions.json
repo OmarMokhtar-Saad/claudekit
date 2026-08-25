@@ -1,0 +1,11 @@
+{
+  "plan": ".claude/plans/plan-receipts-regressions.md",
+  "ops_path": ".claude/plans/plan-receipts-regressions.ops.json",
+  "ops_sha256": "1c4105a2957534a36ff83c650a91333a20a92cb8c001615bd2234290a349670e",
+  "score": 90,
+  "decision": "APPROVED",
+  "findings": [],
+  "recorded_utc": "2026-08-21T08:29:20Z",
+  "operations": 3,
+  "edits": 3
+}

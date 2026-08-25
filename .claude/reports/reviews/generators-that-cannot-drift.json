@@ -1,0 +1,15 @@
+{
+  "plan": ".claude/plans/plan-generators-that-cannot-drift.md",
+  "ops_path": ".claude/plans/archive/ops-generators-that-cannot-drift.json",
+  "ops_sha256": "3aff62aa44ce5d9e95d70b7a9909ad3497c318e5927cffadfd565a7a72fcb255",
+  "score": 93,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] `--probe` addendum (`ops-mcp-probe.json`) has no CLI wiring op in either config, so applying it alone leaves `mcp_probe.py` and its tests dead code with no `--probe` flag reachable \u2014 Location: `.claud",
+    "[MINOR] The mypy fix shown inline in the plan text (`## The mypy fix, as emitted by op 5`) is prose, not a literal excerpt with line anchors \u2014 Location: plan-generators-that-cannot-drift.md:74-84 \u2014 Fix: harml",
+    "[MINOR] `.ai/BACKLOG.md:318` ratchet row is dated \"on `perf/token-efficiency`\" generically rather than cross-referencing this plan's revision number explicitly \u2014 Location: `.ai/BACKLOG.md:318` \u2014 Fix: cosmetic"
+  ],
+  "recorded_utc": "2026-08-22T05:59:57Z",
+  "operations": 16,
+  "edits": 20
+}
