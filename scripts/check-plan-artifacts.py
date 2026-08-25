@@ -140,7 +140,27 @@ def resolve_plan(ops_path: Path, cfg: Optional[dict] = None) -> Optional[Path]:
     for prefix in ("plan-", "ops-"):
         if declared.startswith(prefix):
             declared = declared[len(prefix):]
+    # A HYPHEN-BOUNDARY PREFIX WALK, longest first. One plan is routinely executed
+    # through several configs named after their STEP -- `ops-triage-refresh-records.json`
+    # against `plan-triage-refresh.md` -- and every one of those resolved to nothing and
+    # was skipped SILENTLY. Measured: 51 configs, six of them written by the author of
+    # this comment, whose operations no gate had ever checked.
+    #
+    # Bounded, not loose: each candidate must match an existing `plan-<slug>.md` EXACTLY
+    # at a hyphen boundary, and the longest prefix wins, so `plan-foo-bar.md` beats
+    # `plan-foo.md` for `ops-foo-bar-step`. `ops-dispatcher-payload.json`'s L1 lesson was
+    # about a matcher that stripped one prefix and silently matched nothing; this one can
+    # only ever match a plan file that is really there.
+    def _prefix_walk(base: str):
+        parts = base.split("-")
+        for length in range(len(parts) - 1, 0, -1):
+            yield "-".join(parts[:length])
+
     slugs = [slug] + ([declared] if declared and declared != slug else [])
+    for base in list(slugs):
+        for shorter in _prefix_walk(base):
+            if shorter not in slugs:
+                slugs.append(shorter)
     for candidate_slug in slugs:
         for candidate in (f"plan-{candidate_slug}.md", f"{candidate_slug}.md"):
             # PLANS_DIR as well as the config's own directory: an EXECUTED config is
@@ -261,9 +281,47 @@ def main(argv: List[str]) -> int:
     # count alone cannot tell a real pass from a gate that checked nothing.
     print(f"check-plan-artifacts: OK ({len(configs)} config(s), "
           f"{checked_paths} path(s) verified)")
+    # TWO NUMBERS, NOT ONE. This printed a single "resolved to no plan" count that grew
+    # from 87 to 121 while being read as one fact, and it conflates two unrelated things:
+    #
+    #   * a config whose plan document does NOT EXIST -- 205 of them, spent long ago,
+    #     several predating the convention that a plan is written at all. No code can
+    #     resolve those, and reporting them as "skipped" makes an unfixable historical
+    #     residue look like a growing bug.
+    #   * a config whose plan document DOES exist but whose declared slug did not
+    #     resolve. That is a real gate hole: operations nobody checked, in a plan that
+    #     could have been checked. After the prefix walk above this should be ZERO, so it
+    #     is reported separately and loudly.
+    #
+    # The second number is the one to watch. Making it fatal is a separate, owner-gated
+    # decision -- 205 legacy configs must not redden CI for history nobody can change.
     if unresolved:
-        print(f"NOTE: {len(unresolved)} config(s) resolved to no plan and were not "
-              f"checked: {', '.join(sorted(unresolved))}")
+        orphan, misdeclared = [], []
+        known = {p.stem[len("plan-"):] for p in PLANS_DIR.glob("plan-*.md")}
+        for name in sorted(unresolved):
+            stem = name[: -len(".json")] if name.endswith(".json") else name
+            for prefix in ("plan-", "ops-"):
+                if stem.startswith(prefix):
+                    stem = stem[len(prefix):]
+            parts = stem.split("-")
+            reachable = any("-".join(parts[:i]) in known
+                            for i in range(len(parts), 0, -1))
+            (misdeclared if reachable else orphan).append(name)
+        if orphan:
+            # NAMED, not just counted. `test_a_config_that_resolves_to_no_plan_is_named_
+            # not_silently_green` exists because a plan renamed by accident left every
+            # operation unchecked and read identically to a real pass -- so a bare count
+            # here reintroduced exactly that. Truncated at 12 with the remainder counted:
+            # 112 names is not a diagnostic either.
+            shown = ", ".join(orphan[:12])
+            more = f" (+{len(orphan) - 12} more)" if len(orphan) > 12 else ""
+            print(f"NOTE: {len(orphan)} config(s) have no plan document at all "
+                  f"(historical; no resolution is possible) and were not checked: "
+                  f"{shown}{more}")
+        if misdeclared:
+            print(f"WARNING: {len(misdeclared)} config(s) name a plan that EXISTS but "
+                  f"did not resolve -- these are unchecked operations in a checkable "
+                  f"plan: {', '.join(misdeclared)}")
     return 0
 
 

@@ -1,0 +1,19 @@
+{
+  "plan": "review-round-3",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/file-guard.sh",
+      "edits": [
+        {
+          "find": "    case \"$basename\" in\n        public.*|*.pub|ca-bundle.*|ca-certificates.*|example.*|sample.*|dummy.*)\n            return 0 ;;\n    esac\n",
+          "replace": "    case \"$basename\" in\n        public.*|ca-bundle.*|ca-certificates.*|example.*|sample.*|dummy.*)\n            return 0 ;;\n        # `*.pub` ABOVE the veto only for the ENUMERATED public-key names. A bare `*.pub`\n        # here freed `.ssh/deploy.key.pub` -- and branch 3 classifies every file under\n        # `.ssh/`, so any private key renamed with a `.pub` suffix walked straight out.\n        # `id_rsa.pub` is a name with a meaning; `deploy.key.pub` is an assertion by\n        # whoever named the file. Other `*.pub` files are still freed, but below the veto.\n        id_rsa.pub|id_ed25519.pub|id_ecdsa.pub|id_dsa.pub)\n            return 0 ;;\n    esac\n"
+        },
+        {
+          "find": "    case \"/$filepath\" in\n        */test/*|*/tests/*|*/testdata/*|*/fixtures/*|*/spec/fixtures/*|*/__fixtures__/*)\n            return 0 ;;\n    esac\n    return 1",
+          "replace": "    case \"$basename\" in\n        *.pub) return 0 ;;\n    esac\n    case \"/$filepath\" in\n        */test/*|*/tests/*|*/testdata/*|*/fixtures/*|*/spec/fixtures/*|*/__fixtures__/*)\n            return 0 ;;\n    esac\n    return 1"
+        }
+      ]
+    }
+  ]
+}

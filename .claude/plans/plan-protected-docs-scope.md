@@ -145,3 +145,18 @@ deletions; 16 of 19 rejected).
 ## Definition of Done
 
 Every command in `CLAUDE.md` § Definition of Done, plus the mutation proof.
+
+## Artifacts named retrospectively (2026-08-25)
+
+`scripts/check-plan-artifacts.py` gained a hyphen-boundary prefix walk, so a config named
+after its STEP now resolves to its parent plan. This plan's step configs had never been
+checked against it -- the resolver returned nothing and the gate skipped them silently --
+and the first checked run found paths this document does not name. Listed here rather than
+left unnamed, because a plan that hides what its configs wrote cannot be reviewed for it.
+
+| Path | Config |
+| --- | --- |
+| `.ai/CHANGELOG_AI.md` | `ops-protected-docs-ai-records.json` |
+| `.ai/SESSION_STATE.md` | `ops-protected-docs-ai-records.json` |
+
+

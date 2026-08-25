@@ -76,7 +76,11 @@ These are the findings that were **ticketed rather than carried** at the stoppin
 defects discovered during execution. See CHANGELOG `[Unreleased]` and the plans in
 `.claude/plans/archive/`.
 
-- [ ] **`hooks=19` is WRONG, not stale** — `scripts/gen-docs.py:55` globs `*.sh` only, so the two
+- [x] **DONE (verified 2026-08-25): `hooks=19` was already fixed.** `scripts/gen-docs.py`
+  defines `HOOK_GLOBS = ("*.sh", "*.py")` and reports `hooks=26`. This entry was stale, and it
+  was re-quoted as current from a truncated `grep` that showed only the agents/commands/skills
+  globs — the same class of error as the counts this entry was written about. Original text:
+- [ ] ~~**`hooks=19` is WRONG, not stale**~~ — `scripts/gen-docs.py:55` globs `*.sh` only, so the two
   new `.claude/hooks/*.py` (`reflection.py`, `reflection-gate.py`) are invisible to the counter.
   The repo ships 21 hooks and documents 19. Fix: extend the glob to `*.py` (preferred), or render
   "19 shell hooks". Must go through the generator — hard rule 8 forbids hand-editing counts.

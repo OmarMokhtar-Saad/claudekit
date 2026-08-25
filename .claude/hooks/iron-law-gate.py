@@ -262,7 +262,12 @@ _REFLECTION_SAFE = frozenset({
 
 # CLAUDE.md DoD gates 4 and 5. Permitted ONLY with `--check`: without it gen-docs.py
 # REWRITES the docs, which is exactly the un-transacted mutation this gate exists to stop.
-_CHECK_ONLY_SCRIPTS = frozenset({"gen-docs.py", "gen-registry.py"})
+# Every repo-root generator that REWRITES generated content and offers `--check`. The set
+# held two of four: `gen-model-policy.py` and `gen-plan-index.py` were both Definition-of-
+# Done gates the implementer could not run at all, in any form -- so the agent bound by the
+# Iron Law was blocked from the very checks the DoD requires of it.
+_CHECK_ONLY_SCRIPTS = frozenset({"gen-docs.py", "gen-registry.py",
+                                 "gen-model-policy.py", "gen-plan-index.py"})
 _CHECK_ONLY_SAFE = frozenset({"--check"})
 
 

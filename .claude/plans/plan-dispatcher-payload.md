@@ -387,3 +387,19 @@ committing makes plan files tracked and the secret self-scan enumerates
 `ck adapt` (Phase 2). The secret self-scan's missing exemption model — filed, and
 independently worth doing, but not this plan. Granting `reviewer` the Bash tool
 (owner-gated).
+
+## Artifacts named retrospectively (2026-08-25)
+
+`scripts/check-plan-artifacts.py` gained a hyphen-boundary prefix walk, so a config named
+after its STEP now resolves to its parent plan. This plan's step configs had never been
+checked against it -- the resolver returned nothing and the gate skipped them silently --
+and the first checked run found paths this document does not name. Listed here rather than
+left unnamed, because a plan that hides what its configs wrote cannot be reviewed for it.
+
+| Path | Config |
+| --- | --- |
+| `.claude/plans/archive/README.md` | `ops-dispatcher-payload-docs.json` |
+| `.ai/SESSION_STATE.md` | `ops-dispatcher-payload-docs.json` |
+| `.ai/CHANGELOG_AI.md` | `ops-dispatcher-payload-docs.json` |
+
+

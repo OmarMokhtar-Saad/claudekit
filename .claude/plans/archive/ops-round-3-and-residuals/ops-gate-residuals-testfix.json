@@ -1,0 +1,19 @@
+{
+  "plan": "gate-residuals",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_iron_law_hook.py",
+      "edits": [
+        {
+          "find": "    allowed, _ = run(payload(f\"python3 scripts/{script} --check\"), tmp_path)\n    assert allowed == 0, f\"{script} --check is blocked for the implementer\"",
+          "replace": "    result = run(payload(f\"python3 scripts/{script} --check\"), tmp_path)\n    assert result.returncode == 0, (\n        f\"{script} --check is blocked for the implementer: {result.stderr}\")"
+        },
+        {
+          "find": "    blocked, _ = run(payload(f\"python3 scripts/{script}\"), tmp_path)\n    assert blocked == 2, f\"{script} without --check should be blocked, got {blocked}\"",
+          "replace": "    result = run(payload(f\"python3 scripts/{script}\"), tmp_path)\n    assert result.returncode == 2, (\n        f\"{script} without --check should be blocked, got {result.returncode}\")"
+        }
+      ]
+    }
+  ]
+}

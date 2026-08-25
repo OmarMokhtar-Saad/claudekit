@@ -50,35 +50,48 @@ check_duplicates() {
     local plan_dirs=(".claude/plans" "operations")
     local found_duplicates=0
 
-    for dir in "${plan_dirs[@]}"; do
-        if [ ! -d "$dir" ]; then
-            continue
-        fi
+    # ONE python3 for the whole corpus, not one per plan file. This spawned an
+    # interpreter inside a per-plan loop on a UserPromptSubmit hook: with ~110 plans in
+    # `.claude/plans/` that is ~110 interpreter startups before the user's prompt is even
+    # seen (finding F40, and part of the ~10-spawns-per-call cluster F105). The similarity
+    # arithmetic is unchanged -- word-overlap ratio, threshold 70 -- so the verdicts are
+    # identical; only the process count moves.
+    local candidates
+    candidates=$(for dir in "${plan_dirs[@]}"; do
+        [ -d "$dir" ] || continue
+        find "$dir" -name "plan-*.md" -o -name "plan.md" 2>/dev/null
+    done)
 
-        # Find existing plan files
-        while IFS= read -r plan_file; do
-            local existing_name
-            existing_name=$(basename "$plan_file" .md | sed 's/^plan-//' | tr '[:upper:]' '[:lower:]' | sed 's/[._-]/ /g' | sed 's/  */ /g' | xargs)
+    if [ -n "$candidates" ]; then
+        local matches
+        matches=$(printf '%s\n' "$candidates" | python3 -c "
+import os, re, sys
 
-            if [ -z "$existing_name" ]; then
-                continue
-            fi
+def norm(text):
+    text = re.sub(r'[._-]+', ' ', text.lower())
+    return set(text.split())
 
-            # Use python for similarity check (simple word overlap)
-            local similarity
-            similarity=$(python3 -c "
-import sys
-new_words = set(sys.argv[1].split())
-existing_words = set(sys.argv[2].split())
-if not new_words or not existing_words:
-    print(0)
-else:
-    overlap = len(new_words & existing_words)
-    total = len(new_words | existing_words)
-    print(int(100 * overlap / total))
-" "$normalized" "$existing_name" 2>/dev/null || echo "0")
+new_words = norm(sys.argv[1])
+for line in sys.stdin:
+    path = line.strip()
+    if not path:
+        continue
+    stem = os.path.basename(path)
+    if stem.endswith('.md'):
+        stem = stem[:-3]
+    if stem.startswith('plan-'):
+        stem = stem[len('plan-'):]
+    existing = norm(stem)
+    if not new_words or not existing:
+        continue
+    score = int(100 * len(new_words & existing) / len(new_words | existing))
+    if score >= 70:
+        print('%d\t%s' % (score, path))
+" "$normalized" 2>/dev/null || true)
 
-            if [ "$similarity" -ge 70 ] 2>/dev/null; then
+        if [ -n "$matches" ]; then
+            while IFS="$(printf '\t')" read -r similarity plan_file; do
+                [ -z "$plan_file" ] && continue
                 log "WARN" "Potential duplicate: $plan_file (${similarity}% similar)"
                 echo "WARNING: Potential duplicate plan found"
                 echo "  New plan:      $new_plan"
@@ -87,9 +100,9 @@ else:
                 echo ""
                 echo "Consider reviewing the existing plan before creating a new one."
                 found_duplicates=1
-            fi
-        done < <(find "$dir" -name "plan-*.md" -o -name "plan.md" 2>/dev/null)
-    done
+            done <<< "$matches"
+        fi
+    fi
 
     if [ $found_duplicates -eq 0 ]; then
         log "INFO" "No duplicate plans found"

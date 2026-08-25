@@ -1,0 +1,15 @@
+{
+  "plan": "review-round-3",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_fileguard_allowlist.py",
+      "edits": [
+        {
+          "find": "@pytest.mark.parametrize(\"path\", [\n    # One per shape WITHIN a branch, not one per branch. Branch 4 has four shapes and only\n    # `api_key.txt` was an exemplar, so `tests/secrets.json.pem.key` sat in the untested\n    # half -- and that is where a confirmed regression was.\n    \"tests/app.token.pem.key\", \"tests/app.secret.pem\", \"tests/secrets.json.pem.key\",\n    \"tests/api_key_prod.key\", \"tests/.env.production.pem\", \"tests/.envrc.key\",\n    \"tests/service-account.json.pem\", \"tests/.htpasswd.key\", \"tests/known_hosts.pem\",\n])\ndef test_within_category_branch_shapes_survive_a_cert_chain(path):\n    \"\"\"Coverage measured per BRANCH SHAPE rather than per category.\"\"\"\n    assert classify(path) is not None, f\"{path} was freed\"",
+          "replace": "@pytest.mark.parametrize(\"path\", [\n    # One per shape WITHIN a branch, not one per branch: branch 4 has four shapes\n    # (`.token`, `.secret`, `secrets.json`, `api_key*`) and only `api_key.txt` was an\n    # exemplar. Every entry below is a shape the guard really recognises -- verified by\n    # classifying the bare name first. My first draft of this list assumed `*.token` and\n    # `service-account.json` were categories; they are not, so a `.key` under `tests/`\n    # freeing them is the INTENDED widening, not a regression. Asserting an expectation I\n    # had not checked would have manufactured three defects.\n    \"tests/.token.pem.key\", \"tests/.secret.pem\", \"tests/secrets.json.pem.key\",\n    \"tests/api_key_prod.key\", \"tests/.env.production.pem\", \"tests/.envrc.key\",\n    \"tests/.htpasswd.key\", \"tests/known_hosts.pem\", \"tests/terraform.tfstate.pem\",\n    \"tests/my.cnf.key\", \"tests/keystore.json.crt\", \"tests/id_ed25519.pem\",\n])\ndef test_within_category_branch_shapes_survive_a_cert_chain(path):\n    \"\"\"Coverage measured per BRANCH SHAPE rather than per category.\"\"\"\n    assert classify(path) is not None, f\"{path} was freed\""
+        }
+      ]
+    }
+  ]
+}

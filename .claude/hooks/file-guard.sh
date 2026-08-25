@@ -201,10 +201,27 @@ public_material() {
     local basename
     basename=$(basename "$filepath")
 
-    # A `public`/`pub` STEM or a CA bundle is public wherever it lives -- that is what the
-    # name asserts, and no directory changes it.
+    # NAME-ASSERTED PUBLIC MATERIAL FIRST, and this ordering is the documented contract:
+    # a `public`/`pub` stem, a CA bundle, and the example/sample/dummy stems are public
+    # WHEREVER they live. The veto below used to precede the example/sample case, which
+    # silently reversed that promise -- and because `file-guard-gate.sh` passes the
+    # ABSOLUTE `file_path`, any project rooted under a directory called `prod` or `keys`
+    # had every fixture re-flagged. That is the false-positive noise this allowlist exists
+    # to remove.
+    #
+    # Residual, stated rather than hidden: the veto is a name match on whatever path it is
+    # given, so an absolute path can still contribute components from outside the project.
+    # For a non-example-named file under such a path the verdict errs toward FLAGGED, which
+    # is the safe direction for an advisory.
     case "$basename" in
-        public.*|*.pub|ca-bundle.*|ca-certificates.*)
+        public.*|ca-bundle.*|ca-certificates.*|example.*|sample.*|dummy.*)
+            return 0 ;;
+        # `*.pub` ABOVE the veto only for the ENUMERATED public-key names. A bare `*.pub`
+        # here freed `.ssh/deploy.key.pub` -- and branch 3 classifies every file under
+        # `.ssh/`, so any private key renamed with a `.pub` suffix walked straight out.
+        # `id_rsa.pub` is a name with a meaning; `deploy.key.pub` is an assertion by
+        # whoever named the file. Other `*.pub` files are still freed, but below the veto.
+        id_rsa.pub|id_ed25519.pub|id_ecdsa.pub|id_dsa.pub)
             return 0 ;;
     esac
 
@@ -215,15 +232,20 @@ public_material() {
     # is the ratchet doing its job -- but the lesson is that "no stronger category fired"
     # is not the same as "nothing about this path is sensitive". A test fixture living
     # inside a secrets directory is not evidence that the file is not a secret.
+    # Singular AND plural, and the conventional homes of exactly the file branch 8 is
+    # about. The first list covered the example that motivated it and not the family:
+    # `.kube/` is the client-credential directory, `secret/` (singular) was missed while
+    # `secrets/` was covered, and `certs/`, `ssl/`, `private/` are where certificates
+    # actually live.
     case "/$filepath/" in
-        */k8s/*|*/kubernetes/*|*/pii/*|*/production/*|*/prod/*|*/secrets/*|\
-        */credentials/*|*/.ssh/*|*/.aws/*|*/.gnupg/*|*/vault/*|*/keys/*)
+        */k8s/*|*/kubernetes/*|*/.kube/*|*/pii/*|*/production/*|*/prod/*|\
+        */secret/*|*/secrets/*|*/credential/*|*/credentials/*|*/.ssh/*|*/.aws/*|\
+        */.gcloud/*|*/.docker/*|*/.gnupg/*|*/.gpg/*|*/vault/*|*/key/*|*/keys/*|\
+        */certs/*|*/certificates/*|*/ssl/*|*/tls/*|*/private/*)
             return 1 ;;
     esac
-
     case "$basename" in
-        example.*|sample.*|dummy.*)
-            return 0 ;;
+        *.pub) return 0 ;;
     esac
     case "/$filepath" in
         */test/*|*/tests/*|*/testdata/*|*/fixtures/*|*/spec/fixtures/*|*/__fixtures__/*)
@@ -263,8 +285,31 @@ check_file() {
         # certificate suffix breaks the EXACT-basename match those categories rely on, so
         # only branch 8 fires and the allowlist frees it under a test directory. Strip the
         # suffix and the real category reappears.
+        # ITERATE. Branch 8 matches the LAST element of an arbitrarily long extension
+        # chain, and stripping exactly one suffix corrected the predicate only for n=1 --
+        # so `tests/credentials.json.pem.key`, `tests/passwd.pem.key`,
+        # `tests/id_rsa.pem.key` and `testdata/prod.sqlite.crt.pem` all went silent while
+        # `tests/credentials.json.pem` (the path this very corpus added) stayed flagged.
+        # Fourth occurrence of "the correction is narrower than the predicate it corrects",
+        # and the generated invariant missed it because it appends exactly ONE extension.
+        #
+        # The loop only ever removes a suffix that is itself a certificate extension, and
+        # stops at the basename: `tests/foo.bar/key` must not strip into its own directory.
         if [ -z "$stronger" ]; then
-            stronger=$(classify "${filepath%.*}" skip_certs)
+            local _peeled="$filepath" _peeled_base _peeled_ext
+            while :; do
+                _peeled_base=$(basename "$_peeled")
+                case "$_peeled_base" in *.*) ;; *) break ;; esac
+                _peeled_ext="$(printf '%s' "${_peeled_base##*.}" \
+                    | tr '[:upper:]' '[:lower:]')"
+                case "$_peeled_ext" in
+                    cert|crt|pem|key|p12|pfx|pub) ;;
+                    *) break ;;
+                esac
+                _peeled="${_peeled%.*}"
+                stronger=$(classify "$_peeled" skip_certs)
+                [ -n "$stronger" ] && break
+            done
         fi
         if [ -n "$stronger" ]; then
             category="$stronger"
@@ -272,8 +317,16 @@ check_file() {
             category=""
         fi
     elif [ "$category" = "ssh-keys" ] && [[ "$(basename "$filepath")" == *.pub ]]; then
-        # A public key is the half you publish, in any directory.
-        category=""
+        # Routed THROUGH public_material, so the secret-directory veto applies. This was
+        # a bare `category=""`, which freed anything classified `ssh-keys` whose basename
+        # ended `.pub` -- and branch 3 classifies EVERY file under `.ssh/`, so
+        # `.ssh/deploy.key.pub` and `.ssh/authorized_keys.pub` were both clean.
+        # `authorized_keys` is an access-control file the guard lists deliberately; it is
+        # not "the half you publish".
+        case "$(basename "$filepath")" in
+            authorized_keys.pub|known_hosts.pub) ;;
+            *) public_material "$filepath" && category="" ;;
+        esac
     fi
 
     if [ -n "$category" ]; then

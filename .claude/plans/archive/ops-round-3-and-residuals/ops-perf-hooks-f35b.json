@@ -1,0 +1,15 @@
+{
+  "plan": "perf-hooks",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/pre-commit.sh",
+      "edits": [
+        {
+          "find": "        local content matched\n        content=$(git show \":$file\" 2>/dev/null) || continue\n        matched=$(printf '%s\\n' \"$content\" | grep -oiE \"$combined_pattern\" 2>/dev/null \\\n            | sort -u | head -5 | tr '\\n' ' ')\n        if [ -n \"$matched\" ]; then\n            log \"WARN\" \"Potential secret found in $file (matched: $matched)\"\n            echo \"WARNING: Potential secret detected in $file (matches: $matched)\"\n            has_secrets=1\n        fi",
+          "replace": "        local content\n        content=$(git show \":$file\" 2>/dev/null) || continue\n        # Combined pass FIRST as a filter; only a file that matched pays for the\n        # per-pattern identification. `grep -oiE` was the obvious way to name the match\n        # and it is the wrong one: `-o` prints the MATCHED TEXT, which for\n        # `api_key\\s*[:=]\\s*[\"'][^\"']{8}` is the first eight characters of the secret --\n        # into the hook log and the transcript. The whole point of this check is to keep\n        # secrets out of places they should not be.\n        if printf '%s\\n' \"$content\" | grep -qiE \"$combined_pattern\" 2>/dev/null; then\n            local hits=\"\"\n            for pattern in \"${patterns[@]}\"; do\n                if printf '%s\\n' \"$content\" | grep -qiE \"$pattern\" 2>/dev/null; then\n                    hits=\"$hits${hits:+, }$pattern\"\n                fi\n            done\n            log \"WARN\" \"Potential secret found in $file (patterns: $hits)\"\n            echo \"WARNING: Potential secret detected in $file (matches: $hits)\"\n            has_secrets=1\n        fi"
+        }
+      ]
+    }
+  ]
+}

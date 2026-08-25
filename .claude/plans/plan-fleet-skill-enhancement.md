@@ -74,9 +74,33 @@ Four external sources reviewed via web-researcher (reports: `trailofbits-skills.
 
 - **`whitebox-invariant-testing`** (`user-invocable: false`, tools: Read, Grep, Glob, Bash) — the invariant-first adversarial method: (1) build the invariant table FROM SUT source — KDoc/doc promises, guards, events, fail-closed claims — each row = promise + location; (2) attack each invariant only through harness knobs (overrides, failOn, injected clock, out-of-order + repeated calls), NEVER modifying the SUT (read-only composite-build pattern); (3) hostile-environment sweeps as a standard battery: 5xx-everything, 401-everything, captive-portal 200+HTML, timeout — asserting no crash / no write / no unbounded retry / wire-reached; (4) finding shape: invariant broken + SUT file:line + reproducing test + observed-vs-expected + smallest-diff fix sketch.
 
-- **`defect-pinning`** (`user-invocable: false`) — the RED-pin regression protocol: every confirmed defect gets a reproducing test pinned to its exact failure message, quarantined (`@Ignore`/skip-mark) so the merge gate stays green; a dedicated KnownDefects test file is the single quarantine home; on every SUT change re-run all pins live and restore verbatim (fixed pin ⇒ drop the quarantine mark, it becomes the regression proof); companion coverage map with the five-state legend (✅ covered / 🔴 red pin / ⬜ reachable gap / 🔧 needs harness affordance / ⛔ unreachable from this harness) so each pass starts from a list, not from scratch.
+- **`defect-pinning`** (`user-invocable: false`, tools: Read, Grep, Glob, Bash) — the RED-pin regression protocol: every confirmed defect gets a reproducing test pinned to its exact failure message, quarantined (`@Ignore`/skip-mark) so the merge gate stays green; a dedicated KnownDefects test file is the single quarantine home; on every SUT change re-run all pins live and restore verbatim (fixed pin ⇒ drop the quarantine mark, it becomes the regression proof); companion coverage map with the five-state legend (✅ covered / 🔴 red pin / ⬜ reachable gap / 🔧 needs harness affordance / ⛔ unreachable from this harness) so each pass starts from a list, not from scratch.
 
-- **`ai-agent-testing`** (`user-invocable: false`) — testing LLM-agent systems deterministically: two-suite doctrine (offline deterministic merge gate with stubbed backend + injected clock vs live-LLM exploratory driver that NEVER gates a merge — transient provider errors make it a non-signal); the agent-invariant catalog to assert: tool-call governance (no write without ready+confirm, exactly-once side effects, refused calls don't consume state), provenance/anti-fabrication gates (failed reads must not mark data as fetched), data honesty (render only ledger-backed values), staleness semantics (user activity resets the clock), model-echo resilience (duplicate/same-value re-fills are no-ops), multi-entry verdict completeness (every fill entry gets matched/stashed/no-match), dependent-scoping (revising a step invalidates transitive dependents), locale/RTL contract; cross-links: upstream exploration → `prompt-evaluation` (D3), CI baseline → `eval-harness`, gap judging → `verification-gap-lens`.
+- **`ai-agent-testing`** (`user-invocable: false`, tools: Read, Grep, Glob, Bash) — testing LLM-agent systems deterministically: two-suite doctrine (offline deterministic merge gate with stubbed backend + injected clock vs live-LLM exploratory driver that NEVER gates a merge — transient provider errors make it a non-signal); the agent-invariant catalog to assert: tool-call governance (no write without ready+confirm, exactly-once side effects, refused calls don't consume state), provenance/anti-fabrication gates (failed reads must not mark data as fetched), data honesty (render only ledger-backed values), staleness semantics (user activity resets the clock), model-echo resilience (duplicate/same-value re-fills are no-ops), multi-entry verdict completeness (every fill entry gets matched/stashed/no-match), dependent-scoping (revising a step invalidates transitive dependents), locale/RTL contract; cross-links: upstream exploration → `prompt-evaluation` (D3), CI baseline → `eval-harness`, gap judging → `verification-gap-lens`.
+
+**A2b budget, and why it is three skills.** Every A2b description is **≤150 chars** — §7's
+"Both ≤160 chars" row covered only A1/A2 and left A2b uncapped. Baseline reconciled: §2.2's
+7934 was measured BEFORE Phase A; Phase A's two descriptions added 299, so the live row is
+**8233/9000 (767 headroom)**, and 4 new descriptions (this trio + D3's `prompt-evaluation`)
+at ≤150 cost ≤600, landing ≤8833 with ~167 to spare. If the row would exceed 9000, trim
+verbose EXISTING descriptions in the same ops.json rather than shrinking the new ones below
+usefulness — and re-measure, never estimate.
+
+`defect-pinning` is separate from `whitebox-invariant-testing` on purpose: the pinning
+protocol applies to **any** confirmed defect, whoever found it and by whatever method, while
+the invariant method is one specific way of producing them. Folding them together would make
+the regression protocol reachable only through the discovery technique that happened to
+create this corpus.
+
+`ai-agent-testing`'s locale/RTL row is evidenced, not extrapolated: `COVERAGE-MAP.md:80`
+carries **RTL/bidi control characters in a label** as a named `⬜` gap (display spoofing via
+the confirm card), `LocaleEnTest` covers the whole `locale="en"` path including the
+`Accept-Language`/`X-Language` wire headers, and SDK-DEFECTS #24 is a locale-fallback leak
+that renders a raw step id. It doubles as the worked example of the five-state legend.
+
+**Owner approval, recorded 2026-08-25 (this session): §8 items 4 (D1) and 5 (D3) are
+APPROVED.** So `ai-agent-testing`'s cross-link to `prompt-evaluation` is a live reference,
+not the dangling one an earlier review flagged. Skill count goes **75 → 79**.
 
 **A3. Edit `.claude/agents/code-reviewer.md`** — extend the per-language block (lines 40-41) with:
 - `**java-review-checklist** — load when the diff contains .java files`
@@ -191,3 +215,17 @@ Per project, from the matrix in §2.1:
 - Trail of Bits `supply-chain-audit` deltas (publisher concentration, abandoned-upstream detection) → enrich claudekit's supply-chain-audit.
 - Trail of Bits Trailmark (polyglot code graph, 25+ parsers incl. Java/Python) → possible upgrade path for codebase-mapping's project-graph sidecar.
 - Fleet sync tooling: no script exists (verified); each sync is bespoke. A `scripts/fleet-sync.py` with the B-rules encoded would de-risk every future pass.
+
+## Artifacts named retrospectively (2026-08-25)
+
+`scripts/check-plan-artifacts.py` gained a hyphen-boundary prefix walk, so a config named
+after its STEP now resolves to its parent plan. This plan's step configs had never been
+checked against it -- the resolver returned nothing and the gate skipped them silently --
+and the first checked run found paths this document does not name. Listed here rather than
+left unnamed, because a plan that hides what its configs wrote cannot be reviewed for it.
+
+| Path | Config |
+| --- | --- |
+| `tests/test_fleet_skill_phase_a.py` | `ops-fleet-skill-phaseA.json` |
+
+

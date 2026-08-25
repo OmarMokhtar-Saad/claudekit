@@ -291,6 +291,27 @@ def test_an_invalid_utf8_allowed_command_still_passes(tmp_path):
 
 # --------------------------------------------------------------- the hook must exist
 
+@pytest.mark.parametrize("script", ["gen-docs.py", "gen-registry.py",
+                                    "gen-model-policy.py", "gen-plan-index.py"])
+def test_every_dod_generator_is_runnable_in_check_form(script, tmp_path):
+    """The allowlist held two of the four repo-root generators, so `gen-model-policy.py`
+    and `gen-plan-index.py` were blocked in EVERY form -- including `--check`, which the
+    Definition of Done requires. The agent bound by the Iron Law could not run the checks
+    the Iron Law's own DoD demands of it."""
+    result = run(payload(f"python3 scripts/{script} --check"), tmp_path)
+    assert result.returncode == 0, (
+        f"{script} --check is blocked for the implementer: {result.stderr}")
+
+
+@pytest.mark.parametrize("script", ["gen-docs.py", "gen-registry.py",
+                                    "gen-model-policy.py", "gen-plan-index.py"])
+def test_a_generator_without_check_is_still_blocked(script, tmp_path):
+    """The other direction, which is the reason the allowlist exists: these REWRITE
+    generated content, and the implementer may only ever verify it."""
+    result = run(payload(f"python3 scripts/{script}"), tmp_path)
+    assert result.returncode == 2, (
+        f"{script} without --check should be blocked, got {result.returncode}")
+
 def test_hook_exists_and_is_a_python_hook():
     assert HOOK.is_file(), "the Iron Law gate is not installed"
     first = HOOK.read_text(encoding="utf-8").splitlines()[0]

@@ -1,0 +1,25 @@
+{
+  "plan": "round-3-and-gate-residuals",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "edits": [
+        {
+          "find": "### Fixed\n\n- **Session context is scanned before it reaches the transcript.**",
+          "replace": "### Fixed\n\n- **`file-guard`: chained certificate extensions no longer free a secret.** Branch 8 matches\n  the *last* element of an arbitrarily long extension chain, and the previous repair stripped\n  exactly one \u2014 so `tests/credentials.json.pem.key`, `tests/passwd.pem.key`,\n  `tests/id_rsa.pem.key` and `testdata/prod.sqlite.crt.pem` all went silent while\n  `tests/credentials.json.pem` stayed flagged. The strip now iterates while the trailing\n  extension is itself a certificate extension, stopping at the basename. Also: the\n  secret-directory veto gained the families its first version missed (`secret` singular,\n  `.kube`, `certs`, `ssl`, `tls`, `private`, `.docker`, `.gcloud`, `.gpg`, `key`), and the\n  `*.pub` exemption no longer frees anything under `.ssh/` \u2014 `authorized_keys.pub` and\n  `deploy.key.pub` were both clean, and `authorized_keys` is an access-control file.\n- **`file-guard`: fixtures are public again under a project rooted in `prod/` or `keys/`.**\n  The veto ran *before* the `example.*`/`sample.*`/`dummy.*` case, silently reversing the\n  documented promise that those names are public wherever they live \u2014 and since the hook is\n  passed an **absolute** path, any project under a directory called `prod` or `keys` had every\n  fixture re-flagged. That is the false-positive noise the allowlist exists to remove.\n- **`pre-commit`: the secret scan is ~9\u00d7 faster and no longer echoes secrets.** It ran\n  `git show | grep` once per pattern inside a per-file loop (measured 9470 ms on 40 staged\n  files; now 1008 ms, with identical detection). The obvious way to name the match \u2014\n  `grep -oiE` \u2014 prints the matched TEXT, i.e. the first characters of the credential, into the\n  hook log and the transcript; it reports the matching pattern instead.\n- **`pre-plan`: the duplicate check is ~58\u00d7 faster.** One `python3` per plan file inside a loop\n  on a UserPromptSubmit hook \u2014 about 110 interpreter startups before the prompt was seen.\n  Measured with 105 plans: 5795 ms \u2192 99 ms, identical verdicts.\n- **`check-plan-artifacts` was skipping 51 configs it could have checked.** A plan executed\n  through step-named configs (`ops-<plan>-<step>.json`) resolved to nothing and was skipped\n  silently. A hyphen-boundary prefix walk binds them, and the first checked run found six real\n  plan/artifact drifts. The skip count is now reported as **two** numbers \u2014 configs with no plan\n  document at all (historical, unresolvable) versus configs naming a plan that exists but did\n  not resolve (a gate hole, now zero) \u2014 because one growing number conflated them.\n- **The Iron Law gate blocked two of its own Definition-of-Done checks.**\n  `gen-model-policy.py` and `gen-plan-index.py` were absent from the check-only allowlist, so\n  the implementer could not run them in any form, `--check` included.\n\n- **Session context is scanned before it reaches the transcript.**"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".ai/BACKLOG.md",
+      "edits": [
+        {
+          "find": "- [ ] **`hooks=19` is WRONG, not stale**",
+          "replace": "- [x] **DONE (verified 2026-08-25): `hooks=19` was already fixed.** `scripts/gen-docs.py`\n  defines `HOOK_GLOBS = (\"*.sh\", \"*.py\")` and reports `hooks=26`. This entry was stale, and it\n  was re-quoted as current from a truncated `grep` that showed only the agents/commands/skills\n  globs \u2014 the same class of error as the counts this entry was written about. Original text:\n- [ ] ~~**`hooks=19` is WRONG, not stale**~~"
+        }
+      ]
+    }
+  ]
+}
