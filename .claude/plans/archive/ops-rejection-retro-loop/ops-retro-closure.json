@@ -1,0 +1,61 @@
+{
+  "plan": "retro-closure",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/review-record.py",
+      "description": "Step L.1 - rejections search, mirroring knowledge-ledger search",
+      "edits": [
+        {
+          "find": "  review-record.py diff    <plan.md> <ops.json>",
+          "add_after": "\n  review-record.py rejections search \"<keywords>\""
+        },
+        {
+          "find": "  3  no approval record / could not resolve",
+          "replace": "  3  no approval record / could not resolve (rejections search: no match)"
+        },
+        {
+          "find": "def main() -> int:",
+          "add_before": "def cmd_rejections_search(args) -> int:\n    \"\"\"Keyword retrieval over the rejection briefs.\n\n    Mirrors `knowledge-ledger.py search` deliberately -- same exit contract (0 = hit,\n    3 = no match), same \"this is a prior, not a proof\" close, same \"silence is not\n    evidence\" note -- so planner.md's Phase 0 reads identically for both stores and a\n    model cannot learn two different retrieval habits.\n\n    Without this subcommand and its caller the briefs are an archive, not a feedback\n    loop: writing history that nothing ever reads changes no behaviour at all.\n    \"\"\"\n    query = \" \".join(args.query).strip()\n    if not query:\n        print(\"rejections search: empty query\", file=sys.stderr)\n        return 1\n    tokens = {t for t in re.findall(r\"[a-z0-9_.-]{3,}\", query.casefold())}\n    if not tokens:\n        print(\"rejections search: no searchable token in query\", file=sys.stderr)\n        return 1\n\n    directory = _rejections_dir()\n    scored = []\n    for row in _index_rows(directory / \"INDEX.jsonl\"):\n        blob = json.dumps(row, ensure_ascii=False).casefold()\n        hits = sorted(t for t in tokens if t in blob)\n        if hits:\n            scored.append((len(hits), row, hits))\n\n    if not scored:\n        print(\"REJECTIONS: no match for %r.\" % query)\n        print(\"            Silence is NOT evidence: this means unknown, not \"\n              \"'never rejected for this'.\")\n        return 3\n\n    scored.sort(key=lambda item: (-item[0], str(item[1].get(\"slug\"))))\n    print(\"REJECTIONS: %d match(es) for %r\" % (len(scored), query))\n    for _, row, hits in scored[:args.limit]:\n        print(\"\")\n        print(\"  slug:       %s (round %s, %s %s)\"\n              % (row.get(\"slug\"), row.get(\"round\"), row.get(\"decision\"), row.get(\"score\")))\n        # Relative, like transcript-miner.py's output and for the same reason: this\n        # lands in planner.md's Phase 0, whose output routinely ends up in a committed\n        # plan file. An absolute path there trips the secret self-scan.\n        brief_path = directory / _brief_name(str(row.get(\"slug\")))\n        try:\n            shown = os.path.relpath(str(brief_path), str(_project_root()))\n        except ValueError:\n            shown = brief_path.name\n        print(\"  brief:      %s\" % shown)\n        print(\"  session:    %s   prompt_version: %s\"\n              % (row.get(\"session_id\"), row.get(\"prompt_version\")))\n        print(\"  trail:      %s\" % \" -> \".join(row.get(\"trail\") or []))\n        print(\"  matched:    %s\" % \", \".join(hits))\n        for finding in (row.get(\"findings\") or [])[:3]:\n            print(\"    - %s\" % finding)\n    print(\"\")\n    print(\"These are PRIORS, not proofs: verify each against the current tree before \"\n          \"acting on it. A brief describes a plan that was rejected, not a rule.\")\n    return 0\n\n\n"
+        },
+        {
+          "find": "    d = sub.add_parser(\"diff\", help=\"Unified diff: approved snapshot -> current ops.json\")",
+          "add_before": "\n    rej = sub.add_parser(\"rejections\", help=\"Query the rejection-brief store\")\n    rej_sub = rej.add_subparsers(dest=\"rejections_command\", required=True)\n    rej_search = rej_sub.add_parser(\"search\", help=\"keyword retrieval over the briefs\")\n    rej_search.add_argument(\"query\", nargs=\"+\")\n    rej_search.add_argument(\"--limit\", type=int, default=5)\n    rej_search.set_defaults(func=cmd_rejections_search)\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/planner.md",
+      "description": "Step L.2 - mandatory Phase 0 rejections search (loop closure)",
+      "edits": [
+        {
+          "find": "Before any operation is written, state in one paragraph: the ownership/data model this change\nassumes, and the files that actually carry its value. If the value sits in files the model does\nnot cover, stop and say so — that is a design defect, and no amount of downstream review finds it\ncheaply. A plan that cannot answer this in a paragraph is not ready for a config.",
+          "add_after": "\n\n**Search the rejection briefs FIRST — mandatory, on every plan.** This project records why\nplans were rejected at `.claude/knowledge/rejections/`. Re-earning a rejection this repo has\nalready paid for is the single cheapest defect to avoid, and the briefs exist only because\nsomeone paid for it once.\n\n```\n1. Build the query: 3-6 distinctive keywords for this task (the ops slug you expect,\n   the files you will touch, the surface: security, migration, ownership, rollback).\n2. Search (pull-only — never auto-loaded into your context):\n     python3 .claude/operations/scripts/review-record.py rejections search \"<keywords>\"\n   Exit 0 = match(es) printed.  Exit 3 = nothing recorded -> continue to Phase 1.\n3. On a match, VALIDATE before trusting it — a brief is a PRIOR, not a proof:\n   - Does the finding still apply to the current tree? Read the files; do not trust prose.\n   - Was it a weak plan, a miscalibrated rubric, or an underspecified task? Only the first\n     is yours to fix in this plan.\n4. Validated match -> say so in the plan's Risk Assessment, name the brief, and state what\n   this plan does differently. Contradicted match -> say the brief is stale and continue.\n5. Silence is NOT evidence: no match means unknown, not \"this has never gone wrong\".\n```"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_rejection_briefs.py",
+      "description": "Step L.3 - spec test #6 plus the loop-closure corpus assertions",
+      "edits": [
+        {
+          "find": "    def test_output_is_bounded(self, tmp_path):\n        home = tmp_path / \"home\"\n        write_transcript(home, SESSION, \"demo\")\n        result = run_miner(tmp_path, home, SESSION, \"--around\", \"demo\", \"--max-lines\", \"3\")\n        assert len(result.stdout.splitlines()) <= 6",
+          "add_after": "\n\n\n# ---------------------------------------------------------------------------- closure\n\nPLANNER = AGENTS / \"planner.md\"\n\n\nclass TestRejectionsSearch:\n    \"\"\"Spec test #6 - the retrieval half. Exit codes are the contract: planner.md\n    branches on them exactly as debugger.md does for the issue ledger.\"\"\"\n\n    def test_no_match_exits_3(self, tmp_path):\n        make_tree(tmp_path)\n        result = run_record(tmp_path, \"rejections\", \"search\", \"nothing-like-this-exists\")\n        assert result.returncode == 3\n        assert \"Silence is NOT evidence\" in result.stdout\n\n    def test_hit_exits_0_and_names_the_brief(self, tmp_path):\n        reject_twice(tmp_path)\n        result = run_record(tmp_path, \"rejections\", \"search\", \"anchor\")\n        assert result.returncode == 0, result.stdout + result.stderr\n        assert \"demo\" in result.stdout\n        assert \"demo.md\" in result.stdout\n\n    def test_hit_reports_the_session_so_the_transcript_stays_reachable(self, tmp_path):\n        reject_twice(tmp_path)\n        result = run_record(tmp_path, \"rejections\", \"search\", \"anchor\")\n        assert SESSION in result.stdout\n\n    def test_results_are_framed_as_priors_not_rules(self, tmp_path):\n        reject_twice(tmp_path)\n        result = run_record(tmp_path, \"rejections\", \"search\", \"anchor\")\n        assert \"PRIORS, not proofs\" in result.stdout\n\n    def test_brief_path_is_printed_relative(self, tmp_path):\n        \"\"\"planner.md Phase 0 pastes this output into plan files that get committed.\"\"\"\n        reject_twice(tmp_path)\n        result = run_record(tmp_path, \"rejections\", \"search\", \"anchor\")\n        assert str(tmp_path) not in result.stdout\n        assert \".claude/knowledge/rejections/demo.md\" in result.stdout\n\n    def test_corrupt_index_does_not_crash_search(self, tmp_path):\n        reject_twice(tmp_path)\n        index = brief_dir(tmp_path) / \"INDEX.jsonl\"\n        index.write_text(\"}}broken\\n\" + index.read_text(encoding=\"utf-8\"), encoding=\"utf-8\")\n        result = run_record(tmp_path, \"rejections\", \"search\", \"anchor\")\n        assert result.returncode == 0\n        assert \"corrupt INDEX.jsonl line\" in result.stderr\n\n\nclass TestLoopIsClosed:\n    \"\"\"An archive nothing reads changes no behaviour. The planner's Phase 0 call is\n    what makes the store a feedback loop.\"\"\"\n\n    def test_planner_phase_0_searches_the_briefs(self):\n        text = PLANNER.read_text(encoding=\"utf-8\")\n        assert \"rejections search\" in text\n        assert \"Silence is NOT evidence\" in text\n\n    def test_planner_treats_a_brief_as_a_prior_not_a_proof(self):\n        text = PLANNER.read_text(encoding=\"utf-8\")\n        assert \"PRIOR, not a proof\" in text"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "description": "Step L.4 - single Unreleased entry for the whole feature",
+      "edits": [
+        {
+          "find": "## [Unreleased]\n\n### Fixed",
+          "replace": "## [Unreleased]\n\n### Added\n\n- **Rejection briefs: the review loop now keeps its own failures.** A plan could be\n  rejected repeatedly and the repo kept no durable record of why. Measured on the live\n  corpus: 80 review records, 80 APPROVED, 79 of 80 single-round — not because review\n  always passes, but because only the round that passed was ever written. Reviewer prompts\n  now emit the anchored verdict block on *every* round, rejections included\n  (`code-reviewer` gains one for the first time, with a fixed VERDICT→DECISION/SCORE\n  mapping that is a gate token, not a rubric). On the 2nd non-approving round for one ops\n  slug, `review-record.py write` writes a brief to `.claude/knowledge/rejections/` plus an\n  append-only `INDEX.jsonl` line, keyed by slug+round so a re-run never duplicates. Free\n  text passes through `reflection.py`'s `_safe_text`/`bounded_token`, so an absolute path\n  or a credential-shaped finding is digested rather than committed; the session id is\n  recorded raw and deliberately, because it is a local transcript filename and a hash would\n  make root-cause analysis impossible. Emission is **fail-soft by construction** — it runs\n  only after the verdict is on disk, cannot alter the return code, and every sub-failure\n  degrades with a note: a retro feature must never withhold an execution approval.\n- **`transcript-miner.py`** — deterministic slicer that reduces a tens-of-MB session\n  transcript to the verdict window, its run-up, and the tool failures around it. A script,\n  not an agent: raw transcripts never enter a context window, and a missing or pruned\n  transcript is exit 3 (normal), never an error.\n- **`/flow-retro` + the `flow-analyst` agent** — on-demand, ExpeL-shaped retrospective over\n  accumulated briefs: ODC classification, root cause across weak-plan / miscalibrated-rubric\n  / underspecified-task, then bounded ADD/EDIT/UPVOTE/DOWNVOTE proposals. It **proposes\n  only** and refuses to recommend shipping without an external anchor metric — the reviewer\n  score is another LLM, not an oracle. The ≥5-briefs/≥3-sessions gate is labelled in the\n  prompt as engineering judgement, not a cited result.\n- **`review-record.py rejections search`** and a mandatory `planner.md` Phase 0 call that\n  uses it, mirroring `debugger.md`'s issue-ledger step. Without the read side the briefs\n  would be an archive rather than a feedback loop.\n\n### Fixed"
+        }
+      ]
+    }
+  ]
+}

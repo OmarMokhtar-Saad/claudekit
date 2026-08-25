@@ -35,9 +35,9 @@ __version__ = _resolve_version()
 
 # BEGIN GENERATED:counts - owned by scripts/gen-docs.py; never hand-edit.
 # Regenerate with: python3 scripts/gen-docs.py
-EXPECTED_AGENTS = 21
-EXPECTED_COMMANDS = 55
-EXPECTED_SKILLS = 73
+EXPECTED_AGENTS = 22
+EXPECTED_COMMANDS = 56
+EXPECTED_SKILLS = 75
 # END GENERATED:counts
 
 # Colors
@@ -535,7 +535,7 @@ def cmd_doctor(args):
         scripts_dir = claude_dir / "operations" / "scripts"
         for script in ["validate-config-json.py", "execute-json-ops.py",
                        "extract-json-from-plan.py", "restore-backup.py", "shared.py",
-                       "review-record.py"]:
+                       "review-record.py", "transcript-miner.py"]:
             check(f"Script: {script}",
                   (scripts_dir / script).exists(),
                   f"Missing {scripts_dir / script}")

@@ -63,6 +63,10 @@
       "accountable_for": "Locating files and answering architecture questions, read-only.",
       "tier": "fast"
     },
+    "flow-analyst": {
+      "accountable_for": "Offline root-cause analysis of rejection briefs; proposes bounded, human-gated process fixes. Never applies them.",
+      "tier": "most-capable"
+    },
     "gitOps": {
       "accountable_for": "Branching, committing, pushing, and PR mechanics.",
       "tier": "fast"

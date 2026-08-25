@@ -1,0 +1,10 @@
+# Rejection briefs are TRACKED on purpose: they are the feedback loop's only durable
+# carrier, and an untracked brief dies with the machine that wrote it.
+#
+# This file is DOCUMENTATION, not a mechanism. Nothing here re-includes anything: no
+# ancestor rule currently ignores .claude/knowledge/, and if one ever did, git could not
+# re-include a path underneath an excluded DIRECTORY from here anyway -- the fix would
+# have to be an un-ignore of the directory itself, in the repo root .gitignore. The
+# negations below are kept only to state the intent at the place someone will look.
+!*.md
+!INDEX.jsonl

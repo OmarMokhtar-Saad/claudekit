@@ -279,6 +279,8 @@ REVIEW_MODEL=$([ -n "$DELTA_BLOCK" ] && echo sonnet || echo opus)
 review_output=$(echo "$REVIEWER_MSG" | claude -p --agent reviewer --model "$REVIEW_MODEL" --allowedTools "Read,Grep,Glob")
 echo "$review_output"
 # Record/refresh the verdict so the NEXT iteration diffs against this scored version.
+# UNCONDITIONAL: a REVISE/REJECTED round is recorded exactly like an APPROVED one, since
+# `rounds[]` is a verdict's only durable history. Recording one authorises nothing (exit 4).
 printf '%s' "$review_output" | python3 .claude/operations/scripts/review-record.py write "$PLAN_FILE" "$OPS_FILE" --from-review - || true
 ```
 

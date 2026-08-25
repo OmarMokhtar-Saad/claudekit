@@ -10,19 +10,30 @@ Usage:
   review-record.py resolve <plan.md>
   review-record.py write   <plan.md> <ops.json> --from-review <file|->
   review-record.py write   <plan.md> <ops.json> --score N --decision D
+  review-record.py write   ... [--session-id UUID]   (records a rejection brief)
+  review-record.py write   ... --only-non-approving   (records rejections only)
   review-record.py check   <plan.md> <ops.json>
   review-record.py diff    <plan.md> <ops.json>
+  review-record.py rejections search "<keywords>"
 
 Exit codes:
   0  success / ops.json matches an APPROVED record
   1  usage or I/O error
   2  DRIFT - ops.json changed since approval (blocking)
-  3  no approval record / could not resolve
+  3  no approval record / could not resolve (rejections search: no match)
   4  record exists and matches, but the verdict does not authorise execution
+  5  write refused: --only-non-approving given and the parsed verdict is an approval
 
 Verdict parsing lives here rather than in shell so it can be validated and tested:
 strict anchored patterns mean an echoed format template ('SCORE: <integer 0-100>')
 never parses as a real score.
+
+`write` also emits a rejection brief on the 2nd non-approving round for one ops slug
+(see the `rejections` section below). That emission is FAIL-SOFT by construction: it runs
+only after the record and snapshot are already on disk, it is wrapped so nothing inside it
+can change this command's return value, and every sub-failure has a defined non-fatal
+outcome. cmd_write is the write half of the execution-approval gate; a retro feature must
+never be able to withhold an approval.
 
 Zero third-party dependencies; Python 3.9+.
 """
@@ -30,9 +41,11 @@ Zero third-party dependencies; Python 3.9+.
 import argparse
 import difflib
 import hashlib
+import importlib.util
 import json
 import os
 import re
+import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -47,7 +60,8 @@ VALID_DECISIONS = ("APPROVED", "CONDITIONAL", "REVISE", "REJECTED")
 # passes, but because only the passing round survived. Rounds-to-clean and score
 # trajectory are exactly the signals that make review outcomes measurable, and
 # both were destroyed at write time.
-ROUND_KEYS = ("score", "decision", "findings", "recorded_utc", "ops_sha256")
+ROUND_KEYS = ("score", "decision", "findings", "recorded_utc", "ops_sha256",
+               "verdict_origin")
 # The review loop's documented ceiling is 3 rounds; 20 is far above any real run
 # while still bounding a pathological loop. Dropping is announced, never silent.
 MAX_ROUNDS = 20
@@ -62,6 +76,18 @@ _BLOCK_RE = re.compile(r"===\s*REVIEW\s*===(.*?)===\s*END\s+REVIEW\s*===", re.S)
 _SCORE_RE = re.compile(r"^SCORE:\s*(\d{1,3})\s*$", re.M)
 _DECISION_RE = re.compile(r"^DECISION:\s*(%s)\s*$" % "|".join(VALID_DECISIONS), re.M)
 _FINDING_RE = re.compile(r"^-\s*\[(CRITICAL|MAJOR|MINOR)\]\s*(.+)$", re.M)
+
+
+# The one decision --only-non-approving refuses to record. Keyed on the DECISION WORD
+# and not on the score: cmd_check authorises execution on `decision == "APPROVED"` plus a
+# threshold, so refusing every APPROVED regardless of score sits strictly on the
+# conservative side of that gate and needs no second opinion about numbers.
+#
+# CONDITIONAL is deliberately NOT here. cmd_check cannot authorise it (:395 requires the
+# literal "APPROVED"), so refusing it would protect nothing -- it would only discard a
+# genuinely non-approving round from the rejection corpus this feature exists to build.
+# The predicate means exactly one thing: "could this verdict authorise execution?"
+NON_RECORDABLE_DECISIONS = ("APPROVED",)
 
 
 def plan_slug(plan_path: str) -> str:
@@ -173,14 +199,24 @@ def load_ops_summary(ops_path: Path) -> dict:
         return {"operations": None, "edits": None}
 
 
-def _records_dir() -> Path:
-    """Nearest .claude/reports/reviews walking up from cwd, so `check` run from a
-    subdirectory does not silently report NO RECORD instead of an error."""
+def _project_root() -> Path:
+    """Nearest ancestor holding a .claude/ directory, walking up from cwd.
+
+    Extracted so the record store and the brief store resolve the root through ONE
+    function. Two copies of an ancestor walk drift the first time either changes, and a
+    brief written into a different tree than its record is worse than no brief.
+    """
     cur = Path.cwd()
     for candidate in (cur, *cur.parents):
         if (candidate / ".claude").is_dir():
-            return candidate / RECORDS_DIR
-    return RECORDS_DIR
+            return candidate
+    return cur
+
+
+def _records_dir() -> Path:
+    """Nearest .claude/reports/reviews walking up from cwd, so `check` run from a
+    subdirectory does not silently report NO RECORD instead of an error."""
+    return _project_root() / RECORDS_DIR
 
 
 def _safe_write(path: Path, text: str) -> bool:
@@ -195,6 +231,280 @@ def _safe_write(path: Path, text: str) -> bool:
             return False
     path.write_text(text, encoding="utf-8")
     return True
+
+
+# --------------------------------------------------------------------------- rejections
+#
+# A plan can be rejected repeatedly and, until this existed, the repo kept no durable
+# record of WHY. Measured on the live corpus: 80 records, 80 APPROVED, 79 of 80
+# single-round -- not because review always passes, but because only the round that
+# passed was ever written. The rejection signal was produced and discarded.
+#
+# EVERYTHING BELOW IS FAIL-SOFT BY CONSTRUCTION. cmd_write is the write half of the
+# execution-approval gate: /implement and execute-json-ops.py both read what it produces.
+# Three independent properties keep a retro feature from ever withholding an approval:
+#   ordering    -- emit_brief runs only AFTER the record and snapshot are on disk;
+#   containment -- its call site is wrapped, and nothing inside can change a return code;
+#   degradation -- every sub-failure has a defined non-fatal outcome (sanitizers missing
+#                  => brief skipped rather than written unsanitised; corrupt index line
+#                  => skipped with a note; no session id => "unknown"; no git =>
+#                  prompt_version "unknown"; symlink on the path => refuse and note).
+
+REJECTIONS_DIR = Path(".claude/knowledge/rejections")
+# Owner decision: trigger on the 2nd non-approving round for one ops slug. One rejection
+# is a plan being revised; two is a pattern worth a durable record.
+BRIEF_TRIGGER = 2
+# A session id is recorded RAW and deliberately: it is a local transcript filename
+# (~/.claude*/projects/<project>/<uuid>.jsonl), so a hash would be unresolvable and
+# root-cause analysis dies. It is a filename, not a credential -- but only if it looks
+# like one. Anything else is dropped rather than committed to a tracked file.
+_SESSION_ID_RE = re.compile(r"^[0-9a-fA-F-]{8,64}$")
+_GIT_SHA_RE = re.compile(r"^[0-9a-f]{7,40}$")
+MAX_BRIEF_FINDINGS = 20
+
+
+def is_rejecting(score, decision) -> bool:
+    """A round whose verdict did not authorise execution.
+
+    Deliberately the exact complement of cmd_check's gate rather than a second opinion,
+    so "rejection" means one thing in this file and the brief trigger can never disagree
+    with the gate about what happened.
+    """
+    return not (decision == "APPROVED"
+                and isinstance(score, int) and score >= APPROVAL_THRESHOLD)
+
+
+def _rejections_dir() -> Path:
+    return _project_root() / REJECTIONS_DIR
+
+
+def _sanitizers():
+    """bounded_token / _safe_text from .claude/hooks/reflection.py.
+
+    Imported by path (hooks/ is not a package) rather than reimplemented: there is ONE
+    answer in this repo to "is this text safe to commit", and a second copy would drift
+    from it silently. Returns None when unavailable -- in which case the brief is SKIPPED
+    entirely. Writing a brief unsanitised would be the one failure mode worse than not
+    writing one at all, because briefs are tracked files.
+    """
+    # Resolved from THIS script's own tree first, not from the analysed project's cwd:
+    # reflection.py ships beside this file in every install, whereas the tree being
+    # analysed may be any directory holding a .claude/. Getting that backwards silently
+    # disables brief emission wherever the two differ -- and a silently disabled retro
+    # feature is indistinguishable from a working one that never triggers.
+    here = Path(__file__).resolve()
+    candidates = []
+    if len(here.parents) >= 3:
+        candidates.append(here.parents[2] / "hooks" / "reflection.py")
+    candidates.append(_project_root() / ".claude" / "hooks" / "reflection.py")
+    path = next((c for c in candidates if c.is_file()), None)
+    if path is None:
+        return None
+    spec = importlib.util.spec_from_file_location("_ck_reflection_sanitizers", path)
+    if spec is None or spec.loader is None:
+        return None
+    module = importlib.util.module_from_spec(spec)
+    try:
+        # BaseException, not Exception, and deliberately: exec_module runs another
+        # file's module-level code inside the process that is gating an execution
+        # approval. A future top-level sys.exit() in reflection.py raises SystemExit,
+        # which is NOT an Exception subclass -- it would propagate through the call
+        # site's guard and make cmd_write exit non-zero AFTER the verdict is already on
+        # disk, so /review would report a recording failure that actually succeeded.
+        spec.loader.exec_module(module)
+    except BaseException:
+        return None
+    if not (hasattr(module, "_safe_text") and hasattr(module, "bounded_token")):
+        return None
+    return module
+
+
+def _digest(module, value) -> str:
+    """Render one finding safely for a TRACKED file.
+
+    _safe_text REJECTS unsafe text; bounded_token DIGESTS it. Both behaviours are wanted
+    here in that order: prefer the readable original, but an absolute path or a
+    credential-shaped token must never land verbatim -- and dropping the finding would
+    lose the very signal the brief exists to keep. So: validate, else digest.
+    """
+    try:
+        return module._safe_text("finding", value)
+    except Exception:
+        return module.bounded_token(value, "unreadable-finding")
+
+
+def _session_id(explicit=None) -> str:
+    """Explicit flag, then the env vars the hooks already agree on (dispatch.sh:185,
+    lib.sh:168), then "unknown". Never invented."""
+    raw = (explicit or os.environ.get("CLAUDE_SESSION_ID")
+           or os.environ.get("CLAUDEKIT_SESSION_ID") or "").strip()
+    return raw if _SESSION_ID_RE.match(raw) else "unknown"
+
+
+def _prompt_version() -> str:
+    """Which prompt corpus produced this rejection.
+
+    Without it an improvement cannot be attributed to a prompt edit at all -- the whole
+    loop reduces to anecdote. Short git HEAD of the tree holding the prompts; the literal
+    "unknown" when git is unavailable, never a guess.
+    """
+    try:
+        out = subprocess.run(["git", "rev-parse", "--short", "HEAD"],
+                             cwd=str(_project_root()), capture_output=True,
+                             text=True, timeout=5)
+    except Exception:
+        return "unknown"
+    value = out.stdout.strip()
+    if out.returncode != 0 or not _GIT_SHA_RE.match(value):
+        return "unknown"
+    return value
+
+
+def _index_rows(path: Path) -> list:
+    """Every parseable row of INDEX.jsonl, with corrupt lines announced and skipped.
+
+    A hand-edited, truncated or half-written index line must never be able to crash a
+    write that is gating execution -- and it must never vanish silently either, because
+    silent loss of history is how the corpus reached 80-of-80.
+    """
+    rows: list = []
+    if not path.is_file():
+        return rows
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError as e:
+        print("NOTE: rejection index unreadable (%s); treated as empty." % e,
+              file=sys.stderr)
+        return rows
+    for lineno, line in enumerate(text.splitlines(), 1):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            row = json.loads(line)
+        except ValueError:
+            print("NOTE: skipping corrupt INDEX.jsonl line %d" % lineno, file=sys.stderr)
+            continue
+        if isinstance(row, dict):
+            rows.append(row)
+        else:
+            print("NOTE: skipping non-object INDEX.jsonl line %d" % lineno,
+                  file=sys.stderr)
+    return rows
+
+
+def _brief_name(slug: str) -> str:
+    return (re.sub(r"[^A-Za-z0-9._-]", "_", slug).lstrip(".") or "_") + ".md"
+
+
+def _append_brief(path: Path, slug: str, row: dict) -> None:
+    """One appended markdown section per rejecting round.
+
+    The `<!-- round: N -->` marker is the idempotency key on the markdown side, mirroring
+    slug+round in the index, so re-running `write` for a round cannot duplicate a section.
+    """
+    marker = "<!-- round: %s -->" % row.get("round")
+    existing = path.read_text(encoding="utf-8") if path.is_file() else ""
+    if marker in existing:
+        return
+    if not existing:
+        existing = (
+            "# Rejection brief — `%s`\n\n"
+            "Append-only; one section per non-approving review round. The session id is a "
+            "local transcript filename (`transcript-miner.py <session-id> --around %s`), "
+            "never a credential. Absolute paths and session tokens never appear here.\n"
+            % (slug, slug)
+        )
+    parts = [
+        existing.rstrip("\n"), "", marker,
+        "## Round %s — %s (%s)" % (row.get("round"), row.get("decision"), row.get("score")),
+        "",
+        "- recorded: %s" % row.get("recorded_utc"),
+        "- session: %s" % row.get("session_id"),
+        "- prompt_version: %s" % row.get("prompt_version"),
+        "- trail: %s" % " -> ".join(row.get("trail") or []),
+        "- defect_type / trigger: (unclassified — assigned by /flow-retro or a human; a "
+        "guessed classification is worse than an absent one)",
+        "",
+    ]
+    if row.get("findings"):
+        parts.append("### Findings")
+        parts.extend("- %s" % item for item in row["findings"])
+        parts.append("")
+    parts.append("### 5-whys (a writing template, not a clustering method)")
+    parts.extend(["1. Why was this rejected? ", "2. Why? ", "3. Why? ", "4. Why? ",
+                  "5. Root cause: ", ""])
+    path.write_text("\n".join(parts) + "\n", encoding="utf-8")
+
+
+def emit_brief(slug: str, record: dict, rounds: list, session_id: str) -> None:
+    """Write/refresh the rejection brief for `slug`. Callers MUST wrap this (see the
+    section header): it is allowed to fail, never to propagate."""
+    # Trigger FIRST, sanitizers second. The order is load-bearing on a hot path: every
+    # APPROVED write goes through here too, and importing another module to decide
+    # nothing is pure cost -- worse, in a tree without reflection.py it would print a
+    # NOTE onto the approval path about a brief that was never going to be written.
+    history = list(rounds) + [{k: record.get(k) for k in ROUND_KEYS}]
+    rejecting = [r for r in history if is_rejecting(r.get("score"), r.get("decision"))]
+    # Both conditions matter: enough rejections to be a pattern, AND this round is one of
+    # them. A plan that was rejected twice and then approved does not get a third section.
+    if len(rejecting) < BRIEF_TRIGGER:
+        return
+    if not is_rejecting(record.get("score"), record.get("decision")):
+        return
+
+    module = _sanitizers()
+    if module is None:
+        print("NOTE: reflection.py sanitizers unavailable; rejection brief skipped "
+              "(briefs are tracked files and are never written unsanitised).",
+              file=sys.stderr)
+        return
+
+    directory = _rejections_dir()
+    for p in (directory, directory.parent, directory.parent.parent):
+        if p.is_symlink():
+            print("NOTE: refusing to write a brief through a symlink: %s" % p,
+                  file=sys.stderr)
+            return
+    directory.mkdir(parents=True, exist_ok=True)
+    index_path = directory / "INDEX.jsonl"
+    brief_path = directory / _brief_name(slug)
+    if brief_path.is_symlink() or index_path.is_symlink():
+        print("NOTE: refusing to write a brief through a symlink: %s" % directory,
+              file=sys.stderr)
+        return
+
+    round_no = record.get("round")
+    if any(r.get("slug") == slug and r.get("round") == round_no
+           for r in _index_rows(index_path)):
+        return  # already indexed: re-running `write` for one round is a no-op
+
+    row = {
+        "slug": slug,
+        "round": round_no,
+        "session_id": session_id,
+        "score": record.get("score"),
+        "decision": record.get("decision"),
+        "recorded_utc": record.get("recorded_utc"),
+        "trail": ["%s/%s" % (r.get("score"), r.get("decision")) for r in history],
+        "rejecting_rounds": len(rejecting),
+        # ODC's two orthogonal axes. Recorded EMPTY on purpose: cmd_write cannot classify
+        # a defect, and a wrong type label corrupts the distribution shift that is the
+        # whole process signal. /flow-retro or a human fills them.
+        "defect_type": "",
+        "trigger": "",
+        "prompt_version": _prompt_version(),
+        # Provenance of the number. A reviewer-judged 60 and a code-reviewer table-derived
+        # 60 are the same integer and mean nothing alike; without this field they are
+        # indistinguishable in the corpus and any score trend the analyst reads is an
+        # artefact of which agent happened to review.
+        "verdict_origin": record.get("verdict_origin", "rubric"),
+        "findings": [_digest(module, f) for f in
+                     (record.get("findings") or [])][:MAX_BRIEF_FINDINGS],
+    }
+    with open(index_path, "a", encoding="utf-8") as handle:
+        handle.write(json.dumps(row, ensure_ascii=False) + "\n")
+    _append_brief(brief_path, slug, row)
 
 
 def cmd_resolve(args) -> int:
@@ -240,6 +550,23 @@ def cmd_write(args) -> int:
             print(f"Error: invalid score/decision: {score} {decision}", file=sys.stderr)
             return 1
 
+    # ONE parser, ONE scope. Callers that may record only rejections -- /code-review,
+    # where an APPROVE would otherwise authorise execution of an ops.json that review
+    # never scored -- used to re-derive the decision in shell (sed/grep over the review
+    # text). That duplicate parse read a DIFFERENT BLOCK than parse_verdict on any input
+    # whose anchors differ in whitespace: `===\tREVIEW\t===` matches _BLOCK_RE's `\s*`
+    # but not a shell glob, so a two-block review handed the filter a REJECTED from the
+    # first block while this function wrote the APPROVED from the last one. Measured on
+    # the shipped snippet, not theorised. Patching the shell pattern only moves the
+    # mismatch to the next character class, so the decision is made HERE, from the same
+    # parse that gets written, and the shell keeps no verdict logic at all.
+    if getattr(args, "only_non_approving", False) and decision in NON_RECORDABLE_DECISIONS:
+        print("REFUSED: --only-non-approving, but the parsed verdict is %s (%s)."
+              % (decision, score), file=sys.stderr)
+        print("         Nothing recorded. On a review path that may only record "
+              "rejections this is the EXPECTED outcome, not a failure.", file=sys.stderr)
+        return 5
+
     slug = ops_slug(ops_path)
     rec_path, snap_path = record_paths(slug)
     rec_path.parent.mkdir(parents=True, exist_ok=True)
@@ -252,6 +579,11 @@ def cmd_write(args) -> int:
         "score": score,
         "decision": decision,
         "findings": findings,
+        # How this score was arrived at: "rubric" = a reviewer judged it against the
+        # 90-point rubric; "gate-token" = it was derived mechanically from a
+        # blocking-finding count (code-reviewer's mapping table), where the integer is a
+        # recording device and carries no quality judgement at all.
+        "verdict_origin": getattr(args, "verdict_origin", None) or "rubric",
         "recorded_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
     record.update(load_ops_summary(ops_path))
@@ -308,6 +640,24 @@ def cmd_write(args) -> int:
         return 1
     if not _safe_write(snap_path, ops_path.read_text(encoding="utf-8")):
         return 1
+
+    # The verdict is already durable at this point. NOTHING below may change what this
+    # function returns -- see the rejections section header. A bare `except Exception` is
+    # correct here rather than lax: the alternative is a retro feature that can withhold
+    # an execution approval, which is strictly worse than a missing brief. BaseException
+    # rather than Exception because this path imports and executes another module
+    # (reflection.py); a SystemExit raised there is not an Exception and would otherwise
+    # escape, failing a write that has already succeeded.
+    try:
+        emit_brief(slug, record, rounds, _session_id(getattr(args, "session_id", None)))
+    except BaseException as e:
+        print("WARNING: rejection brief not written (%s); the verdict IS recorded." % e,
+              file=sys.stderr)
+        # BaseException catches SystemExit, which is the point -- but it also catches
+        # KeyboardInterrupt, and silently ignoring Ctrl-C on the approval path would be
+        # its own defect. Warn, then let the operator's interrupt through.
+        if isinstance(e, KeyboardInterrupt):
+            raise
 
     gate = "authorises execution" if (
         decision == "APPROVED" and score >= APPROVAL_THRESHOLD) else \
@@ -489,6 +839,125 @@ def cmd_diff(args) -> int:
     return 0
 
 
+def cmd_rejections_search(args) -> int:
+    """Keyword retrieval over the rejection briefs.
+
+    Mirrors `knowledge-ledger.py search` deliberately -- same exit contract (0 = hit,
+    3 = no match), same "this is a prior, not a proof" close, same "silence is not
+    evidence" note -- so planner.md's Phase 0 reads identically for both stores and a
+    model cannot learn two different retrieval habits.
+
+    Without this subcommand and its caller the briefs are an archive, not a feedback
+    loop: writing history that nothing ever reads changes no behaviour at all.
+    """
+    query = " ".join(args.query).strip()
+    if not query:
+        print("rejections search: empty query", file=sys.stderr)
+        return 1
+    tokens = {t for t in re.findall(r"[a-z0-9_.-]{3,}", query.casefold())}
+    if not tokens:
+        print("rejections search: no searchable token in query", file=sys.stderr)
+        return 1
+
+    directory = _rejections_dir()
+    scored = []
+    for row in _index_rows(directory / "INDEX.jsonl"):
+        blob = json.dumps(row, ensure_ascii=False).casefold()
+        hits = sorted(t for t in tokens if t in blob)
+        if hits:
+            scored.append((len(hits), row, hits))
+
+    if not scored:
+        print("REJECTIONS: no match for %r." % query)
+        print("            Silence is NOT evidence: this means unknown, not "
+              "'never rejected for this'.")
+        return 3
+
+    scored.sort(key=lambda item: (-item[0], str(item[1].get("slug"))))
+    print("REJECTIONS: %d match(es) for %r" % (len(scored), query))
+    for _, row, hits in scored[:args.limit]:
+        print("")
+        print("  slug:       %s (round %s, %s %s)"
+              % (row.get("slug"), row.get("round"), row.get("decision"), row.get("score")))
+        # Relative, like transcript-miner.py's output and for the same reason: this
+        # lands in planner.md's Phase 0, whose output routinely ends up in a committed
+        # plan file. An absolute path there trips the secret self-scan.
+        brief_path = directory / _brief_name(str(row.get("slug")))
+        try:
+            shown = os.path.relpath(str(brief_path), str(_project_root()))
+        except ValueError:
+            shown = brief_path.name
+        print("  brief:      %s" % shown)
+        print("  session:    %s   prompt_version: %s"
+              % (row.get("session_id"), row.get("prompt_version")))
+        print("  trail:      %s" % " -> ".join(row.get("trail") or []))
+        print("  matched:    %s" % ", ".join(hits))
+        for finding in (row.get("findings") or [])[:3]:
+            print("    - %s" % finding)
+    print("")
+    print("These are PRIORS, not proofs: verify each against the current tree before "
+          "acting on it. A brief describes a plan that was rejected, not a rule.")
+    return 0
+
+
+def cmd_record_code_review(args) -> int:
+    """Record a code review's verdict against the ops.json behind the implementation.
+
+    Every line of this used to be bash inside /code-review -- which is why that command
+    ran 86 lines over its budget, and shell was the wrong home for it anyway: each skip
+    has to be ANNOUNCED (a silent skip is how this path stayed dead through three review
+    rounds), and the decision has to come from parse_verdict rather than a second reader.
+
+    Returns 0 for every normal outcome -- recorded, or deliberately not recorded. A code
+    review must not fail because there was nothing to record.
+    """
+    report = Path(args.report)
+    if not report.is_file() or report.stat().st_size == 0:
+        print("no review report at %s; nothing recorded (run Step 5b first)." % report,
+              file=sys.stderr)
+        return 0
+    plan = (args.plan or "").strip()
+    if not plan:
+        print("no plan found in .claude/plans/; nothing recorded.", file=sys.stderr)
+        return 0
+    ops_path = resolve_ops(plan)
+    if ops_path is None:
+        print("no ops.json resolved for %s; nothing recorded."
+              % os.path.basename(plan), file=sys.stderr)
+        return 0
+
+    # Say WHICH artifacts the defaults resolved to: the caller's `ls -t` picks the newest
+    # plan, and a mis-bind here would record a verdict against the wrong ops.json.
+    print("code-review verdict -> plan: %s" % os.path.basename(plan), file=sys.stderr)
+    print("code-review verdict -> ops:  %s" % os.path.basename(str(ops_path)),
+          file=sys.stderr)
+
+    code = cmd_write(argparse.Namespace(
+        plan=plan, ops=str(ops_path), from_review=str(report),
+        score=None, decision=None, session_id=None,
+        verdict_origin="gate-token", only_non_approving=True))
+    # 5 = the verdict was approving and was deliberately NOT recorded: the expected,
+    # quiet outcome of a passing review, never a warning.
+    if code not in (0, 5):
+        print("WARNING: code-review verdict not recorded (write exit %d)." % code,
+              file=sys.stderr)
+    return 0
+
+
+def cmd_rejections_stats(args) -> int:
+    """Corpus size for /flow-retro's sample-size gate.
+
+    Here rather than as a python heredoc inside the command: _index_rows already skips a
+    corrupt INDEX line with a note, and a second copy of that logic in shell is one more
+    place for the two readers to disagree.
+    """
+    rows = _index_rows(_rejections_dir() / "INDEX.jsonl")
+    sessions = {r.get("session_id") for r in rows} - {None, "", "unknown"}
+    print("briefs=%d slugs=%d sessions=%d"
+          % (len(rows), len({r.get("slug") for r in rows}), len(sessions)))
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Bind a review verdict to an ops.json")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -503,13 +972,39 @@ def main() -> int:
     w.add_argument("--from-review", help="File containing reviewer output, or '-' for stdin")
     w.add_argument("--score", type=int)
     w.add_argument("--decision", choices=VALID_DECISIONS)
+    w.add_argument("--session-id", dest="session_id", default=None,
+                   help="Session UUID for the rejection brief (default: $CLAUDE_SESSION_ID)")
+    w.add_argument("--verdict-origin", dest="verdict_origin",
+                   choices=("rubric", "gate-token"), default="rubric",
+                   help="How the score was arrived at: judged against the rubric, or "
+                        "derived from a blocking-finding count (code-reviewer)")
+    w.add_argument("--only-non-approving", dest="only_non_approving",
+                   action="store_true",
+                   help="Refuse to write an approving verdict (exit 5): for callers that "
+                        "may record rejections but must never authorise execution")
     w.set_defaults(func=cmd_write)
+
+    rcr = sub.add_parser("record-code-review",
+                         help="Record a code review's non-approving verdict "
+                              "(an approving one is never recorded)")
+    rcr.add_argument("--report", required=True, help="File holding the review verbatim")
+    rcr.add_argument("--plan", default="", help="Plan whose ops.json produced the code")
+    rcr.set_defaults(func=cmd_record_code_review)
 
     c = sub.add_parser("check", help="Verify ops.json matches an APPROVED record")
     c.add_argument("plan")
     c.add_argument("ops")
     c.set_defaults(func=cmd_check)
 
+
+    rej = sub.add_parser("rejections", help="Query the rejection-brief store")
+    rej_sub = rej.add_subparsers(dest="rejections_command", required=True)
+    rej_search = rej_sub.add_parser("search", help="keyword retrieval over the briefs")
+    rej_search.add_argument("query", nargs="+")
+    rej_search.add_argument("--limit", type=int, default=5)
+    rej_search.set_defaults(func=cmd_rejections_search)
+    rej_sub.add_parser("stats", help="corpus size for the retro sample-size gate"
+                       ).set_defaults(func=cmd_rejections_stats)
     d = sub.add_parser("diff", help="Unified diff: approved snapshot -> current ops.json")
     d.add_argument("plan")
     d.add_argument("ops")

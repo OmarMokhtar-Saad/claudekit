@@ -117,6 +117,8 @@ printf '%s' "$review_output" | \
    Skipping this step means `/implement`'s STEP 0 gate refuses with exit 3 (no record) —
    it fails closed, not silently.
 
+   **Record REJECTING rounds too — not optional.** Both write calls above are unconditional on purpose: REVISE, REJECTED and CONDITIONAL are recorded exactly like APPROVED (`rounds[]` is a verdict's only durable history), and recording a non-approving verdict authorises nothing — `check` still exits 4.
+
 3. After output, suggest:
    - If APPROVED (score ≥ 90): run `/implement`
    - If CONDITIONAL/REVISE: address issues and re-run `/plan` or `/refine`

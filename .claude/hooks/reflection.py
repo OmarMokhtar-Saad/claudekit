@@ -577,6 +577,52 @@ def _safe_text(name: str, value: Any, required: bool = True) -> str:
     return rendered
 
 
+# Vendor-shaped credential markers, and a THIRD disposition for the same knowledge.
+# _safe_text REJECTS a whole string; bounded_token DIGESTS one; a transcript slice needs
+# text that stays READABLE while carrying no secret. All three live here so this repo has
+# exactly ONE place that says what a secret looks like -- a second copy inside
+# transcript-miner.py would be two definitions that must stay in sync, which is the
+# failure mode this codebase has already paid for. Existing callers are untouched: every
+# name below is new.
+_VENDOR_SECRET = re.compile(
+    r"(?:sk-(?:ant-)?[A-Za-z0-9_-]{8,}|gh[pousr]_[A-Za-z0-9]{8,}"
+    r"|github_pat_[A-Za-z0-9_]{8,}|AKIA[0-9A-Z]{8,}|xox[abprs]-[A-Za-z0-9-]{8,})"
+)
+_BEARER = re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._~+/=-]{8,}")
+_PEM = re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----")
+_KEYED_VALUE = re.compile(
+    r"(?i)([\x22\x27]?[A-Za-z0-9_.-]*"
+    r"(?:token|secret|key|password|passwd|credential)[\x22\x27]?\s*[:=]\s*)"
+    r"([\x22\x27]?)([^\s\x22\x27,;]{4,})"
+)
+REDACTED = "<redacted>"
+
+
+def redact_secrets(text):
+    """Replace credential-shaped substrings in free text with <redacted>.
+
+    For output that must stay human-readable -- a transcript slice quoted into a TRACKED
+    retro report -- where rejecting or digesting the whole string would destroy the
+    evidence it exists to carry.
+
+    HONEST LIMIT (hard rule 6): shape heuristics, not proof of secret-freeness. A novel
+    token format with low entropy and no keyword still passes. A speed bump on the
+    highest-risk channel, not a sandbox.
+    """
+    if not text:
+        return text
+    text = _PEM.sub(REDACTED, text)
+    text = _VENDOR_SECRET.sub(REDACTED, text)
+    text = _BEARER.sub("Bearer " + REDACTED, text)
+    text = _KEYED_VALUE.sub(lambda m: m.group(1) + m.group(2) + REDACTED, text)
+    # Entropy pass: looks_like_credential unchanged, applied piece by piece so the
+    # surrounding prose survives.
+    return "".join(
+        REDACTED if piece and looks_like_credential(piece) else piece
+        for piece in re.split(r"(\s+)", text)
+    )
+
+
 def fingerprint_fields(
     phase: Any,
     target: Any,
