@@ -1,0 +1,16 @@
+{
+  "plan": "enhance-types2",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/fleet-enhance.py",
+      "description": "log.get returns Optional and collides with the earlier non-Optional binding",
+      "edits": [
+        {
+          "find": "        entry = log.get(p)\n        if not entry or not entry[\"modified\"]:\n            continue",
+          "replace": "        if p not in log or not log[p][\"modified\"]:\n            continue\n        entry = log[p]"
+        }
+      ]
+    }
+  ]
+}

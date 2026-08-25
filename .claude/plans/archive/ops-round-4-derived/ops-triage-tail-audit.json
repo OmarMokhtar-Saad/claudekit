@@ -1,0 +1,15 @@
+{
+  "plan": "triage-tail",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/command-log-audit.sh",
+      "edits": [
+        {
+          "find": "# Extract the command\nCMD=$(echo \"$TOOL_INPUT\" | python3 -c \"\nimport sys, json\ntry:\n    data = json.load(sys.stdin)\n    print(data.get('command', ''))\nexcept:\n    print('')\n\" 2>/dev/null)\n\n# Skip empty commands\n[ -z \"$CMD\" ] && exit 0",
+          "replace": "# Extract the command via lib.sh's shared extractor, which searches the top level AND\n# `tool_input` AND `input`.\n#\n# THE AUDIT LOG HAD NEVER RECORDED ANYTHING. This hook carried its own inline extractor\n# reading only `data.get('command')` at the TOP LEVEL, while a PostToolUse payload nests it\n# under `tool_input` -- so `CMD` was always empty and the `[ -z \"$CMD\" ] && exit 0` below\n# returned before the append, every single time. Empirical confirmation, which is what\n# turned this from a theory into a finding: after weeks of hook runs in this repo,\n# `.claude/hooks/bash-commands.log` DID NOT EXIST.\n#\n# That is why finding F55 (\"the audit trail lands in the wrong directory\") understated it:\n# a cwd-relative path is a real defect, and it was the second one. A hook whose whole job is\n# to record cannot be judged by whether it exits 0.\n[ -f \"$SCRIPT_DIR/lib.sh\" ] && . \"$SCRIPT_DIR/lib.sh\"\ncommand -v extract_json_field >/dev/null 2>&1 || extract_json_field() {\n    printf '%s' \"$1\" | HOOK_KEY=\"$2\" python3 -c '\nimport sys, json, os\nkey = os.environ[\"HOOK_KEY\"]\ntry:\n    d = json.load(sys.stdin)\nexcept Exception:\n    sys.exit(0)\nfor scope in (d, d.get(\"tool_input\", {}) if isinstance(d, dict) else {},\n              d.get(\"input\", {}) if isinstance(d, dict) else {}):\n    if isinstance(scope, dict) and scope.get(key):\n        print(scope[key]); break\n' 2>/dev/null\n}\n\nCMD=$(extract_json_field \"$TOOL_INPUT\" command)\n\n# Skip empty commands\n[ -z \"$CMD\" ] && exit 0"
+        }
+      ]
+    }
+  ]
+}

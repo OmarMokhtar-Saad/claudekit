@@ -1,0 +1,28 @@
+{
+  "plan": "enhance-types",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/fleet-enhance.py",
+      "description": "heterogeneous log values inferred as object; annotate the shape",
+      "edits": [
+        {
+          "find": "from datetime import datetime, timezone",
+          "replace": "from datetime import datetime, timezone\nfrom typing import Any, Dict, List, Optional, Tuple"
+        },
+        {
+          "find": "    files = kit_files()\n    log = {}",
+          "replace": "    files = kit_files()\n    # str -> {added: [str], updated: [str], modified: [(str, str)],\n    #         unchanged: int, manifest: bool}\n    log: Dict[str, Dict[str, Any]] = {}"
+        },
+        {
+          "find": "        manifest = None\n        if os.path.isfile(mpath):",
+          "replace": "        manifest: Optional[Dict[str, str]] = None\n        if os.path.isfile(mpath):"
+        },
+        {
+          "find": "        added, updated, modified, unchanged = [], [], [], 0",
+          "replace": "        added: List[str] = []\n        updated: List[str] = []\n        modified: List[Tuple[str, str]] = []\n        unchanged = 0"
+        }
+      ]
+    }
+  ]
+}

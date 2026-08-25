@@ -1,0 +1,15 @@
+{
+  "plan": "triage-tail",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_hook_log_delegation.py",
+      "edits": [
+        {
+          "find": "    stray = elsewhere / \".claude\" / \"hooks\" / \"bash-commands.log\"\n    assert not stray.exists(), \"the audit trail was written into the caller's cwd\"\n    trail = kit / \"bash-commands.log\"\n    if trail.exists():\n        assert \"audit-probe-marker\" in trail.read_text()",
+          "replace": "    # RECORDING FIRST, location second. The earlier version of this test asserted only\n    # that no stray file appeared in the cwd, and it passed against a hook that recorded\n    # NOTHING ANYWHERE -- the fifth vacuous assertion in this series. The hook had its own\n    # inline extractor reading `command` at the top level while the payload nests it under\n    # `tool_input`, so it returned before the append every time; `.claude/hooks/\n    # bash-commands.log` did not exist in this repo after weeks of hook runs.\n    trail = kit / \"bash-commands.log\"\n    assert trail.exists(), \"the audit hook recorded nothing at all\"\n    assert \"audit-probe-marker\" in trail.read_text(), (\n        \"the command never reached the audit trail -- check the payload extraction, not \"\n        \"the path\"\n    )\n    stray = elsewhere / \".claude\" / \"hooks\" / \"bash-commands.log\"\n    assert not stray.exists(), \"the audit trail was written into the caller's cwd\""
+        }
+      ]
+    }
+  ]
+}
