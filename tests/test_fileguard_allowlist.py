@@ -28,6 +28,7 @@ reachable only when the extension is in `cert|crt|pem|key|p12|pfx|pub`, and the
 `STILL_FLAGGED` block below pins one path per category so the same hole cannot reopen.
 """
 
+import re
 import subprocess
 from pathlib import Path
 
@@ -226,6 +227,116 @@ def test_a_secret_directory_crossed_with_every_category(directory, exemplar, cat
 def test_within_category_branch_shapes_survive_a_cert_chain(path):
     """Coverage measured per BRANCH SHAPE rather than per category."""
     assert classify(path) is not None, f"{path} was freed"
+
+# ---------------------------------------------------------------------------
+# THE DERIVED CORPUS. Five rounds of review found the same class five times --
+# `correction-narrower-than-the-predicate-it-corrects` -- and every round's corpus was
+# written around the hole just found, so it was blind to the next one BY CONSTRUCTION:
+#
+#   r1  the allowlist sat above all 13 category branches
+#   r2  it was gated on the file EXTENSION, which is not the CATEGORY
+#   r3  the strip removed ONE suffix while branch 8 matches a chain
+#   r4a the peel walked only chains made ENTIRELY of certificate extensions, so one
+#       interposed `.gz`/`.bak` -- a compressed or backed-up key -- re-opened r3's hole
+#   r4b the corpus was extended along r3's axis and not along r4's own change, so the
+#       differential gate certified this commit's own widening as clean
+#
+# More hand-picked examples cannot close that; the hand-picking IS the class. So the
+# lists below are EXTRACTED FROM THE GUARD AT TEST TIME and crossed. A correction that is
+# narrower than the predicate it corrects now fails in the round it is written, because
+# the cases come from the predicate rather than from the last bug.
+#
+# Read that as the load-bearing claim it is: if these extractions ever silently return
+# empty, the cross product collapses and this file goes quietly green. That is what
+# `test_the_extractions_are_not_empty` is for.
+# ---------------------------------------------------------------------------
+
+_GUARD_TEXT = GUARD.read_text()
+
+
+def _cert_extensions():
+    """Branch 8's extension set, read out of the guard.
+
+    Anchored to `echo "certificates"`, NOT to a `case` following the section comment. My
+    first version searched for the next `case` after `# 8. Certificates` and, because
+    `.S` lets `.*?` cross the branch entirely, matched the production-data DESCRIPTION
+    list (`sql|md|json|...|txt`) instead. 1,981 generated cases then asserted that
+    appending a non-certificate final extension keeps a category -- which is not the
+    invariant: branch 8 only fires when the LAST extension is a certificate one, so those
+    paths are clean before and after and there was nothing to catch. A derived corpus is
+    only as good as its derivation, and a wrong derivation manufactures defects as
+    confidently as a blind corpus hides them.
+    """
+    idx = _GUARD_TEXT.index('echo "certificates"')
+    window = _GUARD_TEXT[:idx]
+    match = re.findall(r"^\s*([a-z0-9|]+)\)\s*$", window, re.M)
+    assert match, "could not extract branch 8's extension set"
+    exts = [e for e in match[-1].split("|") if e]
+    assert "pem" in exts, f"extraction found the wrong case block: {exts}"
+    return exts
+
+
+def _secret_dirs():
+    """The veto's directory list, read out of public_material()."""
+    body = _GUARD_TEXT[_GUARD_TEXT.index("public_material() {"):]
+    block = body[:body.index("esac", body.index("*/k8s/*"))]
+    return sorted(set(re.findall(r"\*/([A-Za-z0-9._-]+)/\*", block)))
+
+
+def _test_components():
+    """The test-shaped path components the allowlist frees."""
+    body = _GUARD_TEXT[_GUARD_TEXT.index("public_material() {"):]
+    start = body.index("*/test/*")
+    return sorted(set(re.findall(r"\*/([A-Za-z0-9._/-]+)/\*", body[start:start + 400])))
+
+
+CERT_EXTS_FROM_GUARD = _cert_extensions()
+SECRET_DIRS_FROM_GUARD = _secret_dirs()
+TEST_DIRS_FROM_GUARD = _test_components()
+
+# Suffixes that are NOT certificate extensions but routinely wrap one. The r4 defect lived
+# entirely in this set: the peel loop stopped at the first of them.
+WRAPPER_EXTS = ["gz", "bak", "tar", "zip", "bz2", "xz", "enc", "b64", "old", "orig"]
+
+
+def test_the_extractions_are_not_empty():
+    """A derived corpus that derives nothing is the vacuity this whole file guards against."""
+    assert len(CERT_EXTS_FROM_GUARD) >= 6, CERT_EXTS_FROM_GUARD
+    assert "pem" in CERT_EXTS_FROM_GUARD and "key" in CERT_EXTS_FROM_GUARD
+    assert len(SECRET_DIRS_FROM_GUARD) >= 15, SECRET_DIRS_FROM_GUARD
+    assert "k8s" in SECRET_DIRS_FROM_GUARD and "secrets" in SECRET_DIRS_FROM_GUARD
+    assert len(TEST_DIRS_FROM_GUARD) >= 5, TEST_DIRS_FROM_GUARD
+
+
+def _derived_chain_cases():
+    """{category exemplar} x {test prefix} x {chain drawn from cert-exts U wrappers}."""
+    for exemplar, category in CATEGORY_EXEMPLARS:
+        for prefix in ("tests/", "fixtures/", "testdata/"):
+            for wrapper in WRAPPER_EXTS:
+                for cert in CERT_EXTS_FROM_GUARD:
+                    yield f"{prefix}{exemplar}.{wrapper}.{cert}", category
+
+
+@pytest.mark.parametrize("path,category", list(_derived_chain_cases()))
+def test_a_wrapped_secret_keeps_its_category(path, category):
+    """`tests/credentials.json.gz.key` is `tests/credentials.json.key` plus three
+    characters, and it was clean. Peeling must not stop at a non-certificate link."""
+    assert classify(path) is not None, f"{path} was freed by an interposed wrapper suffix"
+
+
+def _derived_veto_cases():
+    """{secret dir} x {both cases} x {freed basename} -- the axis r4b was blind to."""
+    for directory in SECRET_DIRS_FROM_GUARD:
+        for form in (directory, directory.upper()):
+            for name in ("example.pem", "sample.key", "dummy.crt", "test.pem"):
+                yield f"{form}/tests/fixtures/{name}"
+
+
+@pytest.mark.parametrize("path", list(_derived_veto_cases()))
+def test_a_secret_directory_beats_every_name_assertion(path):
+    """`secrets/example.key` was clean: an author's filename prefix outranked the veto.
+    Also covers case, since the veto was case-sensitive on a case-insensitive filesystem."""
+    assert classify(path) is not None, f"{path} was freed inside a secret directory"
 
 def test_the_allowlist_is_applied_to_the_classification_not_ahead_of_it():
     """Structure is the mechanism, and the structure changed twice for the same reason.

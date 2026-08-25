@@ -77,6 +77,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`file-guard`: a compressed or backed-up key is no longer freed.** The suffix walk added
+  in the previous release peeled only chains made *entirely* of certificate extensions, and
+  branch 8 matches the last element of a chain regardless of what precedes it — so one
+  interposed `.gz`/`.bak`/`.tar`/`.zip` stopped the walk before it reached the real category.
+  Measured: 100 of 360 generated cases freed, including `tests/credentials.json.gz.key`,
+  `tests/id_rsa.tar.pem` and `tests/passwd.bak.crt`. It now peels any suffix, which is safe by
+  construction — classifying a shorter stem can add a flag but never remove one.
+- **`file-guard`: `example.*`/`sample.*`/`dummy.*` no longer outrank a secrets directory.**
+  Hoisting them above the veto freed `secrets/example.key`, `vault/sample.pem`,
+  `keys/dummy.key`, `.aws/example.pem` and `.gnupg/sample.key`. Only names asserting a
+  cryptographic *role* — `public.*`, CA bundles — are public wherever they live; a
+  `example.`/`sample.`/`dummy.` prefix asserts an author's intent, which is the class of claim
+  the veto exists to distrust.
+- **`file-guard`: the secrets-directory veto is case-insensitive.** It was case-sensitive, so
+  `K8s/tests/tls.key` — the canonical case it was written for — was freed by one capital
+  letter, along with `SECRETS/`, `PII/`, `Production/` and `.SSH/`. On a case-insensitive
+  filesystem those are the same directories as their lowercase forms.
+- **`command-log-audit` had never recorded anything.** It carried its own payload extractor
+  reading `command` at the top level, while the hook payload nests it under `tool_input` — so
+  the command was always empty and the hook returned before writing, every time. Confirmed
+  empirically: `.claude/hooks/bash-commands.log` did not exist after weeks of hook runs. It now
+  uses the shared extractor, and writes beside the hook rather than to a cwd-relative path.
+- **`cost-tracker` no longer claims to estimate costs, and writes where it should.** It counts
+  lines in the hook log and has no access to tokens or prices; the header says so. Its two
+  record paths were cwd-relative.
+
+### Changed
+
+- **The file-guard test corpus now derives itself from the guard.** Five review rounds found the
+  same class five times — a correction narrower than the predicate it corrects — and each round's
+  hand-written corpus was blind to the next occurrence by construction. The test now extracts
+  branch 8's extension set, the veto's directory list and the test-component list out of
+  `file-guard.sh` at test time and crosses them with category exemplars and wrapper suffixes
+  (3,566 cases), so a too-narrow correction fails in the round it is written rather than in the
+  next review.
+
 - **`file-guard`: chained certificate extensions no longer free a secret.** Branch 8 matches
   the *last* element of an arbitrarily long extension chain, and the previous repair stripped
   exactly one — so `tests/credentials.json.pem.key`, `tests/passwd.pem.key`,
