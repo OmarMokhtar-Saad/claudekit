@@ -93,6 +93,8 @@ class ModelPolicyIsTheSourceOfTruth(unittest.TestCase):
     SHIPPED_MODELS = {
         "code-reviewer": "opus", "debugger": "opus", "planner": "opus",
         "security-scanner": "opus",
+        # flow-analyst: root-cause work over rejection briefs, most-capable tier.
+        "flow-analyst": "opus",
         "build-error-resolver": "sonnet",
         "coordinator": "sonnet", "database-architect": "sonnet", "devops": "sonnet",
         "loop-operator": "sonnet",

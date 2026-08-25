@@ -63,6 +63,13 @@ assumes, and the files that actually carry its value. If the value sits in files
 not cover, stop and say so — that is a design defect, and no amount of downstream review finds it
 cheaply. A plan that cannot answer this in a paragraph is not ready for a config.
 
+**Phase 0 also runs a mandatory rejection-brief search, on every plan:**
+`python3 .claude/operations/scripts/review-record.py rejections search "<3-6 keywords>"`
+(exit 0 = matches, exit 3 = none recorded, continue). A brief is a PRIOR, not a proof:
+re-read the files, name a validated match in the Risk Assessment with what this plan does
+differently, and treat a miss as unknown — Silence is NOT evidence. How to read a hit:
+`.claude/knowledge/rejections/README.md`.
+
 ### Phase 1: Discovery
 
 Explore the codebase to understand the current state before planning anything.

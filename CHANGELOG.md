@@ -12,6 +12,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`java-review-checklist` and `kotlin-review-checklist`** — the per-language review
+  checklists `code-reviewer` loads by file extension existed for Python and TypeScript
+  only, while 9 of the 17 kitted fleet projects are Java/Maven or Kotlin/Gradle, so a
+  reviewer reading a `.java` or `.kt` diff had nothing to load. Both mirror the sibling
+  checklists' shape — seven dimensions with contrasting Bad/Good pairs, `## Automated
+  Checks`, `## Report Format` — and both **detect the toolchain instead of assuming it**:
+  SpotBugs/PMD/Checkstyle and detekt/ktlint are invoked only when the project's build file
+  declares them, because invoking a plugin that is not configured produces a failure the
+  reviewer then has to explain away. Java covers Optional misuse, the equals/hashCode and
+  Comparable contracts, swallowed `InterruptedException`, double-checked locking without
+  `volatile`, XXE-unsafe factories and `ObjectInputStream`; Kotlin covers `!!` and platform
+  types, `GlobalScope`/`runBlocking`, and the classic `catch (e: Exception)` that swallows
+  `CancellationException`. `code-reviewer` routes all four languages.
+
+- **Rejection briefs: the review loop now keeps its own failures.** A plan could be
+  rejected repeatedly and the repo kept no durable record of why. Measured on the live
+  corpus: 80 review records, 80 APPROVED, 79 of 80 single-round — not because review
+  always passes, but because only the round that passed was ever written. Reviewer prompts
+  now emit the anchored verdict block on *every* round, rejections included
+  (`code-reviewer` gains one for the first time, with a fixed VERDICT→DECISION/SCORE
+  mapping that is a gate token, not a rubric). On the 2nd non-approving round for one ops
+  slug, `review-record.py write` writes a brief to `.claude/knowledge/rejections/` plus an
+  append-only `INDEX.jsonl` line, keyed by slug+round so a re-run never duplicates. Free
+  text passes through `reflection.py`'s `_safe_text`/`bounded_token`, so an absolute path
+  or a credential-shaped finding is digested rather than committed; the session id is
+  recorded raw and deliberately, because it is a local transcript filename and a hash would
+  make root-cause analysis impossible. Emission is **fail-soft by construction** — it runs
+  only after the verdict is on disk, cannot alter the return code, and every sub-failure
+  degrades with a note: a retro feature must never withhold an execution approval.
+- **`transcript-miner.py`** — deterministic slicer that reduces a tens-of-MB session
+  transcript to the verdict window, its run-up, and the tool failures around it. A script,
+  not an agent: raw transcripts never enter a context window, and a missing or pruned
+  transcript is exit 3 (normal), never an error.
+- **`/flow-retro` + the `flow-analyst` agent** — on-demand, ExpeL-shaped retrospective over
+  accumulated briefs: ODC classification, root cause across weak-plan / miscalibrated-rubric
+  / underspecified-task, then bounded ADD/EDIT/UPVOTE/DOWNVOTE proposals. It **proposes
+  only** and refuses to recommend shipping without an external anchor metric — the reviewer
+  score is another LLM, not an oracle. The ≥5-briefs/≥3-sessions gate is labelled in the
+  prompt as engineering judgement, not a cited result.
+- **`review-record.py rejections search`** and a mandatory `planner.md` Phase 0 call that
+  uses it, mirroring `debugger.md`'s issue-ledger step. Without the read side the briefs
+  would be an archive rather than a feedback loop.
+
 ### Fixed
 
 - **Session context is scanned before it reaches the transcript.** `session-start.sh` printed
@@ -143,6 +188,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   parses and is wrong.
 
 ### Changed
+
+- **Three skills that existed but did not do their job.** `using-superpowers` routed
+  "Review this code" at `receiving-code-review`/`requesting-code-review` — PR etiquette, not
+  review — instead of the `code-reviewer` agent plus the per-language checklist, and told the
+  model "there is no penalty for invoking a skill that turns out to be irrelevant", which
+  contradicts `context-budget`, the skill that exists because loading is exactly what costs.
+  Both corrected; the etiquette skills keep the case they actually cover.
+  `mcp-integration` documented Sequential Thinking, Playwright, Memory and Filesystem —
+  none of which are connected here — and is now built around **measuring the roster**
+  (`claude mcp list`, `/mcp`, `ToolSearch`) rather than reciting one, with context7 aligned
+  to the Token & Model Policy (the main agent calls it directly; delegating to
+  `web-researcher`, which has no MCP access, spends a web search for nothing). It shrank
+  6575 → 5636 bytes and a test holds it there.
+  `security-checklist` had **zero commands**: every risk section said "what to look for" and
+  then named no pattern. Each of its nine sections now carries a `# Detect` block, and a
+  closing Escalation table hands off to `differential-security-review`, `insecure-defaults`,
+  `supply-chain-audit`, `prompt-injection-defense` and the per-language checklists. The
+  patterns are framed as what they are: a denylist speed bump, not a sandbox — a clean grep
+  is not evidence of absence.
 
 - **`format-typecheck.sh`, `security-reminder.sh` and `session-start.sh` now log beside
   the hook instead of relative to the caller's directory.** All three set

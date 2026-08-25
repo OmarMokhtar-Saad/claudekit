@@ -92,34 +92,34 @@ If --severity all:      show all findings (default)
 ### Step 5: Present Report
 
 ```
-CODE REVIEW REPORT
-==================
-Target: <files/PR>
-Severity filter: <all|high|critical>
-Files reviewed: N | Lines reviewed: N
-
+CODE REVIEW REPORT — Target: <files/PR> | Severity: <all|high|critical> | Files: N
 VERDICT: [APPROVE | APPROVE WITH SUGGESTIONS | REQUEST CHANGES | BLOCK]
-
 Summary: Critical: N | High: N | Medium: N | Low: N
+CRITICAL / HIGH / MEDIUM / LOW, most severe first:
+  [C1] <finding>  File: <path:line>  Fix: <specific fix>
+Positive observations: <what the change got right>
+```
 
-CRITICAL — Block merge
-  [C1] SQL injection in user search
-       File: src/api/users.ts:87
-       Fix: Use parameterized query
+### Step 5b: Save the report VERBATIM (Step 5c reads this file)
 
-HIGH — Fix before merge
-  [H1] Missing auth check on /admin route
-       File: src/api/admin.ts:23
+```bash
+REVIEW_OUT="${REVIEW_OUT:-.claude/reports/last-code-review.txt}"
+mkdir -p "$(dirname "$REVIEW_OUT")"
+cat > "$REVIEW_OUT" <<'CODE_REVIEW_REPORT'
+REPLACE THIS LINE WITH THE REPORT ABOVE, VERBATIM, INCLUDING ITS VERDICT BLOCK
+CODE_REVIEW_REPORT
+```
+### Step 5c: Record a NON-APPROVING verdict
 
-MEDIUM — Fix this sprint
-  ...
+**Only rejections are recorded**, and `--only-non-approving` enforces it: an APPROVE from a *diff* review must never authorise execution of an ops.json it never scored.
+This step derives no verdict of its own — one parser owns that. `REVIEW_OUT` is Step 5b's file; `PLAN_FILE` is the plan whose ops.json produced the code (newest plan by default, as in `/review`). Skip it for a `CANNOT REVIEW` round; skips are announced, never silent.
+Contract: `.claude/knowledge/rejections/README.md`.
 
-LOW — Fix when convenient
-  ...
-
-Positive observations:
-  - Good error handling in payment module
-  - Consistent use of Result<T,E> pattern
+```bash
+REVIEW_OUT="${REVIEW_OUT:-.claude/reports/last-code-review.txt}"
+PLAN_FILE="${PLAN_FILE:-$(ls -t .claude/plans/plan-*.md 2>/dev/null | head -1)}"
+python3 .claude/operations/scripts/review-record.py record-code-review \
+  --report "$REVIEW_OUT" --plan "$PLAN_FILE"
 ```
 
 ---
