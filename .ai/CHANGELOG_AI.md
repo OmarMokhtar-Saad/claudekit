@@ -1,6 +1,51 @@
 # AI Session Changelog
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
+## 2026-08-25 (second period) — Phase B: the fleet sync, and the guard the plan did not have
+
+12 kitted repos received Phase A. 20 skill directories copied, 20 files edited, 36
+superseded directories deleted, everything left **uncommitted** in every downstream repo.
+Report: `.claude/reports/fleet-sync-2026-08-25.md`. Tooling:
+`.claude/operations/scripts/fleet-sync.py` — the thing BACKLOG §9 said did not exist.
+
+**The finding: the approved dedupe would have broken 84 files.** B3 was approved for six
+superseded skills, guarded on *local customisation*. That guard passed — all six are
+byte-identical fleet-wide. It is the wrong guard. Three of the six are named in 84 real
+`## Skill Loading` directives (`coordinator.md`, `devops.md`, `security-scanner.md`,
+`gan-build.md`, `loop-start.md`, `prp-implement.md`), and downstream registries have no
+`renamed` alias map to resolve a name whose directory is gone. Deleted the three nothing
+references; **held** `session-continuity`, `dependency-audit`, `verification-loop`.
+Closing it needs 48 renames + 36 line *removals* (those files already name the successor,
+so renaming would make them load it twice), or a downstream alias map. Owner's call.
+
+**The plan's stack matrix was wrong in three places**, and it mattered — AppiumLens would
+have received a Kotlin checklist for a 2054-file Java codebase. The "~34 `.py`" that made
+every Java project look dual-stack was ClaudeKit's own `operations/scripts/` plus
+`.claude.bak-*` copies. Census now measures tracked files with `.claude/` excluded.
+
+**Three bugs, all found by running rather than reading.**
+
+1. **The peer survey cached directory PATHS.** The real run deleted the modal copy while
+   processing project 1, then crashed comparing project 2 against a directory that no
+   longer existed. It had passed every dry run, because a dry run deletes nothing. Now it
+   snapshots modal *content* up front — a snapshot cannot be invalidated by the deletes
+   it exists to authorise. Recovery was surgical: ApiForge's three directories restored
+   from a byte-identical peer, verified by digest, and NOT via `git checkout -- .claude/`
+   — every one of these repos carries pre-existing uncommitted work that would have
+   destroyed.
+2. **The registry update was gated on `L["added"]`** — on what *this run* copied. AppiumLens's
+   skills had landed in the crashed partial run, so the re-run skipped the copy as
+   "already present" and skipped the registry rows with it, leaving a registry naming
+   none of its three new skills. Reconciliation is state-based now: what is on disk, not
+   what this run happened to do.
+3. **zsh does not word-split unquoted variables.** Two survey loops silently reported
+   `0/6 duplicates` and `no checklists anywhere` for the entire fleet. Both were false.
+   Caught only because the claim contradicted a plain `ls`. Surveys moved to Python.
+
+The lesson common to 1 and 2: **a dry run cannot exercise a code path whose precondition
+is a completed mutation.** Both bugs live in exactly that gap, and it is the same gap the
+rejection-retro loop's four rounds kept finding.
+
 ## 2026-08-25 — the JVM half of per-language review, and three skills that did not do their job
 
 **Phase A of `plan-fleet-skill-enhancement.md`.** Phases B (fleet distribution) and C/D
