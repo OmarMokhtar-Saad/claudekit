@@ -155,14 +155,21 @@ def refreeze(root, manifest):
                 return 4
             digest = sha256_of(path)
             if digest != fixture.get(sha_key):
-                changed.append((fixture.get("id"), fixture.get(key)))
+                changed.append((fixture.get("id"), fixture.get(key),
+                               fixture.get(sha_key), digest))
                 fixture[sha_key] = digest
     path = os.path.join(root, MANIFEST)
     with open(path, "w", encoding="utf-8") as handle:
         json.dump(manifest, handle, indent=2, ensure_ascii=False)
         handle.write("\n")
-    for fid, key in changed:
+    for fid, key, old, new in changed:
+        # The hashes are the whole audit trail. "RE-FROZE <id> <key>" proves only that
+        # something moved; old -> new is what lets a reader check WHICH content was
+        # re-pinned against the diff the commit is required to carry. Without them the
+        # command's own justification is unverifiable, which is exactly the misuse the
+        # warning below cautions against.
         print("RE-FROZE %-34s %s" % (fid, key))
+        print("         %s -> %s" % (str(old)[:16], str(new)[:16]))
     print("")
     print("%d artifact(s) re-frozen." % len(changed))
     if changed:

@@ -69,6 +69,31 @@ class TestTheSetIsActuallyFrozen:
         assert out.returncode == 4 and "MISSING" in out.stdout
 
 
+class TestOneShapeDefinitionNotTwo:
+    """The writer and the reader must agree on what a session id looks like.
+
+    They are two literals in two files. A round-2 review accepted that as bounded --
+    the reader POISONS an unrecognised shape to "unknown" rather than resolving a wrong
+    id -- but bounded is not the same as pinned. If the READER is ever widened without
+    the writer, ids the writer refuses to record become resolvable again, which is the
+    exact asymmetry that produced the original defect. A weaker test asserting only that
+    each pattern compiles would not catch a one-character divergence.
+    """
+
+    def test_the_writer_and_the_reader_share_one_session_id_shape(self):
+        import re as _re
+        writer = (REPO / ".claude/hooks/reflection.py").read_text(encoding="utf-8")
+        reader = (REPO / ".claude/operations/scripts/review-record.py").read_text(
+            encoding="utf-8")
+        w = _re.search(r'SESSION_ID_SHAPE = re\.compile\((r"[^"]+")\)', writer)
+        r = _re.search(r'_SESSION_ID_RE = re\.compile\((r"[^"]+")\)', reader)
+        assert w, "reflection.py no longer defines SESSION_ID_SHAPE"
+        assert r, "review-record.py no longer defines _SESSION_ID_RE"
+        assert w.group(1) == r.group(1), (
+            "session-id shape drifted between writer and reader: %s vs %s"
+            " -- widen both or neither" % (w.group(1), r.group(1)))
+
+
 class TestScoringAReplay:
     def _results(self, tmp_path, overrides=None, drop=()):
         data = manifest()
