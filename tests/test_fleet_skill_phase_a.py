@@ -475,6 +475,75 @@ class TestDifferentialSecurityReviewCarriesItsAttribution:
         assert size <= 7948 + 1536, (size, "re-baseline this cap if the growth is intended")
 
 
+class TestTheThirdPartyNoticeStaysHonest:
+    """The notice claims one-place legibility for the distribution's provenance. It
+    shipped its first draft missing `token-optimization`, which carries a full MIT
+    attribution with an upstream copyright line -- found by a reviewer grepping the
+    corpus, which is exactly the check that should not depend on someone thinking to
+    run it."""
+
+    NOTICE = os.path.join(ROOT, "THIRD-PARTY-LICENSES.md")
+    # Prose that merely contains a trigger word. Each is declared, not pattern-matched,
+    # so a NEW file with a real claim cannot hide behind a loose exclusion.
+    NO_PROVENANCE = {"property-based-testing", "search-first"}
+
+    def _claimants(self):
+        """Skills whose body asserts an upstream source."""
+        import re
+        pat = re.compile(r"adapted from|CC BY-SA|reimplement(ed|ation) from|"
+                         r"MIT License, Copyright", re.I)
+        out = set()
+        for d in sorted(os.listdir(SKILLS)):
+            f = os.path.join(SKILLS, d, "SKILL.md")
+            if os.path.isfile(f) and pat.search(open(f, encoding="utf-8").read()):
+                out.add(d)
+        return out - self.NO_PROVENANCE
+
+    def test_the_notice_exists_and_ships(self):
+        assert os.path.isfile(self.NOTICE)
+        manifest = open(os.path.join(ROOT, "MANIFEST.in"), encoding="utf-8").read()
+        assert "include THIRD-PARTY-LICENSES.md" in manifest, (
+            "the notice describes the distribution but would not be in it")
+        pyproject = open(os.path.join(ROOT, "pyproject.toml"), encoding="utf-8").read()
+        assert "THIRD-PARTY-LICENSES.md" in pyproject, "not in license-files"
+
+    def test_every_attributed_skill_has_a_row(self):
+        notice = open(self.NOTICE, encoding="utf-8").read()
+        missing = [s for s in self._claimants() if s not in notice]
+        assert not missing, (
+            "these skills assert an upstream source but are absent from "
+            "THIRD-PARTY-LICENSES.md: %s" % sorted(missing))
+
+    def test_the_declared_exclusions_really_have_no_claim(self):
+        """An exclusion list rots into a hiding place unless it is checked. If one of
+        these ever gains a real attribution, this fails rather than silently skipping."""
+        import re
+        real = re.compile(r"adapted from|CC BY-SA|MIT License, Copyright", re.I)
+        for d in self.NO_PROVENANCE:
+            f = os.path.join(SKILLS, d, "SKILL.md")
+            if not os.path.isfile(f):
+                continue
+            body = open(f, encoding="utf-8").read()
+            assert not real.search(body), (
+                "%s is excluded as prose-only but now carries a real attribution" % d)
+
+    def test_license_is_byte_exact(self):
+        """Prose in LICENSE drops automated MIT detection (licensee/ScanCode dice-match
+        the body against the template) below threshold -- which would make the
+        distribution's licensing LESS legible, the opposite of the notice's purpose.
+        The pointer lives in README instead."""
+        import subprocess
+        head = subprocess.run(["git", "show", "HEAD:LICENSE"], cwd=ROOT,
+                              capture_output=True, text=True)
+        if head.returncode == 0:
+            assert head.stdout == open(os.path.join(ROOT, "LICENSE"),
+                                       encoding="utf-8").read()
+        readme = open(os.path.join(ROOT, "README.md"), encoding="utf-8").read()
+        assert "THIRD-PARTY-LICENSES.md" in readme
+        assert "No restrictions." not in readme, (
+            "false once a share-alike file ships in the distribution")
+
+
 class TestTheAlwaysOnFloorDidNotRegress:
     def test_the_skill_description_row_is_within_budget(self):
         """Two new descriptions land in this row. It had ~1066 bytes of headroom."""

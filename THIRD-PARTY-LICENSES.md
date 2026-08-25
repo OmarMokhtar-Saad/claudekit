@@ -11,9 +11,18 @@ package. They are listed here so the distribution's licensing is legible from on
 | File | Upstream | Terms |
 |---|---|---|
 | `.claude/skills/differential-security-review/SKILL.md` | [`trailofbits/skills`](https://github.com/trailofbits/skills) | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) |
+| `.claude/skills/writing-skills/SKILL.md` (Authoring Conventions subsection only) | [`trailofbits/skills`](https://github.com/trailofbits/skills) | conventions only — see note |
 
 The risk-first prioritisation, size-adaptive depth and attack-scenario evidence rule in that
 file are adapted from Trail of Bits' skills corpus, which makes the file a derivative work.
+
+`writing-skills`' "Authoring Conventions" subsection adapts the same corpus's *conventions*
+(body-length budget, `references/` overflow, situational triggers, capability gating) rather
+than its text. Facts and methods are not themselves copyrightable, so that file is **not**
+treated as a derivative and stays MIT — it is listed here anyway, because a reader checking
+provenance should find every attributed file in one place, and because the judgement that it
+is conventions-not-text should be written down where it can be challenged rather than left
+implicit.
 Share-alike applies **to that file**: redistribute it, or a modified version of it, under
 CC BY-SA 4.0 and keep its attribution block intact. The rest of the skill's content predates
 the adaptation and the attribution block marks what is derivative.

@@ -1,0 +1,31 @@
+{
+  "plan": "notice-honesty",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "THIRD-PARTY-LICENSES.md",
+      "description": "writing-skills now carries an attribution block; the notice's own rule requires a row",
+      "edits": [
+        {
+          "find": "| `.claude/skills/differential-security-review/SKILL.md` | [`trailofbits/skills`](https://github.com/trailofbits/skills) | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) |",
+          "add_after": "\n| `.claude/skills/writing-skills/SKILL.md` (Authoring Conventions subsection only) | [`trailofbits/skills`](https://github.com/trailofbits/skills) | conventions only — see note |"
+        },
+        {
+          "find": "The risk-first prioritisation, size-adaptive depth and attack-scenario evidence rule in that\nfile are adapted from Trail of Bits' skills corpus, which makes the file a derivative work.",
+          "add_after": "\n\n`writing-skills`' \"Authoring Conventions\" subsection adapts the same corpus's *conventions*\n(body-length budget, `references/` overflow, situational triggers, capability gating) rather\nthan its text. Facts and methods are not themselves copyrightable, so that file is **not**\ntreated as a derivative and stays MIT — it is listed here anyway, because a reader checking\nprovenance should find every attributed file in one place, and because the judgement that it\nis conventions-not-text should be written down where it can be challenged rather than left\nimplicit."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_fleet_skill_phase_a.py",
+      "description": "the notice was missing token-optimization until a reviewer grepped for it; make that mechanical",
+      "edits": [
+        {
+          "find": "class TestTheAlwaysOnFloorDidNotRegress:",
+          "add_before": "class TestTheThirdPartyNoticeStaysHonest:\n    \"\"\"The notice claims one-place legibility for the distribution's provenance. It\n    shipped its first draft missing `token-optimization`, which carries a full MIT\n    attribution with an upstream copyright line -- found by a reviewer grepping the\n    corpus, which is exactly the check that should not depend on someone thinking to\n    run it.\"\"\"\n\n    NOTICE = os.path.join(ROOT, \"THIRD-PARTY-LICENSES.md\")\n    # Prose that merely contains a trigger word. Each is declared, not pattern-matched,\n    # so a NEW file with a real claim cannot hide behind a loose exclusion.\n    NO_PROVENANCE = {\"property-based-testing\", \"search-first\"}\n\n    def _claimants(self):\n        \"\"\"Skills whose body asserts an upstream source.\"\"\"\n        import re\n        pat = re.compile(r\"adapted from|CC BY-SA|reimplement(ed|ation) from|\"\n                         r\"MIT License, Copyright\", re.I)\n        out = set()\n        for d in sorted(os.listdir(SKILLS)):\n            f = os.path.join(SKILLS, d, \"SKILL.md\")\n            if os.path.isfile(f) and pat.search(open(f, encoding=\"utf-8\").read()):\n                out.add(d)\n        return out - self.NO_PROVENANCE\n\n    def test_the_notice_exists_and_ships(self):\n        assert os.path.isfile(self.NOTICE)\n        manifest = open(os.path.join(ROOT, \"MANIFEST.in\"), encoding=\"utf-8\").read()\n        assert \"include THIRD-PARTY-LICENSES.md\" in manifest, (\n            \"the notice describes the distribution but would not be in it\")\n        pyproject = open(os.path.join(ROOT, \"pyproject.toml\"), encoding=\"utf-8\").read()\n        assert \"THIRD-PARTY-LICENSES.md\" in pyproject, \"not in license-files\"\n\n    def test_every_attributed_skill_has_a_row(self):\n        notice = open(self.NOTICE, encoding=\"utf-8\").read()\n        missing = [s for s in self._claimants() if s not in notice]\n        assert not missing, (\n            \"these skills assert an upstream source but are absent from \"\n            \"THIRD-PARTY-LICENSES.md: %s\" % sorted(missing))\n\n    def test_the_declared_exclusions_really_have_no_claim(self):\n        \"\"\"An exclusion list rots into a hiding place unless it is checked. If one of\n        these ever gains a real attribution, this fails rather than silently skipping.\"\"\"\n        import re\n        real = re.compile(r\"adapted from|CC BY-SA|MIT License, Copyright\", re.I)\n        for d in self.NO_PROVENANCE:\n            f = os.path.join(SKILLS, d, \"SKILL.md\")\n            if not os.path.isfile(f):\n                continue\n            body = open(f, encoding=\"utf-8\").read()\n            assert not real.search(body), (\n                \"%s is excluded as prose-only but now carries a real attribution\" % d)\n\n    def test_license_is_byte_exact(self):\n        \"\"\"Prose in LICENSE drops automated MIT detection (licensee/ScanCode dice-match\n        the body against the template) below threshold -- which would make the\n        distribution's licensing LESS legible, the opposite of the notice's purpose.\n        The pointer lives in README instead.\"\"\"\n        import subprocess\n        head = subprocess.run([\"git\", \"show\", \"HEAD:LICENSE\"], cwd=ROOT,\n                              capture_output=True, text=True)\n        if head.returncode == 0:\n            assert head.stdout == open(os.path.join(ROOT, \"LICENSE\"),\n                                       encoding=\"utf-8\").read()\n        readme = open(os.path.join(ROOT, \"README.md\"), encoding=\"utf-8\").read()\n        assert \"THIRD-PARTY-LICENSES.md\" in readme\n        assert \"No restrictions.\" not in readme, (\n            \"false once a share-alike file ships in the distribution\")\n\n\n"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "plan": "d2-d3-finish",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/eval-harness/SKILL.md",
+      "description": "D3 - the plan asked for a cross-reference FROM eval-harness; only the forward link was wired",
+      "edits": [
+        {
+          "find": "**Define success before you build.** Write the evaluation criteria first, then implement until the evaluations pass. This is the AI equivalent of test-driven development.",
+          "add_after": "\n\n**This is the CI-gated baseline, and the downstream half of a pair.** While you are still\nchanging a prompt — comparing candidates, deciding which criterion actually moved — use\n`prompt-evaluation`: isolated judges, one per criterion, over a small versioned eval set, fast\nand cheap and gating nothing. Bring a change here once it proves out there. Running the\nexploratory loop as a merge gate, or building a versioned baseline inside it, is the mistake\neach skill exists to keep the other from making."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/writing-skills/SKILL.md",
+      "description": "D2 - fold in the ToB conventions and reconcile the 150-line cap they contradict",
+      "edits": [
+        {
+          "find": "### Length\n\n- **Minimum**: 30 lines (anything shorter is probably too thin to be useful)\n- **Maximum**: 150 lines (anything longer should be split into multiple skills)\n- **Sweet spot**: 60-100 lines",
+          "replace": "### Length\n\n- **Minimum**: 30 lines (anything shorter is probably too thin to be useful)\n- **Maximum**: 500 lines, and prefer far less. Past ~150 lines, ask whether the overflow is\n  *reference material* rather than method — if it is, move it to `references/` beside the\n  SKILL.md and link it, so the always-loaded body stays the method and the detail is fetched\n  only when needed.\n- **Sweet spot**: 60-100 lines for a rule or protocol; up to ~250 for a method skill that\n  carries worked examples, where the examples ARE the content.\n\nThe old hard cap here was 150 lines, which the corpus had already outgrown: a method skill\nwhose examples are its substance (`whitebox-invariant-testing`, the per-language review\nchecklists) is not improved by being split into two skills that must then be loaded together.\nSplit on *concern*, never on line count — `defect-pinning` is separate from\n`whitebox-invariant-testing` because the pinning protocol applies to any confirmed defect\nhowever it was found, not because either file was getting long."
+        },
+        {
+          "find": "---\n\n## Skill Lifecycle",
+          "replace": "\n### Authoring Conventions (adapted from Trail of Bits)\n\nAdapted from the authoring conventions in [`trailofbits/skills`](https://github.com/trailofbits/skills)\n(CC BY-SA 4.0). These are conventions, not copied text; the one file in this corpus that\ncarries adapted *content* is listed in `THIRD-PARTY-LICENSES.md`.\n\n| Convention | Why |\n|---|---|\n| **Body under 500 lines; overflow to `references/`** | The body is what a model reads to decide *how* to work. Reference tables and long enumerations are what it reads *while* working — different moments, different budgets. |\n| **Situational trigger in the description** | The description is always in context, and it is the only thing the model sees when deciding whether to load. \"Use when a diff contains `.java` files\" routes; \"Java best practices\" does not. |\n| **Capability-gate the expensive sections** | Tell the reader to detect before invoking — run detekt only when the build file declares it. A section that assumes a tool is configured produces failures the reader then has to explain away. |\n| **Declare `allowed-tools` explicitly** | An undeclared tool list is a guess at the next author's expense, and it is part of this corpus's security posture for skill-invoked `Bash`. |\n\n**Cross-link rather than restate.** This repo is consolidating near-duplicate assets: if two\nskills need the same paragraph, one of them owns it and the other points. A skill that\nrestates a neighbour's content is the duplication task 008 exists to remove.\n\n---\n\n## Skill Lifecycle"
+        }
+      ]
+    }
+  ]
+}
