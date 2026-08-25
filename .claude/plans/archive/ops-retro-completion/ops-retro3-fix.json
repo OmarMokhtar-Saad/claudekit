@@ -1,0 +1,20 @@
+{
+  "plan": "retro3-fix",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_heldout_set.py",
+      "description": "Match the file's pytest style (plain classes, bare asserts, REPL constant) instead of unittest",
+      "edits": [
+        {
+          "find": "class TestOneShapeDefinitionNotTwo(unittest.TestCase):",
+          "replace": "class TestOneShapeDefinitionNotTwo:"
+        },
+        {
+          "find": "    def test_the_writer_and_the_reader_share_one_session_id_shape(self):\n        import re as _re\n        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))\n        writer = open(os.path.join(root, \".claude/hooks/reflection.py\"),\n                      encoding=\"utf-8\").read()\n        reader = open(os.path.join(root, \".claude/operations/scripts/review-record.py\"),\n                      encoding=\"utf-8\").read()\n        w = _re.search(r\"SESSION_ID_SHAPE = re\\.compile\\((r\\\"[^\\\"]+\\\")\\)\", writer)\n        r = _re.search(r\"_SESSION_ID_RE = re\\.compile\\((r\\\"[^\\\"]+\\\")\\)\", reader)\n        self.assertIsNotNone(w, \"reflection.py no longer defines SESSION_ID_SHAPE\")\n        self.assertIsNotNone(r, \"review-record.py no longer defines _SESSION_ID_RE\")\n        self.assertEqual(\n            w.group(1), r.group(1),\n            \"session-id shape drifted between writer and reader: \"\n            \"%s vs %s -- widen both or neither\" % (w.group(1), r.group(1)))",
+          "replace": "    def test_the_writer_and_the_reader_share_one_session_id_shape(self):\n        import re as _re\n        writer = (REPO / \".claude/hooks/reflection.py\").read_text(encoding=\"utf-8\")\n        reader = (REPO / \".claude/operations/scripts/review-record.py\").read_text(\n            encoding=\"utf-8\")\n        w = _re.search(r'SESSION_ID_SHAPE = re\\.compile\\((r\"[^\"]+\")\\)', writer)\n        r = _re.search(r'_SESSION_ID_RE = re\\.compile\\((r\"[^\"]+\")\\)', reader)\n        assert w, \"reflection.py no longer defines SESSION_ID_SHAPE\"\n        assert r, \"review-record.py no longer defines _SESSION_ID_RE\"\n        assert w.group(1) == r.group(1), (\n            \"session-id shape drifted between writer and reader: %s vs %s\"\n            \" -- widen both or neither\" % (w.group(1), r.group(1)))"
+        }
+      ]
+    }
+  ]
+}

@@ -81,9 +81,15 @@ jobs:
       - name: Install linters
         run: pip install ruff mypy
       - name: ruff
-        run: ruff check src/claudekit scripts
+        run: ruff check src/ tests/ scripts/ .claude/operations/scripts/
+      - name: codex-mirror-drift
+        run: python3 scripts/gen-agents-mirror.py --check
       - name: mypy
-        run: mypy src/claudekit --ignore-missing-imports
+        # Bare `mypy` so CI reads mypy.ini/pyproject like a developer does. The
+        # narrower `mypy src/claudekit` skipped .claude/operations/scripts entirely,
+        # so three annotation errors in fleet-sync.py were invisible to CI as well
+        # as to the DoD sweep that only covered src/.
+        run: mypy
 
   docs-drift:
     runs-on: ubuntu-latest

@@ -1,0 +1,16 @@
+{
+  "plan": "mirror-lint",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "scripts/gen-agents-mirror.py",
+      "description": "leftover import from the copytree approach the adaptation pass replaced",
+      "edits": [
+        {
+          "find": "import os\nimport re\nimport shutil\nimport sys",
+          "replace": "import os\nimport re\nimport sys"
+        }
+      ]
+    }
+  ]
+}

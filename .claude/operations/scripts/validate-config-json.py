@@ -25,11 +25,10 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from shared import protected_patterns, is_protected_file, allowed_run_commands, __version__
+from shared import __version__, allowed_run_commands, is_protected_file, protected_patterns
 
 try:
-    import jsonschema
-    from jsonschema import validate, ValidationError, SchemaError
+    from jsonschema import SchemaError, ValidationError, validate
     JSONSCHEMA_AVAILABLE = True
 except ImportError:
     JSONSCHEMA_AVAILABLE = False
@@ -724,8 +723,8 @@ def validate_backup_compatibility(config_file: str, config: Optional[dict] = Non
         # Check that cwd is writable (backup dir will be created there)
         if not os.access('.', os.W_OK):
             errors.append(
-                f"GUARD 22 FAILED: Current directory is not writable — cannot create backups/\n"
-                f"                  FIX: Run from a writable directory"
+                "GUARD 22 FAILED: Current directory is not writable — cannot create backups/\n"
+                "                  FIX: Run from a writable directory"
             )
 
     # GUARD 23: File naming collision detection (warning only — backup uses nested dirs)

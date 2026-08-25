@@ -14,12 +14,13 @@ This repo runs its own enforcement hooks on itself. If Edit/Write is blocked by 
 
 ```bash
 python3 -m pytest tests/ -q                 # full suite — zero failures tolerated
-ruff check src/ tests/ scripts/             # lint (line-length 100)
+ruff check src/ tests/ scripts/ .claude/operations/scripts/  # lint (line-length 100)
 mypy                                        # types (py3.9 target)
 python3 scripts/gen-docs.py --check         # docs-drift gate (counts)
 python3 scripts/gen-registry.py --check     # registry-drift gate
 python3 scripts/gen-model-policy.py --check # model-policy gate (tiers ↔ frontmatter)
 python3 scripts/check-context-floor.py --check # always-on context budget
+python3 scripts/gen-agents-mirror.py --check # Codex corpus mirror (membership, not content)
 shellcheck install.sh .claude/hooks/*.sh    # shell lint
 ck doctor --strict                          # installed-tree health
 ```
