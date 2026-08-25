@@ -1,55 +1,27 @@
 # Fleet sync — Phase B of plan-fleet-skill-enhancement
 
-**Run:** 2026-08-25 07:47 UTC · **Mode:** EXECUTED
+**Run:** 2026-08-25 10:39 UTC · **Mode:** EXECUTED
 **Projects:** 12 kitted repos. `rest-framework` is excluded (Phase C1, deferred by the owner to its own session); `qa-agent-pro` is excluded (Phase C2, skipped by the owner).
 
 **Every downstream repo is left UNCOMMITTED.** Nothing here is pushed, committed, or merged back. To undo any project entirely: `git -C <project> checkout -- .claude/` plus `git clean -fd .claude/skills/` for the newly added directories (they are untracked until you add them).
 
 > Note: every one of these repos already carried uncommitted changes before this run, from earlier fleet syncs. The counts below are what THIS run did, not the repo's total dirt.
 
+## The dedupe is complete — and the cheap option did not work
 
-## ⚠ Half the approved dedupe list is HELD — it would have broken 84 files
+All six superseded skills are deleted in all 12 repos, references repointed, zero dangling names. Three of them were HELD for a while, because the diff-guard the plan specified asks whether a local copy was *customised* and never asks whether anything still **loads** it — 84 `## Skill Loading` directives did.
 
-The B3 approval covered six superseded skills with a diff-guard against *local
-customisation*. That guard passed everywhere: all six are byte-identical across the
-fleet. But it does not ask the question that actually breaks a kit — **is anything
-still loading this skill?**
+**The registry `renamed` alias map was investigated as the cheap fix and rejected on evidence.** It is diagnostic only: its sole consumer is `ck doctor` (`src/claudekit/cli/main.py` via `skills.renamed_map`), which prints "which was renamed to X — update the reference". Nothing resolves a skill by alias at load time, so shipping the map would have produced a fleet that reports its own breakage politely.
 
-Measured before the first delete:
+So the references moved first, and the two shapes needed different handling — conflating them is the trap:
 
-| Superseded skill | Successor | Still loaded by | Verdict |
-|---|---|---|---|
-| `autonomous-loops` | `autonomous-loop` | nothing | **deleted** ×12 |
-| `context-priming` | `context-keeper` | nothing | **deleted** ×12 |
-| `i18n-workflow` | `i18n-patterns` | nothing | **deleted** ×12 |
-| `session-continuity` | `context-keeper` | 12 files (`agents/coordinator.md`) | **HELD** |
-| `dependency-audit` | `supply-chain-audit` | 24 files (`agents/devops.md`, `agents/security-scanner.md`) | **HELD** |
-| `verification-loop` | `verification-before-completion` | 48 files (`coordinator.md`, `gan-build.md`, `loop-start.md`, `prp-implement.md`) | **HELD** |
+| Shape | Count | Action |
+|---|---|---|
+| File loads only the old skill | 72 | rename the directive |
+| File already loads the successor | 12 | **remove** the old line — renaming would load one skill twice |
+| Prose mentions outside a directive | 24 | repointed for consistency |
 
-These are real `## Skill Loading` directives — e.g. `Eatizaz/.claude/agents/coordinator.md:33`
-reads `- **verification-loop** — load when iterating until checks pass`. Downstream
-registries carry **no `renamed` alias map** (claudekit has one; the fleet does not), so
-once the directory is gone the name resolves to nothing. Deleting these three as approved
-would have left **84 dangling skill loads across 12 repositories**.
-
-### What closing this needs (a separate decision — not in the approved list)
-
-84 reference sites, and they are not all the same edit:
-
-- **48 sites** need a straight rename to the successor.
-- **36 sites** already name the successor too, so renaming would leave the file loading
-  the same skill twice — those need the old line **removed**, not rewritten.
-
-Two ways forward, both defensible:
-
-1. **Rewrite the references, then delete** — the complete rename, and what CLAUDE.md's
-   "update every reference" rule asks for. Mechanical and verifiable, but it is an
-   84-file edit across 12 repos.
-2. **Ship a `renamed` alias map downstream** — mirrors what claudekit already does, keeps
-   the old names resolvable for a release, and lets the deletes happen now with the
-   reference cleanup following later.
-
-Until one is chosen, the three skills stay. Nothing is broken, and nothing is half-done.
+Verified on a scratch copy first: zero duplicate load directives, zero old names left. Tool: `.claude/operations/scripts/fleet-repoint.py`, idempotent.
 
 ## Corrections to the plan's matrix (measured, not assumed)
 
@@ -71,23 +43,14 @@ The recurring "~34 `.py`" that made every Java project look dual-stack is Claude
 - verification-gap-lens: already present and identical
 - java-review-checklist: already present and identical
 - code-reviewer.md: routing already current
-- session-continuity: HELD -- still loaded by 1 file(s) (agents/coordinator.md) and there is no `renamed` alias map downstream, so deleting it would leave dangling skill loads. Needs a reference rewrite, which is not in the approved delete list.
-- dependency-audit: HELD -- still loaded by 2 file(s) (agents/devops.md, agents/security-scanner.md) and there is no `renamed` alias map downstream, so deleting it would leave dangling skill loads. Needs a reference rewrite, which is not in the approved delete list.
-- verification-loop: HELD -- still loaded by 4 file(s) (agents/coordinator.md, commands/gan-build.md, commands/loop-start.md ...) and there is no `renamed` alias map downstream, so deleting it would leave dangling skill loads. Needs a reference rewrite, which is not in the approved delete list.
 
 ### AppiumLens  ·  stack: java, python
-
-**Edited:**
-- skills-registry.json: +3 row(s), -2 dangling
 
 **Skipped:**
 - verification-gap-lens: already present and identical
 - java-review-checklist: already present and identical
 - python-review-checklist: already present and identical
 - code-reviewer.md: routing already current
-- session-continuity: HELD -- still loaded by 1 file(s) (agents/coordinator.md) and there is no `renamed` alias map downstream, so deleting it would leave dangling skill loads. Needs a reference rewrite, which is not in the approved delete list.
-- dependency-audit: HELD -- still loaded by 2 file(s) (agents/devops.md, agents/security-scanner.md) and there is no `renamed` alias map downstream, so deleting it would leave dangling skill loads. Needs a reference rewrite, which is not in the approved delete list.
-- verification-loop: HELD -- still loaded by 4 file(s) (agents/coordinator.md, commands/gan-build.md, commands/loop-start.md ...) and there is no `renamed` alias map downstream, so deleting it would leave dangling skill loads. Needs a reference rewrite, which is not in the approved delete list.
 
 ### AutomationApp  ·  stack: java
 
@@ -95,9 +58,6 @@ The recurring "~34 `.py`" that made every Java project look dual-stack is Claude
 - verification-gap-lens: already present and identical
 - java-review-checklist: already present and identical
 - code-reviewer.md: routing already current
-- session-continuity: HELD -- still loaded by 1 file(s) (agents/coordinator.md) and there is no `renamed` alias map downstream, so deleting it would leave dangling skill loads. Needs a reference rewrite, which is not in the approved delete list.
-- dependency-audit: HELD -- still loaded by 2 file(s) (agents/devops.md, agents/security-scanner.md) and there is no `renamed` alias map downstream, so deleting it would leave dangling skill loads. Needs a reference rewrite, which is not in the approved delete list.
-- verification-loop: HELD -- still loaded by 4 file(s) (agents/coordinator.md, commands/gan-build.md, commands/loop-start.md ...) and there is no `renamed` alias map downstream, so deleting it would leave dangling skill loads. Needs a reference rewrite, which is not in the approved delete list.
 
 ### Eatizaz  ·  stack: java
 
@@ -105,9 +65,6 @@ The recurring "~34 `.py`" that made every Java project look dual-stack is Claude
 - verification-gap-lens: already present and identical
 - java-review-checklist: already present and identical
 - code-reviewer.md: routing already current
-- session-continuity: HELD -- still loaded by 1 file(s) (agents/coordinator.md) and there is no `renamed` alias map downstream, so deleting it would leave dangling skill loads. Needs a reference rewrite, which is not in the approved delete list.
-- dependency-audit: HELD -- still loaded by 2 file(s) (agents/devops.md, agents/security-scanner.md) and there is no `renamed` alias map downstream, so deleting it would leave dangling skill loads. Needs a reference rewrite, which is not in the approved delete list.
-- verification-loop: HELD -- still loaded by 4 file(s) (agents/coordinator.md, commands/gan-build.md, commands/loop-start.md ...) and there is no `renamed` alias map downstream, so deleting it would leave dangling skill loads. Needs a reference rewrite, which is not in the approved delete list.
 
 ### Lean  ·  stack: java
 
@@ -115,9 +72,6 @@ The recurring "~34 `.py`" that made every Java project look dual-stack is Claude
 - verification-gap-lens: already present and identical
 - java-review-checklist: already present and identical
 - code-reviewer.md: routing already current
-- session-continuity: HELD -- still loaded by 1 file(s) (agents/coordinator.md) and there is no `renamed` alias map downstream, so deleting it would leave dangling skill loads. Needs a reference rewrite, which is not in the approved delete list.
-- dependency-audit: HELD -- still loaded by 2 file(s) (agents/devops.md, agents/security-scanner.md) and there is no `renamed` alias map downstream, so deleting it would leave dangling skill loads. Needs a reference rewrite, which is not in the approved delete list.
-- verification-loop: HELD -- still loaded by 4 file(s) (agents/coordinator.md, commands/gan-build.md, commands/loop-start.md ...) and there is no `renamed` alias map downstream, so deleting it would leave dangling skill loads. Needs a reference rewrite, which is not in the approved delete list.
 
 ### LeanApis  ·  stack: java
 
@@ -125,9 +79,6 @@ The recurring "~34 `.py`" that made every Java project look dual-stack is Claude
 - verification-gap-lens: already present and identical
 - java-review-checklist: already present and identical
 - code-reviewer.md: routing already current
-- session-continuity: HELD -- still loaded by 1 file(s) (agents/coordinator.md) and there is no `renamed` alias map downstream, so deleting it would leave dangling skill loads. Needs a reference rewrite, which is not in the approved delete list.
-- dependency-audit: HELD -- still loaded by 2 file(s) (agents/devops.md, agents/security-scanner.md) and there is no `renamed` alias map downstream, so deleting it would leave dangling skill loads. Needs a reference rewrite, which is not in the approved delete list.
-- verification-loop: HELD -- still loaded by 4 file(s) (agents/coordinator.md, commands/gan-build.md, commands/loop-start.md ...) and there is no `renamed` alias map downstream, so deleting it would leave dangling skill loads. Needs a reference rewrite, which is not in the approved delete list.
 
 ### MobileUIAutomator  ·  stack: java
 
@@ -135,9 +86,6 @@ The recurring "~34 `.py`" that made every Java project look dual-stack is Claude
 - verification-gap-lens: already present and identical
 - java-review-checklist: already present and identical
 - code-reviewer.md: routing already current
-- session-continuity: HELD -- still loaded by 1 file(s) (agents/coordinator.md) and there is no `renamed` alias map downstream, so deleting it would leave dangling skill loads. Needs a reference rewrite, which is not in the approved delete list.
-- dependency-audit: HELD -- still loaded by 2 file(s) (agents/devops.md, agents/security-scanner.md) and there is no `renamed` alias map downstream, so deleting it would leave dangling skill loads. Needs a reference rewrite, which is not in the approved delete list.
-- verification-loop: HELD -- still loaded by 4 file(s) (agents/coordinator.md, commands/gan-build.md, commands/loop-start.md ...) and there is no `renamed` alias map downstream, so deleting it would leave dangling skill loads. Needs a reference rewrite, which is not in the approved delete list.
 
 ### SehhatyApp  ·  stack: java
 
@@ -145,9 +93,6 @@ The recurring "~34 `.py`" that made every Java project look dual-stack is Claude
 - verification-gap-lens: already present and identical
 - java-review-checklist: already present and identical
 - code-reviewer.md: routing already current
-- session-continuity: HELD -- still loaded by 1 file(s) (agents/coordinator.md) and there is no `renamed` alias map downstream, so deleting it would leave dangling skill loads. Needs a reference rewrite, which is not in the approved delete list.
-- dependency-audit: HELD -- still loaded by 2 file(s) (agents/devops.md, agents/security-scanner.md) and there is no `renamed` alias map downstream, so deleting it would leave dangling skill loads. Needs a reference rewrite, which is not in the approved delete list.
-- verification-loop: HELD -- still loaded by 4 file(s) (agents/coordinator.md, commands/gan-build.md, commands/loop-start.md ...) and there is no `renamed` alias map downstream, so deleting it would leave dangling skill loads. Needs a reference rewrite, which is not in the approved delete list.
 
 ### ai-agent-system  ·  stack: python
 
@@ -155,9 +100,6 @@ The recurring "~34 `.py`" that made every Java project look dual-stack is Claude
 - verification-gap-lens: already present and identical
 - python-review-checklist: already present and identical
 - code-reviewer.md: routing already current
-- session-continuity: HELD -- still loaded by 1 file(s) (agents/coordinator.md) and there is no `renamed` alias map downstream, so deleting it would leave dangling skill loads. Needs a reference rewrite, which is not in the approved delete list.
-- dependency-audit: HELD -- still loaded by 2 file(s) (agents/devops.md, agents/security-scanner.md) and there is no `renamed` alias map downstream, so deleting it would leave dangling skill loads. Needs a reference rewrite, which is not in the approved delete list.
-- verification-loop: HELD -- still loaded by 4 file(s) (agents/coordinator.md, commands/gan-build.md, commands/loop-start.md ...) and there is no `renamed` alias map downstream, so deleting it would leave dangling skill loads. Needs a reference rewrite, which is not in the approved delete list.
 
 ### qa-agents  ·  stack: python
 
@@ -165,9 +107,6 @@ The recurring "~34 `.py`" that made every Java project look dual-stack is Claude
 - verification-gap-lens: already present and identical
 - python-review-checklist: already present and identical
 - code-reviewer.md: routing already current
-- session-continuity: HELD -- still loaded by 1 file(s) (agents/coordinator.md) and there is no `renamed` alias map downstream, so deleting it would leave dangling skill loads. Needs a reference rewrite, which is not in the approved delete list.
-- dependency-audit: HELD -- still loaded by 2 file(s) (agents/devops.md, agents/security-scanner.md) and there is no `renamed` alias map downstream, so deleting it would leave dangling skill loads. Needs a reference rewrite, which is not in the approved delete list.
-- verification-loop: HELD -- still loaded by 4 file(s) (agents/coordinator.md, commands/gan-build.md, commands/loop-start.md ...) and there is no `renamed` alias map downstream, so deleting it would leave dangling skill loads. Needs a reference rewrite, which is not in the approved delete list.
 
 ### qaforge-ai  ·  stack: java, python
 
@@ -176,9 +115,6 @@ The recurring "~34 `.py`" that made every Java project look dual-stack is Claude
 - java-review-checklist: already present and identical
 - python-review-checklist: already present and identical
 - code-reviewer.md: routing already current
-- session-continuity: HELD -- still loaded by 1 file(s) (agents/coordinator.md) and there is no `renamed` alias map downstream, so deleting it would leave dangling skill loads. Needs a reference rewrite, which is not in the approved delete list.
-- dependency-audit: HELD -- still loaded by 2 file(s) (agents/devops.md, agents/security-scanner.md) and there is no `renamed` alias map downstream, so deleting it would leave dangling skill loads. Needs a reference rewrite, which is not in the approved delete list.
-- verification-loop: HELD -- still loaded by 4 file(s) (agents/coordinator.md, commands/gan-build.md, commands/loop-start.md ...) and there is no `renamed` alias map downstream, so deleting it would leave dangling skill loads. Needs a reference rewrite, which is not in the approved delete list.
 
 ### shsmartassistant-qa  ·  stack: kotlin
 
@@ -186,13 +122,10 @@ The recurring "~34 `.py`" that made every Java project look dual-stack is Claude
 - verification-gap-lens: already present and identical
 - kotlin-review-checklist: already present and identical
 - code-reviewer.md: routing already current
-- session-continuity: HELD -- still loaded by 1 file(s) (agents/coordinator.md) and there is no `renamed` alias map downstream, so deleting it would leave dangling skill loads. Needs a reference rewrite, which is not in the approved delete list.
-- dependency-audit: HELD -- still loaded by 2 file(s) (agents/devops.md, agents/security-scanner.md) and there is no `renamed` alias map downstream, so deleting it would leave dangling skill loads. Needs a reference rewrite, which is not in the approved delete list.
-- verification-loop: HELD -- still loaded by 4 file(s) (agents/coordinator.md, commands/gan-build.md, commands/loop-start.md ...) and there is no `renamed` alias map downstream, so deleting it would leave dangling skill loads. Needs a reference rewrite, which is not in the approved delete list.
 
 ## Totals
 
 - Skills added: **0**
-- Files edited: **1**
+- Files edited: **0**
 - Superseded skills deleted: **0**
-- Skipped (logged, never forced): **74**
+- Skipped (logged, never forced): **38**

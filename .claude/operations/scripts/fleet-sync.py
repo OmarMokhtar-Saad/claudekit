@@ -345,6 +345,34 @@ def main():
         "this run, from earlier fleet syncs. The counts below are what THIS run did, "
         "not the repo's total dirt.",
         "",
+        "## The dedupe is complete — and the cheap option did not work",
+        "",
+        "All six superseded skills are deleted in all 12 repos, references repointed, "
+        "zero dangling names. Three of them were HELD for a while, because the "
+        "diff-guard the plan specified asks whether a local copy was *customised* and "
+        "never asks whether anything still **loads** it — 84 `## Skill Loading` "
+        "directives did.",
+        "",
+        "**The registry `renamed` alias map was investigated as the cheap fix and "
+        "rejected on evidence.** It is diagnostic only: its sole consumer is `ck doctor` "
+        "(`src/claudekit/cli/main.py` via `skills.renamed_map`), which prints \"which was "
+        "renamed to X — update the reference\". Nothing resolves a skill by alias at load "
+        "time, so shipping the map would have produced a fleet that reports its own "
+        "breakage politely.",
+        "",
+        "So the references moved first, and the two shapes needed different handling — "
+        "conflating them is the trap:",
+        "",
+        "| Shape | Count | Action |",
+        "|---|---|---|",
+        "| File loads only the old skill | 72 | rename the directive |",
+        "| File already loads the successor | 12 | **remove** the old line — renaming "
+        "would load one skill twice |",
+        "| Prose mentions outside a directive | 24 | repointed for consistency |",
+        "",
+        "Verified on a scratch copy first: zero duplicate load directives, zero old "
+        "names left. Tool: `.claude/operations/scripts/fleet-repoint.py`, idempotent.",
+        "",
         "## Corrections to the plan's matrix (measured, not assumed)",
         "",
         "The plan's §2.1 stack table was wrong in three places. Counts are tracked "
