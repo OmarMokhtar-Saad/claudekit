@@ -1,0 +1,22 @@
+{
+  "plan": "canonical-skill-wins",
+  "slug": "canonical-skill-wins",
+  "ops_path": ".claude/plans/ops-canonical-skill-wins.json",
+  "ops_sha256": "4c0a1e9a807ff98a0c1dac394b760c7b46e67a62896bed7505ddf7b9efcdf74f",
+  "score": 95,
+  "decision": "APPROVED",
+  "findings": [],
+  "recorded_utc": "2026-08-23T07:02:38Z",
+  "operations": 5,
+  "edits": 5,
+  "rounds": [
+    {
+      "score": 91,
+      "decision": "CONDITIONAL",
+      "findings": [],
+      "recorded_utc": "2026-08-23T06:46:32Z",
+      "ops_sha256": "4c0a1e9a807ff98a0c1dac394b760c7b46e67a62896bed7505ddf7b9efcdf74f"
+    }
+  ],
+  "round": 2
+}

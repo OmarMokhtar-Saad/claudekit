@@ -1,0 +1,18 @@
+{
+  "plan": ".claude/plans/plan-gate-scope.md",
+  "ops_path": ".claude/plans/plan-gate-scope.ops.json",
+  "ops_sha256": "425897017886f5171448eccb0bf64e2b128d92383112e1cfc5a2d434e6446ac8",
+  "score": 93,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] Round-1 finding fixed: _replace_block returned text unchanged when markers were absent, so deleting the generated block left --check GREEN - a vacuous path in the gate being installed. py_missing now ",
+    "[MINOR] Two overstatements corrected per hard rule 6: root additionalProperties:false constrains only TOP-LEVEL keys (five nested objects named as unconstrained), and check_untyped_defs is off so unannotated ",
+    "[MINOR] test_doctor_fails_on_a_schema_violation dropped its meaningless returncode assertion (the skeleton project already returns 1 for unrelated reasons) and now asserts the verdict line plus violation coun",
+    "[MINOR] Measurements: mypy 8 -> 18 files, 26 annotation-only errors fixed with NO suppressions added; 3 stale counts in main.py (said 9 agents / 8 commands / 27 skills against a real 29/42/76 - floors far bel",
+    "[MINOR] Follow-ups recorded not fixed: check_untyped_defs residual; nested additionalProperties; install.sh never copies config.schema.json; the suite cannot pass in a fresh clone (12 tests need the gitignore",
+    "[MINOR] ck doctor --strict exits 1 before AND after from three pre-existing unconfigured project.* warnings - reported rather than hidden, and it corrected an orchestrator error."
+  ],
+  "recorded_utc": "2026-08-20T10:36:50Z",
+  "operations": 9,
+  "edits": 33
+}

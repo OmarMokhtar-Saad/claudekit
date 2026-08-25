@@ -1,0 +1,14 @@
+{
+  "plan": "uninstall-partial-owned-deadend",
+  "slug": "uninstall-partial-owned-deadend",
+  "ops_path": ".claude/plans/ops-uninstall-partial-owned-deadend.json",
+  "ops_sha256": "23b20b84568a7550fdacd640dea461fe696a0adce3aa781c09d19c323721fa47",
+  "score": 93,
+  "decision": "APPROVED",
+  "findings": [],
+  "recorded_utc": "2026-08-23T06:28:52Z",
+  "operations": 3,
+  "edits": 9,
+  "rounds": [],
+  "round": 1
+}

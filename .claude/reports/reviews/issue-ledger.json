@@ -1,0 +1,13 @@
+{
+  "plan": ".claude/plans/plan-issue-ledger.md",
+  "ops_path": ".claude/plans/ops-issue-ledger.json",
+  "ops_sha256": "0cf7d1a79ff2365b5ebfefcd2ca0d9c721de9a3cf200853f4dfa7534d22e7ddb",
+  "score": 96,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] The new `install-ledger-readme` block is a good faithful mirror of the skills-registry copy idiom, but it inserts a blank-line + comment-block using `\\n\\n` inside `add_after`, which will render with o"
+  ],
+  "recorded_utc": "2026-08-01T07:04:10Z",
+  "operations": 10,
+  "edits": 15
+}

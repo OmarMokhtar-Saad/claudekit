@@ -1,0 +1,11 @@
+{
+  "plan": ".claude/plans/plan-open-issues.md",
+  "ops_path": ".claude/plans/plan-open-issues.ops.json",
+  "ops_sha256": "0e2834b2707554d8da457b350f1eab33362d6322c4e58ac7082fc59c2f657c03",
+  "score": 90,
+  "decision": "APPROVED",
+  "findings": [],
+  "recorded_utc": "2026-08-21T08:21:18Z",
+  "operations": 4,
+  "edits": 5
+}

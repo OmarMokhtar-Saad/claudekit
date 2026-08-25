@@ -1,0 +1,14 @@
+{
+  "plan": ".claude/plans/plan-silent-failure-lint.md",
+  "ops_path": ".claude/plans/plan-silent-failure-lint.ops.json",
+  "ops_sha256": "b6d8a5a34164da9252e1c9c240f86441865b2719736af622c89690fbfdd62a23",
+  "score": 93,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] unguarded `stash_err=\"$(mktemp ...)\"` under `set -e`; failure is rare and loud.",
+    "[MINOR] test_skip_mirror detects changes to existing skip clauses, not additions."
+  ],
+  "recorded_utc": "2026-08-20T16:37:57Z",
+  "operations": 5,
+  "edits": 7
+}

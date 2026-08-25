@@ -1,0 +1,16 @@
+{
+  "plan": ".claude/plans/plan-reflection-test-isolation.md",
+  "ops_path": ".claude/plans/plan-reflection-test-isolation.ops.json",
+  "ops_sha256": "0bcfebe4abb22ae7b2d9f891de88581529c7db901a1461af68446bf9d6802f55",
+  "score": 92,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] Round-1 MAJOR (three new tests bound scoped_env but NOT the defect; reintroducing the pop teardown left all green; the proving artifact was an untracked throwaway) fixed: the reproduction is committed",
+    "[MINOR] Honest negative recorded: reintroducing only the pop teardown while keeping the reflection_env dependency stays green, because teardown runs inner-first and scoped_env restores from outside. That muta",
+    "[MINOR] conftest.py defines exactly two names, nothing autouse, no pytest hooks; blast radius opt-in. ruff with project config (select E,F,W,I) passes - I001 not tripped.",
+    "[MINOR] ledger_dir() host-shared fallback is the structural defect and remains in the product; test-side isolation is containment only. TICKETED in BACKLOG."
+  ],
+  "recorded_utc": "2026-08-20T05:39:43Z",
+  "operations": 3,
+  "edits": 20
+}

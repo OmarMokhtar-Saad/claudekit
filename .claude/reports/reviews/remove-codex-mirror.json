@@ -1,0 +1,11 @@
+{
+  "plan": ".claude/plans/plan-remove-codex-mirror.md",
+  "ops_path": ".claude/plans/plan-remove-codex-mirror.ops.json",
+  "ops_sha256": "b7ca3f092f11b2ce9936a6144eb4e109b595af3ab77ea5f33281a87fe095a36a",
+  "score": 93,
+  "decision": "APPROVED",
+  "findings": [],
+  "recorded_utc": "2026-08-21T16:56:45Z",
+  "operations": 9,
+  "edits": 14
+}

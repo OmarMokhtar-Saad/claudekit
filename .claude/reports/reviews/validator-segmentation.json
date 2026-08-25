@@ -1,0 +1,11 @@
+{
+  "plan": "validator-segmentation",
+  "ops_path": ".claude/plans/plan-validator-segmentation.ops.json",
+  "ops_sha256": "e517a6fb1566a6825ad1ae779f38388eda0d30814bb8ee5a44d486e99879f954",
+  "score": 93,
+  "decision": "APPROVED",
+  "findings": [],
+  "recorded_utc": "2026-08-21T06:35:07Z",
+  "operations": 5,
+  "edits": 11
+}

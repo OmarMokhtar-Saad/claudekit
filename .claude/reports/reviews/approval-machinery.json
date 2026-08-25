@@ -1,0 +1,13 @@
+{
+  "plan": ".claude/plans/plan-approval-machinery.md",
+  "ops_path": ".claude/plans/ops-approval-machinery.json",
+  "ops_sha256": "d67bc563bd57540bc0901341d4600f744424e2718977156df4dceba55b008b6b",
+  "score": 90,
+  "decision": "APPROVED",
+  "findings": [
+    "[MAJOR] plan-approval-machinery.md:211-219 \u2014 the Risk section still describes the CUT sidecar as shipped, claiming load_baseline returns (baseline, error) and \"any error is a refusal\" for code that does not e"
+  ],
+  "recorded_utc": "2026-08-22T09:29:25Z",
+  "operations": 3,
+  "edits": 9
+}

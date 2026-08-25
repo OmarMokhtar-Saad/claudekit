@@ -1,0 +1,42 @@
+{
+  "plan": ".claude/plans/plan-fleet-skill-enhancement.md",
+  "slug": "fleet-skill-phaseA",
+  "ops_path": ".claude/plans/ops-fleet-skill-phaseA.json",
+  "ops_sha256": "7078d8f36959867d0225144c4467e54c56296502fa862b470197325090cb2a18",
+  "score": 91,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] test_the_detect_blocks_are_valid_shell docstring claimed bash -n protects against a silent regex-meaning change; bash -n cannot catch that. Tighten the docstring or add a real regex-compile check."
+  ],
+  "verdict_origin": "rubric",
+  "recorded_utc": "2026-08-25T06:08:48Z",
+  "operations": 7,
+  "edits": 15,
+  "rounds": [
+    {
+      "score": 78,
+      "decision": "REJECTED",
+      "findings": [
+        "[CRITICAL] A9 (new behavioral test file) is a plan step with zero corresponding ops.json operation \u2014 mandatory-rejection phantom step; add a file_create op for the test file or explicitly rescope A9 into a follo",
+        "[MAJOR] A5's \"byte count <= current (6575)\" acceptance criterion is not met by the reviewed replacement content (visibly longer with 3 new sections retained alongside the original tables) and no op/gate in th",
+        "[MINOR] Detect-block quoting in A6 ('\"'\"' idiom) traces correctly by hand but is unverified by execution \u2014 smoke-test before the A7 pytest gate",
+        "[MINOR] A2's description is 156/160 chars, leaving minimal headroom against the 9000-byte skill-description floor row"
+      ],
+      "recorded_utc": "2026-08-25T05:48:12Z",
+      "ops_sha256": "32cb9608fa16e7241ff5b37be7bd24f6b4b9adf4c790c89f51239c7829a83468",
+      "verdict_origin": "rubric"
+    },
+    {
+      "score": 82,
+      "decision": "REVISE",
+      "findings": [
+        "[CRITICAL] A9 test_the_registry_records_the_dependency asserts registry rows no operation in ops.json produces; add a regen op or relax the assertion",
+        "[MINOR] The A5 byte-shrink claim was assessed structurally, not executed; the standing getsize<=6575 test is the actual enforcement"
+      ],
+      "recorded_utc": "2026-08-25T05:59:53Z",
+      "ops_sha256": "da226b7166059bf1cef57cf30437cad1a42734f45e196c78908fe64fab2ca7a0",
+      "verdict_origin": "rubric"
+    }
+  ],
+  "round": 3
+}

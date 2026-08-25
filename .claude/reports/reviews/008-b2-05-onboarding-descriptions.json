@@ -1,0 +1,16 @@
+{
+  "plan": ".claude/plans/plan-008-batch2-skill-merges.md",
+  "slug": "008-b2-05-onboarding-descriptions",
+  "ops_path": ".claude/plans/ops-008-batch2/008-b2-05-onboarding-descriptions.json",
+  "ops_sha256": "e1a16a9384e0ac5b9c636201883217ae83bdb88e23c01eb8083006bcf68233d7",
+  "score": 93,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] .claude/plans/ops-008-batch2/008-b2-14-tests.json LIVE_ROOTS/consumer-scan excludes the entire .claude/plans/ directory (not just the named spent plan), so a live, non-spent plan referencing a deleted"
+  ],
+  "recorded_utc": "2026-08-24T07:13:57Z",
+  "operations": 2,
+  "edits": 2,
+  "rounds": [],
+  "round": 1
+}

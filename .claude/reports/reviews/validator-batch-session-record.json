@@ -1,0 +1,11 @@
+{
+  "plan": "validator-batch-session-record",
+  "ops_path": ".claude/plans/plan-validator-batch-session-record.ops.json",
+  "ops_sha256": "873c75cc2925360e63fdd68e52c7dc940cdc72c0c7b2d9f35264a1f85880dabc",
+  "score": 95,
+  "decision": "APPROVED",
+  "findings": [],
+  "recorded_utc": "2026-08-21T12:42:33Z",
+  "operations": 3,
+  "edits": 4
+}

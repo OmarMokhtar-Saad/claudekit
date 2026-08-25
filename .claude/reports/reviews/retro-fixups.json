@@ -1,0 +1,31 @@
+{
+  "plan": ".claude/plans/plan-rejection-retro-loop-impl.md",
+  "slug": "retro-fixups",
+  "ops_path": ".claude/plans/ops-retro-fixups.json",
+  "ops_sha256": "0d7e8ccf0996174c63a9f22b72c3c24f70960b70c245a3daaf1e8eb676dbca8a",
+  "score": 92,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] Op 11's description field still reads \"the five spent retro configs\" while the row it writes says six; cosmetic ops metadata only -- fix opportunistically, do not respin and unbind the approved sha256"
+  ],
+  "verdict_origin": "gate-token",
+  "recorded_utc": "2026-08-25T05:57:55Z",
+  "operations": 12,
+  "edits": 17,
+  "rounds": [
+    {
+      "score": 75,
+      "decision": "REVISE",
+      "findings": [
+        "[MAJOR] Config alone leaves test_queued_ops_configs_validate_against_head failing; requires a manual move of SIX spent configs (not the five the archive README claims) into .claude/plans/archive/ops-rejection",
+        "[MINOR] Three command budgets land at exactly 100% of limit and the context floor at 99.6%; code-reviewer.md's +42 lines remain untrimmed.",
+        "[MINOR] cmd_record_code_review hand-builds an argparse.Namespace for cmd_write, coupling it to that function's attribute set.",
+        "[MINOR] tests/test_rejection_briefs.py:634 asserts against prose rather than the invocation."
+      ],
+      "recorded_utc": "2026-08-25T05:50:44Z",
+      "ops_sha256": "4c25a55dc785f062c7052ab468e19030733078fea137453065d136997dcacec3",
+      "verdict_origin": "gate-token"
+    }
+  ],
+  "round": 2
+}

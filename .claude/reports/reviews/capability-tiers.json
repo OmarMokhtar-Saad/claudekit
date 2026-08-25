@@ -1,0 +1,11 @@
+{
+  "plan": ".claude/plans/plan-capability-tiers.md",
+  "ops_path": ".claude/plans/plan-capability-tiers.ops.json",
+  "ops_sha256": "dec27f3f27b15e524b538f5e496a8e20a14a1ec7152ad51cfcabe0abfea22386",
+  "score": 95,
+  "decision": "APPROVED",
+  "findings": [],
+  "recorded_utc": "2026-08-21T06:50:38Z",
+  "operations": 8,
+  "edits": 10
+}

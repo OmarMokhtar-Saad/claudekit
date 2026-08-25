@@ -1,0 +1,96 @@
+{
+  "plan": ".claude/plans/plan-rejection-retro-loop-impl.md",
+  "slug": "retro-phase0",
+  "ops_path": ".claude/plans/ops-retro-phase0.json",
+  "ops_sha256": "3441e78c4e34034cde89a20b8cab9b259e512e222bede2bf1814ad2bfe1474b3",
+  "score": 93,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] Ordering guard is scoped to the Step 5[a-z] heading family; a recorder reintroduced as Step 4b or 6a would evade it. Assert by content instead.",
+    "[MINOR] Miner-phase rollback omits .claude/hooks/reflection.py, which Step M.1b modifies.",
+    "[MINOR] reflection.py DESIGN PROPERTIES block enumerates two dispositions; redact_secrets adds a third without updating the contract.",
+    "[MINOR] _ABS_PATH covers /Users /home /private /var/folders only; a Linux /tmp or /opt host path survives and the test passes vacuously there.",
+    "[MINOR] _KEYED_VALUE can redact ordinary prose of the form key: word; note the false-positive shape in the docstring.",
+    "[MINOR] Step 5b heredoc placeholder run verbatim yields a placeholder report and a loud exit 1; optionally echo when REPLACE THIS LINE survives."
+  ],
+  "recorded_utc": "2026-08-24T21:26:51Z",
+  "operations": 8,
+  "edits": 10,
+  "rounds": [
+    {
+      "score": 85,
+      "decision": "REVISE",
+      "findings": [
+        "[MAJOR] Step 0.2 is inert: nothing records a code-reviewer verdict. /code-review has no review-record reference and /review never spawns code-reviewer, so the verdict block is emitted into a channel with no c",
+        "[MAJOR] Synthetic gate-token scores are unlabelled in rounds[]/INDEX.jsonl; a table-derived 60 and a reviewer-judged 60 are indistinguishable, flattening the trend signal. Needs verdict_origin.",
+        "[MAJOR] Analyst phase DoD lists gen-registry.py --check, but a hand-added agent file is designed to fail --check; must regenerate then verify.",
+        "[MAJOR] Spec test #5 idempotency not behaviourally covered: replay writes round 3 and asserts the index GREW; the slug+round guard is never exercised.",
+        "[MAJOR] emit_brief catches Exception but exec_module's reflection.py; SystemExit would escape and fail cmd_write after the verdict is on disk.",
+        "[MAJOR] flow-analyst granted Bash while asserting it has no write access to prompts; the grant does not enforce the claim (hard rule 6).",
+        "[MINOR] _sanitizers() runs before the trigger check, costing an exec_module on every APPROVED write.",
+        "[MINOR] rejections search prints an absolute brief path into output that lands in committed plan files.",
+        "[MINOR] transcript-miner header reports the line cap as an entry count; TRANSCRIPT_GLOBS comment misleads.",
+        "[MINOR] ODC defect_type/trigger have no writer that can ever fill them; follow-up classify subcommand needed.",
+        "[MINOR] ck doctor --strict listed as miner validation but the phase adds a file doctor will report Missing until re-sync."
+      ],
+      "recorded_utc": "2026-08-24T20:18:22Z",
+      "ops_sha256": "58f180229c05eeabe9429b5ec2152f7202278df13b7a561dd3e9e7de97f68446"
+    },
+    {
+      "score": 89,
+      "decision": "REVISE",
+      "findings": [
+        "[MAJOR] code-review.md Step 3b: the case matches DECISION anywhere in $review_output but parse_verdict reads only the LAST anchored block; non-approving prose outside the block plus an APPROVED block writes d",
+        "[MINOR] rejections/.gitignore is negation-only and therefore inert; git cannot re-include under an excluded directory and no ancestor rule ignores .claude/knowledge/.",
+        "[MINOR] except BaseException at the cmd_write call site also swallows KeyboardInterrupt; re-raise it after warning.",
+        "[MINOR] flow-analyst prompt instructs a context7 call but the tools grant lists no MCP tools; state that the fallback is the default path."
+      ],
+      "recorded_utc": "2026-08-24T20:28:32Z",
+      "ops_sha256": "1ba34734c2e64dc9802b293784848220685a9202833c6ba4b3e528dc90796bf0"
+    },
+    {
+      "score": 93,
+      "decision": "APPROVED",
+      "findings": [
+        "[MINOR] Step 3b sed end-anchor requires exactly one space where _BLOCK_RE allows \\s+; a malformed END anchor leaves the sed range open to EOF.",
+        "[MINOR] impl plan :245 still describes Phase 3 as calling context7 itself, contradicting Judgement call 8 and the shipped flow-analyst prompt."
+      ],
+      "recorded_utc": "2026-08-24T20:41:13Z",
+      "ops_sha256": "45b77871057c72ce25a582647f8d89c5c9ca17adf7b2ffd3b85fb72fc28c8501"
+    },
+    {
+      "score": 92,
+      "decision": "REVISE",
+      "findings": [
+        "[MAJOR] Step 3b uses $PLAN_FILE and $review_output, bound nowhere in code-review.md; unset means the block silently never runs in production while tests pass by injecting both via env.",
+        "[MINOR] CANNOT REVIEW emits no block, so parse_verdict exits 1 and Step 3b prints a WARNING on every such round.",
+        "[MINOR] test_the_command_does_no_verdict_parsing_of_its_own uses a 4-literal blacklist a reintroduced parse could evade.",
+        "[MINOR] NON_RECORDABLE_DECISIONS includes CONDITIONAL, discarding a legitimate non-approving round from the corpus this plan exists to build."
+      ],
+      "recorded_utc": "2026-08-24T20:52:10Z",
+      "ops_sha256": "0b497d6e5ed278dceb6e9ec0e8e06c95cfc7ff651c83ff27be3a3bdf0b37432c"
+    },
+    {
+      "score": 88,
+      "decision": "REVISE",
+      "findings": [
+        "[MAJOR] Step 3b remains inert in production: nothing writes its default REVIEW_OUT (.claude/reports/last-code-review.txt). Step 5 is a display template with no write, so [ -s \"$REVIEW_OUT\" ] is false forever ",
+        "[MINOR] PLAN_FILE default via ls -t can bind a plan written after the reviewed one, recording a rejection against the wrong slug; echo the resolved slug so a mis-bind is visible."
+      ],
+      "recorded_utc": "2026-08-24T20:59:38Z",
+      "ops_sha256": "ee3ed3e918ac413417ec0c269771e52e0a564c38504605989b922bea741f68af"
+    },
+    {
+      "score": 87,
+      "decision": "REVISE",
+      "findings": [
+        "[MAJOR] Step 3b is anchored add_before Step 4, so shipped document order is 3b before 5b; executed linearly the recorder runs before the report exists and skips. Fourth recurrence of the end-to-end gap, now a",
+        "[MAJOR] Miner emits tool_result content verbatim with only host-path and length redaction, into output designed to be quoted into tracked retro reports; needs the briefs' credential scrubbing.",
+        "[MINOR] FAILURE_MARKERS includes REJECTED, so a session with no verdict block emits every line containing REJECTED; note it in the docstring."
+      ],
+      "recorded_utc": "2026-08-24T21:12:33Z",
+      "ops_sha256": "50b7ee53406e4e0ce82b292abeb6f92d0028069ccbaf62d49cb3fbf9d9f9cd69"
+    }
+  ],
+  "round": 7
+}

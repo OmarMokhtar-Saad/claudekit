@@ -1,0 +1,12 @@
+{
+  "plan": ".claude/plans/plan-floor-gate-exit-code.md",
+  "slug": "floor-gate-exit-code",
+  "ops_path": ".claude/plans/ops-floor-gate-exit-code.json",
+  "ops_sha256": "211decc081a2f4fe08446614f928056417ad4525a1727885a9ed7d1fcc763c2f",
+  "score": 95,
+  "decision": "APPROVED",
+  "findings": [],
+  "recorded_utc": "2026-08-22T16:58:00Z",
+  "operations": 3,
+  "edits": 6
+}

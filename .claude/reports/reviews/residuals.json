@@ -1,0 +1,14 @@
+{
+  "plan": ".claude/plans/plan-residuals.md",
+  "ops_path": ".claude/plans/plan-residuals.ops.json",
+  "ops_sha256": "161773981bbf32873728817e25c5f727708846e45e05cb0c9eebfd23398469b8",
+  "score": 93,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] test_refusal_causes_are_distinguishable takes an unused tmp_path parameter.",
+    "[MINOR] The .get(code, generic) fallback (exit 1) has no test pinning that it refuses;"
+  ],
+  "recorded_utc": "2026-08-20T15:10:45Z",
+  "operations": 7,
+  "edits": 19
+}

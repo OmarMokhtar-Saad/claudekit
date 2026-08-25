@@ -1,0 +1,16 @@
+{
+  "plan": ".claude/plans/plan-008-batch2-skill-merges.md",
+  "slug": "008-b2-08-consumers-skills-docs",
+  "ops_path": ".claude/plans/ops-008-batch2/008-b2-08-consumers-skills-docs.json",
+  "ops_sha256": "98d194753f4b67d60261d50d8dd03f6dd419a8eb17f535aa564f5057619957ba",
+  "score": 93,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] .claude/plans/ops-008-batch2/008-b2-14-tests.json LIVE_ROOTS/consumer-scan excludes the entire .claude/plans/ directory (not just the named spent plan), so a live, non-spent plan referencing a deleted"
+  ],
+  "recorded_utc": "2026-08-24T07:13:57Z",
+  "operations": 6,
+  "edits": 7,
+  "rounds": [],
+  "round": 1
+}

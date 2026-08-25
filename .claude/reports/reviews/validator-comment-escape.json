@@ -1,0 +1,11 @@
+{
+  "plan": "validator-comment-escape",
+  "ops_path": ".claude/plans/plan-validator-comment-escape.ops.json",
+  "ops_sha256": "73f053396c2a395753ff7f8b54fb6cfc7118749734473db7f01f1d881143b2ec",
+  "score": 96,
+  "decision": "APPROVED",
+  "findings": [],
+  "recorded_utc": "2026-08-21T06:54:36Z",
+  "operations": 4,
+  "edits": 4
+}

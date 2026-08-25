@@ -1,0 +1,11 @@
+{
+  "plan": ".claude/plans/plan-capability-tiers-followup.md",
+  "ops_path": ".claude/plans/plan-capability-tiers-followup.ops.json",
+  "ops_sha256": "b6c0e7d1d1ab3cc088628673d536ae61c87c17a8e5c8e3d68b475cdccc0b10b3",
+  "score": 95,
+  "decision": "APPROVED",
+  "findings": [],
+  "recorded_utc": "2026-08-21T07:02:54Z",
+  "operations": 3,
+  "edits": 4
+}

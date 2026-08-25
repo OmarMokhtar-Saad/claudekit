@@ -1,0 +1,17 @@
+{
+  "plan": ".claude/plans/plan-protected-docs-scope.md",
+  "slug": "protected-docs-scope",
+  "ops_path": ".claude/plans/ops-protected-docs-scope.json",
+  "ops_sha256": "4126d72fd9c41ec813743a95a1baa5ea4c2bfcf39ddbe3ad8740981ac386358a",
+  "score": 93,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] plan-protected-docs-scope.md:16-24 receipts (97 configs, 16/19 rejected) are pasted prose with no reproducible command/path attached \u2014 accept per round-1 precedent but note for the record.",
+    "[MINOR] plan-protected-docs-scope.md:84-86 \"gate binds\" proof (deletion-mutant-goes-red) is an execution claim; route to code-reviewer at/after implementation since this reviewer has no Bash."
+  ],
+  "recorded_utc": "2026-08-23T12:33:35Z",
+  "operations": 3,
+  "edits": 7,
+  "rounds": [],
+  "round": 1
+}

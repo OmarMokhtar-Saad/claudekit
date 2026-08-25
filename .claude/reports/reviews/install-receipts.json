@@ -1,0 +1,11 @@
+{
+  "plan": ".claude/plans/plan-install-receipts.md",
+  "ops_path": ".claude/plans/plan-install-receipts.ops.json",
+  "ops_sha256": "a2b0503032055cc691cad63285f79452948de9f8fd759d8d0cde8ec4b45f30b5",
+  "score": 93,
+  "decision": "APPROVED",
+  "findings": [],
+  "recorded_utc": "2026-08-21T08:20:58Z",
+  "operations": 5,
+  "edits": 4
+}

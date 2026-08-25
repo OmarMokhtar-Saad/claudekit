@@ -1,0 +1,16 @@
+{
+  "plan": "track-review-records",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".gitignore",
+      "description": "Track review verdict records (the rejection corpus); keep ignoring the bulky ops snapshots",
+      "edits": [
+        {
+          "find": ".claude/reports/reviews/",
+          "replace": "# Review VERDICT records are TRACKED: rounds[] carries the score trajectory that\n# /flow-retro mines for trends, and an untracked record dies with the machine that\n# wrote it -- which would leave flow-analyst reading only INDEX.jsonl. The .ops.json\n# SNAPSHOTS beside them stay ignored: 2.9M of config copies already preserved in\n# .claude/plans/archive/, versus 372K for the records themselves.\n.claude/reports/reviews/*.ops.json"
+        }
+      ]
+    }
+  ]
+}

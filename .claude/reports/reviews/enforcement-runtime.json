@@ -1,0 +1,14 @@
+{
+  "plan": ".claude/plans/plan-enforcement-runtime.md",
+  "ops_path": ".claude/plans/plan-enforcement-runtime.ops.json",
+  "ops_sha256": "4f22cff6863f0d0bdd809ded780af638d34c08914202efaf234599861de2c4bc",
+  "score": 93,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] The claimed 58-line resolver heredoc body length (check-silent-failure.py's MAX_JOIN_LINES=80 cap) could not be independently recounted in this static pass \u2014 Location: ops.json op 6 `.claude/hooks/dis",
+    "[MINOR] No test execution, mutation proof, or gate run could be re-verified in this pass (Bash not used); all \"not yet executed\" items remain genuinely unexecuted as labelled \u2014 Location: plan.md Testing Strat"
+  ],
+  "recorded_utc": "2026-08-22T05:09:11Z",
+  "operations": 18,
+  "edits": 11
+}

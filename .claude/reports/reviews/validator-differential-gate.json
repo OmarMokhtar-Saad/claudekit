@@ -1,0 +1,11 @@
+{
+  "plan": "validator-differential-gate",
+  "ops_path": ".claude/plans/plan-validator-differential-gate.ops.json",
+  "ops_sha256": "6b86c489e02ae6421abb043613468eafba1e1b819a118dd6318ce6091cda22b5",
+  "score": 95,
+  "decision": "APPROVED",
+  "findings": [],
+  "recorded_utc": "2026-08-21T09:30:15Z",
+  "operations": 6,
+  "edits": 5
+}

@@ -1,0 +1,17 @@
+{
+  "plan": ".claude/plans/plan-code-review-triage.md",
+  "ops_path": ".claude/plans/plan-code-review-triage.ops.json",
+  "ops_sha256": "7302af7e9ed35a1fccb7c29281bd8b6650650c0bfc2e9cdb6887cc41557e330a",
+  "score": 93,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] Round-1 MAJORs all fixed. F69 fabricated transcript RETRACTED IN PLACE as a Correction of record with the full unedited output including the jsonschema warning; defect re-framed as the warning being c",
+    "[MINOR] Meta-count inflation named rather than quietly edited: 31 -> 21 mechanically catchable, of which 13 need only a scope change to an existing gate (F38,F51,F60,F69,F70,F71,F74,F92,F99,F100,F101,F106,F10",
+    "[MINOR] F57 data-loss claim withdrawn (stash survives, SHA captured at :162, recoverable via git stash list); re-labelled silent-failure, priority kept on diagnosability, and the conditional loss path via pru",
+    "[MINOR] validator-executor-divergence corrected to 2 seams with instance 3 recorded as amplifier, plus an explicit note that padding to 3 would have manufactured a ratchet trigger. hardcoded-count decided at ",
+    "[MINOR] Appendix sampling disclosure added: 9 verdicts by execution, ~30 by grep/command output, remainder by reading, 2 unverified, plus what was NOT done. Independent review sampled 20 findings and found 20"
+  ],
+  "recorded_utc": "2026-08-20T08:33:03Z",
+  "operations": 1,
+  "edits": 0
+}
