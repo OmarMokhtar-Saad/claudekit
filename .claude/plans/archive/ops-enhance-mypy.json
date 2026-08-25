@@ -1,0 +1,24 @@
+{
+  "plan": "enhance-mypy",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/fleet-enhance.py",
+      "description": "`e` was both an except binding and a loop variable",
+      "edits": [
+        {
+          "find": "        e = log[p]\n        lines.append(f\"| {p} | {len(e['added'])} | {len(e['updated'])} | \"\n                     f\"{len(e['modified'])} | {e['unchanged']} | \"\n                     f\"{'yes' if e['manifest'] else '**NO**'} |\")",
+          "replace": "        entry = log[p]\n        lines.append(f\"| {p} | {len(entry['added'])} | {len(entry['updated'])} | \"\n                     f\"{len(entry['modified'])} | {entry['unchanged']} | \"\n                     f\"{'yes' if entry['manifest'] else '**NO**'} |\")"
+        },
+        {
+          "find": "        e = log.get(p)\n        if not e or not e[\"modified\"]:\n            continue\n        lines.append(f\"### {p} ({len(e['modified'])})\")\n        lines.append(\"\")\n        for rel, why in e[\"modified\"][:15]:\n            lines.append(f\"- `{rel}` — {why}\")\n        if len(e[\"modified\"]) > 15:\n            lines.append(f\"- … and {len(e['modified']) - 15} more\")",
+          "replace": "        entry = log.get(p)\n        if not entry or not entry[\"modified\"]:\n            continue\n        lines.append(f\"### {p} ({len(entry['modified'])})\")\n        lines.append(\"\")\n        for rel, why in entry[\"modified\"][:15]:\n            lines.append(f\"- `{rel}` — {why}\")\n        if len(entry[\"modified\"]) > 15:\n            lines.append(f\"- … and {len(entry['modified']) - 15} more\")"
+        },
+        {
+          "find": "    ta = sum(len(e[\"added\"]) for e in log.values())\n    tu = sum(len(e[\"updated\"]) for e in log.values())\n    tm = sum(len(e[\"modified\"]) for e in log.values())",
+          "replace": "    ta = sum(len(v[\"added\"]) for v in log.values())\n    tu = sum(len(v[\"updated\"]) for v in log.values())\n    tm = sum(len(v[\"modified\"]) for v in log.values())"
+        }
+      ]
+    }
+  ]
+}
