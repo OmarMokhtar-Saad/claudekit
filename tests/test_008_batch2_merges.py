@@ -310,6 +310,18 @@ class TestTheSurvivorsCanRunWhatTheyNowTeach:
         assert "25% Essential" in body and "100% Exhaustive" in body
 
 
+def _names(body, skill_id):
+    """Whole-token match, NOT a substring.
+
+    `skill_id in body` is satisfied by `x-session-continuity`, so a mutation that
+    renamed every mapped id away still passed the "does this exemption map anything"
+    guard -- proven, and the reason this helper exists. Same defect class a reviewer
+    caught earlier in `assert "any" in body`.
+    """
+    import re
+    return re.search(r"(?<![\w-])%s(?![\w-])" % re.escape(skill_id), body) is not None
+
+
 class TestNoConsumerPointsAtADeletedSkill:
     """A removed name may still be *narrated*. What may not survive is a name in
     load position, or a live document still describing it as a component that exists.
@@ -348,7 +360,8 @@ class TestNoConsumerPointsAtADeletedSkill:
     # CONSUMER pointing at a deleted skill, and a blanket exemption for
     # `.claude/operations/` would stop catching exactly that. If a second tool ever
     # needs the same allowance, add it here by name and say why.
-    RENAME_MAP_FILES = (".claude/operations/scripts/fleet-sync.py",)
+    RENAME_MAP_FILES = (".claude/operations/scripts/fleet-sync.py",
+                        ".claude/operations/scripts/fleet-repoint.py")
 
     def _live_files(self):
         for rel in self.LIVE_ROOTS:
@@ -403,15 +416,37 @@ class TestNoConsumerPointsAtADeletedSkill:
         assert hits == [], "%s still referenced by: %s" % (old, hits)
 
     @pytest.mark.parametrize("old,survivor", REMOVED)
-    def test_the_rename_map_allowance_still_earns_itself(self, old, survivor):
-        """An exemption that stops being needed becomes a hole nobody notices. Every
-        allowed file must still carry BOTH sides of the mapping -- if it no longer
-        names the old id, delete its entry from RENAME_MAP_FILES."""
+    def test_a_named_old_id_is_always_paired_with_its_survivor(self, old, survivor):
+        """The per-pair property. An exempted file need not map EVERY removed skill --
+        `fleet-repoint.py` handles only the three that anything still referenced --
+        but wherever it names an old id it must name that id's survivor too, or it is
+        not a rename map for that pair and the exemption is unearned there.
+
+        The first version asserted every file map every pair, and failed on exactly
+        that distinction."""
         for rel in self.RENAME_MAP_FILES:
             path = os.path.join(ROOT, rel)
             if not os.path.isfile(path):
                 continue
             body = open(path, encoding="utf-8", errors="replace").read()
-            assert old in body and survivor in body, (
-                "%s no longer maps %s -> %s; drop it from RENAME_MAP_FILES rather "
-                "than leaving an exemption that guards nothing" % (rel, old, survivor))
+            if not _names(body, old):
+                continue
+            assert _names(body, survivor), (
+                "%s names %s without its survivor %s -- that is a dangling reference "
+                "wearing a rename map's exemption" % (rel, old, survivor))
+
+    def test_every_exempted_file_still_maps_something(self):
+        """An exemption that maps nothing is a hole nobody notices. This is what the
+        per-pair test above cannot catch on its own: a file that stopped being a
+        rename map entirely would vacuously satisfy every pair."""
+        for rel in self.RENAME_MAP_FILES:
+            path = os.path.join(ROOT, rel)
+            if not os.path.isfile(path):
+                continue
+            body = open(path, encoding="utf-8", errors="replace").read()
+            mapped = [old for old, surv in REMOVED
+                      if _names(body, old) and _names(body, surv)]
+            assert mapped, (
+                "%s no longer maps any removed skill to its survivor; drop it from "
+                "RENAME_MAP_FILES rather than leaving an exemption that guards "
+                "nothing" % rel)
