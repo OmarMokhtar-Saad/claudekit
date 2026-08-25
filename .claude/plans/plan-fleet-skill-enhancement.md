@@ -168,6 +168,8 @@ Per project, from the matrix in §2.1:
 
 **D3. New skill `prompt-evaluation`** — reimplementation (not copy; upstream license unstated) of the 46ki75 method: isolated subagent judges, ONE judge per criterion (compound rubrics ⇒ halo effect), reasoning-before-verdict, pairwise comparison for A/B, versioned eval-set files. Positioned explicitly as the exploratory stage upstream of `eval-harness` (which stays the CI-gated baseline). `user-invocable: true`; wire a cross-reference from eval-harness. Budget check: description ≤160 chars against the 9000-byte floor row.
 
+**D4 OUTCOME (2026-08-25): evaluated; premise corrected; one pilot staged.** The "9 Java/Kotlin fleet repos' CI" does not exist — **4 are GitLab-hosted, where a GitHub Action cannot run**, and 8 of 9 have no GitHub Actions workflows at all *including ApiForge, the pilot this section suggests*. Pilot moved to **AppiumLens** (GitHub, 4 existing workflows, 2054 Java files); workflow written and left uncommitted, and it fails rather than skips without `ANTHROPIC_API_KEY`. Also surfaced while measuring: **SehhatyApp and Eatizaz share one git remote** — unrelated to D4 and higher severity. Full evaluation: `.claude/reports/research/d4-fleet-ci-security-gating.md`.
+
 **D4. Fleet CI security gating** — evaluate Anthropic's official `claude-code-security-review` GitHub Action for the 9 Java/Kotlin fleet repos' CI (diff-aware, line-level PR comments). Evaluation + one pilot repo only; rollout is a separate plan.
 
 ## 5. Acceptance criteria
