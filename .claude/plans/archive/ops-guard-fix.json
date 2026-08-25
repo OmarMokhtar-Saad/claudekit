@@ -1,0 +1,16 @@
+{
+  "plan": "guard-fix",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_008_batch2_merges.py",
+      "description": "the guard demanded every exempted file map ALL pairs; the real property is per-pair",
+      "edits": [
+        {
+          "find": "    @pytest.mark.parametrize(\"old,survivor\", REMOVED)\n    def test_the_rename_map_allowance_still_earns_itself(self, old, survivor):\n        \"\"\"An exemption that stops being needed becomes a hole nobody notices. Every\n        allowed file must still carry BOTH sides of the mapping -- if it no longer\n        names the old id, delete its entry from RENAME_MAP_FILES.\"\"\"\n        for rel in self.RENAME_MAP_FILES:\n            path = os.path.join(ROOT, rel)\n            if not os.path.isfile(path):\n                continue\n            body = open(path, encoding=\"utf-8\", errors=\"replace\").read()\n            assert old in body and survivor in body, (\n                \"%s no longer maps %s -> %s; drop it from RENAME_MAP_FILES rather \"\n                \"than leaving an exemption that guards nothing\" % (rel, old, survivor))",
+          "replace": "    @pytest.mark.parametrize(\"old,survivor\", REMOVED)\n    def test_a_named_old_id_is_always_paired_with_its_survivor(self, old, survivor):\n        \"\"\"The per-pair property. An exempted file need not map EVERY removed skill --\n        `fleet-repoint.py` handles only the three that anything still referenced --\n        but wherever it names an old id it must name that id's survivor too, or it is\n        not a rename map for that pair and the exemption is unearned there.\n\n        The first version asserted every file map every pair, and failed on exactly\n        that distinction.\"\"\"\n        for rel in self.RENAME_MAP_FILES:\n            path = os.path.join(ROOT, rel)\n            if not os.path.isfile(path):\n                continue\n            body = open(path, encoding=\"utf-8\", errors=\"replace\").read()\n            if old not in body:\n                continue\n            assert survivor in body, (\n                \"%s names %s without its survivor %s -- that is a dangling reference \"\n                \"wearing a rename map's exemption\" % (rel, old, survivor))\n\n    def test_every_exempted_file_still_maps_something(self):\n        \"\"\"An exemption that maps nothing is a hole nobody notices. This is what the\n        per-pair test above cannot catch on its own: a file that stopped being a\n        rename map entirely would vacuously satisfy every pair.\"\"\"\n        for rel in self.RENAME_MAP_FILES:\n            path = os.path.join(ROOT, rel)\n            if not os.path.isfile(path):\n                continue\n            body = open(path, encoding=\"utf-8\", errors=\"replace\").read()\n            mapped = [old for old, surv in REMOVED if old in body and surv in body]\n            assert mapped, (\n                \"%s no longer maps any removed skill to its survivor; drop it from \"\n                \"RENAME_MAP_FILES rather than leaving an exemption that guards \"\n                \"nothing\" % rel)"
+        }
+      ]
+    }
+  ]
+}

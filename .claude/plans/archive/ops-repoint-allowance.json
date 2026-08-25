@@ -1,0 +1,16 @@
+{
+  "plan": "repoint-allowance",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_008_batch2_merges.py",
+      "description": "fleet-repoint.py is the second rename map; the allowance was built for exactly this",
+      "edits": [
+        {
+          "find": "    RENAME_MAP_FILES = (\".claude/operations/scripts/fleet-sync.py\",)",
+          "replace": "    RENAME_MAP_FILES = (\".claude/operations/scripts/fleet-sync.py\",\n                        \".claude/operations/scripts/fleet-repoint.py\")"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "plan": "guard-boundary",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_008_batch2_merges.py",
+      "description": "substring matching let a renamed token still satisfy the guard",
+      "edits": [
+        {
+          "find": "            body = open(path, encoding=\"utf-8\", errors=\"replace\").read()\n            if old not in body:\n                continue\n            assert survivor in body, (",
+          "replace": "            body = open(path, encoding=\"utf-8\", errors=\"replace\").read()\n            if not _names(body, old):\n                continue\n            assert _names(body, survivor), ("
+        },
+        {
+          "find": "            body = open(path, encoding=\"utf-8\", errors=\"replace\").read()\n            mapped = [old for old, surv in REMOVED if old in body and surv in body]",
+          "replace": "            body = open(path, encoding=\"utf-8\", errors=\"replace\").read()\n            mapped = [old for old, surv in REMOVED\n                      if _names(body, old) and _names(body, surv)]"
+        },
+        {
+          "find": "class TestNoConsumerPointsAtADeletedSkill:",
+          "add_before": "def _names(body, skill_id):\n    \"\"\"Whole-token match, NOT a substring.\n\n    `skill_id in body` is satisfied by `x-session-continuity`, so a mutation that\n    renamed every mapped id away still passed the \"does this exemption map anything\"\n    guard -- proven, and the reason this helper exists. Same defect class a reviewer\n    caught earlier in `assert \"any\" in body`.\n    \"\"\"\n    import re\n    return re.search(r\"(?<![\\w-])%s(?![\\w-])\" % re.escape(skill_id), body) is not None\n\n\n"
+        }
+      ]
+    }
+  ]
+}
