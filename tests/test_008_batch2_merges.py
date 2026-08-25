@@ -339,6 +339,17 @@ class TestNoConsumerPointsAtADeletedSkill:
         "context-priming": "context-keeper",
     }
 
+    # A RENAME MAP has to name both sides. `fleet-sync.py` carries the old -> new
+    # table that drives the downstream dedupe, so every removed id appears in it by
+    # design -- and it appeared there only after this gate last ran green, because
+    # the file was added to the tree after that suite run (521f4b9).
+    #
+    # Allowed by exact path, not by directory or glob: the gate's real target is a
+    # CONSUMER pointing at a deleted skill, and a blanket exemption for
+    # `.claude/operations/` would stop catching exactly that. If a second tool ever
+    # needs the same allowance, add it here by name and say why.
+    RENAME_MAP_FILES = (".claude/operations/scripts/fleet-sync.py",)
+
     def _live_files(self):
         for rel in self.LIVE_ROOTS:
             base = os.path.join(ROOT, rel)
@@ -378,13 +389,29 @@ class TestNoConsumerPointsAtADeletedSkill:
 
     @pytest.mark.parametrize("old,survivor", REMOVED)
     def test_no_bare_reference_in_a_live_document(self, old, survivor):
-        allowed = os.path.abspath(
-            os.path.join(SKILLS_DIR, self.OWN_SEAM[old], "SKILL.md"))
+        allowed = {os.path.abspath(
+            os.path.join(SKILLS_DIR, self.OWN_SEAM[old], "SKILL.md"))}
+        allowed |= {os.path.abspath(os.path.join(ROOT, rel))
+                    for rel in self.RENAME_MAP_FILES}
         hits = []
         for path in self._live_files():
-            if os.path.abspath(path) == allowed:
+            if os.path.abspath(path) in allowed:
                 continue
             with open(path, encoding="utf-8", errors="replace") as fh:
                 if old in fh.read():
                     hits.append(os.path.relpath(path, ROOT))
         assert hits == [], "%s still referenced by: %s" % (old, hits)
+
+    @pytest.mark.parametrize("old,survivor", REMOVED)
+    def test_the_rename_map_allowance_still_earns_itself(self, old, survivor):
+        """An exemption that stops being needed becomes a hole nobody notices. Every
+        allowed file must still carry BOTH sides of the mapping -- if it no longer
+        names the old id, delete its entry from RENAME_MAP_FILES."""
+        for rel in self.RENAME_MAP_FILES:
+            path = os.path.join(ROOT, rel)
+            if not os.path.isfile(path):
+                continue
+            body = open(path, encoding="utf-8", errors="replace").read()
+            assert old in body and survivor in body, (
+                "%s no longer maps %s -> %s; drop it from RENAME_MAP_FILES rather "
+                "than leaving an exemption that guards nothing" % (rel, old, survivor))

@@ -14,6 +14,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A testing-skill trio harvested from a real adversarial pass** —
+  `whitebox-invariant-testing` (build the invariant table from the SUT's own source, then
+  attack each promise through harness knobs, never by editing the SUT),
+  `defect-pinning` (the RED-pin protocol: a confirmed defect becomes a quarantined
+  reproducing test pinned to its exact failure, re-run live on every SUT change and restored
+  verbatim, with a five-state coverage map so the next pass starts from a list), and
+  `ai-agent-testing` (the two-suite doctrine — a deterministic offline merge gate versus a
+  live driver that must never gate, because transient provider errors make it a non-signal —
+  plus the agent-invariant catalog: tool-call governance, provenance, staleness, model-echo,
+  multi-entry verdicts, dependent scoping, locale/RTL). Not invented: every worked example
+  comes from a pass against a production agent SDK (148 tests, 38 confirmed defects, zero
+  lines changed in the SUT).
+- **`prompt-evaluation`** — the exploratory prompt-iteration loop: one isolated judge per
+  criterion (a compound rubric produces halo effects and you lose attribution),
+  reasoning-before-verdict, position-swapped pairwise comparison, and eval sets versioned
+  orthogonally to the prompt. Explicitly **not** a CI gate — `eval-harness` stays that.
+  Reimplemented, not copied: the upstream method's license is unstated.
+
 - **`java-review-checklist` and `kotlin-review-checklist`** — the per-language review
   checklists `code-reviewer` loads by file extension existed for Python and TypeScript
   only, while 9 of the 17 kitted fleet projects are Java/Maven or Kotlin/Gradle, so a
@@ -221,6 +239,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   parses and is wrong.
 
 ### Changed
+
+- **`differential-security-review` gained the Trail of Bits methodology** — risk-first
+  prioritisation (review order follows what the changed code guards, not diff size; three
+  lines touching a token comparison outrank a thousand-line view refactor), size-adaptive
+  depth, and the evidence rule that a finding names an attacker, an input, a path and an
+  outcome or it is an observation. **This makes that one file a CC BY-SA 4.0 derivative
+  inside an MIT distribution**, so `THIRD-PARTY-LICENSES.md` is new and the README's License
+  section points at it. `LICENSE` itself is left **byte-exact on purpose**: prose inserted
+  into it drops automated MIT detection below the threshold licensee/ScanCode use, which
+  would make the distribution's licensing *less* legible, not more. Share-alike applies to that file only; ClaudeKit's own code stays MIT.
 
 - **All four per-language review checklists stopped emitting a score.** `code-reviewer`'s
   Exit Rule is explicit — "the code-review gate is a blocking-finding count, not a score:

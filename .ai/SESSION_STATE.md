@@ -2,33 +2,42 @@
 
 > Update this file at the end of every significant AI working session. It is the resume point.
 
-**Last updated:** 2026-08-25 · **By:** Claude (Opus 5) — **Phases A and B are done.**
-Phase A shipped in claudekit; Phase B distributed it to 12 kitted fleet repos, all left
-uncommitted. **Half the approved dedupe list is HELD and needs a decision.**
+**Last updated:** 2026-08-25 · **By:** Claude (Opus 5) — **Phases A, A2b, B, D1 and D3 are
+done.** Skills 73 → **79**. The fleet is synced. **One owner decision is open (fleet dedupe)
+and one licensing consequence is now shipped and worth knowing about.**
 
-**Start here if you are picking this up.** Read
-`.claude/reports/fleet-sync-2026-08-25.md` first — it opens with the one open decision.
-The B3 dedupe was approved for six superseded skills with a diff-guard against local
-customisation. That guard passed everywhere (all six are byte-identical fleet-wide), but
-it does not ask whether anything still LOADS the skill. Three of the six are named in
-**84 `## Skill Loading` directives across 12 repos**, and downstream registries carry no
-`renamed` alias map, so deleting them as approved would have left 84 dangling loads. The
-three unreferenced ones were deleted (36 directories); `session-continuity`,
-`dependency-audit` and `verification-loop` are HELD. Closing it needs either an 84-site
-reference rewrite (48 renames + 36 line removals, because those files already name the
-successor too) or a `renamed` alias map shipped downstream. **That decision is the next
-job.**
+**Start here if you are picking this up.** Two things need your attention before anything else:
 
-**`.claude/operations/scripts/fleet-sync.py` now exists** — the tooling BACKLOG §9 asked
-for. It is idempotent (a dry-run against the current fleet reports 0/0/0), skips-and-logs
-rather than forcing, diff-guards every delete against the modal fleet copy, and refuses
-to delete a skill anything still references. Re-run it after any future claudekit change
-that the fleet should receive; edit `STACKS` when a project's languages change.
+1. **`.claude/reports/fleet-sync-2026-08-25.md`** opens with the open decision: half the
+   approved B3 dedupe is HELD because 84 files across 12 repos still LOAD three of the six
+   superseded skills, and downstream registries have no `renamed` alias map. Closing it is
+   either an 84-site reference rewrite (48 renames + 36 line removals) or shipping an alias
+   map downstream.
+2. **ClaudeKit now distributes one CC BY-SA 4.0 file.** `differential-security-review/SKILL.md`
+   adapts Trail of Bits methodology (owner-approved D1), which makes it a derivative. It ships
+   in the sdist, so `THIRD-PARTY-LICENSES.md` is new, is listed in `MANIFEST.in` and
+   `license-files`, and `README.md` no longer claims "No restrictions." `LICENSE` is
+   deliberately byte-exact — inserting prose into it drops automated MIT detection below the
+   threshold licensee/ScanCode use. **Any future adapted file gets a row in that notice AND an
+   attribution block in the file.**
 
-**The plan's §2.1 stack matrix was wrong** and the report records the corrections:
-AppiumLens is Java (2054 tracked `.java`, 2 `.kts` build scripts), not Kotlin; qaforge-ai
-and AppiumLens are dual-stack. The recurring "~34 `.py`" that made every Java project look
-dual-stack is ClaudeKit's own `.claude/operations/scripts/` plus `.claude.bak-*` copies.
+**What landed this pass.** §A2b's testing trio (`whitebox-invariant-testing`,
+`defect-pinning`, `ai-agent-testing`) harvested from the real shsmartassistant-qa pass
+(148 tests, 38 confirmed defects, zero SUT lines changed — the numbers in the skills are the
+measured ones, not that repo's stale headline), plus D3's `prompt-evaluation` and D1's ToB
+methodology. Plan review 84 → 93; code review 75 → 75 → 93.
+
+**Three lessons this pass paid for, in the order they will bite again.**
+
+1. **A licensing fix that does not reach the artifact is not a fix.** Round 1 caught the
+   missing notice; round 2 caught that the notice never entered the sdist and that `LICENSE`
+   pointed at a file that would not be there. Build the artifact and look inside it.
+2. **Shell in prose is still shell.** `src/test/**/` matched nothing under bash 3.2 (no
+   globstar), unquoted `$PINS` word-split on a path with a space, and `grep -P` is GNU-only.
+   All three passed `bash -n`; all three were caught by executing against a scratch tree.
+3. **An allowlist can only re-confirm what you already listed.** The cross-link test
+   intersected a fixed name set, so the broken pointer nobody anticipated was skipped. Inverted
+   to the superset direction and mutation-proven against a typo and a rename.
 
 **Two traps this session paid for, in the order you will hit them.** (1) `gen-registry.py`
 will NOT auto-register a skill that an agent already routes to — its unknown-skill guard

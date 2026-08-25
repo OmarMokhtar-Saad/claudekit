@@ -1,0 +1,16 @@
+{
+  "plan": "a7-archival",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/plans/plan-fleet-skill-enhancement.md",
+      "description": "A7 - the archival step was undocumented, so a spent config reds the staleness gate",
+      "edits": [
+        {
+          "find": "- `python3 -m pytest tests/ -q`, `ruff check src/ tests/ scripts/`, `mypy`, `shellcheck install.sh .claude/hooks/*.sh`.",
+          "replace": "- **Move the spent ops.json to `.claude/plans/archive/` with a README row, BEFORE running the suite.** A config fails `test_queued_ops_configs_validate_against_head` the moment it succeeds — its `find` anchors are consumed by its own edits. This is out-of-band like the regens above: `run_command` is allowlisted to formatters, so no config can archive itself.\n- `python3 -m pytest tests/ -q`, `ruff check src/ tests/ scripts/`, `mypy`, `shellcheck install.sh .claude/hooks/*.sh`. **Run `mypy` over `.claude/operations/scripts/` too** — `fleet-sync.py` shipped in `521f4b9` with three annotation errors because the DoD sweep was run only over `src/`."
+        }
+      ]
+    }
+  ]
+}

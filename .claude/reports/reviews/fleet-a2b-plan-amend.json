@@ -1,0 +1,33 @@
+{
+  "plan": ".claude/plans/plan-fleet-skill-enhancement.md",
+  "slug": "fleet-a2b-plan-amend",
+  "ops_path": ".claude/plans/ops-fleet-a2b-plan-amend.json",
+  "ops_sha256": "d05deb7bde5c0a881614d0ca8d7cc0f5cde006485ea67c8d1b29785df8d7695a",
+  "score": 93,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] Section 8 items 4 and 5 still read as open yes/no questions while the new block asserts they were APPROVED 2026-08-25; annotate section 8 as RESOLVED",
+    "[MINOR] In-session approval recorded only in plan prose is thin provenance for D1/D3"
+  ],
+  "verdict_origin": "rubric",
+  "recorded_utc": "2026-08-25T08:09:14Z",
+  "operations": 1,
+  "edits": 3,
+  "rounds": [
+    {
+      "score": 84,
+      "decision": "REVISE",
+      "findings": [
+        "[MAJOR] A2b declares allowed-tools only for whitebox-invariant-testing; defect-pinning and ai-agent-testing omit it, violating the D2 convention this increment cites",
+        "[MAJOR] No character budget specified for the three A2b descriptions; baseline contested (7934 vs 8233) leaving as little as ~300 bytes headroom with no stated cap",
+        "[MAJOR] ai-agent-testing's cross-link to prompt-evaluation would ship as a dangling reference; gen-registry does not validate prose cross-links",
+        "[MINOR] No justification for splitting defect-pinning out of whitebox-invariant-testing",
+        "[MINOR] ai-agent-testing's locale/RTL invariant not evidenced in the source material read"
+      ],
+      "recorded_utc": "2026-08-25T08:05:19Z",
+      "ops_sha256": "d05deb7bde5c0a881614d0ca8d7cc0f5cde006485ea67c8d1b29785df8d7695a",
+      "verdict_origin": "rubric"
+    }
+  ],
+  "round": 2
+}

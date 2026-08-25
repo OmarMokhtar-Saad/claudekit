@@ -1,0 +1,24 @@
+{
+  "plan": "fleet-sync-mypy",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/fleet-sync.py",
+      "description": "mypy was never run on this file before it was committed in 521f4b9 - three missing annotations",
+      "edits": [
+        {
+          "find": "    out = {}\n    for dup in SUPERSEDED:\n        variants = {}",
+          "replace": "    out: Dict[str, Tuple[Optional[str], Dict[str, str], int]] = {}\n    for dup in SUPERSEDED:\n        variants: Dict[str, List[str]] = {}"
+        },
+        {
+          "find": "    log = {p: {\"added\": [], \"edited\": [], \"deleted\": [], \"skipped\": []} for p in projects}",
+          "replace": "    log: Dict[str, Dict[str, List[str]]] = {\n        p: {\"added\": [], \"edited\": [], \"deleted\": [], \"skipped\": []} for p in projects}"
+        },
+        {
+          "find": "import shutil\nimport sys",
+          "replace": "import shutil\nimport sys\nfrom typing import Dict, List, Optional, Tuple"
+        }
+      ]
+    }
+  ]
+}

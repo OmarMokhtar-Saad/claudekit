@@ -1,0 +1,67 @@
+{
+  "plan": ".claude/plans/plan-fleet-skill-enhancement.md",
+  "slug": "fleet-a2b-d1-d3",
+  "ops_path": ".claude/plans/archive/ops-fleet-a2b-d1-d3.json",
+  "ops_sha256": "5df1cc57b47e2a9243f59fdd0148056b2f6a1736282d5979168441545c97cd2b",
+  "score": 92,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] CHANGELOG.md claims \"LICENSE points at it\" but LICENSE is byte-identical to HEAD; contradicts CHANGELOG_AI.md",
+    "[MINOR] ai-agent-testing cites 116/31 while whitebox-invariant-testing cites 148/38 for the same pass",
+    "[MINOR] pyproject.toml requires setuptools>=64 while license-files needs >=77",
+    "[MINOR] README skill category table omits the four new skills though generated counts moved 75 to 79",
+    "[MINOR] Full suite red on out-of-scope ops-retro2-nits.json; stage only this increment's files"
+  ],
+  "verdict_origin": "rubric",
+  "recorded_utc": "2026-08-25T09:45:17Z",
+  "operations": 12,
+  "edits": 10,
+  "rounds": [
+    {
+      "score": 75,
+      "decision": "REVISE",
+      "findings": [
+        "[MAJOR] Config runs no generators: gen-registry --check and gen-docs --check (75 to 79) both fail on execution, along with the config's own new tests",
+        "[MAJOR] Op 5 declares differential-security-review CC BY-SA 4.0 inside an MIT repo that ships .claude/ into the sdist; no op amends LICENSE or third-party notices",
+        "[MINOR] No CHANGELOG [Unreleased] op for four user-visible new skills plus a relicensed one",
+        "[MINOR] defect-pinning step-4 bash uses globstar and git stash list as a clean-tree check, non-functional under bash 3.2 on macOS",
+        "[MINOR] ai-agent-testing uses grep -rnP which BSD grep rejects",
+        "[MINOR] test_it_says_why_it_is_not_folded_into_the_invariant_skill asserts \"any\" in body, vacuous",
+        "[MINOR] test_every_cross_referenced_skill_actually_exists intersects a closed whitelist so a broken pointer is skipped",
+        "[MINOR] 116 tests / 31 confirmed defects contradicts the source's 38 confirmed rows and 38 pins",
+        "[MINOR] Skill-description floor lands at 8817/9000; the docstring quotes the pre-add 8233 as current",
+        "[MINOR] D1 growth 1529 B against a 1536 B cap with the baseline hardcoded in the test"
+      ],
+      "recorded_utc": "2026-08-25T08:57:13Z",
+      "ops_sha256": "80df49eac6b43010dd6a653d620cb68029d45c66873d635cd34938d48868788d",
+      "verdict_origin": "rubric"
+    },
+    {
+      "score": 75,
+      "decision": "REVISE",
+      "findings": [
+        "[MAJOR] THIRD-PARTY-LICENSES.md is absent from the sdist and wheel while the CC BY-SA file ships; LICENSE points at a file not in the distribution",
+        "[MAJOR] Inserting prose into LICENSE between title and copyright drops automated MIT detection below threshold",
+        "[MAJOR] README.md still claims \"No restrictions.\" which is false once a share-alike file ships",
+        "[MINOR] token-optimization/SKILL.md carries an MIT upstream attribution but is missing from the notice's MIT table",
+        "[MINOR] prompt-evaluation's \"license is unstated\" was never verified against the parent repo",
+        "[MINOR] The spent config reds test_queued_ops_configs_validate_against_head; A7 documents regeneration but not archival",
+        "[MINOR] Unquoted $PINS in the defect-pinning sed/for loop word-splits on paths containing spaces"
+      ],
+      "recorded_utc": "2026-08-25T09:15:59Z",
+      "ops_sha256": "5df1cc57b47e2a9243f59fdd0148056b2f6a1736282d5979168441545c97cd2b",
+      "verdict_origin": "rubric"
+    },
+    {
+      "score": 93,
+      "decision": "APPROVED",
+      "findings": [
+        "[MINOR] Verified on a scratch tree: sdist now carries THIRD-PARTY-LICENSES.md beside LICENSE, LICENSE is byte-exact, README no longer claims no restrictions, token-optimization is listed, the 46ki75 row state"
+      ],
+      "recorded_utc": "2026-08-25T09:15:59Z",
+      "ops_sha256": "5df1cc57b47e2a9243f59fdd0148056b2f6a1736282d5979168441545c97cd2b",
+      "verdict_origin": "rubric"
+    }
+  ],
+  "round": 4
+}
