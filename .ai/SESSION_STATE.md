@@ -2,6 +2,26 @@
 
 > Update this file at the end of every significant AI working session. It is the resume point.
 
+**Last updated:** 2026-08-25 (fourth period) · **By:** Claude (Opus 5) — **the rejection
+retro loop is in.** Review verdicts now record on EVERY round, a durable brief lands on the
+2nd non-approving one, and `/flow-retro` can mine them. **It captures but cannot yet learn:
+13 briefs, 1 resolved session, 0 classified.**
+
+**Read this before running `/flow-retro`.** Its own sample-size gate is >=5 briefs across >=3
+sessions. The corpus has the briefs and not the sessions: 8 of 13 record `session: unknown`
+because they were written by sessions that predate the session-pointer fix and can never be
+mined. That clears naturally as new sessions accumulate — do not force it, and do not
+"fix" it by relaxing the gate, which is the one discipline the research says protects this
+whole mechanism. `defect_type`/`trigger` are empty by design; `rejections classify` is the
+writer, and nothing auto-assigns them because a guessed classification corrupts the
+distribution shift that IS the process signal.
+
+**The measurement that justified the work.** Before this: 80 review records, 80 APPROVED,
+79 of 80 single-round — not because review always passes, but because only the round that
+passed was ever written. The rejection signal was produced and discarded.
+
+---
+
 **Last updated:** 2026-08-25 · **By:** Claude (Opus 5) — **Phases A, A2b, B, D1 and D3 are
 done.** Skills 73 → **79**. The fleet is synced. **One owner decision is open (fleet dedupe)
 and one licensing consequence is now shipped and worth knowing about.**

@@ -1,6 +1,63 @@
 # AI Session Changelog
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
+## 2026-08-25 (fourth period) — the rejection retro loop, and four rounds spent on one root cause
+
+Commits `74e5fed`, `b355a4f`, `648cef5`. Plan review **85 → 89 → 93 → 92 → 88 → 87 → 93**
+across seven rounds; the completion batch **60 → 75 → 92**. Suite 3026 → **4412 passed**.
+
+**What landed.** Reviewers emit the anchored verdict block on every round and rejecting
+rounds are recorded, so `rounds[]` finally accumulates. `review-record.py` writes a durable
+brief on the 2nd non-approving round with an `INDEX.jsonl` sidecar, fail-soft — it runs after
+the verdict is on disk and cannot fail `cmd_write`. Plus `transcript-miner.py`, `flow-analyst`
++ `/flow-retro`, `rejections search|stats|classify|backfill`, a 14-fixture held-out set with
+`scripts/heldout-check.py`, and `planner.md` Phase 0 searching prior rejections. Design follows
+ExpeL (arXiv:2308.10144), NOT Reflexion — evidence in
+`.claude/reports/research/self-learning-agent-loops.md`.
+
+**Four of seven rounds found the same root cause one layer further out**, and each round's
+TEST had manufactured the precondition production lacked: shell filter and parser read
+different blocks (a code-reviewer APPROVE of a diff could have authorised execution of an
+ops.json it never scored) → `$PLAN_FILE`/`$review_output` bound nowhere, injected by `env` →
+the report file the fence reads written by nothing, written by the fixture → producer ordered
+after consumer in the shipped document. Fixed structurally, not per-instance: the shell no
+longer parses verdicts at all, and the harness now DISCOVERS step order from the shipped
+headings instead of asserting one.
+
+**`--write` would have committed two other repositories into this one.** `rejections backfill`
+globbed `~/.claude*/projects/*` — 99 roots, 2019 transcripts — and 9 of the 17 rows its dry run
+proposed came from AppiumLens and shsmartassistant-qa. Because the whole fleet is kitted, the
+`ops-<slug>` filter scoped nothing. Caught by running the real dry run, not by reading the
+glob. Now scoped to this project's transcript root, fail-closed: 9 foreign rows → 0.
+
+**Lessons this period paid for.**
+
+1. **One definition, two scopes — three times in one feature.** Shell regex vs `parse_verdict`;
+   `valid_session` vs `_SESSION_ID_RE`; a slug derived by regex vs `ops_slug()`. Each time two
+   pieces of code answered the same question differently and the disagreement was invisible
+   until something crossed the boundary. Now pinned by a test.
+2. **"Newest transcript = my session" is false exactly where this ships.** 21 transcripts
+   touched in 2h, the newest belonging to a SUBAGENT, two sessions writing concurrently. A
+   wrong session id is strictly worse than `unknown` because nothing downstream detects it —
+   so resolution refuses rather than guesses, verified across 11 crafted corpora.
+3. **A gate whose condition cannot be satisfied is worse than no gate.** A reviewer issued
+   CONDITIONAL, but `cmd_check` requires the literal `APPROVED` and the condition
+   (`heldout-check.py --freeze`) can only run AFTER the execution the token forbids. Named
+   rather than routed around; the reviewer called it its own defect and converted.
+4. **Concurrent sessions share a working tree AND a git index.** Another session ran `git add`
+   while this one ran `git commit`; the commit swept their staged files in. Repaired by
+   rewriting the unpushed commit with an explicit pathspec, which ignores the index. Use
+   `git commit -- <paths>` when any other session may be live.
+5. **A clean sample is not a clean property.** The miner read "0 leaks" on a real transcript;
+   once credential scrubbing was added, the SAME transcript yielded 19 redactions. The first
+   measurement was of paths only.
+
+**Follow-ups.** `/flow-retro` cannot run until the corpus has >=3 sessions. The held-out set is
+one-directional by construction — all baselines APPROVED, so it detects a harsher reviewer and
+never a laxer one; stated in the manifest, README, analyst prompt and script output. Three
+command budgets sit at exactly 100% (`code-review.md` 140/140, `refine.md` 466/466,
+`review.md` 125/125) and the context floor at 99.6%, so the next added line breaks a gate.
+
 ## 2026-08-25 (third period) — §A2b + D1 + D3, and a licensing chain the plan got wrong twice
 
 Skills 75 → 79. Plan review **84 → 93**; code review **75 → 75 → 93**. Owner approved §8
