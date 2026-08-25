@@ -1,0 +1,27 @@
+{
+  "plan": "floor-trim2",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "CLAUDE.md",
+      "description": "CLAUDE.md is at its x4-weighted ceiling; the mirror gate lives where there is no budget",
+      "edits": [
+        {
+          "find": "\npython3 scripts/gen-agents-mirror.py --check # Codex mirror parity",
+          "replace": ""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".ai/CHECKLISTS.md",
+      "description": "the mirror gate belongs in the DoD list that has no context budget",
+      "edits": [
+        {
+          "find": "- [ ] `ruff check src/ tests/ scripts/ .claude/operations/scripts/` clean · `mypy` clean",
+          "add_after": "\n- [ ] `python3 scripts/gen-agents-mirror.py --check` clean (Codex mirror membership parity; CI-gated. NOT in CLAUDE.md's command list — that file sits at its x4-weighted context budget and a line there costs 4x its length)"
+        }
+      ]
+    }
+  ]
+}

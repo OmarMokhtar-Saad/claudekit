@@ -617,10 +617,14 @@ class TestTheCodexMirrorStaysInMembershipParity:
         assert proc.returncode == 0, proc.stdout + proc.stderr
 
     def test_the_gate_is_wired_where_it_will_run(self):
+        """CI is what enforces it; the checklist is what a human follows. Deliberately
+        NOT in CLAUDE.md's command block -- that file is weighted x4 in the context
+        floor and was 8 chars from its ceiling, so a 66-char line there costs 264 and
+        pushes the row OVER. Enforcement does not depend on it being listed twice."""
         ci = open(os.path.join(ROOT, ".github/workflows/ci.yml"), encoding="utf-8").read()
         assert "gen-agents-mirror.py --check" in ci
-        claude_md = open(os.path.join(ROOT, "CLAUDE.md"), encoding="utf-8").read()
-        assert "gen-agents-mirror.py --check" in claude_md
+        checklist = open(os.path.join(ROOT, ".ai/CHECKLISTS.md"), encoding="utf-8").read()
+        assert "gen-agents-mirror.py --check" in checklist
 
     def test_the_adaptation_is_real_and_not_a_stale_copy(self):
         """If the mirror were a plain copy, the membership gate would be the only thing
