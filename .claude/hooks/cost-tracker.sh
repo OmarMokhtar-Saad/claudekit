@@ -2,13 +2,23 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # =============================================================================
 # Cost Tracker Hook
-# Tracks session activity and estimates costs at session end.
 # Runs as a Stop hook.
+#
+# NAME vs BEHAVIOUR, stated because the gap is the finding (F49). This counts LINES IN
+# THE HOOK LOG -- tool calls, git operations, hook errors. It has no access to token
+# counts or prices and therefore cannot estimate a cost; the summary it prints says
+# "Session Summary" for that reason. The file is still called `cost-tracker.sh` because
+# renaming a shipped hook is user-visible (it appears in settings.json and in 16
+# downstream repos), which makes it an owner decision rather than a cleanup. Until then,
+# do not read the filename as a promise: no cost is tracked here.
 # =============================================================================
 
 LOG_FILE="$SCRIPT_DIR/hooks.log"
-COST_LOG=".claude/hooks/cost-tracker.log"
-SESSION_LOG=".claude/hooks/session.log"
+# `$SCRIPT_DIR` for the same reason as `LOG_FILE`: only 1 of the 11 hooks wired in
+# settings.json is invoked with a `cd` to the project root, and this one is not, so a
+# cwd-relative path put the record wherever the session happened to start.
+COST_LOG="$SCRIPT_DIR/cost-tracker.log"
+SESSION_LOG="$SCRIPT_DIR/session.log"
 HOOK_NAME="cost-tracker"
 
 log() {

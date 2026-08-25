@@ -24,11 +24,11 @@ index never outranks the current files.
 |---|---:|
 | `drifted` | 3 |
 | `approved` | 49 |
-| `planned` | 10 |
-| `executed` | 26 |
+| `planned` | 11 |
+| `executed` | 27 |
 | `not_started` | 17 |
 | `legacy` | 3 |
-| **total** | **108** |
+| **total** | **110** |
 
 ## Plans
 
@@ -106,6 +106,7 @@ index never outranks the current files.
 | `.claude/plans/plan-remove-codex-mirror.md` | `approved` | 1 |  |
 | `.claude/plans/plan-residuals.md` | `approved` | 1 |  |
 | `.claude/plans/plan-residue-cleanup.md` | `approved` | 1 |  |
+| `.claude/plans/plan-retro-completion.md` | `planned` | 9 |  |
 | `.claude/plans/plan-review-approval-binding.md` | `planned` | 1 |  |
 | `.claude/plans/plan-review-d945278.md` | `executed` | 9 |  |
 | `.claude/plans/plan-review-discipline.md` | `approved` | 1 |  |
@@ -117,6 +118,7 @@ index never outranks the current files.
 | `.claude/plans/plan-review-round-history.md` | `approved` | 1 |  |
 | `.claude/plans/plan-review-truthfulness-batch.md` | `approved` | 1 |  |
 | `.claude/plans/plan-round-3-and-gate-residuals.md` | `executed` | 0 |  |
+| `.claude/plans/plan-round-4-derived-corpus.md` | `executed` | 0 |  |
 | `.claude/plans/plan-run-command-op.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-scanner-coverage.md` | `executed` | 8 |  |
 | `.claude/plans/plan-session-close-fix.md` | `executed` | 2 |  |

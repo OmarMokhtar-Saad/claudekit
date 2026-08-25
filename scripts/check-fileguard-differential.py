@@ -73,6 +73,21 @@ CORPUS: List[str] = [
     "k8s/tests/tls.key", ".kube/tests/tls.key", "secret/tests/x.pem",
     "certs/tests/server.key", "ssl/tests/x.key", "private/tests/x.pem",
     ".ssh/deploy.key.pub", ".ssh/authorized_keys.pub",
+    # WRAPPED chains: one non-certificate link interposed. The peel loop stopped at the
+    # first of these, so 100 of 360 generated cases were freed -- a compressed or
+    # backed-up key is the likeliest real form and no chain in this corpus had one.
+    "tests/credentials.json.gz.key", "tests/id_rsa.tar.pem", "tests/passwd.bak.crt",
+    "tests/wallet.dat.zip.p12", "testdata/prod.sqlite.gz.key",
+    # An author-asserted name inside a secret directory. THIS COMMIT'S OWN predecessor
+    # freed these by hoisting `example.*`/`sample.*`/`dummy.*` above the veto, and this
+    # gate reported "no undisclosed path lost its flag" because not one corpus path had
+    # such a basename in such a directory -- the corpus was extended along the PREVIOUS
+    # hole's axis and not along the change being made.
+    "secrets/example.key", "vault/sample.pem", "keys/dummy.key", ".aws/example.pem",
+    ".gnupg/sample.key", "production/dummy.p12",
+    # Uppercase directory forms: the veto was case-sensitive on a case-insensitive
+    # filesystem, so these were the same files as their lowercase siblings and clean.
+    "SECRETS/tests/x.pem", "PII/tests/x.pem", "K8s/tests/tls.key",
     "tests/fixtures/.env", "test/secrets.json", "tests/credentials.json",
     "tests/id_rsa", "testdata/wallet.dat", "spec/fixtures/terraform.tfstate",
     "home/tests/.aws/credentials", "k8s/tests/secret-db.yaml",
@@ -257,12 +272,26 @@ def main() -> int:
         # those paths and nothing else passed while making the other 64 corpus paths look
         # already-clean. Requiring at least one flagged path per category the baseline
         # knows about closes that window cheaply.
-        baseline_categories = {classify(before_path, p) for p in CORPUS}
-        baseline_categories.discard(None)
-        if len(baseline_categories) < 8:
-            print("FAIL: the baseline guard produces only %d distinct categories across "
-                  "the corpus (%s). It classifies too little to reveal a regression."
-                  % (len(baseline_categories), ", ".join(sorted(baseline_categories))))
+        # PER-CATEGORY AGAINST WHAT THE *HEAD* GUARD PRODUCES, not a bare count of 8.
+        # The count version was implied by the 12-path floor below and therefore bought
+        # nothing: BASELINE_FLOOR's twelve paths span 9-10 categories on their own, so any
+        # baseline clearing the floor cleared the count automatically. Measured against the
+        # exact adversary the comment named -- a baseline flagging only those twelve --
+        # 10 categories, 0 missing, both gates PASS, 78 of 90 corpus paths look clean.
+        #
+        # This version compares against HEAD: for every category HEAD produces somewhere in
+        # the corpus, the baseline must produce it somewhere too. A baseline that has gone
+        # blind to a whole category cannot reveal a regression in it, and that is exactly
+        # the state a floor is for.
+        head_categories = {classify(after_path, p) for p in CORPUS}
+        head_categories.discard(None)
+        base_categories = {classify(before_path, p) for p in CORPUS}
+        base_categories.discard(None)
+        blind_to = sorted(head_categories - base_categories)
+        if blind_to:
+            print("FAIL: the baseline guard produces no path in %d categor(ies) that HEAD "
+                  "does (%s). It cannot reveal a regression in a category it never "
+                  "reports." % (len(blind_to), ", ".join(blind_to)))
             return 1
         floor_missing = [p for p in BASELINE_FLOOR if classify(before_path, p) is None]
         if len(floor_missing) > 2:

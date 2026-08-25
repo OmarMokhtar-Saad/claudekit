@@ -208,6 +208,35 @@ defects discovered during execution. See CHANGELOG `[Unreleased]` and the plans 
   failing on them reddens CI for history nobody can change. Fix the resolution, watch the number
   fall, then make it fatal — in that order, or the gate gets routed around.
 
+- [ ] **[MEDIUM] 13 cwd-relative paths remain across 7 hooks, and only 1 of 11 wired hooks
+  is invoked with a `cd` to the project root.** Measured 2026-08-25 as a PROPERTY rather than
+  as the sites anyone happened to notice — which is why the count keeps growing. F107 recorded
+  "two forms", then three, then a fourth; the real figure:
+
+      $ grep -nE '^[A-Z_]+="\.claude/' .claude/hooks/*.sh    # 16 assignments, 8 hooks
+      $ # of the 11 hooks wired in settings.json, exactly ONE (suggest-compact.sh) has `cd`
+
+  Three log paths were fixed 2026-08-24 (`format-typecheck`, `security-reminder`,
+  `session-start`), and `command-log-audit`'s `AUDIT_LOG` plus `cost-tracker`'s two records on
+  2026-08-25. **What remains is a judgement call per path, not a sweep**, and that is why it is
+  filed rather than done:
+
+  * paths that should follow the HOOK (`hooks.log`, `bash-commands.log`, counters) belong on
+    `$SCRIPT_DIR` — `auto-checkpoint.sh:12`, `check-comment-replacement.sh:12`,
+    `file-guard.sh:13`, `suggest-compact.sh:17-18` (the last is currently safe *only* because
+    its settings.json entry is the one that cds);
+  * paths that name PROJECT data are correctly project-relative — `CHECKPOINT_DIR`,
+    `CONTEXT_FILE`, `GRAPH_FILE`, `LOCKS_DIR`, `CONFIG` — but they should resolve through
+    `lib.sh`'s `resolve_root()` rather than assume cwd, and most of those hooks do not source
+    `lib.sh`.
+
+  Doing it as one change touches 7 hooks including `file-guard.sh` and `pre-commit.sh`, adds
+  `. lib.sh` to hooks that do not have it (the blast-radius argument that scoped
+  `plan-hook-log-dedup.md` down to three files), and lands in 16 downstream repos. Owner-gated
+  for that reason. **The gate worth having first is a test asserting the property** — no hook
+  writes to a cwd-relative path unless its settings.json entry cds — so the count cannot grow
+  again while nobody is counting.
+
 - [ ] **[MEDIUM] `review-record.py check` manufactures DRIFT for a plan's second ops config.**
   Diagnosed 2026-08-24 while working the three `drifted` plans `gen-plan-index.py --check`
   reports. **Two of the three warnings are the tool's, not the tree's.** When a config has no

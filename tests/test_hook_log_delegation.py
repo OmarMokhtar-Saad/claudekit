@@ -16,6 +16,7 @@ local `log()` in any of the three and `test_logs_land_beside_the_hook_not_in_the
 fails.
 """
 
+import json
 import os
 import shutil
 import subprocess
@@ -99,6 +100,58 @@ def test_hlog_keeps_arguments_past_the_second():
                        capture_output=True, text=True)
         assert "one two three" in logf.read_text()
 
+
+def test_the_audit_log_lands_beside_the_hook_not_in_the_cwd(tmp_path):
+    """`command-log-audit.sh` wrote its AUDIT TRAIL to a cwd-relative path while its own
+    `LOG_FILE` one line above used `$SCRIPT_DIR`. Of the 11 hooks wired in settings.json
+    exactly one is invoked with a `cd` to the project root, and this is not it, so from any
+    other directory the trail went elsewhere -- or nowhere, since the append is
+    `2>/dev/null` and a missing directory fails silently. Finding F55.
+    """
+    kit = tmp_path / "kit" / ".claude" / "hooks"
+    kit.parent.mkdir(parents=True)
+    shutil.copytree(HOOKS, kit, ignore=shutil.ignore_patterns("*.log"))
+    elsewhere = tmp_path / "elsewhere"
+    (elsewhere / ".claude" / "hooks").mkdir(parents=True)
+
+    payload = json.dumps({"tool_name": "Bash",
+                          "tool_input": {"command": "echo audit-probe-marker"}})
+    subprocess.run(["bash", str(kit / "command-log-audit.sh")], cwd=str(elsewhere),
+                   input=payload, capture_output=True, text=True,
+                   env=dict(os.environ, ECC_HOOK_PROFILE="standard"))
+
+    # RECORDING FIRST, location second. The earlier version of this test asserted only
+    # that no stray file appeared in the cwd, and it passed against a hook that recorded
+    # NOTHING ANYWHERE -- the fifth vacuous assertion in this series. The hook had its own
+    # inline extractor reading `command` at the top level while the payload nests it under
+    # `tool_input`, so it returned before the append every time; `.claude/hooks/
+    # bash-commands.log` did not exist in this repo after weeks of hook runs.
+    trail = kit / "bash-commands.log"
+    assert trail.exists(), "the audit hook recorded nothing at all"
+    assert "audit-probe-marker" in trail.read_text(), (
+        "the command never reached the audit trail -- check the payload extraction, not "
+        "the path"
+    )
+    stray = elsewhere / ".claude" / "hooks" / "bash-commands.log"
+    assert not stray.exists(), "the audit trail was written into the caller's cwd"
+
+
+def test_cost_tracker_records_land_beside_the_hook(tmp_path):
+    """Same class, same measurement: `COST_LOG` and `SESSION_LOG` were cwd-relative."""
+    body = (HOOKS / "cost-tracker.sh").read_text()
+    assert 'COST_LOG=".claude/' not in body
+    assert 'SESSION_LOG=".claude/' not in body
+    assert 'COST_LOG="$SCRIPT_DIR' in body
+
+
+def test_cost_tracker_does_not_claim_to_track_cost():
+    """F49: it counts lines in the hook log and has no access to tokens or prices. The
+    filename stays (renaming a shipped hook is user-visible and owner-gated), so the file
+    must say so -- a name that promises what the code cannot deliver is hard rule 6's
+    territory, and the honest statement is the whole fix available here."""
+    body = (HOOKS / "cost-tracker.sh").read_text()
+    assert "no cost is tracked here" in body
+    assert "estimates costs" not in body, "the old promise is still in the header"
 
 @pytest.mark.parametrize("name", sorted(DELEGATED))
 def test_a_missing_lib_sh_stays_silent(tmp_path, name):
