@@ -1,0 +1,102 @@
+{
+  "plan": "fleet-skill-phaseA-review-fixes",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/mcp-integration/SKILL.md",
+      "description": "M1 - point at the shipped server catalogue the rewrite stopped naming",
+      "edits": [
+        {
+          "find": "Reference only. **Confirm presence with Step 1 before assuming any of these exist here.**",
+          "add_after": "\n\nClaudeKit ships five of these as *installable* options — `context7`,\n`sequential-thinking`, `playwright`, `memory`, `filesystem` — pinned in\n`templates/mcp/mcp-settings.json`, one guidance section each in\n`templates/mcp/README.md`, enabled with `/mcp enable <name>`. **Shipped is not the\nsame as connected**: that catalogue says what a project *can* install, Step 1 says what\nthis session actually has. Read the catalogue to decide what to enable; run Step 1\nbefore calling anything."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/java-review-checklist/SKILL.md",
+      "description": "L2/L3 - version-caveat the instanceof pattern; correct the merge rationale",
+      "edits": [
+        {
+          "find": "    if (!(o instanceof User user)) return false;\n    return Objects.equals(id, user.id);\n}\n@Override public int hashCode() { return Objects.hash(id); }\n```",
+          "replace": "    if (!(o instanceof User user)) return false;      // Java 16+ pattern matching\n    return Objects.equals(id, user.id);\n}\n@Override public int hashCode() { return Objects.hash(id); }\n```\n\nOn Java 8/11 — which several fleet projects still target, so check the `release`/`source`\nlevel before flagging — the same check is `if (!(o instanceof User)) return false;`\nfollowed by an explicit cast. The contract is the point, not the syntax."
+        },
+        {
+          "find": "// Good: no intermediate boxing per lookup\ncounts.merge(k, 1, Integer::sum);",
+          "replace": "// Good: one lookup instead of two, and no NPE when the key is absent\n// (this still boxes -- Integer::sum returns an Integer; the win is correctness,\n//  not allocation. For a genuinely hot counter, use a primitive-specialised map.)\ncounts.merge(k, 1, Integer::sum);"
+        },
+        {
+          "find": "// Bad: boxing in a hot path — an Integer allocation per increment",
+          "replace": "// Bad: two lookups, and an NPE on the first increment — get(k) returns null"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_fleet_skill_phase_a.py",
+      "description": "L1 - the extractor saw only single-quoted, first-on-the-line patterns",
+      "edits": [
+        {
+          "find": "        import subprocess\n        patterns = []\n        for block in _detect_blocks():\n            for line in block.splitlines():\n                m = re.match(r\"\\s*grep\\s+((?:-[a-zA-Z]+\\s+)*)'(.*)'\\s\", line + \" \")\n                if m:\n                    flags = \"-E\" if \"E\" in m.group(1) else \"\"\n                    patterns.append((flags, m.group(2)))\n        assert len(patterns) >= 15, len(patterns)",
+          "replace": "        import subprocess\n        patterns = []\n        for block in _detect_blocks():\n            for line in block.splitlines():\n                for m in _GREP_PATTERN.finditer(line):\n                    flags = \"-E\" if \"E\" in m.group(1) else \"\"\n                    single, double = m.group(2), m.group(3)\n                    patterns.append((flags, single if single is not None else double))\n        assert len(patterns) >= 25, len(patterns)"
+        },
+        {
+          "find": "def _detect_blocks():",
+          "add_before": "# Every quoted pattern operand of every grep on a line -- not just the first, and not\n# only single-quoted ones. The first version anchored with `re.match` and a greedy\n# `'(.*)'`, which had three proven holes: a double-quoted broken ERE shipped green, the\n# second grep of a `... | grep -v '...'` filter was never validated, and the greedy\n# capture swallowed trailing `--include='...'` operands so 6 of 25 patterns were\n# validated as something other than themselves. `'\"'\"'` inside a single-quoted pattern\n# is matched explicitly, since that idiom is exactly what these blocks use.\n_GREP_PATTERN = re.compile(\n    r\"\"\"grep\\s+((?:-[a-zA-Z]+\\s+)*)(?:'((?:[^']|'\"'\"')*)'|\"([^\"]*)\")\"\"\"\n)\n\n\n"
+        },
+        {
+          "find": "class TestSecurityChecklistIsExecutableNotJustProse:",
+          "add_before": "class TestNoChecklistEmitsAScoreTheReviewerForbids:\n    \"\"\"`code-reviewer.md` Exit Rule: \"The code-review gate is a blocking-finding count,\n    not a score. Do not emit a numeric score: a number invites another round over\n    findings that do not block.\" All four checklists shipped a `### Score: XX/100`\n    line anyway -- the two new ones inherited it from the two incumbents.\"\"\"\n\n    @pytest.mark.parametrize(\"name\", ALL_FOUR)\n    def test_the_report_format_asks_for_no_number(self, name):\n        body = _skill(name)\n        assert \"Score: XX/100\" not in body, name\n        assert \"Blocking findings:\" in body, name\n\n    def test_the_agent_still_says_so(self):\n        \"\"\"If the rule is ever relaxed in the agent, this pair should be revisited\n        together rather than drifting apart again.\"\"\"\n        assert \"not a score\" in _agent(\"code-reviewer\")\n\n\n"
+        },
+        {
+          "find": "        assert len(patterns) >= 25, len(patterns)",
+          "add_after": "\n        # A count floor alone would not notice a NEW line the regex cannot see:\n        # unquoted patterns, backticks, or a --long-opt before the pattern are all\n        # silently skipped rather than mis-validated. So assert COVERAGE -- every\n        # `grep ` token in every block is accounted for by an extracted pattern.\n        greps = sum(b.count(\"grep \") for b in _detect_blocks())\n        assert len(patterns) == greps, (\n            \"%d grep invocations but %d patterns extracted -- a Detect line is written \"\n            \"in a form _GREP_PATTERN cannot see\" % (greps, len(patterns)))"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/python-review-checklist/SKILL.md",
+      "description": "L4 - python checklist emitted a numeric score code-reviewer forbids",
+      "edits": [
+        {
+          "find": "### Score: XX/100",
+          "replace": "### Blocking findings: N Critical, M High\n*(The gate is the blocking-finding count, not a score -- see `code-reviewer`'s Exit\nRule. A number invites another round over findings that do not block.)*"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/typescript-review-checklist/SKILL.md",
+      "description": "L4 - typescript checklist emitted a numeric score code-reviewer forbids",
+      "edits": [
+        {
+          "find": "### Score: XX/100",
+          "replace": "### Blocking findings: N Critical, M High\n*(The gate is the blocking-finding count, not a score -- see `code-reviewer`'s Exit\nRule. A number invites another round over findings that do not block.)*"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/java-review-checklist/SKILL.md",
+      "description": "L4 - java checklist emitted a numeric score code-reviewer forbids",
+      "edits": [
+        {
+          "find": "### Score: XX/100",
+          "replace": "### Blocking findings: N Critical, M High\n*(The gate is the blocking-finding count, not a score -- see `code-reviewer`'s Exit\nRule. A number invites another round over findings that do not block.)*"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/kotlin-review-checklist/SKILL.md",
+      "description": "L4 - kotlin checklist emitted a numeric score code-reviewer forbids",
+      "edits": [
+        {
+          "find": "### Score: XX/100",
+          "replace": "### Blocking findings: N Critical, M High\n*(The gate is the blocking-finding count, not a score -- see `code-reviewer`'s Exit\nRule. A number invites another round over findings that do not block.)*"
+        }
+      ]
+    }
+  ]
+}

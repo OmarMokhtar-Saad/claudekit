@@ -32,6 +32,13 @@ Any time user input reaches a system command, shell, or process execution.
 - Use file-based execution (execFile) instead of shell-based execution
 - Whitelist allowed commands rather than blacklisting dangerous ones
 
+```bash
+# Detect
+grep -rnE 'shell\s*=\s*True|os\.system\(|Runtime\.getRuntime\(\)\.exec\(' .
+grep -rnE 'child_process\.(exec|execSync)\(|`[^`]*\$\{' --include='*.js' --include='*.ts' .
+grep -rnE 'ProcessBuilder\(\s*"(sh|bash|cmd)"' .
+```
+
 ---
 
 ## Secrets Management
@@ -56,6 +63,13 @@ Secrets (API keys, passwords, tokens) must never appear in code or logs.
 - [ ] Default/placeholder values do not work as real credentials
 - [ ] Error messages do not expose secret values
 
+```bash
+# Detect
+grep -rnEi '(password|passwd|api[_-]?key|secret|token|private[_-]?key)\s*[:=]\s*["'"'"'][^"'"'"']{8,}' .
+grep -rnE '(AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|sk-[A-Za-z0-9]{20,})' .
+git check-ignore -q .env || echo 'WARNING: .env is not gitignored'
+```
+
 ---
 
 ## Logging Security
@@ -73,6 +87,12 @@ Logs can leak sensitive information if not properly managed.
 
 **Good practice:** Log the action and the actor, not the credentials. For example, log "User 123 authenticated successfully" instead of logging the password or token used.
 
+```bash
+# Detect
+grep -rnEi '(log|logger|console)\.[a-z]+\([^)]*(password|token|secret|api_key|authorization)' .
+grep -rnEi 'print\([^)]*(password|token|secret)' .
+```
+
 ---
 
 ## Path Traversal Prevention
@@ -88,6 +108,13 @@ User-supplied file paths can escape intended directories.
 - Use allowlists for file types and directories
 
 **Safe approach:** Resolve the full canonical path of any user-supplied path, then verify it starts with the expected base directory prefix. Reject the request if the resolved path escapes the intended directory.
+
+```bash
+# Detect
+grep -rnE '(open|readFile|readFileSync|new File|Paths\.get|File\()\s*\([^)]*(req\.|request\.|params|argv|input|user)' .
+grep -rnE '\.\./' --include='*.json' --include='*.yaml' --include='*.yml' .
+grep -rnE '(os\.path\.join|path\.join)\([^)]*(req|user|input|param)' .
+```
 
 ---
 
@@ -114,6 +141,12 @@ All input from external sources is untrusted.
 | Database reads | Data may have been corrupted |
 | Environment | Environment variables, system properties |
 
+```bash
+# Detect
+grep -rnE '(req\.(body|query|params)|request\.(args|form|json))' . | grep -vEi 'validat|schema|pydantic|zod|joi'
+grep -rnE 'JSON\.parse\(|json\.loads\(' . | grep -vEi 'try|catch|except'
+```
+
 ---
 
 ## SQL Injection Prevention
@@ -130,6 +163,13 @@ User input in SQL queries can run arbitrary database commands.
 
 **Safe approach:** Always use placeholder parameters (? or :name) in query strings and pass values as separate arguments. Never build SQL strings by concatenating user-provided values.
 
+```bash
+# Detect
+grep -rnEi '(SELECT|INSERT|UPDATE|DELETE)[^"'"'"';]*(\+|%s?[^s]|\$\{|f")' .
+grep -rnE 'execute(Query|Update)?\(\s*"[^"]*"\s*\+' .
+grep -rnE 'cursor\.execute\(\s*f"|cursor\.execute\(\s*.*%\s*\(' .
+```
+
 ---
 
 ## Cross-Site Scripting (XSS) Prevention
@@ -145,6 +185,13 @@ User input rendered in HTML can run arbitrary scripts.
 - Set Content-Security-Policy headers
 - Use HTTPOnly flag on session cookies
 
+```bash
+# Detect
+grep -rnE 'innerHTML\s*=|outerHTML\s*=|dangerouslySetInnerHTML|document\.write\(' .
+grep -rnE '\|\s*safe\b|\{\{\{|mark_safe\(|v-html' .
+grep -rn 'Content-Security-Policy' . || echo 'WARNING: no CSP header found'
+```
+
 ---
 
 ## Dynamic Code Interpretation Prevention
@@ -158,6 +205,15 @@ Functions that interpret strings as executable code are dangerous with user inpu
 - NEVER use dynamic code interpretation for data parsing
 - Use structured data parsers (JSON parsers, YAML libraries) instead
 - If dynamic interpretation is truly needed, sandbox it completely
+
+```bash
+# Detect
+grep -rnE '\beval\(|\bexec\(|new Function\(|setTimeout\(\s*["'"'"']' .
+grep -rnE 'pickle\.loads?\(|new ObjectInputStream' .
+# yaml.load without SafeLoader (ERE has no lookahead — filter in a second pass)
+grep -rn 'yaml\.load(' . | grep -v 'SafeLoader\|yaml\.safe_load'
+grep -rnE 'Class\.forName\(|__import__\(|importlib\.import_module\(' .
+```
 
 ---
 
@@ -180,6 +236,13 @@ Every endpoint and operation must verify identity and permissions.
 - [ ] Session management follows best practices
 - [ ] Password storage uses strong hashing (bcrypt, argon2)
 - [ ] Multi-factor authentication available for sensitive operations
+
+```bash
+# Detect
+grep -rnE '(md5|sha1)\(.*(password|passwd)|MessageDigest\.getInstance\("(MD5|SHA-1)"\)' .
+grep -rnE '(token|secret|signature|hmac)\s*==|\.equals\(\s*(token|signature)' .
+grep -rnE '@(app|router)\.(get|post|put|delete)|@RequestMapping' . | grep -vEi 'auth|permission|require_|@Secured|@PreAuthorize'
+```
 
 ---
 
@@ -208,3 +271,22 @@ Before approving any change:
 - [ ] Input validated at all boundaries
 - [ ] Error messages do not leak internal details
 - [ ] Dependencies are up to date (no known CVEs)
+
+---
+
+## Escalation
+
+This checklist is the always-loaded baseline. When the work is deeper than a baseline
+pass, hand off:
+
+| Situation | Skill |
+|---|---|
+| Reviewing a diff or PR for security *regressions* (a control removed, a guard weakened) | `differential-security-review` |
+| Auditing configuration, defaults, and fail-open behaviour | `insecure-defaults` |
+| Dependency CVEs, typosquatting, abandoned packages | `supply-chain-audit` |
+| Language-specific unsafe patterns in the diff | the per-language checklist (`python-`/`typescript-`/`java-`/`kotlin-review-checklist`) |
+| Untrusted text reaching an agent's instruction path | `prompt-injection-defense` |
+| Judging whether a test would actually catch the regression | `verification-gap-lens` |
+
+The patterns above are a **denylist speed bump, not a sandbox**: they surface candidates
+for a human or reviewing agent to judge. A clean grep is not evidence of absence.

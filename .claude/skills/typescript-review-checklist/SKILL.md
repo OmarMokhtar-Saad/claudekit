@@ -193,7 +193,9 @@ grep -rn "catch\s*(e\|err\|error)" src/ --include="*.ts" -A 1 \
 ```
 ## TypeScript Review Report
 
-### Score: XX/100
+### Blocking findings: N Critical, M High
+*(The gate is the blocking-finding count, not a score -- see `code-reviewer`'s Exit
+Rule. A number invites another round over findings that do not block.)*
 
 ### Critical Issues
 [Issues that must be fixed before merge]
