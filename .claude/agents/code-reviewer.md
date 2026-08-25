@@ -220,14 +220,11 @@ still open is an escalation to the owner, not a fourth round.
 
 ## Machine-Readable Verdict Block — EVERY round, rejections included
 
-`review-record.py --from-review` is the only writer of review history, and it parses one
-anchored block. A round with no block records NOTHING. That is how the corpus reached
-**80 records / 80 APPROVED / 79 of 80 single-round**: only the round that passed was ever
-written, so every rejection this repo produced was discarded. Emit the block on EVERY
-round — BLOCK and REQUEST CHANGES above all.
-
-The parser needs BOTH `SCORE:` and `DECISION:` or it records nothing, so derive them
-mechanically from the blocking-finding count using this fixed table.
+`review-record.py --from-review` is the only writer of review history and parses one
+anchored block; a round with no block records NOTHING. Emit the block on EVERY round --
+BLOCK and REQUEST CHANGES above all. The parser needs BOTH `SCORE:` and `DECISION:`, so
+derive them mechanically from the blocking-finding count using this fixed table.
+(Why, with the measured corpus: `.claude/knowledge/rejections/README.md`.)
 
 | Your VERDICT | DECISION | SCORE |
 |---|---|---|
@@ -237,11 +234,9 @@ mechanically from the blocking-finding count using this fixed table.
 | BLOCK | REJECTED | 60 |
 | CANNOT REVIEW | *emit no block — nothing was reviewed* | — |
 
-**The number is a gate token, not a quality rubric.** It is a fixed function of the table
-above, never a judgement. Never cite it in your prose, never let it move, and never treat
-it as a reason for another round: the Exit Rule above — zero Critical and zero High ends
-the review — is still the only thing that decides that. This section adds a recording
-channel; it does not reintroduce scoring.
+**The number is a gate token, not a quality rubric.** Never cite it, never let it move,
+never treat it as a reason for another round: the Exit Rule above -- zero Critical and
+zero High ends the review -- is still the only thing that decides that.
 
 ```
 === REVIEW ===
@@ -361,11 +356,8 @@ either the check you propose or the reason it cannot be mechanised.
 
 # Silent-Failure Hunting (merged from `silent-failure-hunter`)
 
-Dimension 6 in detail. This was a separate agent, and `/audit` spawned it in
-parallel with `explore` and `security-scanner`; it is now a dimension of this
-reviewer, so `/audit` spawns this agent for it. **The routing change is real and is
-not covered by the eval suite** -- those cassettes do not exist -- so it is stated
-here rather than implied to be verified.
+Dimension 6 in detail. **The routing change (`/audit` spawns this agent for it) is
+not covered by the eval suite** -- those cassettes do not exist.
 
 Its core philosophy, carried verbatim because it is the whole argument:
 **A failure that is silent is worse than a failure that is loud.**
@@ -550,33 +542,17 @@ grep -rn "await " src/ | wc -l  # Should be roughly equal
 
 ## Severity Classification
 
-| Severity | Definition | Examples |
-|----------|-----------|---------|
-| **CRITICAL** | Error silently corrupts data or state | Empty catch on write operations, swallowed transaction errors |
-| **HIGH** | Error causes silent wrong behavior | Fallback empty list for critical queries, lost exception type |
-| **MEDIUM** | Error is hidden but detectable via monitoring | Missing context in logs, wrong log level |
-| **LOW** | Best practice violation with minimal risk | Unused exception variable, overly broad catch |
+The **Severity Definitions** table above applies unchanged. Calibration for this
+dimension: silent data/state corruption is Critical; silently wrong behaviour is High;
+hidden-but-monitorable is Medium; best-practice only is Low.
 
 ---
 
 ## Reporting Format
 
-For each finding, report:
-
-```
-FINDING #N — [SEVERITY]
-Location: <file>:<line>
-Pattern: <which category>
-Issue: <what is wrong>
-Impact: <what breaks silently>
-Fix: <recommended remediation>
-
-Code:
-[problematic code snippet]
-
-Suggested Fix:
-[corrected code snippet]
-```
+Use the **canonical Output Format above**, with `Pattern: <category>` folded into the
+Impact line. (A second per-finding schema lived here and lacked the mandatory `Class:`
+field.)
 
 ---
 

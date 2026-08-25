@@ -1,0 +1,184 @@
+{
+  "note": "Frozen held-out review set. Selected deterministically: for each distinct recorded score, the smallest and the largest ops.json by operation count, among records whose plan file still exists, ties broken by slug. Freezing is by sha256 of artifacts that are already committed -- copying fourteen plan documents would create a second copy that drifts. A fixture whose hash no longer matches is reported DRIFTED and must be re-frozen deliberately (`scripts/heldout-check.py --freeze`, which names every artifact that moved); it is never silently accepted.",
+  "protocol": ".claude/knowledge/heldout/README.md",
+  "frozen_at": "035b1fc",
+  "baseline": {
+    "all_decisions": "APPROVED",
+    "score_range": [
+      90,
+      96
+    ],
+    "count": 14
+  },
+  "limitation": "One-directional. All 88 records in .claude/reports/reviews/ are APPROVED, so this set can only catch a prompt edit that makes the reviewer HARSHER. It cannot catch one that makes it laxer, because no recorded rejection exists to hold out.",
+  "fixtures": [
+    {
+      "id": "callsite-audit-line-level",
+      "record": ".claude/reports/reviews/callsite-audit-line-level.json",
+      "plan": ".claude/plans/plan-callsite-audit-line-level.md",
+      "snapshot": ".claude/reports/reviews/callsite-audit-line-level.ops.json",
+      "score": 90,
+      "decision": "APPROVED",
+      "operations": 1,
+      "edits": 1,
+      "plan_sha256": "903b3819fa41579bedce669e92083f07425c19a8a0bb926f2ae18510ce9d9ea8",
+      "snapshot_sha256": "f3255829c3e261d7f33ee683482828906a6521b8436b62acdae796ba62000b58"
+    },
+    {
+      "id": "capability-tiers-followup",
+      "record": ".claude/reports/reviews/capability-tiers-followup.json",
+      "plan": ".claude/plans/plan-capability-tiers-followup.md",
+      "snapshot": ".claude/reports/reviews/capability-tiers-followup.ops.json",
+      "score": 95,
+      "decision": "APPROVED",
+      "operations": 3,
+      "edits": 4,
+      "plan_sha256": "63e66769606ea31e66e67e676f145a30013f69662c974ac6330f8fd80abcb0c0",
+      "snapshot_sha256": "b6c0e7d1d1ab3cc088628673d536ae61c87c17a8e5c8e3d68b475cdccc0b10b3"
+    },
+    {
+      "id": "capability-tiers",
+      "record": ".claude/reports/reviews/capability-tiers.json",
+      "plan": ".claude/plans/plan-capability-tiers.md",
+      "snapshot": ".claude/reports/reviews/capability-tiers.ops.json",
+      "score": 95,
+      "decision": "APPROVED",
+      "operations": 8,
+      "edits": 10,
+      "plan_sha256": "4356bcb2a0542f67ca8e7b2bbfd10d47296084005c1121006427e4d7b6046cfc",
+      "snapshot_sha256": "dec27f3f27b15e524b538f5e496a8e20a14a1ec7152ad51cfcabe0abfea22386"
+    },
+    {
+      "id": "code-review-triage",
+      "record": ".claude/reports/reviews/code-review-triage.json",
+      "plan": ".claude/plans/plan-code-review-triage.md",
+      "snapshot": ".claude/reports/reviews/code-review-triage.ops.json",
+      "score": 93,
+      "decision": "APPROVED",
+      "operations": 1,
+      "edits": 0,
+      "plan_sha256": "51f55f5b8a3f50d18de0734c3b4ee629dee34fba71202ee72764b260ca603595",
+      "snapshot_sha256": "7302af7e9ed35a1fccb7c29281bd8b6650650c0bfc2e9cdb6887cc41557e330a"
+    },
+    {
+      "id": "dispatcher-payload",
+      "record": ".claude/reports/reviews/dispatcher-payload.json",
+      "plan": ".claude/plans/plan-dispatcher-payload.md",
+      "snapshot": ".claude/reports/reviews/dispatcher-payload.ops.json",
+      "score": 94,
+      "decision": "APPROVED",
+      "operations": 18,
+      "edits": 25,
+      "plan_sha256": "3209e3c4d08e125a057bd306dab98b6f644206d0d88a87c8695526b821130792",
+      "snapshot_sha256": "e7de5834737a28086b2ad2a86db1cd5b1c6cf1d1ea11c18a1d340eb0718e1c8c"
+    },
+    {
+      "id": "e2e-pipeline-test-task",
+      "record": ".claude/reports/reviews/e2e-pipeline-test-task.json",
+      "plan": ".claude/plans/plan-e2e-pipeline-test-task.md",
+      "snapshot": ".claude/reports/reviews/e2e-pipeline-test-task.ops.json",
+      "score": 92,
+      "decision": "APPROVED",
+      "operations": 1,
+      "edits": 0,
+      "plan_sha256": "1b87cb8f948704841d6f3e759869ba28668f3a73577bdfe298a23fe0170895ae",
+      "snapshot_sha256": "4acb12daa7a58bfb578648a41a0d6b8929419fbb66d3e754445cd79ad1300f88"
+    },
+    {
+      "id": "enforcement-runtime",
+      "record": ".claude/reports/reviews/enforcement-runtime.json",
+      "plan": ".claude/plans/plan-enforcement-runtime.md",
+      "snapshot": ".claude/reports/reviews/enforcement-runtime.ops.json",
+      "score": 93,
+      "decision": "APPROVED",
+      "operations": 18,
+      "edits": 11,
+      "plan_sha256": "0f62f063e4d46cd35628c69fb0445a7ac0d6d4e0989eece7e4d0e7c75188d0c4",
+      "snapshot_sha256": "4f22cff6863f0d0bdd809ded780af638d34c08914202efaf234599861de2c4bc"
+    },
+    {
+      "id": "fleet-skill-phaseA",
+      "record": ".claude/reports/reviews/fleet-skill-phaseA.json",
+      "plan": ".claude/plans/plan-fleet-skill-enhancement.md",
+      "snapshot": ".claude/reports/reviews/fleet-skill-phaseA.ops.json",
+      "score": 91,
+      "decision": "APPROVED",
+      "operations": 7,
+      "edits": 15,
+      "plan_sha256": "bc116ad3033398cdc4ee213c8454b34fe3385c09606562c2133a15a7e9eb89b1",
+      "snapshot_sha256": "7078d8f36959867d0225144c4467e54c56296502fa862b470197325090cb2a18"
+    },
+    {
+      "id": "issue-ledger",
+      "record": ".claude/reports/reviews/issue-ledger.json",
+      "plan": ".claude/plans/plan-issue-ledger.md",
+      "snapshot": ".claude/reports/reviews/issue-ledger.ops.json",
+      "score": 96,
+      "decision": "APPROVED",
+      "operations": 10,
+      "edits": 15,
+      "plan_sha256": "277e70f863dfaede74940ef87b29e7fd86ff9a2bfa5e5cb236d4089a2f45cb7e",
+      "snapshot_sha256": "0cf7d1a79ff2365b5ebfefcd2ca0d9c721de9a3cf200853f4dfa7534d22e7ddb"
+    },
+    {
+      "id": "ops-approval-gate",
+      "record": ".claude/reports/reviews/ops-approval-gate.json",
+      "plan": ".claude/plans/plan-ops-approval-gate.md",
+      "snapshot": ".claude/reports/reviews/ops-approval-gate.ops.json",
+      "score": 91,
+      "decision": "APPROVED",
+      "operations": 3,
+      "edits": 5,
+      "plan_sha256": "838597d892b896812ffb9ff64d6c75dfeb6851223893269a8a823a3fcb101a79",
+      "snapshot_sha256": "9bd9fefbc65b4634b1ab7296da5d77b7a5bc47accf82025c7f9e67ecb5ecf29b"
+    },
+    {
+      "id": "reflection-test-isolation",
+      "record": ".claude/reports/reviews/reflection-test-isolation.json",
+      "plan": ".claude/plans/plan-reflection-test-isolation.md",
+      "snapshot": ".claude/reports/reviews/reflection-test-isolation.ops.json",
+      "score": 92,
+      "decision": "APPROVED",
+      "operations": 3,
+      "edits": 20,
+      "plan_sha256": "f270e019946cd1eb9ac2d5e890ab16b2e420aaf22383cc30e575a7efc8c96288",
+      "snapshot_sha256": "0bcfebe4abb22ae7b2d9f891de88581529c7db901a1461af68446bf9d6802f55"
+    },
+    {
+      "id": "residue-cleanup",
+      "record": ".claude/reports/reviews/residue-cleanup.json",
+      "plan": ".claude/plans/plan-residue-cleanup.md",
+      "snapshot": ".claude/reports/reviews/residue-cleanup.ops.json",
+      "score": 94,
+      "decision": "APPROVED",
+      "operations": 7,
+      "edits": 11,
+      "plan_sha256": "566871bfb9a505a78b171c9ae702516539d3e8164e360cc139ec37b5d1033713",
+      "snapshot_sha256": "d39a70ed2a71fc39a68269403ea601c0dee154b947c37c8c7637875a002ed752"
+    },
+    {
+      "id": "review-round-history",
+      "record": ".claude/reports/reviews/review-round-history.json",
+      "plan": ".claude/plans/plan-review-round-history.md",
+      "snapshot": ".claude/reports/reviews/review-round-history.ops.json",
+      "score": 96,
+      "decision": "APPROVED",
+      "operations": 3,
+      "edits": 5,
+      "plan_sha256": "e69a81a3672df8a7f6ad212e923d92e111426f517bbc3fadffa596304239b8ac",
+      "snapshot_sha256": "7a6f46ce3c8915250e8cf695a381e5f7fd63e7fbba8f23ede95c389e9959dcbd"
+    },
+    {
+      "id": "skill-loading-contract",
+      "record": ".claude/reports/reviews/skill-loading-contract.json",
+      "plan": ".claude/plans/plan-skill-loading-contract.md",
+      "snapshot": ".claude/reports/reviews/skill-loading-contract.ops.json",
+      "score": 90,
+      "decision": "APPROVED",
+      "operations": 18,
+      "edits": 17,
+      "plan_sha256": "698a7276c5aaefcad1a222d40650ad7cf48dafe339b5e19c914897e48cf32ec8",
+      "snapshot_sha256": "4edc4423e8691a4c3bd15d8553b9f6d6b7d72be3d39233c0cd1df12546857dd9"
+    }
+  ]
+}

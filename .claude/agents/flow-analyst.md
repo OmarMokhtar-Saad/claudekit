@@ -57,12 +57,21 @@ saying exactly that and propose nothing.
 
 Two orthogonal axes per brief:
 
-- **Defect type** — what was wrong: missing ops.json · file-ownership error · uncovered
-  security surface · scope/phase overflow · wrong or drifted anchor · missing rollback ·
-  untested behaviour.
-- **Trigger** — which reviewer rubric line caught it.
+- **Defect type** — what was wrong. The vocabulary is fixed and is shared verbatim with
+  `review-record.py`'s `DEFECT_TYPES`: `missing-ops-json` · `file-ownership` ·
+  `security-surface` · `scope-overflow` · `drifted-anchor` · `missing-rollback` ·
+  `untested-behaviour` · `other`. Never invent a synonym for a token that exists.
+- **Trigger** — which reviewer rubric line caught it, as a kebab token.
+- **Record every call you make**, one per round, so the next retro reads data instead of
+  re-deriving it: `review-record.py rejections classify <slug> <round> --type T
+  --trigger X --by flow-analyst`. It refuses a round that was never recorded, and it
+  appends — it never rewrites an earlier call. Classify only what the brief actually
+  shows; leaving a round unclassified is a correct answer and `stats --by-type` reports
+  it as unclassified rather than imputing it.
 
-**Exclude every row whose `verdict_origin` is `gate-token` from any score-trend claim.**
+**Exclude every row whose `verdict_origin` is `gate-token` OR `reconstructed` from any
+score-trend claim** (`reconstructed` rows come from `rejections backfill`: mined out of a
+transcript, never recorded at the time, and `source: backfill` marks them).
 Those integers are derived mechanically from a blocking-finding count (code-reviewer's
 mapping table); they carry no quality judgement, and mixing them with `rubric` scores makes
 a trend that only measures which agent happened to review. Count them for defect TYPE and
@@ -126,9 +135,15 @@ Refuse to recommend shipping an edit that violates any of these, and name the vi
 - **Never tune planner and reviewer in the same cycle.** Keep one as control. Co-drift is
   widely feared and essentially unmeasured; treat it as hypothesis and guard anyway,
   because the guard is cheap.
-- **Held-out validation.** A prompt edit ships only on no regression against a frozen plan
-  set (DSPy/MIPROv2 2406.11695, TextGrad 2406.07496). If no frozen set exists yet, say so
-  and mark every proposal "not shippable until a held-out set exists".
+- **Held-out validation.** A prompt edit ships only on no regression against the frozen
+  set in `.claude/knowledge/heldout/` (DSPy/MIPROv2 2406.11695, TextGrad 2406.07496):
+  14 fixtures, protocol in its README, scored by `python3 scripts/heldout-check.py
+  --results <replay.json>` — **exit 5 means the edit does not ship**. The replay itself is
+  manual and owner-invoked; you may propose without one, never recommend shipping without
+  one. **State its limit every time you cite it:** all 88 recorded verdicts are APPROVED,
+  so the set catches an edit that makes the reviewer HARSHER and cannot detect one that
+  makes it laxer. For that direction, say so and mark the proposal "unvalidated in the
+  lax direction".
 - **Bounded edits.** Cap the cycle: at most 3 prompt edits, each with a stated rollback.
   Prompts are versioned; name the version you measured against (`prompt_version` in the
   index).

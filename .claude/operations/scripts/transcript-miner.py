@@ -29,6 +29,7 @@ Zero third-party dependencies; Python 3.9+.
 import argparse
 import importlib.util
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -59,8 +60,84 @@ FAILURE_MARKERS = ("Error:", "ERROR", "Traceback (most recent call last)",
                    "FAILED", "exit code 1", "exit code 2", "REJECTED", "DRIFT:")
 
 
+def project_dir_name(project_root) -> str:
+    """Claude Code's directory name for one project.
+
+    It names each project directory after the project's absolute path with every
+    character outside [A-Za-z0-9-] replaced by "-". Verified against the live layout on
+    this host: /Users/x/IdeaProjects/claudekit -> -Users-x-IdeaProjects-claudekit, and a
+    /.worktrees/ segment -> --worktrees- (the slash and the dot each become a dash).
+
+    NOT reflection.py's `_project_key()`, which is a sha256 DIGEST of the root by design
+    ("the path itself records no host path") -- measured here as a1dfac50..., which names
+    no directory Claude Code ever created. Reusing it would scope the scan to nothing and
+    look like a clean, empty result.
+    """
+    return re.sub(r"[^A-Za-z0-9-]", "-", os.path.realpath(str(project_root)))
+
+
+def transcript_roots(project_root=None):
+    """Transcript directories for ONE project -- this one unless told otherwise.
+
+    Scope is the whole point. Measured before this was scoped: `~/.claude*/projects/*`
+    matched **99 project roots and 2019 transcripts, only 172 of them this repository's**,
+    and a real backfill dry run proposed 17 rows of which **9 came from two unrelated
+    repositories**. Every kitted project writes `ops-<slug>.json` / `plan-<slug>.md`, so
+    the slug filter scopes nothing at all -- it matches other projects' configs exactly as
+    well as ours. `--write` would then have appended another repository's finding TEXT and
+    raw session UUIDs into this repo's TRACKED brief store.
+
+    `CLAUDEKIT_TRANSCRIPT_ROOT` (absolute) overrides everything: an operator whose layout
+    differs, and tests that must not walk a real home directory. It relocates WHERE the
+    scan looks and manufactures none of the data the scan reads.
+
+    FAILS CLOSED: if the project's directory cannot be resolved, this returns NO roots.
+    Never the home-wide glob -- a silent widening back to 99 projects is the failure this
+    function exists to remove, and an empty result is visibly empty.
+    """
+    override = os.environ.get("CLAUDEKIT_TRANSCRIPT_ROOT")
+    if override and os.path.isabs(override):
+        return [Path(override)]
+    name = project_dir_name(project_root or Path.cwd())
+    roots = []
+    try:
+        for account in sorted(Path.home().glob(".claude*")):
+            candidate = account / "projects" / name
+            if candidate.is_dir():
+                roots.append(candidate)
+    except OSError:
+        return []
+    return roots
+
+
+def iter_project_transcripts(project_root=None):
+    """Every session transcript for ONE project, newest first, EXCLUDING `agent-*.jsonl`.
+
+    A subagent transcript is NOT a session: its filename is not a session id, and mining
+    one attributes a subagent's work to a session that never did it. Measured on this
+    host, the most recently modified transcript was exactly such a file -- which is also
+    why nothing anywhere in this feature resolves a session by recency.
+    """
+    found: list = []
+    for root in transcript_roots(project_root):
+        try:
+            found.extend(p for p in root.glob("*.jsonl")
+                         if p.is_file() and not p.name.startswith("agent-"))
+        except OSError:
+            continue
+    unique = sorted(set(found))
+    try:
+        return sorted(unique, key=lambda p: p.stat().st_mtime, reverse=True)
+    except OSError:
+        return unique
+
+
 def find_transcripts(session_id: str):
     """Every file matching this session id across both project roots."""
+    override = os.environ.get("CLAUDEKIT_TRANSCRIPT_ROOT")
+    if override and os.path.isabs(override):
+        candidate = Path(override) / ("%s.jsonl" % session_id)
+        return [candidate] if candidate.is_file() else []
     found = []
     for pattern in TRANSCRIPT_GLOBS:
         expanded = Path(pattern % session_id).expanduser()

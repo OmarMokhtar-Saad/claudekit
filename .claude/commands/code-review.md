@@ -119,7 +119,7 @@ Contract: `.claude/knowledge/rejections/README.md`.
 REVIEW_OUT="${REVIEW_OUT:-.claude/reports/last-code-review.txt}"
 PLAN_FILE="${PLAN_FILE:-$(ls -t .claude/plans/plan-*.md 2>/dev/null | head -1)}"
 python3 .claude/operations/scripts/review-record.py record-code-review \
-  --report "$REVIEW_OUT" --plan "$PLAN_FILE"
+  --report "$REVIEW_OUT" --plan "$PLAN_FILE" --session-id "${CLAUDE_SESSION_ID:-}"
 ```
 
 ---

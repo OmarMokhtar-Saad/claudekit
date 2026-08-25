@@ -1,0 +1,43 @@
+{
+  "plan": "retro2-trim",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/code-reviewer.md",
+      "description": "Trim rationale (keep every rule): merged-section preamble, the duplicate per-finding schema, and two verdict-block paragraphs.",
+      "edits": [
+        {
+          "find": "`review-record.py --from-review` is the only writer of review history, and it parses one\nanchored block. A round with no block records NOTHING. That is how the corpus reached\n**80 records / 80 APPROVED / 79 of 80 single-round**: only the round that passed was ever\nwritten, so every rejection this repo produced was discarded. Emit the block on EVERY\nround — BLOCK and REQUEST CHANGES above all.\n\nThe parser needs BOTH `SCORE:` and `DECISION:` or it records nothing, so derive them\nmechanically from the blocking-finding count using this fixed table.",
+          "replace": "`review-record.py --from-review` is the only writer of review history and parses one\nanchored block; a round with no block records NOTHING. Emit the block on EVERY round --\nBLOCK and REQUEST CHANGES above all. The parser needs BOTH `SCORE:` and `DECISION:`, so\nderive them mechanically from the blocking-finding count using this fixed table.\n(Why, with the measured corpus: `.claude/knowledge/rejections/README.md`.)"
+        },
+        {
+          "find": "**The number is a gate token, not a quality rubric.** It is a fixed function of the table\nabove, never a judgement. Never cite it in your prose, never let it move, and never treat\nit as a reason for another round: the Exit Rule above — zero Critical and zero High ends\nthe review — is still the only thing that decides that. This section adds a recording\nchannel; it does not reintroduce scoring.",
+          "replace": "**The number is a gate token, not a quality rubric.** Never cite it, never let it move,\nnever treat it as a reason for another round: the Exit Rule above -- zero Critical and\nzero High ends the review -- is still the only thing that decides that."
+        },
+        {
+          "find": "Dimension 6 in detail. This was a separate agent, and `/audit` spawned it in\nparallel with `explore` and `security-scanner`; it is now a dimension of this\nreviewer, so `/audit` spawns this agent for it. **The routing change is real and is\nnot covered by the eval suite** -- those cassettes do not exist -- so it is stated\nhere rather than implied to be verified.\n\nIts core philosophy, carried verbatim because it is the whole argument:",
+          "replace": "Dimension 6 in detail. **The routing change (`/audit` spawns this agent for it) is\nnot covered by the eval suite** -- those cassettes do not exist.\n\nIts core philosophy, carried verbatim because it is the whole argument:"
+        },
+        {
+          "find": "## Reporting Format\n\nFor each finding, report:\n\n```\nFINDING #N — [SEVERITY]\nLocation: <file>:<line>\nPattern: <which category>\nIssue: <what is wrong>\nImpact: <what breaks silently>\nFix: <recommended remediation>\n\nCode:\n[problematic code snippet]\n\nSuggested Fix:\n[corrected code snippet]\n```",
+          "replace": "## Reporting Format\n\nUse the **canonical Output Format above**, with `Pattern: <category>` folded into the\nImpact line. (A second per-finding schema lived here and lacked the mandatory `Class:`\nfield.)"
+        },
+        {
+          "find": "## Severity Classification\n\n| Severity | Definition | Examples |\n|----------|-----------|---------|\n| **CRITICAL** | Error silently corrupts data or state | Empty catch on write operations, swallowed transaction errors |\n| **HIGH** | Error causes silent wrong behavior | Fallback empty list for critical queries, lost exception type |\n| **MEDIUM** | Error is hidden but detectable via monitoring | Missing context in logs, wrong log level |\n| **LOW** | Best practice violation with minimal risk | Unused exception variable, overly broad catch |",
+          "replace": "## Severity Classification\n\nThe **Severity Definitions** table above applies unchanged. Calibration for this\ndimension: silent data/state corruption is Critical; silently wrong behaviour is High;\nhidden-but-monitorable is Medium; best-practice only is Low."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/knowledge/rejections/README.md",
+      "description": "Receive the rationale removed from code-reviewer.md.",
+      "edits": [
+        {
+          "find": "Silence is not evidence: no match means unknown, not \"this has never gone wrong\".",
+          "add_after": "\n\n## Rationale relocated from `code-reviewer.md`\n\nBoth agents' prompts are budgeted; this file is not, and it is read on demand. So the rules\nstay in the prompts and the arguments live here.\n\n**Why the verdict block is mandatory on EVERY round, not just on a rejection.** Measured on\nthe live corpus before the loop shipped: **80 review records, 80 APPROVED, 79 of 80\nsingle-round.** Not because review always passed -- because only the round that passed was\never written. `rounds[]` is the only durable trace a verdict leaves, so a rejection that is\nnever written leaves none at all, and the entire rejection corpus this store exists to hold\nwas produced and discarded for months.\n\n**Why `code-reviewer` emits a number at all, having been told never to score.** Its Exit\nRule is a blocking-finding COUNT, deliberately: a number invites another round over\nfindings that do not block, which is how an 85/100 with zero blockers gets read as a\nrejection. But `review-record.py` refuses to parse a block without `SCORE:`, so a\nscore-less code review records nothing. The fixed VERDICT->SCORE table (95/92/75/60) is the\nnarrow resolution: the integer is a **gate token**, a fixed function of the verdict, never\na judgement, and the Exit Rule -- not the number -- still decides whether there is another\nround. The alternative considered and rejected was teaching the parser to accept a\nscore-less block, which changes behaviour on the execution-approval path.\n"
+        }
+      ]
+    }
+  ]
+}

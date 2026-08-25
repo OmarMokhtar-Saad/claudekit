@@ -1,0 +1,47 @@
+{
+  "plan": ".claude/plans/plan-retro-completion.md",
+  "slug": "retro2-backfill",
+  "ops_path": ".claude/plans/ops-retro2-backfill.json",
+  "ops_sha256": "cf14b4fafdb796ef558071d3287cd03f801d847f773f1c8c69c7750d0cd65c66",
+  "score": 92,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] Deferred follow-up: SESSION_ID_SHAPE duplicated at reflection.py and review-record.py with no equality test. Bounded -- the reader poisons to unknown, never a wrong id. Add a corpus equality test; do ",
+    "[MINOR] Deferred follow-up: heldout-check.py refreeze() prints RE-FROZE id key but not old -> new hashes, omitting the audit trail that distinguishes a justified re-freeze from the misuse its own warning caut"
+  ],
+  "verdict_origin": "gate-token",
+  "recorded_utc": "2026-08-25T10:00:35Z",
+  "operations": 5,
+  "edits": 7,
+  "rounds": [
+    {
+      "score": 60,
+      "decision": "REJECTED",
+      "findings": [
+        "[CRITICAL] classify tests pass slug \"ops-demo\" where the corpus writes \"demo\": 2 new suite failures, 3 more tests pass vacuously, leaving append-only/read-last/stats round-trip uncovered.",
+        "[CRITICAL] transcript-miner globs ~/.claude*/projects/* (99 roots, 2019 transcripts); 9 of 17 proposed rows come from other repositories, so --write would commit foreign projects' findings and session UUIDs into",
+        "[MAJOR] transcript-miner.py:94 found = [] adds a new mypy var-annotated error, regressing a DoD gate.",
+        "[MAJOR] reflection.py valid_session accepts any string while review-record _SESSION_ID_RE rejects non-hex; a silently WRONG session id resolves from an older stale pointer.",
+        "[MAJOR] backfill slug regex yields \"contract-layer-c-pin.ops\" where ops_slug() yields \"contract-layer-c-pin\", so rows key under a slug that can never join the live record.",
+        "[MINOR] --limit 200 truncates 2019 transcripts and reports \"of 200 offered\", concealing coverage.",
+        "[MINOR] session_pointers() docstring claims \"Never raises\" but raises ValueError on a non-numeric epoch.",
+        "[MINOR] plan claims classify exits 1 on a bad --type; argparse exits 2."
+      ],
+      "recorded_utc": "2026-08-25T08:41:25Z",
+      "ops_sha256": "443c0a6677057c66488a56ecfed0fe934a8cfa1df3e2362f3f426a88b90358d5",
+      "verdict_origin": "gate-token"
+    },
+    {
+      "score": 75,
+      "decision": "REVISE",
+      "findings": [
+        "[MAJOR] heldout MANIFEST pins a stale plan_sha256 for plan-fleet-skill-enhancement.md after a concurrent workstream moved it; applying heldout yields 5 failures in tests/test_heldout_set.py. Fix: run heldout-",
+        "[MINOR] SESSION_ID_SHAPE is duplicated as two literals (reflection.py, review-record.py) with no test pinning them equal."
+      ],
+      "recorded_utc": "2026-08-25T09:55:04Z",
+      "ops_sha256": "cf14b4fafdb796ef558071d3287cd03f801d847f773f1c8c69c7750d0cd65c66",
+      "verdict_origin": "gate-token"
+    }
+  ],
+  "round": 3
+}
