@@ -243,12 +243,13 @@ These files cannot be deleted via operations config:
 
 ## Skills
 
-ClaudeKit includes 75 reusable skills that agents load on-demand:
+ClaudeKit includes 79 reusable skills that agents load on-demand:
 
 | Category | Skills |
 |----------|--------|
 | **Workflow** | writing-plans, executing-plans, brainstorming, generate-operations-config, validate-operations-config, execute-operations-config |
 | **Quality** | clean-architecture, test-driven-development, verification-before-completion, systematic-debugging, refactoring-patterns, error-handling |
+| **Adversarial testing** | whitebox-invariant-testing, defect-pinning, ai-agent-testing, prompt-evaluation |
 | **Security** | security-checklist, golden-rule (no changes without approval) |
 | **API & Data** | api-design-patterns, database-migration-patterns |
 | **DevOps** | ci-cd-pipeline, monitoring-observability, supply-chain-audit, incident-response |
@@ -317,7 +318,7 @@ Each project gets a `CONSTITUTION.md` — a governance document that agents enfo
 |-----------|------:|
 | Agents    | 22 |
 | Commands  | 56 |
-| Skills    | 75 |
+| Skills    | 79 |
 | Hooks     | 26 |
 <!-- END GENERATED:inventory -->
 
@@ -339,7 +340,7 @@ claudekit/
 │   │   ├── explore.md
 │   │   └── _shared/                  # Templates and protocols
 │   ├── commands/                     # 56 slash commands
-│   ├── skills/                       # 75 domain skills + registry
+│   ├── skills/                       # 79 domain skills + registry
 │   ├── hooks/                        # 26 workflow hooks + lib.sh
 │   ├── operations/scripts/           # Validate, execute, restore
 │   └── local/                        # CLAUDE.md + CONSTITUTION.md templates
@@ -484,7 +485,13 @@ See [SECURITY.md](SECURITY.md) for reporting instructions and security considera
 
 [MIT License](LICENSE) — Copyright (c) 2026 Omar Mokhtar
 
-ClaudeKit is free and open-source software. Use it, modify it, distribute it. No restrictions.
+ClaudeKit's own code and prompt corpus are MIT — use it, modify it, distribute it.
+
+**One exception, and it travels with the package:**
+`.claude/skills/differential-security-review/SKILL.md` adapts Trail of Bits methodology and
+is therefore [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) — redistribute
+that file, or a modified version of it, under the same terms and keep its attribution block.
+Everything else is unrestricted. Full inventory: [THIRD-PARTY-LICENSES.md](THIRD-PARTY-LICENSES.md).
 
 ---
 

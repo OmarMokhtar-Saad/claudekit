@@ -7,6 +7,7 @@ include install.sh
 include config.schema.json
 include README.md
 include LICENSE
+include THIRD-PARTY-LICENSES.md
 include CHANGELOG.md
 include CONTRIBUTING.md
 include SECURITY.md

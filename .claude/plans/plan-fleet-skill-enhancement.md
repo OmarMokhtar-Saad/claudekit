@@ -125,7 +125,8 @@ not the dangling one an earlier review flagged. Skill count goes **75 → 79**.
 - `python3 scripts/gen-docs.py` (counts: skills 73→78; +1 more if D3 approved) then `--check`.
 - `python3 scripts/gen-model-policy.py --check` (should be untouched).
 - `python3 scripts/check-context-floor.py --check` — expected: still exit 1 on the PRE-EXISTING pipeline-agent-bodies row; assert skill-descriptions row stays OK and no other row flips. Record before/after numbers in the commit body.
-- `python3 -m pytest tests/ -q`, `ruff check src/ tests/ scripts/`, `mypy`, `shellcheck install.sh .claude/hooks/*.sh`.
+- **Move the spent ops.json to `.claude/plans/archive/` with a README row, BEFORE running the suite.** A config fails `test_queued_ops_configs_validate_against_head` the moment it succeeds — its `find` anchors are consumed by its own edits. This is out-of-band like the regens above: `run_command` is allowlisted to formatters, so no config can archive itself.
+- `python3 -m pytest tests/ -q`, `ruff check src/ tests/ scripts/`, `mypy`, `shellcheck install.sh .claude/hooks/*.sh`. **Run `mypy` over `.claude/operations/scripts/` too** — `fleet-sync.py` shipped in `521f4b9` with three annotation errors because the DoD sweep was run only over `src/`.
 
 **A8. Docs:** CHANGELOG `[Unreleased]`: Added (2 checklists + code-reviewer routing), Changed (using-superpowers routing fix, mcp-integration rewrite, security-checklist detection patterns). Update `.ai/SESSION_STATE.md` + `.ai/CHANGELOG_AI.md`.
 
@@ -201,8 +202,8 @@ Per project, from the matrix in §2.1:
 1. Approve Phase B3 dedupe-delete list (6 skills × 14 projects, with the diff-guard).
 2. Phase C1 rest-framework full refresh: yes/no.
 3. Phase C2 qa-agent-pro kit: yes/no (default no).
-4. Phase D1 (CC BY-SA derivative in differential-security-review): yes/no.
-5. Phase D3 (`prompt-evaluation` skill, +1 to skill count/context floor): yes/no.
+4. Phase D1 (CC BY-SA derivative in differential-security-review): **RESOLVED — APPROVED 2026-08-25 in session.**
+5. Phase D3 (`prompt-evaluation` skill, +1 to skill count/context floor): **RESOLVED — APPROVED 2026-08-25 in session.**
 6. Phase D4 pilot repo for the security-review Action (suggest: ApiForge): yes/no + which repo.
 7. Acknowledge pre-existing context-floor failure (pipeline agent bodies 44186/43000) — separate fix ticket?
 

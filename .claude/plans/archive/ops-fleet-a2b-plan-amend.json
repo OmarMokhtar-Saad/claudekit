@@ -1,0 +1,24 @@
+{
+  "plan": "fleet-skill-a2b-plan-amend",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/plans/plan-fleet-skill-enhancement.md",
+      "description": "R1 fixes - allowed-tools, description budget, baseline reconciliation, split rationale, RTL evidence, D1/D3 approval",
+      "edits": [
+        {
+          "find": "- **`defect-pinning`** (`user-invocable: false`) — the RED-pin regression protocol",
+          "replace": "- **`defect-pinning`** (`user-invocable: false`, tools: Read, Grep, Glob, Bash) — the RED-pin regression protocol"
+        },
+        {
+          "find": "- **`ai-agent-testing`** (`user-invocable: false`) — testing LLM-agent systems deterministically",
+          "replace": "- **`ai-agent-testing`** (`user-invocable: false`, tools: Read, Grep, Glob, Bash) — testing LLM-agent systems deterministically"
+        },
+        {
+          "find": "**A3. Edit `.claude/agents/code-reviewer.md`**",
+          "add_before": "**A2b budget, and why it is three skills.** Every A2b description is **≤150 chars** — §7's\n\"Both ≤160 chars\" row covered only A1/A2 and left A2b uncapped. Baseline reconciled: §2.2's\n7934 was measured BEFORE Phase A; Phase A's two descriptions added 299, so the live row is\n**8233/9000 (767 headroom)**, and 4 new descriptions (this trio + D3's `prompt-evaluation`)\nat ≤150 cost ≤600, landing ≤8833 with ~167 to spare. If the row would exceed 9000, trim\nverbose EXISTING descriptions in the same ops.json rather than shrinking the new ones below\nusefulness — and re-measure, never estimate.\n\n`defect-pinning` is separate from `whitebox-invariant-testing` on purpose: the pinning\nprotocol applies to **any** confirmed defect, whoever found it and by whatever method, while\nthe invariant method is one specific way of producing them. Folding them together would make\nthe regression protocol reachable only through the discovery technique that happened to\ncreate this corpus.\n\n`ai-agent-testing`'s locale/RTL row is evidenced, not extrapolated: `COVERAGE-MAP.md:80`\ncarries **RTL/bidi control characters in a label** as a named `⬜` gap (display spoofing via\nthe confirm card), `LocaleEnTest` covers the whole `locale=\"en\"` path including the\n`Accept-Language`/`X-Language` wire headers, and SDK-DEFECTS #24 is a locale-fallback leak\nthat renders a raw step id. It doubles as the worked example of the five-state legend.\n\n**Owner approval, recorded 2026-08-25 (this session): §8 items 4 (D1) and 5 (D3) are\nAPPROVED.** So `ai-agent-testing`'s cross-link to `prompt-evaluation` is a live reference,\nnot the dangling one an earlier review flagged. Skill count goes **75 → 79**.\n\n"
+        }
+      ]
+    }
+  ]
+}

@@ -7,6 +7,10 @@ allowed-tools: Read, Bash, Grep, Glob
 
 # Differential Security Review
 
+Risk-first prioritisation, size-adaptive depth and the attack-scenario evidence rule below
+are adapted from Trail of Bits' `trailofbits/skills` (CC BY-SA 4.0); this file is therefore
+a derivative work and stays under **CC BY-SA 4.0**. Do not strip this attribution.
+
 ## Core Principle
 
 **Security regressions hide in diffs.** A change that removes a single authorization check can undo months of security work. Review every diff through the lens of what security properties may have been weakened.
@@ -193,6 +197,41 @@ When authorization code changes, verify:
 | Async boundaries | Authorization is checked after async operations complete (no TOCTOU) |
 | Caching | Authenticated responses are not cached and served to unauthenticated users |
 | Logging | Security events (login, permission denied, input rejected) are still logged |
+
+---
+
+## Risk-First Order, Not Diff Size
+
+Order follows **what the changed code guards** — three lines touching a token comparison
+outrank a thousand-line view refactor. Tiers 1-3 are read even when the diff is trivial.
+
+| Tier | Surface |
+|---|---|
+| 1 | authn/authz, session, token, crypto, secrets |
+| 2 | parsing, deserialisation, paths, subprocess, SQL |
+| 3 | CORS/headers, dependency and CI config |
+| 4 | logic touching tier 1-3 data |
+| 5 | UI/docs/tests — only if they touch a control |
+
+## Depth Adapts to Size
+
+- **< ~200 lines** — every hunk, line by line.
+- **~200-1000** — tiers 1-3 fully; scan the rest for control removals.
+- **> ~1000** — surgical: control-removal detection across the diff, deep reading of tiers
+  1-2, and **say the remainder was scanned, not read.** A review that silently sampled
+  reads as one that covered everything.
+
+## Name the Attack, or It Is Not a Finding
+
+```
+ATTACKER: unauthenticated caller of POST /api/import
+INPUT:    archive entry named ../../etc/cron.d/x
+PATH:     handler.py:88 joins it to BASE without normalising
+OUTCOME:  file write outside BASE -> RCE via cron
+```
+
+Cannot fill all four lines? It is an observation, not a finding: report it below them and
+say what evidence would promote it.
 
 ---
 

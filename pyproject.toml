@@ -1,5 +1,8 @@
 [build-system]
-requires = ["setuptools>=64"]
+# >=77, not >=64: PEP 639 `license-files` (below) is ignored by older setuptools,
+# so a clean build env resolving 64-76 would silently drop THIRD-PARTY-LICENSES.md
+# from the distribution that needs it.
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,6 +11,10 @@ version = "2.1.0"
 description = "Production-grade multi-agent orchestration system for Claude Code"
 readme = "README.md"
 license = "MIT"
+# The prompt corpus ships in the sdist and contains one CC BY-SA 4.0 derivative
+# (.claude/skills/differential-security-review/SKILL.md). Both files travel together
+# so the distribution's terms are legible from the artifact, not just the repo.
+license-files = ["LICENSE", "THIRD-PARTY-LICENSES.md"]
 requires-python = ">=3.9"
 authors = [
     {name = "Omar Mokhtar", email = "omar@claudekit.dev"},

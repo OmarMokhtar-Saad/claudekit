@@ -325,6 +325,156 @@ class TestUsingSuperpowersRoutesCodeReviewAtTheReviewer:
         assert "context-budget" in body
 
 
+# ---------------------------------------------------------------------------
+# A2b + D1/D3: the testing-skill trio, prompt-evaluation, and the ToB
+# enrichment of differential-security-review.
+# ---------------------------------------------------------------------------
+
+A2B = ["whitebox-invariant-testing", "defect-pinning", "ai-agent-testing"]
+NEW_SKILLS = A2B + ["prompt-evaluation"]
+# ToB authoring convention (plan D2). The trio are method skills, not encyclopedias.
+TOB_LINE_CEILING = 500
+
+
+class TestTheTestingSkillTrioExists:
+    @pytest.mark.parametrize("name", NEW_SKILLS)
+    def test_the_skill_exists(self, name):
+        assert os.path.isfile(os.path.join(SKILLS, name, "SKILL.md"))
+
+    @pytest.mark.parametrize("name", NEW_SKILLS)
+    def test_frontmatter_is_complete(self, name):
+        """D2 requires allowed-tools declared. Two of the three A2b specs originally
+        omitted it -- caught in plan review round 1, so it is asserted here."""
+        fm = _frontmatter(_skill(name))
+        assert fm["name"] == name
+        assert fm["allowed-tools"], name
+        assert fm["user-invocable"] == ("true" if name == "prompt-evaluation" else "false")
+
+    @pytest.mark.parametrize("name", NEW_SKILLS)
+    def test_the_description_stays_inside_the_always_on_budget(self, name):
+        """<=150, not the <=160 the per-language checklists use. The row measured
+        8233/9000 BEFORE these four (767 headroom); adding 584 chars lands it at
+        8817/9000, leaving ~183 -- about one more skill. The floor test below is what
+        binds; this cap is what keeps the floor test from ever having to fail."""
+        assert len(_frontmatter(_skill(name))["description"]) <= 150, name
+
+    @pytest.mark.parametrize("name", NEW_SKILLS)
+    def test_it_obeys_the_tob_line_ceiling(self, name):
+        n = len(_skill(name).splitlines())
+        assert n <= TOB_LINE_CEILING, (name, n)
+
+    @pytest.mark.parametrize("name", NEW_SKILLS)
+    def test_the_registry_records_it(self, name):
+        with open(os.path.join(SKILLS, "skills-registry.json"), encoding="utf-8") as fh:
+            rows = {s["id"] for s in json.load(fh)["skills"]}
+        assert name in rows, name
+
+
+class TestDefectPinningCarriesTheProtocolItPromises:
+    """The plan specifies five things by name. A skill that names a protocol without
+    stating it is the class of defect security-checklist shipped with."""
+
+    def test_the_five_state_coverage_legend_is_present(self):
+        body = _skill("defect-pinning")
+        for mark in ("\u2705", "\U0001f534", "\u2b1c", "\U0001f527", "\u26d4"):
+            assert mark in body, mark
+
+    def test_it_states_the_quarantine_and_restore_protocol(self):
+        body = _skill("defect-pinning")
+        assert "@Ignore" in body
+        assert "verbatim" in body.lower()
+        # the step that makes pinning pay: a fixed pin loses its mark, it is not deleted
+        assert "regression proof" in body
+
+    def test_it_names_a_quarantine_mark_for_more_than_one_stack(self):
+        body = _skill("defect-pinning")
+        for mark in ("@Ignore", "@Disabled", "xfail", "t.Skip"):
+            assert mark in body, mark
+
+    def test_it_says_why_it_is_not_folded_into_the_invariant_skill(self):
+        """Plan review round 1 asked for this justification explicitly."""
+        body = _skill("defect-pinning")
+        assert "regardless of how it was found" in body
+        assert "whitebox-invariant-testing" in body
+
+
+class TestTheTrioCrossLinksInsteadOfDuplicating:
+    """This repo is consolidating near-duplicates (task 008). Three skills from one
+    method must point at each other rather than restate each other."""
+
+    def test_the_method_skill_points_at_the_protocol(self):
+        assert "defect-pinning" in _skill("whitebox-invariant-testing")
+
+    def test_the_agent_skill_points_at_both_and_at_its_eval_neighbours(self):
+        body = _skill("ai-agent-testing")
+        for target in ("whitebox-invariant-testing", "defect-pinning",
+                       "prompt-evaluation", "eval-harness", "verification-gap-lens"):
+            assert target in body, target
+
+    @pytest.mark.parametrize("name", NEW_SKILLS)
+    def test_every_cross_referenced_skill_actually_exists(self, name):
+        """gen-registry validates registry rows, NOT prose cross-links -- so a skill
+        named in a body but absent from disk ships as a broken pointer with nothing
+        catching it. Plan review round 1 flagged exactly this risk for D3."""
+        body = _skill(name)
+        referenced = set(re.findall(r"`([a-z0-9]+(?:-[a-z0-9]+){1,4})`", body))
+        known = {d for d in os.listdir(SKILLS)
+                 if os.path.isdir(os.path.join(SKILLS, d))}
+        # Superset direction, NOT an intersection against a fixed name list. An
+        # allowlist can only re-confirm names we already know exist; the pointer that
+        # actually breaks is the one nobody listed -- a typo, or a skill renamed after
+        # this test was written. Anything hyphenated that is not a known skill must be
+        # declared here as deliberate non-skill prose.
+        NOT_SKILL_IDS = {
+            "eval-set-vy", "known-defects-test", "read-only", "line-by-line",
+            "merge-gate", "one-liner", "fail-closed", "anti-fabrication",
+            "position-swapped", "reference-match", "structured-output",
+        }
+        unknown = {t for t in referenced if t not in known} - NOT_SKILL_IDS
+        assert not unknown, (
+            f"{name} references hyphenated token(s) that are not skills on disk and are "
+            f"not declared as prose: {sorted(unknown)}")
+
+
+class TestPromptEvaluationIsPositionedAgainstEvalHarness:
+    def test_it_says_it_does_not_gate_ci(self):
+        body = _skill("prompt-evaluation")
+        assert "eval-harness" in body
+        assert "exploratory" in body.lower()
+
+    def test_it_carries_the_one_judge_per_criterion_rule(self):
+        """The whole reason the method works; a compound rubric halos."""
+        body = _skill("prompt-evaluation")
+        assert "halo" in body.lower()
+        assert "criterion" in body
+
+    def test_it_is_a_reimplementation_not_a_copy(self):
+        """Upstream license is unstated, so provenance has to be on the file."""
+        body = _skill("prompt-evaluation")
+        assert "license is unstated" in body
+        assert "46ki75" in body
+
+
+class TestDifferentialSecurityReviewCarriesItsAttribution:
+    def test_the_cc_by_sa_block_is_present_and_names_the_source(self):
+        body = _skill("differential-security-review")
+        assert "CC BY-SA 4.0" in body
+        assert "trailofbits/skills" in body
+        assert "Do not strip this attribution." in body
+
+    def test_the_methodology_actually_landed(self):
+        body = _skill("differential-security-review")
+        assert "Risk-First Order" in body
+        assert "ATTACKER:" in body and "OUTCOME:" in body
+
+    def test_the_enrichment_stayed_inside_its_budget(self):
+        """Plan D1 caps growth at 1.5 KB. The 7948 baseline is the pre-D1 size; this
+        asserts the ceiling, so an unrelated future edit to the file will trip it --
+        deliberately. Re-baseline consciously rather than letting the cap drift."""
+        size = os.path.getsize(os.path.join(SKILLS, "differential-security-review", "SKILL.md"))
+        assert size <= 7948 + 1536, (size, "re-baseline this cap if the growth is intended")
+
+
 class TestTheAlwaysOnFloorDidNotRegress:
     def test_the_skill_description_row_is_within_budget(self):
         """Two new descriptions land in this row. It had ~1066 bytes of headroom."""

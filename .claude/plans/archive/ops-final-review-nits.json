@@ -1,0 +1,49 @@
+{
+  "plan": "final-review-nits",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "description": "L1 - the entry claimed LICENSE points at the notice; LICENSE is byte-exact and README is what points",
+      "edits": [
+        {
+          "find": "so `THIRD-PARTY-LICENSES.md` is new and `LICENSE` points at\n  it.",
+          "replace": "so `THIRD-PARTY-LICENSES.md` is new and the README's License\n  section points at it. `LICENSE` itself is left **byte-exact on purpose**: prose inserted\n  into it drops automated MIT detection below the threshold licensee/ScanCode use, which\n  would make the distribution's licensing *less* legible, not more."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/ai-agent-testing/SKILL.md",
+      "description": "L2 - the same pass was cited with two different totals; COVERAGE-MAP's headline is stale",
+      "edits": [
+        {
+          "find": "116 offline tests, 31 confirmed defects, no SUT modified.",
+          "replace": "148 offline tests, 38 confirmed defects, no SUT modified."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "pyproject.toml",
+      "description": "L3 - license-files is PEP 639 and needs setuptools>=77; the floor said 64",
+      "edits": [
+        {
+          "find": "requires = [\"setuptools>=64\"]",
+          "replace": "# >=77, not >=64: PEP 639 `license-files` (below) is ignored by older setuptools,\n# so a clean build env resolving 64-76 would silently drop THIRD-PARTY-LICENSES.md\n# from the distribution that needs it.\nrequires = [\"setuptools>=77\"]"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "README.md",
+      "description": "L4 - gen-docs owns the counts, not the hand-maintained category table",
+      "edits": [
+        {
+          "find": "| **Quality** | clean-architecture, test-driven-development, verification-before-completion, systematic-debugging, refactoring-patterns, error-handling |",
+          "replace": "| **Quality** | clean-architecture, test-driven-development, verification-before-completion, systematic-debugging, refactoring-patterns, error-handling |\n| **Adversarial testing** | whitebox-invariant-testing, defect-pinning, ai-agent-testing, prompt-evaluation |"
+        }
+      ]
+    }
+  ]
+}

@@ -19,6 +19,7 @@ import os
 import shutil
 import sys
 from datetime import datetime, timezone
+from typing import Dict, List, Optional, Tuple
 
 ROOT = os.path.expanduser("~/IdeaProjects")
 KIT = os.path.join(ROOT, "claudekit")
@@ -149,9 +150,9 @@ def survey_superseded(projects):
     first project had already removed, and crashed. A snapshot cannot be invalidated by
     the deletes it exists to authorise.
     """
-    out = {}
+    out: Dict[str, Tuple[Optional[str], Dict[str, str], int]] = {}
     for dup in SUPERSEDED:
-        variants = {}
+        variants: Dict[str, List[str]] = {}
         for p in projects:
             d = os.path.join(ROOT, p, ".claude", "skills", dup)
             if os.path.isdir(d):
@@ -180,7 +181,8 @@ def main():
 
     projects = sorted(STACKS)
     peers = survey_superseded(projects)
-    log = {p: {"added": [], "edited": [], "deleted": [], "skipped": []} for p in projects}
+    log: Dict[str, Dict[str, List[str]]] = {
+        p: {"added": [], "edited": [], "deleted": [], "skipped": []} for p in projects}
 
     for p in projects:
         S = os.path.join(ROOT, p, ".claude", "skills")

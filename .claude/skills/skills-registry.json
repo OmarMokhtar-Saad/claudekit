@@ -791,6 +791,38 @@
         "code-reviewer"
       ],
       "description": "Use when a diff under review contains `.kt` files \u2014 nullability, coroutine scope and cancellation, immutability, security, Java interop and idiom."
+    },
+    {
+      "id": "ai-agent-testing",
+      "name": "Ai Agent Testing",
+      "path": "skills/ai-agent-testing/SKILL.md",
+      "mandatory": false,
+      "usedBy": [],
+      "description": "Use when testing an LLM-agent system \u2014 the two-suite doctrine that keeps the merge gate deterministic, plus the agent invariants worth asserting."
+    },
+    {
+      "id": "defect-pinning",
+      "name": "Defect Pinning",
+      "path": "skills/defect-pinning/SKILL.md",
+      "mandatory": false,
+      "usedBy": [],
+      "description": "Use when a defect is confirmed but not yet fixed \u2014 pin it to a quarantined reproducing test so it cannot be re-found, re-argued, or silently fixed."
+    },
+    {
+      "id": "prompt-evaluation",
+      "name": "Prompt Evaluation",
+      "path": "skills/prompt-evaluation/SKILL.md",
+      "mandatory": false,
+      "usedBy": [],
+      "description": "Use when iterating on a prompt \u2014 isolated judges, one per criterion, over a versioned eval set. Exploratory only; eval-harness stays the CI gate."
+    },
+    {
+      "id": "whitebox-invariant-testing",
+      "name": "Whitebox Invariant Testing",
+      "path": "skills/whitebox-invariant-testing/SKILL.md",
+      "mandatory": false,
+      "usedBy": [],
+      "description": "Use when testing an SDK or dependency you cannot modify \u2014 build an invariant table from its source, then attack each promise through harness knobs."
     }
   ],
   "agentsWithoutSkills": [

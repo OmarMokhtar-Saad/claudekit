@@ -1,6 +1,58 @@
 # AI Session Changelog
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
+## 2026-08-25 (third period) — §A2b + D1 + D3, and a licensing chain the plan got wrong twice
+
+Skills 75 → 79. Plan review **84 → 93**; code review **75 → 75 → 93**. Owner approved §8
+items 4 (D1) and 5 (D3) in session; §8 is annotated accordingly.
+
+**What landed.** The §A2b testing trio — `whitebox-invariant-testing` (build the invariant
+table from the SUT's own source, attack each promise through harness knobs, never edit the
+SUT), `defect-pinning` (RED pins quarantined so the gate stays green, re-run live on every SUT
+change and restored verbatim, five-state coverage map), `ai-agent-testing` (two-suite doctrine
+plus the agent-invariant catalog) — harvested from the shsmartassistant-qa pass. Plus D3's
+`prompt-evaluation` and D1's Trail of Bits methodology in `differential-security-review`.
+
+**The plan review's value was two gaps that would have shipped.** `allowed-tools` was missing
+on **two** of three A2b skills, not one — it corrected my own framing of the question. And
+§A2b had no description budget at all: §7's "Both ≤160 chars" textually covers only A1/A2. The
+contested baseline resolved by arithmetic rather than by re-measuring and hoping — §2.2's 7934
+was pre-Phase-A, plus 299 for the two checklist descriptions = the live 8233. Four new
+descriptions at ≤150 land the row at 8817/9000.
+
+**The code review's value was entirely the licensing chain, and it took two rounds because my
+first fix was incomplete rather than wrong.** Adding ToB content makes
+`differential-security-review/SKILL.md` a **CC BY-SA 4.0 derivative inside an MIT
+distribution** — and the precedent the plan cited (`verification-gap-lens`) is MIT→MIT, so not
+precedent at all. Round 1 caught the missing notice. Round 2 caught that the notice **never
+entered the sdist** (`MANIFEST.in` has an explicit include list), so `LICENSE` would have
+pointed at a file the artifact did not contain; that prose inserted into `LICENSE` drops
+automated MIT detection below the ~98% dice threshold licensee/ScanCode use, making the
+remediation worse than the ambiguity; and that `README.md` still told users "No restrictions."
+Fixed by keeping `LICENSE` byte-exact, adding `THIRD-PARTY-LICENSES.md` to both `MANIFEST.in`
+and `license-files`, and correcting the README. **Verified by building the sdist and looking
+inside it**, not by reading the config. Two smaller ones in the same family:
+`token-optimization` carried an unlisted MIT attribution, and the 46ki75 row asserted
+"unstated" when the research note had only said "not stated in SKILL.md — go check the repo".
+
+**Three shell defects, all `bash -n`-clean, all caught by executing.** `src/test/**/` matched
+nothing under real bash 3.2.57 (macOS default has no globstar) so the pin-check block was
+silently a no-op; unquoted `$PINS` word-split on a path containing a space; `grep -P` is
+GNU-only and BSD grep exits 2. Proven fixed against scratch trees, including one with a space
+in the path.
+
+**An allowlist can only re-confirm what you already listed.** The cross-link test intersected
+`referenced` with a fixed seven-name set — so the pointer that actually breaks, a typo or a
+later rename, was skipped rather than caught, which is the opposite of its docstring. Inverted
+to the superset direction with a declared `NOT_SKILL_IDS` set, and mutation-proven against
+both `prompt-evalution` and a renamed `eval-harness`.
+
+**My own prior commit was red.** `fleet-sync.py` shipped in `521f4b9` with three mypy
+annotation errors: the DoD sweep had been run over `src/` only, and `.claude/operations/scripts/`
+is in mypy's scope. Fixed, and §A7 now says to run mypy over both — along with the archival
+step, which was the other undocumented out-of-band task (a config fails the staleness gate the
+moment it succeeds).
+
 ## 2026-08-25 (second period) — Phase B: the fleet sync, and the guard the plan did not have
 
 12 kitted repos received Phase A. 20 skill directories copied, 20 files edited, 36
