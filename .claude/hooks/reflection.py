@@ -662,6 +662,137 @@ def record_session_start(session_id: str) -> Optional[str]:
     return token
 
 
+SESSION_POINTERS = "session-pointers.jsonl"
+#: What a transcript-filename-shaped session id looks like. THE definition, enforced at
+#: WRITE time -- review-record.py reads these rows with the identical pattern, and if the
+#: two ever drift the reader POISONS (returns "unknown") rather than skipping the odd row
+#: and resolving to an older one, so drift degrades to no answer instead of a wrong one.
+SESSION_ID_SHAPE = re.compile(r"^[0-9a-fA-F-]{8,64}$")
+#: Only the nearest few ancestors are recorded and matched. Everything shares launchd and
+#: a terminal, so an unbounded chain makes ANY two processes on the host "related": a
+#: manual invocation in the same terminal as a live session would resolve to that
+#: session's id. A real caller is 1-3 hops away (review-record <- bash <- claude), so a
+#: bound of 4 keeps every legitimate case and refuses the coincidental ones.
+_POINTER_MAX_DEPTH = 4
+#: A pointer older than this is ignored. Bounds the one residual risk of matching by pid:
+#: pid reuse. A stale entry that is both within 24h AND shares a live ancestor with the
+#: reader is possible in principle; it is far likelier to produce a SECOND match (which
+#: resolves to "unknown") than a wrong one.
+POINTER_TTL_SECONDS = 24 * 60 * 60
+_POINTER_MAX_ROWS = 64
+
+
+def _pointer_path() -> Optional[Path]:
+    root = ensure_ledger_dir()
+    return None if root is None else root / SESSION_POINTERS
+
+
+def _ancestor_pids() -> List[int]:
+    """This process's ancestor pids, innermost first.
+
+    `ps -o ppid=` because the stdlib has no portable parent-of-parent. Bounded at 12 hops
+    with a short timeout and a total guard: this runs on hook and approval paths, where a
+    helper may degrade to [] but may never raise or hang.
+    """
+    out: List[int] = []
+    current = os.getpid()
+    for _ in range(12):
+        try:
+            res = subprocess.run(["ps", "-o", "ppid=", "-p", str(current)],
+                                 capture_output=True, text=True, timeout=5)
+        except (OSError, subprocess.SubprocessError):
+            break
+        value = res.stdout.strip()
+        if res.returncode != 0 or not value.isdigit():
+            break
+        current = int(value)
+        if current <= 1:
+            break
+        out.append(current)
+    return out
+
+
+def record_session_pointer(session_id: Any, transcript_path: Any = None) -> bool:
+    """Record (session id, this process's ancestor pids) so a later tool in the SAME
+    process tree can PROVE which session it belongs to.
+
+    WHY THIS EXISTS: a session id reaches nothing in this repo except a hook payload --
+    no env var carries it, and a slash command's bash fence has no channel to it. So the
+    rejection briefs recorded `session: unknown` and root-cause mining silently degraded
+    to brief-only. Ancestry rather than recency: "the newest transcript" was MEASURED
+    wrong here (the newest belonged to a subagent, and concurrent sessions were writing),
+    and a wrong session id is worse than none because nothing downstream can detect it.
+
+    The raw id is a transcript filename, not a credential -- and it stays in the external
+    ledger root, which is outside the repository by construction, so it can never be
+    committed. Best-effort throughout: False, never an exception.
+    """
+    # valid_session() alone is NOT enough here: it accepts any non-empty string, while
+    # the reader requires a transcript filename. A pointer the reader cannot use is worse
+    # than none -- it was demonstrated to make resolution fall through to an older, stale
+    # pointer sharing ancestry and return a WRONG id silently. Same shape, both sides.
+    if not valid_session(session_id) or not SESSION_ID_SHAPE.match(str(session_id).strip()):
+        return False
+    path = _pointer_path()
+    if path is None or path.is_symlink():
+        return False
+    row = {
+        "schemaVersion": SCHEMA_VERSION,
+        "session_id": str(session_id).strip(),
+        "pids": _ancestor_pids()[:_POINTER_MAX_DEPTH],
+        # Basename only: the directory is the host's, and this row is read by tools whose
+        # output lands in committed files.
+        "transcript": os.path.basename(str(transcript_path or "")),
+        "observedAt": now_iso(),
+        "epoch": int(datetime.now(timezone.utc).timestamp()),
+    }
+    rows = [r for r in session_pointers() if r.get("session_id") != row["session_id"]]
+    rows.append(row)
+    rows = rows[-_POINTER_MAX_ROWS:]
+    try:
+        with open(str(path), "w", encoding="utf-8") as handle:
+            for item in rows:
+                handle.write(json.dumps(item, ensure_ascii=False) + "\n")
+        os.chmod(str(path), 0o600)
+    except OSError:
+        return False
+    return True
+
+
+def session_pointers() -> List[Dict[str, Any]]:
+    """Live, non-expired session pointers. Never raises: every caller is on a hot path."""
+    path = _pointer_path()
+    if path is None or path.is_symlink() or not path.is_file():
+        return []
+    cutoff = int(datetime.now(timezone.utc).timestamp()) - POINTER_TTL_SECONDS
+    rows: List[Dict[str, Any]] = []
+    try:
+        with open(str(path), "r", encoding="utf-8", errors="replace") as handle:
+            text = handle.read()
+    except OSError:
+        return []
+    for line in text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            row = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(row, dict) or not valid_session(row.get("session_id")):
+            continue
+        try:
+            epoch = int(row.get("epoch") or 0)
+        except (TypeError, ValueError):
+            # A hand-edited or truncated pointer must not raise out of a function whose
+            # docstring promises it never does -- and whose callers sit on hot paths.
+            continue
+        if epoch < cutoff:
+            continue
+        rows.append(row)
+    return rows
+
+
 def record_failure(
     session_id: str,
     phase: Any,

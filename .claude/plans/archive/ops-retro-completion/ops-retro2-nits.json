@@ -1,0 +1,55 @@
+{
+  "plan": "retro2-nits",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/review-record.py",
+      "description": "Extract write_verdict(**kwargs); cmd_write becomes the argparse adapter and the hand-built Namespace disappears.",
+      "edits": [
+        {
+          "find": "def cmd_write(args) -> int:\n    ops_path = Path(args.ops)",
+          "replace": "def cmd_write(args) -> int:\n    \"\"\"argparse adapter. `write_verdict` below is the real entry point.\n\n    cmd_record_code_review used to hand-build an argparse.Namespace to call this. It was\n    correct as shipped -- every attribute the body reads happened to be present, and two\n    getattr defaults covered the rest -- but correct BY INSPECTION, re-verified by hand\n    every time either side changes. A keyword function is correct by construction, and\n    the adapter is the one place that knows about Namespaces.\n    \"\"\"\n    return write_verdict(\n        plan=args.plan, ops=args.ops, from_review=args.from_review,\n        score=args.score, decision=args.decision,\n        session_id=getattr(args, \"session_id\", None),\n        verdict_origin=getattr(args, \"verdict_origin\", None) or \"rubric\",\n        only_non_approving=getattr(args, \"only_non_approving\", False))\n\n\ndef write_verdict(plan, ops, from_review=None, score=None, decision=None,\n                  session_id=None, verdict_origin=\"rubric\",\n                  only_non_approving=False) -> int:\n    \"\"\"Record one verdict against one ops.json. The write half of the approval gate.\n\n    Behaviour is unchanged from the argparse-driven version; the proof is that\n    tests/test_review_record.py passes untouched.\n    \"\"\"\n    ops_path = Path(ops)"
+        },
+        {
+          "find": "    if args.from_review:\n        raw = sys.stdin.read() if args.from_review == \"-\" else \\\n            Path(args.from_review).read_text(encoding=\"utf-8\")",
+          "replace": "    if from_review:\n        raw = sys.stdin.read() if from_review == \"-\" else \\\n            Path(from_review).read_text(encoding=\"utf-8\")"
+        },
+        {
+          "find": "        score, decision = args.score, args.decision\n        if score is None or decision is None:",
+          "replace": "        if score is None or decision is None:"
+        },
+        {
+          "find": "    if getattr(args, \"only_non_approving\", False) and decision in NON_RECORDABLE_DECISIONS:",
+          "replace": "    if only_non_approving and decision in NON_RECORDABLE_DECISIONS:"
+        },
+        {
+          "find": "        \"plan\": os.path.relpath(args.plan),",
+          "replace": "        \"plan\": os.path.relpath(plan),"
+        },
+        {
+          "find": "        \"verdict_origin\": getattr(args, \"verdict_origin\", None) or \"rubric\",",
+          "replace": "        \"verdict_origin\": verdict_origin or \"rubric\","
+        },
+        {
+          "find": "        emit_brief(slug, record, rounds, getattr(args, \"session_id\", None))",
+          "replace": "        emit_brief(slug, record, rounds, session_id)"
+        },
+        {
+          "find": "    code = cmd_write(argparse.Namespace(\n        plan=plan, ops=str(ops_path), from_review=str(report),\n        score=None, decision=None, session_id=getattr(args, \"session_id\", None),\n        verdict_origin=\"gate-token\", only_non_approving=True))",
+          "replace": "    code = write_verdict(\n        plan=plan, ops=str(ops_path), from_review=str(report),\n        session_id=getattr(args, \"session_id\", None),\n        verdict_origin=\"gate-token\", only_non_approving=True)"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_rejection_briefs.py",
+      "description": "Assert the invocation rather than the prose, and pin the keyword API.",
+      "edits": [
+        {
+          "find": "    def test_the_prose_names_the_inputs_the_fence_needs(self):\n        text = (REPO / \".claude\" / \"commands\" / \"code-review.md\").read_text(encoding=\"utf-8\")\n        step = text.split(\"### Step 5c\", 1)[1].split(\"\\n### \", 1)[0]\n        prose = step.split(\"```bash\", 1)[0]\n        for name in (\"REVIEW_OUT\", \"PLAN_FILE\"):\n            assert name in prose, \"%s is used but never explained to the reader\" % name",
+          "replace": "    def test_the_fence_passes_the_inputs_it_documents(self):\n        \"\"\"Replaces an assertion that the PROSE named REVIEW_OUT and PLAN_FILE. Prose\n        naming two inputs the invocation never passes is exactly the shape of defect this\n        step already shipped twice -- documented, and inert. So the assertion moved to the\n        invocation: the recorder must actually hand the script the two files the prose\n        promises, or the step records nothing while reading as if it does.\"\"\"\n        text = (REPO / \".claude\" / \"commands\" / \"code-review.md\").read_text(encoding=\"utf-8\")\n        step = text.split(\"### Step 5c\", 1)[1].split(\"\\n### \", 1)[0]\n        fence = step.split(\"```bash\", 1)[1].split(\"```\", 1)[0]\n        call = fence.split(\"record-code-review\", 1)[1]\n        assert '--report \"$REVIEW_OUT\"' in call, call\n        assert '--plan \"$PLAN_FILE\"' in call, call\n        prose = step.split(\"```bash\", 1)[0]\n        for name in (\"REVIEW_OUT\", \"PLAN_FILE\"):\n            assert name in prose, \"%s is passed but never explained to the reader\" % name\n\n    def test_the_verdict_writer_has_a_keyword_api_and_no_namespace_is_built(self):\n        \"\"\"The recorded nit: cmd_record_code_review hand-built an argparse.Namespace, so\n        cmd_write's contract was enforced by inspection. A weaker test would assert the\n        new function exists; this one asserts the OLD construction is gone, which is the\n        thing that could silently come back.\"\"\"\n        source = RECORD.read_text(encoding=\"utf-8\")\n        assert \"argparse.Namespace(\" not in source\n        out = subprocess.run(\n            [sys.executable, \"-c\",\n             \"import importlib.util,sys;\"\n             \"spec=importlib.util.spec_from_file_location('rr', sys.argv[1]);\"\n             \"m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m);\"\n             \"import inspect;p=inspect.signature(m.write_verdict).parameters;\"\n             \"print(','.join(p))\", str(RECORD)],\n            capture_output=True, text=True, timeout=60)\n        assert out.returncode == 0, out.stderr\n        for name in (\"plan\", \"ops\", \"from_review\", \"score\", \"decision\", \"session_id\",\n                     \"verdict_origin\", \"only_non_approving\"):\n            assert name in out.stdout, (name, out.stdout)"
+        }
+      ]
+    }
+  ]
+}

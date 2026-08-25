@@ -100,7 +100,7 @@ echo "$review_output"
 # script (strict anchored patterns), so an echoed format template cannot be mistaken
 # for a real verdict. A failed write is reported, never swallowed.
 printf '%s' "$review_output" | \
-  python3 .claude/operations/scripts/review-record.py write "$PLAN_FILE" "$OPS_FILE" --from-review - \
+  python3 .claude/operations/scripts/review-record.py write "$PLAN_FILE" "$OPS_FILE" --from-review - --session-id "${CLAUDE_SESSION_ID:-}" \
   || echo "WARNING: verdict NOT recorded — /implement will report NO RECORD until /review succeeds." >&2
 ```
 
@@ -112,7 +112,7 @@ printf '%s' "$review_output" | \
    python3 .claude/operations/scripts/review-record.py resolve "$PLAN_FILE"
    ```
    ```bash
-   python3 .claude/operations/scripts/review-record.py write "$PLAN_FILE" "<resolved-ops-path>" --from-review "<saved-output-file>"
+   python3 .claude/operations/scripts/review-record.py write "$PLAN_FILE" "<resolved-ops-path>" --from-review "<saved-output-file>" --session-id "${CLAUDE_SESSION_ID:-}"
    ```
    Skipping this step means `/implement`'s STEP 0 gate refuses with exit 3 (no record) —
    it fails closed, not silently.

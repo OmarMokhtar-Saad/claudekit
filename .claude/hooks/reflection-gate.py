@@ -309,6 +309,16 @@ def checkpoint_reason(checkpoint: Dict[str, Any], extra: str = "") -> str:
 
 def handle_session_start(event: Dict[str, Any], session_id: str) -> int:
     token = reflection.record_session_start(session_id)
+    # The ONLY place an authoritative session id exists in this repo: it arrives in the
+    # payload and reaches nothing else. Recorded so review-record.py can PROVE which
+    # session a rejection brief belongs to instead of guessing from file mtimes.
+    # Best-effort by construction -- a SessionStart hook must not fail because a retro
+    # feature could not write a pointer.
+    try:
+        reflection.record_session_pointer(
+            session_id, field(event, "transcript_path", "transcriptPath"))
+    except Exception:
+        pass
     lines: List[str] = []
     if token:
         lines.append(

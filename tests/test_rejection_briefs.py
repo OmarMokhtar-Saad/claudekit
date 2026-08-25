@@ -779,12 +779,41 @@ class TestCodeReviewFilterSharesTheParsersScope:
         unbound = used - assigned
         assert not unbound, "Step 5c reads unbound variable(s): %s" % sorted(unbound)
 
-    def test_the_prose_names_the_inputs_the_fence_needs(self):
+    def test_the_fence_passes_the_inputs_it_documents(self):
+        """Replaces an assertion that the PROSE named REVIEW_OUT and PLAN_FILE. Prose
+        naming two inputs the invocation never passes is exactly the shape of defect this
+        step already shipped twice -- documented, and inert. So the assertion moved to the
+        invocation: the recorder must actually hand the script the two files the prose
+        promises, or the step records nothing while reading as if it does."""
         text = (REPO / ".claude" / "commands" / "code-review.md").read_text(encoding="utf-8")
         step = text.split("### Step 5c", 1)[1].split("\n### ", 1)[0]
+        fence = step.split("```bash", 1)[1].split("```", 1)[0]
+        call = fence.split("record-code-review", 1)[1]
+        assert '--report "$REVIEW_OUT"' in call, call
+        assert '--plan "$PLAN_FILE"' in call, call
         prose = step.split("```bash", 1)[0]
         for name in ("REVIEW_OUT", "PLAN_FILE"):
-            assert name in prose, "%s is used but never explained to the reader" % name
+            assert name in prose, "%s is passed but never explained to the reader" % name
+
+    def test_the_verdict_writer_has_a_keyword_api_and_no_namespace_is_built(self):
+        """The recorded nit: cmd_record_code_review hand-built an argparse.Namespace, so
+        cmd_write's contract was enforced by inspection. A weaker test would assert the
+        new function exists; this one asserts the OLD construction is gone, which is the
+        thing that could silently come back."""
+        source = RECORD.read_text(encoding="utf-8")
+        assert "argparse.Namespace(" not in source
+        out = subprocess.run(
+            [sys.executable, "-c",
+             "import importlib.util,sys;"
+             "spec=importlib.util.spec_from_file_location('rr', sys.argv[1]);"
+             "m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m);"
+             "import inspect;p=inspect.signature(m.write_verdict).parameters;"
+             "print(','.join(p))", str(RECORD)],
+            capture_output=True, text=True, timeout=60)
+        assert out.returncode == 0, out.stderr
+        for name in ("plan", "ops", "from_review", "score", "decision", "session_id",
+                     "verdict_origin", "only_non_approving"):
+            assert name in out.stdout, (name, out.stdout)
 
     def test_cannot_review_rounds_are_told_to_skip_the_step(self):
         """CANNOT REVIEW emits no block by design, so parse_verdict fails and the write
@@ -914,3 +943,435 @@ class TestOnlyNonApprovingGate:
                             "--decision", "APPROVED")
         assert result.returncode == 0
         assert record_json(tmp_path)["decision"] == "APPROVED"
+
+
+# --------------------------------------------------------------------------- item D
+#
+# Backfill. The fixture below is written in the shapes the REAL corpus uses -- entries with
+# `message.content` as a LIST of typed blocks, a tool_result, an attachment record -- because
+# the miner has already been bitten once by a fixture shaped to the code instead of to
+# reality. CLAUDEKIT_TRANSCRIPT_ROOT only relocates the scan; it supplies no data.
+
+VERDICT_TEXT = ("Reviewing ops-legacy-thing.json now.\n\n"
+                "=== REVIEW ===\nSCORE: 55\nDECISION: REJECTED\n"
+                "- [CRITICAL] the anchor in ops-legacy-thing.json does not exist\n"
+                "=== END REVIEW ===\n")
+
+
+def _transcript(directory, name, texts, extra=()):
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / name
+    entries = []
+    for text in texts:
+        entries.append({"type": "assistant",
+                        "message": {"content": [{"type": "text", "text": text}]}})
+    entries.extend(extra)
+    path.write_text("\n".join(json.dumps(e) for e in entries) + "\n", encoding="utf-8")
+    return path
+
+
+def _backfill_env(tmp_path):
+    env = _no_session_env(tmp_path)
+    env["CLAUDEKIT_TRANSCRIPT_ROOT"] = str(tmp_path / "transcripts")
+    return env
+
+
+def _corpus_tree(tmp_path):
+    make_tree(tmp_path)
+    return tmp_path / "transcripts"
+
+
+class TestBackfillReconstructsWithoutPretending:
+    def test_the_default_run_writes_nothing(self, tmp_path):
+        """A weaker test runs --dry-run explicitly and proves nothing about the DEFAULT,
+        which is the only thing that matters: the failure mode is a first run that
+        silently rewrote the corpus."""
+        root = _corpus_tree(tmp_path)
+        _transcript(root, "11111111-2222-3333-4444-555555555555.jsonl", [VERDICT_TEXT])
+        out = run_record(tmp_path, "rejections", "backfill", env=_backfill_env(tmp_path))
+        assert out.returncode == 0, out.stderr
+        assert "rows to write:           1" in out.stdout, out.stdout
+        assert "DRY RUN" in out.stdout
+        assert not (tmp_path / ".claude" / "knowledge" / "rejections"
+                    / "INDEX.jsonl").is_file()
+
+    def test_written_rows_are_marked_reconstructed_and_re_runs_are_idempotent(self, tmp_path):
+        """Backfilled rows that looked like live ones would silently lower the confidence
+        of every later analysis; a re-run that duplicated them would inflate the
+        sample-size gate the retro depends on."""
+        root = _corpus_tree(tmp_path)
+        env = _backfill_env(tmp_path)
+        _transcript(root, "11111111-2222-3333-4444-555555555555.jsonl", [VERDICT_TEXT])
+        assert run_record(tmp_path, "rejections", "backfill", "--write",
+                          env=env).returncode == 0
+        rows = _index_rows(tmp_path)
+        assert len(rows) == 1
+        assert rows[0]["source"] == "backfill"
+        assert rows[0]["verdict_origin"] == "reconstructed"
+        assert rows[0]["round"] < 0, "a reconstructed round must never collide with a live one"
+        run_record(tmp_path, "rejections", "backfill", "--write", env=env)
+        assert len(_index_rows(tmp_path)) == 1
+
+    def test_a_verdict_it_cannot_attribute_is_counted_never_guessed(self, tmp_path):
+        """Two candidate slugs in the window. Assigning the likeliest is the same
+        fabrication the session-id resolver refuses, in a second place."""
+        root = _corpus_tree(tmp_path)
+        text = VERDICT_TEXT.replace("Reviewing ops-legacy-thing.json now.",
+                                    "Reviewing ops-legacy-thing.json and ops-other-thing.json")
+        _transcript(root, "22222222-2222-3333-4444-555555555555.jsonl", [text])
+        out = run_record(tmp_path, "rejections", "backfill", "--write",
+                         env=_backfill_env(tmp_path))
+        assert "unattributable:        1" in out.stdout, out.stdout
+        assert _index_rows(tmp_path) == []
+
+    def test_an_approving_verdict_is_never_backfilled(self, tmp_path):
+        root = _corpus_tree(tmp_path)
+        approving = ("About ops-legacy-thing.json\n\n=== REVIEW ===\nSCORE: 95\n"
+                     "DECISION: APPROVED\n=== END REVIEW ===\n")
+        _transcript(root, "33333333-2222-3333-4444-555555555555.jsonl", [approving])
+        out = run_record(tmp_path, "rejections", "backfill", "--write",
+                         env=_backfill_env(tmp_path))
+        assert "approving (skipped):   1" in out.stdout, out.stdout
+        assert _index_rows(tmp_path) == []
+
+    def test_a_credential_in_a_transcript_never_reaches_stdout_or_the_brief(self, tmp_path):
+        """Scrubbing must happen BEFORE emission, and to every channel -- the report and
+        the tracked brief. A test that only checked the brief would pass while the dry-run
+        report printed the token to a terminal and into a pasted retro."""
+        root = _corpus_tree(tmp_path)
+        secret = "sk-ant-" + ("a" * 40)
+        text = VERDICT_TEXT.replace("does not exist", "leaked %s here" % secret)
+        _transcript(root, "44444444-2222-3333-4444-555555555555.jsonl", [text],
+                    extra=[{"type": "user", "message": {"content": [
+                        {"type": "tool_result", "content": "TOKEN=%s" % secret}]}}])
+        out = run_record(tmp_path, "rejections", "backfill", "--write",
+                         env=_backfill_env(tmp_path))
+        assert secret not in out.stdout and secret not in out.stderr
+        store = tmp_path / ".claude" / "knowledge" / "rejections"
+        for path in store.rglob("*"):
+            if path.is_file():
+                assert secret not in path.read_text(encoding="utf-8"), path
+
+    def test_a_dotted_ops_filename_keys_under_the_slug_the_live_record_uses(self, tmp_path):
+        """ops-<x>.ops.json must key as <x>, exactly as ops_slug() keys the live record.
+        A backfilled row under "<x>.ops" can never join its own history, and the trend
+        folding it exists for silently never happens -- with nothing failing."""
+        root = _corpus_tree(tmp_path)
+        text = VERDICT_TEXT.replace("ops-legacy-thing.json", "ops-legacy-thing.ops.json")
+        _transcript(root, "55555555-2222-3333-4444-555555555555.jsonl", [text])
+        assert run_record(tmp_path, "rejections", "backfill", "--write",
+                          env=_backfill_env(tmp_path)).returncode == 0
+        rows = _index_rows(tmp_path)
+        assert rows and rows[0]["slug"] == "legacy-thing", rows
+
+    def test_the_report_names_the_scope_before_anything_is_written(self, tmp_path):
+        """The unscoped version read 99 projects and proposed rows from two unrelated
+        repositories. An operator approving --write must SEE which project is being read;
+        a scope that is only in a docstring is not a control."""
+        root = _corpus_tree(tmp_path)
+        _transcript(root, "66666666-2222-3333-4444-555555555555.jsonl", [VERDICT_TEXT])
+        out = run_record(tmp_path, "rejections", "backfill", env=_backfill_env(tmp_path))
+        assert "project scope:" in out.stdout
+        assert "transcripts available:   1 for THIS project" in out.stdout, out.stdout
+
+    def test_another_projects_transcripts_are_never_read(self, tmp_path):
+        """The CRITICAL this scoping fixes: every kitted project writes ops-<slug>.json,
+        so the slug filter scopes NOTHING. Without a project-scoped root, the foreign
+        transcript below is mined and its findings land in this repo's tracked store."""
+        make_tree(tmp_path)
+        mine = tmp_path / "transcripts" / "mine"
+        theirs = tmp_path / "transcripts" / "theirs"
+        _transcript(mine, "77777777-2222-3333-4444-555555555555.jsonl", [VERDICT_TEXT])
+        _transcript(theirs, "88888888-2222-3333-4444-555555555555.jsonl",
+                    [VERDICT_TEXT.replace("legacy-thing", "someone-elses-thing")])
+        env = _no_session_env(tmp_path)
+        env["CLAUDEKIT_TRANSCRIPT_ROOT"] = str(mine)
+        out = run_record(tmp_path, "rejections", "backfill", "--write", env=env)
+        assert out.returncode == 0, out.stderr
+        rows = _index_rows(tmp_path)
+        assert [r["slug"] for r in rows] == ["legacy-thing"], rows
+        for path in (tmp_path / ".claude" / "knowledge" / "rejections").rglob("*"):
+            if path.is_file():
+                assert "someone-elses-thing" not in path.read_text(encoding="utf-8")
+
+    def test_subagent_transcripts_are_never_scanned(self, tmp_path):
+        """agent-*.jsonl is not a session. Mining one attributes a subagent's work to a
+        session that never did it -- and its filename is not a session id at all."""
+        root = _corpus_tree(tmp_path)
+        _transcript(root, "agent-abcdef0123456789.jsonl", [VERDICT_TEXT])
+        out = run_record(tmp_path, "rejections", "backfill", "--write",
+                         env=_backfill_env(tmp_path))
+        assert "transcripts available:   0 for THIS project" in out.stdout, out.stdout
+        assert _index_rows(tmp_path) == []
+
+
+
+# --------------------------------------------------------------------------- item B
+#
+# `rejections classify` is the ONLY writer of defect_type/trigger. Every test below is
+# about the property that makes the distribution worth reading: nothing is ever inferred.
+
+def _classify(tmp_path, *argv, env=None):
+    return run_record(tmp_path, "rejections", "classify", *argv, env=env)
+
+
+def _classification_rows(tmp_path):
+    return [r for r in _index_rows(tmp_path) if r.get("row_type") == "classification"]
+
+
+class TestClassificationIsNeverGuessed:
+    def _corpus(self, tmp_path):
+        env = _no_session_env(tmp_path)
+        _two_rejecting_rounds(tmp_path, env)
+        return env
+
+    def test_it_refuses_a_round_that_was_never_recorded(self, tmp_path):
+        """A weaker test only checks the happy path. This one asserts the refusal that
+        keeps the corpus honest: a classification for a non-existent round would be a
+        label with nothing under it."""
+        env = self._corpus(tmp_path)
+        out = _classify(tmp_path, "demo", "99", "--type", "file-ownership",
+                        "--trigger", "ownership-map", env=env)
+        assert out.returncode == 3, out.stdout + out.stderr
+        assert _classification_rows(tmp_path) == []
+
+    def test_it_refuses_a_type_outside_the_vocabulary(self, tmp_path):
+        """Free text in defect_type makes the distribution unqueryable again -- the exact
+        condition this subcommand exists to end.
+
+        Asserts the SPECIFIC refusal (argparse's exit 2, and the rejected value named in
+        the message), never merely `returncode != 0`. A bare non-zero assertion passes on
+        any error at all -- including a mistyped slug that never reached the vocabulary
+        check, which is precisely how this class of test passes while proving nothing."""
+        env = self._corpus(tmp_path)
+        out = _classify(tmp_path, "demo", "2", "--type", "vibes",
+                        "--trigger", "ownership-map", env=env)
+        assert out.returncode == 2, out.stdout + out.stderr
+        assert "vibes" in out.stderr and "--type" in out.stderr, out.stderr
+        assert _classification_rows(tmp_path) == []
+
+    def test_the_happy_path_actually_writes(self, tmp_path):
+        """The guard against every other test in this class passing vacuously: if the
+        slug, the round or the store path is wrong, `classify` returns 3 and writes
+        nothing, and a suite that only asserts refusals cannot tell the difference."""
+        env = self._corpus(tmp_path)
+        out = _classify(tmp_path, "demo", "2", "--type", "drifted-anchor",
+                        "--trigger", "anchor-check", env=env)
+        assert out.returncode == 0, out.stdout + out.stderr
+        rows = _classification_rows(tmp_path)
+        assert len(rows) == 1 and rows[0]["defect_type"] == "drifted-anchor"
+        brief = (tmp_path / ".claude" / "knowledge" / "rejections" / "demo.md")
+        assert "Classification (round 2)" in brief.read_text(encoding="utf-8")
+
+    def test_re_classifying_appends_and_the_reader_takes_the_last(self, tmp_path):
+        """Asserts the FIRST row is still on disk. A writer that corrected in place would
+        pass any test that only read the final value."""
+        env = self._corpus(tmp_path)
+        assert _classify(tmp_path, "demo", "2", "--type", "drifted-anchor",
+                         "--trigger", "anchor-check", env=env).returncode == 0
+        assert _classify(tmp_path, "demo", "2", "--type", "untested-behaviour",
+                         "--trigger", "test-coverage", env=env).returncode == 0
+        rows = _classification_rows(tmp_path)
+        assert [r["defect_type"] for r in rows] == ["drifted-anchor", "untested-behaviour"]
+        out = run_record(tmp_path, "rejections", "search", "demo", env=env)
+        assert "defect_type=untested-behaviour" in out.stdout, out.stdout
+
+    def test_stats_never_imputes_an_unclassified_round(self, tmp_path):
+        """The failure this guards is a confident distribution over data that does not
+        exist: unclassified silently counted as `other`.
+
+        A THIRD rejecting round is written on purpose. The brief trigger fires on the
+        second one, so two rounds produce exactly ONE brief row -- and a corpus with
+        nothing left unclassified cannot demonstrate non-imputation at all. The first
+        version of this test asserted `unclassified=1` against a one-row corpus and
+        failed, which is the assertion doing its job: the count has to be real."""
+        env = self._corpus(tmp_path)
+        plan, ops = make_tree(tmp_path)
+        run_record(tmp_path, "write", plan, ops, "--from-review", "-",
+                   stdin=REVISE_BLOCK, env=env)
+        rows = [r for r in _index_rows(tmp_path) if r.get("row_type", "brief") == "brief"]
+        assert [r["round"] for r in rows] == [2, 3], rows
+        assert _classify(tmp_path, "demo", "2", "--type", "scope-overflow",
+                         "--trigger", "phase-count", env=env).returncode == 0
+        out = run_record(tmp_path, "rejections", "stats", "--by-type", env=env)
+        assert "classified=1 of 2" in out.stdout, out.stdout
+        assert "scope-overflow=1" in out.stdout
+        assert "unclassified=1" in out.stdout and "NOT imputed" in out.stdout
+        assert "other=" not in out.stdout
+
+    def test_a_classification_row_is_not_counted_as_a_brief(self, tmp_path):
+        env = self._corpus(tmp_path)
+        before = run_record(tmp_path, "rejections", "stats", env=env).stdout
+        assert _classify(tmp_path, "demo", "2", "--type", "other",
+                         "--trigger", "rubric-general", env=env).returncode == 0
+        assert len(_classification_rows(tmp_path)) == 1
+        after = run_record(tmp_path, "rejections", "stats", env=env).stdout
+        assert before.split()[0] == after.split()[0], (before, after)
+
+    def test_the_prompt_and_the_script_share_one_vocabulary(self):
+        """Corpus assertion. Two lists that must agree drift the moment only one of them
+        is edited, and nothing else would notice."""
+        script = RECORD.read_text(encoding="utf-8")
+        vocab = script.split("DEFECT_TYPES = (", 1)[1].split(")", 1)[0]
+        tokens = [t.strip().strip('",\'') for t in vocab.split() if t.strip(' ",')]
+        prompt = (AGENTS / "flow-analyst.md").read_text(encoding="utf-8")
+        for token in tokens:
+            assert token and token in prompt, token
+
+
+
+# --------------------------------------------------------------------------- item A
+#
+# The session-id gap. Every test here runs with CLAUDE_SESSION_ID and CLAUDEKIT_SESSION_ID
+# STRIPPED, because that is the shipped condition -- nothing exports them, which is why the
+# one live brief in this store records `session: unknown`. A test that exported one would
+# prove that a path nobody takes works.
+
+GATE = REPO / ".claude" / "hooks" / "reflection-gate.py"
+
+
+def _no_session_env(tmp_path):
+    """Production conditions + an isolated ledger root. The env var below relocates
+    reflection.py's own store (its documented override); it supplies no DATA the shipped
+    path would otherwise be missing."""
+    env = {"CLAUDE_SESSION_ID": "", "CLAUDEKIT_SESSION_ID": "",
+           "CLAUDEKIT_REFLECTION_DIR": str(tmp_path / "ledger")}
+    (tmp_path / "ledger").mkdir(parents=True, exist_ok=True)
+    return env
+
+
+def _run_session_start(tmp_path, session_id, env):
+    """Execute the SHIPPED SessionStart hook, so the pointer under test is the one
+    production writes -- not a fixture shaped to whatever the reader wants."""
+    environ = dict(os.environ)
+    environ["ECC_HOOK_PROFILE"] = "minimal"
+    environ.update(env)
+    payload = json.dumps({"hook_event_name": "SessionStart", "session_id": session_id,
+                          "transcript_path": "/somewhere/%s.jsonl" % session_id})
+    return subprocess.run([sys.executable, str(GATE)], input=payload, cwd=str(tmp_path),
+                          capture_output=True, text=True, timeout=60, env=environ)
+
+
+def _two_rejecting_rounds(tmp_path, env):
+    plan, ops = make_tree(tmp_path)
+    first = run_record(tmp_path, "write", plan, ops, "--from-review", "-",
+                       stdin=REVISE_BLOCK, env=env)
+    second = run_record(tmp_path, "write", plan, ops, "--from-review", "-",
+                        stdin=REVISE_BLOCK, env=env)
+    return first, second
+
+
+def _index_rows(tmp_path):
+    path = tmp_path / ".claude" / "knowledge" / "rejections" / "INDEX.jsonl"
+    if not path.is_file():
+        return []
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()
+            if line.strip()]
+
+
+class TestTheSessionIdIsProvenOrUnknown:
+    def test_with_no_env_and_no_pointer_it_records_unknown_AND_warns(self, tmp_path):
+        """A weaker test asserts only the VALUE. That passes on a silent degrade, which
+        is the defect itself: the live brief already said `unknown` and nothing said so
+        out loud. The warning is the deliverable."""
+        env = _no_session_env(tmp_path)
+        _, second = _two_rejecting_rounds(tmp_path, env)
+        rows = _index_rows(tmp_path)
+        assert rows and rows[-1]["session_id"] == "unknown"
+        assert "session: unknown" in second.stderr
+        assert second.returncode == 0, "the verdict must still be recorded"
+
+    def test_the_pointer_the_real_hook_writes_is_the_id_the_brief_records(self, tmp_path):
+        """Executes the shipped hook. A weaker test hand-writes the pointer file and
+        passes even if reflection-gate.py never records one, or if writer and reader
+        disagree about the format."""
+        env = _no_session_env(tmp_path)
+        sid = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        hook = _run_session_start(tmp_path, sid, env)
+        assert hook.returncode in (0, 2), hook.stderr
+        _two_rejecting_rounds(tmp_path, env)
+        rows = _index_rows(tmp_path)
+        assert rows and rows[-1]["session_id"] == sid, rows
+
+    def test_two_concurrent_sessions_resolve_to_unknown_not_to_one_of_them(self, tmp_path):
+        """The measured environment: concurrent sessions in one project. A resolver that
+        took matches[0] -- or the newest -- passes every other test in this class and
+        fails only this one."""
+        env = _no_session_env(tmp_path)
+        for sid in ("aaaaaaaa-1111-2222-3333-444444444444",
+                    "bbbbbbbb-1111-2222-3333-444444444444"):
+            _run_session_start(tmp_path, sid, env)
+        _, second = _two_rejecting_rounds(tmp_path, env)
+        rows = _index_rows(tmp_path)
+        assert rows and rows[-1]["session_id"] == "unknown", rows
+        assert "session: unknown" in second.stderr
+
+    def test_a_pointer_from_another_process_tree_is_never_used(self, tmp_path):
+        """Asserts the absence of a WRONG id, which is the property that matters. A test
+        asserting merely that SOME id was recorded would accept the mtime fabrication."""
+        env = _no_session_env(tmp_path)
+        pointer = tmp_path / "ledger" / "session-pointers.jsonl"
+        pointer.write_text(json.dumps({
+            "schemaVersion": 1, "session_id": "cccccccc-1111-2222-3333-444444444444",
+            "pids": [999999], "transcript": "x.jsonl",
+            "epoch": int(__import__("time").time())}) + "\n", encoding="utf-8")
+        _two_rejecting_rounds(tmp_path, env)
+        rows = _index_rows(tmp_path)
+        assert rows and rows[-1]["session_id"] == "unknown", rows
+
+    def test_a_pointer_it_cannot_read_poisons_instead_of_falling_through(self, tmp_path):
+        """The demonstrated bug: writer and reader disagreed about what a valid session id
+        IS (reflection.valid_session accepts any non-empty string; the reader wants a
+        transcript filename). The reader SKIPPED the unreadable row and resolved to an
+        older, stale pointer that also shared ancestry -- a WRONG id, silently.
+
+        The malformed pointer is written by hand on purpose: the shipped hook now refuses
+        to write one, so this asserts the reader's own refusal, which is what protects the
+        store if the two definitions ever drift again.
+        """
+        env = _no_session_env(tmp_path)
+        stale = "dddddddd-1111-2222-3333-444444444444"
+        _run_session_start(tmp_path, stale, env)
+        pointer = tmp_path / "ledger" / "session-pointers.jsonl"
+        rows = [line for line in pointer.read_text(encoding="utf-8").splitlines() if line]
+        mine = json.loads(rows[-1])
+        rows.append(json.dumps(dict(mine, session_id="not-a-transcript-name")))
+        pointer.write_text("\n".join(rows) + "\n", encoding="utf-8")
+        _, second = _two_rejecting_rounds(tmp_path, env)
+        recorded = _index_rows(tmp_path)[-1]["session_id"]
+        assert recorded != stale, "resolved to a stale pointer it should have refused"
+        assert recorded == "unknown", recorded
+        assert "session: unknown" in second.stderr
+
+    def test_the_hook_refuses_to_write_an_id_the_reader_cannot_use(self, tmp_path):
+        """One definition, enforced at the write end too, so the poison above is a
+        backstop rather than the only guard."""
+        env = _no_session_env(tmp_path)
+        _run_session_start(tmp_path, "not-a-transcript-name", env)
+        pointer = tmp_path / "ledger" / "session-pointers.jsonl"
+        assert not pointer.is_file() or "not-a-transcript-name" not in pointer.read_text(
+            encoding="utf-8")
+
+    def test_stats_reports_how_much_of_the_corpus_is_unresolvable(self, tmp_path):
+        env = _no_session_env(tmp_path)
+        _two_rejecting_rounds(tmp_path, env)
+        out = run_record(tmp_path, "rejections", "stats", env=env)
+        assert "unresolved_sessions=1" in out.stdout, out.stdout + out.stderr
+
+
+class TestTheCallSitesPassItExplicitly:
+    CALLERS = {"review.md": 125, "refine.md": 466, "code-review.md": 140}
+
+    def test_every_recording_call_site_passes_session_id(self):
+        for name in self.CALLERS:
+            text = (REPO / ".claude" / "commands" / name).read_text(encoding="utf-8")
+            assert "--session-id" in text, name
+
+    def test_the_flag_was_added_line_neutrally(self):
+        """These three commands sit at exactly their ck-lint baseline. Adding a LINE to
+        any of them breaks a gate that is currently green, so the flag goes on a line
+        that already existed -- and that is asserted, not remembered."""
+        for name, budget in self.CALLERS.items():
+            text = (REPO / ".claude" / "commands" / name).read_text(encoding="utf-8")
+            assert len(text.split("\n")) - 1 <= budget, name
+

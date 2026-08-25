@@ -13,8 +13,8 @@ proposes; the owner approves; `/implement` applies. Store contract:
 ## Step 1 — size the corpus
 
 ```bash
-python3 .claude/operations/scripts/review-record.py rejections stats
-# briefs=N slugs=N sessions=N   (corrupt INDEX lines are skipped with a note)
+python3 .claude/operations/scripts/review-record.py rejections stats --by-type
+# briefs=N slugs=N sessions=N unresolved_sessions=N classified=N + ODC distributions
 ```
 
 ## Step 2 — the sample-size gate, BEFORE spawning anything
