@@ -544,6 +544,100 @@ class TestTheThirdPartyNoticeStaysHonest:
             "false once a share-alike file ships in the distribution")
 
 
+class TestTheLintScopesAgreeAndCoverTheOpsEngine:
+    """`fleet-sync.py` shipped with three mypy errors and five deleted-skill-gate
+    failures because it entered the tree after a suite run -- but it would ALSO have
+    passed CI, which linted `src/claudekit scripts` while the DoD said
+    `src/ tests/ scripts/` and neither covered `.claude/operations/scripts/`. Three
+    declared scopes, all different, none covering the engine that executes every
+    change in this repo."""
+
+    OPS_DIR = ".claude/operations/scripts/"
+    SOURCES = {
+        "CI": ".github/workflows/ci.yml",
+        "CLAUDE.md": "CLAUDE.md",
+        "checklist": ".ai/CHECKLISTS.md",
+    }
+
+    @pytest.mark.parametrize("label,rel", sorted(SOURCES.items()))
+    def test_the_declared_ruff_scope_covers_the_ops_engine(self, label, rel):
+        body = open(os.path.join(ROOT, rel), encoding="utf-8").read()
+        line = [ln for ln in body.splitlines() if "ruff check" in ln]
+        assert line, f"{label}: no ruff invocation found at all"
+        assert any(self.OPS_DIR in ln for ln in line), (
+            f"{label} lints a scope excluding {self.OPS_DIR}: {line}")
+
+    def test_ci_runs_mypy_the_way_a_developer_does(self):
+        """A path-scoped `mypy <dir>` ignores the project config's file list, so CI
+        and local disagree about what is even checked."""
+        body = open(os.path.join(ROOT, ".github/workflows/ci.yml"), encoding="utf-8").read()
+        assert "run: mypy\n" in body or body.rstrip().endswith("run: mypy"), (
+            "CI should invoke bare `mypy` so it reads the same config as the DoD")
+        assert "mypy src/claudekit --ignore-missing-imports" not in body
+
+    def test_the_ops_engine_is_actually_clean_under_that_scope(self):
+        """The scope is only worth declaring if it passes."""
+        import subprocess
+        proc = subprocess.run(["ruff", "check", self.OPS_DIR],
+                              cwd=ROOT, capture_output=True, text=True)
+        assert proc.returncode == 0, proc.stdout + proc.stderr
+
+
+class TestTheCodexMirrorStaysInMembershipParity:
+    """`.agents/skills/` is the Codex CLI corpus mirror -- documented in the CHANGELOG
+    and asserted piecemeal by two other test files, but nothing checked it as a whole.
+    It had drifted to 9 missing and 1 stale against a 79-skill corpus.
+
+    MEMBERSHIP, not content, and that distinction is the whole design: 40 mirror files
+    carry intentional Codex adaptations (`.Codex/` paths, `AGENTS.md`, "Codex" for
+    "Claude"), so a content-equality gate would demand destroying them. What is
+    mechanically true is that every live skill has a mirror entry and no mirror entry
+    outlives its source."""
+
+    MIRROR = os.path.join(ROOT, ".agents", "skills")
+
+    def _ids(self, base):
+        return {d for d in os.listdir(base)
+                if os.path.isfile(os.path.join(base, d, "SKILL.md"))}
+
+    def test_every_live_skill_has_a_mirror_entry(self):
+        missing = sorted(self._ids(SKILLS) - self._ids(self.MIRROR))
+        assert not missing, f"absent from the Codex mirror: {missing}"
+
+    def test_no_mirror_entry_outlives_its_source(self):
+        stale = sorted(self._ids(self.MIRROR) - self._ids(SKILLS))
+        assert not stale, f"mirror entries with no .claude/skills source: {stale}"
+
+    def test_the_generator_agrees(self):
+        """The gate and the generator must not be able to disagree about parity."""
+        import subprocess
+        proc = subprocess.run(
+            ["python3", os.path.join(ROOT, "scripts", "gen-agents-mirror.py"), "--check"],
+            capture_output=True, text=True, cwd=ROOT)
+        assert proc.returncode == 0, proc.stdout + proc.stderr
+
+    def test_the_gate_is_wired_where_it_will_run(self):
+        ci = open(os.path.join(ROOT, ".github/workflows/ci.yml"), encoding="utf-8").read()
+        assert "gen-agents-mirror.py --check" in ci
+        claude_md = open(os.path.join(ROOT, "CLAUDE.md"), encoding="utf-8").read()
+        assert "gen-agents-mirror.py --check" in claude_md
+
+    def test_the_adaptation_is_real_and_not_a_stale_copy(self):
+        """If the mirror were a plain copy, the membership gate would be the only thing
+        it needed -- and content equality would be the right gate instead. Prove the
+        adaptation exists, so the choice of a membership gate stays justified."""
+        import re
+        adapted = 0
+        for sid in sorted(self._ids(self.MIRROR)):
+            body = open(os.path.join(self.MIRROR, sid, "SKILL.md"),
+                        encoding="utf-8").read()
+            if re.search(r"\.Codex/|\bCodex\b", body):
+                adapted += 1
+        assert adapted >= 20, (
+            f"only {adapted} mirror files carry Codex adaptations; if the mirror has "
+            f"become a plain copy, replace this membership gate with a content gate")
+
+
 class TestTheAlwaysOnFloorDidNotRegress:
     def test_the_skill_description_row_is_within_budget(self):
         """Two new descriptions land in this row. It had ~1066 bytes of headroom."""

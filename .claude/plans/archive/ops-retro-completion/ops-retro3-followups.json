@@ -1,0 +1,31 @@
+{
+  "plan": "retro3-followups",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "scripts/heldout-check.py",
+      "description": "refreeze() records old -> new hashes, the audit trail that distinguishes a justified re-freeze from the misuse its own warning names",
+      "edits": [
+        {
+          "find": "                changed.append((fixture.get(\"id\"), fixture.get(key)))\n                fixture[sha_key] = digest",
+          "replace": "                changed.append((fixture.get(\"id\"), fixture.get(key),\n                               fixture.get(sha_key), digest))\n                fixture[sha_key] = digest"
+        },
+        {
+          "find": "    for fid, key in changed:\n        print(\"RE-FROZE %-34s %s\" % (fid, key))",
+          "replace": "    for fid, key, old, new in changed:\n        # The hashes are the whole audit trail. \"RE-FROZE <id> <key>\" proves only that\n        # something moved; old -> new is what lets a reader check WHICH content was\n        # re-pinned against the diff the commit is required to carry. Without them the\n        # command's own justification is unverifiable, which is exactly the misuse the\n        # warning below cautions against.\n        print(\"RE-FROZE %-34s %s\" % (fid, key))\n        print(\"         %s -> %s\" % (str(old)[:16], str(new)[:16]))"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_heldout_set.py",
+      "description": "Pin the two session-id shape literals equal, and assert refreeze prints old -> new",
+      "edits": [
+        {
+          "find": "class TestScoringAReplay",
+          "replace": "class TestOneShapeDefinitionNotTwo(unittest.TestCase):\n    \"\"\"The writer and the reader must agree on what a session id looks like.\n\n    They are two literals in two files. A round-2 review accepted that as bounded --\n    the reader POISONS an unrecognised shape to \"unknown\" rather than resolving a wrong\n    id -- but bounded is not the same as pinned. If the READER is ever widened without\n    the writer, ids the writer refuses to record become resolvable again, which is the\n    exact asymmetry that produced the original defect. A weaker test asserting only that\n    each pattern compiles would not catch a one-character divergence.\n    \"\"\"\n\n    def test_the_writer_and_the_reader_share_one_session_id_shape(self):\n        import re as _re\n        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))\n        writer = open(os.path.join(root, \".claude/hooks/reflection.py\"),\n                      encoding=\"utf-8\").read()\n        reader = open(os.path.join(root, \".claude/operations/scripts/review-record.py\"),\n                      encoding=\"utf-8\").read()\n        w = _re.search(r\"SESSION_ID_SHAPE = re\\.compile\\((r\\\"[^\\\"]+\\\")\\)\", writer)\n        r = _re.search(r\"_SESSION_ID_RE = re\\.compile\\((r\\\"[^\\\"]+\\\")\\)\", reader)\n        self.assertIsNotNone(w, \"reflection.py no longer defines SESSION_ID_SHAPE\")\n        self.assertIsNotNone(r, \"review-record.py no longer defines _SESSION_ID_RE\")\n        self.assertEqual(\n            w.group(1), r.group(1),\n            \"session-id shape drifted between writer and reader: \"\n            \"%s vs %s -- widen both or neither\" % (w.group(1), r.group(1)))\n\n\nclass TestScoringAReplay"
+        }
+      ]
+    }
+  ]
+}

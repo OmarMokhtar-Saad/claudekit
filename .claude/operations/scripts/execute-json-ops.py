@@ -28,8 +28,8 @@ import json
 import logging
 import os
 import re
-import signal
 import shutil
+import signal
 import stat
 import subprocess
 import sys
@@ -38,7 +38,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-from shared import PROTECTED_PATTERNS, is_protected_file, allowed_run_commands, __version__
+from shared import __version__, allowed_run_commands, is_protected_file
 
 # run_command execution bounds (validator enforces the same schema limits)
 RUN_COMMAND_DEFAULT_TIMEOUT = 120
@@ -539,7 +539,7 @@ def execute_run_command(operation: dict, dry_run: bool) -> Tuple[bool, str]:
     if result.returncode != 0:
         print(f"  ERROR: command exited {result.returncode}")
         return False, f"exit-{result.returncode}"
-    print(f"  Command succeeded (exit 0)")
+    print("  Command succeeded (exit 0)")
     return True, "ran"
 
 
@@ -1159,8 +1159,8 @@ def _execute_operations(config: dict, operations: list, plan_name: str,
                     stats['run_command'] += 1
             else:
                 print(f"  ERROR: Unknown operation type: {op_type!r}")
-                print(f"  Valid types: file_create, file_delete, code_edit, run_command")
-                print(f"  Hint: regenerate ops.json using the generate-operations-config skill")
+                print("  Valid types: file_create, file_delete, code_edit, run_command")
+                print("  Hint: regenerate ops.json using the generate-operations-config skill")
                 success, status = False, "unknown-type"
 
             op_results.append({

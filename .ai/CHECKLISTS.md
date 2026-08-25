@@ -3,7 +3,7 @@
 ## Definition of Done (any change)
 
 - [ ] `python3 -m pytest tests/ -q` → 516+ pass, 0 fail
-- [ ] `ruff check src/ tests/ scripts/` clean · `mypy` clean
+- [ ] `ruff check src/ tests/ scripts/ .claude/operations/scripts/` clean · `mypy` clean
 - [ ] `python3 scripts/gen-docs.py --check` clean
 - [ ] `python3 scripts/check-plan-artifacts.py` clean (every path a config
       writes is named in its plan; CI runs it too)

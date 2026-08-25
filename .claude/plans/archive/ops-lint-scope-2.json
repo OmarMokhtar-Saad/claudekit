@@ -1,0 +1,75 @@
+{
+  "plan": "lint-scope-2",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/validate-config-json.py",
+      "description": "the one finding ruff --fix cannot take: an unused bare import",
+      "edits": [
+        {
+          "find": "    import jsonschema\n    from jsonschema import SchemaError, ValidationError, validate",
+          "replace": "    from jsonschema import SchemaError, ValidationError, validate"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".github/workflows/ci.yml",
+      "description": "CI linted a narrower scope than the DoD; that is how fleet-sync.py shipped red",
+      "edits": [
+        {
+          "find": "        run: ruff check src/claudekit scripts",
+          "replace": "        run: ruff check src/ tests/ scripts/ .claude/operations/scripts/"
+        },
+        {
+          "find": "        run: mypy src/claudekit --ignore-missing-imports",
+          "replace": "        # Bare `mypy` so CI reads mypy.ini/pyproject like a developer does. The\n        # narrower `mypy src/claudekit` skipped .claude/operations/scripts entirely,\n        # so three annotation errors in fleet-sync.py were invisible to CI as well\n        # as to the DoD sweep that only covered src/.\n        run: mypy"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "CLAUDE.md",
+      "description": "the DoD command excluded the operations engine it governs",
+      "edits": [
+        {
+          "find": "ruff check src/ tests/ scripts/             # lint (line-length 100)",
+          "replace": "ruff check src/ tests/ scripts/ .claude/operations/scripts/  # lint (line-length 100)"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".ai/CHECKLISTS.md",
+      "description": "keep the checklist's scope identical to CLAUDE.md and CI",
+      "edits": [
+        {
+          "find": "- [ ] `ruff check src/ tests/ scripts/` clean · `mypy` clean",
+          "replace": "- [ ] `ruff check src/ tests/ scripts/ .claude/operations/scripts/` clean · `mypy` clean"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_fleet_skill_phase_a.py",
+      "description": "three declared lint scopes had drifted apart and none covered the ops engine",
+      "edits": [
+        {
+          "find": "class TestTheAlwaysOnFloorDidNotRegress:",
+          "add_before": "class TestTheLintScopesAgreeAndCoverTheOpsEngine:\n    \"\"\"`fleet-sync.py` shipped with three mypy errors and five deleted-skill-gate\n    failures because it entered the tree after a suite run -- but it would ALSO have\n    passed CI, which linted `src/claudekit scripts` while the DoD said\n    `src/ tests/ scripts/` and neither covered `.claude/operations/scripts/`. Three\n    declared scopes, all different, none covering the engine that executes every\n    change in this repo.\"\"\"\n\n    OPS_DIR = \".claude/operations/scripts/\"\n    SOURCES = {\n        \"CI\": \".github/workflows/ci.yml\",\n        \"CLAUDE.md\": \"CLAUDE.md\",\n        \"checklist\": \".ai/CHECKLISTS.md\",\n    }\n\n    @pytest.mark.parametrize(\"label,rel\", sorted(SOURCES.items()))\n    def test_the_declared_ruff_scope_covers_the_ops_engine(self, label, rel):\n        body = open(os.path.join(ROOT, rel), encoding=\"utf-8\").read()\n        line = [ln for ln in body.splitlines() if \"ruff check\" in ln]\n        assert line, f\"{label}: no ruff invocation found at all\"\n        assert any(self.OPS_DIR in ln for ln in line), (\n            f\"{label} lints a scope excluding {self.OPS_DIR}: {line}\")\n\n    def test_ci_runs_mypy_the_way_a_developer_does(self):\n        \"\"\"A path-scoped `mypy <dir>` ignores the project config's file list, so CI\n        and local disagree about what is even checked.\"\"\"\n        body = open(os.path.join(ROOT, \".github/workflows/ci.yml\"), encoding=\"utf-8\").read()\n        assert \"run: mypy\\n\" in body or body.rstrip().endswith(\"run: mypy\"), (\n            \"CI should invoke bare `mypy` so it reads the same config as the DoD\")\n        assert \"mypy src/claudekit --ignore-missing-imports\" not in body\n\n    def test_the_ops_engine_is_actually_clean_under_that_scope(self):\n        \"\"\"The scope is only worth declaring if it passes.\"\"\"\n        import subprocess\n        proc = subprocess.run([\"ruff\", \"check\", self.OPS_DIR],\n                              cwd=ROOT, capture_output=True, text=True)\n        assert proc.returncode == 0, proc.stdout + proc.stderr\n\n\n"
+        }
+      ]
+    },
+    {
+      "type": "run_command",
+      "command": [
+        "ruff",
+        "check",
+        "--fix",
+        ".claude/operations/scripts"
+      ],
+      "reason": "auto-fix the 16 pre-existing findings the widened scope now surfaces",
+      "timeout": 120
+    }
+  ]
+}

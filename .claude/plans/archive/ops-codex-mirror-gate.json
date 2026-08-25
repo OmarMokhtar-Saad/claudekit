@@ -1,0 +1,43 @@
+{
+  "plan": "codex-mirror-gate",
+  "operations": [
+    {
+      "type": "file_delete",
+      "path": ".agents/skills/source-command-review/SKILL.md",
+      "reason": "deleted from .claude/skills upstream; not in the registry, no `renamed` alias, no consumer in agents or commands"
+    },
+    {
+      "type": "code_edit",
+      "path": ".github/workflows/ci.yml",
+      "description": "gate the Codex mirror the way every other generated artifact is gated",
+      "edits": [
+        {
+          "find": "        run: ruff check src/ tests/ scripts/ .claude/operations/scripts/",
+          "add_after": "\n      - name: codex-mirror-drift\n        run: python3 scripts/gen-agents-mirror.py --check"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "CLAUDE.md",
+      "description": "the mirror is a shipped artifact and had no DoD command",
+      "edits": [
+        {
+          "find": "python3 scripts/check-context-floor.py --check # always-on context budget",
+          "add_after": "\npython3 scripts/gen-agents-mirror.py --check # Codex corpus mirror (membership, not content)"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_fleet_skill_phase_a.py",
+      "description": "the mirror drifted to 9 missing / 1 stale with nothing asserting parity",
+      "edits": [
+        {
+          "find": "class TestTheAlwaysOnFloorDidNotRegress:",
+          "add_before": "class TestTheCodexMirrorStaysInMembershipParity:\n    \"\"\"`.agents/skills/` is the Codex CLI corpus mirror -- documented in the CHANGELOG\n    and asserted piecemeal by two other test files, but nothing checked it as a whole.\n    It had drifted to 9 missing and 1 stale against a 79-skill corpus.\n\n    MEMBERSHIP, not content, and that distinction is the whole design: 40 mirror files\n    carry intentional Codex adaptations (`.Codex/` paths, `AGENTS.md`, \"Codex\" for\n    \"Claude\"), so a content-equality gate would demand destroying them. What is\n    mechanically true is that every live skill has a mirror entry and no mirror entry\n    outlives its source.\"\"\"\n\n    MIRROR = os.path.join(ROOT, \".agents\", \"skills\")\n\n    def _ids(self, base):\n        return {d for d in os.listdir(base)\n                if os.path.isfile(os.path.join(base, d, \"SKILL.md\"))}\n\n    def test_every_live_skill_has_a_mirror_entry(self):\n        missing = sorted(self._ids(SKILLS) - self._ids(self.MIRROR))\n        assert not missing, f\"absent from the Codex mirror: {missing}\"\n\n    def test_no_mirror_entry_outlives_its_source(self):\n        stale = sorted(self._ids(self.MIRROR) - self._ids(SKILLS))\n        assert not stale, f\"mirror entries with no .claude/skills source: {stale}\"\n\n    def test_the_generator_agrees(self):\n        \"\"\"The gate and the generator must not be able to disagree about parity.\"\"\"\n        import subprocess\n        proc = subprocess.run(\n            [\"python3\", os.path.join(ROOT, \"scripts\", \"gen-agents-mirror.py\"), \"--check\"],\n            capture_output=True, text=True, cwd=ROOT)\n        assert proc.returncode == 0, proc.stdout + proc.stderr\n\n    def test_the_gate_is_wired_where_it_will_run(self):\n        ci = open(os.path.join(ROOT, \".github/workflows/ci.yml\"), encoding=\"utf-8\").read()\n        assert \"gen-agents-mirror.py --check\" in ci\n        claude_md = open(os.path.join(ROOT, \"CLAUDE.md\"), encoding=\"utf-8\").read()\n        assert \"gen-agents-mirror.py --check\" in claude_md\n\n    def test_the_adaptation_is_real_and_not_a_stale_copy(self):\n        \"\"\"If the mirror were a plain copy, the membership gate would be the only thing\n        it needed -- and content equality would be the right gate instead. Prove the\n        adaptation exists, so the choice of a membership gate stays justified.\"\"\"\n        import re\n        adapted = 0\n        for sid in sorted(self._ids(self.MIRROR)):\n            body = open(os.path.join(self.MIRROR, sid, \"SKILL.md\"),\n                        encoding=\"utf-8\").read()\n            if re.search(r\"\\.Codex/|\\bCodex\\b\", body):\n                adapted += 1\n        assert adapted >= 20, (\n            f\"only {adapted} mirror files carry Codex adaptations; if the mirror has \"\n            f\"become a plain copy, replace this membership gate with a content gate\")\n\n\n"
+        }
+      ]
+    }
+  ]
+}

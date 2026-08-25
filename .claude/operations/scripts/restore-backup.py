@@ -23,9 +23,9 @@ Safety Guards (12 total):
 import argparse
 import json
 import os
-from pathlib import PurePath
 import shutil
 import sys
+from pathlib import PurePath
 from typing import List
 
 sys.path.insert(0, os.path.dirname(__file__))
@@ -208,7 +208,7 @@ def restore_from_backup(backup_dir, force=False, dry_run=False, post=False):
             if not os.path.exists(backup_path):
                 print(f"Error: Backup file missing: {backup_path}")
                 if restored_files:
-                    print(f"\nFiles restored before error:")
+                    print("\nFiles restored before error:")
                     for rf in restored_files:
                         print(f"  - {rf}")
                 return False
@@ -221,7 +221,7 @@ def restore_from_backup(backup_dir, force=False, dry_run=False, post=False):
                 except Exception as e:
                     print(f"Error: Cannot create parent directory: {parent_dir} ({e})")
                     if restored_files:
-                        print(f"\nFiles restored before error:")
+                        print("\nFiles restored before error:")
                         for rf in restored_files:
                             print(f"  - {rf}")
                     return False
@@ -235,7 +235,7 @@ def restore_from_backup(backup_dir, force=False, dry_run=False, post=False):
                 if not os.path.exists(file_path):
                     print(f"Error: Restoration failed for: {file_path}")
                     if restored_files:
-                        print(f"\nFiles restored before error:")
+                        print("\nFiles restored before error:")
                         for rf in restored_files:
                             print(f"  - {rf}")
                     return False
@@ -251,7 +251,7 @@ def restore_from_backup(backup_dir, force=False, dry_run=False, post=False):
             except Exception as e:
                 print(f"Error: Failed to restore: {file_path} ({e})")
                 if restored_files:
-                    print(f"\nFiles restored before error:")
+                    print("\nFiles restored before error:")
                     for rf in restored_files:
                         print(f"  - {rf}")
                 return False
@@ -285,7 +285,7 @@ def restore_from_backup(backup_dir, force=False, dry_run=False, post=False):
     except Exception as e:
         print(f"Error during restoration: {e}")
         if restored_files:
-            print(f"\nFiles restored before error:")
+            print("\nFiles restored before error:")
             for rf in restored_files:
                 print(f"  - {rf}")
         return False
@@ -304,6 +304,11 @@ def list_backups(backup_base_dir):
             if os.path.exists(manifest_path):
                 backups.append(backup_path)
 
+    # Sorted by NAME, newest-first, which works only because `execute-json-ops.py` names
+    # every backup directory `<plan>-<YYYYmmdd>-<HHMMSS>-<micros>` -- a lexicographic sort
+    # over that form is a chronological one. That coupling is load-bearing and was
+    # undocumented (F79): change the executor's naming and this silently starts returning
+    # the wrong "latest" backup, which is the one a restore reaches for.
     return sorted(backups, reverse=True)
 
 
