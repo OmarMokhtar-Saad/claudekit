@@ -1,0 +1,15 @@
+{
+  "plan": "review-round-3",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_fileguard_allowlist.py",
+      "edits": [
+        {
+          "find": "    # The structural half is kept only as a hint, and bounded to the classifier.\n    classifier = body[body.index(\"classify() {\"):body.index(\"check_file() {\")]\n    assert \"public_material\" not in classifier, (",
+          "replace": "    # The structural half is kept only as a hint, and bounded to classify()'s OWN body --\n    # from its opening brace to the first closing brace in column 0. Slicing to the next\n    # named function is what made the earlier version fragile: it went vacuous when\n    # `public_material` was defined ABOVE `classify`, and it went falsely red when\n    # `public_material` was defined between `classify` and `check_file`. A function body\n    # is the thing being asserted about, so it is the thing to extract.\n    start = body.index(\"classify() {\")\n    classifier = body[start:body.index(\"\\n}\\n\", start)]\n    assert \"public_material\" not in classifier, ("
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "plan": "review-round-3",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "scripts/check-fileguard-differential.py",
+      "edits": [
+        {
+          "find": "    \"tests/credentials.json.pem\", \"testdata/wallet.dat.key\", \"fixtures/prod.sqlite.crt\",\n    \"secrets/tests/db.bak.p12\",",
+          "replace": "    \"tests/credentials.json.pem\", \"testdata/wallet.dat.key\", \"fixtures/prod.sqlite.crt\",\n    \"secrets/tests/db.bak.p12\",\n    # CHAINED certificate suffixes. Branch 8 matches the LAST element of an arbitrarily\n    # long chain while the correction stripped exactly one, so appending a second suffix to\n    # the entry directly above freed it. The corpus held the n=1 form and not the n=2 form.\n    \"tests/credentials.json.pem.key\", \"tests/passwd.pem.key\", \"tests/id_rsa.pem.key\",\n    \"testdata/prod.sqlite.crt.pem\", \"tests/wallet.dat.pem.crt.key\",\n    \"tests/secrets.json.pem.key\",\n    # Secret directories the first list missed: singular forms and the conventional homes\n    # of the very file branch 8 is about.\n    \"k8s/tests/tls.key\", \".kube/tests/tls.key\", \"secret/tests/x.pem\",\n    \"certs/tests/server.key\", \"ssl/tests/x.key\", \"private/tests/x.pem\",\n    \".ssh/deploy.key.pub\", \".ssh/authorized_keys.pub\","
+        },
+        {
+          "find": "        floor_missing = [p for p in BASELINE_FLOOR if classify(before_path, p) is None]\n        if len(floor_missing) > 2:",
+          "replace": "        # Per-CATEGORY as well as per-path. A fixed 12-path floor proves the baseline is\n        # not empty; it never proves it is representative, so a baseline flagging exactly\n        # those paths and nothing else passed while making the other 64 corpus paths look\n        # already-clean. Requiring at least one flagged path per category the baseline\n        # knows about closes that window cheaply.\n        baseline_categories = {classify(before_path, p) for p in CORPUS}\n        baseline_categories.discard(None)\n        if len(baseline_categories) < 8:\n            print(\"FAIL: the baseline guard produces only %d distinct categories across \"\n                  \"the corpus (%s). It classifies too little to reveal a regression.\"\n                  % (len(baseline_categories), \", \".join(sorted(baseline_categories))))\n            return 1\n        floor_missing = [p for p in BASELINE_FLOOR if classify(before_path, p) is None]\n        if len(floor_missing) > 2:"
+        }
+      ]
+    }
+  ]
+}

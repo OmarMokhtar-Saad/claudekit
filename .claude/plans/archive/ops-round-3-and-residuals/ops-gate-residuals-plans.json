@@ -1,0 +1,35 @@
+{
+  "plan": "gate-residuals",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/plans/plan-dispatcher-payload.md",
+      "edits": [
+        {
+          "find": "(owner-gated).",
+          "add_after": "\n\n## Artifacts named retrospectively (2026-08-25)\n\n`scripts/check-plan-artifacts.py` gained a hyphen-boundary prefix walk, so a config named\nafter its STEP now resolves to its parent plan. This plan's step configs had never been\nchecked against it -- the resolver returned nothing and the gate skipped them silently --\nand the first checked run found paths this document does not name. Listed here rather than\nleft unnamed, because a plan that hides what its configs wrote cannot be reviewed for it.\n\n| Path | Config |\n| --- | --- |\n| `.claude/plans/archive/README.md` | `ops-dispatcher-payload-docs.json` |\n| `.ai/SESSION_STATE.md` | `ops-dispatcher-payload-docs.json` |\n| `.ai/CHANGELOG_AI.md` | `ops-dispatcher-payload-docs.json` |\n\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/plans/plan-fleet-skill-enhancement.md",
+      "edits": [
+        {
+          "find": "- Fleet sync tooling: no script exists (verified); each sync is bespoke. A `scripts/fleet-sync.py` with the B-rules encoded would de-risk every future pass.",
+          "add_after": "\n\n## Artifacts named retrospectively (2026-08-25)\n\n`scripts/check-plan-artifacts.py` gained a hyphen-boundary prefix walk, so a config named\nafter its STEP now resolves to its parent plan. This plan's step configs had never been\nchecked against it -- the resolver returned nothing and the gate skipped them silently --\nand the first checked run found paths this document does not name. Listed here rather than\nleft unnamed, because a plan that hides what its configs wrote cannot be reviewed for it.\n\n| Path | Config |\n| --- | --- |\n| `tests/test_fleet_skill_phase_a.py` | `ops-fleet-skill-phaseA.json` |\n\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/plans/plan-protected-docs-scope.md",
+      "edits": [
+        {
+          "find": "Every command in `CLAUDE.md` \u00a7 Definition of Done, plus the mutation proof.",
+          "add_after": "\n\n## Artifacts named retrospectively (2026-08-25)\n\n`scripts/check-plan-artifacts.py` gained a hyphen-boundary prefix walk, so a config named\nafter its STEP now resolves to its parent plan. This plan's step configs had never been\nchecked against it -- the resolver returned nothing and the gate skipped them silently --\nand the first checked run found paths this document does not name. Listed here rather than\nleft unnamed, because a plan that hides what its configs wrote cannot be reviewed for it.\n\n| Path | Config |\n| --- | --- |\n| `.ai/CHANGELOG_AI.md` | `ops-protected-docs-ai-records.json` |\n| `.ai/SESSION_STATE.md` | `ops-protected-docs-ai-records.json` |\n\n"
+        }
+      ]
+    }
+  ]
+}

@@ -59,6 +59,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`file-guard`: chained certificate extensions no longer free a secret.** Branch 8 matches
+  the *last* element of an arbitrarily long extension chain, and the previous repair stripped
+  exactly one — so `tests/credentials.json.pem.key`, `tests/passwd.pem.key`,
+  `tests/id_rsa.pem.key` and `testdata/prod.sqlite.crt.pem` all went silent while
+  `tests/credentials.json.pem` stayed flagged. The strip now iterates while the trailing
+  extension is itself a certificate extension, stopping at the basename. Also: the
+  secret-directory veto gained the families its first version missed (`secret` singular,
+  `.kube`, `certs`, `ssl`, `tls`, `private`, `.docker`, `.gcloud`, `.gpg`, `key`), and the
+  `*.pub` exemption no longer frees anything under `.ssh/` — `authorized_keys.pub` and
+  `deploy.key.pub` were both clean, and `authorized_keys` is an access-control file.
+- **`file-guard`: fixtures are public again under a project rooted in `prod/` or `keys/`.**
+  The veto ran *before* the `example.*`/`sample.*`/`dummy.*` case, silently reversing the
+  documented promise that those names are public wherever they live — and since the hook is
+  passed an **absolute** path, any project under a directory called `prod` or `keys` had every
+  fixture re-flagged. That is the false-positive noise the allowlist exists to remove.
+- **`pre-commit`: the secret scan is ~9× faster and no longer echoes secrets.** It ran
+  `git show | grep` once per pattern inside a per-file loop (measured 9470 ms on 40 staged
+  files; now 1008 ms, with identical detection). The obvious way to name the match —
+  `grep -oiE` — prints the matched TEXT, i.e. the first characters of the credential, into the
+  hook log and the transcript; it reports the matching pattern instead.
+- **`pre-plan`: the duplicate check is ~58× faster.** One `python3` per plan file inside a loop
+  on a UserPromptSubmit hook — about 110 interpreter startups before the prompt was seen.
+  Measured with 105 plans: 5795 ms → 99 ms, identical verdicts.
+- **`check-plan-artifacts` was skipping 51 configs it could have checked.** A plan executed
+  through step-named configs (`ops-<plan>-<step>.json`) resolved to nothing and was skipped
+  silently. A hyphen-boundary prefix walk binds them, and the first checked run found six real
+  plan/artifact drifts. The skip count is now reported as **two** numbers — configs with no plan
+  document at all (historical, unresolvable) versus configs naming a plan that exists but did
+  not resolve (a gate hole, now zero) — because one growing number conflated them.
+- **The Iron Law gate blocked two of its own Definition-of-Done checks.**
+  `gen-model-policy.py` and `gen-plan-index.py` were absent from the check-only allowlist, so
+  the implementer could not run them in any form, `--check` included.
+
 - **Session context is scanned before it reaches the transcript.** `session-start.sh` printed
   the first 20 lines of `.claude/session-context.md` straight into the session, before any
   scanner saw them — and indenting text with `sed` is not neutralising it. The existing

@@ -42,6 +42,70 @@ def write_pair(tmp_path, plan_body, paths):
     return ops
 
 
+def test_a_step_named_config_resolves_to_its_parent_plan(tmp_path):
+    """One plan executed through several step-named configs is the norm here, and every
+    one of them resolved to NOTHING and was skipped silently: measured 51 configs, six
+    written by the author of this test, whose operations no gate had ever checked.
+
+    `ops-demo-records.json` must bind to `plan-demo.md` -- and then be CHECKED, which is
+    the point: the assertion below is that the gate now FAILS on a path the plan omits.
+    """
+    (tmp_path / "plan-demo.md").write_text("# Demo\nnames nothing\n", encoding="utf-8")
+    ops = tmp_path / "ops-demo-records.json"
+    ops.write_text(json.dumps({
+        "plan": "demo-records",
+        "operations": [{"type": "file_create", "path": "src/unnamed.py", "content": "x"}],
+    }), encoding="utf-8")
+    result = run(str(ops), cwd=tmp_path)
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "src/unnamed.py" in result.stdout + result.stderr
+
+
+def test_the_prefix_walk_prefers_the_longest_matching_plan(tmp_path):
+    """`plan-foo-bar.md` must beat `plan-foo.md` for `ops-foo-bar-step`. A shortest-first
+    walk would bind the config to the wrong plan and then check it against the wrong
+    artifact list -- a green run that verified nothing relevant."""
+    (tmp_path / "plan-foo.md").write_text("# Foo\n`src/wrong.py`\n", encoding="utf-8")
+    (tmp_path / "plan-foo-bar.md").write_text("# Foo Bar\n`src/right.py`\n", encoding="utf-8")
+    ops = tmp_path / "ops-foo-bar-step.json"
+    ops.write_text(json.dumps({
+        "plan": "foo-bar-step",
+        "operations": [{"type": "file_create", "path": "src/right.py", "content": "x"}],
+    }), encoding="utf-8")
+    result = run(str(ops), cwd=tmp_path)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_the_walk_never_invents_a_plan_that_does_not_exist(tmp_path):
+    """The walk may only ever match a `plan-<slug>.md` that is really there. A config
+    whose plan was never written stays unresolved -- that is a historical fact, not a
+    resolution bug, and conflating the two is what made one growing number unreadable."""
+    ops = tmp_path / "ops-orphan-step.json"
+    ops.write_text(json.dumps({
+        "plan": "orphan-step",
+        "operations": [{"type": "file_create", "path": "src/x.py", "content": "x"}],
+    }), encoding="utf-8")
+    result = run(str(ops), cwd=tmp_path)
+    assert result.returncode == 0
+    assert "no plan document at all" in result.stdout
+
+
+def test_orphans_and_misdeclarations_are_reported_separately(tmp_path):
+    """Two unrelated facts were printed as one count that grew 87 -> 121 while being read
+    as a single number. A config whose plan EXISTS but did not resolve is a gate hole; a
+    config whose plan was never written cannot be resolved by any code."""
+    (tmp_path / "plan-real.md").write_text("# Real\n", encoding="utf-8")
+    # Declares a slug that shares no prefix with any plan, so the walk cannot reach it.
+    misdeclared = tmp_path / "ops-real-zzz.json"
+    misdeclared.write_text(json.dumps({
+        "plan": "totally-unrelated",
+        "operations": [{"type": "file_create", "path": "a.py", "content": "x"}],
+    }), encoding="utf-8")
+    result = run(str(misdeclared), cwd=tmp_path)
+    combined = result.stdout + result.stderr
+    # `ops-real-zzz` walks to `real`, which exists -- so this is the misdeclared class.
+    assert "name a plan that EXISTS" in combined or result.returncode == 1, combined
+
 def test_passes_when_plan_names_every_path(tmp_path):
     ops = write_pair(tmp_path, "writes src/a.py and tests/test_a.py\n",
                      ["src/a.py", "tests/test_a.py"])

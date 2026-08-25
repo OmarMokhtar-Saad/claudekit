@@ -62,6 +62,17 @@ CORPUS: List[str] = [
     "pii/tests/customers.key", "production/tests/data.key",
     "tests/credentials.json.pem", "testdata/wallet.dat.key", "fixtures/prod.sqlite.crt",
     "secrets/tests/db.bak.p12",
+    # CHAINED certificate suffixes. Branch 8 matches the LAST element of an arbitrarily
+    # long chain while the correction stripped exactly one, so appending a second suffix to
+    # the entry directly above freed it. The corpus held the n=1 form and not the n=2 form.
+    "tests/credentials.json.pem.key", "tests/passwd.pem.key", "tests/id_rsa.pem.key",
+    "testdata/prod.sqlite.crt.pem", "tests/wallet.dat.pem.crt.key",
+    "tests/secrets.json.pem.key",
+    # Secret directories the first list missed: singular forms and the conventional homes
+    # of the very file branch 8 is about.
+    "k8s/tests/tls.key", ".kube/tests/tls.key", "secret/tests/x.pem",
+    "certs/tests/server.key", "ssl/tests/x.key", "private/tests/x.pem",
+    ".ssh/deploy.key.pub", ".ssh/authorized_keys.pub",
     "tests/fixtures/.env", "test/secrets.json", "tests/credentials.json",
     "tests/id_rsa", "testdata/wallet.dat", "spec/fixtures/terraform.tfstate",
     "home/tests/.aws/credentials", "k8s/tests/secret-db.yaml",
@@ -241,6 +252,18 @@ def main() -> int:
         # conflating "broken baseline" with "buggy baseline" would make the gate refuse to
         # run in exactly the case it is for. These twelve are category-diverse and none
         # sits under a test component, so any guard that classifies at all flags them.
+        # Per-CATEGORY as well as per-path. A fixed 12-path floor proves the baseline is
+        # not empty; it never proves it is representative, so a baseline flagging exactly
+        # those paths and nothing else passed while making the other 64 corpus paths look
+        # already-clean. Requiring at least one flagged path per category the baseline
+        # knows about closes that window cheaply.
+        baseline_categories = {classify(before_path, p) for p in CORPUS}
+        baseline_categories.discard(None)
+        if len(baseline_categories) < 8:
+            print("FAIL: the baseline guard produces only %d distinct categories across "
+                  "the corpus (%s). It classifies too little to reveal a regression."
+                  % (len(baseline_categories), ", ".join(sorted(baseline_categories))))
+            return 1
         floor_missing = [p for p in BASELINE_FLOOR if classify(before_path, p) is None]
         if len(floor_missing) > 2:
             print("FAIL: the baseline guard does not flag %d of %d canonical root-level "

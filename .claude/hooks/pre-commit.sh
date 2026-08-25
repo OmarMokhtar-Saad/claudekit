@@ -176,6 +176,11 @@ check_secrets() {
         'BEGIN PGP PRIVATE[ ]KEY'
     )
 
+    # The alternation, built once. Each element is already an ERE.
+    local combined_pattern
+    combined_pattern=$(printf '%s|' "${patterns[@]}")
+    combined_pattern="${combined_pattern%|}"
+
     while IFS= read -r file; do
         # Skip binary files, lock files, and config templates
         if [[ "$file" =~ \.(lock|png|jpg|jpeg|gif|ico|woff|woff2|ttf|eot|pdf)$ ]]; then
@@ -185,13 +190,30 @@ check_secrets() {
             continue
         fi
 
-        for pattern in "${patterns[@]}"; do
-            if git show ":$file" 2>/dev/null | grep -iE "$pattern" >/dev/null 2>&1; then
-                log "WARN" "Potential secret found in $file (pattern: $pattern)"
-                echo "WARNING: Potential secret detected in $file (matches: $pattern)"
-                has_secrets=1
-            fi
-        done
+        # ONE pass per file, not one per (file x pattern). This was a `git show | grep`
+        # per pattern inside a per-file loop -- 2 subprocesses x N files x M patterns on
+        # the commit path, where a single alternation does the same work. The matched
+        # pattern is still reported, because "a secret is in this file somewhere" is not
+        # an actionable message: `grep -oiE` names which alternative fired.
+        local content
+        content=$(git show ":$file" 2>/dev/null) || continue
+        # Combined pass FIRST as a filter; only a file that matched pays for the
+        # per-pattern identification. `grep -oiE` was the obvious way to name the match
+        # and it is the wrong one: `-o` prints the MATCHED TEXT, which for
+        # `api_key\s*[:=]\s*["'][^"']{8}` is the first eight characters of the secret --
+        # into the hook log and the transcript. The whole point of this check is to keep
+        # secrets out of places they should not be.
+        if printf '%s\n' "$content" | grep -qiE "$combined_pattern" 2>/dev/null; then
+            local hits=""
+            for pattern in "${patterns[@]}"; do
+                if printf '%s\n' "$content" | grep -qiE "$pattern" 2>/dev/null; then
+                    hits="$hits${hits:+, }$pattern"
+                fi
+            done
+            log "WARN" "Potential secret found in $file (patterns: $hits)"
+            echo "WARNING: Potential secret detected in $file (matches: $hits)"
+            has_secrets=1
+        fi
     done <<< "$staged_files"
 
     if [ $has_secrets -ne 0 ]; then

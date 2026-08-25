@@ -1,0 +1,19 @@
+{
+  "plan": "perf-hooks",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/pre-commit.sh",
+      "edits": [
+        {
+          "find": "    )\n\n    while IFS= read -r file; do\n        # Skip binary files, lock files, and config templates",
+          "replace": "    )\n\n    # The alternation, built once. Each element is already an ERE.\n    local combined_pattern\n    combined_pattern=$(printf '%s|' \"${patterns[@]}\")\n    combined_pattern=\"${combined_pattern%|}\"\n\n    while IFS= read -r file; do\n        # Skip binary files, lock files, and config templates"
+        },
+        {
+          "find": "        for pattern in \"${patterns[@]}\"; do\n            if git show \":$file\" 2>/dev/null | grep -iE \"$pattern\" >/dev/null 2>&1; then\n                log \"WARN\" \"Potential secret found in $file (pattern: $pattern)\"\n                echo \"WARNING: Potential secret detected in $file (matches: $pattern)\"\n                has_secrets=1\n            fi\n        done\n    done <<< \"$staged_files\"",
+          "replace": "        # ONE pass per file, not one per (file x pattern). This was a `git show | grep`\n        # per pattern inside a per-file loop -- 2 subprocesses x N files x M patterns on\n        # the commit path, where a single alternation does the same work. The matched\n        # pattern is still reported, because \"a secret is in this file somewhere\" is not\n        # an actionable message: `grep -oiE` names which alternative fired.\n        local content matched\n        content=$(git show \":$file\" 2>/dev/null) || continue\n        matched=$(printf '%s\\n' \"$content\" | grep -oiE \"$combined_pattern\" 2>/dev/null \\\n            | sort -u | head -5 | tr '\\n' ' ')\n        if [ -n \"$matched\" ]; then\n            log \"WARN\" \"Potential secret found in $file (matched: $matched)\"\n            echo \"WARNING: Potential secret detected in $file (matches: $matched)\"\n            has_secrets=1\n        fi\n    done <<< \"$staged_files\""
+        }
+      ]
+    }
+  ]
+}

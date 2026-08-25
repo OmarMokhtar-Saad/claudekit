@@ -150,11 +150,22 @@ CATEGORY_EXEMPLARS = [
 TEST_PREFIXES = ["", "tests/", "fixtures/", "testdata/", "spec/fixtures/", "__fixtures__/"]
 CERT_EXTENSIONS = ["", ".pem", ".key", ".crt", ".p12", ".pfx"]
 
+# CHAINS, because branch 8 matches the LAST element of an arbitrarily long extension chain
+# while the correction stripped exactly one. The single-suffix generator was blind to that
+# and 541 tests passed with eight live regressions: `tests/credentials.json.pem.key`,
+# `tests/passwd.pem.key`, `testdata/prod.sqlite.crt.pem` and friends. A generator that
+# varies only the axis the LAST defect lived on is the previous two failures in a new coat.
+CERT_CHAINS = [".pem.key", ".key.pem", ".crt.pem", ".pem.pem", ".pem.crt.key"]
+
+# UPPERCASE, because the guard lowercases the extension in two places and nothing
+# generated ever tested it.
+CASE_VARIANTS = [".PEM", ".Key"]
+
 
 def _generated_cases():
     for exemplar, category in CATEGORY_EXEMPLARS:
         for prefix in TEST_PREFIXES:
-            for ext in CERT_EXTENSIONS:
+            for ext in CERT_EXTENSIONS + CERT_CHAINS + CASE_VARIANTS:
                 yield f"{prefix}{exemplar}{ext}", category
 
 
@@ -182,11 +193,39 @@ SECRET_DIRS = ["k8s", "kubernetes", "pii", "production", "prod", "secrets",
 
 
 @pytest.mark.parametrize("directory", SECRET_DIRS)
-@pytest.mark.parametrize("ext", [".pem", ".key", ".crt", ".p12", ".pfx"])
+@pytest.mark.parametrize("ext", [".pem", ".key", ".crt", ".p12", ".pfx", ".pem.key"])
 def test_a_secret_directory_beats_a_test_component(directory, ext):
     """"No stronger category fired" is not the same as "nothing here is sensitive"."""
     path = f"{directory}/tests/fixtures/anonymous{ext}"
     assert classify(path) is not None, f"{path} was freed by its test component"
+
+
+@pytest.mark.parametrize("directory", SECRET_DIRS)
+@pytest.mark.parametrize("exemplar,category", CATEGORY_EXEMPLARS)
+def test_a_secret_directory_crossed_with_every_category(directory, exemplar, category):
+    """The veto and the chain-strip were never exercised TOGETHER: SECRET_DIRS was tested
+    only against a basename of `anonymous`, so no generated case put a real category
+    exemplar inside a secrets directory."""
+    path = f"{directory}/tests/{exemplar}.pem.key"
+    assert classify(path) is not None, f"{path} was freed"
+
+
+@pytest.mark.parametrize("path", [
+    # One per shape WITHIN a branch, not one per branch: branch 4 has four shapes
+    # (`.token`, `.secret`, `secrets.json`, `api_key*`) and only `api_key.txt` was an
+    # exemplar. Every entry below is a shape the guard really recognises -- verified by
+    # classifying the bare name first. My first draft of this list assumed `*.token` and
+    # `service-account.json` were categories; they are not, so a `.key` under `tests/`
+    # freeing them is the INTENDED widening, not a regression. Asserting an expectation I
+    # had not checked would have manufactured three defects.
+    "tests/.token.pem.key", "tests/.secret.pem", "tests/secrets.json.pem.key",
+    "tests/api_key_prod.key", "tests/.env.production.pem", "tests/.envrc.key",
+    "tests/.htpasswd.key", "tests/known_hosts.pem", "tests/terraform.tfstate.pem",
+    "tests/my.cnf.key", "tests/keystore.json.crt", "tests/id_ed25519.pem",
+])
+def test_within_category_branch_shapes_survive_a_cert_chain(path):
+    """Coverage measured per BRANCH SHAPE rather than per category."""
+    assert classify(path) is not None, f"{path} was freed"
 
 def test_the_allowlist_is_applied_to_the_classification_not_ahead_of_it():
     """Structure is the mechanism, and the structure changed twice for the same reason.
@@ -198,11 +237,29 @@ def test_the_allowlist_is_applied_to_the_classification_not_ahead_of_it():
     """
     body = GUARD.read_text()
     assert "public_material" in body
-    # The allowlist must NOT be inside classify(): everything between `classify() {` and
-    # `check_file() {` is the classifier, and a return-early exemption there is the bug.
-    classifier = body[body.index("classify() {"):body.index("public_material() {")]
+
+    # BEHAVIOURAL, not textual. The previous version of this test asserted only where
+    # `public_material` appears in the source, and a mutant that restored full v1 semantics
+    # INSIDE check_file() -- `if public_material "$filepath"; then category=""; fi` ahead of
+    # the certificates branch -- passed all three of its assertions while freeing every
+    # category again. Its slice bound was vacuous too: move `public_material` above
+    # `classify` and the slice is empty, so the assertion holds on an empty string.
+    #
+    # So the property is asserted by RUNNING the guard: a secret under a test directory
+    # must stay flagged, which is exactly what an allowlist applied too early breaks.
+    for path, _category in STILL_FLAGGED[:12]:
+        assert classify(path) is not None, (
+            f"{path} is clean -- the allowlist is being applied before the classification"
+        )
+    # The structural half is kept only as a hint, and bounded to classify()'s OWN body --
+    # from its opening brace to the first closing brace in column 0. Slicing to the next
+    # named function is what made the earlier version fragile: it went vacuous when
+    # `public_material` was defined ABOVE `classify`, and it went falsely red when
+    # `public_material` was defined between `classify` and `check_file`. A function body
+    # is the thing being asserted about, so it is the thing to extract.
+    start = body.index("classify() {")
+    classifier = body[start:body.index("\n}\n", start)]
     assert "public_material" not in classifier, (
         "the allowlist is inside classify() again -- classify() returns on the first "
         "match, so an exemption there applies to every category below it"
     )
-    assert "stronger=$(classify" in body, "the stronger-category check is gone"

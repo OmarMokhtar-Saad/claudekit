@@ -95,6 +95,19 @@ to a cwd-relative `LOG=".claude/hooks/hooks.log"`), but a **fourth** form was fo
 F44: `prompt-injection-scanner.sh:12` also sets `LOG_FILE=".claude/hooks/hooks.log"` relative to
 the cwd. F107 stays LIVE, and its count of forms should be read as measured-not-final.
 
+### Update 2026-08-25 (third pass) — F35 and F40 fixed
+
+The perf cluster's two clear wins, measured rather than asserted: `pre-commit.sh`'s secret scan
+**9470ms -> 1008ms** on 40 staged files (one combined alternation as a filter instead of
+`git show | grep` per pattern per file), and `pre-plan.sh`'s duplicate check **5795ms -> 99ms**
+with 105 plans (one `python3` for the corpus instead of one per plan file, on a
+**UserPromptSubmit** hook). Verdicts identical in both cases.
+
+**F105 remains LIVE and is now the only one of the three left.** F40 removed the worst
+offender; the three PreToolUse hooks still spawn about ten interpreters per guarded tool call,
+which is the single-dispatcher work rather than a local fix.
+
+
 ### Path drift: §6 no longer exists as written
 
 The triage's §6 is titled ``templates/hooks/`` and its eight LIVE rows cite

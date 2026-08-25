@@ -1,0 +1,25 @@
+{
+  "plan": "round-3-and-gate-residuals",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/plans/archive/README.md",
+      "edits": [
+        {
+          "find": "| `ops-review-round-2/*.json` |",
+          "add_before": "| `ops-round-3-and-residuals/*.json` | Spent 2026-08-25, `--no-approval` disclosed. **Third adversarial review of the file-guard allowlist: 2 High, 4 Medium, 2 Low, all confirmed. Same class, FOURTH axis.** Branch 8 matches the LAST element of an arbitrarily long extension chain and the round-2 repair stripped exactly ONE, so `tests/credentials.json.pem.key`, `tests/passwd.pem.key`, `tests/id_rsa.pem.key` and `testdata/prod.sqlite.crt.pem` went silent while `tests/credentials.json.pem` -- the path round 2 had just ADDED to the corpus -- stayed flagged. **And the generated invariant introduced in round 2 as the cure varied only the axis the round-2 defect lived on**, appending exactly one extension: 541 tests passed with eight live regressions. Now 1,213 generated cases across chains, case variants, and `SECRET_DIRS` crossed with every category exemplar. Also fixed: the veto missed `secret` (singular), `.kube`, `certs`, `ssl`, `tls`, `private`, `.docker`, `key`; the veto ran BEFORE the `example.*`/`sample.*`/`dummy.*` case, so with the ABSOLUTE path the hook is passed, any project rooted under `prod/` or `keys/` had every fixture re-flagged -- the false-positive noise the allowlist exists to remove; the `*.pub` exemption freed anything classified `ssh-keys`, and branch 3 classifies every file under `.ssh/`, so `.ssh/authorized_keys.pub` and `.ssh/deploy.key.pub` were clean. **A structural test that could not fail:** the reviewer's mutant restored full v1 semantics inside `check_file()` and passed all three assertions while freeing every category; it now asserts behaviour and the same mutant fails 543 tests. **Three of my nine new branch-shape cases were wrong EXPECTATIONS, not defects** -- `app.token`, `app.secret` and `service-account.json` classify as nothing on their own, so a `.key` under `tests/` freeing them is the intended widening; checking each bare name first is what stopped me manufacturing three defects and 'fixing' working code. **Residuals stated, not hidden:** nothing classifies `*.pub` outside `.ssh/` at all (pre-existing; adding `pub` to branch 8 would flag every public key), and the veto is a name match so an absolute path can still contribute foreign components -- erring toward FLAGGED. **Gate residuals:** `check-plan-artifacts.py` was skipping 51 configs it could check (step-named configs resolving to nothing) -- a hyphen-boundary prefix walk binds them and the first checked run found six real drifts; the skip count is now TWO numbers, because 205 configs with no plan document at all and 51 with a resolvable one were being read as one growing figure. `iron-law-gate.py` blocked `gen-model-policy.py` and `gen-plan-index.py` in every form including `--check`, so the agent bound by the Iron Law could not run two of its own DoD gates. **Perf:** the `pre-commit` secret scan went 9470ms -> 1008ms on 40 staged files (combined alternation as a filter, per-pattern identification only on a hit) and `pre-plan`'s duplicate check 5795ms -> 99ms with 105 plans (one interpreter, not one per plan). **I nearly shipped a secret-leaking log line in that first one:** `grep -oiE` names the match by printing the matched TEXT -- the first characters of the credential -- into the log and the transcript. Caught pre-commit, pinned by a test, mutation-proven. Plan: `plan-round-3-and-gate-residuals.md`. |\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "review/code-review-triage.md",
+      "edits": [
+        {
+          "find": "### Path drift: \u00a76 no longer exists as written",
+          "add_before": "### Update 2026-08-25 (third pass) \u2014 F35 and F40 fixed\n\nThe perf cluster's two clear wins, measured rather than asserted: `pre-commit.sh`'s secret scan\n**9470ms -> 1008ms** on 40 staged files (one combined alternation as a filter instead of\n`git show | grep` per pattern per file), and `pre-plan.sh`'s duplicate check **5795ms -> 99ms**\nwith 105 plans (one `python3` for the corpus instead of one per plan file, on a\n**UserPromptSubmit** hook). Verdicts identical in both cases.\n\n**F105 remains LIVE and is now the only one of the three left.** F40 removed the worst\noffender; the three PreToolUse hooks still spawn about ten interpreters per guarded tool call,\nwhich is the single-dispatcher work rather than a local fix.\n\n\n"
+        }
+      ]
+    }
+  ]
+}

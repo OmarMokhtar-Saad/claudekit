@@ -1,0 +1,15 @@
+{
+  "plan": "perf-hooks",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_day_one_blockers.py",
+      "edits": [
+        {
+          "find": "    def test_real_private_key_in_the_hook_itself_is_caught(self, installed_project):",
+          "add_before": "    def test_the_warning_never_echoes_the_secret_itself(self, installed_project):\n        \"\"\"The scan reports WHICH PATTERN matched, never the matched text.\n\n        A one-pass rewrite of this loop (2026-08-25) used `grep -oiE` to name the match,\n        which prints the matched TEXT -- for `api_key\\s*[:=]\\s*[\"'][^\"']{8}` that is the\n        first eight characters of the credential, into the hook log and the transcript.\n        Caught before commit, and pinned here: a secret scanner that prints secrets has\n        defeated itself, and the failure is silent because the warning still looks right.\n        \"\"\"\n        value = \"sk-live-\" + \"9f3a1c7e5b2d\" + \"4088\"\n        literal = \"api_key\" + \" = \" + chr(34) + value + chr(34)\n        proc = self._plant(installed_project,\n                           \".claude/skills/insecure-defaults/SKILL.md\",\n                           \"\\n\" + literal + \"\\n\")\n        combined = proc.stdout + proc.stderr\n        assert proc.returncode == 1, combined\n        # Any run of the credential long enough to be useful must be absent.\n        for length in (16, 12, 8):\n            fragment = value[:length]\n            assert fragment not in combined, (\n                f\"the warning echoed {length} characters of the credential: {combined}\")\n        assert \"api_key\" in combined, \"the pattern that matched must still be named\"\n\n"
+        }
+      ]
+    }
+  ]
+}

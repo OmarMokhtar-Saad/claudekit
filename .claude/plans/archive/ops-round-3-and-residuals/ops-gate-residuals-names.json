@@ -1,0 +1,15 @@
+{
+  "plan": "gate-residuals",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "scripts/check-plan-artifacts.py",
+      "edits": [
+        {
+          "find": "        if orphan:\n            print(f\"NOTE: {len(orphan)} config(s) have no plan document at all \"\n                  f\"(historical; no resolution is possible) and were not checked.\")",
+          "replace": "        if orphan:\n            # NAMED, not just counted. `test_a_config_that_resolves_to_no_plan_is_named_\n            # not_silently_green` exists because a plan renamed by accident left every\n            # operation unchecked and read identically to a real pass -- so a bare count\n            # here reintroduced exactly that. Truncated at 12 with the remainder counted:\n            # 112 names is not a diagnostic either.\n            shown = \", \".join(orphan[:12])\n            more = f\" (+{len(orphan) - 12} more)\" if len(orphan) > 12 else \"\"\n            print(f\"NOTE: {len(orphan)} config(s) have no plan document at all \"\n                  f\"(historical; no resolution is possible) and were not checked: \"\n                  f\"{shown}{more}\")"
+        }
+      ]
+    }
+  ]
+}

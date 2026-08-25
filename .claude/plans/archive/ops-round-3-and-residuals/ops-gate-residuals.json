@@ -1,0 +1,29 @@
+{
+  "plan": "gate-residuals",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "scripts/check-plan-artifacts.py",
+      "edits": [
+        {
+          "find": "    slugs = [slug] + ([declared] if declared and declared != slug else [])\n    for candidate_slug in slugs:",
+          "replace": "    # A HYPHEN-BOUNDARY PREFIX WALK, longest first. One plan is routinely executed\n    # through several configs named after their STEP -- `ops-triage-refresh-records.json`\n    # against `plan-triage-refresh.md` -- and every one of those resolved to nothing and\n    # was skipped SILENTLY. Measured: 51 configs, six of them written by the author of\n    # this comment, whose operations no gate had ever checked.\n    #\n    # Bounded, not loose: each candidate must match an existing `plan-<slug>.md` EXACTLY\n    # at a hyphen boundary, and the longest prefix wins, so `plan-foo-bar.md` beats\n    # `plan-foo.md` for `ops-foo-bar-step`. `ops-dispatcher-payload.json`'s L1 lesson was\n    # about a matcher that stripped one prefix and silently matched nothing; this one can\n    # only ever match a plan file that is really there.\n    def _prefix_walk(base: str):\n        parts = base.split(\"-\")\n        for length in range(len(parts) - 1, 0, -1):\n            yield \"-\".join(parts[:length])\n\n    slugs = [slug] + ([declared] if declared and declared != slug else [])\n    for base in list(slugs):\n        for shorter in _prefix_walk(base):\n            if shorter not in slugs:\n                slugs.append(shorter)\n    for candidate_slug in slugs:"
+        },
+        {
+          "find": "    if unresolved:\n        print(f\"NOTE: {len(unresolved)} config(s) resolved to no plan and were not \"\n              f\"checked: {', '.join(sorted(unresolved))}\")\n    return 0",
+          "replace": "    # TWO NUMBERS, NOT ONE. This printed a single \"resolved to no plan\" count that grew\n    # from 87 to 121 while being read as one fact, and it conflates two unrelated things:\n    #\n    #   * a config whose plan document does NOT EXIST -- 205 of them, spent long ago,\n    #     several predating the convention that a plan is written at all. No code can\n    #     resolve those, and reporting them as \"skipped\" makes an unfixable historical\n    #     residue look like a growing bug.\n    #   * a config whose plan document DOES exist but whose declared slug did not\n    #     resolve. That is a real gate hole: operations nobody checked, in a plan that\n    #     could have been checked. After the prefix walk above this should be ZERO, so it\n    #     is reported separately and loudly.\n    #\n    # The second number is the one to watch. Making it fatal is a separate, owner-gated\n    # decision -- 205 legacy configs must not redden CI for history nobody can change.\n    if unresolved:\n        orphan, misdeclared = [], []\n        known = {p.stem[len(\"plan-\"):] for p in PLANS_DIR.glob(\"plan-*.md\")}\n        for name in sorted(unresolved):\n            stem = name[: -len(\".json\")] if name.endswith(\".json\") else name\n            for prefix in (\"plan-\", \"ops-\"):\n                if stem.startswith(prefix):\n                    stem = stem[len(prefix):]\n            parts = stem.split(\"-\")\n            reachable = any(\"-\".join(parts[:i]) in known\n                            for i in range(len(parts), 0, -1))\n            (misdeclared if reachable else orphan).append(name)\n        if orphan:\n            print(f\"NOTE: {len(orphan)} config(s) have no plan document at all \"\n                  f\"(historical; no resolution is possible) and were not checked.\")\n        if misdeclared:\n            print(f\"WARNING: {len(misdeclared)} config(s) name a plan that EXISTS but \"\n                  f\"did not resolve -- these are unchecked operations in a checkable \"\n                  f\"plan: {', '.join(misdeclared)}\")\n    return 0"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/iron-law-gate.py",
+      "edits": [
+        {
+          "find": "_CHECK_ONLY_SCRIPTS = frozenset({\"gen-docs.py\", \"gen-registry.py\"})",
+          "replace": "# Every repo-root generator that REWRITES generated content and offers `--check`. The set\n# held two of four: `gen-model-policy.py` and `gen-plan-index.py` were both Definition-of-\n# Done gates the implementer could not run at all, in any form -- so the agent bound by the\n# Iron Law was blocked from the very checks the DoD requires of it.\n_CHECK_ONLY_SCRIPTS = frozenset({\"gen-docs.py\", \"gen-registry.py\",\n                                 \"gen-model-policy.py\", \"gen-plan-index.py\"})"
+        }
+      ]
+    }
+  ]
+}

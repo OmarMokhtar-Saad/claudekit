@@ -1,0 +1,27 @@
+{
+  "plan": "review-round-3",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/file-guard.sh",
+      "edits": [
+        {
+          "find": "    # A `public`/`pub` STEM or a CA bundle is public wherever it lives -- that is what the\n    # name asserts, and no directory changes it.\n    case \"$basename\" in\n        public.*|*.pub|ca-bundle.*|ca-certificates.*)\n            return 0 ;;\n    esac\n",
+          "replace": "    # NAME-ASSERTED PUBLIC MATERIAL FIRST, and this ordering is the documented contract:\n    # a `public`/`pub` stem, a CA bundle, and the example/sample/dummy stems are public\n    # WHEREVER they live. The veto below used to precede the example/sample case, which\n    # silently reversed that promise -- and because `file-guard-gate.sh` passes the\n    # ABSOLUTE `file_path`, any project rooted under a directory called `prod` or `keys`\n    # had every fixture re-flagged. That is the false-positive noise this allowlist exists\n    # to remove.\n    #\n    # Residual, stated rather than hidden: the veto is a name match on whatever path it is\n    # given, so an absolute path can still contribute components from outside the project.\n    # For a non-example-named file under such a path the verdict errs toward FLAGGED, which\n    # is the safe direction for an advisory.\n    case \"$basename\" in\n        public.*|*.pub|ca-bundle.*|ca-certificates.*|example.*|sample.*|dummy.*)\n            return 0 ;;\n    esac\n"
+        },
+        {
+          "find": "    case \"/$filepath/\" in\n        */k8s/*|*/kubernetes/*|*/pii/*|*/production/*|*/prod/*|*/secrets/*|\\\n        */credentials/*|*/.ssh/*|*/.aws/*|*/.gnupg/*|*/vault/*|*/keys/*)\n            return 1 ;;\n    esac\n\n    case \"$basename\" in\n        example.*|sample.*|dummy.*)\n            return 0 ;;\n    esac\n",
+          "replace": "    # Singular AND plural, and the conventional homes of exactly the file branch 8 is\n    # about. The first list covered the example that motivated it and not the family:\n    # `.kube/` is the client-credential directory, `secret/` (singular) was missed while\n    # `secrets/` was covered, and `certs/`, `ssl/`, `private/` are where certificates\n    # actually live.\n    case \"/$filepath/\" in\n        */k8s/*|*/kubernetes/*|*/.kube/*|*/pii/*|*/production/*|*/prod/*|\\\n        */secret/*|*/secrets/*|*/credential/*|*/credentials/*|*/.ssh/*|*/.aws/*|\\\n        */.gcloud/*|*/.docker/*|*/.gnupg/*|*/.gpg/*|*/vault/*|*/key/*|*/keys/*|\\\n        */certs/*|*/certificates/*|*/ssl/*|*/tls/*|*/private/*)\n            return 1 ;;\n    esac\n"
+        },
+        {
+          "find": "        if [ -z \"$stronger\" ]; then\n            stronger=$(classify \"${filepath%.*}\" skip_certs)\n        fi",
+          "replace": "        # ITERATE. Branch 8 matches the LAST element of an arbitrarily long extension\n        # chain, and stripping exactly one suffix corrected the predicate only for n=1 --\n        # so `tests/credentials.json.pem.key`, `tests/passwd.pem.key`,\n        # `tests/id_rsa.pem.key` and `testdata/prod.sqlite.crt.pem` all went silent while\n        # `tests/credentials.json.pem` (the path this very corpus added) stayed flagged.\n        # Fourth occurrence of \"the correction is narrower than the predicate it corrects\",\n        # and the generated invariant missed it because it appends exactly ONE extension.\n        #\n        # The loop only ever removes a suffix that is itself a certificate extension, and\n        # stops at the basename: `tests/foo.bar/key` must not strip into its own directory.\n        if [ -z \"$stronger\" ]; then\n            local _peeled=\"$filepath\" _peeled_base _peeled_ext\n            while :; do\n                _peeled_base=$(basename \"$_peeled\")\n                case \"$_peeled_base\" in *.*) ;; *) break ;; esac\n                _peeled_ext=\"$(printf '%s' \"${_peeled_base##*.}\" \\\n                    | tr '[:upper:]' '[:lower:]')\"\n                case \"$_peeled_ext\" in\n                    cert|crt|pem|key|p12|pfx|pub) ;;\n                    *) break ;;\n                esac\n                _peeled=\"${_peeled%.*}\"\n                stronger=$(classify \"$_peeled\" skip_certs)\n                [ -n \"$stronger\" ] && break\n            done\n        fi"
+        },
+        {
+          "find": "    elif [ \"$category\" = \"ssh-keys\" ] && [[ \"$(basename \"$filepath\")\" == *.pub ]]; then\n        # A public key is the half you publish, in any directory.\n        category=\"\"\n    fi",
+          "replace": "    elif [ \"$category\" = \"ssh-keys\" ] && [[ \"$(basename \"$filepath\")\" == *.pub ]]; then\n        # Routed THROUGH public_material, so the secret-directory veto applies. This was\n        # a bare `category=\"\"`, which freed anything classified `ssh-keys` whose basename\n        # ended `.pub` -- and branch 3 classifies EVERY file under `.ssh/`, so\n        # `.ssh/deploy.key.pub` and `.ssh/authorized_keys.pub` were both clean.\n        # `authorized_keys` is an access-control file the guard lists deliberately; it is\n        # not \"the half you publish\".\n        case \"$(basename \"$filepath\")\" in\n            authorized_keys.pub|known_hosts.pub) ;;\n            *) public_material \"$filepath\" && category=\"\" ;;\n        esac\n    fi"
+        }
+      ]
+    }
+  ]
+}

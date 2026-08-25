@@ -1,0 +1,15 @@
+{
+  "plan": "round-3-and-gate-residuals",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_day_one_blockers.py",
+      "edits": [
+        {
+          "find": "    def test_the_warning_never_echoes_the_secret_itself(self, installed_project):\n        \"\"\"The scan reports WHICH PATTERN matched, never the matched text.",
+          "replace": "    def test_the_warning_never_echoes_the_secret_itself(self, installed_project):\n        r\"\"\"The scan reports WHICH PATTERN matched, never the matched text."
+        }
+      ]
+    }
+  ]
+}

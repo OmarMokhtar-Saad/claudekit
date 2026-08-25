@@ -560,6 +560,29 @@ class TestRealSecretIsStillCaught:
             target.write_text(original)
             _reset_index(installed)
 
+    def test_the_warning_never_echoes_the_secret_itself(self, installed_project):
+        r"""The scan reports WHICH PATTERN matched, never the matched text.
+
+        A one-pass rewrite of this loop (2026-08-25) used `grep -oiE` to name the match,
+        which prints the matched TEXT -- for `api_key\s*[:=]\s*["'][^"']{8}` that is the
+        first eight characters of the credential, into the hook log and the transcript.
+        Caught before commit, and pinned here: a secret scanner that prints secrets has
+        defeated itself, and the failure is silent because the warning still looks right.
+        """
+        value = "sk-live-" + "9f3a1c7e5b2d" + "4088"
+        literal = "api_key" + " = " + chr(34) + value + chr(34)
+        proc = self._plant(installed_project,
+                           ".claude/skills/insecure-defaults/SKILL.md",
+                           "\n" + literal + "\n")
+        combined = proc.stdout + proc.stderr
+        assert proc.returncode == 1, combined
+        # Any run of the credential long enough to be useful must be absent.
+        for length in (16, 12, 8):
+            fragment = value[:length]
+            assert fragment not in combined, (
+                f"the warning echoed {length} characters of the credential: {combined}")
+        assert "api_key" in combined, "the pattern that matched must still be named"
+
     def test_real_private_key_in_the_hook_itself_is_caught(self, installed_project):
         header = "-----BEGIN " + "RSA PRIVATE" + " KEY-----"
         proc = self._plant(installed_project, ".claude/hooks/pre-commit.sh",

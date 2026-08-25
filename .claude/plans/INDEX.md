@@ -24,11 +24,11 @@ index never outranks the current files.
 |---|---:|
 | `drifted` | 3 |
 | `approved` | 49 |
-| `planned` | 9 |
-| `executed` | 25 |
-| `not_started` | 16 |
+| `planned` | 10 |
+| `executed` | 26 |
+| `not_started` | 17 |
 | `legacy` | 3 |
-| **total** | **105** |
+| **total** | **108** |
 
 ## Plans
 
@@ -71,6 +71,7 @@ index never outranks the current files.
 | `.claude/plans/plan-eval-replay-engine.md` | `approved` | 1 |  |
 | `.claude/plans/plan-fable-behavior-corpus.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-findings-and-plan-lifecycle.md` | `not_started` | 0 |  |
+| `.claude/plans/plan-fleet-skill-enhancement.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-floor-gate-exit-code.md` | `approved` | 1 |  |
 | `.claude/plans/plan-floor-json-flag.md` | `planned` | 1 |  |
 | `.claude/plans/plan-gate-scope.md` | `approved` | 1 |  |
@@ -99,7 +100,8 @@ index never outranks the current files.
 | `.claude/plans/plan-reflection-ledger-isolation.md` | `approved` | 1 |  |
 | `.claude/plans/plan-reflection-lifecycle-gates.md` | `approved` | 1 |  |
 | `.claude/plans/plan-reflection-test-isolation.md` | `approved` | 1 |  |
-| `.claude/plans/plan-rejection-retro-loop.md` | `not_started` | 0 |  |
+| `.claude/plans/plan-rejection-retro-loop-impl.md` | `not_started` | 0 |  |
+| `.claude/plans/plan-rejection-retro-loop.md` | `planned` | 7 |  |
 | `.claude/plans/plan-remaining-fixes-2026-07-31.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-remove-codex-mirror.md` | `approved` | 1 |  |
 | `.claude/plans/plan-residuals.md` | `approved` | 1 |  |
@@ -114,6 +116,7 @@ index never outranks the current files.
 | `.claude/plans/plan-review-round-2.md` | `executed` | 18 |  |
 | `.claude/plans/plan-review-round-history.md` | `approved` | 1 |  |
 | `.claude/plans/plan-review-truthfulness-batch.md` | `approved` | 1 |  |
+| `.claude/plans/plan-round-3-and-gate-residuals.md` | `executed` | 0 |  |
 | `.claude/plans/plan-run-command-op.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-scanner-coverage.md` | `executed` | 8 |  |
 | `.claude/plans/plan-session-close-fix.md` | `executed` | 2 |  |
