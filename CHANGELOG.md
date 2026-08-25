@@ -77,6 +77,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`file-guard`: a data dump named in the filename or a compound directory is flagged
+  again.** The export/dump marker was matched as a whole path component, so
+  `customer/data/full-dump_model.sql`, `customer-data/pg_dump/rows_model.sql` and
+  `customer-data/db-dumps/rows_model.sql` were all freed as "descriptions". Markers are now
+  matched as substrings of the path — the opposite choice from the secrets-directory veto,
+  deliberately: there the path is read as a *name assertion*, where a substring over-claims;
+  here the marker is *evidence about content*, so "dump" anywhere counts.
+- **`pre-plan` finds duplicate plans again from any directory.** It held
+  `local plan_dirs=(".claude/plans" …)` relative to the working directory, so run from a
+  subdirectory every candidate directory failed its `-d` test and the hook reported **"no
+  duplicate plans found"** — a UserPromptSubmit gate answering "all clear" because it looked
+  in the wrong place. `pre-commit`'s ops validation had the same shape (`find .claude/plans/`
+  as a bare argument) and validated nothing from a subdirectory.
+- **`auto-checkpoint` can no longer write a checkpoint registry that names another
+  repository.** `CLAUDE_PROJECT_DIR` decided where the registry was written while the
+  git-work-tree check tested the working directory, so with the two disagreeing the registry
+  was created outside any repo while the stash landed in the repo the cwd belonged to —
+  recording `stash@{0}` refs that resolve nowhere. The root is now derived from git and
+  required to be inside the work tree.
+- **`suggest-compact` no longer creates a stray `.claude/hooks/` wherever it is invoked.**
+  Its counter and log moved to the hook's own directory; the `mkdir` that supported them did
+  not, leaving it both dead and polluting — from `$HOME` it created `~/.claude/hooks`.
+
 - **`file-guard`: a compressed or backed-up key is no longer freed.** The suffix walk added
   in the previous release peeled only chains made *entirely* of certificate extensions, and
   branch 8 matches the last element of a chain regardless of what precedes it — so one

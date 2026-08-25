@@ -8,8 +8,15 @@ set -e
 # Exit 0 = clean, Exit 1 = suspicious replacements detected.
 # =============================================================================
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# `$SCRIPT_DIR` for files the HOOK owns, `$CK_ROOT` for files the PROJECT owns.
+# Measured 2026-08-25 as a property rather than as the sites anyone noticed: 16
+# cwd-relative `.claude/` paths across 8 hooks, while exactly ONE of the 11 hooks
+# wired in settings.json is invoked with a `cd` to the project root. A hook may not
+# assume its working directory. `tests/test_hook_paths.py` now asserts the property,
+# so the count cannot grow again while nobody is counting.
 HOOK_NAME="check-comment-replacement"
-LOG_FILE=".claude/hooks/hooks.log"
+LOG_FILE="$SCRIPT_DIR/hooks.log"
 
 log() {
     local level="$1"

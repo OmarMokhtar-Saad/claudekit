@@ -1,0 +1,15 @@
+{
+  "plan": "floor-and-tail",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_fileguard_allowlist.py",
+      "edits": [
+        {
+          "find": "def test_the_allowlist_is_applied_to_the_classification_not_ahead_of_it():",
+          "add_before": "# ---------------------------------------------------------------------------\n# The description-format list. Three of its original members were not description\n# formats: `.sql` is the standard container for an `INSERT INTO` dump, `.json`/`.yaml`\n# are the dominant export formats, and `.txt` is not a description format at all -- this\n# guard's own corpus lists `password.txt` as a secret.\n# ---------------------------------------------------------------------------\n\n@pytest.mark.parametrize(\"path\", [\n    \"customer-data-model.txt\", \"customer_data_schema.txt\",   # .txt is never a description\n    \"export/customer/data/rows_model.json\",                  # export path\n    \"EXPORT/customer/data/x_model.json\",                     # ...case-insensitively\n    \"backup/customer/data/2026_model.json\",                  # backup path\n    \"dumps/customer_data_schema.sql\",                         # dump path\n    \"snapshots/customer-data-model.yaml\",\n])\ndef test_a_data_copy_is_not_freed_as_a_description(path):\n    assert classify(path) is not None, f\"{path} was freed as a 'description'\"\n\n\n@pytest.mark.parametrize(\"path\", [\n    \"customer_data_schema.sql\",            # DDL, no export marker anywhere in the path\n    \"docs/customer-data-model.md\",         # prose\n    \"customer-data-model.graphql\",         # a schema language with no data form\n    \"schema/customer_data_model.prisma\",\n    \"db/customer-data/full_schema.sql\",    # see the docstring below\n])\ndef test_a_genuine_description_stays_freed(path):\n    \"\"\"`db/customer-data/full_schema.sql` is DELIBERATELY freed and is the arguable one.\n\n    Round 4 raised it as a case where `.sql` might hold a dump (`pg_dump`'s sibling is\n    named like this). The line drawn here: a `.sql` whose stem ends `_schema`/`_model`,\n    with no export/dump/backup/snapshot component anywhere in its path, is treated as DDL.\n    If that turns out to be wrong the fix is to add the directory to the export list, not\n    to widen the format list back -- and this assertion is where the decision is recorded\n    so a future change to it is deliberate rather than incidental.\n    \"\"\"\n    assert classify(path) is None, f\"{path} should be freed as a description\"\n\n"
+        }
+      ]
+    }
+  ]
+}

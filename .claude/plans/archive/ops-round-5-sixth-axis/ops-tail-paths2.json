@@ -1,0 +1,47 @@
+{
+  "plan": "floor-and-tail",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/suggest-compact.sh",
+      "edits": [
+        {
+          "find": "COUNTER_FILE=\".claude/hooks/compact-counter.txt\"\nLOG=\".claude/hooks/hooks.log\"",
+          "replace": "SCRIPT_DIR=\"$(cd \"$(dirname \"${BASH_SOURCE[0]}\")\" && pwd)\"\n# `$SCRIPT_DIR` for files the HOOK owns; see tests/test_hook_paths.py for the\n# property this maintains (no hook assumes its working directory).\n# This hook IS invoked with a `cd` to the project root -- the only one of the eleven that\n# is -- so these worked. They are still made explicit: the guarantee lives in\n# settings.json, one file away, and the next edit to that entry silently removes it.\nCOUNTER_FILE=\"$SCRIPT_DIR/compact-counter.txt\"\nLOG=\"$SCRIPT_DIR/hooks.log\""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/format-typecheck.sh",
+      "edits": [
+        {
+          "find": "EDITED_LOG=\".claude/hooks/edited-files.log\"\nREPORT=\".claude/hooks/format-typecheck-last.log\"",
+          "replace": "# Hook-owned scratch files: `post-tool-use.sh` writes `edited-files.log` beside itself,\n# so a cwd-relative reader here looked for it somewhere else entirely.\nEDITED_LOG=\"$SCRIPT_DIR/edited-files.log\"\nREPORT=\"$SCRIPT_DIR/format-typecheck-last.log\""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/session-start.sh",
+      "edits": [
+        {
+          "find": "CONFIG=\".claude/hooks/config.json\"",
+          "replace": "# Hook-owned; the other readers of this file already resolve it via $SCRIPT_DIR.\nCONFIG=\"$SCRIPT_DIR/config.json\""
+        },
+        {
+          "find": "LOCKS_DIR=\".claude/locks\"",
+          "replace": "# PROJECT state from here down -- these must name the repo being worked in, not the\n# hooks directory, so they resolve through $CK_ROOT.\nCK_ROOT=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\"\nLOCKS_DIR=\"$CK_ROOT/.claude/locks\""
+        },
+        {
+          "find": "GRAPH_SCRIPT=\".claude/operations/scripts/project-graph.py\"\nGRAPH_FILE=\".claude/project-graph.json\"",
+          "replace": "GRAPH_SCRIPT=\"$CK_ROOT/.claude/operations/scripts/project-graph.py\"\nGRAPH_FILE=\"$CK_ROOT/.claude/project-graph.json\""
+        },
+        {
+          "find": "CONTEXT_FILE=\".claude/session-context.md\"",
+          "replace": "CONTEXT_FILE=\"$CK_ROOT/.claude/session-context.md\""
+        }
+      ]
+    }
+  ]
+}

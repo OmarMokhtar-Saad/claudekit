@@ -338,6 +338,100 @@ def test_a_secret_directory_beats_every_name_assertion(path):
     Also covers case, since the veto was case-sensitive on a case-insensitive filesystem."""
     assert classify(path) is not None, f"{path} was freed inside a secret directory"
 
+# ---------------------------------------------------------------------------
+# The description-format list. Three of its original members were not description
+# formats: `.sql` is the standard container for an `INSERT INTO` dump, `.json`/`.yaml`
+# are the dominant export formats, and `.txt` is not a description format at all -- this
+# guard's own corpus lists `password.txt` as a secret.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("path", [
+    "customer-data-model.txt", "customer_data_schema.txt",   # .txt is never a description
+    "export/customer/data/rows_model.json",                  # export path
+    "EXPORT/customer/data/x_model.json",                     # ...case-insensitively
+    "backup/customer/data/2026_model.json",                  # backup path
+    "dumps/customer_data_schema.sql",                         # dump path
+    "snapshots/customer-data-model.yaml",
+])
+def test_a_data_copy_is_not_freed_as_a_description(path):
+    assert classify(path) is not None, f"{path} was freed as a 'description'"
+
+
+@pytest.mark.parametrize("path", [
+    "customer_data_schema.sql",            # DDL, no export marker anywhere in the path
+    "docs/customer-data-model.md",         # prose
+    "customer-data-model.graphql",         # a schema language with no data form
+    "schema/customer_data_model.prisma",
+    "db/customer-data/full_schema.sql",    # see the docstring below
+])
+def test_a_genuine_description_stays_freed(path):
+    """`db/customer-data/full_schema.sql` is DELIBERATELY freed and is the arguable one.
+
+    Round 4 raised it as a case where `.sql` might hold a dump (`pg_dump`'s sibling is
+    named like this). The line drawn here: a `.sql` whose stem ends `_schema`/`_model`,
+    with no export/dump/backup/snapshot component anywhere in its path, is treated as DDL.
+    If that turns out to be wrong the fix is to add the directory to the export list, not
+    to widen the format list back -- and this assertion is where the decision is recorded
+    so a future change to it is deliberate rather than incidental.
+    """
+    assert classify(path) is None, f"{path} should be freed as a description"
+
+def _description_formats():
+    """Branch 12's description-format list, read out of the guard."""
+    body = _GUARD_TEXT[_GUARD_TEXT.index("_is_description=0"):]
+    found = re.findall(r"^\s*([a-z0-9|]+)\)\s*_is_description=1", body, re.M)
+    assert found, "could not extract the unconditional description formats"
+    unconditional = [e for e in found[0].split("|") if e]
+    conditional = re.findall(r"^\s*([a-z0-9|]+)\)\s*$", body[:body.index("esac")], re.M)
+    return unconditional, [e for e in (conditional[0].split("|") if conditional else []) if e]
+
+
+def _export_markers():
+    """The export/dump markers that disqualify a `.sql`/`.json`/`.yaml` description."""
+    body = _GUARD_TEXT[_GUARD_TEXT.index("_is_description=0"):]
+    block = body[:body.index("esac", body.index("_dlc"))]
+    return sorted(set(re.findall(r"\*([a-z]+)\*", block)))
+
+
+DESC_UNCONDITIONAL, DESC_CONDITIONAL = _description_formats()
+EXPORT_MARKERS = _export_markers()
+
+
+def test_the_branch_12_extractions_are_not_empty():
+    """H2's lesson: the derived corpus derived nothing from the branch being CHANGED. It
+    extracted branch 8's predicates and crossed them thoroughly, while branch 12's change
+    was covered by twelve hand-picked paths -- and a sixth axis passed straight through."""
+    assert "md" in DESC_UNCONDITIONAL, DESC_UNCONDITIONAL
+    assert "sql" in DESC_CONDITIONAL, DESC_CONDITIONAL
+    assert {"dump", "export", "backup"} <= set(EXPORT_MARKERS), EXPORT_MARKERS
+
+
+def _derived_marker_cases():
+    """{marker} x {POSITION} x {conditional format}. Position is the axis that was missed:
+    a component-only match sees `dumps/` and not `pg_dump/`, `db-dumps/` or
+    `full-dump_model.sql`."""
+    for marker in EXPORT_MARKERS:
+        for fmt in DESC_CONDITIONAL:
+            yield f"customer-data/{marker}/rows_model.{fmt}"          # whole component
+            yield f"customer-data/{marker}s/rows_model.{fmt}"         # plural component
+            yield f"customer-data/db-{marker}s/rows_model.{fmt}"      # compound directory
+            yield f"customer-data/pg_{marker}/rows_model.{fmt}"       # prefixed directory
+            yield f"customer/data/full-{marker}_model.{fmt}"          # in the BASENAME
+            yield f"customer/data/rows_{marker}_model.{fmt}"          # infix in basename
+            yield f"customer-data/{marker}s.d/x_model.{fmt}"          # dotted directory
+
+
+@pytest.mark.parametrize("path", sorted(set(_derived_marker_cases())))
+def test_a_data_copy_is_flagged_wherever_the_marker_sits(path):
+    assert classify(path) is not None, f"{path} was freed as a 'description'"
+
+
+@pytest.mark.parametrize("fmt", DESC_UNCONDITIONAL)
+def test_an_unconditional_description_format_stays_freed(fmt):
+    """Prose and schema languages have no data representation, so a marker in the path
+    does not make them a copy of anything."""
+    assert classify(f"customer-data/exports/rows_model.{fmt}") is None
+
 def test_the_allowlist_is_applied_to_the_classification_not_ahead_of_it():
     """Structure is the mechanism, and the structure changed twice for the same reason.
 
@@ -370,6 +464,13 @@ def test_the_allowlist_is_applied_to_the_classification_not_ahead_of_it():
     # is the thing being asserted about, so it is the thing to extract.
     start = body.index("classify() {")
     classifier = body[start:body.index("\n}\n", start)]
+    # COMMENTS STRIPPED. A comment inside classify() that explains why the allowlist must
+    # NOT live there -- or that merely names `public_material` while documenting a
+    # different bug -- read as a violation of the rule it documents, and turned the suite
+    # red. `tests/test_hook_paths.py:_code_only` was added for exactly this shape in the
+    # same change; the fix belonged here too.
+    classifier = "\n".join(line for line in classifier.splitlines()
+                           if not line.lstrip().startswith("#"))
     assert "public_material" not in classifier, (
         "the allowlist is inside classify() again -- classify() returns on the first "
         "match, so an exemption there applies to every category below it"

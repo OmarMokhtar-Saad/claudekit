@@ -1,0 +1,29 @@
+{
+  "plan": "review-round-5",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/pre-plan.sh",
+      "edits": [
+        {
+          "find": "    local plan_dirs=(\".claude/plans\" \"operations\")",
+          "replace": "    # PROJECT state, resolved through the repo root. This was `.claude/plans` relative to\n    # the cwd, and the failure was silent in the worst direction: run from any\n    # subdirectory, `[ -d \"$dir\" ]` is false for every entry, the candidate list is empty\n    # and the hook reports \"no duplicate plans found\". A UserPromptSubmit gate that answers\n    # \"all clear\" because it looked in the wrong place is worse than one that errors.\n    local ck_root\n    ck_root=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\"\n    local plan_dirs=(\"$ck_root/.claude/plans\" \"$ck_root/operations\")"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/pre-commit.sh",
+      "edits": [
+        {
+          "find": "SCRIPT_DIR=\"$(cd \"$(dirname \"${BASH_SOURCE[0]}\")\" && pwd)\"",
+          "replace": "SCRIPT_DIR=\"$(cd \"$(dirname \"${BASH_SOURCE[0]}\")\" && pwd)\"\n# The ops configs this hook validates are PROJECT state; `find .claude/plans/` relative to\n# the cwd validated nothing at all from a subdirectory, and `find` on a missing path is a\n# stderr line this hook discards.\nCK_ROOT=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\""
+        },
+        {
+          "find": "    done < <(find .claude/plans/ \"${OPS_FIND_EXPR[@]}\" 2>/dev/null)",
+          "replace": "    done < <(find \"$CK_ROOT/.claude/plans/\" \"${OPS_FIND_EXPR[@]}\" 2>/dev/null)"
+        }
+      ]
+    }
+  ]
+}

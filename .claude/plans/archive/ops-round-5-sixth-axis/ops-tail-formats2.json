@@ -1,0 +1,15 @@
+{
+  "plan": "floor-and-tail",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/file-guard.sh",
+      "edits": [
+        {
+          "find": "        sql|json|yaml|yml)\n            case \"/$_lc/\" in",
+          "replace": "        sql|json|yaml|yml)\n            # A LOCAL lowercase copy. My first version referenced `$_lc`, which is declared\n            # in `public_material()` -- a different function -- so it expanded to EMPTY\n            # here, `\"//\"` fell through to the catch-all, and every one of these stayed a\n            # \"description\". Caught by running it: `export/customer/data/rows_model.json`\n            # was still clean. A variable borrowed across a function boundary in shell\n            # fails silently and in the permissive direction.\n            local _dlc\n            _dlc=\"$(printf '%s' \"$filepath\" | tr '[:upper:]' '[:lower:]')\"\n            case \"/$_dlc/\" in"
+        }
+      ]
+    }
+  ]
+}

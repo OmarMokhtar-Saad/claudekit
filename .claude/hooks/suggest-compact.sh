@@ -14,10 +14,16 @@
 # Tool-call count chosen over byte-size/wall-clock as the context-growth proxy —
 # see plan-remaining-fixes-2026-07-31.md §5b for the rejected alternatives and why.
 
-COUNTER_FILE=".claude/hooks/compact-counter.txt"
-LOG=".claude/hooks/hooks.log"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# `$SCRIPT_DIR` for files the HOOK owns; see tests/test_hook_paths.py for the
+# property this maintains (no hook assumes its working directory).
+# This hook IS invoked with a `cd` to the project root -- the only one of the eleven that
+# is -- so these worked. They are still made explicit: the guarantee lives in
+# settings.json, one file away, and the next edit to that entry silently removes it.
+COUNTER_FILE="$SCRIPT_DIR/compact-counter.txt"
+LOG="$SCRIPT_DIR/hooks.log"
 
-mkdir -p .claude/hooks 2>/dev/null
+mkdir -p "$SCRIPT_DIR" 2>/dev/null
 
 _lock_dir="${COUNTER_FILE}.lockdir"
 

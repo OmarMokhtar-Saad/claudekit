@@ -1,0 +1,15 @@
+{
+  "plan": "floor-and-tail",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/file-guard.sh",
+      "edits": [
+        {
+          "find": "    local _is_description=0\n    case \"$_ext\" in\n        sql|md|json|yaml|yml|graphql|prisma|proto|xsd|rst|txt) _is_description=1 ;;\n    esac\n    if [[ \"$filepath\" == *\"customer\"* ]] && [[ \"$filepath\" == *\"data\"* ]]; then\n        if [ \"$_is_description\" -eq 1 ] &&\n           { [[ \"$_stem\" == *[-_]schema ]] || [[ \"$_stem\" == *[-_]model ]]; }; then\n            :   # a schema or model DESCRIPTION, in a description format\n        else\n            echo \"production-data\"; return\n        fi\n    fi",
+          "replace": "    # THE FORMAT LIST NARROWED, because three of its members were not description formats.\n    # It read `sql|md|json|yaml|yml|graphql|prisma|proto|xsd|rst|txt`, justified by \"a\n    # `.sql`/`.md`/`.json` schema is a description\" -- false for its own examples:\n    #   * `.sql` is the standard container for an `INSERT INTO` DUMP, not only for DDL;\n    #   * `.json`/`.yaml` are the dominant EXPORT formats;\n    #   * `.txt` is not a description format at all -- this guard's own corpus lists\n    #     `password.txt` as a secret.\n    # Freed as a result: `db/customer-data/full_schema.sql`,\n    # `export/customer/data/rows_model.json`, `customer-data-model.txt`.\n    #\n    # `.md`/`.rst` are PROSE, and `.graphql`/`.prisma`/`.proto`/`.xsd` are schema\n    # languages with no data representation at all -- those stay. `.sql`/`.json`/`.yaml`\n    # remain eligible but only when nothing in the path says export, dump or backup, since\n    # that is what distinguishes a description of data from a copy of it.\n    local _is_description=0\n    case \"$_ext\" in\n        md|rst|graphql|prisma|proto|xsd) _is_description=1 ;;\n        sql|json|yaml|yml)\n            case \"/$_lc/\" in\n                */export/*|*/exports/*|*/dump/*|*/dumps/*|*/backup/*|*/backups/*|\\\n                */snapshot/*|*/snapshots/*|*/extract/*) ;;\n                *) _is_description=1 ;;\n            esac\n            ;;\n    esac\n    if [[ \"$filepath\" == *\"customer\"* ]] && [[ \"$filepath\" == *\"data\"* ]]; then\n        if [ \"$_is_description\" -eq 1 ] &&\n           { [[ \"$_stem\" == *[-_]schema ]] || [[ \"$_stem\" == *[-_]model ]]; }; then\n            :   # a schema or model DESCRIPTION, in a description format\n        else\n            echo \"production-data\"; return\n        fi\n    fi"
+        }
+      ]
+    }
+  ]
+}
