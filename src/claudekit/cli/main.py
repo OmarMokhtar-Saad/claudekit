@@ -833,7 +833,8 @@ DIFF_IGNORED = {"hooks/config.json", "settings.local.json"}
 # install.sh rebuilds `files` from a bare directory walk, so any install or
 # `ck update` silently drops the flag and regains delete rights. A safety property
 # that evaporates on the most routine command is not a safety property.
-PARTIAL_OWNED = {"local/CLAUDE.project.md", "hooks/config.json"}
+PARTIAL_OWNED = {"local/CLAUDE.project.md", "local/CONSTITUTION.md",
+                 "hooks/config.json"}
 DIFF_IGNORED_NAMES = {"compact-counter.txt", "cost-tracker.log"}  # hook runtime state
 
 

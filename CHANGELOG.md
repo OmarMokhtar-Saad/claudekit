@@ -12,6 +12,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **A reinstall no longer overwrites the two docs it tells you to customize.**
+  `local/CLAUDE.project.md` and `local/CONSTITUTION.md` were re-rendered from the language
+  template on every `ck update`, replacing a project's real description and architecture
+  layers with the stock text (one project's layers became
+  `# TODO: Define your architecture layers here`). They are now seeded on a first install
+  and preserved on every reinstall. `local/CONSTITUTION.md` also joins the partially-owned
+  set, so `ck uninstall` keeps it rather than deleting it as an unchanged kit file.
+- **A reinstall no longer drops the project's `security` block from `hooks/config.json`.**
+  The kit owns that file's structure and auto-configures `project`, but `security` is the
+  project's own command allowlist and is not regenerable; it is now merged across rather
+  than replaced. Four projects in one fleet update lost allowlists of 32, 15, 5 and 1
+  commands to this.
+
+### Changed
+
+- **The parallel-agents policy in `templates/*/CLAUDE.md` matches reality.** All eleven
+  shipped a block dated 2026-08-09 calling `/xpipe` routing "MANDATORY, not advisory",
+  while `xpipe.py` has resolved to `solo` on every run since XPipe was closed on
+  2026-08-16. Substantial tasks now route through `/plan` -> `/review` (>=90) ->
+  `/implement`, or `/coordinator`; a REVISE verdict still stops the chain, and reopening
+  XPipe is documented as the deliberate act it is. Region marker bumped `v1` -> `v2`.
+
 ## [3.0.0] — 2026-08-25
 
 ### Added
