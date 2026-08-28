@@ -28,6 +28,19 @@ sys.path.insert(0, os.path.join(ROOT, "src"))
 from claudekit.cli.main import PARTIAL_OWNED  # noqa: E402
 
 
+def reinstall_over(project, mode="--minimal"):
+    """Re-run the real installer over an existing install -- what `ck update` does.
+
+    Module-level and shared: `TheReceiptRecordsOnlyWhatTheKitOwns.reinstall` and
+    `TheInstallerKeepsWhatTheProjectOwns` both call it, so the subprocess shape
+    lives in one place (CLAUDE.md: no new near-duplicate assets).
+    """
+    return subprocess.run(
+        ["bash", INSTALLER, project.dir, mode, "--yes", "--force"],
+        capture_output=True, text=True, timeout=600,
+        env=dict(os.environ, ECC_HOOK_PROFILE="minimal"))
+
+
 def ck(*args, cwd=None, stdin=""):
     return subprocess.run(
         [sys.executable, "-m", "claudekit.cli.main", *args],
@@ -80,10 +93,7 @@ class TheReceiptRecordsOnlyWhatTheKitOwns(unittest.TestCase):
 
     def reinstall(self, project):
         """Re-run the installer over an existing install — what `ck update` does."""
-        result = subprocess.run(
-            ["bash", INSTALLER, project.dir, "--minimal", "--yes", "--force"],
-            capture_output=True, text=True, timeout=600,
-            env=dict(os.environ, ECC_HOOK_PROFILE="minimal"))
+        result = reinstall_over(project)
         self.assertEqual(result.returncode, 0, result.stdout[-2000:] + result.stderr[-2000:])
 
     def test_settings_local_is_not_recorded_after_a_reinstall(self):
@@ -444,3 +454,82 @@ class TheRegistryDescribesWhatWasInstalled(unittest.TestCase):
         """Exit code measured WITHOUT a pipe: `rc=$?` after one reads `tail`'s."""
         result = ck("doctor", "--strict", cwd=self.project.dir)
         self.assertNotIn("is not registered", result.stdout + result.stderr)
+
+
+
+
+
+class TheInstallerKeepsWhatTheProjectOwns(unittest.TestCase):
+    """The two defects that reached 13 repos before anyone noticed.
+
+    Both were install.sh-only and invisible to every existing test: a reinstall
+    re-rendered `local/CONSTITUTION.md` from the language template over a project's
+    real architecture, and replaced `hooks/config.json` whole, dropping the project's
+    own `security` allowlist. Manual verification found them once; these keep a
+    future install.sh refactor from reintroducing either silently.
+    """
+
+    MARKER = "Tests -> Harness -> SDK (composite build, READ-ONLY)"
+
+    def test_a_customized_constitution_survives_a_reinstall(self):
+        project = InstalledProject(self)
+        rel = "local/CONSTITUTION.md"
+        self.assertTrue(os.path.isfile(project.path(rel)), "install did not seed " + rel)
+        project.edit(rel, "\n%s\n" % self.MARKER)
+
+        result = reinstall_over(project)
+        self.assertEqual(result.returncode, 0,
+                         result.stdout[-2000:] + result.stderr[-2000:])
+
+        with open(project.path(rel), encoding="utf-8") as fh:
+            after = fh.read()
+        self.assertIn(self.MARKER, after,
+                      "the reinstall re-rendered CONSTITUTION.md over the project's own text")
+
+    def test_a_customized_constitution_survives_an_uninstall(self):
+        """Preserving it in install.sh is only half the guarantee.
+
+        A file preserved just BEFORE the manifest is written hashes as `unchanged`
+        against its own fresh entry, and `cmd_uninstall` builds `removable` from
+        `unchanged` -- so without the PARTIAL_OWNED entry the installer would stop
+        overwriting the file while uninstall went on deleting it.
+        """
+        project = InstalledProject(self)
+        rel = "local/CONSTITUTION.md"
+        project.edit(rel, "\n%s\n" % self.MARKER)
+        reinstall_over(project)
+
+        result = ck("uninstall", "--yes", cwd=project.dir)
+        self.assertEqual(result.returncode, 0,
+                         result.stdout[-2000:] + result.stderr[-2000:])
+        self.assertTrue(
+            os.path.isfile(project.path(rel)),
+            "uninstall deleted a customized CONSTITUTION.md:\n" + result.stdout[-2000:])
+
+    def test_a_project_security_allowlist_survives_a_reinstall(self):
+        """`hooks/config.json` is shared: `security` is theirs, the rest is the kit's.
+
+        Asserting only that the block survives would also pass if the installer
+        kept the whole file and stopped updating it, so this pins both halves.
+        """
+        project = InstalledProject(self, mode="--full")
+        rel = "hooks/config.json"
+        self.assertTrue(os.path.isfile(project.path(rel)), "full install has no " + rel)
+
+        with open(project.path(rel), encoding="utf-8") as fh:
+            before = json.load(fh)
+        before["security"] = {"safeMode": True, "allowedCommands": ["gradlew"]}
+        before.pop("project", None)          # force the kit to rewrite its own half
+        with open(project.path(rel), "w", encoding="utf-8") as fh:
+            json.dump(before, fh, indent=2)
+
+        result = reinstall_over(project, mode="--full")
+        self.assertEqual(result.returncode, 0,
+                         result.stdout[-2000:] + result.stderr[-2000:])
+
+        with open(project.path(rel), encoding="utf-8") as fh:
+            after = json.load(fh)
+        self.assertEqual(after.get("security", {}).get("allowedCommands"), ["gradlew"],
+                         "the reinstall dropped the project's own security allowlist")
+        self.assertIn("project", after,
+                      "the reinstall kept the whole file instead of merging only `security`")

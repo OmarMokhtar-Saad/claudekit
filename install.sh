@@ -562,6 +562,56 @@ if [[ -f "$FINAL_DEST/settings.local.json" ]]; then
         && print_ok "Preserved settings.local.json"
 fi
 
+# Preserve the project's OWN content across a reinstall.
+#
+# local/CLAUDE.project.md and local/CONSTITUTION.md are SEEDED from templates on a fresh
+# install and belong to the project thereafter -- this script's own closing message says
+# "Review ... and customize". Re-rendering them on every `ck update` overwrote real
+# content with the generic template: measured on the 2026-08-28 fleet update, one project
+# had its architecture layers replaced by "# TODO: Define your architecture layers here"
+# and its description replaced by the stock language template. Seeded-then-owned, so the
+# existing file wins whenever there is one.
+for _rel in local/CLAUDE.project.md local/CONSTITUTION.md; do
+    if [[ -f "$FINAL_DEST/$_rel" ]]; then
+        cp "$FINAL_DEST/$_rel" "$STAGING/$_rel" 2>/dev/null \
+            && print_ok "Preserved $_rel"
+    fi
+done
+
+# hooks/config.json is PARTIALLY kit-owned (adapt.py PARTIAL_OWNED_RELS, cli/main.py
+# PARTIAL_OWNED -- `ck uninstall` already honours this; the installer did not). The kit
+# owns the shipped structure and auto-configures `project` above, but `security` is the
+# project's own command allowlist and cannot be regenerated. A whole-file overwrite
+# silently dropped it from 4 of 13 projects in the same run (32, 15, 5 and 1
+# allowedCommands). Carry ONLY that key across, so the kit's updates to the rest still land.
+if [[ -f "$FINAL_DEST/hooks/config.json" ]] && [[ -f "$STAGING/hooks/config.json" ]]; then
+    if CK_OLD_CONFIG="$FINAL_DEST/hooks/config.json" \
+       CK_NEW_CONFIG="$STAGING/hooks/config.json" \
+       python3 - <<'PRESERVE_SECURITY_PY'
+import json, os, sys
+
+with open(os.environ["CK_OLD_CONFIG"]) as fh:
+    old = json.load(fh)
+security = old.get("security")
+# Nothing to carry (fresh-shaped or hand-removed) is the normal case, not a failure:
+# exit 3 so the caller stays silent instead of claiming a preservation that did not happen.
+if not isinstance(security, dict):
+    sys.exit(3)
+path = os.environ["CK_NEW_CONFIG"]
+with open(path) as fh:
+    new = json.load(fh)
+new["security"] = security
+with open(path, "w") as fh:
+    json.dump(new, fh, indent=2)
+    fh.write("\n")
+PRESERVE_SECURITY_PY
+    then
+        print_ok "Preserved hooks/config.json security block"
+    elif [[ $? -ne 3 ]]; then
+        print_warn "Could not preserve the security block in hooks/config.json (see the backup)"
+    fi
+fi
+
 # ---- Atomic swap: back up any existing .claude, move staging into place ----
 if [[ -d "$FINAL_DEST" ]]; then
     BACKUP="$TARGET_DIR/.claude.bak-$(date +%Y%m%d-%H%M%S)"
