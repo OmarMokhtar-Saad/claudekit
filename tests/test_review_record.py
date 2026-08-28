@@ -477,3 +477,128 @@ class TestWriteSafety:
         assert res.returncode == 1
         assert 'symlink' in res.stderr
         assert not any(outside.rglob('*.json')), 'nothing may land at the symlink target'
+
+# --- the review loop that never terminates -------------------------------------------
+
+def _record_round(tmp_path, score, decision, ops_name='ops-demo.json'):
+    """Record one verdict against the demo fixture and return the completed process."""
+    plan = str(tmp_path / '.claude' / 'plans' / 'plan-demo.md')
+    ops = str(tmp_path / '.claude' / 'plans' / ops_name)
+    return _run(tmp_path, 'write', plan, ops, '--score', str(score),
+                '--decision', decision)
+
+
+def _written_record(tmp_path):
+    path = tmp_path / '.claude' / 'reports' / 'reviews' / 'demo.json'
+    return json.loads(path.read_text(encoding='utf-8'))
+
+
+class TestTheLoopTripwire:
+    """Three consecutive rejections is the documented ceiling; now it is enforced."""
+
+    def test_three_consecutive_rejections_fire_the_advisory(self, tmp_path):
+        _fixture(tmp_path)
+        _record_round(tmp_path, 79, 'REVISE')
+        _record_round(tmp_path, 78, 'REVISE')
+        result = _record_round(tmp_path, 72, 'REVISE')
+        assert 'LOOP TRIPWIRE' in result.stderr, result.stderr
+        assert '3 consecutive' in result.stderr
+
+    def test_the_advisory_never_blocks_the_write(self, tmp_path):
+        """The load-bearing property: the verdict stays durable on the loop round.
+
+        A tripwire that failed the write would destroy the history that makes loop
+        detection possible, on exactly the round where it matters most.
+        """
+        _fixture(tmp_path)
+        _record_round(tmp_path, 79, 'REVISE')
+        _record_round(tmp_path, 78, 'REVISE')
+        result = _record_round(tmp_path, 72, 'REVISE')
+        assert result.returncode == 0, result.stderr
+        record = _written_record(tmp_path)
+        assert record['score'] == 72 and record['decision'] == 'REVISE'
+
+    def test_two_rejections_do_not_fire_it(self, tmp_path):
+        _fixture(tmp_path)
+        _record_round(tmp_path, 79, 'REVISE')
+        result = _record_round(tmp_path, 78, 'REVISE')
+        assert 'LOOP TRIPWIRE' not in result.stderr, result.stderr
+
+    def test_an_approval_resets_the_streak(self, tmp_path):
+        """Consecutive, not cumulative -- the mutation this test exists to catch.
+
+        Counting cumulatively would fire here on a plan that converged and was
+        reopened, which trains people to ignore the message.
+        """
+        _fixture(tmp_path)
+        _record_round(tmp_path, 79, 'REVISE')
+        _record_round(tmp_path, 78, 'REVISE')
+        _record_round(tmp_path, 95, 'APPROVED')
+        result = _record_round(tmp_path, 81, 'REVISE')
+        assert 'LOOP TRIPWIRE' not in result.stderr, result.stderr
+
+    def test_an_approved_below_threshold_does_not_reset_the_streak(self, tmp_path):
+        """`write` records APPROVED/85, and `check` still refuses it (exit 4).
+
+        A decision-word-only predicate would read that as an approval and silently
+        undercount a live loop. `is_rejecting` is the one predicate for this file.
+        """
+        _fixture(tmp_path)
+        _record_round(tmp_path, 79, 'REVISE')
+        _record_round(tmp_path, 85, 'APPROVED')
+        result = _record_round(tmp_path, 81, 'REVISE')
+        assert 'LOOP TRIPWIRE' in result.stderr, result.stderr
+
+    def test_conditional_counts_as_non_approving(self, tmp_path):
+        """cmd_check refuses execution on CONDITIONAL, so the loop counter must too."""
+        _fixture(tmp_path)
+        _record_round(tmp_path, 79, 'REVISE')
+        _record_round(tmp_path, 86, 'CONDITIONAL')
+        result = _record_round(tmp_path, 84, 'REVISE')
+        assert 'LOOP TRIPWIRE' in result.stderr, result.stderr
+
+    def test_a_rising_trail_is_called_non_monotonic(self, tmp_path):
+        _fixture(tmp_path)
+        _record_round(tmp_path, 72, 'REVISE')
+        _record_round(tmp_path, 86, 'CONDITIONAL')
+        result = _record_round(tmp_path, 81, 'REVISE')
+        assert 'NON-MONOTONIC' in result.stderr, result.stderr
+
+    def test_a_plateau_then_a_fall_is_called_non_monotonic(self, tmp_path):
+        """86 -> 86 -> 81: the exact shape the motivating retrospective names.
+
+        `max(scores) > scores[0]` would be False here and suppress the notice, which
+        is the bug this case exists to pin.
+        """
+        _fixture(tmp_path)
+        _record_round(tmp_path, 86, 'CONDITIONAL')
+        _record_round(tmp_path, 86, 'CONDITIONAL')
+        result = _record_round(tmp_path, 81, 'REVISE')
+        assert 'LOOP TRIPWIRE' in result.stderr
+        assert 'NON-MONOTONIC' in result.stderr, result.stderr
+
+    def test_a_monotonic_decline_is_not_called_non_monotonic(self, tmp_path):
+        _fixture(tmp_path)
+        _record_round(tmp_path, 86, 'REVISE')
+        _record_round(tmp_path, 80, 'REVISE')
+        result = _record_round(tmp_path, 72, 'REVISE')
+        assert 'LOOP TRIPWIRE' in result.stderr
+        assert 'NON-MONOTONIC' not in result.stderr, result.stderr
+
+    def test_the_advisory_is_durable_in_the_record(self, tmp_path):
+        """stderr is read by whoever is watching that second; the record outlives them."""
+        _fixture(tmp_path)
+        _record_round(tmp_path, 79, 'REVISE')
+        _record_round(tmp_path, 78, 'REVISE')
+        _record_round(tmp_path, 72, 'REVISE')
+        record = _written_record(tmp_path)
+        assert 'loop_advisory' in record, sorted(record)
+        assert any('LOOP TRIPWIRE' in line for line in record['loop_advisory'])
+
+    def test_an_approving_write_carries_no_advisory(self, tmp_path):
+        _fixture(tmp_path)
+        _record_round(tmp_path, 79, 'REVISE')
+        _record_round(tmp_path, 78, 'REVISE')
+        _record_round(tmp_path, 95, 'APPROVED')
+        assert 'loop_advisory' not in _written_record(tmp_path)
+
