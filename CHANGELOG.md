@@ -12,6 +12,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A tripwire for the review loop that never terminates.** `review-record.py`'s 3-round
+  ceiling was documented in a comment and enforced by nothing: a plan could be rejected six
+  times without any machinery saying a word (measured — AppiumLens, 2026-08-28:
+  `79 -> 78 -> 72 -> 86 -> 86 -> 81` across three different concurrency mechanisms, caught
+  only by a human writing a retrospective afterwards). `write` now counts *consecutive*
+  rejecting rounds — using the file's existing `is_rejecting`, so an `APPROVED` scored
+  below the threshold does not reset a live streak — and at three prints the trail with the
+  split recommendation, plus a separate notice when the score held or rose and then fell,
+  which is evidence of scope rather than sloppiness. Advisory by construction: recorded in
+  the verdict JSON as `loop_advisory` and printed to stderr, and it can never change
+  `write`'s exit code or withhold an approval.
+
 ### Fixed
 
 - **A reinstall no longer overwrites the two docs it tells you to customize.**

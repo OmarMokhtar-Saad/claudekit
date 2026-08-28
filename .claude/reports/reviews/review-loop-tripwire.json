@@ -1,0 +1,17 @@
+{
+  "plan": ".claude/plans/plan-review-loop-tripwire.md",
+  "slug": "review-loop-tripwire",
+  "ops_path": ".claude/plans/plan-review-loop-tripwire.ops.json",
+  "ops_sha256": "dc4b4a9b0a5be72b00074663257e5f189235d17c518dcb377e0b2f4f779e636d",
+  "score": 94,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] `scores` filters to int before computing `peak`, so a malformed score entry that inflates the streak count via `is_rejecting` is dropped from the non-monotonic check; `len(scores) >= 3` guards it, but"
+  ],
+  "verdict_origin": "rubric",
+  "recorded_utc": "2026-08-28T17:19:14Z",
+  "operations": 3,
+  "edits": 4,
+  "rounds": [],
+  "round": 1
+}
