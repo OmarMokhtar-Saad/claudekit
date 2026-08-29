@@ -16,6 +16,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The bash differential gate no longer reports `pass` when it ran no bash.**
+  `check-validator-vs-bash.py` feeds payloads the validator ALLOWS into a real bash and
+  reports any reaching a shadowed dangerous command. On ubuntu-24.04 runners, where AppArmor
+  restricts unprivileged user namespaces, `unshare` exists and fails — so every probe process
+  died before bash started, and `markers()` returned the same empty list it returns for
+  "ran, reached nothing". Handed a validator with `BLOCKLIST = set()`, the gate reported
+  **338 executed, 0 findings, `pass`**. The probe now emits a liveness marker before the
+  payload, a probe that never reaches it counts as `errored` rather than `executed`, and
+  `process_isolation()` asks whether `unshare` works instead of assuming that present means
+  permitted. **`--json` output changes:** `error_ratio` and `unverified_ratio` are new, and
+  `refusal_ratio` keeps its numerator but its denominator now includes `errored`, so values
+  are not comparable with those from earlier runs.
+
 - **One unreadable file no longer abandons every other custom asset on `ck update`.** The
   preserve loop called `shutil.copy2` per entry with no isolation, and `copy2` follows
   symlinks — so a single **dangling** symlink raised out of the loop and everything the walk
