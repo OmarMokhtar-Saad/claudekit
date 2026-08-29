@@ -1,0 +1,18 @@
+{
+  "plan": "pin-ruff-supply-chain",
+  "slug": "pin-ruff-supply-chain",
+  "ops_path": ".claude/plans/plan-pin-ruff-supply-chain.ops.json",
+  "ops_sha256": "7cc714a238b3f24ee910fbbd3cc5026699916a2d26f61166b4fc489e55ea79b1",
+  "score": 93,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] mypy remains unpinned in the ci lint job. Out of scope here: that",
+    "[MINOR] shellcheck comes from apt, whose version is bound by the runner"
+  ],
+  "verdict_origin": "gate-token",
+  "recorded_utc": "2026-08-29T14:49:37Z",
+  "operations": 2,
+  "edits": 4,
+  "rounds": [],
+  "round": 1
+}

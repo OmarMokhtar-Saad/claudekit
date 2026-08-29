@@ -34,6 +34,19 @@ jobs:
           pip install -e .
           pip install --require-hashes -r tests/requirements.txt
 
+      # The suite shells out to these. Their absence here failed the v3.1.0 release at
+      # the test step -- correctly, but for a harness reason rather than a real one.
+      # ci.yml's `test` and `coverage` jobs were fixed first and this one was missed,
+      # because the jobs were enumerated from ci.yml alone. Both workflows run pytest.
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+      # Pinned: this job holds a PyPI OIDC token (id-token: write, environment: pypi),
+      # so an unpinned install would run unreviewed code beside publishing rights.
+      # tests/requirements.txt is already hash-pinned for exactly this reason; ruff
+      # was the gap. Pinned identically in ci.yml so lint cannot differ by version.
+      - name: Install ruff
+        run: pip install ruff==0.16.5
+
       - name: Run the full test suite
         run: python -m pytest tests/ -v
 
