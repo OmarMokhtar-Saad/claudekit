@@ -9,6 +9,7 @@ assertion about it passes vacuously.
 """
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 import sys
@@ -25,6 +26,14 @@ EXIT_CLEAN = 0
 EXIT_FINDINGS = 1
 EXIT_UNUSABLE = 2
 EXIT_INCOMPLETE = 3
+
+# Read from the scanner instead of hardcoded: these tests exist to prove the cap TRIPS,
+# so a fixture sized by a literal silently stops proving it the moment the cap moves.
+# Raising MAX_JOIN_LINES 80 -> 250 turned both of them green against an uncapped scan.
+MAX_JOIN_LINES = int(
+    re.search(r"^MAX_JOIN_LINES = (\d+)", SCANNER.read_text(encoding="utf-8"),
+              re.M).group(1))
+OVER_CAP = MAX_JOIN_LINES + 40
 
 # Known, accepted residue. These paths are owned by other workstreams; see the plan's
 # "Gate decision". The set pins PATHS, not counts or line numbers, so edits inside these
@@ -299,7 +308,8 @@ def test_unparseable_python_is_not_reported_clean(sandbox):
 def test_join_cap_is_not_reported_clean(sandbox):
     """Tripping MAX_JOIN_LINES means part of the file was never parsed. Reviewer's mutant:
     setting MAX_JOIN_LINES=3 previously flipped ZERO tests."""
-    body = '#!/usr/bin/env bash\nfoo="' + "\n".join("line %d" % i for i in range(200)) + "\n"
+    body = ('#!/usr/bin/env bash\nfoo="'
+            + "\n".join("line %d" % i for i in range(OVER_CAP)) + "\n")
     write(sandbox, "runaway.sh", body)
     assert run(str(sandbox)).returncode == EXIT_INCOMPLETE
 
@@ -309,7 +319,7 @@ def test_unterminated_heredoc_is_not_reported_clean(sandbox):
     finding -- and report success."""
     body = ('#!/usr/bin/env bash\n'
             'cat <<NOPE\n'
-            + "\n".join("filler %d" % i for i in range(120)) + "\n"
+            + "\n".join("filler %d" % i for i in range(OVER_CAP)) + "\n"
             'git stash apply 2>/dev/null || true\n')
     write(sandbox, "heredoc-runaway.sh", body)
     assert run(str(sandbox)).returncode == EXIT_INCOMPLETE
@@ -321,7 +331,7 @@ def test_false_heredoc_that_terminates_far_away_is_not_reported_clean(sandbox):
     and then finds a line equal to the delimiter, no EOF diagnostic ever fires. Uncapped, the
     real finding below vanishes and the scanner reports OK -- verified by mutation."""
     body = ["#!/usr/bin/env bash", "x=$(( 1 << MARKER ))"]
-    body += ["echo filler %d" % i for i in range(120)]
+    body += ["echo filler %d" % i for i in range(OVER_CAP)]
     body += ["git stash apply 2>/dev/null || true", "MARKER", "echo tail"]
     script = write(sandbox, "shift.sh", "\n".join(body) + "\n")
     assert run(str(script)).returncode == EXIT_INCOMPLETE

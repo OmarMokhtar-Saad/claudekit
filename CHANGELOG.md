@@ -12,6 +12,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **One unreadable file no longer abandons every other custom asset on `ck update`.** The
+  preserve loop called `shutil.copy2` per entry with no isolation, and `copy2` follows
+  symlinks — so a single **dangling** symlink raised out of the loop and everything the walk
+  had not yet reached was left behind, reported as one line saying the files "remain in the
+  backup". Measured: a scratch symlink under `plans/` cost one repo **656 custom files**,
+  including its own agents and 281 files under `operations/`. Each entry is now isolated, and
+  what could not be preserved is reported with a count and names. Symlinks are recreated as
+  symlinks rather than dereferenced, which also stops a working link being silently flattened
+  into a regular file.
+- **Custom `hooks/` and `operations/` survive a pre-manifest update.** When the backup carries
+  no manifest, preservation falls back to a directory list that named only
+  `agents`/`commands`/`skills`, silently dropping everything else; two custom hooks were lost
+  that way. The fallback now covers the directories that hold authored content — `reports/`
+  stays excluded, since the kit generates it and gitignores it.
+
 ### Added
 
 - **A tripwire for the review loop that never terminates.** `review-record.py`'s 3-round

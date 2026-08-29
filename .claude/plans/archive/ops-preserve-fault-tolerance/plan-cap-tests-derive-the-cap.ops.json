@@ -1,0 +1,30 @@
+{
+  "plan": "cap-tests-derive-the-cap",
+  "files": [
+    {
+      "path": "tests/test_silent_failure_lint.py",
+      "edits": [
+        {
+          "find": "EXIT_INCOMPLETE = 3",
+          "replace": "EXIT_INCOMPLETE = 3\n\n# Read from the scanner instead of hardcoded: these tests exist to prove the cap TRIPS,\n# so a fixture sized by a literal silently stops proving it the moment the cap moves.\n# Raising MAX_JOIN_LINES 80 -> 250 turned both of them green against an uncapped scan.\nMAX_JOIN_LINES = int(\n    re.search(r\"^MAX_JOIN_LINES = (\\d+)\", SCANNER.read_text(encoding=\"utf-8\"),\n              re.M).group(1))\nOVER_CAP = MAX_JOIN_LINES + 40"
+        },
+        {
+          "find": "import shutil\nimport subprocess",
+          "replace": "import re\nimport shutil\nimport subprocess"
+        },
+        {
+          "find": "    body = '#!/usr/bin/env bash\\nfoo=\"' + \"\\n\".join(\"line %d\" % i for i in range(200)) + \"\\n\"",
+          "replace": "    body = ('#!/usr/bin/env bash\\nfoo=\"'\n            + \"\\n\".join(\"line %d\" % i for i in range(OVER_CAP)) + \"\\n\")"
+        },
+        {
+          "find": "            + \"\\n\".join(\"filler %d\" % i for i in range(120)) + \"\\n\"",
+          "replace": "            + \"\\n\".join(\"filler %d\" % i for i in range(OVER_CAP)) + \"\\n\""
+        },
+        {
+          "find": "    body += [\"echo filler %d\" % i for i in range(120)]",
+          "replace": "    body += [\"echo filler %d\" % i for i in range(OVER_CAP)]"
+        }
+      ]
+    }
+  ]
+}

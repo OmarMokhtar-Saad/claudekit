@@ -28,6 +28,24 @@ sys.path.insert(0, os.path.join(ROOT, "src"))
 from claudekit.cli.main import PARTIAL_OWNED  # noqa: E402
 
 
+def _unlock_everywhere(root, name):
+    """chmod 0o600 every copy of `name` under `root`, wherever the swap left it.
+
+    A reinstall moves the old tree aside, so a path captured before it no longer
+    names the file the test made unreadable; shutil.rmtree then cannot remove it.
+    """
+    for dirpath, _dirs, names in os.walk(root):
+        if name in names:
+            try:
+                os.chmod(os.path.join(dirpath, name), 0o600)
+            # Best-effort teardown so rmtree can remove a 0o000 fixture: a failure
+            # here cannot affect an assertion, and raising would replace a real test
+            # result with a cleanup error -- which is the bug this helper exists to fix.
+            # silent-ok: teardown chmod; failure cannot affect any assertion
+            except OSError:
+                pass
+
+
 def reinstall_over(project, mode="--minimal"):
     """Re-run the real installer over an existing install -- what `ck update` does.
 
@@ -505,6 +523,166 @@ class TheInstallerKeepsWhatTheProjectOwns(unittest.TestCase):
         self.assertTrue(
             os.path.isfile(project.path(rel)),
             "uninstall deleted a customized CONSTITUTION.md:\n" + result.stdout[-2000:])
+
+    def test_one_bad_entry_does_not_abandon_every_other_custom_file(self):
+        """The regression: a dangling symlink used to abort the whole preserve loop.
+
+        `shutil.copy2` follows links, so a link whose target is gone raised
+        FileNotFoundError out of the `for`, and every custom file the walk had not
+        yet reached was silently left in the backup. Measured cost when it happened
+        for real: 656 files in one repo, under one yellow warning line.
+
+        ORDERING, which is what makes this bind: the broken link is placed at the
+        `.claude/` ROOT and the custom files under `agents/`. `os.walk(top_down=True)`
+        guarantees a directory's own triple is yielded before its subdirectories', so
+        the link is always processed first. Same-directory `names` order is NOT
+        sorted -- it is `os.scandir` order, filesystem-defined -- so putting all three
+        in one directory and relying on filenames would make this test bind on some
+        filesystems and pass vacuously on others.
+        """
+        project = InstalledProject(self)
+        os.symlink("/nonexistent/target/file.txt",
+                   os.path.join(project.claude, "dangling-link.txt"))
+        agents = os.path.join(project.claude, "agents")
+        for name in ("aa_custom.md", "zz_custom.md"):
+            with open(os.path.join(agents, name), "w") as fh:
+                fh.write("project-owned agent\n")
+
+        result = reinstall_over(project)
+        self.assertEqual(result.returncode, 0,
+                         result.stdout[-2000:] + result.stderr[-2000:])
+        for rel in ("agents/aa_custom.md", "agents/zz_custom.md"):
+            self.assertTrue(os.path.isfile(project.path(rel)),
+                            "%s was abandoned:\n%s" % (rel, result.stdout[-3000:]))
+
+    def test_a_dangling_symlink_is_not_a_preservation_failure(self):
+        """It was the trigger for the 656-file loss; now it is simply carried over.
+
+        Asserted as an absence on purpose: with symlinks recreated rather than
+        dereferenced, a broken link no longer fails at all, so there is nothing
+        positive to assert here. The count message is pinned by the test below,
+        which uses an entry that genuinely cannot be read.
+        """
+        project = InstalledProject(self)
+        os.symlink(os.path.join(project.dir, "gone.txt"),
+                   os.path.join(project.claude, "dangling-link.txt"))
+        result = reinstall_over(project)
+        self.assertEqual(result.returncode, 0, result.stderr[-2000:])
+        self.assertNotIn("Custom-asset preservation failed", result.stdout)
+
+    @unittest.skipIf(hasattr(os, "geteuid") and os.geteuid() == 0,
+                     "root bypasses DAC, so an unreadable file is still readable")
+    def test_what_could_not_be_preserved_is_reported_with_a_count(self):
+        """"Custom-asset preservation failed" gave no scale: one scratch file and
+        656 real ones read identically. The count and the names are the difference.
+
+        An unreadable file is the fixture because it is the residual case the
+        isolation exists for -- something that still raises after every avoidable
+        raise has been designed out.
+        """
+        project = InstalledProject(self)
+        locked = os.path.join(project.claude, "agents", "unreadable.md")
+        with open(locked, "w") as fh:
+            fh.write("project-owned agent\n")
+        os.chmod(locked, 0o000)
+        # The reinstall MOVES the old tree to .claude.bak-<ts>, so `locked` no longer
+        # names the 0o000 file afterwards -- chmod-ing that stale path raised
+        # FileNotFoundError out of doCleanups and failed this test on every run.
+        # Chmod every copy that exists, wherever the swap left it.
+        self.addCleanup(_unlock_everywhere, project.dir, "unreadable.md")
+        with open(os.path.join(project.claude, "agents", "readable.md"), "w") as fh:
+            fh.write("project-owned agent\n")
+
+        result = reinstall_over(project)
+        self.assertEqual(result.returncode, 0, result.stderr[-2000:])
+        self.assertIn("1 file(s) could NOT be preserved", result.stdout)
+        self.assertIn("agents/unreadable.md", result.stdout)
+        # The whole point: the one that failed did not take the other one with it.
+        self.assertTrue(os.path.isfile(project.path("agents/readable.md")))
+
+    def test_a_symlinked_directory_is_carried_over(self):
+        """A link to an EXISTING directory lands in os.walk's `dirs`, not `names`.
+
+        A loop over `names` alone silently drops it -- 36 such links under one
+        project's plans/ went missing on every update before this.
+        """
+        project = InstalledProject(self)
+        real = os.path.join(project.dir, "shared-corpus")
+        os.makedirs(real, exist_ok=True)
+        with open(os.path.join(real, "case.txt"), "w") as fh:
+            fh.write("payload\n")
+        os.symlink(real, os.path.join(project.claude, "agents", "corpus"))
+
+        result = reinstall_over(project)
+        self.assertEqual(result.returncode, 0, result.stdout[-2000:])
+        after = project.path("agents/corpus")
+        self.assertTrue(os.path.islink(after), "symlinked directory was dropped")
+        self.assertTrue(os.path.isfile(os.path.join(after, "case.txt")))
+
+    def test_a_symlink_escaping_the_project_is_refused(self):
+        """Recreating a backup's link verbatim is the same trust `path_guard` refuses.
+
+        A link out to the user's home would otherwise be rebuilt faithfully, and any
+        later write through it lands outside the project.
+        """
+        project = InstalledProject(self)
+        outside = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, outside, True)
+        os.symlink(outside, os.path.join(project.claude, "agents", "escape"))
+
+        result = reinstall_over(project)
+        self.assertEqual(result.returncode, 0, result.stdout[-2000:])
+        self.assertFalse(os.path.lexists(project.path("agents/escape")),
+                         "an escaping symlink was recreated in the new tree")
+        self.assertIn("target escapes the project", result.stdout)
+
+    def test_a_self_referential_directory_link_is_refused(self):
+        """`plans/x/.claude -> <project>/.claude` resolves back to the tree it is in.
+
+        Never descended here (followlinks=False), but baking a cycle into the
+        installed tree hands the next `find -L` or followlinks=True walker an
+        infinite descent. One of these was real, in qa-agents.
+        """
+        project = InstalledProject(self)
+        nest = os.path.join(project.claude, "plans", "shadow")
+        os.makedirs(nest, exist_ok=True)
+        os.symlink(project.claude, os.path.join(nest, ".claude"))
+
+        result = reinstall_over(project)
+        self.assertEqual(result.returncode, 0, result.stdout[-2000:])
+        self.assertFalse(os.path.lexists(project.path("plans/shadow/.claude")),
+                         "a self-referential link was baked into the new tree")
+        self.assertIn("self-referential", result.stdout)
+
+    def test_a_working_symlink_stays_a_symlink(self):
+        """copy2 dereferences, which silently flattens a project's link into a file."""
+        project = InstalledProject(self)
+        real = os.path.join(project.dir, "real-target.txt")
+        with open(real, "w") as fh:
+            fh.write("payload\n")
+        os.symlink(real, os.path.join(project.claude, "agents", "linked.md"))
+
+        reinstall_over(project)
+        self.assertTrue(os.path.islink(project.path("agents/linked.md")),
+                        "preserved as a regular file, not a symlink")
+
+    def test_a_custom_hook_survives_a_pre_manifest_update(self):
+        """No manifest in the backup means the coarse ASSET_DIRS fallback runs.
+
+        It used to list only agents/commands/skills, so a project's own hooks were
+        dropped on every legacy update -- how rest-framework lost two of them.
+        """
+        project = InstalledProject(self, mode="--full")
+        hook = project.path("hooks/quick-verify.sh")
+        self.assertTrue(os.path.isdir(os.path.dirname(hook)), "no hooks/ to test with")
+        with open(hook, "w") as fh:
+            fh.write("#!/usr/bin/env bash\necho custom\n")
+        os.remove(project.path(MANIFEST))          # make it a pre-manifest install
+
+        result = reinstall_over(project, mode="--full")
+        self.assertEqual(result.returncode, 0, result.stdout[-2000:])
+        self.assertTrue(os.path.isfile(hook),
+                        "custom hook dropped by the pre-manifest fallback")
 
     def test_a_project_security_allowlist_survives_a_reinstall(self):
         """`hooks/config.json` is shared: `security` is theirs, the rest is the kit's.

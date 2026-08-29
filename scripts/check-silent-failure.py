@@ -91,7 +91,13 @@ EXCLUDED_PARTS = {
     ".tmp-test-fixtures",  # this repo's pytest sandbox; planted fixtures must never be scanned
 }
 
-MAX_JOIN_LINES = 80  # bounds both the quote-join and the heredoc skip; see logical_lines()
+# Bounds both the quote-join and the heredoc skip; see logical_lines(). It is a guard
+# against pathological input, NOT a statement about how long a legitimate block may be:
+# when the cap is hit the scanner reports DIAGNOSTIC and gives up on the rest of the
+# file, so a cap set below a real block silently turns the scan into a partial one.
+# install.sh's PRESERVE_PY heredoc is 178 lines and crossed the old 80, which blinded
+# the scanner to everything after it in that file until this was raised.
+MAX_JOIN_LINES = 250
 
 # --- shell rule vocabulary -------------------------------------------------
 IGNORES_FAILURE = re.compile(
