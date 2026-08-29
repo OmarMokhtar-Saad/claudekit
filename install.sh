@@ -6,7 +6,28 @@ set -Eeuo pipefail
 # ClaudeKit Installer
 # Usage: ./install.sh [TARGET_DIR] [--full|--minimal] [--language LANG] [--with-mcp] [--with-i18n]
 
-VERSION="2.1.0"
+# Derived, never hardcoded. This sat at 2.1.0 through the 3.0.0 AND 3.1.0 releases, so
+# every install manifest -- the receipt `ck diff` and `ck uninstall` read for provenance --
+# recorded a version two releases stale. It is the FIFTH version site; hard rule 7 named
+# three, then four. The rule now points at the test rather than listing them, and the test
+# reads this file.
+#
+# Absent pyproject.toml is NOT fatal, and the first cut of this got that wrong: installing
+# from a tarball or a copied tree ships install.sh without it, and an `exit 1` there turned
+# provenance into a precondition -- the exact mistake
+# test_installing_from_a_non_git_source_still_succeeds already existed to catch, and did.
+# "unknown" matches how this file already treats an unpinnable commit: record the gap,
+# never fabricate a value.
+#
+# The range is anchored to the [project] table. An unanchored ^version match would
+# take a version = key from any [tool.*] table sorted above it, silently stamping the
+# wrong version -- the same silent-staleness shape this block exists to remove.
+VERSION=""   # never inherit an exported VERSION from the caller environment
+_ck_pyproject="$(dirname "${BASH_SOURCE[0]}")/pyproject.toml"
+if [[ -r "$_ck_pyproject" ]]; then
+    VERSION="$(sed -n '/^\[project\]/,/^\[/{ s/^version = "\([^"]*\)"/\1/p; }' "$_ck_pyproject" | head -1)"
+fi
+VERSION="${VERSION:-unknown}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_SRC="$SCRIPT_DIR/.claude"
 

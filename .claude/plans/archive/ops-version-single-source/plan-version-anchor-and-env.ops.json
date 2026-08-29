@@ -1,0 +1,35 @@
+{
+  "plan": "version-anchor-and-env",
+  "files": [
+    {
+      "path": "install.sh",
+      "edits": [
+        {
+          "find": "sed -n 's/^version = \"\\(.*\\)\"/\\1/p'",
+          "replace": "sed -n '/^\\[project\\]/,/^\\[/{ s/^version = \"\\([^\"]*\\)\"/\\1/p; }'"
+        },
+        {
+          "find": "_ck_pyproject=\"$(dirname \"${BASH_SOURCE[0]}\")/pyproject.toml\"\n",
+          "replace": "VERSION=\"\"   # never inherit an exported VERSION from the caller environment\n_ck_pyproject=\"$(dirname \"${BASH_SOURCE[0]}\")/pyproject.toml\"\n"
+        },
+        {
+          "find": "# never fabricate a value.\n",
+          "replace": "# never fabricate a value.\n#\n# The range is anchored to the [project] table. An unanchored ^version match would\n# take a version = key from any [tool.*] table sorted above it, silently stamping the\n# wrong version -- the same silent-staleness shape this block exists to remove.\n"
+        }
+      ]
+    },
+    {
+      "path": "tests/test_packaging.py",
+      "edits": [
+        {
+          "find": "    hardcoded = re.findall(r'^VERSION=\"(\\d+\\.\\d+\\.\\d+)\"', installer, re.M)",
+          "replace": "    hardcoded = re.findall(\n        r\"\"\"^[ \\t]*(?:export[ \\t]+|readonly[ \\t]+)?VERSION[ \\t]*=[ \\t]*[\"']?(\\d+\\.\\d+\\.\\d+)[\"']?\"\"\",\n        installer, re.M)"
+        },
+        {
+          "find": "    # assignment is the defect; the value must be derived from pyproject.\n",
+          "replace": "    # assignment is the defect regardless of spelling -- export/readonly/indented/\n    # unquoted all count -- so the pattern is deliberately wider than the single\n    # historical form. The value must be derived from pyproject.\n"
+        }
+      ]
+    }
+  ]
+}
