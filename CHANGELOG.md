@@ -16,6 +16,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The install manifest records the real version again.** `install.sh` hardcoded
+  `VERSION="2.1.0"` and was never bumped, so every manifest written since 2.1.0 — the
+  receipt `ck diff` and `ck uninstall` read for provenance — claimed a version two
+  releases stale. It is now derived from `pyproject.toml`, and
+  `test_single_version_source_of_truth` scans `install.sh` too, so a reintroduced literal
+  fails the suite. A missing `pyproject.toml` is **not** fatal: installing from a tarball or
+  a copied tree is supported, and those manifests honestly record `"unknown"` rather than
+  fabricating a number. The read is anchored to the `[project]` table so a `version =` key
+  in any `[tool.*]` table cannot be picked up, and an exported `VERSION` in the caller's
+  environment can no longer leak into the manifest.
+
 - **The bash differential gate no longer reports `pass` when it ran no bash.**
   `check-validator-vs-bash.py` feeds payloads the validator ALLOWS into a real bash and
   reports any reaching a shadowed dangerous command. On ubuntu-24.04 runners, where AppArmor
