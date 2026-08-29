@@ -1,0 +1,14 @@
+{
+  "plan": "version-derive-is-best-effort",
+  "files": [
+    {
+      "path": "install.sh",
+      "edits": [
+        {
+          "find": "# Derived, never hardcoded. This sat at 2.1.0 through the 3.0.0 AND 3.1.0 releases, so\n# every install manifest -- the receipt `ck diff` and `ck uninstall` read for provenance --\n# recorded a version two releases stale. It is the FIFTH version site; hard rule 7 named\n# three, then four. The rule now points at the test rather than listing them, and the test\n# reads this file.\nVERSION=\"$(sed -n 's/^version = \"\\(.*\\)\"/\\1/p' \"$(dirname \"${BASH_SOURCE[0]}\")/pyproject.toml\" | head -1)\"\nif [[ -z \"$VERSION\" ]]; then\n    echo \"FATAL: cannot read the version from pyproject.toml\" >&2\n    exit 1\nfi\n",
+          "replace": "# Derived, never hardcoded. This sat at 2.1.0 through the 3.0.0 AND 3.1.0 releases, so\n# every install manifest -- the receipt `ck diff` and `ck uninstall` read for provenance --\n# recorded a version two releases stale. It is the FIFTH version site; hard rule 7 named\n# three, then four. The rule now points at the test rather than listing them, and the test\n# reads this file.\n#\n# Absent pyproject.toml is NOT fatal, and the first cut of this got that wrong: installing\n# from a tarball or a copied tree ships install.sh without it, and an `exit 1` there turned\n# provenance into a precondition -- the exact mistake\n# test_installing_from_a_non_git_source_still_succeeds already existed to catch, and did.\n# \"unknown\" matches how this file already treats an unpinnable commit: record the gap,\n# never fabricate a value.\n_ck_pyproject=\"$(dirname \"${BASH_SOURCE[0]}\")/pyproject.toml\"\nif [[ -r \"$_ck_pyproject\" ]]; then\n    VERSION=\"$(sed -n 's/^version = \"\\(.*\\)\"/\\1/p' \"$_ck_pyproject\" | head -1)\"\nfi\nVERSION=\"${VERSION:-unknown}\"\n"
+        }
+      ]
+    }
+  ]
+}

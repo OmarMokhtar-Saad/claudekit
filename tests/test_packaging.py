@@ -59,6 +59,17 @@ def test_single_version_source_of_truth():
         for found in literal.findall(py.read_text(encoding="utf-8")):
             assert found == version, (
                 f"stale version literal {found!r} in {py}; pyproject says {version!r}")
+    # install.sh too. Scanning only src/ is why `VERSION="2.1.0"` survived TWO releases
+    # there unnoticed, stamping a stale version into every install manifest. Any literal
+    # assignment is the defect regardless of spelling -- export/readonly/indented/
+    # unquoted all count -- so the pattern is deliberately wider than the single
+    # historical form. The value must be derived from pyproject.
+    installer = (REPO / "install.sh").read_text(encoding="utf-8")
+    hardcoded = re.findall(
+        r"""^[ \t]*(?:export[ \t]+|readonly[ \t]+)?VERSION[ \t]*=[ \t]*["']?(\d+\.\d+\.\d+)["']?""",
+        installer, re.M)
+    assert not hardcoded, (
+        f"install.sh hardcodes VERSION={hardcoded[0]!r}; derive it from pyproject.toml")
     assert re.match(r"\d+\.\d+\.\d+", version)
 
 

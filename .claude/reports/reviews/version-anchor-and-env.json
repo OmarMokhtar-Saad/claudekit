@@ -1,0 +1,17 @@
+{
+  "plan": "version-anchor-and-env",
+  "slug": "version-anchor-and-env",
+  "ops_path": ".claude/plans/plan-version-anchor-and-env.ops.json",
+  "ops_sha256": "ca662be64dab71f2ffa4bd96ba34848be684826dc2fd49643cc276ecdc730cf6",
+  "score": 92,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] sed range end-anchor /^\\[/ is latently fragile against a hypothetical"
+  ],
+  "verdict_origin": "gate-token",
+  "recorded_utc": "2026-08-29T14:11:19Z",
+  "operations": 2,
+  "edits": 5,
+  "rounds": [],
+  "round": 1
+}

@@ -1,0 +1,41 @@
+{
+  "plan": "version-single-source",
+  "files": [
+    {
+      "path": "install.sh",
+      "edits": [
+        {
+          "find": "VERSION=\"2.1.0\"",
+          "replace": "# Derived, never hardcoded. This sat at 2.1.0 through the 3.0.0 AND 3.1.0 releases, so\n# every install manifest -- the receipt `ck diff` and `ck uninstall` read for provenance --\n# recorded a version two releases stale. It is the FIFTH version site; hard rule 7 named\n# three, then four. The rule now points at the test rather than listing them, and the test\n# reads this file.\nVERSION=\"$(sed -n 's/^version = \"\\(.*\\)\"/\\1/p' \"$(dirname \"${BASH_SOURCE[0]}\")/pyproject.toml\" | head -1)\"\nif [[ -z \"$VERSION\" ]]; then\n    echo \"FATAL: cannot read the version from pyproject.toml\" >&2\n    exit 1\nfi"
+        }
+      ]
+    },
+    {
+      "path": "CLAUDE.md",
+      "edits": [
+        {
+          "find": "7. Versions bump in four places together (pyproject, `__init__.py`, `shared.py`, `cli/main.py`'s fallback) and stay monotonic.",
+          "replace": "7. Versions bump everywhere `test_single_version_source_of_truth` derives (pyproject is the truth) and stay monotonic."
+        }
+      ]
+    },
+    {
+      "path": "tests/test_packaging.py",
+      "edits": [
+        {
+          "find": "    literal = re.compile(r'(?:__version__\\s*=|return)\\s+\"(\\d+\\.\\d+\\.\\d+)\"')\n    for py in (REPO / \"src\").rglob(\"*.py\"):\n        for found in literal.findall(py.read_text(encoding=\"utf-8\")):\n            assert found == version, (\n                f\"stale version literal {found!r} in {py}; pyproject says {version!r}\")",
+          "replace": "    literal = re.compile(r'(?:__version__\\s*=|return)\\s+\"(\\d+\\.\\d+\\.\\d+)\"')\n    for py in (REPO / \"src\").rglob(\"*.py\"):\n        for found in literal.findall(py.read_text(encoding=\"utf-8\")):\n            assert found == version, (\n                f\"stale version literal {found!r} in {py}; pyproject says {version!r}\")\n    # install.sh too. Scanning only src/ is why `VERSION=\"2.1.0\"` survived TWO releases\n    # there unnoticed, stamping a stale version into every install manifest. Any literal\n    # assignment is the defect; the value must be derived from pyproject.\n    installer = (REPO / \"install.sh\").read_text(encoding=\"utf-8\")\n    hardcoded = re.findall(r'^VERSION=\"(\\d+\\.\\d+\\.\\d+)\"', installer, re.M)\n    assert not hardcoded, (\n        f\"install.sh hardcodes VERSION={hardcoded[0]!r}; derive it from pyproject.toml\")"
+        }
+      ]
+    },
+    {
+      "path": ".github/workflows/release.yml",
+      "edits": [
+        {
+          "find": "      - name: Run the full test suite\n        run: python -m pytest tests/ -v\n\n      - name: Build sdist + wheel",
+          "replace": "      # The suite shells out to these. Their absence here failed the v3.1.0 release at\n      # the test step -- correctly, but for a harness reason rather than a real one.\n      # ci.yml's `test` and `coverage` jobs were fixed first and this one was missed,\n      # because the jobs were enumerated from ci.yml alone. Both workflows run pytest.\n      - name: Install shellcheck\n        run: sudo apt-get update && sudo apt-get install -y shellcheck\n      - name: Install ruff\n        run: pip install ruff\n\n      - name: Run the full test suite\n        run: python -m pytest tests/ -v\n\n      - name: Build sdist + wheel"
+        }
+      ]
+    }
+  ]
+}
