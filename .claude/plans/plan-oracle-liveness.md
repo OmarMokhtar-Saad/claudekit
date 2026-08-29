@@ -22,6 +22,7 @@ assuming that present means permitted.
 | E | `errored` enters the starvation verdict — denominator **and** its own ratio branch |
 | F | `markers()` returns a typed `_DidNotRun`, so mypy checks the three-way branch |
 | G | `unverified_ratio` — a combined ceiling, because two independent ones are looser together |
+| H | `CHANGELOG.md` — `[3.1.0]` entry, including the `--json` contract change |
 
 ## 2. Evidence — measured, not inferred
 
