@@ -67,17 +67,28 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y shellcheck
       - name: Install ruff
         run: pip install ruff
+      # PR-only, by construction. These three gates ask "does THIS change turn a
+      # REJECT into an ALLOW, relative to main" -- `--baseline auto` resolves the
+      # merge-base with main, which ON main is HEAD itself. The gate then reports
+      # `SKIP: baseline resolves to HEAD - nothing to compare` and `--require-baseline`
+      # correctly turns that skip into an error, so every push to main has failed this
+      # job since at least 2026-08-23. The check is not being weakened: it already ran,
+      # meaningfully, on the pull request that introduced the change. A permanently red
+      # main is a gate nobody reads.
       - name: No change may turn a REJECT into an ALLOW
+        if: github.event_name == 'pull_request'
         run: python3 scripts/check-validator-differential.py --baseline auto --max-len 3 --require-baseline
       # The same rule for the OTHER deny-decision in the repo. The guard that decides
       # whether an ops config may delete a file had no differential gate, and the first
       # change to widen it passed CI green.
       - name: No change may unprotect a file without disclosing it
+        if: github.event_name == 'pull_request'
         run: python3 scripts/check-protected-differential.py --baseline auto --require-baseline
       # The THIRD deny-shaped decision: the file-guard classifier. It is shell, so the
       # gate runs it as a subprocess on both sides. It had no differential gate at all
       # until the day its first widening was proposed.
       - name: No change may un-flag a secret without disclosing it
+        if: github.event_name == 'pull_request'
         run: python3 scripts/check-fileguard-differential.py --baseline auto --require-baseline
       # Executes fuzzed shell payloads on purpose - contained (empty PATH, shadowed dangerous
       # commands, temp cwd, per-child ulimits, refused fork-bomb shapes) and on an ephemeral
