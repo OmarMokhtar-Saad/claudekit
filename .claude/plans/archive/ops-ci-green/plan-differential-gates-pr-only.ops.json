@@ -1,0 +1,26 @@
+{
+  "plan": "differential-gates-are-pr-shaped",
+  "files": [
+    {
+      "path": ".github/workflows/ci.yml",
+      "edits": [
+        {
+          "find": "      - name: No change may turn a REJECT into an ALLOW\n",
+          "add_before": "      # PR-only, by construction. These three gates ask \"does THIS change turn a\n      # REJECT into an ALLOW, relative to main\" -- `--baseline auto` resolves the\n      # merge-base with main, which ON main is HEAD itself. The gate then reports\n      # `SKIP: baseline resolves to HEAD - nothing to compare` and `--require-baseline`\n      # correctly turns that skip into an error, so every push to main has failed this\n      # job since at least 2026-08-23. The check is not being weakened: it already ran,\n      # meaningfully, on the pull request that introduced the change. A permanently red\n      # main is a gate nobody reads.\n"
+        },
+        {
+          "find": "      - name: No change may turn a REJECT into an ALLOW\n        run: python3 scripts/check-validator-differential.py --baseline auto --max-len 3 --require-baseline",
+          "replace": "      - name: No change may turn a REJECT into an ALLOW\n        if: github.event_name == 'pull_request'\n        run: python3 scripts/check-validator-differential.py --baseline auto --max-len 3 --require-baseline"
+        },
+        {
+          "find": "      - name: No change may unprotect a file without disclosing it\n        run: python3 scripts/check-protected-differential.py --baseline auto --require-baseline",
+          "replace": "      - name: No change may unprotect a file without disclosing it\n        if: github.event_name == 'pull_request'\n        run: python3 scripts/check-protected-differential.py --baseline auto --require-baseline"
+        },
+        {
+          "find": "      - name: No change may un-flag a secret without disclosing it\n        run: python3 scripts/check-fileguard-differential.py --baseline auto --require-baseline",
+          "replace": "      - name: No change may un-flag a secret without disclosing it\n        if: github.event_name == 'pull_request'\n        run: python3 scripts/check-fileguard-differential.py --baseline auto --require-baseline"
+        }
+      ]
+    }
+  ]
+}
