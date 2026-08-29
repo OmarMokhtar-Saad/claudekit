@@ -28,7 +28,12 @@ def _resolve_version() -> str:
         # the import package and console scripts remain "claudekit"/"ck".
         return metadata.version("claude-kit")
     except metadata.PackageNotFoundError:
-        return "2.1.0"
+        # Bumped with the other version sites. It sat at 2.1.0 through the 3.0.0
+        # release because hard rule 7 names three sites and this is a fourth, and
+        # the packaging test's forbidden-literal list happened not to include
+        # "2.1.0" -- so a source checkout reported a version two releases old and
+        # nothing failed. The test now derives instead of listing.
+        return "3.1.0"
 
 
 __version__ = _resolve_version()

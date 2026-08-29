@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.1.0] — 2026-08-29
+
 ### Fixed
 
 - **One unreadable file no longer abandons every other custom asset on `ck update`.** The

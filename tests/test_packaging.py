@@ -46,11 +46,19 @@ def test_source_tree_is_true_src_layout():
 
 def test_single_version_source_of_truth():
     version = _field(r'^version\s*=\s*"([^"]+)"')
-    # No stale literal versions anywhere in the shipped Python package.
+    # Every version literal in the shipped package must BE the current version.
+    #
+    # This listed two hardcoded strings to forbid ('"1.1.0"', '"3.1.0"'). Both
+    # failure modes followed: it never contained "2.1.0", so `_resolve_version`'s
+    # source-checkout fallback sat two releases stale through 3.0.0 with nothing
+    # failing; and it pre-forbade "3.1.0", so the release that legitimately reached
+    # that number tripped a guard meant for staleness. Deriving catches the first
+    # and cannot cause the second.
+    literal = re.compile(r'(?:__version__\s*=|return)\s+"(\d+\.\d+\.\d+)"')
     for py in (REPO / "src").rglob("*.py"):
-        text = py.read_text(encoding="utf-8")
-        assert '"1.1.0"' not in text, f"stale version literal in {py}"
-        assert '"3.1.0"' not in text, f"stale version literal in {py}"
+        for found in literal.findall(py.read_text(encoding="utf-8")):
+            assert found == version, (
+                f"stale version literal {found!r} in {py}; pyproject says {version!r}")
     assert re.match(r"\d+\.\d+\.\d+", version)
 
 
