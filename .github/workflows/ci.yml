@@ -40,7 +40,7 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install shellcheck
       - name: Install ruff
-        run: pip install ruff
+        run: pip install ruff==0.16.5
       - name: Run the full test suite
         run: python -m pytest tests/ -v
 
@@ -66,7 +66,7 @@ jobs:
       - name: Install shellcheck
         run: sudo apt-get update && sudo apt-get install -y shellcheck
       - name: Install ruff
-        run: pip install ruff
+        run: pip install ruff==0.16.5
       # PR-only, by construction. These three gates ask "does THIS change turn a
       # REJECT into an ALLOW, relative to main" -- `--baseline auto` resolves the
       # merge-base with main, which ON main is HEAD itself. The gate then reports
@@ -110,7 +110,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install linters
-        run: pip install ruff mypy
+        run: pip install ruff==0.16.5 mypy
       - name: ruff
         run: ruff check src/ tests/ scripts/ .claude/operations/scripts/
       - name: codex-mirror-drift

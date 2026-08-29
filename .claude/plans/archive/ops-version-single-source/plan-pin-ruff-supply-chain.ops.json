@@ -1,0 +1,31 @@
+{
+  "plan": "pin-ruff-supply-chain",
+  "files": [
+    {
+      "path": ".github/workflows/release.yml",
+      "edits": [
+        {
+          "find": "      - name: Install ruff\n        run: pip install ruff\n",
+          "replace": "      # Pinned: this job holds a PyPI OIDC token (id-token: write, environment: pypi),\n      # so an unpinned install would run unreviewed code beside publishing rights.\n      # tests/requirements.txt is already hash-pinned for exactly this reason; ruff\n      # was the gap. Pinned identically in ci.yml so lint cannot differ by version.\n      - name: Install ruff\n        run: pip install ruff==0.16.5\n"
+        }
+      ]
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "edits": [
+        {
+          "find": "      - name: Install ruff\n        run: pip install ruff\n      - name: Run the full test suite\n",
+          "replace": "      - name: Install ruff\n        run: pip install ruff==0.16.5\n      - name: Run the full test suite\n"
+        },
+        {
+          "find": "      # the identical defect, one job over, found only by reading CI again.\n      - name: Install shellcheck\n        run: sudo apt-get update && sudo apt-get install -y shellcheck\n      - name: Install ruff\n        run: pip install ruff\n",
+          "replace": "      # the identical defect, one job over, found only by reading CI again.\n      - name: Install shellcheck\n        run: sudo apt-get update && sudo apt-get install -y shellcheck\n      - name: Install ruff\n        run: pip install ruff==0.16.5\n"
+        },
+        {
+          "find": "        run: pip install ruff mypy\n",
+          "replace": "        run: pip install ruff==0.16.5 mypy\n"
+        }
+      ]
+    }
+  ]
+}
