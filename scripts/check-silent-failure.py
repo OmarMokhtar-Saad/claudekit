@@ -95,8 +95,14 @@ EXCLUDED_PARTS = {
 # against pathological input, NOT a statement about how long a legitimate block may be:
 # when the cap is hit the scanner reports DIAGNOSTIC and gives up on the rest of the
 # file, so a cap set below a real block silently turns the scan into a partial one.
-# install.sh's PRESERVE_PY heredoc is 178 lines and crossed the old 80, which blinded
-# the scanner to everything after it in that file until this was raised.
+# install.sh's PRESERVE_PY heredoc was 178 lines and crossed the old 80, which blinded
+# the scanner to everything after it in that file until this was raised. That heredoc
+# is now a real module (.claude/operations/scripts/preserve_assets.py), but the cap
+# does NOT go back to 80: measured 2026-08-29, install.sh still needs ~110 (it fails
+# at 105, passes at 110), because the VERSION line's sed expression reads as an
+# unterminated quote to the joiner and runs on until the parity re-balances. 250 is
+# kept for headroom -- a cap set near the true maximum silently turns the next long
+# block into a partial scan, which is the failure this constant exists to avoid.
 MAX_JOIN_LINES = 250
 
 # --- shell rule vocabulary -------------------------------------------------

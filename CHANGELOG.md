@@ -12,6 +12,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **`install.sh`'s 178-line asset-preservation heredoc is now a real module.**
+  `PRESERVE_PY` held security-relevant logic -- symlink refusal, per-entry isolation,
+  path containment -- inside a bash heredoc, where neither ruff nor mypy could see it
+  even though both already cover `.claude/operations/scripts/`. It produced three
+  shipped defects in three review rounds, and at 178 lines it also crossed the
+  silent-failure scanner's join cap, leaving the rest of `install.sh` unscanned. It is
+  now `.claude/operations/scripts/preserve_assets.py` with 12 direct tests, and
+  `install.sh` drops from 975 to 803 lines. Behaviour is unchanged.
+
 ## [3.1.0] — 2026-08-29
 
 ### Fixed

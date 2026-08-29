@@ -1,0 +1,17 @@
+{
+  "plan": "preserve-py-extraction",
+  "slug": "preserve-py-extraction",
+  "ops_path": ".claude/plans/plan-preserve-py-extraction.ops.json",
+  "ops_sha256": "1bdd2b19bc6c0ba27c32883418fe2f18ff63c37f8ba195ba8e391cf5d4134c8a",
+  "score": 92,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] `# noqa: BLE001` was inert: ruff selects only E,F,W,I. FIXED in this"
+  ],
+  "verdict_origin": "gate-token",
+  "recorded_utc": "2026-08-29T16:16:03Z",
+  "operations": 4,
+  "edits": 2,
+  "rounds": [],
+  "round": 1
+}
