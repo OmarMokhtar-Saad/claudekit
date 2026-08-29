@@ -28,6 +28,19 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e .
           pip install --require-hashes -r tests/requirements.txt
+      # Several tests shell out to these. Without them the tests do not skip --
+      # they FAIL, and they had been failing on every matrix job since the tools
+      # were only ever installed in the separate lint/shellcheck jobs:
+      # test_command_bash_parse (5 tests) needs shellcheck,
+      # test_fleet_skill_phase_a::test_the_ops_engine_is_actually_clean needs ruff.
+      - name: Install shellcheck (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - name: Install shellcheck (macOS)
+        if: runner.os == 'macOS'
+        run: brew install shellcheck
+      - name: Install ruff
+        run: pip install ruff
       - name: Run the full test suite
         run: python -m pytest tests/ -v
 
