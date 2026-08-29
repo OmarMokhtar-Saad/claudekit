@@ -240,10 +240,11 @@ class TestEject(unittest.TestCase):
     def test_re_adopting_clears_the_eject_receipt(self):
         # Once a project is managed again the receipt is stale: leaving it behind
         # would make `ck doctor` report a managed install as ejected. install.sh
-        # gets this for free -- it backs up and replaces .claude/ wholesale and
-        # restores only ASSET_DIRS (agents, commands, skills), and the receipt
-        # sits at the .claude/ root -- so this test guards the property, not any
-        # one mechanism.
+        # gets this for free -- it backs up and replaces .claude/ wholesale, and
+        # its pre-manifest fallback restores only authored-content directories
+        # (agents, commands, skills, hooks, operations, modes, local, plans,
+        # knowledge, defects) while the receipt sits at the .claude/ ROOT, outside
+        # all of them -- so this test guards the property, not any one mechanism.
         target = install(self)
         self.assertEqual(0, ck("eject", target, "--yes").returncode)
         self.assertEqual(0, ck("update", target, "--yes").returncode)

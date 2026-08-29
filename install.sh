@@ -701,18 +701,131 @@ if os.path.exists(mpath):
             old_manifest = set(json.load(fh).get("files", {}))
     except (ValueError, OSError):
         old_manifest = None
-ASSET_DIRS = ("agents", "commands", "skills")
+# The legacy fallback, used ONLY when the backup carries no manifest. It was
+# ("agents", "commands", "skills"), which silently dropped a project's custom
+# hooks/ and operations/ on every pre-manifest update -- measured: rest-framework
+# lost hooks/format-compile.sh and hooks/quick-verify.sh that way. Widened to the
+# directories that hold AUTHORED content.
+#
+# `reports/` is deliberately NOT here: this repo treats reports as generated, not
+# source ("re-derive, don't cite" -- CLAUDE.md), and the installer itself writes
+# `.claude/reports/` into .gitignore below. Resurrecting a scratch report a user had
+# cleaned up, and relabelling it "custom" in `ck diff`, is not preservation.
+ASSET_DIRS = ("agents", "commands", "skills", "hooks", "operations", "modes",
+              "local", "plans", "knowledge", "defects")
 # Must stay in step with NEVER_MANAGED in the manifest block above.
 SKIP_NAMES = {"hooks.log", "settings.local.json", ".claudekit-manifest.json"}
 restored = []
+failed = []
+
+
+# realpath, not abspath: `_within` normalises both sides itself, but leaving an
+# unresolved root here is a footgun for the next direct user of it (macOS
+# /var -> /private/var is what made every legitimate link read as an escape).
+project_root = os.path.dirname(os.path.realpath(dest))
+refused = []
+
+
+def _within(child, parent):
+    """Both sides through realpath, which is the whole trick.
+
+    On macOS a temp dir is /var/folders/... -- itself a symlink to /private/var/...
+    Resolving only the child made every legitimate link look like an escape, and the
+    refusal policy silently ate three passing tests before this was normalised.
+    """
+    child = os.path.realpath(child)
+    parent = os.path.realpath(parent)
+    return child == parent or child.startswith(os.path.join(parent, ""))
+
+
+def link_refusal(path, target):
+    """Why this symlink must NOT be recreated, or None to carry it over.
+
+    The preserve loop was the one place in this repo that would rebuild an arbitrary
+    symlink target verbatim. `security/path_guard.py` rejects targets that escape the
+    project root and `review-record.py:_safe_write` refuses to write THROUGH a link at
+    any level; recreating whatever a backup happens to contain is the same class of
+    trust, so it gets the same answer. A refusal is reported, never silent -- the file
+    stays in the backup and the operator is told which and why.
+    """
+    dest_of_link = os.path.join(os.path.dirname(path), os.readlink(path))
+    resolved = os.path.realpath(dest_of_link)
+    if not _within(resolved, project_root):
+        return "target escapes the project"
+    # A DIRECTORY link whose target contains the link's own location is a cycle:
+    # `plans/x/shadow/.claude -> <project>/.claude` resolves back to the tree it lives
+    # in. This script never descends it (followlinks=False, and it is pulled out of
+    # `dirs`), but baking a self-reference into the installed tree hands the next
+    # `find -L`, `du`, or followlinks=True walker an infinite descent.
+    if os.path.isdir(dest_of_link) and _within(os.path.realpath(target), resolved):
+        return "self-referential directory link (target is an ancestor of it)"
+    return None
+
+
+def carry_over(path, target):
+    """Copy one backup entry into the new tree. Symlinks stay symlinks.
+
+    `shutil.copy2` DEREFERENCES: on a link it copies the target's bytes, silently
+    turning the project's symlink into a regular file -- and on a DANGLING link it
+    raises FileNotFoundError. Recreating the link from `os.readlink` preserves what
+    the project actually had and cannot fail on a target that no longer exists.
+
+    No overwrite handling: the caller skips any rel that already lexists in dest, and
+    this script is synchronous, so `target` is always absent here.
+    """
+    os.makedirs(os.path.dirname(target), exist_ok=True)
+    if os.path.islink(path):
+        os.symlink(os.readlink(path), target)
+    else:
+        shutil.copy2(path, target)
+
+
+def preserve(path, rel):
+    """Apply the refusal policy, then carry the entry over. Returns True if restored."""
+    target = os.path.join(dest, rel)
+    if os.path.islink(path):
+        why = link_refusal(path, target)
+        if why is not None:
+            refused.append((rel, why))
+            return False
+    carry_over(path, target)
+    return True
+
+
 for root, dirs, names in os.walk(backup):
     dirs[:] = [d for d in dirs if d != "__pycache__"]
+    # A symlink to an EXISTING directory is classified as a directory, so it lands in
+    # `dirs` and a loop over `names` alone can never carry it over -- measured: 36 of
+    # them under one project's plans/, silently dropped on every update. (A DANGLING
+    # dir-symlink is classified as a file and does reach `names`, which is why this
+    # only shows up for links whose target still exists.) Handled here and removed
+    # from `dirs` so the walk cannot descend through them into the live tree.
+    for d in list(dirs):
+        link_path = os.path.join(root, d)
+        if not os.path.islink(link_path):
+            continue
+        dirs.remove(d)
+        link_rel = os.path.relpath(link_path, backup)
+        if os.path.lexists(os.path.join(dest, link_rel)):
+            continue
+        if old_manifest is not None:
+            if link_rel in old_manifest:
+                continue
+        elif link_rel.split(os.sep)[0] not in ASSET_DIRS:
+            continue
+        try:
+            if preserve(link_path, link_rel):
+                restored.append(link_rel)
+        except Exception as e:
+            failed.append((link_rel, e))
     for n in names:
         if n in SKIP_NAMES or n.endswith(".pyc"):
             continue
         path = os.path.join(root, n)
         rel = os.path.relpath(path, backup)
-        if os.path.exists(os.path.join(dest, rel)):
+        # lexists, not exists: a DANGLING symlink already in the new tree is present
+        # and must be left alone, where `exists` would read it as absent.
+        if os.path.lexists(os.path.join(dest, rel)):
             continue
         if old_manifest is not None:
             # Precise: old-kit files (removed/renamed since) are NOT resurrected.
@@ -720,15 +833,41 @@ for root, dirs, names in os.walk(backup):
                 continue
         elif rel.split(os.sep)[0] not in ASSET_DIRS:
             continue
-        target = os.path.join(dest, rel)
-        os.makedirs(os.path.dirname(target), exist_ok=True)
-        shutil.copy2(path, target)
+        # Per-entry, and this is the whole point. One unreadable entry used to abort
+        # the LOOP: a single dangling symlink under plans/ cost qa-agents 656 custom
+        # files -- its own agents, 281 files under operations/, 118 under reports/ --
+        # because everything the walk had not yet reached was abandoned, under one
+        # yellow line saying the files "remain in the backup". A permissions error or
+        # a race with another process aborts identically; the symlink was only the
+        # trigger. Isolating each entry makes the damage proportional to the fault.
+        # Broad on purpose: nothing this function can raise may end the loop.
+        try:
+            if not preserve(path, rel):
+                continue
+        except Exception as e:
+            failed.append((rel, e))
+            continue
         restored.append(rel)
 for rel in sorted(restored):
     print("    preserved: " + rel)
 if restored and old_manifest is None:
     print("    (pre-manifest backup: preserved files may include assets from an")
     print("     older kit version -- run `ck diff` to review the custom list)")
+if refused:
+    print("    %d symlink(s) NOT recreated (kept in the backup):" % len(refused))
+    for rel, why in sorted(refused)[:10]:
+        print("      %s -- %s" % (rel, why))
+    if len(refused) > 10:
+        print("      ... and %d more" % (len(refused) - 10))
+if failed:
+    # A count and names, not just "something failed". The old message gave no scale,
+    # so losing one scratch file and losing 656 read identically.
+    print("    WARNING: %d file(s) could NOT be preserved; they remain in the backup:"
+          % len(failed))
+    for rel, e in sorted(failed, key=lambda p: p[0])[:10]:
+        print("      %s (%s)" % (rel, e.__class__.__name__))
+    if len(failed) > 10:
+        print("      ... and %d more" % (len(failed) - 10))
 PRESERVE_PY
 fi
 
