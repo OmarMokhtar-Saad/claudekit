@@ -22,13 +22,13 @@ index never outranks the current files.
 
 | State | Plans |
 |---|---:|
-| `drifted` | 3 |
-| `approved` | 49 |
+| `drifted` | 4 |
+| `approved` | 50 |
 | `planned` | 11 |
 | `executed` | 28 |
-| `not_started` | 17 |
+| `not_started` | 20 |
 | `legacy` | 3 |
-| **total** | **111** |
+| **total** | **116** |
 
 ## Plans
 
@@ -80,6 +80,7 @@ index never outranks the current files.
 | `.claude/plans/plan-hook-live-findings.md` | `executed` | 10 |  |
 | `.claude/plans/plan-hook-log-dedup.md` | `executed` | 3 |  |
 | `.claude/plans/plan-hook-profiles.md` | `approved` | 1 |  |
+| `.claude/plans/plan-install-preservation-and-xpipe-policy.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-install-receipts.md` | `approved` | 1 |  |
 | `.claude/plans/plan-installer-python-hooks.md` | `approved` | 1 |  |
 | `.claude/plans/plan-intermittent-sighting.md` | `executed` | 1 |  |
@@ -94,6 +95,9 @@ index never outranks the current files.
 | `.claude/plans/plan-ops-approval-gate.md` | `approved` | 1 |  |
 | `.claude/plans/plan-ops-engine-file-modes.md` | `approved` | 1 |  |
 | `.claude/plans/plan-ops-hardening-implementer-contract.md` | `planned` | 1 |  |
+| `.claude/plans/plan-oracle-liveness.md` | `not_started` | 0 |  |
+| `.claude/plans/plan-preserve-dir-symlinks.md` | `not_started` | 0 |  |
+| `.claude/plans/plan-preserve-fault-tolerance.md` | `drifted` | 6 |  |
 | `.claude/plans/plan-protected-docs-scope.md` | `approved` | 1 |  |
 | `.claude/plans/plan-queued-ops-gate.md` | `executed` | 3 |  |
 | `.claude/plans/plan-receipts-regressions.md` | `approved` | 1 |  |
@@ -113,7 +117,8 @@ index never outranks the current files.
 | `.claude/plans/plan-review-floor-and-iron-law-scope.md` | `approved` | 1 |  |
 | `.claude/plans/plan-review-loop-2.md` | `planned` | 1 |  |
 | `.claude/plans/plan-review-loop-3.md` | `planned` | 1 |  |
-| `.claude/plans/plan-review-loop.md` | `planned` | 3 |  |
+| `.claude/plans/plan-review-loop-tripwire.md` | `approved` | 1 |  |
+| `.claude/plans/plan-review-loop.md` | `planned` | 4 |  |
 | `.claude/plans/plan-review-round-2.md` | `executed` | 18 |  |
 | `.claude/plans/plan-review-round-history.md` | `approved` | 1 |  |
 | `.claude/plans/plan-review-truthfulness-batch.md` | `approved` | 1 |  |
