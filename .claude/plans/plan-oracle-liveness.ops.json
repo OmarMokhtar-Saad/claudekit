@@ -1,0 +1,34 @@
+{
+  "plan": "oracle-liveness",
+  "files": [
+    {
+      "path": "scripts/check-validator-vs-bash.py",
+      "edits": [
+        {
+          "find": "PROBE = \"\"\"\\\nulimit -t 2  2>/dev/null || true\nulimit -f 64 2>/dev/null || true\nulimit -v 262144 2>/dev/null || true\nset -o noclobber 2>/dev/null || true\nexport PATH=\"\"\nexport HOME=\"$PWD\"\n%s\neval \"$1\"\n\"\"\"",
+          "replace": "#: Emitted BEFORE the payload, so its absence means the probe never ran at all --\n#: `unshare` refused, bash was missing, the sandbox was unwritable. Without it a\n#: failed probe is indistinguishable from a payload that legitimately reached no\n#: shadowed command: both yield an empty marker list, and the oracle counted the\n#: first as a clean execution. Measured: on ubuntu-24.04 runners, where AppArmor\n#: restricts unprivileged user namespaces, every one of 338 probes failed this way\n#: and the gate reported `pass` while executing no bash whatsoever.\nLIVENESS = \"__probe_ran__\"\n\nPROBE = \"\"\"\\\nulimit -t 2  2>/dev/null || true\nulimit -f 64 2>/dev/null || true\nulimit -v 262144 2>/dev/null || true\nset -o noclobber 2>/dev/null || true\nexport PATH=\"\"\nexport HOME=\"$PWD\"\necho \"MARKER:%s\"\n%s\neval \"$1\"\n\"\"\""
+        },
+        {
+          "find": "def _load(name: str, path: Path):",
+          "replace": "#: A probe that never reached its own first line. Deliberately a unique object and\n#: not an empty list: `[]` is a legitimate result (bash ran, reached nothing), and a\n#: sentinel that compares equal to a real answer is a trap for the next edit.\nDID_NOT_RUN = object()\n\n\ndef _load(name: str, path: Path):"
+        },
+        {
+          "find": "def _probe_script() -> str:\n    functions = \"\\n\".join(f'{name}() {{ echo \"MARKER:{name}\"; }}' for name in SHADOWED)\n    return PROBE % functions",
+          "replace": "def _probe_script() -> str:\n    functions = \"\\n\".join(f'{name}() {{ echo \"MARKER:{name}\"; }}' for name in SHADOWED)\n    return PROBE % (LIVENESS, functions)"
+        },
+        {
+          "find": "    return [line[len(\"MARKER:\"):] for line in result.stdout.splitlines()\n            if line.startswith(\"MARKER:\")]",
+          "replace": "    reached = [line[len(\"MARKER:\"):] for line in result.stdout.splitlines()\n               if line.startswith(\"MARKER:\")]\n    if LIVENESS not in reached:\n        # The probe did not reach its own first line, so nothing was verified here.\n        # Reported as a distinct outcome rather than folded into \"reached nothing\".\n        return DID_NOT_RUN  # type: ignore[return-value]\n    return [m for m in reached if m != LIVENESS]"
+        },
+        {
+          "find": "    if sys.platform.startswith(\"linux\") and shutil.which(\"unshare\"):\n        return [\"unshare\", \"--pid\", \"--fork\"]\n    return []",
+          "replace": "    if not (sys.platform.startswith(\"linux\") and shutil.which(\"unshare\")):\n        return []\n    # Present is not the same as permitted: Ubuntu 24.04 restricts unprivileged user\n    # namespaces through AppArmor, so `unshare` exists and fails. Ask it, once.\n    # Falling back to no isolation is consistent with this function's own account --\n    # the namespace is \"the smallest\" of the three reasons executing here is\n    # acceptable, and the ephemeral runner is the real one.\n    try:\n        probe = subprocess.run([\"unshare\", \"--pid\", \"--fork\", \"true\"],\n                               capture_output=True, timeout=10)\n    except (OSError, subprocess.TimeoutExpired):\n        return []\n    return [\"unshare\", \"--pid\", \"--fork\"] if probe.returncode == 0 else []"
+        },
+        {
+          "find": "                reached = markers(payload, sandbox, timeout)\n                if reached is None:\n                    unverified += 1\n                    continue\n                executed += 1",
+          "replace": "                reached = markers(payload, sandbox, timeout)\n                if reached is None:\n                    unverified += 1\n                    continue\n                if reached is DID_NOT_RUN:\n                    # NOT `executed`: a probe that never reached its own first line\n                    # verified nothing, and counting it as executed is what let a\n                    # harness failure read as a clean run.\n                    errored += 1\n                    continue\n                executed += 1"
+        }
+      ]
+    }
+  ]
+}

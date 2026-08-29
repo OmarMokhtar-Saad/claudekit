@@ -1,0 +1,14 @@
+{
+  "plan": "ci-test-job-tooling",
+  "files": [
+    {
+      "path": ".github/workflows/ci.yml",
+      "edits": [
+        {
+          "find": "      - name: Install package + test deps\n        run: |\n          python -m pip install --upgrade pip\n          pip install -e .\n          pip install --require-hashes -r tests/requirements.txt\n      - name: Run the full test suite\n        run: python -m pytest tests/ -v",
+          "replace": "      - name: Install package + test deps\n        run: |\n          python -m pip install --upgrade pip\n          pip install -e .\n          pip install --require-hashes -r tests/requirements.txt\n      # Several tests shell out to these. Without them the tests do not skip --\n      # they FAIL, and they had been failing on every matrix job since the tools\n      # were only ever installed in the separate lint/shellcheck jobs:\n      # test_command_bash_parse (5 tests) needs shellcheck,\n      # test_fleet_skill_phase_a::test_the_ops_engine_is_actually_clean needs ruff.\n      - name: Install shellcheck (Linux)\n        if: runner.os == 'Linux'\n        run: sudo apt-get update && sudo apt-get install -y shellcheck\n      - name: Install shellcheck (macOS)\n        if: runner.os == 'macOS'\n        run: brew install shellcheck\n      - name: Install ruff\n        run: pip install ruff\n      - name: Run the full test suite\n        run: python -m pytest tests/ -v"
+        }
+      ]
+    }
+  ]
+}
