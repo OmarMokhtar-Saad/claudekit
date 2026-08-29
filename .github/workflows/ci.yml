@@ -60,6 +60,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e .
           pip install --require-hashes -r tests/requirements.txt
+      # This job runs the SAME suite as `test`, so it needs the same binaries. Adding
+      # them to `test` alone left this job failing on `FileNotFoundError: 'ruff'` --
+      # the identical defect, one job over, found only by reading CI again.
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - name: Install ruff
+        run: pip install ruff
       - name: No change may turn a REJECT into an ALLOW
         run: python3 scripts/check-validator-differential.py --baseline auto --max-len 3 --require-baseline
       # The same rule for the OTHER deny-decision in the repo. The guard that decides

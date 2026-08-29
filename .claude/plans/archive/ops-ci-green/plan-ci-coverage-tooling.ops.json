@@ -1,0 +1,14 @@
+{
+  "plan": "ci-coverage-job-tooling",
+  "files": [
+    {
+      "path": ".github/workflows/ci.yml",
+      "edits": [
+        {
+          "find": "      - name: Install package + test deps\n        run: |\n          python -m pip install --upgrade pip\n          pip install -e .\n          pip install --require-hashes -r tests/requirements.txt\n      - name: No change may turn a REJECT into an ALLOW",
+          "replace": "      - name: Install package + test deps\n        run: |\n          python -m pip install --upgrade pip\n          pip install -e .\n          pip install --require-hashes -r tests/requirements.txt\n      # This job runs the SAME suite as `test`, so it needs the same binaries. Adding\n      # them to `test` alone left this job failing on `FileNotFoundError: 'ruff'` --\n      # the identical defect, one job over, found only by reading CI again.\n      - name: Install shellcheck\n        run: sudo apt-get update && sudo apt-get install -y shellcheck\n      - name: Install ruff\n        run: pip install ruff\n      - name: No change may turn a REJECT into an ALLOW"
+        }
+      ]
+    }
+  ]
+}
