@@ -1,0 +1,31 @@
+{
+  "plan": "fixup-partial-owned-test-fixture",
+  "files": [
+    {
+      "path": "tests/test_adapt.py",
+      "edits": [
+        {
+          "find": "        for rel, body in ((\"agents/a.md\", \"kit asset\\n\"),\n                          (\"local/CLAUDE.project.md\", \"user prose\\n\"),\n                          (\"hooks/config.json\", '{\"project\": {}}\\n')):",
+          "replace": "        # Every PARTIAL_OWNED_RELS member needs a body here: the assertion below\n        # iterates that tuple dynamically, so a member missing from this fixture\n        # fails as \"deleted\" when it was simply never created.\n        for rel, body in ((\"agents/a.md\", \"kit asset\\n\"),\n                          (\"local/CLAUDE.project.md\", \"user prose\\n\"),\n                          (\"local/CONSTITUTION.md\", \"project constitution\\n\"),\n                          (\"hooks/config.json\", '{\"project\": {}}\\n')):"
+        }
+      ]
+    },
+    {
+      "path": "tests/test_install_receipts.py",
+      "edits": [
+        {
+          "find": "    def reinstall(self, project):\n        \"\"\"Re-run the installer over an existing install \u2014 what `ck update` does.\"\"\"\n        result = subprocess.run(\n            [\"bash\", INSTALLER, project.dir, \"--minimal\", \"--yes\", \"--force\"],\n            capture_output=True, text=True, timeout=600,\n            env=dict(os.environ, ECC_HOOK_PROFILE=\"minimal\"))\n        self.assertEqual(result.returncode, 0, result.stdout[-2000:] + result.stderr[-2000:])",
+          "replace": "    def reinstall(self, project):\n        \"\"\"Re-run the installer over an existing install \u2014 what `ck update` does.\"\"\"\n        result = reinstall_over(project)\n        self.assertEqual(result.returncode, 0, result.stdout[-2000:] + result.stderr[-2000:])"
+        },
+        {
+          "find": "def reinstall_over(project, mode=\"--minimal\"):\n    \"\"\"Re-run the real installer over an existing install -- what `ck update` does.\"\"\"\n    return subprocess.run(\n        [\"bash\", INSTALLER, project.dir, mode, \"--yes\", \"--force\"],\n        capture_output=True, text=True, timeout=600,\n        env=dict(os.environ, ECC_HOOK_PROFILE=\"minimal\"))",
+          "delete": true
+        },
+        {
+          "find": "def ck(*args, cwd=None, stdin=\"\"):",
+          "add_before": "def reinstall_over(project, mode=\"--minimal\"):\n    \"\"\"Re-run the real installer over an existing install -- what `ck update` does.\n\n    Module-level and shared: `TheReceiptRecordsOnlyWhatTheKitOwns.reinstall` and\n    `TheInstallerKeepsWhatTheProjectOwns` both call it, so the subprocess shape\n    lives in one place (CLAUDE.md: no new near-duplicate assets).\n    \"\"\"\n    return subprocess.run(\n        [\"bash\", INSTALLER, project.dir, mode, \"--yes\", \"--force\"],\n        capture_output=True, text=True, timeout=600,\n        env=dict(os.environ, ECC_HOOK_PROFILE=\"minimal\"))\n\n\n"
+        }
+      ]
+    }
+  ]
+}

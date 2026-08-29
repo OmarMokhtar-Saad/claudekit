@@ -1,0 +1,17 @@
+{
+  "plan": ".claude/plans/plan-preserve-fault-tolerance.md",
+  "slug": "preserve-fault-tolerance",
+  "ops_path": ".claude/plans/plan-preserve-fault-tolerance.ops.json",
+  "ops_sha256": "bc3e1c72804f900970f6aa95985ed12098eaa8a4eba794333b1b8b25136aabe8",
+  "score": 96,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] `test_what_could_not_be_preserved_is_reported_with_a_count` asserts only the absence of the old failure line, not the presence of the new `WARNING: N file(s) could NOT be preserved` message; a positiv"
+  ],
+  "verdict_origin": "rubric",
+  "recorded_utc": "2026-08-28T18:57:08Z",
+  "operations": 4,
+  "edits": 4,
+  "rounds": [],
+  "round": 1
+}

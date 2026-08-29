@@ -1,0 +1,14 @@
+{
+  "plan": "pragma-placement",
+  "files": [
+    {
+      "path": "tests/test_install_receipts.py",
+      "edits": [
+        {
+          "find": "            # silent-ok: best-effort teardown so rmtree can remove a 0o000 fixture;\n            # a failure here cannot affect any assertion, and raising would replace a\n            # real test result with a cleanup error (which is the bug this fixes).\n            except OSError:\n                pass",
+          "replace": "            # Best-effort teardown so rmtree can remove a 0o000 fixture: a failure\n            # here cannot affect an assertion, and raising would replace a real test\n            # result with a cleanup error -- which is the bug this helper exists to fix.\n            # silent-ok: teardown chmod; failure cannot affect any assertion\n            except OSError:\n                pass"
+        }
+      ]
+    }
+  ]
+}

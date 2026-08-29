@@ -12,6 +12,76 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.1.0] — 2026-08-29
+
+### Fixed
+
+- **The bash differential gate no longer reports `pass` when it ran no bash.**
+  `check-validator-vs-bash.py` feeds payloads the validator ALLOWS into a real bash and
+  reports any reaching a shadowed dangerous command. On ubuntu-24.04 runners, where AppArmor
+  restricts unprivileged user namespaces, `unshare` exists and fails — so every probe process
+  died before bash started, and `markers()` returned the same empty list it returns for
+  "ran, reached nothing". Handed a validator with `BLOCKLIST = set()`, the gate reported
+  **338 executed, 0 findings, `pass`**. The probe now emits a liveness marker before the
+  payload, a probe that never reaches it counts as `errored` rather than `executed`, and
+  `process_isolation()` asks whether `unshare` works instead of assuming that present means
+  permitted. **`--json` output changes:** `error_ratio` and `unverified_ratio` are new, and
+  `refusal_ratio` keeps its numerator but its denominator now includes `errored`, so values
+  are not comparable with those from earlier runs.
+
+- **One unreadable file no longer abandons every other custom asset on `ck update`.** The
+  preserve loop called `shutil.copy2` per entry with no isolation, and `copy2` follows
+  symlinks — so a single **dangling** symlink raised out of the loop and everything the walk
+  had not yet reached was left behind, reported as one line saying the files "remain in the
+  backup". Measured: a scratch symlink under `plans/` cost one repo **656 custom files**,
+  including its own agents and 281 files under `operations/`. Each entry is now isolated, and
+  what could not be preserved is reported with a count and names. Symlinks are recreated as
+  symlinks rather than dereferenced, which also stops a working link being silently flattened
+  into a regular file.
+- **Custom `hooks/` and `operations/` survive a pre-manifest update.** When the backup carries
+  no manifest, preservation falls back to a directory list that named only
+  `agents`/`commands`/`skills`, silently dropping everything else; two custom hooks were lost
+  that way. The fallback now covers the directories that hold authored content — `reports/`
+  stays excluded, since the kit generates it and gitignores it.
+
+### Added
+
+- **A tripwire for the review loop that never terminates.** `review-record.py`'s 3-round
+  ceiling was documented in a comment and enforced by nothing: a plan could be rejected six
+  times without any machinery saying a word (measured — AppiumLens, 2026-08-28:
+  `79 -> 78 -> 72 -> 86 -> 86 -> 81` across three different concurrency mechanisms, caught
+  only by a human writing a retrospective afterwards). `write` now counts *consecutive*
+  rejecting rounds — using the file's existing `is_rejecting`, so an `APPROVED` scored
+  below the threshold does not reset a live streak — and at three prints the trail with the
+  split recommendation, plus a separate notice when the score held or rose and then fell,
+  which is evidence of scope rather than sloppiness. Advisory by construction: recorded in
+  the verdict JSON as `loop_advisory` and printed to stderr, and it can never change
+  `write`'s exit code or withhold an approval.
+
+### Fixed
+
+- **A reinstall no longer overwrites the two docs it tells you to customize.**
+  `local/CLAUDE.project.md` and `local/CONSTITUTION.md` were re-rendered from the language
+  template on every `ck update`, replacing a project's real description and architecture
+  layers with the stock text (one project's layers became
+  `# TODO: Define your architecture layers here`). They are now seeded on a first install
+  and preserved on every reinstall. `local/CONSTITUTION.md` also joins the partially-owned
+  set, so `ck uninstall` keeps it rather than deleting it as an unchanged kit file.
+- **A reinstall no longer drops the project's `security` block from `hooks/config.json`.**
+  The kit owns that file's structure and auto-configures `project`, but `security` is the
+  project's own command allowlist and is not regenerable; it is now merged across rather
+  than replaced. Four projects in one fleet update lost allowlists of 32, 15, 5 and 1
+  commands to this.
+
+### Changed
+
+- **The parallel-agents policy in `templates/*/CLAUDE.md` matches reality.** All eleven
+  shipped a block dated 2026-08-09 calling `/xpipe` routing "MANDATORY, not advisory",
+  while `xpipe.py` has resolved to `solo` on every run since XPipe was closed on
+  2026-08-16. Substantial tasks now route through `/plan` -> `/review` (>=90) ->
+  `/implement`, or `/coordinator`; a REVISE verdict still stops the chain, and reopening
+  XPipe is documented as the deliberate act it is. Region marker bumped `v1` -> `v2`.
+
 ## [3.0.0] — 2026-08-25
 
 ### Added

@@ -50,7 +50,17 @@ from typing import Any, Dict, FrozenSet, List, Optional, Sequence, Tuple
 
 #: Class 2 members that carry a receipt. Kept beside the ownership constants in
 #: cli/main.py (PARTIAL_OWNED) and duplicated nowhere else.
-PARTIAL_OWNED_RELS = ("local/CLAUDE.project.md", "hooks/config.json")
+#:
+#: `local/CONSTITUTION.md` is the odd one: `ck adapt` writes into NEITHER a marked region
+#: nor a key of it, so "partial" understates the kit's distance from it -- the installer
+#: seeds it once and every line after that is the project's. It is listed here anyway
+#: because this set is what the deletion paths consult: `cmd_uninstall` builds `removable`
+#: from `unchanged`, and a preserved-but-never-edited CONSTITUTION.md hashes as `unchanged`
+#: against the manifest written just after it was preserved. Without this entry the
+#: installer would stop overwriting a project's constitution while `ck uninstall` went on
+#: silently deleting it, under a prompt that never says the file was customized.
+PARTIAL_OWNED_RELS = ("local/CLAUDE.project.md", "local/CONSTITUTION.md",
+                      "hooks/config.json")
 
 #: The region `ck adapt` owns inside .claude/local/CLAUDE.project.md.
 REGION_ID = "PROJECT-ADAPT"

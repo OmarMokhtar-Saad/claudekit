@@ -1,0 +1,23 @@
+{
+  "plan": "preserve-scanner-visibility",
+  "files": [
+    {
+      "path": "scripts/check-silent-failure.py",
+      "edits": [
+        {
+          "find": "MAX_JOIN_LINES = 80  # bounds both the quote-join and the heredoc skip; see logical_lines()",
+          "replace": "# Bounds both the quote-join and the heredoc skip; see logical_lines(). It is a guard\n# against pathological input, NOT a statement about how long a legitimate block may be:\n# when the cap is hit the scanner reports DIAGNOSTIC and gives up on the rest of the\n# file, so a cap set below a real block silently turns the scan into a partial one.\n# install.sh's PRESERVE_PY heredoc is 178 lines and crossed the old 80, which blinded\n# the scanner to everything after it in that file until this was raised.\nMAX_JOIN_LINES = 250"
+        }
+      ]
+    },
+    {
+      "path": "tests/test_install_receipts.py",
+      "edits": [
+        {
+          "find": "    for dirpath, _dirs, names in os.walk(root):\n        if name in names:\n            try:\n                os.chmod(os.path.join(dirpath, name), 0o600)\n            except OSError:\n                pass",
+          "replace": "    for dirpath, _dirs, names in os.walk(root):\n        if name in names:\n            try:\n                os.chmod(os.path.join(dirpath, name), 0o600)\n            # silent-ok: best-effort teardown so rmtree can remove a 0o000 fixture;\n            # a failure here cannot affect any assertion, and raising would replace a\n            # real test result with a cleanup error (which is the bug this fixes).\n            except OSError:\n                pass"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "plan": "version-literals-derive",
+  "files": [
+    {
+      "path": "src/claudekit/cli/main.py",
+      "edits": [
+        {
+          "find": "    except metadata.PackageNotFoundError:\n        return \"2.1.0\"",
+          "replace": "    except metadata.PackageNotFoundError:\n        # Bumped with the other version sites. It sat at 2.1.0 through the 3.0.0\n        # release because hard rule 7 names three sites and this is a fourth, and\n        # the packaging test's forbidden-literal list happened not to include\n        # \"2.1.0\" -- so a source checkout reported a version two releases old and\n        # nothing failed. The test now derives instead of listing.\n        return \"3.1.0\""
+        }
+      ]
+    },
+    {
+      "path": "tests/test_packaging.py",
+      "edits": [
+        {
+          "find": "    version = _field(r'^version\\s*=\\s*\"([^\"]+)\"')\n    # No stale literal versions anywhere in the shipped Python package.\n    for py in (REPO / \"src\").rglob(\"*.py\"):\n        text = py.read_text(encoding=\"utf-8\")\n        assert '\"1.1.0\"' not in text, f\"stale version literal in {py}\"\n        assert '\"3.1.0\"' not in text, f\"stale version literal in {py}\"\n    assert re.match(r\"\\d+\\.\\d+\\.\\d+\", version)",
+          "replace": "    version = _field(r'^version\\s*=\\s*\"([^\"]+)\"')\n    # Every version literal in the shipped package must BE the current version.\n    #\n    # This listed two hardcoded strings to forbid ('\"1.1.0\"', '\"3.1.0\"'). Both\n    # failure modes followed: it never contained \"2.1.0\", so `_resolve_version`'s\n    # source-checkout fallback sat two releases stale through 3.0.0 with nothing\n    # failing; and it pre-forbade \"3.1.0\", so the release that legitimately reached\n    # that number tripped a guard meant for staleness. Deriving catches the first\n    # and cannot cause the second.\n    literal = re.compile(r'(?:__version__\\s*=|return)\\s+\"(\\d+\\.\\d+\\.\\d+)\"')\n    for py in (REPO / \"src\").rglob(\"*.py\"):\n        for found in literal.findall(py.read_text(encoding=\"utf-8\")):\n            assert found == version, (\n                f\"stale version literal {found!r} in {py}; pyproject says {version!r}\")\n    assert re.match(r\"\\d+\\.\\d+\\.\\d+\", version)"
+        }
+      ]
+    }
+  ]
+}

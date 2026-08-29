@@ -100,6 +100,81 @@ class TestTheOracleBinds:
         report = oracle.run(FAST, REPO_ROOT, 5.0)
         assert report["executed"] > 0, report
 
+    def test_a_run_that_mostly_failed_to_start_is_not_a_clean_run(self, monkeypatch):
+        """The half the first fix missed, and the reason `errored` is a ratio.
+
+        Making dead probes `errored` instead of `executed` closed the all-dead case
+        and left `executed=1, unverified=0, errored=337` reporting `pass` -- one live
+        bash process out of 338 payloads. `errored` now sits in the denominator and
+        carries its own threshold, so "asked almost nothing" fails like "asked
+        nothing".
+        """
+        real = oracle.markers
+        state = {"n": 0}
+
+        def mostly_dead(payload, sandbox, timeout):
+            state["n"] += 1
+            if state["n"] == 1:
+                return real(payload, sandbox, timeout)
+            return oracle.DID_NOT_RUN
+
+        monkeypatch.setattr(oracle, "markers", mostly_dead)
+        report = oracle.run(FAST, REPO_ROOT, 5.0)
+        assert report["status"] == "fail", report
+        assert report["errored"] > report["executed"], report
+
+    def test_a_few_errors_do_not_fail_an_otherwise_live_run(self, monkeypatch):
+        """The threshold is a ratio on purpose.
+
+        A validator that raises on a handful of payloads is a finding about the
+        validator, not a broken harness, and was never meant to fail the run. Pinned
+        so a later tightening to `errored == 0` has to argue with a test.
+        """
+        real = oracle.markers
+        state = {"n": 0}
+
+        def rarely_dead(payload, sandbox, timeout):
+            state["n"] += 1
+            return oracle.DID_NOT_RUN if state["n"] % 50 == 0 else real(
+                payload, sandbox, timeout)
+
+        monkeypatch.setattr(oracle, "markers", rarely_dead)
+        report = oracle.run(FAST, REPO_ROOT, 5.0)
+        assert report["errored"] > 0, report
+        assert report["status"] == "pass", report
+
+    def test_refusals_and_errors_starve_a_run_together(self, monkeypatch):
+        """Two thresholds that each hold can still leave the run mostly unverified.
+
+        Proportions are exact and the outcomes are synthesised rather than delegated:
+        a first draft called through to the real `markers` for the "executed" case,
+        which refuses payloads itself and pushed BOTH ratios over their thresholds --
+        so the test passed against the very logic it was meant to catch. It is pinned
+        held clear of the boundary rather than ON it: refusals 46%, errors 6%, so both
+        per-cause branches are False while 52% of the corpus never reached bash. A
+        first draft used 45%/10% -- exactly the thresholds -- and the corpus is not a
+        multiple of the modulus, so drift put error_ratio at 0.102 and the test failed
+        on its own precondition. Margins absorb that; the point is the COMBINATION, not
+        the last decimal.
+        """
+        state = {"n": 0}
+
+        def by_the_numbers(payload, sandbox, timeout):
+            state["n"] += 1
+            slot = state["n"] % 50
+            if 1 <= slot <= 23:
+                return None                      # refused -> unverified (46%)
+            if slot in (24, 25, 26):
+                return oracle.DID_NOT_RUN        # harness fault -> errored (6%)
+            return []                            # ran, reached nothing (48%)
+
+        monkeypatch.setattr(oracle, "markers", by_the_numbers)
+        report = oracle.run(FAST, REPO_ROOT, 5.0)
+        assert report["refusal_ratio"] <= 0.5, report
+        assert report["error_ratio"] <= 0.1, report
+        assert report["unverified_ratio"] > 0.5, report
+        assert report["status"] == "fail", report
+
 
 class TestContainment:
     def test_an_absolute_redirect_target_is_refused(self):

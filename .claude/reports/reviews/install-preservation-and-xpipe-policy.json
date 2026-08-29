@@ -1,0 +1,17 @@
+{
+  "plan": ".claude/plans/plan-install-preservation-and-xpipe-policy.md",
+  "slug": "install-preservation-and-xpipe-policy",
+  "ops_path": ".claude/plans/plan-install-preservation-and-xpipe-policy.ops.json",
+  "ops_sha256": "9daa8ebe26b69d0f23628c3120536adc74a2ff678c5e2d4b5b59a5df34526e01",
+  "score": 95,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] The new module-level `reinstall_over(project, mode=\"--minimal\")` duplicates `TheReceiptRecordsOnlyWhatTheKitOwns.reinstall(self, project)` almost line-for-line (same subprocess args, env, timeout); on"
+  ],
+  "verdict_origin": "rubric",
+  "recorded_utc": "2026-08-28T13:12:49Z",
+  "operations": 18,
+  "edits": 18,
+  "rounds": [],
+  "round": 1
+}

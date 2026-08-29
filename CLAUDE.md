@@ -46,7 +46,7 @@ ck doctor --strict                          # installed-tree health
 4. Protected files stay protected; MAX_DELETIONS=3/plan stays.
 5. Golden Rule: no code changes without explicit user approval.
 6. Security framing stays honest: "denylist speed bump, not a sandbox."
-7. Versions bump in three places together (pyproject, `src/claudekit/__init__.py`, `.claude/operations/scripts/shared.py`) and stay monotonic.
+7. Versions bump in four places together (pyproject, `__init__.py`, `shared.py`, `cli/main.py`'s fallback) and stay monotonic.
 8. Never hand-edit component counts; never add Python runtime dependencies; never break bash-3.2/macOS.
 
 ## Definition of Done

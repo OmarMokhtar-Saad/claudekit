@@ -37,6 +37,7 @@ Zero third-party dependencies; Python 3.9+.
 """
 
 import argparse
+import functools
 import importlib.util
 import json
 import re
@@ -45,7 +46,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 MODULE_PATH = "src/claudekit/security/command_validator.py"
 SIBLING = "check-validator-differential.py"
@@ -105,6 +106,15 @@ def refused(payload: str) -> bool:
 
 SHADOWED = ["rm", "sudo", "chmod", "chown", "curl", "wget", "dd", "mkfs", "shutdown", "reboot"]
 
+#: Emitted BEFORE the payload, so its absence means the probe never ran at all --
+#: `unshare` refused, bash was missing, the sandbox was unwritable. Without it a
+#: failed probe is indistinguishable from a payload that legitimately reached no
+#: shadowed command: both yield an empty marker list, and the oracle counted the
+#: first as a clean execution. Measured: on ubuntu-24.04 runners, where AppArmor
+#: restricts unprivileged user namespaces, every one of 338 probes failed this way
+#: and the gate reported `pass` while executing no bash whatsoever.
+LIVENESS = "__probe_ran__"
+
 PROBE = """\
 ulimit -t 2  2>/dev/null || true
 ulimit -f 64 2>/dev/null || true
@@ -112,9 +122,23 @@ ulimit -v 262144 2>/dev/null || true
 set -o noclobber 2>/dev/null || true
 export PATH=""
 export HOME="$PWD"
+echo "MARKER:%s"
 %s
 eval "$1"
 """
+
+
+class _DidNotRun:
+    """A probe that never reached its own first line.
+
+    A class, not `object()` and not `[]`: mypy is a DoD gate here, and a bare
+    sentinel forced a `# type: ignore` that would have switched the three-way branch
+    off forever. `[]` is worse still -- it is a LEGITIMATE return (bash ran, reached
+    nothing), so a sentinel equal to a real answer breaks on the next `==`.
+    """
+
+
+DID_NOT_RUN = _DidNotRun()
 
 
 def _load(name: str, path: Path):
@@ -129,10 +153,10 @@ def _load(name: str, path: Path):
 
 def _probe_script() -> str:
     functions = "\n".join(f'{name}() {{ echo "MARKER:{name}"; }}' for name in SHADOWED)
-    return PROBE % functions
+    return PROBE % (LIVENESS, functions)
 
 
-def markers(payload: str, sandbox: Path, timeout: float) -> Optional[List[str]]:
+def markers(payload: str, sandbox: Path, timeout: float) -> Union[List[str], _DidNotRun, None]:
     """Marker names bash reached, or None if the payload was refused or timed out."""
     if refused(payload):
         return None
@@ -143,10 +167,26 @@ def markers(payload: str, sandbox: Path, timeout: float) -> Optional[List[str]]:
         )
     except subprocess.TimeoutExpired:
         return None
-    return [line[len("MARKER:"):] for line in result.stdout.splitlines()
-            if line.startswith("MARKER:")]
+    reached = [line[len("MARKER:"):] for line in result.stdout.splitlines()
+               if line.startswith("MARKER:")]
+    if LIVENESS not in reached:
+        # The probe did not reach its own first line, so nothing was verified here.
+        # Reported as a distinct outcome rather than folded into "reached nothing".
+        return DID_NOT_RUN
+    return [m for m in reached if m != LIVENESS]
 
 
+# Cached: this is called from `markers()`, i.e. once per allowed payload per
+# safe_mode pass -- up to ~676 times per run. Probing `unshare` that many times
+# would add a subprocess spawn to every probe to answer a question whose answer
+# cannot change mid-run.
+#
+# The cache is PROCESS-lifetime, not run()-lifetime: many tests call run() in one
+# pytest session, so the first caller fixes the answer for all of them. A test that
+# wants to exercise the unshare-fails path must call
+# `process_isolation.cache_clear()` after patching, or it will silently get the
+# first caller's value and look order-dependent rather than wrong.
+@functools.lru_cache(maxsize=1)
 def process_isolation() -> List[str]:
     """PID/process isolation where the platform offers it - NOT a filesystem boundary.
 
@@ -164,9 +204,19 @@ def process_isolation() -> List[str]:
     not run this at all without --allow-execution. What is left below is process containment
     for runaway children, which is real but narrow.
     """
-    if sys.platform.startswith("linux") and shutil.which("unshare"):
-        return ["unshare", "--pid", "--fork"]
-    return []
+    if not (sys.platform.startswith("linux") and shutil.which("unshare")):
+        return []
+    # Present is not the same as permitted: Ubuntu 24.04 restricts unprivileged user
+    # namespaces through AppArmor, so `unshare` exists and fails. Ask it, once.
+    # Falling back to no isolation is consistent with this function's own account --
+    # the namespace is "the smallest" of the three reasons executing here is
+    # acceptable, and the ephemeral runner is the real one.
+    try:
+        probe = subprocess.run(["unshare", "--pid", "--fork", "true"],
+                               capture_output=True, timeout=10)
+    except (OSError, subprocess.TimeoutExpired):
+        return []
+    return ["unshare", "--pid", "--fork"] if probe.returncode == 0 else []
 
 
 def run(max_len: int, repo_root: Path, timeout: float,
@@ -205,6 +255,12 @@ def run(max_len: int, repo_root: Path, timeout: float,
                 if reached is None:
                     unverified += 1
                     continue
+                if reached is DID_NOT_RUN:
+                    # NOT `executed`: a probe that never reached its own first line
+                    # verified nothing, and counting it as executed is what let a
+                    # harness failure read as a clean run.
+                    errored += 1
+                    continue
                 executed += 1
                 if reached:
                     findings.append({"safe_mode": safe_mode, "payload": payload,
@@ -216,11 +272,30 @@ def run(max_len: int, repo_root: Path, timeout: float,
     # floor; `unverified > executed` is the slope review asked about - a refusal rule that grows
     # over-broad would otherwise keep reporting `pass` on a run that verified almost nothing,
     # which is the same fake-green shape as an empty corpus.
-    offered = executed + unverified
+    # Three quantities, and the COMBINED one is why this is not just two thresholds.
+    # Round 2 split the old single ratio into `refusal_ratio > 0.5` and
+    # `error_ratio > 0.1`, which is tighter per cause and LOOSER together: at
+    # refusal_ratio=0.5 and error_ratio=0.1 -- both AT, neither OVER -- only 40% of the
+    # corpus reached bash and nothing fired. Splitting a ceiling without keeping an
+    # aggregate is how "mostly not verified, for mixed reasons" slipped through.
+    #
+    # `unverified_ratio` subsumes `refusal_ratio > 0.5` (same numerator plus errored, so
+    # it can only be larger), which is why that branch is gone rather than kept beside
+    # it. `refusal_ratio` stays in the report: it says WHY a run was thin, which the
+    # combined figure cannot.
+    #
+    # `error_ratio` keeps its own tighter ceiling because the two causes are not alike:
+    # a refusal is the validator doing its job, a harness fault is the gate failing to
+    # ask. 10% of probes never starting is a broken runner, not a strict validator.
+    offered = executed + unverified + errored
     refusal_ratio = round(unverified / offered, 3) if offered else 1.0
-    starved = not executed or refusal_ratio > 0.5
+    error_ratio = round(errored / offered, 3) if offered else 1.0
+    unverified_ratio = round((unverified + errored) / offered, 3) if offered else 1.0
+    starved = not executed or unverified_ratio > 0.5 or error_ratio > 0.1
     return {"status": "fail" if (findings or starved) else "pass",
             "refusal_ratio": refusal_ratio,
+            "error_ratio": error_ratio,
+            "unverified_ratio": unverified_ratio,
             "payloads": len(corpus),
             "findings": findings[:50],
             "finding_count": len(findings),

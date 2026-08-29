@@ -1,0 +1,18 @@
+{
+  "plan": "preserve-symlink-nits",
+  "files": [
+    {
+      "path": "install.sh",
+      "edits": [
+        {
+          "find": "project_root = os.path.dirname(os.path.abspath(dest))",
+          "replace": "# realpath, not abspath: `_within` normalises both sides itself, but leaving an\n# unresolved root here is a footgun for the next direct user of it (macOS\n# /var -> /private/var is what made every legitimate link read as an escape).\nproject_root = os.path.dirname(os.path.realpath(dest))"
+        },
+        {
+          "find": "        return \"self-referential directory link\"",
+          "replace": "        return \"self-referential directory link (target is an ancestor of it)\""
+        }
+      ]
+    }
+  ]
+}

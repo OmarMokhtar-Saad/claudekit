@@ -1,0 +1,23 @@
+{
+  "plan": "rule-7-within-budget",
+  "files": [
+    {
+      "path": "CLAUDE.md",
+      "edits": [
+        {
+          "find": "7. Versions bump in **four** places together (pyproject, `src/claudekit/__init__.py`, `.claude/operations/scripts/shared.py`, and `_resolve_version`'s fallback in `src/claudekit/cli/main.py`) and stay monotonic. The fourth went unnamed until 2026-08-29 and sat two releases stale as a result \u2014 a source checkout reported 2.1.0 through the whole of 3.0.0. `tests/test_packaging.py::test_single_version_source_of_truth` now derives rather than listing literals, so a missed site fails instead of depending on this sentence being complete.",
+          "replace": "7. Versions bump in four places together (pyproject, `__init__.py`, `shared.py`, `cli/main.py`'s fallback) and stay monotonic."
+        }
+      ]
+    },
+    {
+      "path": ".ai/KNOWLEDGE_BASE.md",
+      "edits": [
+        {
+          "find": "# Knowledge Base \u2014 Philosophies, Patterns, Lessons",
+          "add_after": "\n\n## Hard rule 7 names four version sites, not three\n\n`cli/main.py`'s `_resolve_version` fallback is the fourth and went unnamed until 2026-08-29.\nIt sat at `2.1.0` through the whole of the 3.0.0 release -- a source checkout reported a version\ntwo releases old and nothing failed, because\n`tests/test_packaging.py::test_single_version_source_of_truth` forbade two HARDCODED literals\n(`\"1.1.0\"`, `\"3.1.0\"`) and never listed `\"2.1.0\"`. That same list pre-forbade `\"3.1.0\"`, so the\nrelease that legitimately reached that number tripped a guard written for staleness. The test\nnow DERIVES: every version literal under `src/` must equal the pyproject version.\n\nRecorded here rather than in CLAUDE.md because that file is delivery-weighted x4\n(`CLAUDE_MD_MULTIPLIER` -- main context plus three pipeline subagents) and had **four\ncharacters** of headroom against its 31000 budget. The first draft of this correction put three\nsentences of rationale inline and cost 394. The context floor caught it in CI, not locally,\nbecause I read the tail of the report instead of its verdict."
+        }
+      ]
+    }
+  ]
+}
