@@ -1,0 +1,17 @@
+{
+  "plan": ".claude/plans/plan-oracle-liveness.md",
+  "slug": "oracle-liveness",
+  "ops_path": ".claude/plans/plan-oracle-liveness.ops.json",
+  "ops_sha256": "7afef5e113b9f6839ba58be5d0e251f3fac45cd2039af2042cdb90ab7ffa4a0e",
+  "score": 94,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] No blocking findings. The CHANGELOG anchor is unique; the deviation to file under [3.1.0] rather than [Unreleased] is correct and the reviewer withdraws its own earlier instruction \u2014 a tag, not a head"
+  ],
+  "verdict_origin": "rubric",
+  "recorded_utc": "2026-08-29T07:24:38Z",
+  "operations": 3,
+  "edits": 15,
+  "rounds": [],
+  "round": 1
+}
