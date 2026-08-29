@@ -1,0 +1,41 @@
+{
+  "plan": "release-3-1-0-prep",
+  "files": [
+    {
+      "path": "pyproject.toml",
+      "edits": [
+        {
+          "find": "version = \"3.0.0\"",
+          "replace": "version = \"3.1.0\""
+        }
+      ]
+    },
+    {
+      "path": "src/claudekit/__init__.py",
+      "edits": [
+        {
+          "find": "    __version__ = \"3.0.0\"",
+          "replace": "    __version__ = \"3.1.0\""
+        }
+      ]
+    },
+    {
+      "path": ".claude/operations/scripts/shared.py",
+      "edits": [
+        {
+          "find": "__version__ = \"3.0.0\"",
+          "replace": "__version__ = \"3.1.0\""
+        }
+      ]
+    },
+    {
+      "path": "CHANGELOG.md",
+      "edits": [
+        {
+          "find": "## [Unreleased]",
+          "add_after": "\n\n## [3.1.0] \u2014 2026-08-29"
+        }
+      ]
+    }
+  ]
+}
