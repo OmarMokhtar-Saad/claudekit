@@ -221,10 +221,14 @@ class TestOwnershipIsAComplement:
             "hooks/config.json": "h6",
         }}
         own = adapt.classify_ownership(manifest)
-        assert own.class1 == ("agents/a.md", "local/CONSTITUTION.md",
-                             "profiles/base.json", "settings.json")
+        # local/CONSTITUTION.md moved class1 -> class2_receipted when it joined
+        # PARTIAL_OWNED_RELS: the installer preserves it across a reinstall, so
+        # `ck uninstall` must not treat it as a deletable kit file. The complement
+        # property under test is unchanged -- only which side the file sits on is.
+        assert own.class1 == ("agents/a.md", "profiles/base.json", "settings.json")
         assert own.class2_receipted == ("hooks/config.json",
-                                        "local/CLAUDE.project.md")
+                                        "local/CLAUDE.project.md",
+                                        "local/CONSTITUTION.md")
 
     def test_a_receipted_file_is_never_in_neither_class(self):
         """The hole the by-name boundary left: receipted but unclassified."""
@@ -374,8 +378,12 @@ class TestUninstallNeverRemovesAPartiallyOwnedFile:
         (base / "hooks").mkdir(parents=True)
         (base / "agents").mkdir(parents=True)
         files = {}
+        # Every PARTIAL_OWNED_RELS member needs a body here: the assertion below
+        # iterates that tuple dynamically, so a member missing from this fixture
+        # fails as "deleted" when it was simply never created.
         for rel, body in (("agents/a.md", "kit asset\n"),
                           ("local/CLAUDE.project.md", "user prose\n"),
+                          ("local/CONSTITUTION.md", "project constitution\n"),
                           ("hooks/config.json", '{"project": {}}\n')):
             path = base / rel
             path.write_text(body, encoding="utf-8")

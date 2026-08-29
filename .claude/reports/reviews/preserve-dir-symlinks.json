@@ -1,0 +1,18 @@
+{
+  "plan": ".claude/plans/plan-preserve-dir-symlinks.md",
+  "slug": "preserve-dir-symlinks",
+  "ops_path": ".claude/plans/plan-preserve-dir-symlinks.ops.json",
+  "ops_sha256": "b8a797f16f16081464a41a342cd4104b5b4b49c73fcd68280cf0c8a56690d42e",
+  "score": 94,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] \"self-referential directory link\" undersells what is caught: the check fires for any dir-symlink whose resolved target is an ancestor of the link's location, which is correct (all such links are cycle",
+    "[MINOR] `project_root` is computed with `abspath`, not `realpath`; correctness is rescued by `_within` realpathing internally, but a future direct user of `project_root` could reintroduce the macOS /var -> /p"
+  ],
+  "verdict_origin": "rubric",
+  "recorded_utc": "2026-08-29T04:13:25Z",
+  "operations": 2,
+  "edits": 6,
+  "rounds": [],
+  "round": 1
+}

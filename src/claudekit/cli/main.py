@@ -28,7 +28,12 @@ def _resolve_version() -> str:
         # the import package and console scripts remain "claudekit"/"ck".
         return metadata.version("claude-kit")
     except metadata.PackageNotFoundError:
-        return "2.1.0"
+        # Bumped with the other version sites. It sat at 2.1.0 through the 3.0.0
+        # release because hard rule 7 names three sites and this is a fourth, and
+        # the packaging test's forbidden-literal list happened not to include
+        # "2.1.0" -- so a source checkout reported a version two releases old and
+        # nothing failed. The test now derives instead of listing.
+        return "3.1.0"
 
 
 __version__ = _resolve_version()
@@ -833,7 +838,8 @@ DIFF_IGNORED = {"hooks/config.json", "settings.local.json"}
 # install.sh rebuilds `files` from a bare directory walk, so any install or
 # `ck update` silently drops the flag and regains delete rights. A safety property
 # that evaporates on the most routine command is not a safety property.
-PARTIAL_OWNED = {"local/CLAUDE.project.md", "hooks/config.json"}
+PARTIAL_OWNED = {"local/CLAUDE.project.md", "local/CONSTITUTION.md",
+                 "hooks/config.json"}
 DIFF_IGNORED_NAMES = {"compact-counter.txt", "cost-tracker.log"}  # hook runtime state
 
 

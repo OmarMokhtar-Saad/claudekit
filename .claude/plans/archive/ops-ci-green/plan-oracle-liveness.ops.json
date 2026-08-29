@@ -1,0 +1,80 @@
+{
+  "plan": "oracle-liveness",
+  "files": [
+    {
+      "path": "scripts/check-validator-vs-bash.py",
+      "edits": [
+        {
+          "find": "PROBE = \"\"\"\\\nulimit -t 2  2>/dev/null || true\nulimit -f 64 2>/dev/null || true\nulimit -v 262144 2>/dev/null || true\nset -o noclobber 2>/dev/null || true\nexport PATH=\"\"\nexport HOME=\"$PWD\"\n%s\neval \"$1\"\n\"\"\"",
+          "replace": "#: Emitted BEFORE the payload, so its absence means the probe never ran at all --\n#: `unshare` refused, bash was missing, the sandbox was unwritable. Without it a\n#: failed probe is indistinguishable from a payload that legitimately reached no\n#: shadowed command: both yield an empty marker list, and the oracle counted the\n#: first as a clean execution. Measured: on ubuntu-24.04 runners, where AppArmor\n#: restricts unprivileged user namespaces, every one of 338 probes failed this way\n#: and the gate reported `pass` while executing no bash whatsoever.\nLIVENESS = \"__probe_ran__\"\n\nPROBE = \"\"\"\\\nulimit -t 2  2>/dev/null || true\nulimit -f 64 2>/dev/null || true\nulimit -v 262144 2>/dev/null || true\nset -o noclobber 2>/dev/null || true\nexport PATH=\"\"\nexport HOME=\"$PWD\"\necho \"MARKER:%s\"\n%s\neval \"$1\"\n\"\"\""
+        },
+        {
+          "find": "def _load(name: str, path: Path):",
+          "replace": "class _DidNotRun:\n    \"\"\"A probe that never reached its own first line.\n\n    A class, not `object()` and not `[]`: mypy is a DoD gate here, and a bare\n    sentinel forced a `# type: ignore` that would have switched the three-way branch\n    off forever. `[]` is worse still -- it is a LEGITIMATE return (bash ran, reached\n    nothing), so a sentinel equal to a real answer breaks on the next `==`.\n    \"\"\"\n\n\nDID_NOT_RUN = _DidNotRun()\n\n\ndef _load(name: str, path: Path):"
+        },
+        {
+          "find": "def _probe_script() -> str:\n    functions = \"\\n\".join(f'{name}() {{ echo \"MARKER:{name}\"; }}' for name in SHADOWED)\n    return PROBE % functions",
+          "replace": "def _probe_script() -> str:\n    functions = \"\\n\".join(f'{name}() {{ echo \"MARKER:{name}\"; }}' for name in SHADOWED)\n    return PROBE % (LIVENESS, functions)"
+        },
+        {
+          "find": "    return [line[len(\"MARKER:\"):] for line in result.stdout.splitlines()\n            if line.startswith(\"MARKER:\")]",
+          "replace": "    reached = [line[len(\"MARKER:\"):] for line in result.stdout.splitlines()\n               if line.startswith(\"MARKER:\")]\n    if LIVENESS not in reached:\n        # The probe did not reach its own first line, so nothing was verified here.\n        # Reported as a distinct outcome rather than folded into \"reached nothing\".\n        return DID_NOT_RUN\n    return [m for m in reached if m != LIVENESS]"
+        },
+        {
+          "find": "    if sys.platform.startswith(\"linux\") and shutil.which(\"unshare\"):\n        return [\"unshare\", \"--pid\", \"--fork\"]\n    return []",
+          "replace": "    if not (sys.platform.startswith(\"linux\") and shutil.which(\"unshare\")):\n        return []\n    # Present is not the same as permitted: Ubuntu 24.04 restricts unprivileged user\n    # namespaces through AppArmor, so `unshare` exists and fails. Ask it, once.\n    # Falling back to no isolation is consistent with this function's own account --\n    # the namespace is \"the smallest\" of the three reasons executing here is\n    # acceptable, and the ephemeral runner is the real one.\n    try:\n        probe = subprocess.run([\"unshare\", \"--pid\", \"--fork\", \"true\"],\n                               capture_output=True, timeout=10)\n    except (OSError, subprocess.TimeoutExpired):\n        return []\n    return [\"unshare\", \"--pid\", \"--fork\"] if probe.returncode == 0 else []"
+        },
+        {
+          "find": "                reached = markers(payload, sandbox, timeout)\n                if reached is None:\n                    unverified += 1\n                    continue\n                executed += 1",
+          "replace": "                reached = markers(payload, sandbox, timeout)\n                if reached is None:\n                    unverified += 1\n                    continue\n                if reached is DID_NOT_RUN:\n                    # NOT `executed`: a probe that never reached its own first line\n                    # verified nothing, and counting it as executed is what let a\n                    # harness failure read as a clean run.\n                    errored += 1\n                    continue\n                executed += 1"
+        },
+        {
+          "find": "def markers(payload: str, sandbox: Path, timeout: float) -> Optional[List[str]]:",
+          "replace": "def markers(payload: str, sandbox: Path, timeout: float) -> Union[List[str], _DidNotRun, None]:"
+        },
+        {
+          "find": "import importlib.util",
+          "replace": "import functools\nimport importlib.util"
+        },
+        {
+          "find": "    offered = executed + unverified\n    refusal_ratio = round(unverified / offered, 3) if offered else 1.0\n    starved = not executed or refusal_ratio > 0.5",
+          "replace": "    # Three quantities, and the COMBINED one is why this is not just two thresholds.\n    # Round 2 split the old single ratio into `refusal_ratio > 0.5` and\n    # `error_ratio > 0.1`, which is tighter per cause and LOOSER together: at\n    # refusal_ratio=0.5 and error_ratio=0.1 -- both AT, neither OVER -- only 40% of the\n    # corpus reached bash and nothing fired. Splitting a ceiling without keeping an\n    # aggregate is how \"mostly not verified, for mixed reasons\" slipped through.\n    #\n    # `unverified_ratio` subsumes `refusal_ratio > 0.5` (same numerator plus errored, so\n    # it can only be larger), which is why that branch is gone rather than kept beside\n    # it. `refusal_ratio` stays in the report: it says WHY a run was thin, which the\n    # combined figure cannot.\n    #\n    # `error_ratio` keeps its own tighter ceiling because the two causes are not alike:\n    # a refusal is the validator doing its job, a harness fault is the gate failing to\n    # ask. 10% of probes never starting is a broken runner, not a strict validator.\n    offered = executed + unverified + errored\n    refusal_ratio = round(unverified / offered, 3) if offered else 1.0\n    error_ratio = round(errored / offered, 3) if offered else 1.0\n    unverified_ratio = round((unverified + errored) / offered, 3) if offered else 1.0\n    starved = not executed or unverified_ratio > 0.5 or error_ratio > 0.1"
+        },
+        {
+          "find": "    return {\"status\": \"fail\" if (findings or starved) else \"pass\",\n            \"refusal_ratio\": refusal_ratio,",
+          "replace": "    return {\"status\": \"fail\" if (findings or starved) else \"pass\",\n            \"refusal_ratio\": refusal_ratio,\n            \"error_ratio\": error_ratio,\n            \"unverified_ratio\": unverified_ratio,"
+        },
+        {
+          "find": "def process_isolation() -> List[str]:",
+          "replace": "# Cached: this is called from `markers()`, i.e. once per allowed payload per\n# safe_mode pass -- up to ~676 times per run. Probing `unshare` that many times\n# would add a subprocess spawn to every probe to answer a question whose answer\n# cannot change mid-run.\n#\n# The cache is PROCESS-lifetime, not run()-lifetime: many tests call run() in one\n# pytest session, so the first caller fixes the answer for all of them. A test that\n# wants to exercise the unshare-fails path must call\n# `process_isolation.cache_clear()` after patching, or it will silently get the\n# first caller's value and look order-dependent rather than wrong.\n@functools.lru_cache(maxsize=1)\ndef process_isolation() -> List[str]:"
+        },
+        {
+          "find": "from typing import Dict, List, Optional",
+          "replace": "from typing import Dict, List, Optional, Union"
+        }
+      ]
+    },
+    {
+      "path": "tests/test_validator_vs_bash.py",
+      "edits": [
+        {
+          "find": "    def test_a_clean_run_actually_executed_something(self):\n        \"\"\"`pass` must mean bash ran payloads, not that everything was refused.\"\"\"\n        report = oracle.run(FAST, REPO_ROOT, 5.0)\n        assert report[\"executed\"] > 0, report",
+          "replace": "    def test_a_clean_run_actually_executed_something(self):\n        \"\"\"`pass` must mean bash ran payloads, not that everything was refused.\"\"\"\n        report = oracle.run(FAST, REPO_ROOT, 5.0)\n        assert report[\"executed\"] > 0, report\n\n    def test_a_run_that_mostly_failed_to_start_is_not_a_clean_run(self, monkeypatch):\n        \"\"\"The half the first fix missed, and the reason `errored` is a ratio.\n\n        Making dead probes `errored` instead of `executed` closed the all-dead case\n        and left `executed=1, unverified=0, errored=337` reporting `pass` -- one live\n        bash process out of 338 payloads. `errored` now sits in the denominator and\n        carries its own threshold, so \"asked almost nothing\" fails like \"asked\n        nothing\".\n        \"\"\"\n        real = oracle.markers\n        state = {\"n\": 0}\n\n        def mostly_dead(payload, sandbox, timeout):\n            state[\"n\"] += 1\n            if state[\"n\"] == 1:\n                return real(payload, sandbox, timeout)\n            return oracle.DID_NOT_RUN\n\n        monkeypatch.setattr(oracle, \"markers\", mostly_dead)\n        report = oracle.run(FAST, REPO_ROOT, 5.0)\n        assert report[\"status\"] == \"fail\", report\n        assert report[\"errored\"] > report[\"executed\"], report\n\n    def test_a_few_errors_do_not_fail_an_otherwise_live_run(self, monkeypatch):\n        \"\"\"The threshold is a ratio on purpose.\n\n        A validator that raises on a handful of payloads is a finding about the\n        validator, not a broken harness, and was never meant to fail the run. Pinned\n        so a later tightening to `errored == 0` has to argue with a test.\n        \"\"\"\n        real = oracle.markers\n        state = {\"n\": 0}\n\n        def rarely_dead(payload, sandbox, timeout):\n            state[\"n\"] += 1\n            return oracle.DID_NOT_RUN if state[\"n\"] % 50 == 0 else real(\n                payload, sandbox, timeout)\n\n        monkeypatch.setattr(oracle, \"markers\", rarely_dead)\n        report = oracle.run(FAST, REPO_ROOT, 5.0)\n        assert report[\"errored\"] > 0, report\n        assert report[\"status\"] == \"pass\", report"
+        },
+        {
+          "find": "        monkeypatch.setattr(oracle, \"markers\", rarely_dead)\n        report = oracle.run(FAST, REPO_ROOT, 5.0)\n        assert report[\"errored\"] > 0, report\n        assert report[\"status\"] == \"pass\", report",
+          "replace": "        monkeypatch.setattr(oracle, \"markers\", rarely_dead)\n        report = oracle.run(FAST, REPO_ROOT, 5.0)\n        assert report[\"errored\"] > 0, report\n        assert report[\"status\"] == \"pass\", report\n\n    def test_refusals_and_errors_starve_a_run_together(self, monkeypatch):\n        \"\"\"Two thresholds that each hold can still leave the run mostly unverified.\n\n        Proportions are exact and the outcomes are synthesised rather than delegated:\n        a first draft called through to the real `markers` for the \"executed\" case,\n        which refuses payloads itself and pushed BOTH ratios over their thresholds --\n        so the test passed against the very logic it was meant to catch. It is pinned\n        held clear of the boundary rather than ON it: refusals 46%, errors 6%, so both\n        per-cause branches are False while 52% of the corpus never reached bash. A\n        first draft used 45%/10% -- exactly the thresholds -- and the corpus is not a\n        multiple of the modulus, so drift put error_ratio at 0.102 and the test failed\n        on its own precondition. Margins absorb that; the point is the COMBINATION, not\n        the last decimal.\n        \"\"\"\n        state = {\"n\": 0}\n\n        def by_the_numbers(payload, sandbox, timeout):\n            state[\"n\"] += 1\n            slot = state[\"n\"] % 50\n            if 1 <= slot <= 23:\n                return None                      # refused -> unverified (46%)\n            if slot in (24, 25, 26):\n                return oracle.DID_NOT_RUN        # harness fault -> errored (6%)\n            return []                            # ran, reached nothing (48%)\n\n        monkeypatch.setattr(oracle, \"markers\", by_the_numbers)\n        report = oracle.run(FAST, REPO_ROOT, 5.0)\n        assert report[\"refusal_ratio\"] <= 0.5, report\n        assert report[\"error_ratio\"] <= 0.1, report\n        assert report[\"unverified_ratio\"] > 0.5, report\n        assert report[\"status\"] == \"fail\", report"
+        }
+      ]
+    },
+    {
+      "path": "CHANGELOG.md",
+      "edits": [
+        {
+          "find": "## [3.1.0] \u2014 2026-08-29\n\n### Fixed\n",
+          "replace": "## [3.1.0] \u2014 2026-08-29\n\n### Fixed\n\n- **The bash differential gate no longer reports `pass` when it ran no bash.**\n  `check-validator-vs-bash.py` feeds payloads the validator ALLOWS into a real bash and\n  reports any reaching a shadowed dangerous command. On ubuntu-24.04 runners, where AppArmor\n  restricts unprivileged user namespaces, `unshare` exists and fails \u2014 so every probe process\n  died before bash started, and `markers()` returned the same empty list it returns for\n  \"ran, reached nothing\". Handed a validator with `BLOCKLIST = set()`, the gate reported\n  **338 executed, 0 findings, `pass`**. The probe now emits a liveness marker before the\n  payload, a probe that never reaches it counts as `errored` rather than `executed`, and\n  `process_isolation()` asks whether `unshare` works instead of assuming that present means\n  permitted. **`--json` output changes:** `error_ratio` and `unverified_ratio` are new, and\n  `refusal_ratio` keeps its numerator but its denominator now includes `errored`, so values\n  are not comparable with those from earlier runs.\n"
+        }
+      ]
+    }
+  ]
+}

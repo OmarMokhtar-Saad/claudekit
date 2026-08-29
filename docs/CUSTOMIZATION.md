@@ -188,5 +188,9 @@ files and takes a timestamped **backup** of your existing `.claude/` (and writes
 a `.claudekit-manifest.json` recording versions + per-file checksums) before
 atomically swapping them in — so an interrupted run never leaves a half-written
 install. Your customizations in `CLAUDE.project.md` and `CONSTITUTION.md` are
-regenerated from templates; recover prior versions from the backup or from
-version control if needed.
+**kept**: both are seeded from templates on a first install and are yours
+thereafter, so a reinstall carries the existing files across instead of
+re-rendering them. The same applies to `settings.local.json` and to the
+`security` block of `hooks/config.json` (the rest of that file is updated by the
+kit). Everything else under `.claude/` is kit-owned and is replaced — recover
+prior versions from the timestamped backup or from version control if needed.

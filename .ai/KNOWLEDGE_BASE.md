@@ -1,5 +1,21 @@
 # Knowledge Base — Philosophies, Patterns, Lessons
 
+## Hard rule 7 names four version sites, not three
+
+`cli/main.py`'s `_resolve_version` fallback is the fourth and went unnamed until 2026-08-29.
+It sat at `2.1.0` through the whole of the 3.0.0 release -- a source checkout reported a version
+two releases old and nothing failed, because
+`tests/test_packaging.py::test_single_version_source_of_truth` forbade two HARDCODED literals
+(`"1.1.0"`, `"3.1.0"`) and never listed `"2.1.0"`. That same list pre-forbade `"3.1.0"`, so the
+release that legitimately reached that number tripped a guard written for staleness. The test
+now DERIVES: every version literal under `src/` must equal the pyproject version.
+
+Recorded here rather than in CLAUDE.md because that file is delivery-weighted x4
+(`CLAUDE_MD_MULTIPLIER` -- main context plus three pipeline subagents) and had **four
+characters** of headroom against its 31000 budget. The first draft of this correction put three
+sentences of rationale inline and cost 394. The context floor caught it in CI, not locally,
+because I read the tail of the report instead of its verdict.
+
 The distilled judgment of everyone (human and AI) who has worked on ClaudeKit. Complements [DECISIONS.md](DECISIONS.md) (specific choices) and [MEMORY.md](MEMORY.md) (hard invariants).
 
 ## Philosophies

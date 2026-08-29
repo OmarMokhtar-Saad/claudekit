@@ -40,18 +40,19 @@ Use the ops.json pipeline for all code changes:
 
 Scripts: `.claude/operations/scripts/`
 
-<!-- CLAUDEKIT:PARALLEL-AGENTS-POLICY v1 -->
-## Parallel Agents & XPipe Policy (2026-08-09)
+<!-- CLAUDEKIT:PARALLEL-AGENTS-POLICY v2 -->
+## Parallel Agents Policy (XPipe closed 2026-08-16)
 
-- **Substantial tasks** (multi-file feature/refactor, architecture- or security-relevant):
-  routing through `/xpipe` is MANDATORY, not advisory — check
-  `python3 .claude/operations/scripts/xpipe.py --status` first; unless mode is `solo`,
-  the plan review MUST run cross-account (brain) and, when available, cross-vendor (cursor)
-  via xpipe — an in-session reviewer subagent does NOT satisfy this (same account, same
-  model family, shared context = anchoring). Any REVISE verdict stops the chain; report
-  findings, do not push through. Deviating requires the task prompt to explicitly order a
-  different review path — state the override in your report when it happens.
-- **Trivial fast-path unchanged**: <=2-line/cosmetic single-file changes skip xpipe entirely.
+- **XPipe is CLOSED by default.** `xpipe.py` resolves to `solo` on every run
+  (`XPIPE_CLOSED_BY_DEFAULT = True`), so there is no mandatory cross-account or
+  cross-vendor review leg. **Substantial tasks** (multi-file feature/refactor,
+  architecture- or security-relevant) go through the in-session pipeline instead:
+  `/plan` -> `/review` (>=90) -> `/implement`, or `/coordinator` for multi-agent work.
+  A REVISE verdict still stops the chain: report findings, do not push through.
+- **Reopening it** is a deliberate act, not a default: one run via
+  `XPIPE_ENABLED=1 python3 .claude/operations/scripts/xpipe.py <task>`, or permanently by
+  flipping `XPIPE_CLOSED_BY_DEFAULT` in that script. The pipeline code is intact.
+- **Trivial fast-path unchanged**: <=2-line/cosmetic single-file changes skip planning entirely.
 - **Parallel implementation** (>=2 implementers): coordinator Worktree Isolation Protocol —
   one worktree per sub-plan via `worktree-manager.py` (max 5), workers commit on `agent/*`
   and NEVER merge; gitOps merges once on `integration/<goal>` with a single verify pass.

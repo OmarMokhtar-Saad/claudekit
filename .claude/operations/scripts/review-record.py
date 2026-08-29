@@ -65,6 +65,69 @@ ROUND_KEYS = ("score", "decision", "findings", "recorded_utc", "ops_sha256",
 # The review loop's documented ceiling is 3 rounds; 20 is far above any real run
 # while still bounding a pathological loop. Dropping is announced, never silent.
 MAX_ROUNDS = 20
+# The ceiling above was documented and unenforced: nothing counted consecutive
+# rejections, so a plan could be rejected six times and no machinery said a word.
+# Measured case (AppiumLens, 2026-08-28): 79 -> 78 -> 72 -> 86 -> 86 -> 81 across six
+# rounds and three different concurrency mechanisms, each change silently falsifying
+# the javadoc, constants and tests written for its predecessor. It was caught by a
+# human writing a retrospective afterwards.
+#
+# Note the shared window: `rounds` is already capped to MAX_ROUNDS before the tripwire
+# sees it, so the peak comparison below reads the same truncated history. Harmless while
+# the ceiling is 3 and the cap is 20; raising either without re-reading this is not.
+LOOP_TRIPWIRE_ROUNDS = 3
+
+
+def loop_advisory(rounds, decision, score):
+    """Advisory lines for a plan that is not converging. Never raises, never blocks.
+
+    Returns [] unless this write makes LOOP_TRIPWIRE_ROUNDS *consecutive* rejecting
+    rounds. Consecutive, not cumulative: a plan approved once and reopened months later
+    for an unrelated reason is not in a loop, and calling it one trains people to ignore
+    the message.
+
+    "Rejecting" is `is_rejecting`, not a decision-word test. `write` will record
+    `SCORE: 85 / DECISION: APPROVED` -- a real verdict that does NOT authorise execution
+    -- and a word-only predicate would read that as an approval and reset a live streak.
+    One predicate for the whole file is the point of `is_rejecting` existing.
+    """
+    if not is_rejecting(score, decision):
+        return []
+    trail = [r for r in rounds if isinstance(r, dict)] + [
+        {"score": score, "decision": decision}]
+    streak = 0
+    for entry in reversed(trail):
+        if not is_rejecting(entry.get("score"), entry.get("decision")):
+            break
+        streak += 1
+    if streak < LOOP_TRIPWIRE_ROUNDS:
+        return []
+
+    recent = trail[-streak:]
+    scores = [e.get("score") for e in recent if isinstance(e.get("score"), int)]
+    lines = [
+        "LOOP TRIPWIRE: %d consecutive non-approving rounds on this plan." % streak,
+        "  trail: %s" % " -> ".join(
+            "%s/%s" % (e.get("score"), e.get("decision")) for e in recent),
+        "  Three strikes is the documented ceiling. More rounds are the wrong tool for a",
+        "  scope problem: split the user-visible fix from the latent defect, ship the fix,",
+        "  and file the defect with the analysis these rounds already produced.",
+    ]
+    # Peaked-then-fell, which includes a PLATEAU then a fall (86 -> 86 -> 81, the shape
+    # the motivating retro actually names). Testing `max > scores[0]` would miss that,
+    # and testing `scores[-1] < max` alone would call a plain monotonic decline
+    # non-monotonic. The discriminator is where the peak LAST occurs: after the first
+    # entry means the score held or climbed before it dropped.
+    if len(scores) >= 3:
+        peak = max(scores)
+        last_peak_idx = len(scores) - 1 - scores[::-1].index(peak)
+        if last_peak_idx > 0 and scores[-1] < peak:
+            lines.append(
+                "  NON-MONOTONIC: the score held or rose to %d and then fell to %d -- "
+                "evidence the plan is too large to converge, not that this round was "
+                "sloppy." % (peak, scores[-1]))
+    return lines
+
 
 # Delta review stops being a saving once the change is sweeping; past this share of
 # changed lines the reviewer is told to do a full review instead.
@@ -747,6 +810,21 @@ def write_verdict(plan, ops, from_review=None, score=None, decision=None,
         rounds = rounds[-MAX_ROUNDS:]
     record["rounds"] = rounds
     record["round"] = prior_round + 1
+
+    # Advisory only. This runs BEFORE the write so the lines land in the record, and it
+    # must never change what cmd_write returns: the caller's verdict has to stay durable
+    # on exactly the round where knowing about the loop matters most. Same contract the
+    # rejections block below documents at length.
+    try:
+        advisory = loop_advisory(rounds, record.get("decision"), record.get("score"))
+    except Exception as e:                      # pragma: no cover - defensive
+        print("WARNING: loop tripwire skipped (%s); the verdict IS recorded." % e,
+              file=sys.stderr)
+        advisory = []
+    if advisory:
+        record["loop_advisory"] = advisory
+        for line in advisory:
+            print(line, file=sys.stderr)
 
     if not _safe_write(rec_path, json.dumps(record, indent=2) + "\n"):
         return 1
