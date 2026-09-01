@@ -24,11 +24,11 @@ index never outranks the current files.
 |---|---:|
 | `drifted` | 4 |
 | `approved` | 50 |
-| `planned` | 13 |
+| `planned` | 12 |
 | `executed` | 28 |
 | `not_started` | 20 |
 | `legacy` | 3 |
-| **total** | **118** |
+| **total** | **117** |
 
 ## Plans
 
@@ -96,7 +96,6 @@ index never outranks the current files.
 | `.claude/plans/plan-ops-engine-file-modes.md` | `approved` | 1 |  |
 | `.claude/plans/plan-ops-hardening-implementer-contract.md` | `planned` | 1 |  |
 | `.claude/plans/plan-oracle-liveness.md` | `not_started` | 0 |  |
-| `.claude/plans/plan-port-parse-gate.md` | `planned` | 1 |  |
 | `.claude/plans/plan-preserve-dir-symlinks.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-preserve-fault-tolerance.md` | `drifted` | 6 |  |
 | `.claude/plans/plan-protected-docs-scope.md` | `approved` | 1 |  |
