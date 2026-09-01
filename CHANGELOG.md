@@ -27,6 +27,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and its framework router, foreign-tool profiles and model-spec table were deliberately
   left out.
 
+- **`verify` / `render` / `diff` / `impact` for `project-graph.py`.** The graph was
+  already an agent-emitted JSON IR with a deterministic validator behind it, but nothing
+  checked the agent's *claims* against disk and nothing could draw the result. `verify`
+  rejects graphs that disagree with the tree — missing nodes, dangling endpoints, and
+  `extracted` edges whose source file never mentions the target (a substring falsifier:
+  it catches invented edges, it does not prove real ones, and `--strict` extends it to
+  `inferred`). `render` emits mermaid or a self-contained HTML page — no CDN, no network —
+  and refuses to draw a graph that fails `verify` without `--allow-unverified`.
+  `diff --against` reports the structural delta so a review sees the shape of a change
+  rather than its text. `impact --ops <plan.ops.json>` turns "does this plan touch
+  architecture?" into an exit code: 1 when a touched node is a hub/god-node, the touched
+  set crosses a package boundary, or a path is absent from the graph. The planner now
+  runs it and records the verdict, so reviewer routing is computed, not judged.
+
 ### Changed
 
 - **`install.sh`'s 178-line asset-preservation heredoc is now a real module.**
@@ -37,6 +51,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   silent-failure scanner's join cap, leaving the rest of `install.sh` unscanned. It is
   now `.claude/operations/scripts/preserve_assets.py` with 12 direct tests, and
   `install.sh` drops from 975 to 803 lines. Behaviour is unchanged.
+
+### Fixed
+
+- **`--ops` and `--against` containment now resolves symlinks.** Both readers confined
+  their input with `normpath` + `startswith`, a purely textual test, so a symlink *inside*
+  the project root pointing outside it passed while the error text claimed containment
+  held. Both now `realpath` before the check, and hand the resolved path on to the reader
+  so the target cannot be swapped between check and open. `build --input` is deliberately
+  not confined — it accepts an operator-supplied file or stdin — and its contents are
+  still schema-validated.
 
 ## [3.1.0] — 2026-08-29
 

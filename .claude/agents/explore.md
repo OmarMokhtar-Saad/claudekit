@@ -163,6 +163,7 @@ Execute searches in parallel when possible:
 ```
 - Graph-first: python3 .claude/operations/scripts/project-graph.py query <path> |
   path <a> <b> | hubs  (exit 3 -> no graph/no match, trace manually below)
+- verify first on a graph you did not build (exit 1 = it disagrees with the tree)
 - Record-back: after tracing manually, persist what you found so the next
   session doesn't repeat it — emit the discovered nodes/edges as JSON
   (edges tagged extracted/inferred/ambiguous) and pipe to

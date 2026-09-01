@@ -73,3 +73,7 @@ backups/
 # Enforcement runtime state: typed event log + spilled tool output (session-scoped).
 # Runtime state is never a source artifact -- re-derive, never cite.
 .claude/runtime/
+# Agent-built codebase graph (codebase-mapping skill). Same rule: generated,
+# project-local, re-derivable -- `project-graph.py stale`/`verify` keep it honest,
+# committing it would let a stale copy outrank the tree.
+.claude/project-graph.json
