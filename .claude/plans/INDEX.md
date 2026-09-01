@@ -27,8 +27,8 @@ index never outranks the current files.
 | `planned` | 12 |
 | `executed` | 28 |
 | `not_started` | 20 |
-| `legacy` | 4 |
-| **total** | **118** |
+| `legacy` | 3 |
+| **total** | **117** |
 
 ## Plans
 
@@ -151,4 +151,3 @@ index never outranks the current files.
 | `.claude/plans/archive/plan-008-batch2-skill-merges.md` | `legacy` | 0 |  |
 | `.claude/plans/archive/plan-008-batch3-agent-merges.md` | `legacy` | 0 |  |
 | `.claude/plans/archive/plan-008-batch4-command-diet-and-lint.md` | `legacy` | 0 |  |
-| `.claude/plans/archive/plan-port-parse-gate.md` | `legacy` | 0 |  |
