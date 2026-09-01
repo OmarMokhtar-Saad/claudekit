@@ -1,0 +1,17 @@
+{
+  "plan": "request-shaping-review-fixes",
+  "operations": [
+    {
+      "id": "cmd-fixes",
+      "type": "code_edit",
+      "description": "M2 /validate-ops does not exist; M3 --depth is [1-5] not quick; M4 block has seven fields",
+      "path": ".claude/commands/ask.md",
+      "edits": [
+        {
+          "find": "5. **Name** the next step and stop: Tier 1 -> minimal `ops.json` -> `/validate-ops` ->\n   `/implement`; Tier 2 -> `/plan`; Tier 3 -> `/plan` then `/review`. Do not run it.\n\n## Flags\n\nHonours **command-flags**: `--depth=quick` (no filesystem exploration), `--format=json`\n(the block as JSON keyed by the six field names).\n",
+          "replace": "5. **Name** the next step and stop: Tier 1 -> `ops.json` -> `validate-config-json.py`\n   -> `/implement`; Tier 2 -> `/plan`; Tier 3 -> `/plan` then `/review`. Do not run it.\n\n## Flags\n\nHonours **command-flags**: `--depth=1` (no exploration), `--format=json` (the block as\nJSON keyed by its seven field names).\n"
+        }
+      ]
+    }
+  ]
+}

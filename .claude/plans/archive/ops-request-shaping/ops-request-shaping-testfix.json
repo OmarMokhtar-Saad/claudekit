@@ -1,0 +1,25 @@
+{
+  "plan": "request-shaping-test-fixes",
+  "operations": [
+    {
+      "id": "unvacuous",
+      "type": "code_edit",
+      "description": "M1: test was vacuous under its own short-circuit",
+      "path": "tests/test_request_shaping.py",
+      "edits": [
+        {
+          "find": "def test_command_and_skill_agree_on_the_block():\n    \"\"\"The command must not redefine the block with different fields.\"\"\"\n    cmd = read(COMMAND)\n    # The command delegates the format rather than restating it -- either it names\n    # the skill as the definition, or it lists every field identically.\n    delegates = 'request-shaping' in cmd and 'Shaped Request block' in cmd\n    restates_fully = all(f in cmd for f in BLOCK_FIELDS)\n    assert delegates or restates_fully, (\n        'ask.md must either delegate the block format to request-shaping or restate '\n        'every field; a partial restatement is how the two drift apart.'\n    )\n",
+          "replace": "def _fenced_blocks(text):\n    \"\"\"Every ``` fenced block in `text`, bodies only.\"\"\"\n    return re.findall(r'(?ms)^```[^\\n]*\\n(.*?)^```', text)\n\n\ndef test_command_and_skill_agree_on_the_block():\n    \"\"\"Any block ask.md restates must carry the full field set, not a subset.\n\n    The first version of this test was `delegates or restates_fully`, where\n    `delegates` merely checked that the strings 'request-shaping' and 'Shaped Request\n    block' appear in ask.md. Both appear permanently, so the left side was always True\n    and the right side was never evaluated -- the test could not fail for the reason\n    its own message gave. Mutation-proved: a fenced block restating four fields with\n    DONE WHEN renamed to SUCCESS passed it.\n\n    Now the check is unconditional. Delegation is still allowed (ask.md may name the\n    skill and print no block of its own), but any fenced block that looks like the\n    Shaped Request block -- it mentions TASK: -- must carry every field.\n    \"\"\"\n    cmd = read(COMMAND)\n    assert 'request-shaping' in cmd, 'ask.md must name the skill that defines the block'\n    for body in _fenced_blocks(cmd):\n        if 'TASK:' not in body:\n            continue\n        missing = [f for f in BLOCK_FIELDS if f not in body]\n        assert not missing, (\n            f'ask.md restates the Shaped Request block but omits {missing}; a partial '\n            f'restatement is how the two drift apart. Either list every field or drop '\n            f'the block and delegate to request-shaping.'\n        )\n"
+        },
+        {
+          "find": "def test_docs_gate_still_passes():\n    r = run(DOCS_GATE, '--check')\n    assert r.returncode == 0, r.stdout + r.stderr\n",
+          "replace": "def test_docs_gate_still_passes():\n    r = run(DOCS_GATE, '--check')\n    assert r.returncode == 0, r.stdout + r.stderr\n\n\ndef test_plan_index_gate_still_passes():\n    \"\"\"CI runs this (.github/workflows/ci.yml) and the suite did not.\n\n    Adding plan-request-shaping.md left .claude/plans/INDEX.md stale, which turns CI red\n    while all 7061 tests pass -- a fifth generator gate escaping review after three\n    others already had. Asserted here so the suite carries the signal.\n    \"\"\"\n    r = run(PLAN_INDEX_GATE, '--check')\n    assert r.returncode == 0, r.stdout + r.stderr\n"
+        },
+        {
+          "find": "DOCS_GATE = os.path.join(REPO_ROOT, 'scripts', 'gen-docs.py')",
+          "replace": "DOCS_GATE = os.path.join(REPO_ROOT, 'scripts', 'gen-docs.py')\nPLAN_INDEX_GATE = os.path.join(REPO_ROOT, 'scripts', 'gen-plan-index.py')"
+        }
+      ]
+    }
+  ]
+}

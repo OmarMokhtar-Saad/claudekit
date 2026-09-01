@@ -823,6 +823,14 @@
       "mandatory": false,
       "usedBy": [],
       "description": "Use when testing an SDK or dependency you cannot modify \u2014 build an invariant table from its source, then attack each promise through harness knobs."
+    },
+    {
+      "id": "request-shaping",
+      "name": "Request Shaping",
+      "path": "skills/request-shaping/SKILL.md",
+      "mandatory": false,
+      "usedBy": [],
+      "description": "Use when a raw request must be normalized before routing - extracts the six dimensions the pipeline routes on"
     }
   ],
   "agentsWithoutSkills": [
