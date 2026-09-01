@@ -25,6 +25,8 @@ import re
 import subprocess
 import sys
 
+import pytest
+
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 SKILL = os.path.join(REPO_ROOT, '.claude', 'skills', 'request-shaping', 'SKILL.md')
 COMMAND = os.path.join(REPO_ROOT, '.claude', 'commands', 'ask.md')
@@ -105,12 +107,26 @@ def test_docs_gate_still_passes():
 
 
 def test_plan_index_gate_still_passes():
-    """CI runs this (.github/workflows/ci.yml) and the suite did not.
+    """CI's docs-drift job runs this and the suite did not.
 
-    Adding plan-request-shaping.md left .claude/plans/INDEX.md stale, which turns CI red
-    while all 7061 tests pass -- a fifth generator gate escaping review after three
-    others already had. Asserted here so the suite carries the signal.
+    Adding plan-request-shaping.md left .claude/plans/INDEX.md stale, which turned CI red
+    while all 7061 tests passed -- a fifth generator gate escaping review after three
+    others already had. Asserted here so a developer's full-history tree carries the
+    signal too.
+
+    Skipped on a shallow clone, and that is not a convenience. gen-plan-index.py derives
+    `executed` from `Plan-Id:` commit trailers, so without history it sees no trailers
+    and derives a different state for every executed plan -- measured at 28 differing
+    rows in a `--depth 1` clone of this branch. CI knows this: the docs-drift job sets
+    `fetch-depth: 0` precisely for this gate, while the tests job takes the default
+    shallow checkout. Asserting here unconditionally therefore fails all 8 matrix jobs
+    for a reason that has nothing to do with the tree being wrong -- which is exactly
+    what it did before this skip was added.
     """
+    shallow = subprocess.run(['git', 'rev-parse', '--is-shallow-repository'],
+                             capture_output=True, text=True, cwd=REPO_ROOT)
+    if shallow.stdout.strip() == 'true':
+        pytest.skip('shallow clone: gen-plan-index.py needs Plan-Id: commit trailers')
     r = run(PLAN_INDEX_GATE, '--check')
     assert r.returncode == 0, r.stdout + r.stderr
 
