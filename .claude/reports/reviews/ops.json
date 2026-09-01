@@ -1,0 +1,18 @@
+{
+  "plan": ".claude/plans/plan-request-shaping.md",
+  "slug": "ops",
+  "ops_path": ".claude/plans/request-shaping/ops.json",
+  "ops_sha256": "78ed857aa17c68ad363c1cf44c51d539944e31de5462b0121a09ad4af06a2444",
+  "score": 91,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] Step 5 (gen-registry.py) runs outside the engine transaction; skipping it leaves the repo unregistered until pytest/CI catches it. Disclosed and mitigated by test_skill_is_registered, not hidden.",
+    "[MINOR] test_question_budget_is_three and test_tier_is_derived_not_asked remain text-matching; strengthened and honestly self-documented as weak."
+  ],
+  "verdict_origin": "rubric",
+  "recorded_utc": "2026-09-01T05:29:36Z",
+  "operations": 4,
+  "edits": 1,
+  "rounds": [],
+  "round": 1
+}

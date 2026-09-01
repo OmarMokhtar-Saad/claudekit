@@ -1,6 +1,94 @@
 # AI Session Changelog
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
+## 2026-09-01 — `/ask` + `request-shaping`, and three gates that outlived two approvals
+
+Plan review **62 REJECTED → 91 APPROVED**. Suite **7057 passed / 4 failed → 7060 passed
+/ 1 failed**, that one being an unrelated pre-existing flake (see below).
+
+**What landed.** A `request-shaping` skill and an `/ask` command: input-side request
+normalization. Every prompt asset in the corpus was output-side — `writing-plans`,
+`writing-skills`, `prompt-evaluation`, `token-optimization` all improve text *we* emit —
+so nothing normalized the incoming request, and the blast-radius tier was picked from an
+unstructured sentence while `planner` re-derived scope every run. `/ask` extracts the six
+dimensions the pipeline actually routes on (task verb, scope, constraints, success
+criteria, derived tier, evidence to read), asks at most three questions and only for
+Blocking gaps, emits a fixed Shaped Request block, then names the next command **without
+running it** — which is what keeps it outside the Golden Rule's approval gate.
+
+**Provenance.** Idea adapted from the MIT-licensed `nidhinjs/prompt-master`; **no code
+vendored**, so no attribution row is owed. Deliberately left out: its 13-framework router
+(RTF/CO-STAR/RISEN/CRISPE — ceremony the planner does not consume), its 30+ foreign-tool
+profiles (Midjourney, Zapier, Cursor — this kit's only target is its own pipeline), and
+its model-spec verification step, because `claude-api` already owns model facts and a
+second model table is a staleness liability.
+
+**The finding worth keeping: review approval is not suite evidence.** Two plan reviews
+cleared this change and the full suite then failed four tests, none of which a reviewer
+could have seen without executing. Round 1's own catch was already of that class — a bare
+`file_create` registers nothing, so `gen-registry.py --check` would have failed — and it
+could not be fixed with a `run_command` op, because `ALLOWED_RUN_COMMANDS` holds only
+formatters and `python3` is absent; widening that allowlist is a security-surface change,
+so the generator run stayed out-of-band with `test_skill_is_registered` to red if it is
+skipped. Then **four more** fired after both approvals. Three at full-suite time: **`ck lint`'s
+command-budget** (a *new* command must fit 40 lines; `ask.md` shipped at 83 and was
+compressed to 40, the detail moved into the skill where it belongs), the **`.agents/`
+Codex mirror** membership gate, and the **queued-ops gate** — an ops config fails
+validation the moment it succeeds, its `file_create` anchors consumed by the files it
+creates, so executing is not the last step; archiving with a README row is.
+
+**The fifth is the one worth remembering, because the suite could not see it either.**
+The adversarial code review (75 REVISE) found `scripts/gen-plan-index.py --check` red on
+`.claude/plans/INDEX.md`: adding a plan file left the index stale, which turns **CI**
+(`.github/workflows/ci.yml:144`) red while all 7061 tests pass. Four gate assertions had
+been added to `tests/test_request_shaping.py` and the index gate was not among them —
+the docstring enumerated the gates the author thought of, which is exactly the failure
+mode. Now asserted. **Five gates, one change, none of them logic.**
+
+The same review killed a **vacuous test**: `test_command_and_skill_agree_on_the_block`
+was `delegates or restates_fully`, and `delegates` only checked that two strings appear
+in `ask.md` — both appear permanently, so the right side never evaluated and the test
+could not fail for the reason its own message gave. Mutation-proved by the reviewer with
+a four-field block renaming `DONE WHEN` to `SUCCESS`. Rewritten to check every fenced
+block that mentions `TASK:` against the full field set, and re-proved against that same
+mutation. Three further content defects, all in `ask.md`: it routed Tier 1 to
+`/validate-ops`, **a command that exists nowhere in the corpus**; it documented
+`--depth=quick` when `command-flags` defines `--depth=[1-5]`; and it specified
+`--format=json` over "six field names" when the block has **seven** — six *dimensions*,
+seven *fields* — so the JSON path silently dropped `ASSUMED`, the record that exists so
+Risky/Minor gaps do not become questions.
+
+**One flake, not ours, worth fixing separately.**
+`test_validator_vs_bash.py::TestContainment::test_the_sandbox_is_removed` failed in the
+rerun and passes in isolation, on a stashed clean tree, and on the whole file. It
+snapshots the **shared** system temp dir for `validator-oracle-*` before and after
+(`tests/test_validator_vs_bash.py:279-283`) rather than using `tmp_path`, so any
+concurrent process running the oracle makes `after != before`. A code-review agent was
+running against the tree at the time. Pre-existing and independent of this change; left
+alone rather than folded in, but it will keep firing whenever the suite runs beside
+anything else.
+
+**Floor cost: zero.** The skill carries `disable-model-invocation: true`, so
+`context_floor.model_invisible` excludes it — skill descriptions stayed at **8817/9000**
+across the change while only command descriptions moved (4851 → 4942). That mattered:
+there were 183 chars of headroom, and a model-visible description would have breached the
+gate in a commit that looked unrelated to it.
+
+**Fleet.** Distributed to the 13 kitted projects (26 files + a registry entry each).
+`fleet-sync.py` could not do it — it is a one-shot script hardcoded to the old
+skill-enhancement plan — so an additive distributor was used: dry-run default,
+skip-never-overwrite, nothing committed downstream. Downstream ships
+`skills-registry.json` but **not** `gen-registry.py`, so the entry is appended once by
+hand; `ck doctor` would not have complained (it only resolves `agentMapping` references),
+but a registry that omits an installed skill is the silent divergence `skills.py` exists
+to prevent. The repo-local test file is not distributed — it imports
+`claudekit.context_floor` from `src/`, which no downstream project has.
+
+**Follow-ups.** The distributor lives in the session scratchpad, not the repo: the
+approved plan's Files table does not include it, and widening approved scope unasked is
+the thing the plan gate exists to stop. If fleet distribution of single assets recurs, it
+deserves a real `.claude/operations/scripts/` home with its own tests.
+
 ## 2026-08-25 (fourth period) — the rejection retro loop, and four rounds spent on one root cause
 
 Commits `74e5fed`, `b355a4f`, `648cef5`. Plan review **85 → 89 → 93 → 92 → 88 → 87 → 93**

@@ -12,6 +12,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`/ask` + the `request-shaping` skill -- input-side request normalization.**
+  Every prompt asset in the kit was output-side (`writing-plans`, `writing-skills`,
+  `prompt-evaluation`, `token-optimization` all improve text we emit). Nothing normalized
+  the *incoming* request, so the blast-radius tier was picked from an unstructured
+  sentence and the planner re-derived scope every run. `/ask` extracts the six dimensions
+  the pipeline actually routes on -- task verb, scope, constraints, success criteria,
+  derived tier, evidence to read -- asks at most three questions for Blocking gaps only,
+  emits a fixed Shaped Request block, then names the next command without running it.
+  The skill is `disable-model-invocation: true`, so it costs the always-on context floor
+  nothing. Idea adapted from the MIT-licensed `nidhinjs/prompt-master`; no code vendored,
+  and its framework router, foreign-tool profiles and model-spec table were deliberately
+  left out.
+
 ### Changed
 
 - **`install.sh`'s 178-line asset-preservation heredoc is now a real module.**

@@ -2,6 +2,41 @@
 
 > Update this file at the end of every significant AI working session. It is the resume point.
 
+**Last updated:** 2026-09-01 · **By:** Claude (Opus 5) — **`/ask` + `request-shaping`
+shipped and synced to the fleet.** Input-side request normalization: the corpus had no
+asset that shaped the *incoming* request, only ones that improve text we emit.
+
+**Start here if you are picking this up.** Nothing is blocked and no decision is open on
+this change. Two things are worth knowing:
+
+1. **Review approval is not suite evidence, and the suite is not CI evidence.** Two plan
+   reviews cleared this change (62 → 91) and the full suite then failed four tests; a
+   third, adversarial code review (75 REVISE) then found a **fifth** gate that the suite
+   *also* could not see — `scripts/gen-plan-index.py --check`, which CI runs
+   (`.github/workflows/ci.yml:144`) and which goes red when a new plan file leaves
+   `.claude/plans/INDEX.md` stale, while all 7061 tests pass.
+
+   The class that escapes is **repo ratchets and generator gates**, never logic: `ck
+   lint`'s command-budget (a *new* command must fit 40 lines — nothing in the prompt
+   corpus mentions this rule), the `.agents/` Codex mirror, `gen-registry.py` (a bare
+   `file_create` registers nothing), `gen-plan-index.py`, and the queued-ops gate. After
+   adding any **new** command, skill, agent or plan file, run **all five** generators, the
+   full suite, and `ck lint` before reporting done — and do not treat an APPROVED verdict
+   as covering any of them.
+
+2. **An ops config fails validation the moment it succeeds.** Its `file_create` anchors
+   are consumed by the files it creates, so `test_queued_ops_configs_validate_against_head`
+   reds until the config is moved to `.claude/plans/archive/<slug>/` with a README row.
+   Executing is not the last step. (The gate was top-level-only when this was last noted;
+   it now walks subdirectories and binds.)
+
+**Fleet:** 13 kitted projects each received the skill, the command and a registry entry,
+left **uncommitted** per policy. The distributor is in the session scratchpad, not the
+repo — `fleet-sync.py` is a one-shot hardcoded to the old skill-enhancement plan and could
+not do this. If single-asset distribution recurs, it deserves a real home with tests.
+
+---
+
 **Last updated:** 2026-08-25 (fourth period) · **By:** Claude (Opus 5) — **the rejection
 retro loop is in.** Review verdicts now record on EVERY round, a durable brief lands on the
 2nd non-approving one, and `/flow-retro` can mine them. **It captures but cannot yet learn:

@@ -24,11 +24,11 @@ index never outranks the current files.
 |---|---:|
 | `drifted` | 4 |
 | `approved` | 50 |
-| `planned` | 11 |
+| `planned` | 12 |
 | `executed` | 28 |
 | `not_started` | 20 |
 | `legacy` | 3 |
-| **total** | **116** |
+| **total** | **117** |
 
 ## Plans
 
@@ -108,6 +108,7 @@ index never outranks the current files.
 | `.claude/plans/plan-rejection-retro-loop.md` | `planned` | 7 |  |
 | `.claude/plans/plan-remaining-fixes-2026-07-31.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-remove-codex-mirror.md` | `approved` | 1 |  |
+| `.claude/plans/plan-request-shaping.md` | `planned` | 5 |  |
 | `.claude/plans/plan-residuals.md` | `approved` | 1 |  |
 | `.claude/plans/plan-residue-cleanup.md` | `approved` | 1 |  |
 | `.claude/plans/plan-retro-completion.md` | `planned` | 9 |  |
