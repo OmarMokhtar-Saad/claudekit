@@ -1,0 +1,16 @@
+{
+  "plan": "graph-render-split-4",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/project-graph.py",
+      "description": "Import the presentation layer and drop imports it took with it.",
+      "edits": [
+        {
+          "find": "import argparse\nimport hashlib\nimport json\nimport math\nimport os\nimport re\nimport subprocess\nimport sys\nfrom collections import deque\nfrom datetime import datetime, timezone\nfrom html import escape\nfrom pathlib import Path\nfrom typing import Any, Deque, Dict, List, Optional, Set, Tuple\n",
+          "replace": "import argparse\nimport hashlib\nimport json\nimport os\nimport re\nimport subprocess\nimport sys\nfrom collections import deque\nfrom datetime import datetime, timezone\nfrom pathlib import Path\nfrom typing import Any, Deque, Dict, List, Optional, Set, Tuple\n\n# Presentation lives next door. This script decides WHAT to draw -- which nodes,\n# which edges, which are god-nodes -- and project_graph_render decides HOW. The\n# dependency is one-way by design: the renderer imports nothing from here, which\n# is what stops the split from being cosmetic.\nsys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))\nfrom project_graph_render import (  # noqa: E402\n    mermaid_diff,\n    render_html,\n    render_mermaid,\n)\n"
+        }
+      ]
+    }
+  ]
+}

@@ -27,6 +27,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and its framework router, foreign-tool profiles and model-spec table were deliberately
   left out.
 
+- **`project_graph_render.py`: the presentation layer, split out.** `render`'s mermaid and
+  self-contained-HTML emitters left `project-graph.py` for a sibling module (1312 -> 1153
+  lines, 204 in the new file). The dependency is one-way — the renderer imports nothing
+  back — so the script decides *what* to draw and the module decides *how*. `impact` exists
+  to flag exactly this kind of coupling, so leaving the two fused would have been the tool
+  failing its own test.
+
 - **`verify` / `render` / `diff` / `impact` for `project-graph.py`.** The graph was
   already an agent-emitted JSON IR with a deterministic validator behind it, but nothing
   checked the agent's *claims* against disk and nothing could draw the result. `verify`
