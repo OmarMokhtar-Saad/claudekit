@@ -2,9 +2,18 @@
 
 > Update this file at the end of every significant AI working session. It is the resume point.
 
-**Last updated:** 2026-09-01 · **By:** Claude (Opus 5) — **`/ask` + `request-shaping`
-shipped and synced to the fleet.** Input-side request normalization: the corpus had no
-asset that shaped the *incoming* request, only ones that improve text we emit.
+**Last updated:** 2026-09-01 · **By:** Claude (Opus 5) — **graph `verify`/`render`/`diff`/
+`impact` shipped on `feat/graph-render-diff`.** `project-graph.py` 573 -> 1312 lines. The
+IR and its validator already existed; what was missing was checking the agent's claims
+against disk (`verify`), drawing the result (`render`, mermaid + self-contained HTML),
+before/after on architecture (`diff`), and a computed answer to "does this plan touch
+architecture?" (`impact --ops`, now run by the planner). Two reviews rejected at 59/60 and
+one repair round cleared them. **Open follow-ups:** (1) `validate-config-json.py` checks
+anchor *existence* where the executor requires *uniqueness* against the post-predecessor
+file — it approved four plans the executor refused; fix is `count(find) == 1` plus a
+sequence mode. (2) `render`'s HTML/SVG layer sits in `project-graph.py`; both reviewers
+flagged the god-file risk, a split is the obvious next move. (3) Pipeline agent bodies are
+at the context ceiling (42930/43000).
 
 **Start here if you are picking this up.** Nothing is blocked and no decision is open on
 this change. Two things are worth knowing:
