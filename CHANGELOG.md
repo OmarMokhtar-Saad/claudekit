@@ -54,6 +54,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`validate-config-json.py --after`: validate a config against the state its
+  predecessors leave.** Edits within one config were already simulated cumulatively, so a
+  missing or ambiguous anchor was caught — but each config was measured against the file
+  on disk, and a *sequence* was not. An anchor unique against HEAD can be duplicated or
+  rewritten by an earlier config in the same run: four configs authored in parallel
+  against one file each validated APPROVED and three then failed in the executor. `--after`
+  projects the predecessors' edits in memory first, so the gate now agrees with the engine.
+  The existence guards are projection-aware too, so a config may edit a file an earlier
+  one creates.
+
 - **`--ops` and `--against` containment now resolves symlinks.** Both readers confined
   their input with `normpath` + `startswith`, a purely textual test, so a symlink *inside*
   the project root pointing outside it passed while the error text claimed containment

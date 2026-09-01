@@ -1,0 +1,16 @@
+{
+  "plan": "validator-sequence-changelog",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "description": "Record the validator sequence mode under Unreleased/Fixed.",
+      "edits": [
+        {
+          "find": "- **`--ops` and `--against` containment now resolves symlinks.**",
+          "replace": "- **`validate-config-json.py --after`: validate a config against the state its\n  predecessors leave.** Edits within one config were already simulated cumulatively, so a\n  missing or ambiguous anchor was caught \u2014 but each config was measured against the file\n  on disk, and a *sequence* was not. An anchor unique against HEAD can be duplicated or\n  rewritten by an earlier config in the same run: four configs authored in parallel\n  against one file each validated APPROVED and three then failed in the executor. `--after`\n  projects the predecessors' edits in memory first, so the gate now agrees with the engine.\n  The existence guards are projection-aware too, so a config may edit a file an earlier\n  one creates.\n\n- **`--ops` and `--against` containment now resolves symlinks.**"
+        }
+      ]
+    }
+  ]
+}
