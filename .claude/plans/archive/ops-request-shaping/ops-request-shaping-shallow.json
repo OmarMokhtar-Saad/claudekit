@@ -1,0 +1,21 @@
+{
+  "plan": "request-shaping-shallow-clone",
+  "operations": [
+    {
+      "id": "skip-on-shallow",
+      "type": "code_edit",
+      "description": "the plan-index gate needs full history; the tests job checks out shallow",
+      "path": "tests/test_request_shaping.py",
+      "edits": [
+        {
+          "find": "def test_plan_index_gate_still_passes():\n    \"\"\"CI runs this (.github/workflows/ci.yml) and the suite did not.\n\n    Adding plan-request-shaping.md left .claude/plans/INDEX.md stale, which turns CI red\n    while all 7061 tests pass -- a fifth generator gate escaping review after three\n    others already had. Asserted here so the suite carries the signal.\n    \"\"\"\n    r = run(PLAN_INDEX_GATE, '--check')\n    assert r.returncode == 0, r.stdout + r.stderr\n",
+          "replace": "def test_plan_index_gate_still_passes():\n    \"\"\"CI's docs-drift job runs this and the suite did not.\n\n    Adding plan-request-shaping.md left .claude/plans/INDEX.md stale, which turned CI red\n    while all 7061 tests passed -- a fifth generator gate escaping review after three\n    others already had. Asserted here so a developer's full-history tree carries the\n    signal too.\n\n    Skipped on a shallow clone, and that is not a convenience. gen-plan-index.py derives\n    `executed` from `Plan-Id:` commit trailers, so without history it sees no trailers\n    and derives a different state for every executed plan -- measured at 28 differing\n    rows in a `--depth 1` clone of this branch. CI knows this: the docs-drift job sets\n    `fetch-depth: 0` precisely for this gate, while the tests job takes the default\n    shallow checkout. Asserting here unconditionally therefore fails all 8 matrix jobs\n    for a reason that has nothing to do with the tree being wrong -- which is exactly\n    what it did before this skip was added.\n    \"\"\"\n    shallow = subprocess.run(['git', 'rev-parse', '--is-shallow-repository'],\n                             capture_output=True, text=True, cwd=REPO_ROOT)\n    if shallow.stdout.strip() == 'true':\n        pytest.skip('shallow clone: gen-plan-index.py needs Plan-Id: commit trailers')\n    r = run(PLAN_INDEX_GATE, '--check')\n    assert r.returncode == 0, r.stdout + r.stderr\n"
+        },
+        {
+          "find": "import subprocess\nimport sys",
+          "replace": "import subprocess\nimport sys\n\nimport pytest"
+        }
+      ]
+    }
+  ]
+}
