@@ -24,9 +24,9 @@ index never outranks the current files.
 |---|---:|
 | `drifted` | 4 |
 | `approved` | 50 |
-| `planned` | 16 |
+| `planned` | 13 |
 | `executed` | 28 |
-| `not_started` | 21 |
+| `not_started` | 24 |
 | `legacy` | 3 |
 | **total** | **122** |
 
@@ -76,11 +76,11 @@ index never outranks the current files.
 | `.claude/plans/plan-floor-json-flag.md` | `planned` | 1 |  |
 | `.claude/plans/plan-gate-scope.md` | `approved` | 1 |  |
 | `.claude/plans/plan-generators-that-cannot-drift.md` | `approved` | 1 |  |
-| `.claude/plans/plan-graph-p1-verify.md` | `planned` | 1 |  |
-| `.claude/plans/plan-graph-p2-render.md` | `planned` | 1 |  |
-| `.claude/plans/plan-graph-p3-diff.md` | `planned` | 1 |  |
-| `.claude/plans/plan-graph-p4-impact.md` | `planned` | 1 |  |
-| `.claude/plans/plan-graph-render-diff.md` | `not_started` | 0 |  |
+| `.claude/plans/plan-graph-p1-verify.md` | `not_started` | 0 |  |
+| `.claude/plans/plan-graph-p2-render.md` | `not_started` | 0 |  |
+| `.claude/plans/plan-graph-p3-diff.md` | `not_started` | 0 |  |
+| `.claude/plans/plan-graph-p4-impact.md` | `not_started` | 0 |  |
+| `.claude/plans/plan-graph-render-diff.md` | `planned` | 8 |  |
 | `.claude/plans/plan-harness-findings.md` | `approved` | 1 |  |
 | `.claude/plans/plan-hook-live-findings.md` | `executed` | 10 |  |
 | `.claude/plans/plan-hook-log-dedup.md` | `executed` | 3 |  |
