@@ -1,0 +1,27 @@
+{
+  "plan": "validator-sequence-docs",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/validate-operations-config/SKILL.md",
+      "description": "Document sequence validation where the validator is actually invoked.",
+      "edits": [
+        {
+          "find": "If the script is not at that path, search for it:\n```bash\nfind . -name \"validate-config-json.py\" -not -path \"*/node_modules/*\"\n```",
+          "replace": "If the script is not at that path, search for it:\n```bash\nfind . -name \"validate-config-json.py\" -not -path \"*/node_modules/*\"\n```\n\n**Validating a SEQUENCE of configs.** When several ops.json files will be executed one\nafter another, validating each on its own is not enough: an anchor that is unique against\nthe current file can be duplicated, rewritten or deleted by an earlier config in the same\nrun, and the executor sees that state while the validator did not. Name the predecessors,\nin execution order:\n\n```bash\npython3 .claude/operations/scripts/validate-config-json.py \\\n  --after phase1.ops.json --after phase2.ops.json phase3.ops.json\n```\n\nThis is not optional for parallel-authored plans \u2014 configs written independently against\nthe same file are exactly the case that escapes single-config validation."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "description": "Record the validator sequence mode under Unreleased/Fixed.",
+      "edits": [
+        {
+          "find": "### Fixed\n",
+          "replace": "### Fixed\n\n- **`validate-config-json.py --after`: validate a config against the state its\n  predecessors leave.** Edits within one config were already simulated cumulatively, so a\n  missing or ambiguous anchor was caught \u2014 but each config was measured against the file\n  on disk, and a *sequence* was not. An anchor unique against HEAD can be duplicated or\n  rewritten by an earlier config in the same run: four configs authored in parallel\n  against one file each validated APPROVED and three then failed in the executor. `--after`\n  projects the predecessors' edits in memory first, so the gate now agrees with the engine.\n  The existence guards are projection-aware too, so a config may edit a file an earlier\n  one creates.\n"
+        }
+      ]
+    }
+  ]
+}
