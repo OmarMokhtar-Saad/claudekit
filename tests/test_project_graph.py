@@ -28,6 +28,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 SCRIPT = REPO / ".claude" / "operations" / "scripts" / "project-graph.py"
+RENDER_MODULE = REPO / ".claude" / "operations" / "scripts" / "project_graph_render.py"
 
 
 def run(args, project, graph=None, stdin=None):
@@ -652,6 +653,11 @@ class TestSessionStartGraphStatus:
         scripts = project / ".claude" / "operations" / "scripts"
         scripts.mkdir(parents=True)
         (scripts / "project-graph.py").write_bytes(SCRIPT.read_bytes())
+        # The presentation layer is a sibling import, so a tree with only the
+        # script in it cannot start. Copying it here is what proves the split
+        # did not break deployment -- install.sh ships operations/scripts/*.py,
+        # which covers the new module, but this fixture builds its own tree.
+        (scripts / "project_graph_render.py").write_bytes(RENDER_MODULE.read_bytes())
         subprocess.run(["git", "init", "-q", str(project)], check=True, capture_output=True)
         (project / "f.py").write_text("x = 1\n", encoding="utf-8")
         return project

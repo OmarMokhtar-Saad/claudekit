@@ -1,0 +1,16 @@
+{
+  "plan": "graph-render-split-docs",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "description": "Record the render module split.",
+      "edits": [
+        {
+          "find": "- **`verify` / `render` / `diff` / `impact` for `project-graph.py`.**",
+          "replace": "- **`project_graph_render.py`: the presentation layer, split out.** `render`'s mermaid and\n  self-contained-HTML emitters left `project-graph.py` for a sibling module (1312 -> 1153\n  lines, 204 in the new file). The dependency is one-way \u2014 the renderer imports nothing\n  back \u2014 so the script decides *what* to draw and the module decides *how*. `impact` exists\n  to flag exactly this kind of coupling, so leaving the two fused would have been the tool\n  failing its own test.\n\n- **`verify` / `render` / `diff` / `impact` for `project-graph.py`.**"
+        }
+      ]
+    }
+  ]
+}
