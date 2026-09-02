@@ -1,6 +1,46 @@
 # AI Session Changelog
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
+## 2026-09-01 — graph `verify`/`render`/`diff`/`impact`, and what parallel planning costs
+
+Two independent reviews **REJECTED at 59 and 60**, then **all gates green** after one
+repair round. Suite unchanged from baseline.
+
+**What landed.** Four subcommands on `project-graph.py` (573 -> 1312 lines). The graph was
+already an agent-emitted JSON IR behind a deterministic validator — `build`/`query`/`hubs`/
+`path`/`stale` shipped long ago — so the gap was never the IR, it was that nothing checked
+the agent's *claims* against disk and nothing could draw the result. `verify` rejects
+missing nodes, dangling endpoints and `extracted` edges whose source file never mentions
+the target. `render` emits mermaid or a self-contained HTML page and refuses to draw an
+unverified graph. `diff --against` gives before/after on architecture. `impact --ops`
+turns "does this plan touch architecture?" into an exit code, and the planner now runs it.
+
+**The expensive lesson: parallel planning against one file.** Four planners each produced a
+plan that applied cleanly *alone* and validated APPROVED. Applied in sequence, three of four
+failed — p1 duplicated a print string two others used as a unique anchor, rewrote a docstring
+line a third anchored on, and inserted a subparser inside a fourth's anchor. Two agents
+independently extracted the same `fan_counts` helper (ruff F811, mypy no-redef); two more
+independently implemented the same god-node rule under different names. None of it was
+visible to any single planner, and none of it was visible to the validator.
+
+**The finding worth more than the feature.** `validate-config-json.py` approved all four
+plans the executor then refused. It checks that an anchor *exists*; the executor requires
+it to be *unique*, evaluated against the post-predecessor file. A gate that green-lights
+what the engine rejects is why a broken sequence reached review at all. **Follow-up, not
+yet done:** assert `count(find) == 1`, and add a mode that validates a sequence against its
+projected post-state.
+
+**Security.** `--ops` and `--against` confined their input with `normpath` + `startswith` —
+textual, so a symlink inside the root pointing outside it passed while the error text
+claimed containment held. Both now `realpath` before the check; verified by exploit and
+re-test. The pre-existing `build --input` path shared the weakness.
+
+**Open.** `render`'s HTML/SVG layer ships inside `project-graph.py`; both reviewers flagged
+the god-file risk, which is ironic given `impact` exists to detect exactly that. Recorded,
+not resolved — a split is the obvious follow-up. Also: the pipeline agent bodies are at
+their context ceiling (42930/43000 after this change), so the routing lines had to be
+compressed and the explanation pushed into the skill.
+
 ## 2026-09-01 — `/ask` + `request-shaping`, and three gates that outlived two approvals
 
 Plan review **62 REJECTED → 91 APPROVED**. Suite **7057 passed / 4 failed → 7060 passed

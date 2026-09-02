@@ -1,0 +1,27 @@
+{
+  "plan": "graph-p7-review2",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/project-graph.py",
+      "description": "Hand the RESOLVED path to the reader so the symlink cannot be swapped between check and open (TOCTOU), matching read_ops.",
+      "edits": [
+        {
+          "find": "    if not (resolved == real_root or resolved.startswith(real_root + os.sep)):\n        return None, \"diff: --against resolves outside the project root: %s\" % source\n    return root / rel, None",
+          "replace": "    if not (resolved == real_root or resolved.startswith(real_root + os.sep)):\n        return None, \"diff: --against resolves outside the project root: %s\" % source\n    # Return the RESOLVED path, as read_ops does: handing back `root / rel` would\n    # traverse the symlink a second time at open, so re-pointing it after the\n    # check wins the race. Check and open must name the same inode.\n    return Path(resolved), None"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_project_graph.py",
+      "description": "Cover the mermaid `changed` class; without this, dropping the changed branch leaves the suite green.",
+      "edits": [
+        {
+          "find": "        assert \"classDef added\" in result.stdout\n        assert \"classDef removed\" in result.stdout",
+          "replace": "        assert \"classDef added\" in result.stdout\n        assert \"classDef removed\" in result.stdout\n\n    def test_mermaid_marks_changed_nodes(self, tmp_path):\n        \"\"\"The third class needs its own fixture: added/removed come from the edge\n        delta, but `changed` only fires when a node's stored hash moves, so a test\n        built on edges alone leaves the whole branch unverified.\"\"\"\n        project = make_project(tmp_path)\n        graph = tmp_path / \"graph.json\"\n        build_graph(project, graph)\n        self._before_copy(project, graph)\n        (project / \"src\" / \"b.py\").write_text(\"VALUE = 999\\n\", encoding=\"utf-8\")\n        build_graph(project, graph, sample_input())\n        result = run([\"diff\", \"--against\", \"before.json\", \"--format\", \"mermaid\"], project, graph)\n        assert result.returncode == 1\n        assert \"classDef changed\" in result.stdout\n        assert \":::changed\" in result.stdout"
+        }
+      ]
+    }
+  ]
+}

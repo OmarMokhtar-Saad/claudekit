@@ -1,0 +1,20 @@
+{
+  "plan": "validator-sequence-create",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/validate-config-json.py",
+      "description": "Let the existence guards see files a projected predecessor creates.",
+      "edits": [
+        {
+          "find": "        if not os.path.exists(file_path):\n            errors.append(f\"File {i}: File does not exist: {file_path}\")",
+          "replace": "        if not os.path.exists(file_path) and os.path.relpath(file_path) not in _PROJECTED:\n            errors.append(f\"File {i}: File does not exist: {file_path}\")"
+        },
+        {
+          "find": "        if not os.path.exists(file_path):\n            errors.append(f\"Operation {i} (code_edit): File does not exist: {file_path}\")",
+          "replace": "        # A predecessor named by --after may create this file; the executor will\n        # have done so by the time it reaches this config, so disk is the wrong\n        # oracle in sequence mode.\n        if not os.path.exists(file_path) and os.path.relpath(file_path) not in _PROJECTED:\n            errors.append(f\"Operation {i} (code_edit): File does not exist: {file_path}\")"
+        }
+      ]
+    }
+  ]
+}

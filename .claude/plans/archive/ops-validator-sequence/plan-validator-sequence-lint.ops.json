@@ -1,0 +1,16 @@
+{
+  "plan": "validator-sequence-lint",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_validator_sequence_mode.py",
+      "description": "Drop the unused import ruff flagged.",
+      "edits": [
+        {
+          "find": "import json\nimport os\nimport subprocess",
+          "replace": "import json\nimport subprocess"
+        }
+      ]
+    }
+  ]
+}

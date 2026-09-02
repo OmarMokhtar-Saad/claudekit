@@ -86,6 +86,8 @@ Explore the codebase to understand the current state before planning anything.
    query <file> --direction in for each file the plan will touch — touching
    a GOD-NODE widens blast radius and MUST appear in the Risk Assessment
    (exit 3 = no graph, skip)
+8. Then impact --ops <ops.json>: exit 1 = hub / boundary / unknown path ->
+   Risk Assessment + route to reviewer
 ```
 
 **Discovery output (internal, not shown to user):**

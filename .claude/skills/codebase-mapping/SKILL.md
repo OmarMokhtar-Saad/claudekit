@@ -196,3 +196,28 @@ targets get `kind: external` stubs. Then:
 - The **explore**, **refactor-cleaner** and **planner** agents query the graph
   sidecar (`project-graph.py query/hubs/path`) instead of re-grepping; script
   exit 3 means no graph/no match — fall back to normal search
+
+---
+
+## Trusting, Viewing and Comparing a Graph
+
+A graph is agent-asserted, so treat it as a claim until it is checked.
+
+- **`verify`** gates the claims against disk: nodes must exist, edge endpoints must
+  be declared, and an `extracted` edge must leave a textual trace in its own source
+  file. Exit 1 lists the violations. Run it before acting on a graph you did not
+  just build. The support test is a substring falsifier — it catches invented
+  edges, it does not prove real ones, and aliased imports or generated sources can
+  false-positive; `--strict` extends the same check to `inferred` edges.
+- **`render`** draws the *verified* graph: `--format mermaid` for a diagram to paste
+  into a doc, `--format html --out graph.html` for a self-contained interactive page
+  (no CDN, no network). Bound large graphs with `--focus <node> --depth 2`. It
+  refuses to render a graph that fails `verify` unless you pass `--allow-unverified`.
+  The HTML file is publishable as-is if you want a shareable page.
+- **`diff --against <other.json>`** reports the structural delta — added/removed nodes
+  and edges — so a review can see the shape of a change instead of its text.
+  Exit 1 means "differences found", which is information, not an error.
+- **`impact --ops <plan.ops.json>`** reads a plan's operations config and reports the
+  blast radius of the files it touches. Exit 1 means a touched node is a hub/god-node,
+  the touched set crosses a package boundary, or a path is absent from the graph —
+  all of which mean the change earns a reviewer.

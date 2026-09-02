@@ -271,6 +271,87 @@ def validate_run_commands(operations: List[dict]) -> Tuple[bool, List[str]]:
     return len(errors) == 0, errors
 
 
+# Files as a predecessor sequence will leave them. GUARD 10/11 already simulate
+# edits cumulatively *within* one config, which is why an ambiguous or missing
+# anchor is caught there -- but each config was still measured against the file
+# on disk. A sequence of configs applied in order is the case that escaped: an
+# edit that is unique against HEAD can be duplicated, moved or deleted by an
+# earlier config in the same run, and the executor sees that state while the
+# validator did not. --after closes exactly that gap.
+_PROJECTED: Dict[str, str] = {}
+
+
+def apply_edits_unchecked(edits: list, content: str) -> str:
+    """Apply edits the way the executor will, with no reporting.
+
+    Deliberately mirrors the simulation in `_validate_edits`: same actions, same
+    single-occurrence replacement. A predecessor edit that would not apply is
+    skipped rather than raised -- projection's job is to describe the state the
+    executor reaches, and a predecessor that fails is that predecessor's error
+    to report, not this one's.
+    """
+    for edit in edits:
+        find_pattern = edit.get('find')
+        if not isinstance(find_pattern, str) or find_pattern not in content:
+            continue
+        if 'add_after' in edit:
+            content = content.replace(find_pattern, find_pattern + edit['add_after'], 1)
+        elif 'add_before' in edit:
+            content = content.replace(find_pattern, edit['add_before'] + find_pattern, 1)
+        elif 'replace' in edit:
+            content = content.replace(find_pattern, edit['replace'], 1)
+        elif edit.get('delete') is True:
+            content = content.replace(find_pattern, '', 1)
+    return content
+
+
+def project_configs(config_paths: List[str]) -> Tuple[Dict[str, str], List[str]]:
+    """Project the file state left by applying `config_paths` in order.
+
+    Returns (projected_content_by_relpath, problems). Problems are reported but
+    never fatal: a predecessor we cannot read simply contributes nothing, so the
+    target is still measured against the best state we can establish.
+    """
+    projected: Dict[str, str] = {}
+    problems: List[str] = []
+    for config_path in config_paths:
+        try:
+            with open(config_path, 'r', encoding='utf-8') as fh:
+                cfg = json.load(fh)
+        except (OSError, ValueError) as exc:
+            problems.append(f"--after {config_path}: cannot read ({exc})")
+            continue
+        operations = cfg.get('operations') or cfg.get('files') or []
+        for op in operations:
+            if not isinstance(op, dict):
+                continue
+            path = op.get('path') or op.get('file')
+            edits = op.get('edits')
+            op_type = op.get('type', 'code_edit')
+            if not path:
+                continue
+            key = os.path.relpath(path)
+            if op_type == 'file_create' and 'content' in op:
+                projected[key] = op['content']
+                continue
+            if op_type == 'file_delete':
+                projected.pop(key, None)
+                continue
+            if not edits:
+                continue
+            if key in projected:
+                content = projected[key]
+            else:
+                try:
+                    with open(path, 'r', encoding='utf-8-sig') as fh:
+                        content = fh.read()
+                except OSError as exc:
+                    problems.append(f"--after {config_path}: cannot read target {path} ({exc})")
+                    continue
+            projected[key] = apply_edits_unchecked(edits, content)
+    return projected, problems
+
+
 def _validate_edits(edits: list, file_content: str, label: str, errors: List[str]) -> str:
     """Validate edit entries against file content (GUARDs 8-11).
 
@@ -484,7 +565,7 @@ def validate_legacy_format(config: dict, errors: List[str]) -> Tuple[bool, List[
     Duplicate paths across entries are threaded through legacy_sim so each edit is
     checked against the content as it will exist when the executor reaches it.
     """
-    legacy_sim: Dict[str, Any] = {}
+    legacy_sim: Dict[str, Any] = dict(_PROJECTED)
     if 'files' not in config:
         errors.append("Missing required key: 'files'")
         return False, errors
@@ -508,7 +589,7 @@ def validate_legacy_format(config: dict, errors: List[str]) -> Tuple[bool, List[
             continue
 
         # GUARD 6: Check file exists
-        if not os.path.exists(file_path):
+        if not os.path.exists(file_path) and os.path.relpath(file_path) not in _PROJECTED:
             errors.append(f"File {i}: File does not exist: {file_path}")
             continue
 
@@ -564,7 +645,7 @@ def validate_modern_format(config: dict, errors: List[str]) -> Tuple[bool, List[
 
     # Validate all operations, threading simulated content across ops on the same file
     valid_types = ['file_create', 'file_delete', 'code_edit', 'run_command']
-    sim_files: Dict[str, Any] = {}
+    sim_files: Dict[str, Any] = dict(_PROJECTED)
     for i, op in enumerate(operations, 1):
         op_type = op.get('type', '')
 
@@ -595,7 +676,10 @@ def validate_modern_format(config: dict, errors: List[str]) -> Tuple[bool, List[
             continue
 
         # GUARD 6: Check file exists
-        if not os.path.exists(file_path):
+        # A predecessor named by --after may create this file; the executor will
+        # have done so by the time it reaches this config, so disk is the wrong
+        # oracle in sequence mode.
+        if not os.path.exists(file_path) and os.path.relpath(file_path) not in _PROJECTED:
             errors.append(f"Operation {i} (code_edit): File does not exist: {file_path}")
             continue
 
@@ -866,6 +950,11 @@ Safety Guards (29 total):
         """
     )
     parser.add_argument('config', help='Path to JSON operations config file')
+    parser.add_argument('--after', action='append', metavar='OPS.JSON', default=[],
+                        help='Validate against the state left by these config(s), applied '
+                             'in the order given, before this one. Use when several configs '
+                             'will be executed as a sequence: an anchor that is unique '
+                             'against HEAD can be duplicated or removed by an earlier one.')
     parser.add_argument('--verbose', '-v', action='store_true', help='Enable debug logging')
     parser.add_argument('--stamp-baseline', action='store_true',
                         help='After successful validation, record sha256 of every existing '
@@ -881,6 +970,13 @@ Safety Guards (29 total):
     if not JSONSCHEMA_AVAILABLE:
         print("Warning: jsonschema library not installed - schema validation skipped")
         print("Install with: pip install jsonschema\n")
+
+    if args.after:
+        projected, problems = project_configs(args.after)
+        _PROJECTED.update(projected)
+        for problem in problems:
+            print(f"  Warning: {problem}")
+        print("Projecting after: " + ", ".join(os.path.basename(p) for p in args.after))
 
     print(f"Validating: {os.path.basename(args.config)}\n")
 

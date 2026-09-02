@@ -1,0 +1,32 @@
+{
+  "plan": "validator-sequence-mode",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/validate-config-json.py",
+      "description": "Add --after: validate a config against the state its predecessors will leave, not against HEAD.",
+      "edits": [
+        {
+          "find": "def _validate_edits(edits: list, file_content: str, label: str, errors: List[str]) -> str:",
+          "replace": "# Files as a predecessor sequence will leave them. GUARD 10/11 already simulate\n# edits cumulatively *within* one config, which is why an ambiguous or missing\n# anchor is caught there -- but each config was still measured against the file\n# on disk. A sequence of configs applied in order is the case that escaped: an\n# edit that is unique against HEAD can be duplicated, moved or deleted by an\n# earlier config in the same run, and the executor sees that state while the\n# validator did not. --after closes exactly that gap.\n_PROJECTED: Dict[str, str] = {}\n\n\ndef apply_edits_unchecked(edits: list, content: str) -> str:\n    \"\"\"Apply edits the way the executor will, with no reporting.\n\n    Deliberately mirrors the simulation in `_validate_edits`: same actions, same\n    single-occurrence replacement. A predecessor edit that would not apply is\n    skipped rather than raised -- projection's job is to describe the state the\n    executor reaches, and a predecessor that fails is that predecessor's error\n    to report, not this one's.\n    \"\"\"\n    for edit in edits:\n        find_pattern = edit.get('find')\n        if not isinstance(find_pattern, str) or find_pattern not in content:\n            continue\n        if 'add_after' in edit:\n            content = content.replace(find_pattern, find_pattern + edit['add_after'], 1)\n        elif 'add_before' in edit:\n            content = content.replace(find_pattern, edit['add_before'] + find_pattern, 1)\n        elif 'replace' in edit:\n            content = content.replace(find_pattern, edit['replace'], 1)\n        elif edit.get('delete') is True:\n            content = content.replace(find_pattern, '', 1)\n    return content\n\n\ndef project_configs(config_paths: List[str]) -> Tuple[Dict[str, str], List[str]]:\n    \"\"\"Project the file state left by applying `config_paths` in order.\n\n    Returns (projected_content_by_relpath, problems). Problems are reported but\n    never fatal: a predecessor we cannot read simply contributes nothing, so the\n    target is still measured against the best state we can establish.\n    \"\"\"\n    projected: Dict[str, str] = {}\n    problems: List[str] = []\n    for config_path in config_paths:\n        try:\n            with open(config_path, 'r', encoding='utf-8') as fh:\n                cfg = json.load(fh)\n        except (OSError, ValueError) as exc:\n            problems.append(f\"--after {config_path}: cannot read ({exc})\")\n            continue\n        operations = cfg.get('operations') or cfg.get('files') or []\n        for op in operations:\n            if not isinstance(op, dict):\n                continue\n            path = op.get('path') or op.get('file')\n            edits = op.get('edits')\n            op_type = op.get('type', 'code_edit')\n            if not path:\n                continue\n            key = os.path.relpath(path)\n            if op_type == 'file_create' and 'content' in op:\n                projected[key] = op['content']\n                continue\n            if op_type == 'file_delete':\n                projected.pop(key, None)\n                continue\n            if not edits:\n                continue\n            if key in projected:\n                content = projected[key]\n            else:\n                try:\n                    with open(path, 'r', encoding='utf-8-sig') as fh:\n                        content = fh.read()\n                except OSError as exc:\n                    problems.append(f\"--after {config_path}: cannot read target {path} ({exc})\")\n                    continue\n            projected[key] = apply_edits_unchecked(edits, content)\n    return projected, problems\n\n\ndef _validate_edits(edits: list, file_content: str, label: str, errors: List[str]) -> str:"
+        },
+        {
+          "find": "    sim_files: Dict[str, Any] = {}",
+          "replace": "    sim_files: Dict[str, Any] = dict(_PROJECTED)"
+        },
+        {
+          "find": "    legacy_sim: Dict[str, Any] = {}",
+          "replace": "    legacy_sim: Dict[str, Any] = dict(_PROJECTED)"
+        },
+        {
+          "find": "    parser.add_argument('config', help='Path to JSON operations config file')",
+          "replace": "    parser.add_argument('config', help='Path to JSON operations config file')\n    parser.add_argument('--after', action='append', metavar='OPS.JSON', default=[],\n                        help='Validate against the state left by these config(s), applied '\n                             'in the order given, before this one. Use when several configs '\n                             'will be executed as a sequence: an anchor that is unique '\n                             'against HEAD can be duplicated or removed by an earlier one.')"
+        },
+        {
+          "find": "    print(f\"Validating: {os.path.basename(args.config)}\\n\")",
+          "replace": "    if args.after:\n        projected, problems = project_configs(args.after)\n        _PROJECTED.update(projected)\n        for problem in problems:\n            print(f\"  Warning: {problem}\")\n        print(\"Projecting after: \" + \", \".join(os.path.basename(p) for p in args.after))\n\n    print(f\"Validating: {os.path.basename(args.config)}\\n\")"
+        }
+      ]
+    }
+  ]
+}

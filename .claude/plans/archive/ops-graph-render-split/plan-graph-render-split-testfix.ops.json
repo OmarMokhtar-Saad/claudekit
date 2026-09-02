@@ -1,0 +1,20 @@
+{
+  "plan": "graph-render-split-testfix",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_project_graph.py",
+      "description": "The script now has a sibling module; a fixture that copies only the script no longer runs.",
+      "edits": [
+        {
+          "find": "        (scripts / \"project-graph.py\").write_bytes(SCRIPT.read_bytes())",
+          "replace": "        (scripts / \"project-graph.py\").write_bytes(SCRIPT.read_bytes())\n        # The presentation layer is a sibling import, so a tree with only the\n        # script in it cannot start. Copying it here is what proves the split\n        # did not break deployment -- install.sh ships operations/scripts/*.py,\n        # which covers the new module, but this fixture builds its own tree.\n        (scripts / \"project_graph_render.py\").write_bytes(RENDER_MODULE.read_bytes())"
+        },
+        {
+          "find": "SCRIPT = REPO / \".claude\" / \"operations\" / \"scripts\" / \"project-graph.py\"",
+          "replace": "SCRIPT = REPO / \".claude\" / \"operations\" / \"scripts\" / \"project-graph.py\"\nRENDER_MODULE = REPO / \".claude\" / \"operations\" / \"scripts\" / \"project_graph_render.py\""
+        }
+      ]
+    }
+  ]
+}
