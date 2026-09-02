@@ -1,0 +1,49 @@
+{
+  "plan": "graph-p5-wiring",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/codebase-mapping/SKILL.md",
+      "description": "Document verify/render/diff/impact for the skill that builds the graph.",
+      "edits": [
+        {
+          "find": "- The **explore**, **refactor-cleaner** and **planner** agents query the graph\n  sidecar (`project-graph.py query/hubs/path`) instead of re-grepping; script\n  exit 3 means no graph/no match \u2014 fall back to normal search",
+          "replace": "- The **explore**, **refactor-cleaner** and **planner** agents query the graph\n  sidecar (`project-graph.py query/hubs/path`) instead of re-grepping; script\n  exit 3 means no graph/no match \u2014 fall back to normal search\n\n---\n\n## Trusting, Viewing and Comparing a Graph\n\nA graph is agent-asserted, so treat it as a claim until it is checked.\n\n- **`verify`** gates the claims against disk: nodes must exist, edge endpoints must\n  be declared, and an `extracted` edge must leave a textual trace in its own source\n  file. Exit 1 lists the violations. Run it before acting on a graph you did not\n  just build. The support test is a substring falsifier \u2014 it catches invented\n  edges, it does not prove real ones, and aliased imports or generated sources can\n  false-positive; `--strict` extends the same check to `inferred` edges.\n- **`render`** draws the *verified* graph: `--format mermaid` for a diagram to paste\n  into a doc, `--format html --out graph.html` for a self-contained interactive page\n  (no CDN, no network). Bound large graphs with `--focus <node> --depth 2`. It\n  refuses to render a graph that fails `verify` unless you pass `--allow-unverified`.\n  The HTML file is publishable as-is if you want a shareable page.\n- **`diff --against <other.json>`** reports the structural delta \u2014 added/removed nodes\n  and edges \u2014 so a review can see the shape of a change instead of its text.\n  Exit 1 means \"differences found\", which is information, not an error.\n- **`impact --ops <plan.ops.json>`** reads a plan's operations config and reports the\n  blast radius of the files it touches. Exit 1 means a touched node is a hub/god-node,\n  the touched set crosses a package boundary, or a path is absent from the graph \u2014\n  all of which mean the change earns a reviewer."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/explore.md",
+      "description": "Tell explore to verify a graph it did not build before trusting it.",
+      "edits": [
+        {
+          "find": "- Graph-first: python3 .claude/operations/scripts/project-graph.py query <path> |\n  path <a> <b> | hubs  (exit 3 -> no graph/no match, trace manually below)",
+          "replace": "- Graph-first: python3 .claude/operations/scripts/project-graph.py query <path> |\n  path <a> <b> | hubs  (exit 3 -> no graph/no match, trace manually below)\n- verify first on a graph you did not build (exit 1 = it disagrees with the tree)"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/planner.md",
+      "description": "Make the reviewer-routing call computed rather than judged.",
+      "edits": [
+        {
+          "find": "7. If .claude/project-graph.json exists: run project-graph.py hubs, and\n   query <file> --direction in for each file the plan will touch \u2014 touching\n   a GOD-NODE widens blast radius and MUST appear in the Risk Assessment\n   (exit 3 = no graph, skip)",
+          "replace": "7. If .claude/project-graph.json exists: run project-graph.py hubs, and\n   query <file> --direction in for each file the plan will touch \u2014 touching\n   a GOD-NODE widens blast radius and MUST appear in the Risk Assessment\n   (exit 3 = no graph, skip)\n8. Then impact --ops <ops.json>: exit 1 = hub / boundary / unknown path ->\n   Risk Assessment + route to reviewer"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "description": "Record the four new subcommands and the containment fix under [Unreleased].",
+      "edits": [
+        {
+          "find": "## [Unreleased]\n\n### Added\n\n",
+          "replace": "## [Unreleased]\n\n### Added\n\n- **`verify` / `render` / `diff` / `impact` for `project-graph.py`.** The graph was\n  already an agent-emitted JSON IR with a deterministic validator behind it, but nothing\n  checked the agent's *claims* against disk and nothing could draw the result. `verify`\n  rejects graphs that disagree with the tree \u2014 missing nodes, dangling endpoints, and\n  `extracted` edges whose source file never mentions the target (a substring falsifier:\n  it catches invented edges, it does not prove real ones, and `--strict` extends it to\n  `inferred`). `render` emits mermaid or a self-contained HTML page \u2014 no CDN, no network \u2014\n  and refuses to draw a graph that fails `verify` without `--allow-unverified`.\n  `diff --against` reports the structural delta so a review sees the shape of a change\n  rather than its text. `impact --ops <plan.ops.json>` turns \"does this plan touch\n  architecture?\" into an exit code: 1 when a touched node is a hub/god-node, the touched\n  set crosses a package boundary, or a path is absent from the graph. The planner now\n  runs it and records the verdict, so reviewer routing is computed, not judged.\n\n### Fixed\n\n- **`--ops` and `--against` containment now resolves symlinks.** Both readers confined\n  their input with `normpath` + `startswith`, a purely textual test, so a symlink *inside*\n  the project root pointing outside it passed while the error text claimed containment\n  held. Both now `realpath` before the check. The pre-existing `build --input` path had\n  the same weakness.\n\n"
+        }
+      ]
+    }
+  ]
+}

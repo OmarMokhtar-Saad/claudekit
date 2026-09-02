@@ -9,6 +9,9 @@ and answers structural queries so agents stop re-grepping. Contract under test:
 - query/path/hubs answer from the stored graph; a miss or absent graph exits 3
   (the caller's signal to fall back to grep).
 - stale re-hashes file-backed nodes and exits 1 listing CHANGED/MISSING nodes.
+- render emits mermaid (arrow style per confidence tier) or one self-contained
+  HTML file, bounded by --focus/--depth, and refuses a graph that fails verify
+  unless --allow-unverified is passed.
 - the codebase-mapping and context-keeper skills have exactly one copy each
   (task 008 batch 1 deleted the templates/skills twins).
 
@@ -25,6 +28,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 SCRIPT = REPO / ".claude" / "operations" / "scripts" / "project-graph.py"
+RENDER_MODULE = REPO / ".claude" / "operations" / "scripts" / "project_graph_render.py"
 
 
 def run(args, project, graph=None, stdin=None):
@@ -372,6 +376,271 @@ class TestStale:
 
 
 # ---------------------------------------------------------------------------
+# diff
+# ---------------------------------------------------------------------------
+
+class TestDiff:
+    def _before_copy(self, project, graph, name="before.json"):
+        """Snapshot the stored graph inside the project (--against is root-confined)."""
+        copy = project / name
+        copy.write_text(graph.read_text(encoding="utf-8"), encoding="utf-8")
+        return copy
+
+    def test_identical_graph_exits_0(self, tmp_path):
+        project = make_project(tmp_path)
+        graph = tmp_path / "graph.json"
+        build_graph(project, graph)
+        self._before_copy(project, graph)
+        result = run(["diff", "--against", "before.json"], project, graph)
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert "identical" in result.stdout
+
+    def test_added_edge_exits_1_and_names_it(self, tmp_path):
+        project = make_project(tmp_path)
+        graph = tmp_path / "graph.json"
+        build_graph(project, graph)
+        self._before_copy(project, graph)
+        data = sample_input()
+        data["edges"].append({"from": "src/b.py", "to": "src/c.py",
+                              "type": "call", "confidence": "extracted"})
+        build_graph(project, graph, data)
+        result = run(["diff", "--against", "before.json"], project, graph)
+        assert result.returncode == 1, result.stdout + result.stderr
+        assert "+edge" in result.stdout
+        assert "src/b.py -> src/c.py" in result.stdout
+
+    def test_removed_node_and_hash_change_reported(self, tmp_path):
+        project = make_project(tmp_path)
+        graph = tmp_path / "graph.json"
+        build_graph(project, graph)
+        self._before_copy(project, graph)
+        (project / "src" / "b.py").write_text("VALUE = 999\n", encoding="utf-8")
+        data = sample_input()
+        data["nodes"] = [n for n in data["nodes"] if n["id"] != "src/c.py"]
+        data["edges"] = [e for e in data["edges"] if e["to"] != "src/c.py"]
+        build_graph(project, graph, data)
+        result = run(["diff", "--against", "before.json"], project, graph)
+        assert result.returncode == 1
+        assert "-node  src/c.py" in result.stdout
+        assert "~node  src/b.py" in result.stdout
+        assert "-edge" in result.stdout
+
+    def test_mermaid_classes_additions_and_removals(self, tmp_path):
+        project = make_project(tmp_path)
+        graph = tmp_path / "graph.json"
+        build_graph(project, graph)
+        self._before_copy(project, graph)
+        data = sample_input()
+        data["nodes"].append({"id": "src/d.py", "kind": "file"})
+        data["edges"].append({"from": "src/a.py", "to": "src/d.py",
+                              "type": "import", "confidence": "extracted"})
+        data["edges"] = [e for e in data["edges"] if e["to"] != "src/c.py"]
+        build_graph(project, graph, data)
+        result = run(["diff", "--against", "before.json", "--format", "mermaid"], project, graph)
+        assert result.returncode == 1
+        assert "flowchart LR" in result.stdout
+        assert ":::added" in result.stdout
+        # The class must be DECLARED, not merely referenced: mermaid renders an
+        # undefined class as unstyled, so asserting only the `:::added` usage
+        # accepts output where every add/remove looks identical.
+        assert "classDef added" in result.stdout
+        assert "classDef removed" in result.stdout
+        assert "-->|+ import|" in result.stdout
+        assert "-.->|- import|" in result.stdout
+
+    def test_mermaid_marks_changed_nodes(self, tmp_path):
+        """The third class needs its own fixture: added/removed come from the edge
+        delta, but `changed` only fires when a node's stored hash moves, so a test
+        built on edges alone leaves the whole branch unverified."""
+        project = make_project(tmp_path)
+        graph = tmp_path / "graph.json"
+        build_graph(project, graph)
+        self._before_copy(project, graph)
+        (project / "src" / "b.py").write_text("VALUE = 999\n", encoding="utf-8")
+        build_graph(project, graph, sample_input())
+        result = run(["diff", "--against", "before.json", "--format", "mermaid"], project, graph)
+        assert result.returncode == 1
+        assert "classDef changed" in result.stdout
+        assert ":::changed" in result.stdout
+
+    def test_malformed_against_exits_2(self, tmp_path):
+        project = make_project(tmp_path)
+        graph = tmp_path / "graph.json"
+        build_graph(project, graph)
+        (project / "bad.json").write_text("{not json", encoding="utf-8")
+        result = run(["diff", "--against", "bad.json"], project, graph)
+        assert result.returncode == 2
+        assert "JSON" in result.stderr
+
+    def test_invalid_schema_against_exits_2(self, tmp_path):
+        project = make_project(tmp_path)
+        graph = tmp_path / "graph.json"
+        build_graph(project, graph)
+        (project / "bad.json").write_text(
+            json.dumps({"version": 2, "nodes": [], "edges": []}), encoding="utf-8")
+        result = run(["diff", "--against", "bad.json"], project, graph)
+        assert result.returncode == 2
+        assert "version" in result.stderr
+
+    def test_missing_against_exits_2(self, tmp_path):
+        project = make_project(tmp_path)
+        graph = tmp_path / "graph.json"
+        build_graph(project, graph)
+        result = run(["diff", "--against", "nope.json"], project, graph)
+        assert result.returncode == 2
+        assert "not found" in result.stderr
+
+    def test_traversal_against_rejected(self, tmp_path):
+        project = make_project(tmp_path)
+        graph = tmp_path / "graph.json"
+        build_graph(project, graph)
+        result = run(["diff", "--against", "../escape.json"], project, graph)
+        assert result.returncode == 2
+        assert "--against" in result.stderr
+
+    def test_no_stored_graph_exits_3(self, tmp_path):
+        project = make_project(tmp_path)
+        (project / "before.json").write_text(json.dumps(sample_input()), encoding="utf-8")
+        result = run(["diff", "--against", "before.json"], project, tmp_path / "missing.json")
+        assert result.returncode == 3
+
+
+# ---------------------------------------------------------------------------
+# render
+# ---------------------------------------------------------------------------
+
+class TestRender:
+    """render is a pure function of the stored graph: the same IR in, the same
+    mermaid/HTML out. Every assertion below reads the rendered artifact, not the
+    script's prose. --allow-unverified is passed wherever the test is about
+    rendering rather than about the verify gate, so these stay independent of
+    Phase 1's violation wording."""
+
+    def _graph(self, tmp_path):
+        project = make_project(tmp_path)
+        (project / "src" / "d.py").write_text("VALUE = 3\n", encoding="utf-8")
+        graph = tmp_path / "graph.json"
+        data = {
+            "version": 1,
+            "nodes": [{"id": "src/%s.py" % n, "kind": "file"} for n in ("a", "b", "c", "d")],
+            "edges": [
+                {"from": "src/a.py", "to": "src/b.py",
+                 "type": "import", "confidence": "extracted"},
+                {"from": "src/a.py", "to": "src/c.py",
+                 "type": "import", "confidence": "inferred"},
+                {"from": "src/b.py", "to": "src/d.py",
+                 "type": "call", "confidence": "ambiguous"},
+            ],
+        }
+        build_graph(project, graph, data)
+        return project, graph
+
+    def _arrows(self, stdout):
+        return [ln.strip().split()[1] for ln in stdout.splitlines()
+                if ln.startswith("  n") and " n" in ln[3:]]
+
+    def test_mermaid_one_line_per_edge_with_tier_arrow(self, tmp_path):
+        project, graph = self._graph(tmp_path)
+        result = run(["render", "--allow-unverified"], project, graph)
+        assert result.returncode == 0, result.stderr
+        assert result.stdout.splitlines()[0] == "flowchart LR"
+        arrows = self._arrows(result.stdout)
+        assert len(arrows) == 3
+        assert arrows.count("-->") == 1          # extracted
+        assert arrows.count("-.->") == 1         # inferred
+        assert arrows.count("-.->|?|") == 1      # ambiguous
+
+    def test_focus_depth_1_excludes_two_hop_node(self, tmp_path):
+        project, graph = self._graph(tmp_path)
+        result = run(["render", "--allow-unverified", "--focus", "src/a.py",
+                      "--depth", "1"], project, graph)
+        assert result.returncode == 0, result.stderr
+        assert "src/b.py" in result.stdout
+        assert "src/d.py" not in result.stdout   # two hops from src/a.py
+
+    def test_focus_depth_2_includes_two_hop_node(self, tmp_path):
+        project, graph = self._graph(tmp_path)
+        result = run(["render", "--allow-unverified", "--focus", "src/a.py",
+                      "--depth", "2"], project, graph)
+        assert result.returncode == 0, result.stderr
+        assert "src/d.py" in result.stdout
+
+    def test_min_confidence_drops_weaker_edges(self, tmp_path):
+        project, graph = self._graph(tmp_path)
+        result = run(["render", "--allow-unverified", "--min-confidence", "extracted"],
+                     project, graph)
+        assert result.returncode == 0, result.stderr
+        assert self._arrows(result.stdout) == ["-->"]
+
+    def test_god_node_gets_a_mermaid_class(self, tmp_path):
+        project = make_project(tmp_path)
+        graph = tmp_path / "graph.json"
+        data = {
+            "version": 1,
+            "nodes": [{"id": "hub", "kind": "external"}] + [
+                {"id": "leaf%d" % i, "kind": "external"} for i in range(30)],
+            "edges": [{"from": "leaf%d" % i, "to": "hub",
+                       "type": "import", "confidence": "extracted"} for i in range(30)],
+        }
+        build_graph(project, graph, data)
+        result = run(["render", "--allow-unverified"], project, graph)
+        assert result.returncode == 0, result.stderr
+        assert "classDef god" in result.stdout
+        assert [ln for ln in result.stdout.splitlines() if ln.startswith("  class ")]
+
+    def test_html_output_is_self_contained(self, tmp_path):
+        project, graph = self._graph(tmp_path)
+        out = tmp_path / "graph.html"
+        result = run(["render", "--allow-unverified", "--format", "html",
+                      "--out", str(out)], project, graph)
+        assert result.returncode == 0, result.stderr
+        page = out.read_text(encoding="utf-8")
+        assert "http://" not in page
+        assert "https://" not in page
+        assert "<svg" in page
+        assert 'id="data"' in page                    # the JSON island
+        assert "prefers-color-scheme" in page         # theme-aware
+        assert page.count("<script") == 2             # island + behaviour, nothing else
+
+    def test_html_json_island_parses(self, tmp_path):
+        project, graph = self._graph(tmp_path)
+        out = tmp_path / "graph.html"
+        run(["render", "--allow-unverified", "--format", "html", "--out", str(out)],
+            project, graph)
+        page = out.read_text(encoding="utf-8")
+        island = page.split('<script id="data" type="application/json">', 1)[1]
+        island = island.split("</script>", 1)[0].replace("<\\/", "</")
+        assert len(json.loads(island)["edges"]) == 3
+
+    def test_clean_graph_renders_without_the_override(self, tmp_path):
+        project = make_project(tmp_path)
+        graph = tmp_path / "graph.json"
+        build_graph(project, graph)
+        result = run(["render"], project, graph)
+        assert result.returncode == 0, result.stderr
+
+    def test_refuses_unverified_graph_unless_overridden(self, tmp_path):
+        project, graph = self._graph(tmp_path)
+        (project / "src" / "d.py").unlink()   # a file-backed node no longer resolves
+        refused = run(["render"], project, graph)
+        assert refused.returncode == 1
+        assert "src/d.py" in refused.stderr
+        allowed = run(["render", "--allow-unverified"], project, graph)
+        assert allowed.returncode == 0, allowed.stderr
+        assert "src/d.py" in allowed.stdout
+
+    def test_no_graph_exits_3(self, tmp_path):
+        project = make_project(tmp_path)
+        result = run(["render"], project, tmp_path / "missing.json")
+        assert result.returncode == 3
+
+    def test_unknown_focus_exits_3(self, tmp_path):
+        project, graph = self._graph(tmp_path)
+        result = run(["render", "--allow-unverified", "--focus", "zzz.py"], project, graph)
+        assert result.returncode == 3
+
+
+# ---------------------------------------------------------------------------
 # session-start hook reports graph status (none / fresh / STALE)
 # ---------------------------------------------------------------------------
 
@@ -384,6 +653,11 @@ class TestSessionStartGraphStatus:
         scripts = project / ".claude" / "operations" / "scripts"
         scripts.mkdir(parents=True)
         (scripts / "project-graph.py").write_bytes(SCRIPT.read_bytes())
+        # The presentation layer is a sibling import, so a tree with only the
+        # script in it cannot start. Copying it here is what proves the split
+        # did not break deployment -- install.sh ships operations/scripts/*.py,
+        # which covers the new module, but this fixture builds its own tree.
+        (scripts / "project_graph_render.py").write_bytes(RENDER_MODULE.read_bytes())
         subprocess.run(["git", "init", "-q", str(project)], check=True, capture_output=True)
         (project / "f.py").write_text("x = 1\n", encoding="utf-8")
         return project
@@ -437,3 +711,104 @@ class TestSkillHasOneCopy:
 
     def test_context_keeper_has_exactly_one_copy(self):
         assert [p.name for p in self._copies("context-keeper")] == ["SKILL.md"]
+
+
+# ---------------------------------------------------------------------------
+# verify - the stored graph vs. the working tree (anti-hallucination gate)
+# ---------------------------------------------------------------------------
+
+def write_graph(graph, data):
+    """Write a graph file directly, bypassing `build` validation.
+
+    Some verify violations (a dangling endpoint) are exactly what `build` refuses, so
+    they can only be staged by writing the stored artifact by hand.
+    """
+    graph.write_text(json.dumps(data), encoding="utf-8")
+
+
+class TestVerify:
+    def test_clean_graph_exits_0(self, tmp_path):
+        project = make_project(tmp_path)
+        graph = tmp_path / "graph.json"
+        build_graph(project, graph)
+        result = run(["verify"], project, graph)
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert "VERIFY OK" in result.stdout
+
+    def test_no_graph_exits_3(self, tmp_path):
+        project = make_project(tmp_path)
+        result = run(["verify"], project, tmp_path / "missing.json")
+        assert result.returncode == 3
+
+    def test_deleted_file_reports_missing_node(self, tmp_path):
+        project = make_project(tmp_path)
+        graph = tmp_path / "graph.json"
+        build_graph(project, graph)
+        (project / "src" / "c.py").unlink()
+        result = run(["verify"], project, graph)
+        assert result.returncode == 1
+        assert "MISSING NODE" in result.stdout
+        assert "src/c.py" in result.stdout
+
+    def test_dangling_endpoint_reports_dangling_edge(self, tmp_path):
+        project = make_project(tmp_path)
+        graph = tmp_path / "graph.json"
+        write_graph(graph, {
+            "version": 1,
+            "nodes": [{"id": "src/a.py", "kind": "file"}],
+            "edges": [{"from": "src/a.py", "to": "src/ghost.py",
+                       "type": "import", "confidence": "extracted"}],
+        })
+        result = run(["verify"], project, graph)
+        assert result.returncode == 1
+        assert "DANGLING EDGE" in result.stdout
+        assert "src/ghost.py" in result.stdout
+
+    def test_unsupported_extracted_edge_exits_1(self, tmp_path):
+        project = make_project(tmp_path)
+        graph = tmp_path / "graph.json"
+        data = sample_input()
+        # src/b.py is `VALUE = 1` - it never mentions `c`, so this claim is invented.
+        data["edges"].append({"from": "src/b.py", "to": "src/c.py",
+                              "type": "import", "confidence": "extracted"})
+        build_graph(project, graph, data)
+        result = run(["verify"], project, graph)
+        assert result.returncode == 1
+        assert "UNSUPPORTED EXTRACTED EDGE" in result.stdout
+        assert "src/b.py" in result.stdout
+
+    def test_self_edge_is_degenerate(self, tmp_path):
+        project = make_project(tmp_path)
+        graph = tmp_path / "graph.json"
+        data = sample_input()
+        data["edges"].append({"from": "src/a.py", "to": "src/a.py",
+                              "type": "reference", "confidence": "ambiguous"})
+        build_graph(project, graph, data)
+        result = run(["verify"], project, graph)
+        assert result.returncode == 1
+        assert "DEGENERATE EDGE" in result.stdout
+        assert "self-edge" in result.stdout
+
+    def test_duplicate_edge_is_degenerate(self, tmp_path):
+        project = make_project(tmp_path)
+        graph = tmp_path / "graph.json"
+        data = sample_input()
+        data["edges"].append({"from": "src/a.py", "to": "src/b.py",
+                              "type": "import", "confidence": "extracted"})
+        build_graph(project, graph, data)
+        result = run(["verify"], project, graph)
+        assert result.returncode == 1
+        assert "duplicate edge" in result.stdout
+
+    def test_inferred_support_only_checked_under_strict(self, tmp_path):
+        project = make_project(tmp_path)
+        graph = tmp_path / "graph.json"
+        data = sample_input()
+        data["edges"].append({"from": "src/b.py", "to": "src/c.py",
+                              "type": "import", "confidence": "inferred"})
+        build_graph(project, graph, data)
+        lenient = run(["verify"], project, graph)
+        assert lenient.returncode == 0, lenient.stdout + lenient.stderr
+        strict = run(["verify", "--strict"], project, graph)
+        assert strict.returncode == 1
+        assert "UNSUPPORTED INFERRED EDGE" in strict.stdout

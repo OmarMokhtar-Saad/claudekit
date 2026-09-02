@@ -1,0 +1,20 @@
+{
+  "plan": "graph-p8-testsplit",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_project_graph.py",
+      "description": "Return the edge assertions to the add/remove test they belong to; the changed-node fixture has no edge delta.",
+      "edits": [
+        {
+          "find": "        assert \"classDef added\" in result.stdout\n        assert \"classDef removed\" in result.stdout\n\n    def test_mermaid_marks_changed_nodes",
+          "replace": "        assert \"classDef added\" in result.stdout\n        assert \"classDef removed\" in result.stdout\n        assert \"-->|+ import|\" in result.stdout\n        assert \"-.->|- import|\" in result.stdout\n\n    def test_mermaid_marks_changed_nodes"
+        },
+        {
+          "find": "        assert \"classDef changed\" in result.stdout\n        assert \":::changed\" in result.stdout\n        assert \"-->|+ import|\" in result.stdout\n        assert \"-.->|- import|\" in result.stdout",
+          "replace": "        assert \"classDef changed\" in result.stdout\n        assert \":::changed\" in result.stdout"
+        }
+      ]
+    }
+  ]
+}

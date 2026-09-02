@@ -1,0 +1,20 @@
+{
+  "plan": "graph-render-split-3",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/project-graph.py",
+      "description": "Import the presentation layer; keep the dependency one-way.",
+      "edits": [
+        {
+          "find": "from collections import deque\nfrom datetime import datetime, timezone\nfrom pathlib import Path",
+          "replace": "from collections import deque\nfrom datetime import datetime, timezone\nfrom pathlib import Path"
+        },
+        {
+          "find": "def project_root() -> Path:",
+          "replace": "# Presentation lives next door. This script decides WHAT to draw (which nodes,\n# which edges, which are god-nodes); project_graph_render decides HOW. The\n# dependency is one-way by design -- the renderer imports nothing from here.\nsys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))\nfrom project_graph_render import (  # noqa: E402\n    mermaid_diff, render_html, render_mermaid,\n)\n\n\ndef project_root() -> Path:"
+        }
+      ]
+    }
+  ]
+}
