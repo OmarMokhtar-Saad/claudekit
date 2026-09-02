@@ -213,7 +213,11 @@ A graph is agent-asserted, so treat it as a claim until it is checked.
   into a doc, `--format html --out graph.html` for a self-contained interactive page
   (no CDN, no network). Bound large graphs with `--focus <node> --depth 2`. It
   refuses to render a graph that fails `verify` unless you pass `--allow-unverified`.
-  The HTML file is publishable as-is if you want a shareable page.
+  The HTML file needs no server and no network, so it travels as one artifact —
+  but it embeds every node id, which is the project's internal path layout.
+  Self-contained is not the same as safe to publish: check what the ids reveal
+  before sharing one outside the team, and bound it with `--focus` if they say
+  more than the audience needs.
 - **`diff --against <other.json>`** reports the structural delta — added/removed nodes
   and edges — so a review can see the shape of a change instead of its text.
   Exit 1 means "differences found", which is information, not an error.

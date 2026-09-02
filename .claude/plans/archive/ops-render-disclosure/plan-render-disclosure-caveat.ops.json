@@ -1,0 +1,16 @@
+{
+  "plan": "render-disclosure-caveat",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/codebase-mapping/SKILL.md",
+      "description": "Say what the rendered page discloses; 'publishable as-is' was accurate about the file and optimistic about the contents.",
+      "edits": [
+        {
+          "find": "  The HTML file is publishable as-is if you want a shareable page.",
+          "replace": "  The HTML file needs no server and no network, so it travels as one artifact \u2014\n  but it embeds every node id, which is the project's internal path layout.\n  Self-contained is not the same as safe to publish: check what the ids reveal\n  before sharing one outside the team, and bound it with `--focus` if they say\n  more than the audience needs."
+        }
+      ]
+    }
+  ]
+}
