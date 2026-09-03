@@ -147,7 +147,10 @@ def hlog(level: str, message: str) -> None:
 
 
 def deny(reason: str, subcommand: str = "?", rule: str = "?") -> int:
-    hlog("BLOCK", "git %s denied (%s)" % (subcommand, rule))
+    # "verdict=deny", not "denied": a registry row may clamp this hook to advisory,
+    # in which case the command still runs. The log records what THIS hook decided,
+    # not what the dispatcher ultimately did.
+    hlog("BLOCK", "git %s verdict=deny (%s)" % (subcommand, rule))
     sys.stderr.write(reason + "\n")
     return 2
 
