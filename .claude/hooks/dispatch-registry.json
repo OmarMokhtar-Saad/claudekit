@@ -47,6 +47,7 @@
     "PreToolUse": [
       {"id": "iron-law-gate", "file": "iron-law-gate.py", "runner": "python3", "tier": "blocking", "matcher": "Bash"},
       {"id": "command-guard", "file": "command-guard.sh", "runner": "bash", "tier": "blocking", "matcher": "Bash"},
+      {"id": "concurrency-guard", "file": "concurrency-guard.py", "runner": "python3", "tier": "blocking", "matcher": "Bash"},
       {"id": "block-no-verify", "file": "block-no-verify.sh", "runner": "bash", "tier": "blocking", "matcher": "Bash"},
       {"id": "commit-quality", "file": "commit-quality.sh", "runner": "bash", "tier": "blocking", "matcher": "Bash"},
       {"id": "ops-enforcement", "file": "ops-enforcement.sh", "runner": "bash", "tier": "blocking", "matcher": "str_replace_based_edit_tool|write_file|Write|Edit"},

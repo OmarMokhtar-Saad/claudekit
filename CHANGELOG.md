@@ -14,6 +14,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`concurrency-guard.py` -- tree-wide git is blocked when sessions share a tree.**
+  Several Claude sessions (and two accounts) on one working tree share one `.git/index`,
+  so a `git add -A` in one session stages and commits another session's half-written
+  files, and a `reset --hard` deletes them. It cost real work twice in one project.
+  PreToolUse/Bash, tier `blocking`: denies `add`/`stage` with `-A|-u|--all` or a
+  tree-wide pathspec, `commit -a` in any flag position, `reset --hard|--merge|--keep`
+  and bare `reset` (which unstages every path another session staged),
+  `checkout|restore|switch` with a tree-wide pathspec, `checkout -f`/`switch -f`,
+  `clean -f*`, unscoped `stash`/`stash push`, `rm .` and `worktree remove --force`,
+  each with the scoped alternative on stderr. Scoped and RESTORATIVE forms stay
+  allowed -- `git add -A -- src/`, `git add -- -A`, `git stash push src/a.py`, and
+  `stash apply|pop|drop`, because blocking `pop` would cause the very loss the hook
+  exists to prevent.
+  Tokenises with `shlex` rather than matching regexes over command text. Two
+  adversarial review rounds each rejected a version of this hook, and both CRITICAL
+  findings were the same shape -- a pattern that looked right but was never reached.
+  Round 1 (regex shell hook): an unanchored `\.` blocked `git add .ai/x.md`, so the
+  guard denied the exact remediation it prescribes, while `git commit -m x -a`,
+  `git checkout HEAD -- .`, `git -C <dir> add -A`, `git add -u` and `git rm -r .` all
+  leaked. Round 2 (Python): `shlex` keeps the newline in its whitespace set, so the
+  `"\n"` separator entry was dead code and every line after the first was discarded --
+  `git status\ngit add -A` was allowed, i.e. the guard was inert for the commonest
+  shape a session writes. Unquoted newlines are now substituted before tokenising and
+  heredoc bodies stripped as data. Round 2 also caught `git stage` (git's own synonym
+  for `add`), `git switch -f`, `bash -lc`, and a false positive on the scoped
+  `git stash push <path>`.
+  `minimal` is advisory rather than off, so the decision is still recorded as
+  `WOULD-BLOCK` in the tree that develops under `minimal`; only the subcommand and
+  rule id are logged, never the command text. `CK_ALLOW_BROAD_GIT=1` downgrades to a
+  logged warning for a deliberate solo session -- an env var, not a command flag, so
+  the turn writing the command cannot exempt itself.
+  A denylist speed bump, not a sandbox: the isolation that actually holds is one git
+  worktree per session, which `tests/test_concurrency_guard.py` proves both ways -- a
+  shared tree loses the work, separate worktrees keep both changes through the merge.
+  THREE adversarial review rounds each rejected a version of this hook, every time
+  for the same class: a pre-tokenisation text transform that silently dropped
+  commands, so the guard failed OPEN while documented as fail-closed. Round 3 found
+  `git add -A >/dev/null 2>&1` allowed (redirection read as a scoping pathspec), a
+  `#` comment discarding the rest of the script, and a quoted `<<` inventing a
+  heredoc marker that ate the remainder. Rather than patch the three, the layer was
+  replaced by one quote-aware pass that reports whether it understood the text -- and
+  a command it cannot read is DENIED. The class is now closed mechanically: the suite
+  cross-products every representative blocked command with 21 ordinary shell
+  decorations (redirections, comments, heredocs, here-strings, line continuations,
+  `eval`, `bash -lc`, grouping, chains) and asserts the block survives each, because
+  each historical CRITICAL was exactly one such decoration. Tests parametrise over
+  the hook's own constants with subset canaries, after a hand-copied list was found
+  to have already drifted from the source.
+  Contract, residuals and rollout in [.ai/CONCURRENCY.md](.ai/CONCURRENCY.md).
+
 - **`/ask` + the `request-shaping` skill -- input-side request normalization.**
   Every prompt asset in the kit was output-side (`writing-plans`, `writing-skills`,
   `prompt-evaluation`, `token-optimization` all improve text we emit). Nothing normalized
