@@ -154,6 +154,13 @@ class TestBlocks:
         assert p.stdout == "", "a blocking hook must not write to stdout"
         assert "concurrency-guard" in p.stderr
 
+    def test_the_log_records_a_verdict_not_an_outcome(self, tmp_path):
+        log = tmp_path / "hooks.log"
+        run_guard("git add -A", extra_env={"LOG_FILE": str(log)})
+        body = log.read_text()
+        assert "verdict=deny" in body, body
+        assert "denied" not in body, "the log claims an outcome the hook does not control"
+
     def test_the_reason_does_not_claim_to_have_blocked(self):
         # A registry row may clamp this hook to `advisory`, in which case dispatch.sh
         # lets the command run anyway -- that is how the fleet ships it in record-only
