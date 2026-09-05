@@ -1,0 +1,14 @@
+{
+  "plan": "concurrency-guard-decision-23",
+  "files": [
+    {
+      "path": ".ai/DECISIONS.md",
+      "edits": [
+        {
+          "find": "| 22 | **`.codex/` mirror REMOVED**",
+          "add_before": "| 23 | **`concurrency-guard.py` stays `tier: advisory` in the fleet; promotion to `blocking` requires three consecutive APPROVED adversarial rounds with zero BLOCKING/MAJOR** (owner-approved 2026-09-05) | 27 adversarial `code-reviewer` rounds, 2 approvals (8, 12), every round found a leak; rounds 17\u201327 each found theirs inside the previous fix. The hook is a hand-written shell tokeniser and the leak class (\"a construct makes a later token vanish\") could not be closed by enumeration. Round 27 built the bash round-trip oracle (`TestBashIsTheOracleForWhatReachesGit`, both directions) and the one agreed further round still REJECTED (`{,}`). Full account in `.ai/CONCURRENCY.md` \"Record-only mode\". | Promote now on the strength of a 3600-case suite (the suite never once predicted the next leak); keep looping until APPROVED (twelve rounds of attrition is the evidence that this does not converge); delete the hook (it does catch the honest mistake that actually happened). | The 13 kitted repos keep recording `WOULD-BLOCK` and never deny. Any future promotion is gated on a measured leak rate under the oracle, not on suite size. Round 28 runs once, as a measurement of whether the oracle changed the rate, not as a loop. |\n"
+        }
+      ]
+    }
+  ]
+}
