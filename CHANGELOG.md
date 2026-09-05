@@ -19,6 +19,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and `_SAFE_TEXT_MAX` are now one table read by both the demand and the validator, and
   both demand branches print the optional-field list, the character budget and the
   prose-only rule.
+- **Dependency backlog cleared, and six of the eleven Dependabot PRs were wrong to merge.**
+  Dependabot proposed raising `pytest` to 9.1.1, `jsonschema` to 4.26.0 and `setuptools` to
+  84.0.0 (PRs #6, #12, #15, #17, #18, #19). All three of those releases declare
+  `requires_python >= 3.10`, while `pyproject.toml` declares `requires-python = ">=3.9"` and
+  the CI matrix runs a 3.9 leg -- each merge would have broken it. Resolving
+  `tests/requirements.in` on python3.9 returns the versions already in the lock, so the lock
+  was correct and only the floors were being pushed. `tests/requirements.in` now carries
+  `<9`, `<4.26` and `<84` caps with a comment saying the caps ARE the 3.9 floor and to lift
+  them in the same change that drops 3.9. The five GitHub Actions bumps were legitimate and
+  are applied: 27 SHA pins across three workflows moved to `actions/checkout` v7.0.1,
+  `actions/setup-python` v7.0.0, `actions/upload-artifact` v7.0.1,
+  `pypa/gh-action-pypi-publish` v1.14.2 and `softprops/action-gh-release` v3.0.2, each
+  resolved from its tag and annotated-tag-dereferenced to a commit SHA.
 
 - **The reflection receipt demand is self-describing.** A session on 2026-09-05 needed
   four Write+run cycles to clear one checkpoint: the demand said
