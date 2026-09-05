@@ -842,6 +842,16 @@ project's `dispatch-registry.json`. Nothing else changes.
 
 ## Rollout
 
+**Re-synced 2026-09-05:** all 13 kitted repos now carry the round-28 hook (sha `ae3c7eb3`),
+copied file-for-file with the owner's approval; every registry row stays `tier: advisory`
+and every downstream `dispatch.sh` was verified byte-identical to upstream first. Validated
+in each repo from its own directory: `py_compile` ok; direct verdicts `git add -A`→2,
+`git add src/a.py`→0, `git add -p .`→0, `git commit -m $(date) -a`→2, `git add "$@" -A`→2;
+and through the repo's own `dispatch.sh`, `git add -A` exits 0 with one
+`concurrency-guard` line written to that repo's `hooks.log` — record-only, as designed.
+Before this the fleet ran the round-14 hook (`ade2a81b`), i.e. every leak from rounds
+15–28 was live downstream, advisory or not.
+
 13 kitted projects under `~/IdeaProjects`. `qa-agent-pro` is EXCLUDED (public
 repo, owner's call) and has no `.claude/` anyway. Their
 `dispatch-registry.json` and `profiles/minimal/profile.json` were verified

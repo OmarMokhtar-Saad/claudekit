@@ -1,0 +1,14 @@
+{
+  "plan": "concurrency-guard-fleet-resync",
+  "files": [
+    {
+      "path": ".ai/CONCURRENCY.md",
+      "edits": [
+        {
+          "find": "## Rollout\n\n13 kitted projects under `~/IdeaProjects`.",
+          "replace": "## Rollout\n\n**Re-synced 2026-09-05:** all 13 kitted repos now carry the round-28 hook (sha `ae3c7eb3`),\ncopied file-for-file with the owner's approval; every registry row stays `tier: advisory`\nand every downstream `dispatch.sh` was verified byte-identical to upstream first. Validated\nin each repo from its own directory: `py_compile` ok; direct verdicts `git add -A`\u21922,\n`git add src/a.py`\u21920, `git add -p .`\u21920, `git commit -m $(date) -a`\u21922, `git add \"$@\" -A`\u21922;\nand through the repo's own `dispatch.sh`, `git add -A` exits 0 with one\n`concurrency-guard` line written to that repo's `hooks.log` \u2014 record-only, as designed.\nBefore this the fleet ran the round-14 hook (`ade2a81b`), i.e. every leak from rounds\n15\u201328 was live downstream, advisory or not.\n\n13 kitted projects under `~/IdeaProjects`."
+        }
+      ]
+    }
+  ]
+}
