@@ -14,6 +14,7 @@ predecessor passed while the hook was broken. Do not thin the lists.
 import json
 import os
 import re
+import shlex
 import subprocess
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
@@ -342,6 +343,16 @@ BLOCKED = [
     # sessions' files and the here-string spelling destroyed both in-flight edits
     "bash -O extglob <<EOF\ngit add -A\nEOF", "bash --rcfile f <<EOF\ngit add -A\nEOF",
     'bash -O extglob <<< "git checkout -f"', 'zsh -o x <<< "git add -A"',
+    # round 27: an EMPTY brace expansion `{,}` yields zero words under bash, so git
+    # received `add -A` while the hook kept `{,}` as a scoping pathspec -- a PHANTOM.
+    # Verified under bash 3.2 (zsh differs): both sessions' files staged, both
+    # sessions' edits stashed. `{a,b}` is over-blocked by the same rule, named in
+    # the residuals.
+    "git add {,} -A", "git stash push {,}", "git rm -r {,}", "git add {a,b} -A",
+    "git commit -m {,} -a",
+    # round 27: bare `$name` was the one expansion spelling not made opaque; an unset
+    # name expands to NOTHING, so `git stash push $x` degraded to a bare stash
+    "git add $x -A", "git stash push $x", "git add $DIR -A", "git commit -m $x -a",
     "git rm -r \\> .", "git add \\| .",
     # round 22: a shell wrapper reads STDIN as a SCRIPT, and `preprocess` strips
     # heredoc bodies as data -- so the script vanished. Verified: the `sh` form
@@ -575,6 +586,8 @@ ALLOWED = [
     "git commit -m { src/a.py", "git status >| out", "git add src/a.py >| out",
     # a wrapper option's value followed by a REAL script file stays the file residual
     "bash -O extglob build.sh", "bash -O extglob -c 'git status'", "echo x<(echo y)",
+    # an opaque `$name` where its value cannot make the command tree-wide
+    "git commit -m $msg src/a.py", "git log $b", "git push origin $b", "echo {a,b}",
     "git add -p . >| out", "echo A {} B",
     'echo "$(echo "$(git status)")"', 'git commit -m "" src/a.py',
     'echo "a $(date) b"',
@@ -1573,6 +1586,182 @@ class TestNoConstructSwallowsTheFlagBehindIt:
         assert len(blocking) >= 5, "too few blocking controls to catch a swallowed flag"
 
 
+def _is_subsequence(needle, hay):
+    it = iter(hay)
+    return all(ch in it for ch in needle)
+
+
+class TestBashIsTheOracleForWhatReachesGit:
+    """The round-trip invariant two reviewers asked for, built in round 27.
+
+    Every leak of the `preprocess-transform-silently-deletes-a-command` class -- eleven
+    instances, rounds 1 through 26 -- had the same observable: bash handed git a flag
+    that the hook's own argv for that command did not contain. So instead of
+    enumerating constructs, this asks BASH. Each corpus command runs under real bash
+    with a stub `git` on PATH that records its argv and does nothing, in a throwaway
+    directory with stdin closed; the hook's segments are computed from the same text;
+    and every `-`-prefixed word bash actually passed to git must appear in some hook
+    segment for that command. A construct nobody has thought of still has to satisfy
+    this, and a fix that severs the token stream fails it without anyone writing a
+    case for that spelling.
+
+    What it does NOT assert, deliberately: equality. Expansions become placeholders
+    (`$(date)` -> ``), and that is fine -- a placeholder cannot hide a FLAG. Nor does it
+    assert anything when bash itself refuses the text (a syntax error yields no argv).
+
+    Safety: PATH is the stub directory plus /usr/bin and /bin, cwd is `tmp_path`, HOME
+    is `tmp_path`, stdin is /dev/null, and there is a 5 second timeout. `sudo`/`doas`
+    spellings are excluded because they would prompt. No real git can run.
+    """
+
+    STUB = (
+        "#!/bin/bash\n"
+        "printf '%s\\x1f' \"$@\" >> \"$ARGV_LOG\"; printf '\\x1e' >> \"$ARGV_LOG\"\n"
+        "exit 0\n"
+    )
+
+    @staticmethod
+    def _bash_git_argvs(cmd, tmp_path):
+        bindir = tmp_path / "bin"
+        bindir.mkdir(exist_ok=True)
+        stub = bindir / "git"
+        if not stub.exists():
+            stub.write_text(TestBashIsTheOracleForWhatReachesGit.STUB)
+            stub.chmod(0o755)
+        cwd = tmp_path / "cwd"
+        cwd.mkdir(exist_ok=True)
+        log = tmp_path / "argv.log"
+        log.write_bytes(b"")
+        env = {"PATH": f"{bindir}:/usr/bin:/bin", "HOME": str(cwd),
+               "ARGV_LOG": str(log), "LANG": "C"}
+        try:
+            subprocess.run(["bash", "-c", cmd], cwd=str(cwd), env=env,
+                           capture_output=True, timeout=5, stdin=subprocess.DEVNULL)
+        except subprocess.TimeoutExpired:
+            return None
+        data = log.read_bytes().decode("utf-8", "replace")
+        return [rec.split("\x1f")[:-1] for rec in data.split("\x1e") if rec]
+
+    @classmethod
+    def _hook_git_argvs(cls, cmd):
+        """The git argvs the hook derives -- mirroring `analyse`'s wrapper handling.
+
+        The first draft read only top-level segments and false-alarmed on every
+        `bash -c '...'` and `eval ...` spelling, where the hook itself recurses into
+        the inner script. A stdin-fed wrapper is left to the verdict gate in the test:
+        the hook fails closed there, and a denial cannot be a leak.
+        """
+        text, confident = guard.preprocess(cmd)
+        if not confident:
+            return None          # the hook fails closed here; nothing to compare
+        lexer = shlex.shlex(text, posix=True, punctuation_chars=True)
+        lexer.whitespace_split = True
+        lexer.commenters = ""
+        out = []
+        for segment, _fed in guard.split_segments(list(lexer)):
+            segment = guard.strip_prefixes(segment)
+            if not segment:
+                continue
+            head = os.path.basename(segment[0])
+            if head == "eval":
+                inner = cls._hook_git_argvs(" ".join(segment[1:]))
+                out.extend(inner or [])
+                continue
+            if head in guard.SCRIPT_WRAPPERS:
+                for i, tok in enumerate(segment[1:], start=1):
+                    is_c = tok == "-c" or (tok.startswith("-") and not tok.startswith("--")
+                                           and "c" in tok[1:])
+                    if is_c and i + 1 < len(segment):
+                        inner = cls._hook_git_argvs(segment[i + 1])
+                        out.extend(inner or [])
+                        break
+                continue
+            if guard.is_git(segment[0]):
+                out.append(segment[1:])
+        return out
+
+    #: The corpus is every command this file already asserts a verdict on, plus the
+    #: metamorphic matrix. Excluded: anything that would prompt or is not a command.
+    @staticmethod
+    def corpus():
+        seen = []
+        for cmd in list(BLOCKED) + list(ALLOWED):
+            if cmd.split()[:1] in (["sudo"], ["doas"]):
+                continue
+            seen.append(cmd)
+        M = TestNoConstructSwallowsTheFlagBehindIt
+        for construct in M.CONSTRUCTS:
+            for template, _ in M.TAILS:
+                seen.append(template % construct)
+        return seen
+
+    @pytest.mark.parametrize("cmd", corpus.__func__())
+    def test_every_flag_bash_hands_git_reaches_the_hook(self, cmd, tmp_path):
+        bash = self._bash_git_argvs(cmd, tmp_path)
+        if not bash:
+            pytest.skip("bash refused or ran no git for this text")
+        # A DENIAL can never be a leak, whatever the hook's argv looked like -- the
+        # class this invariant guards is "bash handed git a flag and the hook ALLOWED".
+        # So the comparison only runs when the hook let the command through; that is
+        # also what keeps stdin-fed wrappers (which fail closed) out of the comparison.
+        if run_guard(cmd).returncode != 0:
+            return
+        hook = self._hook_git_argvs(cmd)
+        if hook is None:
+            return               # fail-closed is never a leak
+        hook_words = {w for argv in hook for w in argv}
+        # With no expansion in the text, EVERY word bash hands git must reach the hook
+        # -- flags and operands alike. The flag-only form could not see round 24's
+        # line-continuation leak, which split `HEAD` into `HEA` and `D` and dropped no
+        # flag at all. Expansions become placeholders the hook cannot know the value
+        # of, so when the text contains one only the flags are compared.
+        expands = any(tok in cmd for tok in ("$", "`", "<(", ">(", "{"))
+        for argv in bash:
+            for word in argv:
+                if (word.startswith("-") and word != "-") or not expands:
+                    assert word in hook_words, (
+                        f"bash handed git {word!r} and the hook never saw it: "
+                        f"{cmd!r}\n  bash={bash}\n  hook={hook}")
+        # THE CONVERSE, added in round 27 after the reviewer showed the subset check
+        # alone was blind to a PHANTOM pathspec: `git add {,} -A` reached git as
+        # `add -A`, but the hook kept `{,}` as a positive, scoping operand and allowed
+        # it. So every non-flag operand the hook believes in must be a word bash
+        # actually handed git -- an operand bash never produced cannot be what scoped
+        # the command. Placeholders (empty after the sentinel strip) are exempt: they
+        # are the hook saying "unknowable", and the rules already treat them as such.
+        bash_words = {w for argv in bash for w in argv}
+        for argv in hook:
+            for word in argv:
+                if word and not word.startswith("-"):
+                    # An in-order SUBSEQUENCE, not equality: an expansion glued to
+                    # literal text on BOTH sides (`a>(cat)b`) leaves the hook `ab` once
+                    # the placeholder is stripped, against bash's `a/dev/fd/63b` -- the
+                    # hook's letters all appear, in order, with the expansion's value
+                    # between them. That is not a phantom. A phantom -- `{,}`, which bash
+                    # turned into nothing -- is a subsequence of no bash word, because
+                    # no bash word carries its braces.
+                    # When an unquoted expansion's OUTPUT word-splits (`a$(date)b` ->
+                    # `aSat Sep 5 ... 2026b`), the hook's `ab` spans several bash words,
+                    # so with an expansion present the subsequence is taken over the
+                    # CONCATENATION of bash's words. `{,}` is a subsequence of neither.
+                    haystacks = ["".join(w for argv in bash for w in argv)] if expands else bash_words
+                    assert any(_is_subsequence(word, bw) for bw in haystacks), (
+                        f"the hook believed in an operand {word!r} that bash never "
+                        f"handed git -- a phantom pathspec scoped the command: "
+                        f"{cmd!r}\n  bash={bash}\n  hook={hook}")
+
+    def test_the_oracle_is_not_vacuous(self, tmp_path):
+        # The stub must actually record, and the corpus must actually exercise it.
+        assert self._bash_git_argvs("git commit -m x -a", tmp_path) == [["commit", "-m", "x", "-a"]]
+        assert self._bash_git_argvs("git add -A; git status", tmp_path) == [["add", "-A"], ["status"]]
+        ran = sum(1 for c in self.corpus()[:60] if self._bash_git_argvs(c, tmp_path))
+        assert ran >= 40, f"only {ran} of the first 60 corpus commands reached the stub"
+        # The binding proof lives in the archive README and the doc: re-introducing
+        # the line-continuation, heredoc-marker and glued-`<(` leaks in a scratch
+        # copy each fails this class. A literal-only assertion used to sit here and
+        # could never fail -- round 27 called it a tautology, correctly.
+
+
 class TestEverySpellingOfAGlobalAndAWrapperIsCovered:
     """The mechanical check the `one-site-updated-sibling-missed` class earned.
 
@@ -2280,15 +2469,15 @@ class TestTheMutationRecordIsExecutable:
          # `echo $((1+2))` above `git add -A` from BLOCK to ALLOW.
          "echo $((1+2))\ngit add -A", 2),
         ("an-arithmetic-expansion-becomes-one-opaque-word",
-         '            out.append(\'"\' + QUOTED_WORD_SENTINEL + \'"\')\n'
-         "            i = j + 1\n"
-         "            continue\n\n"
-         '        if quote != "\'" and command.startswith("$(", i):',
-         "            i = j + 1\n"
-         "            continue\n\n"
-         '        if quote != "\'" and command.startswith("$(", i):',
-         # without the placeholder the expansion leaves NO token, so `-m` takes the
-         # flag behind it as its message
+         "                confident = False          # unclosed: the text was not understood\n"
+         "                break\n"
+         "            out.append('\"' + QUOTED_WORD_SENTINEL + '\"')\n",
+         "                confident = False          # unclosed: the text was not understood\n"
+         "                break\n",
+         # with NO placeholder the expansion leaves no token, so `-m` swallows the
+         # `-a` behind it as its message. The previous re-aim emitted a SECOND
+         # placeholder instead and did not flip -- commit tests `--all` before the
+         # scoped-pathspec return, so an extra pathspec changes nothing there.
          "git commit -m $((1)) -a", 2),
         ("the-bare-arithmetic-command-is-not-a-heredoc",
          '        if command.startswith("((", i) and at_token_boundary():',
@@ -2364,6 +2553,12 @@ class TestTheMutationRecordIsExecutable:
         ("a-brace-outside-command-word-position-is-an-argument",
          "        if raw and all(ch in \"{}\" for ch in raw) and segments[-1]:", "        if False:",
          "{ git commit -m } -a; }", 2),
+        ("a-brace-expansion-is-an-opaque-word",
+         "        if not quote and command.startswith(\"{\", i) and at_token_boundary_or_word():", "        if False:",
+         "git add {,} -A", 2),
+        ("a-bare-parameter-expansion-is-an-opaque-word",
+         "        if quote != \"'\" and command.startswith(\"$\", i) and i + 1 < n and (command[i + 1] == \"_\" or command[i + 1].isalpha()):", "        if False:",
+         "git add $x -A", 2),
         ("process-substitution-is-lifted-in-any-word-position",
          '        if not quote and command[i:i + 2] in ("<(", ">("):',
          '        if not quote and command[i:i + 2] in ("<(", ">(") and at_token_boundary():',

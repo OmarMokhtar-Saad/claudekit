@@ -372,6 +372,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   round 26's own redirection work also found that a heredoc's consumed marker left the
   `<<` token skipping the next REAL argument, so `git commit -m x <<EOF -a` committed
   both sessions' files; a placeholder now stands in for the marker.
+  After twenty-six rounds without convergence, the bash ROUND-TRIP INVARIANT two
+  reviewers had asked for was built instead of a twenty-seventh round:
+  `TestBashIsTheOracleForWhatReachesGit` runs ~1000 corpus commands under real bash with a
+  recording stub `git`, and asserts that whenever the hook allows a command, every word
+  bash actually handed git reached the hook (flags only when the text contains an
+  expansion). It is proven to bind by re-introducing three closed leaks, and the shipped
+  hook passes it. This is the check that would have caught the last eleven leaks with
+  nobody enumerating a spelling first.
+  Round 27's review then found the oracle was one-directional: `git add {,} -A` reached
+  git as `add -A` (an empty brace expansion yields no words under bash) while the hook
+  kept `{,}` as a scoping pathspec and allowed it -- both sessions' files staged, both
+  sessions' edits stashed -- and bare `$name` was the one expansion spelling not made
+  opaque. Both are placeholders now, and the oracle asserts the converse too: every
+  operand the hook believes in must be a word bash actually handed git.
   Contract, residuals and rollout in [.ai/CONCURRENCY.md](.ai/CONCURRENCY.md).
 
 - **`/ask` + the `request-shaping` skill -- input-side request normalization.**

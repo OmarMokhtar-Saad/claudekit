@@ -1,0 +1,14 @@
+{
+  "plan": "concurrency-guard-round27-oracle-all-words",
+  "files": [
+    {
+      "path": "tests/test_concurrency_guard.py",
+      "edits": [
+        {
+          "find": "        hook_words = {w for argv in hook for w in argv}\n        for argv in bash:\n            for word in argv:\n                if word.startswith(\"-\") and word != \"-\":\n                    assert word in hook_words, (\n                        f\"bash handed git {word!r} and the hook never saw it: \"\n                        f\"{cmd!r}\\n  bash={bash}\\n  hook={hook}\")",
+          "replace": "        hook_words = {w for argv in hook for w in argv}\n        # With no expansion in the text, EVERY word bash hands git must reach the hook\n        # -- flags and operands alike. The flag-only form could not see round 24's\n        # line-continuation leak, which split `HEAD` into `HEA` and `D` and dropped no\n        # flag at all. Expansions become placeholders the hook cannot know the value\n        # of, so when the text contains one only the flags are compared.\n        expands = any(tok in cmd for tok in (\"$\", \"`\", \"<(\", \">(\"))\n        for argv in bash:\n            for word in argv:\n                if (word.startswith(\"-\") and word != \"-\") or not expands:\n                    assert word in hook_words, (\n                        f\"bash handed git {word!r} and the hook never saw it: \"\n                        f\"{cmd!r}\\n  bash={bash}\\n  hook={hook}\")"
+        }
+      ]
+    }
+  ]
+}

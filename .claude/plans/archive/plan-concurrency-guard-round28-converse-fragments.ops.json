@@ -1,0 +1,14 @@
+{
+  "plan": "concurrency-guard-round28-converse-fragments",
+  "files": [
+    {
+      "path": "tests/test_concurrency_guard.py",
+      "edits": [
+        {
+          "find": "        bash_words = {w for argv in bash for w in argv}\n        for argv in hook:\n            for word in argv:\n                if word and not word.startswith(\"-\"):\n                    assert word in bash_words, (\n                        f\"the hook believed in an operand {word!r} that bash never \"\n                        f\"handed git -- a phantom pathspec scoped the command: \"\n                        f\"{cmd!r}\\n  bash={bash}\\n  hook={hook}\")",
+          "replace": "        bash_words = {w for argv in bash for w in argv}\n        for argv in hook:\n            for word in argv:\n                if word and not word.startswith(\"-\"):\n                    # CONTAINMENT, not equality: an expansion glued to literal text\n                    # (`a<(echo x)`) leaves the hook a FRAGMENT (`a`) of bash's word\n                    # (`a/dev/fd/63`), which is not a phantom. A phantom -- `{,}`,\n                    # which bash turned into nothing -- is a fragment of no bash word.\n                    assert any(word in bw for bw in bash_words), (\n                        f\"the hook believed in an operand {word!r} that bash never \"\n                        f\"handed git -- a phantom pathspec scoped the command: \"\n                        f\"{cmd!r}\\n  bash={bash}\\n  hook={hook}\")"
+        }
+      ]
+    }
+  ]
+}

@@ -327,6 +327,11 @@ def preprocess(command: str) -> Tuple[str, bool]:
     #: scripts after the outer text so that the outer token stream is never disturbed.
     extra_scripts: List[str] = []
 
+    def at_token_boundary_or_word() -> bool:
+        # A brace expansion may start a word or sit inside one (`a{b,c}`); it may
+        # NOT follow `$` (that is `${…}`, handled below) or sit inside quotes.
+        return not out or out[-1] != "$"
+
     def at_token_boundary() -> bool:
         # A `#` only starts a comment at the start of a word, so `file#1.txt` keeps
         # its hash. NOT behaviour-bound (mutation-checked): every realistic case is
@@ -438,6 +443,58 @@ def preprocess(command: str) -> Tuple[str, bool]:
                 break
             out.append('"' + QUOTED_WORD_SENTINEL + '"')
             i = j + 1
+            continue
+
+        # `${...}` and bare `$name` sit ABOVE the quoted-copy branch, like `$((` and
+        # `$(`, so they are opaque inside double quotes too. Placed below it, a quoted
+        # `"${x:-plain}"` went out verbatim -- harmless, since a quoted expansion is
+        # always exactly one word, but the bash oracle correctly reported an operand
+        # bash never produced. One placement rule for all five expansions now.
+        if quote != "'" and command.startswith("${", i):
+            # One opaque WORD, read to its matching brace. There was no `${` extent at
+            # all, so a `;` inside an unquoted parameter expansion fell through to the
+            # operator path and SEPARATED the command: `git commit -m ${x:-a;b} -a`
+            # committed both sessions' files at rc 0, and bash keeps it one word
+            # (`echo ${x:-a;b}` prints `a;b`) -- round 24, verified.
+            depth = 1
+            j = i + 2
+            inner_quote = ""
+            while j < n and depth:
+                c = command[j]
+                # Quote-aware like the `$(` scan: `${x:-"}"}` has a `}` INSIDE quotes,
+                # and closing on it left an unbalanced quote behind that failed the
+                # whole read-only command closed (`git commit -m ${x:-"}"} src/a.py`
+                # exited 2 -- found probing this fix, round 25).
+                if inner_quote:
+                    if c == inner_quote:
+                        inner_quote = ""
+                elif c in "'\"":
+                    inner_quote = c
+                elif c == "{":
+                    depth += 1
+                elif c == "}":
+                    depth -= 1
+                    if not depth:
+                        break
+                j += 1
+            if depth:
+                confident = False
+                break
+            out.append('"' + QUOTED_WORD_SENTINEL + '"')
+            i = j + 1
+            continue
+
+        if quote != "'" and command.startswith("$", i) and i + 1 < n and (command[i + 1] == "_" or command[i + 1].isalpha()):
+            # A bare `$name` is the one expansion spelling that was not opaque, and
+            # an UNSET name expands to nothing: `git add $x -A` staged both sessions'
+            # files and `git stash push $x` degraded to a bare `stash push`, rc 0
+            # (round 27, verified). `${x}` already failed closed one spelling over
+            # for the identical reason, so this is its sibling.
+            j = i + 1
+            while j < n and (command[j] == "_" or command[j].isalnum()):
+                j += 1
+            out.append('"' + QUOTED_WORD_SENTINEL + '"')
+            i = j
             continue
 
         if quote != "'" and command.startswith("$(", i):
@@ -557,39 +614,22 @@ def preprocess(command: str) -> Tuple[str, bool]:
             i = j + 1
             continue
 
-        if quote != "'" and command.startswith("${", i):
-            # One opaque WORD, read to its matching brace. There was no `${` extent at
-            # all, so a `;` inside an unquoted parameter expansion fell through to the
-            # operator path and SEPARATED the command: `git commit -m ${x:-a;b} -a`
-            # committed both sessions' files at rc 0, and bash keeps it one word
-            # (`echo ${x:-a;b}` prints `a;b`) -- round 24, verified.
-            depth = 1
-            j = i + 2
-            inner_quote = ""
-            while j < n and depth:
-                c = command[j]
-                # Quote-aware like the `$(` scan: `${x:-"}"}` has a `}` INSIDE quotes,
-                # and closing on it left an unbalanced quote behind that failed the
-                # whole read-only command closed (`git commit -m ${x:-"}"} src/a.py`
-                # exited 2 -- found probing this fix, round 25).
-                if inner_quote:
-                    if c == inner_quote:
-                        inner_quote = ""
-                elif c in "'\"":
-                    inner_quote = c
-                elif c == "{":
-                    depth += 1
-                elif c == "}":
-                    depth -= 1
-                    if not depth:
-                        break
-                j += 1
-            if depth:
-                confident = False
-                break
-            out.append('"' + QUOTED_WORD_SENTINEL + '"')
-            i = j + 1
-            continue
+        if not quote and command.startswith("{", i) and at_token_boundary_or_word():
+            # BRACE EXPANSION. `{,}` expands to ZERO words under bash, so
+            # `git add {,} -A` handed git exactly `add -A` while the hook kept `{,}`
+            # as a positive, scoping pathspec -- both sessions' files staged, and
+            # `git stash push {,}` stashed both sessions' in-flight edits, rc 0
+            # (round 27, verified under bash 3.2; zsh differs, which is why an
+            # earlier check missed it). A word carrying an unquoted `{…,…}` or
+            # `{a..b}` list is a PHANTOM the hook cannot resolve, so it becomes the
+            # same opaque placeholder as `${…}`. Cost: `git add {a,b} -A` is now
+            # over-blocked -- named in the doc's residuals beside `${…}`'s.
+            j = command.find("}", i)
+            body = command[i + 1:j] if j != -1 else ""
+            if j != -1 and ("," in body or ".." in body) and "\n" not in body and " " not in body:
+                out.append('"' + QUOTED_WORD_SENTINEL + '"')
+                i = j + 1
+                continue
 
         if command.startswith("((", i) and at_token_boundary():
             # The bash arithmetic COMMAND `(( 1 << 2 ))` is not `$((`, so the guard
