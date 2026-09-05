@@ -1,0 +1,18 @@
+{
+  "plan": "concurrency-guard-round23-empty-token-and-nesting",
+  "files": [
+    {
+      "path": ".claude/hooks/concurrency-guard.py",
+      "edits": [
+        {
+          "find": "        if all(ch in \"(){}\" for ch in core):",
+          "replace": "        if not raw:\n            # An EMPTY argument is an argument, not a separator. `all()` over an empty\n            # string is True, so the grouping branch below swallowed `\"\"` and STARTED A\n            # NEW SEGMENT -- which split the command and dropped every flag after it.\n            # Round 23's substitution extraction leaves exactly that token behind\n            # (`git commit -m \"\" -a`), so `git commit -m \"$(date)\" -a` and\n            # `git clean -e \"$(cat p)\" -fd` both exited 0 with their `-a`/`-fd` in a\n            # segment of their own. Latent before, reachable now.\n            continue\n        if all(ch in \"(){}\" for ch in core):"
+        },
+        {
+          "find": "    for script in extra_scripts:\n        out.append(\";\" + script + \";\")",
+          "replace": "    for script in extra_scripts:\n        # RECURSIVELY, so a substitution nested inside another one is read too:\n        # appending the raw text left the inner `$(` as quoted data and\n        # `echo \"$(echo \"$(git add -A)\")\"` exited 0. An inner text that cannot be read\n        # makes the whole command unreadable, exactly as at the top level.\n        inner_text, inner_confident = preprocess(script)\n        out.append(\";\" + inner_text + \";\")\n        confident = confident and inner_confident"
+        }
+      ]
+    }
+  ]
+}

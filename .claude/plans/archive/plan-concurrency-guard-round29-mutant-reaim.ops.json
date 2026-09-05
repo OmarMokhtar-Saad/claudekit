@@ -1,0 +1,23 @@
+{
+  "plan": "concurrency-guard-round29-mutant-reaim",
+  "files": [
+    {
+      "path": "tests/test_concurrency_guard.py",
+      "edits": [
+        {
+          "find": "        (\"a-bare-parameter-expansion-is-an-opaque-word\",\n         \"        if quote != \\\"'\\\" and command.startswith(\\\"$\\\", i) and i + 1 < n and (command[i + 1] == \\\"_\\\" or command[i + 1].isalpha()):\", \"        if False:\",\n         \"git add $x -A\", 2),",
+          "replace": "        (\"a-bare-parameter-expansion-is-an-opaque-word\",\n         \"                j += 1                     # a positional or special parameter is ONE char\\n\"\n         \"            out.append('\\\"' + QUOTED_WORD_SENTINEL + '\\\"')\\n\",\n         \"                j += 1                     # a positional or special parameter is ONE char\\n\",\n         # with NO placeholder `$x` leaves no token and `-m` swallows the `-a`. The\n         # header this entry anchored on was split in round 28; a first re-aim on the\n         # name scan did NOT flip (the else branch advances past `x` anyway) and was\n         # refused by the flip assertion -- but the surrounding shell had no `set -e`\n         # and committed the stale entry regardless. This is the corrected anchor.\n         \"git commit -m $x -a\", 2),"
+        }
+      ]
+    },
+    {
+      "path": ".claude/plans/archive/README.md",
+      "edits": [
+        {
+          "find": "Re-aimed onto the name SCAN: without it `$x` becomes placeholder + literal `x` and reads as a scoped pathspec. Flip asserted (2\u21920) before writing. |",
+          "replace": "**That row was written before the work it describes succeeded, and the commit it rode in (`a113ea5`) carried two failing mutation tests.** The name-scan mutation did NOT flip \u2014 the else branch advances past `x` anyway \u2014 and the flip assertion refused it, but the surrounding shell lacked `set -e` and committed and pushed regardless. Corrected here: the entry anchors on this branch's placeholder emission; without it `$x` leaves no token and `-m` swallows the `-a`. Flip asserted (2\u21920) before writing, and the shell now stops on failure. |"
+        }
+      ]
+    }
+  ]
+}

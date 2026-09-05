@@ -59,6 +59,7 @@ GUARDED_HOOKS: Dict[str, str] = {
     "block-no-verify": "block-no-verify.sh",
     "command-guard": "command-guard.sh",
     "commit-quality": "commit-quality.sh",
+    "concurrency-guard": "concurrency-guard.py",
     "config-protection": "config-protection.sh",
     "file-guard-gate": "file-guard-gate.sh",
     "format-typecheck": "format-typecheck.sh",

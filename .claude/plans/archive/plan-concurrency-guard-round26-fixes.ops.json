@@ -1,0 +1,18 @@
+{
+  "plan": "concurrency-guard-round26-fixes",
+  "files": [
+    {
+      "path": ".claude/hooks/concurrency-guard.py",
+      "edits": [
+        {
+          "find": "    if not body or not all(ch in \"<>&|;\" for ch in body):\n        return \"\"\n    if any(ch in \";|\" for ch in body) or \"&&\" in body:\n        return \"separator\"",
+          "replace": "    if not body or not all(ch in \"<>&|;\" for ch in body):\n        return \"\"\n    if body[:1] in (\"<\", \">\") and \";\" not in body and \"&&\" not in body:\n        # A run that BEGINS with a redirection character and carries no separator is\n        # one redirection operator -- `>|` (noclobber override), `>&`, `<>`, `>>`. The\n        # separator-first rule below read the `|` in `>|` as a PIPE, which severed the\n        # command at the redirection and dropped every flag behind it:\n        # `git commit -m wip >| out -a` committed BOTH sessions' files and\n        # `git clean -e p >| out -fd` deleted both sessions' untracked files, rc 0\n        # (round 25, verified against bash + git). `<<;` -- a heredoc glued to the\n        # separator behind it -- still carries a `;` and stays a separator.\n        return \"redirection\"\n    if any(ch in \";|\" for ch in body) or \"&&\" in body:\n        return \"separator\""
+        },
+        {
+          "find": "        core = raw.lstrip(\")}\")\n        if core != raw and not group_starts and not raw.startswith(\")\"):",
+          "replace": "        core = raw.lstrip(\")}\")\n        if raw and all(ch in \"{}\" for ch in raw) and segments[-1]:\n            # A brace is a reserved word ONLY in command-word position; anywhere else\n            # `{`, `}` and `{}` are ordinary words (`bash -c 'echo A {} B'` prints them).\n            # Round 24 fixed the bare `}` on that premise but gated it on `not\n            # group_starts`, so `{ git commit -m } -a; }` -- the same command merely\n            # WRAPPED -- lost its `-a` again; and it never covered the opener at all, so\n            # `git commit -m { -a` and `git clean -e { -fd` reached the whole tree\n            # (round 25, all verified against git). Deciding by POSITION -- is there a\n            # command word in this segment already? -- covers opener, closer and\n            # `{}` in one rule, grouped or not. `(`/`)` keep their handling: bash\n            # rejects a bare paren as an argument, so it can only ever be grouping.\n            segments[-1].append(raw)\n            continue\n        if core != raw and not group_starts and not raw.startswith(\")\"):"
+        }
+      ]
+    }
+  ]
+}

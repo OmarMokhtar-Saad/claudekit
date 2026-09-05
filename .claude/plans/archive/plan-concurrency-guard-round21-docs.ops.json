@@ -1,0 +1,39 @@
+{
+  "plan": "concurrency-guard-round21-docs",
+  "files": [
+    {
+      "path": ".ai/CONCURRENCY.md",
+      "edits": [
+        {
+          "find": "| `clean -f` / `--force` / `-i` / `--interactive`",
+          "replace": "| `-c alias.<x>=...` or `-c clean.requireForce=<false>` (either spelling, fused or separate, any case) \u2014 the setting decides what the command MEANS, and the hook was parsing the token and discarding it. `git -c clean.requireForce=false clean -d` deleted another session's untracked file AND a subdirectory at rc 0; `git -c alias.st='add -A' st` staged both sessions' files | run the command without the config override |\n| a QUOTED operator-only pathspec (`git add '>' .`) \u2014 `shlex` discards quoting, so the word `>` was classified as a REDIRECTION and the tree-wide token behind it was swallowed as its target (verified with a file named `>` present) | `git add path/to/file` |\n| `clean -f` / `--force` / `-i` / `--interactive`"
+        },
+        {
+          "find": "* an arithmetic shift: `echo $((1<<2))`. Round 15 found `<<` inside `$((` read as a\n  heredoc marker that never arrived, so a purely read-only `git log` script was DENIED.\n  An arithmetic expansion that never CLOSES still fails closed, since the `<<`\n  suppression may then have swallowed a real heredoc",
+          "replace": "* an arithmetic shift, in every spelling: `echo $((1<<2))`, `x=\"$((1<<2))\"` and the bare\n  arithmetic COMMAND `(( 1 << 2 ))`. Round 15 found `<<` inside `$((` read as a heredoc\n  marker that never arrived, so a purely read-only `git log` script was DENIED \u2014 and\n  round 21 found the mirror image in the two spellings round 15 never covered, failing\n  OPEN: `arith_depth` was raised only by the UNQUOTED `$((` branch, and round 20's `$(`\n  lift matched `$((` first, so `x=\"$((1<<2))\"` and `(( 1 << 2 ))` both had their `<<`\n  read as a heredoc whose invented marker swallowed every following command **with\n  `confident` still True**. `x=\"$((1<<2))\"\\ngit add -A\\n2` staged both sessions' files\n  at exit 0 (verified). That is the fail-OPEN shape this layer was rewritten to\n  eliminate, arriving inside round 20's own fix. The `))` decrement now fires while\n  quoted too, or the read-only script fails closed again; an arithmetic expansion that\n  never CLOSES still fails closed, and so does an UNCONSUMED heredoc marker\n  (`git log <<EOF`), which is what stops a mis-read marker from ever failing open"
+        },
+        {
+          "find": "Multi-line commands ARE analysed.",
+          "replace": "One wrapper-word gap is worth naming as a rule rather than a list: an unlisted word in\nfront of the command makes the segment's command word not `git`, so `is_git` says no and\nthe WHOLE segment is dropped \u2014 `caffeinate git add -A` staged both sessions' files at\nexit 0 (round 21). `caffeinate` is macOS-native and was simply missing; `timeout`,\n`stdbuf`, `setsid`, `ionice`, `chrt` and `doas` are the same shape and were added with\nit. This is the enumeration half of a residual that already existed for the positional\nhalf, and it stays an enumeration deliberately: making an unknown leading word\nfail closed would deny `echo git add -A`, an ordinary line that mutates nothing.\n\nMulti-line commands ARE analysed."
+        },
+        {
+          "find": "So the honest status is: **twenty rounds, two approvals (8 and 12), and every single\nround has found something**",
+          "replace": "Round 21 found two more BLOCKING and a MAJOR: the arithmetic/heredoc fail-open above\n(inside round 20's fix), `-c` config deciding what a command means while the hook threw\nthe token away, and a quoted operator-only pathspec swallowing the tree-wide token\nbehind it. It also found two round-20 lines carrying a verdict with no test, which are\n`MUTANTS` entries now.\nSo the honest status is: **twenty-one rounds, two approvals (8 and 12), and every single\nround has found something**"
+        },
+        {
+          "find": "round has found something** \u2014 and rounds 17, 19 and 20 each found a leak inside the\nfix that preceded them. Three of the last four rounds.",
+          "replace": "round has found something** \u2014 and rounds 17, 19, 20 and 21 each found a leak inside the\nfix that preceded them. Four of the last five rounds."
+        }
+      ]
+    },
+    {
+      "path": "CHANGELOG.md",
+      "edits": [
+        {
+          "find": "  and the doc justified it with a sentence execution refutes.",
+          "replace": "  and the doc justified it with a sentence execution refutes.\n  A TWENTY-FIRST round found two more BLOCKING and a MAJOR. (1) `arith_depth` was\n  raised only by the UNQUOTED `$((` branch, and round 20's `$(` lift matched `$((`\n  first, so a `<<` inside `x=\"$((1<<2))\"` or inside the bare arithmetic command\n  `(( 1 << 2 ))` was read as a HEREDOC whose invented marker swallowed every following\n  command with `confident` still True -- `x=\"$((1<<2))\"` then `git add -A` staged both\n  sessions' files at exit 0 (verified). That is the fail-open shape this layer exists to\n  prevent, inside the previous round's fix. An unconsumed heredoc marker now fails\n  closed too. (2) `-c` carries config that decides what a command MEANS, and\n  `strip_git_globals` discarded the value: `git -c clean.requireForce=false clean -d`\n  deleted another session's untracked file and a subdirectory at rc 0, and\n  `git -c alias.st='add -A' st` staged both sessions' files. `alias.*` and\n  `clean.requireForce` now fail closed in every spelling. (3) MAJOR: `shlex` discards\n  quoting, so a quoted operator-only pathspec was classified as a redirection and the\n  tree-wide token behind it was eaten as its target -- `git add '>' .` staged both\n  sessions' files with a file named `>` present. Also: two round-20 lines carrying a\n  verdict had no mutation entry, and `caffeinate git add -A` was invisible because the\n  wrapper word was not listed."
+        }
+      ]
+    }
+  ]
+}

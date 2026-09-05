@@ -1,0 +1,42 @@
+{
+  "plan": "concurrency-guard-round25-test-binding",
+  "files": [
+    {
+      "path": "tests/test_concurrency_guard.py",
+      "edits": [
+        {
+          "find": "        (\"arithmetic-expansion-is-not-a-heredoc\",\n         '        if command.startswith(\"$((\", i):', \"        if False:\",\n         \"git log --oneline\\necho $((1<<2))\\necho done\", 0),",
+          "replace": "        (\"the-bare-arithmetic-command-is-an-opaque-word\",\n         '        if command.startswith(\"((\", i) and at_token_boundary():',\n         \"        if False:\",\n         \"(( 1 << 2 ))\\ngit checkout -f\\n2\", 2),"
+        },
+        {
+          "find": "        (\"an-unclosed-arithmetic-expansion-is-not-confident\",\n         \"    if quote or escaped or arith_depth or pending_markers:\",\n         \"    if quote or escaped or pending_markers:\",\n         \"echo $(( ; git status\", 2),",
+          "replace": "        (\"an-unclosed-arithmetic-expansion-is-not-confident\",\n         \"                confident = False          # unclosed: the text was not understood\",\n         \"                pass\",\n         \"echo $(( ; git status\", 2),"
+        },
+        {
+          "find": "        (\"an-unconsumed-heredoc-marker-is-not-confident\",\n         \"    if quote or escaped or arith_depth or pending_markers:\",\n         \"    if quote or escaped or arith_depth:\",\n         \"git log <<EOF\", 2),",
+          "replace": "        (\"an-unconsumed-heredoc-marker-is-not-confident\",\n         \"    if quote or escaped or pending_markers:\",\n         \"    if quote or escaped:\",\n         \"git log <<EOF\", 2),"
+        },
+        {
+          "find": "        (\"a-quoted-arithmetic-expansion-is-not-a-heredoc\",\n         '        if quote == \\'\"\\' and command.startswith(\"$((\", i):',\n         '        if False and command.startswith(\"$((\", i):',\n         # the ALLOWED probe isolates this line now: with the guard gone the `<<` is\n         # read as a heredoc and a read-only script fails closed, while the tree-wide\n         # probe blocks either way\n         'x=\"$((1<<2))\"\\ngit log --oneline', 0),",
+          "replace": "        (\"arithmetic-is-recognised-before-command-substitution\",\n         '        if quote != \"\\'\" and command.startswith(\"$((\", i):',\n         '        if False and command.startswith(\"$((\", i):',\n         # `$((` matches `startswith(\"$(\")` too, so this branch has to win. Round 25\n         # let the substitution extraction run unquoted and immediately regressed\n         # `echo $((1+2))` above `git add -A` from BLOCK to ALLOW.\n         \"echo $((1+2))\\ngit add -A\", 2),\n        (\"an-arithmetic-expansion-becomes-one-opaque-word\",\n         '            out.append(\\'\"\\' + QUOTED_WORD_SENTINEL + \\'\"\\')\\n'\n         \"            i = j + 1\\n\"\n         \"            continue\\n\\n\"\n         '        if quote != \"\\'\" and command.startswith(\"$(\", i):',\n         \"            i = j + 1\\n\"\n         \"            continue\\n\\n\"\n         '        if quote != \"\\'\" and command.startswith(\"$(\", i):',\n         # without the placeholder the expansion leaves NO token, so `-m` takes the\n         # flag behind it as its message\n         \"git commit -m $((1)) -a\", 2),"
+        },
+        {
+          "find": "        (\"an-escaped-operator-inside-quotes-needs-no-surgery\",\n         '            if ch in \"<>&|;\" and quote == \\'\"\\':', \"            if False:\",\n         'git commit -m \"wip\\\\;x\" -a', 2),",
+          "replace": "        (\"an-escaped-operator-inside-quotes-needs-no-surgery\",\n         '            if ch in SHELL_ONLY_CHARS and quote == \\'\"\\':',\n         \"            if False:\",\n         'git commit -m \"wip\\\\;x\" -a', 2),"
+        },
+        {
+          "find": "        (\"a-quoted-operator-only-word-is-a-pathspec\",\n         '                if body and all(c in \"<>&|;\" for c in body):',\n         \"                if False:\",\n         \"git add '>' .\", 2),",
+          "replace": "        (\"a-quoted-operator-only-word-is-a-pathspec\",\n         '                if body and all(c in SHELL_ONLY_CHARS for c in body):',\n         \"                if False:\",\n         \"git add '>' .\", 2),\n        (\"the-shell-only-set-covers-grouping-characters\",\n         'SHELL_ONLY_CHARS = \"<>&|;(){}\"', 'SHELL_ONLY_CHARS = \"<>&|;\"',\n         # rounds 21 and 22 closed `<>&|;` and left `(){}` out, so a quoted `)` was\n         # peeled as a real closer and the flag behind it was dropped\n         'git commit -m \")\" -a', 2),\n        (\"a-line-continuation-is-deleted-not-spaced\",\n         '            out.append(\"\" if ch == \"\\\\n\" else ch)',\n         '            out.append(\" \" if ch == \"\\\\n\" else ch)',\n         # bash JOINS the words either side; a space split one word into two and the\n         # extra one read as a revision operand\n         \"git reset HEA\\\\\\nD\", 2),\n        (\"a-parameter-expansion-is-one-opaque-word\",\n         '        if quote != \"\\'\" and command.startswith(\"${\", i):',\n         \"        if False:\",\n         \"git commit -m ${x:-a;b} -a\", 2),"
+        },
+        {
+          "find": "        (\"a-double-quoted-command-substitution-is-a-command\",\n         \"        if quote == '\\\"' and command.startswith(\\\"$(\\\", i):\",\n         \"        if False and command.startswith(\\\"$(\\\", i):\",\n         'echo \"$(git add -A)\"', 2),",
+          "replace": "        (\"a-command-substitution-is-a-command-in-any-quote-state\",\n         '        if quote != \"\\'\" and command.startswith(\"$(\", i):',\n         '        if quote == \\'\"\\' and command.startswith(\"$(\", i):',\n         # round 23 gated this on being inside double quotes, so the UNQUOTED spelling\n         # severed the outer command and dropped the flag behind it\n         \"git commit -m $(date) -a\", 2),"
+        },
+        {
+          "find": "    \"git commit -m ${x:-a;b} -a\",",
+          "replace": "    \"git commit -m ${x:-a;b} -a\","
+        }
+      ]
+    }
+  ]
+}

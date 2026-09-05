@@ -1,0 +1,51 @@
+{
+  "plan": "concurrency-guard-git255-diff-options",
+  "files": [
+    {
+      "path": ".claude/hooks/concurrency-guard.py",
+      "edits": [
+        {
+          "find": "    \"add\": frozenset({\"--chmod\", \"--pathspec-from-file\", \"--inter-hunk-context\"}),",
+          "replace": "    \"add\": frozenset({\"--chmod\", \"--pathspec-from-file\", \"--inter-hunk-context\", \"--unified\", \"--inter-hunk-context\"}),"
+        },
+        {
+          "find": "    \"stage\": frozenset({\"--chmod\", \"--pathspec-from-file\", \"--inter-hunk-context\"}),",
+          "replace": "    \"stage\": frozenset({\"--chmod\", \"--pathspec-from-file\", \"--inter-hunk-context\", \"--unified\", \"--inter-hunk-context\"}),"
+        },
+        {
+          "find": "    \"checkout\": frozenset({\"--orphan\", \"--conflict\", \"--pathspec-from-file\"}),",
+          "replace": "    \"checkout\": frozenset({\"--orphan\", \"--conflict\", \"--pathspec-from-file\", \"--unified\", \"--inter-hunk-context\"}),"
+        },
+        {
+          "find": "    \"commit\": frozenset({\n        \"--message\", \"--file\", \"--reuse-message\", \"--reedit-message\", \"--template\",\n        \"--author\", \"--date\", \"--cleanup\", \"--trailer\", \"--squash\", \"--fixup\",\n        \"--pathspec-from-file\",\n    }),",
+          "replace": "    \"commit\": frozenset({\n        \"--message\", \"--file\", \"--reuse-message\", \"--reedit-message\", \"--template\",\n        \"--author\", \"--date\", \"--cleanup\", \"--trailer\", \"--squash\", \"--fixup\",\n        \"--pathspec-from-file\", \"--unified\", \"--inter-hunk-context\"}),"
+        },
+        {
+          "find": "    \"reset\": frozenset({\"--pathspec-from-file\"}),",
+          "replace": "    \"reset\": frozenset({\"--pathspec-from-file\", \"--unified\", \"--inter-hunk-context\"}),"
+        },
+        {
+          "find": "    \"restore\": frozenset({\"--source\", \"--conflict\", \"--pathspec-from-file\"}),",
+          "replace": "    \"restore\": frozenset({\"--source\", \"--conflict\", \"--pathspec-from-file\", \"--unified\", \"--inter-hunk-context\"}),"
+        },
+        {
+          "find": "#: Long options whose value is REQUIRED and arrives as the NEXT token, per subcommand.",
+          "replace": "#: `--unified <n>` and `--inter-hunk-context <n>` are the `-p` diff options; git 2.55 (CI's\n#: runners) reports them on add/stage/checkout/commit/reset/restore, the local 2.50 did not.\n#: The completeness oracle found all twelve on CI in one run once it reported the whole list.\n#: Long options whose value is REQUIRED and arrives as the NEXT token, per subcommand."
+        }
+      ]
+    },
+    {
+      "path": "tests/test_concurrency_guard.py",
+      "edits": [
+        {
+          "find": "        (\"stage\", \"--inter-hunk-context\"): (\"git stage --inter-hunk-context 3 src/a.py\", 0),",
+          "replace": "        (\"stage\", \"--inter-hunk-context\"): (\"git stage --inter-hunk-context 3 src/a.py\", 0),\n        (\"add\", \"--unified\"): (\"git add --unified 3 src/a.py\", 0),\n        (\"stage\", \"--unified\"): (\"git stage --unified 3 src/a.py\", 0),\n        (\"checkout\", \"--unified\"): (\"git checkout --unified 3 -- src/a.py\", 0),\n        (\"checkout\", \"--inter-hunk-context\"): (\"git checkout --inter-hunk-context 3 -- src/a.py\", 0),\n        (\"commit\", \"--unified\"): (\"git commit --unified 3 -m x src/a.py\", 0),\n        (\"commit\", \"--inter-hunk-context\"): (\"git commit --inter-hunk-context 3 -m x src/a.py\", 0),\n        (\"reset\", \"--unified\"): (\"git reset --unified 3 -- src/a.py\", 0),\n        (\"reset\", \"--inter-hunk-context\"): (\"git reset --inter-hunk-context 3 -- src/a.py\", 0),\n        (\"restore\", \"--unified\"): (\"git restore --unified 3 src/a.py\", 0),\n        (\"restore\", \"--inter-hunk-context\"): (\"git restore --inter-hunk-context 3 src/a.py\", 0),"
+        },
+        {
+          "find": "    \"git add -A --inter-hunk-context 3\", \"git add --inter-hunk-context 3 .\",",
+          "replace": "    \"git add -A --inter-hunk-context 3\", \"git add --inter-hunk-context 3 .\",\n    \"git add -A --unified 3\", \"git commit -a --unified 3 -m x\", \"git checkout --unified 3 .\",\n    \"git reset --unified 3\", \"git restore --inter-hunk-context 3 .\","
+        }
+      ]
+    }
+  ]
+}

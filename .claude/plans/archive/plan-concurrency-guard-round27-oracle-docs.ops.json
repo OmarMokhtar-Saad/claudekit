@@ -1,0 +1,27 @@
+{
+  "plan": "concurrency-guard-round27-oracle-docs",
+  "files": [
+    {
+      "path": ".ai/CONCURRENCY.md",
+      "edits": [
+        {
+          "find": "**The round-trip invariant was NOT built.** What exists is `TestNoConstructSwallowsTheFlagBehindIt`, an ENUMERATED construct list crossed against tails \u2014 a metamorphic check, and a useful one, but still enumeration: a construct it does not list is a construct it cannot see. Round 25 proved the distinction load-bearing by finding three leaks (`{`, `{}` and `>|`) that a genuine bash-superset comparison would have caught with nobody enumerating anything. An earlier version of this paragraph said \"the check now EXISTS\" about the round-trip form, and that was false; it is corrected here rather than quietly reworded, because a doc claiming a protection the code lacks is the defect this file most often records.",
+          "replace": "**The round-trip invariant now EXISTS, built in round 27 after the loop failed to\nconverge: `TestBashIsTheOracleForWhatReachesGit`.** It asks BASH rather than a list.\nEvery corpus command \u2014 all of `BLOCKED`, all of `ALLOWED`, and the whole metamorphic\nconstruct\u00d7tail matrix, ~1000 texts \u2014 runs under real bash in a throwaway directory with a\nstub `git` on `PATH` that records its argv and does nothing (stdin closed, PATH restricted,\n5-second timeout, `sudo`/`doas` excluded). The hook's own segments are computed from the\nsame text, and: **when the hook ALLOWS the command, every word bash actually handed git\nmust appear in the hook's segments** \u2014 every word when the text has no expansion, the\nflags when it has one (an expansion becomes a placeholder whose value the hook cannot\nknow, and a placeholder cannot hide a flag). A denial is never compared, because a denial\nis never a leak. Proven to bind by re-introducing three closed leaks in a scratch copy:\nthe glued `<(\u2026)` gate, the consumed heredoc marker and the line-continuation-as-space\neach surface as `bash handed git '-a' and the hook never saw it` (or `HEAD` for the\nword split), while the shipped hook passes 998 of them. The metamorphic list stays, as\nthe fast enumerated layer; the oracle is the one that does not need a new spelling\nenumerated first. An earlier version of this paragraph said the invariant existed when\nit did not, and round 25 found three leaks in that gap; both facts stay recorded here."
+        },
+        {
+          "find": "So the honest status is: **twenty-six rounds, two approvals (8 and 12), and every single\nround has found something**",
+          "replace": "Round 27 built the bash oracle instead of running another review round, and the shipped\nhook passes it.\nSo the honest status is: **twenty-six review rounds, two approvals (8 and 12), and every\nsingle round has found something**"
+        }
+      ]
+    },
+    {
+      "path": "CHANGELOG.md",
+      "edits": [
+        {
+          "find": "  both sessions' files; a placeholder now stands in for the marker.",
+          "replace": "  both sessions' files; a placeholder now stands in for the marker.\n  After twenty-six rounds without convergence, the bash ROUND-TRIP INVARIANT two\n  reviewers had asked for was built instead of a twenty-seventh round:\n  `TestBashIsTheOracleForWhatReachesGit` runs ~1000 corpus commands under real bash with a\n  recording stub `git`, and asserts that whenever the hook allows a command, every word\n  bash actually handed git reached the hook (flags only when the text contains an\n  expansion). It is proven to bind by re-introducing three closed leaks, and the shipped\n  hook passes it. This is the check that would have caught the last eleven leaks with\n  nobody enumerating a spelling first."
+        }
+      ]
+    }
+  ]
+}

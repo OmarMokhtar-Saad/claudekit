@@ -1,0 +1,22 @@
+{
+  "plan": "concurrency-guard-round24-test-binding",
+  "files": [
+    {
+      "path": "tests/test_concurrency_guard.py",
+      "edits": [
+        {
+          "find": "    \"bash -s <<EOF\\ngit add -A\\nEOF\", \"cat <<EOF | bash\\ngit add -A\\nEOF\",",
+          "replace": "    \"bash -s <<EOF\\ngit add -A\\nEOF\", \"cat <<EOF | bash\\ngit add -A\\nEOF\",\n    # round 24, found by probing round 23's own wrapper fix: `-s` means READ THE\n    # SCRIPT FROM STDIN, so a following operand is a positional parameter and not a\n    # script file. Verified against bash and git: this staged both sessions' files.\n    \"bash -s file <<EOF\\ngit add -A\\nEOF\", \"bash -s x y <<< 'git add -A'\","
+        },
+        {
+          "find": "    \"git status; echo x | bash build.sh\", 'echo \"git is fine\" | sh cleanup.sh',",
+          "replace": "    \"git status; echo x | bash build.sh\", 'echo \"git is fine\" | sh cleanup.sh',\n    # `sh -- file` really does run the FILE (verified: it printed the file's own output\n    # and staged nothing), so `--` is not the stdin case and stays the named residual\n    \"sh -- file <<EOF\\ngit add -A\\nEOF\","
+        },
+        {
+          "find": "        (\"a-wrapper-with-a-script-operand-is-not-denied\",",
+          "replace": "        (\"a-wrapper-reading-stdin-has-no-script-operand\",\n         \"            has_script = not reads_stdin and any(\",\n         \"            has_script = any(\",\n         \"bash -s file <<EOF\\ngit add -A\\nEOF\", 2),\n        (\"a-wrapper-with-a-script-operand-is-not-denied\","
+        }
+      ]
+    }
+  ]
+}

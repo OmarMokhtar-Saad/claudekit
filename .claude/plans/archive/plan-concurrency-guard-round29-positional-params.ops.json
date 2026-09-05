@@ -1,0 +1,18 @@
+{
+  "plan": "concurrency-guard-round29-positional-params",
+  "files": [
+    {
+      "path": ".claude/hooks/concurrency-guard.py",
+      "edits": [
+        {
+          "find": "        if quote != \"'\" and command.startswith(\"$\", i) and i + 1 < n and (command[i + 1] == \"_\" or command[i + 1].isalpha()):",
+          "replace": "        if quote != \"'\" and command.startswith(\"$\", i) and i + 1 < n and (\n                command[i + 1] in \"_@*#?!-\" or command[i + 1].isalnum()):\n            # POSITIONAL and SPECIAL parameters too (`$1`, `$@`, `\"$@\"`, `$!`), not only\n            # `[A-Za-z_]` names: unquoted and unset they expand to ZERO words -- the\n            # identical mechanism as `{,}` and `$x` -- so `git add \"$@\" -A` handed git\n            # `add -A` and staged both sessions' files, and `git stash push $1` stashed\n            # both sessions' in-flight edits, rc 0 (round 28, verified). `\"$@\"` is the\n            # commonest idiom in any wrapper script. `(` stays out of the class: the\n            # `$(` branch below handles it. Round 28's measurement: the bash oracle's\n            # converse direction DOES detect this shape -- no corpus row spelled it."
+        },
+        {
+          "find": "            j = i + 1\n            while j < n and (command[j] == \"_\" or command[j].isalnum()):\n                j += 1\n            out.append('\"' + QUOTED_WORD_SENTINEL + '\"')\n            i = j\n            continue",
+          "replace": "            j = i + 1\n            if command[j] == \"_\" or command[j].isalpha():\n                while j < n and (command[j] == \"_\" or command[j].isalnum()):\n                    j += 1\n            else:\n                j += 1                     # a positional or special parameter is ONE char\n            out.append('\"' + QUOTED_WORD_SENTINEL + '\"')\n            i = j\n            continue"
+        }
+      ]
+    }
+  ]
+}

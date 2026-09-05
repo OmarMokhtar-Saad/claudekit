@@ -1,0 +1,14 @@
+{
+  "plan": "concurrency-guard-round23-ratchet-row-fix",
+  "files": [
+    {
+      "path": "tests/test_concurrency_guard.py",
+      "edits": [
+        {
+          "find": "        (\"git add --chmod +x %s -A\", 2),",
+          "replace": "        # `-A` AFTER a pathspec is scoped to it by git itself (verified: `git add\n        # --chmod +x plain -A` stages only `plain`), so the tree-wide `add` row has to\n        # put a tree-wide PATHSPEC behind the construct instead. My first draft of this\n        # row expected 2 and the vacuity guard below caught it -- the control differed\n        # from the expectation, which is precisely what that guard is for.\n        (\"git add --chmod +x %s .\", 2),\n        (\"git add --chmod +x %s -A\", 0),\n        (\"git stash push -m %s\", 2),\n        (\"git commit -m %s -- .\", 2),"
+        }
+      ]
+    }
+  ]
+}

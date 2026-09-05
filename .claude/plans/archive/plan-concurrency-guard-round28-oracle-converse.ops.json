@@ -1,0 +1,18 @@
+{
+  "plan": "concurrency-guard-round28-oracle-converse",
+  "files": [
+    {
+      "path": "tests/test_concurrency_guard.py",
+      "edits": [
+        {
+          "find": "        expands = any(tok in cmd for tok in (\"$\", \"`\", \"<(\", \">(\"))\n        for argv in bash:\n            for word in argv:\n                if (word.startswith(\"-\") and word != \"-\") or not expands:\n                    assert word in hook_words, (\n                        f\"bash handed git {word!r} and the hook never saw it: \"\n                        f\"{cmd!r}\\n  bash={bash}\\n  hook={hook}\")",
+          "replace": "        expands = any(tok in cmd for tok in (\"$\", \"`\", \"<(\", \">(\", \"{\"))\n        for argv in bash:\n            for word in argv:\n                if (word.startswith(\"-\") and word != \"-\") or not expands:\n                    assert word in hook_words, (\n                        f\"bash handed git {word!r} and the hook never saw it: \"\n                        f\"{cmd!r}\\n  bash={bash}\\n  hook={hook}\")\n        # THE CONVERSE, added in round 27 after the reviewer showed the subset check\n        # alone was blind to a PHANTOM pathspec: `git add {,} -A` reached git as\n        # `add -A`, but the hook kept `{,}` as a positive, scoping operand and allowed\n        # it. So every non-flag operand the hook believes in must be a word bash\n        # actually handed git -- an operand bash never produced cannot be what scoped\n        # the command. Placeholders (empty after the sentinel strip) are exempt: they\n        # are the hook saying \"unknowable\", and the rules already treat them as such.\n        bash_words = {w for argv in bash for w in argv}\n        for argv in hook:\n            for word in argv:\n                if word and not word.startswith(\"-\"):\n                    assert word in bash_words, (\n                        f\"the hook believed in an operand {word!r} that bash never \"\n                        f\"handed git -- a phantom pathspec scoped the command: \"\n                        f\"{cmd!r}\\n  bash={bash}\\n  hook={hook}\")"
+        },
+        {
+          "find": "        # and it FAILS for a real severance: hand-build the round-23 splice\n        assert \"-a\" not in {w for a in [[\"commit\", \"-m\", \"\"]] for w in a}",
+          "replace": "        # The binding proof lives in the archive README and the doc: re-introducing\n        # the line-continuation, heredoc-marker and glued-`<(` leaks in a scratch\n        # copy each fails this class. A literal-only assertion used to sit here and\n        # could never fail -- round 27 called it a tautology, correctly."
+        }
+      ]
+    }
+  ]
+}

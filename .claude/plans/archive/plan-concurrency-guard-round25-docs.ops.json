@@ -1,0 +1,35 @@
+{
+  "plan": "concurrency-guard-round25-docs",
+  "files": [
+    {
+      "path": ".ai/CONCURRENCY.md",
+      "edits": [
+        {
+          "find": "**A double-quoted `$(...)` is EXTRACTED and analysed as its own script, never spliced\ninto the outer text.**",
+          "replace": "**Every EXPANSION is one opaque WORD, in every quote state \u2014 `$(...)`, `$((...))`,\n`${...}`, `<(...)`/`>(...)` and the bare arithmetic command `((...))` are each read to\ntheir matching closer and replaced by a placeholder, with a command body lifted out and\nanalysed as its own script.** Round 24 found that round 23's extraction was gated on\nbeing inside double quotes, so every UNQUOTED spelling still went out verbatim: shlex made\n`(` and `)` their own tokens, the grouping branch started a new segment, and the flag\nbehind the expansion was silently dropped. `git commit -m $(cat VERSION) -a`,\n`git commit -m $((1)) -a` and `git commit -m ${x:-a;b} -a` each committed BOTH sessions'\nfiles, `git clean -e $(cat p) -fd` deleted both sessions' untracked files, all rc 0.\nOne mechanism now, not five; `arith_depth` is gone with it.\n\nThree more from the same round, all \"a shell character reaching git as a word\":\n`SHELL_ONLY_CHARS` gained the grouping characters, because a QUOTED or ESCAPED `)` was\nstill peeled as a real closer (`git commit -m \")\" -a` committed both sessions' files); a\nBARE `}` with no group open is an ordinary argument (`git commit -m } -a` did the same \u2014\nbash treats `}` as a reserved word only in command-word position); and a line\ncontinuation is now DELETED as bash deletes it, where emitting a space split one word\ninto two \u2014 `git reset HEA\\<newline>D` emptied the shared index at rc 0.\n\nA double-quoted `$(...)` is EXTRACTED and analysed as its own script, never spliced\ninto the outer text."
+        },
+        {
+          "find": "The check now EXISTS, in the form that fits the class rather than the form the reviewer\nsketched: `TestNoConstructSwallowsTheFlagBehindIt` is METAMORPHIC.",
+          "replace": "The check now EXISTS, and round 24 showed its first version was BLIND: its constructs\nwere scoped to words that could sit inside quotes, so an unquoted expansion, a quoted\ngrouping character and a bare `}` were structurally outside it \u2014 and 78 rows of its own\ntails leaked. It now carries every one of those, and on its very first widened run it\nfound a live leak nobody had reported: process substitution `<(...)` severing the\ncommand. `DECORATIONS` likewise now really contains the here-string and the line\ncontinuation this paragraph used to claim it did.\n`TestNoConstructSwallowsTheFlagBehindIt` is METAMORPHIC."
+        },
+        {
+          "find": "a shell WRAPPER whose script arrives on STDIN (`bash <<EOF \u2026 EOF`, `sh <<< '\u2026'`, `cat <<EOF \\| bash`) \u2014 `bash`/`sh`/`zsh`/`dash` read stdin as CODE, while `preprocess` strips heredoc bodies as DATA so that `cat > f <<EOF \u2026 EOF` can document a command without triggering it. The two rules met and the script vanished: verified, the `sh` form destroyed both sessions' edits and the here-string staged both, rc 0. Only the `-c` spelling was ever unwrapped.",
+          "replace": "a shell WRAPPER whose script arrives on STDIN (`bash <<EOF \u2026 EOF`, `sh <<< '\u2026'`, `cat <<EOF \\| bash`, and `bash -s <operand> <<EOF \u2026` since `-s` reads the script from stdin and makes the operand a positional) \u2014 `bash`/`sh`/`zsh`/`dash` read stdin as CODE, while `preprocess` strips heredoc bodies as DATA so that `cat > f <<EOF \u2026 EOF` can document a command without triggering it. The two rules met and the script vanished: verified, the `sh` form destroyed both sessions' edits and the here-string staged both, rc 0. Until round 22 only the `-c` spelling was unwrapped; a wrapper with a script FILE operand (`bash build.sh`, `sh -- file`) stays the named script-file residual."
+        },
+        {
+          "find": "So the honest status is: **twenty-four rounds, two approvals (8 and 12), and every\nsingle round has found something**",
+          "replace": "Round 24 then returned FIVE BLOCKING: the unquoted expansions, the quoted/escaped\ngrouping character, the bare `}`, the line continuation, and the `${\u2026}` expansion \u2014 every\none a construct making a later token vanish, and the round-23 ratchet could see none of\nthem because its constructs were quoted-word-only. Widening it found a sixth (`<(\u2026)`)\nbefore any reviewer did.\nSo the honest status is: **twenty-four rounds, two approvals (8 and 12), and every\nsingle round has found something**"
+        }
+      ]
+    },
+    {
+      "path": "CHANGELOG.md",
+      "edits": [
+        {
+          "find": "  file` is not the same case and was verified to run the file instead.",
+          "replace": "  file` is not the same case and was verified to run the file instead.\n  The round-24 review then returned FIVE BLOCKING, all one class -- a construct making\n  the token behind it vanish: (1) round 23's substitution extraction was gated on double\n  quotes, so `git commit -m $(cat VERSION) -a` and `git commit -m $((1)) -a` committed\n  both sessions' files and `git clean -e $(cat p) -fd` deleted both sessions' untracked\n  files; (2) the quoted-word sentinel omitted `(){}`, so `git commit -m \")\" -a` was\n  peeled as a real closer; (3) a bare `}` argument was peeled likewise; (4) a line\n  continuation became a space where bash deletes it, so `git reset HEA\\<nl>D` emptied\n  the shared index; (5) `${x:-a;b}` had no extent and its `;` separated the command.\n  Every expansion is now one opaque placeholder word read to its matching closer, in\n  every quote state, with command bodies lifted out and analysed -- one mechanism\n  replacing five, `arith_depth` removed. The metamorphic ratchet, which the reviewer\n  showed was scoped to quoted words and blind to all five, now carries the unquoted\n  constructs and found a sixth leak (process substitution `<(...)`) on its first run."
+        }
+      ]
+    }
+  ]
+}
