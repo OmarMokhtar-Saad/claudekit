@@ -1,0 +1,86 @@
+{
+  "plan": "reflection-receipt-self-describing",
+  "files": [
+    {
+      "path": ".claude/hooks/reflection.py",
+      "edits": [
+        {
+          "find": "def receipt_instructions() -> str:\n    return (\n        \"Clear it in two steps (this route keeps receipt free text OUT of any shell\\n\"\n        \"command line, so command-guard.sh cannot refuse a receipt that legitimately\\n\"\n        \"mentions subprocess.run, os.system( or __import__():\\n\"\n        \"  1. Write the JSON payload to .claude/reflection/inbox-<session-key>.json\\n\"\n        \"     using the Write tool (this exact path stays writable while a checkpoint\\n\"\n        \"     is pending).\\n\"\n        \"  2. python3 .claude/hooks/reflection.py receipt --session-id <id> \"\n        \"--session-token <token> --inbox\\n\"\n        \"Required receipt fields: schemaVersion, taskId, trigger, failureFingerprints, \"\n        \"failedAssumption, approachesCompared (>=2), chosenExperiment, \"\n        \"proofCommandOrCheck, proofOutcome, durableDisposition. \"\n        \"'nothing-durable' is a valid durableDisposition.\"\n    )",
+          "replace": "def receipt_instructions(session_id: Optional[str] = None) -> str:\n    \"\"\"The demand, SELF-DESCRIBING when the session is known.\n\n    Without the session it can only say `inbox-<session-key>.json`; a 2026-09-05 session\n    read that as the raw session id, then hit three trigger refusals in a row, each one a\n    Write+run cycle -- because the key is a hash, the required trigger is whatever the\n    pending checkpoint says, and the fingerprint list must match exactly, and none of\n    that was written down where the writer could see it. With the session id every one\n    of those values is printed verbatim, so a correct receipt takes one attempt.\n    \"\"\"\n    steps = (\n        \"Clear it in two steps (this route keeps receipt free text OUT of any shell\\n\"\n        \"command line, so command-guard.sh cannot refuse a receipt that legitimately\\n\"\n        \"mentions subprocess.run, os.system( or __import__():\\n\"\n    )\n    if session_id and valid_session(session_id):\n        checkpoint = pending_checkpoint(session_id)\n        trigger = checkpoint[\"trigger\"] if checkpoint else \"learning-loop\"\n        fps = checkpoint[\"failureFingerprints\"] if checkpoint else []\n        try:\n            path = str(inbox_path(session_id))\n        except Exception:  # noqa: BLE001 - the demand must never itself fail\n            path = \".claude/reflection/inbox-<session-key>.json\"\n        return (\n            steps\n            + \"  1. Write the JSON payload to EXACTLY this path with the Write tool\\n\"\n            + \"     (it stays writable while a checkpoint is pending):\\n\"\n            + \"     %s\\n\" % path\n            + \"  2. python3 .claude/hooks/reflection.py receipt --session-id %s \"\n              \"--session-token <token> --inbox\\n\" % session_id\n            + \"Required fields and the values THIS checkpoint requires:\\n\"\n            + \"  schemaVersion: %d\\n\" % SCHEMA_VERSION\n            + \"  trigger: %r  (the only value accepted right now)\\n\" % trigger\n            + \"  failureFingerprints: %s  (must match exactly)\\n\" % json.dumps(fps)\n            + \"  durableDisposition: one of %s\\n\" % \", \".join(sorted(DISPOSITIONS))\n            + \"  plus taskId, failedAssumption, approachesCompared (>=2), \"\n              \"chosenExperiment, proofCommandOrCheck, proofOutcome.\\n\"\n            + \"If a /goal is set and the remaining step is human-only, run /goal clear: \"\n              \"the goal loop cannot be satisfied by waiting.\"\n        )\n    return (\n        steps\n        + \"  1. Write the JSON payload to .claude/reflection/inbox-<session-key>.json\\n\"\n        \"     using the Write tool (this exact path stays writable while a checkpoint\\n\"\n        \"     is pending).\\n\"\n        \"  2. python3 .claude/hooks/reflection.py receipt --session-id <id> \"\n        \"--session-token <token> --inbox\\n\"\n        \"Required receipt fields: schemaVersion, taskId, trigger, failureFingerprints, \"\n        \"failedAssumption, approachesCompared (>=2), chosenExperiment, \"\n        \"proofCommandOrCheck, proofOutcome, durableDisposition. \"\n        \"'nothing-durable' is a valid durableDisposition.\"\n    )"
+        },
+        {
+          "find": "    if trigger not in TRIGGERS:\n        raise ValueError(\"trigger is not a supported enum value\")",
+          "replace": "    if trigger not in TRIGGERS:\n        raise ValueError(\"trigger %r is not one of: %s\" % (trigger, \", \".join(sorted(TRIGGERS))))"
+        },
+        {
+          "find": "    elif trigger != checkpoint[\"trigger\"]:\n        raise ValueError(\"trigger does not match the pending checkpoint\")",
+          "replace": "    elif trigger != checkpoint[\"trigger\"]:\n        raise ValueError(\"trigger %r does not match the pending checkpoint, which requires %r\"\n                         % (trigger, checkpoint[\"trigger\"]))"
+        },
+        {
+          "find": "    if disposition not in DISPOSITIONS:\n        raise ValueError(\"durableDisposition is not a supported enum value\")",
+          "replace": "    if disposition not in DISPOSITIONS:\n        raise ValueError(\"durableDisposition %r is not one of: %s\"\n                         % (disposition, \", \".join(sorted(DISPOSITIONS))))"
+        },
+        {
+          "find": "    supplied_fps = receipt.get(\"failureFingerprints\", expected_fps)\n    if not isinstance(supplied_fps, list) or sorted(supplied_fps) != sorted(expected_fps):\n        raise ValueError(\"failureFingerprints do not match the pending checkpoint\")\n",
+          "replace": "    supplied_fps = receipt.get(\"failureFingerprints\", expected_fps)\n    if not isinstance(supplied_fps, list) or sorted(supplied_fps) != sorted(expected_fps):\n        raise ValueError(\"failureFingerprints must equal %s exactly (got %s)\"\n                         % (json.dumps(sorted(expected_fps)), json.dumps(supplied_fps)))\n"
+        }
+      ]
+    },
+    {
+      "path": ".claude/hooks/reflection-gate.py",
+      "edits": [
+        {
+          "find": "def checkpoint_reason(checkpoint: Dict[str, Any], extra: str = \"\") -> str:",
+          "replace": "def checkpoint_reason(checkpoint: Dict[str, Any], extra: str = \"\", session_id: str = \"\") -> str:"
+        },
+        {
+          "find": "            (extra + \"\\n\") if extra else \"\",\n            reflection.receipt_instructions(),\n        )\n    )",
+          "replace": "            (extra + \"\\n\") if extra else \"\",\n            reflection.receipt_instructions(session_id),\n        )\n    )"
+        },
+        {
+          "find": "        sys.stdout.write(checkpoint_reason(checkpoint) + \"\\n\")",
+          "replace": "        sys.stdout.write(checkpoint_reason(checkpoint, session_id=session_id) + \"\\n\")"
+        },
+        {
+          "find": "        return deny(checkpoint_reason(checkpoint, \"Blocked action: implementation mutation.\"))",
+          "replace": "        return deny(checkpoint_reason(checkpoint, \"Blocked action: implementation mutation.\",\n                                      session_id=session_id))"
+        },
+        {
+          "find": "            + [reflection.receipt_instructions()]",
+          "replace": "            + [reflection.receipt_instructions(session_id)]"
+        },
+        {
+          "find": "            label, \"\\n\".join(\"  - \" + duty for duty in duties),\n            reflection.receipt_instructions(),",
+          "replace": "            label, \"\\n\".join(\"  - \" + duty for duty in duties),\n            reflection.receipt_instructions(session_id),"
+        }
+      ]
+    },
+    {
+      "path": "tests/test_reflection_gate.py",
+      "edits": [
+        {
+          "find": "    def test_interrupt_once_stop_hook_active_is_honoured(self, env):",
+          "replace": "    def test_stop_demand_names_the_exact_path_trigger_and_fingerprints(self, env, ref):\n        \"\"\"A 2026-09-05 session needed four Write+run cycles to clear one checkpoint:\n        the demand said `inbox-<session-key>.json` (the key is a HASH of the session id),\n        and three trigger refusals in a row never named the value required. Every value\n        a correct receipt needs is now printed verbatim in the demand itself.\"\"\"\n        seed_two_failures(env)\n        proc = run(\"Stop\", {\"hook_event_name\": \"Stop\", \"session_id\": SESSION}, env)\n        assert proc.returncode == 2\n        cp = ref.pending_checkpoint(SESSION)\n        assert str(ref.inbox_path(SESSION)) in proc.stderr          # the hashed filename\n        assert \"inbox-<session-key>\" not in proc.stderr             # never the placeholder\n        assert \"--session-id %s \" % SESSION in proc.stderr\n        assert \"trigger: %r\" % cp[\"trigger\"] in proc.stderr\n        assert json.dumps(cp[\"failureFingerprints\"]) in proc.stderr\n        assert \"nothing-durable\" in proc.stderr\n        assert \"/goal clear\" in proc.stderr\n\n    def test_interrupt_once_stop_hook_active_is_honoured(self, env):"
+        }
+      ]
+    },
+    {
+      "path": "tests/test_reflection_ledger.py",
+      "edits": [
+        {
+          "find": "class TestReceipts:\n    def test_valid_receipt_clears_the_checkpoint(self, ref):",
+          "replace": "class TestReceipts:\n    def test_every_refusal_names_the_value_it_wanted(self, ref):\n        \"\"\"The refusals used to say only \"not a supported enum value\"; a writer who guessed\n        wrong learned nothing and guessed again. Each one now names the expected value.\"\"\"\n        fail(ref, target=\"a\")\n        fail(ref, target=\"b\")\n        token = ref.read_session_token(SESSION)\n        cp = ref.pending_checkpoint(SESSION)\n        with pytest.raises(ValueError) as e:\n            ref.record_receipt(SESSION, valid_receipt(ref, trigger=\"not-a-trigger\"), token)\n        assert \"second-failure\" in str(e.value) and \"learning-loop\" in str(e.value)\n        with pytest.raises(ValueError) as e:\n            ref.record_receipt(SESSION, valid_receipt(ref, trigger=\"premise-invalidated\"), token)\n        assert cp[\"trigger\"] in str(e.value)\n        with pytest.raises(ValueError) as e:\n            ref.record_receipt(SESSION, valid_receipt(ref, fingerprints=[\"wrong\"]), token)\n        assert json.dumps(sorted(cp[\"failureFingerprints\"])) in str(e.value) and '\"wrong\"' in str(e.value)\n        bad = valid_receipt(ref); bad[\"durableDisposition\"] = \"shrug\"\n        with pytest.raises(ValueError) as e:\n            ref.record_receipt(SESSION, bad, token)\n        assert \"nothing-durable\" in str(e.value) and \"shrug\" in str(e.value)\n\n    def test_valid_receipt_clears_the_checkpoint(self, ref):"
+        }
+      ]
+    },
+    {
+      "path": "CHANGELOG.md",
+      "edits": [
+        {
+          "find": "## [Unreleased]\n",
+          "replace": "## [Unreleased]\n\n- **The reflection receipt demand is self-describing.** A session on 2026-09-05 needed\n  four Write+run cycles to clear one checkpoint: the demand said\n  `inbox-<session-key>.json` without saying the key is a hash of the session id, and the\n  validator refused three triggers in a row without ever naming the one the pending\n  checkpoint required. The Stop/PreToolUse demand now prints the exact inbox path, the\n  exact `--session-id`, the exact `trigger` and `failureFingerprints` this checkpoint\n  requires and the `durableDisposition` enum, and every validator refusal names the\n  expected value. It also says what to do when a `/goal` is set and the remaining step is\n  human-only (`/goal clear`) -- that loop is Claude Code's, not the kit's, and\n  `reflection-gate` already honours `stop_hook_active`.\n"
+        }
+      ]
+    }
+  ]
+}

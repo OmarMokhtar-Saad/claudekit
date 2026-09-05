@@ -12,6 +12,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **The reflection receipt demand is self-describing.** A session on 2026-09-05 needed
+  four Write+run cycles to clear one checkpoint: the demand said
+  `inbox-<session-key>.json` without saying the key is a hash of the session id, and the
+  validator refused three triggers in a row without ever naming the one the pending
+  checkpoint required. The Stop/PreToolUse demand now prints the exact inbox path, the
+  exact `--session-id`, the exact `trigger` and `failureFingerprints` this checkpoint
+  requires and the `durableDisposition` enum, and every validator refusal names the
+  expected value. It also says what to do when a `/goal` is set and the remaining step is
+  human-only (`/goal clear`) -- that loop is Claude Code's, not the kit's, and
+  `reflection-gate` already honours `stop_hook_active`.
+
 ### Added
 
 - **`concurrency-guard.py` -- tree-wide git is blocked when sessions share a tree.**
