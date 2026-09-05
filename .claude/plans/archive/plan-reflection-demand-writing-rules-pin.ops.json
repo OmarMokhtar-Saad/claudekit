@@ -1,0 +1,14 @@
+{
+  "plan": "reflection-demand-writing-rules-pin",
+  "files": [
+    {
+      "path": "tests/test_reflection_gate.py",
+      "edits": [
+        {
+          "find": "        for branch in (proc.stderr, ref.receipt_instructions(), ref.receipt_instructions(SESSION)):\n            for optional in ref.RECEIPT_OPTIONAL_FIELDS:",
+          "replace": "        # Pinned literally as well as read from the constant: a test that only iterates\n        # RECEIPT_OPTIONAL_FIELDS narrows its own assertion when the constant narrows,\n        # and a mutation that dropped \"issue\" from the table survived exactly that way.\n        assert ref.RECEIPT_OPTIONAL_FIELDS == frozenset({\"changedApproach\", \"issue\"})\n        assert ref.RECEIPT_FIELDS >= ref.RECEIPT_OPTIONAL_FIELDS\n        assert ref._SAFE_TEXT_MAX == 240\n        for branch in (proc.stderr, ref.receipt_instructions(), ref.receipt_instructions(SESSION)):\n            for optional in ref.RECEIPT_OPTIONAL_FIELDS:"
+        }
+      ]
+    }
+  ]
+}

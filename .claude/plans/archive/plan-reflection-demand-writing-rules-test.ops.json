@@ -1,0 +1,23 @@
+{
+  "plan": "reflection-demand-writing-rules-test",
+  "files": [
+    {
+      "path": "tests/test_reflection_gate.py",
+      "edits": [
+        {
+          "find": "    def test_interrupt_once_stop_hook_active_is_honoured(self, env):",
+          "replace": "    def test_the_demand_states_the_field_set_and_the_text_budget(self, env, ref):\n        \"\"\"Filing a receipt against the self-describing demand STILL cost three refusal\n        rounds -- an unknown field, the 240-char single-line cap, and the credential-shape\n        rule -- because each lived only in the validator. Both demand branches now name\n        the closed field set and the text budget, read from the same constants.\"\"\"\n        seed_two_failures(env)\n        proc = run(\"Stop\", {\"hook_event_name\": \"Stop\", \"session_id\": SESSION}, env)\n        assert proc.returncode == 2\n        for branch in (proc.stderr, ref.receipt_instructions(), ref.receipt_instructions(SESSION)):\n            for optional in ref.RECEIPT_OPTIONAL_FIELDS:\n                assert optional in branch\n            assert \"Any OTHER field is refused\" in branch\n            assert str(ref._SAFE_TEXT_MAX) in branch\n            assert \"ONE line\" in branch\n            assert \"credential-shaped\" in branch\n\n    def test_interrupt_once_stop_hook_active_is_honoured(self, env):"
+        }
+      ]
+    },
+    {
+      "path": "CHANGELOG.md",
+      "edits": [
+        {
+          "find": "## [Unreleased]\n",
+          "replace": "## [Unreleased]\n\n- **The reflection demand states the field set and the text budget.** Filing a receipt\n  against the newly self-describing demand still cost three refusal rounds -- an unknown\n  field, the 240-character single-line cap, and the path/credential shape rule -- because\n  each of those lived only in the validator. `RECEIPT_FIELDS`, `RECEIPT_OPTIONAL_FIELDS`\n  and `_SAFE_TEXT_MAX` are now one table read by both the demand and the validator, and\n  both demand branches print the optional-field list, the character budget and the\n  prose-only rule.\n"
+        }
+      ]
+    }
+  ]
+}
