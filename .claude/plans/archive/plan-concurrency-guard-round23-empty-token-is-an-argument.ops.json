@@ -1,0 +1,14 @@
+{
+  "plan": "concurrency-guard-round23-empty-token-is-an-argument",
+  "files": [
+    {
+      "path": ".claude/hooks/concurrency-guard.py",
+      "edits": [
+        {
+          "find": "            # Round 23's substitution extraction leaves exactly that token behind\n            # (`git commit -m \"\" -a`), so `git commit -m \"$(date)\" -a` and\n            # `git clean -e \"$(cat p)\" -fd` both exited 0 with their `-a`/`-fd` in a\n            # segment of their own. Latent before, reachable now.\n            continue",
+          "replace": "            # Round 23's substitution extraction leaves exactly that token behind\n            # (`git commit -m \"\" -a`), so `git commit -m \"$(date)\" -a` and\n            # `git clean -e \"$(cat p)\" -fd` both exited 0 with their `-a`/`-fd` in a\n            # segment of their own. Latent before, reachable now.\n            #\n            # It is KEPT, not skipped: git reads `-m \"\"` as an option with an empty\n            # value, so the flag behind it is a FLAG. Dropping the token instead let\n            # `-m` swallow the `-a` as its message and `git commit -m \"\" -a` exited 0 --\n            # the same fail-open one step further along, caught by re-running the probe.\n            segments[-1].append(\"\")\n            continue"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "plan": "concurrency-guard-round23-fixes",
+  "files": [
+    {
+      "path": ".claude/hooks/concurrency-guard.py",
+      "edits": [
+        {
+          "find": "            if ch in \"<>&|;\":",
+          "replace": "            if ch in \"<>&|;\" and quote == '\"':\n                # ALREADY inside double quotes: shlex keeps the character literal, and\n                # the quote-close check below adds the sentinel if the whole body turns\n                # out to be operator characters. Emitting the round-22 `\"...\"` wrapper\n                # here CLOSED the live quote and severed the command line -- every\n                # token after it landed in a segment whose command word was not `git`,\n                # so the flag was silently dropped: `git commit -m \"wip\\;x\" -a`\n                # committed BOTH sessions' files and `git clean -e \"a\\;b\" -fd` deleted\n                # both sessions' untracked files, rc 0 (round 23, verified against git\n                # 2.50) -- including the mandated attribution spelling\n                # `git commit --author \"Claude\\;X <...>\" -a`. Ninth instance of \"a\n                # pre-tokenisation transform silently deletes part of a command\".\n                out.append(ch)\n                escaped = False\n                i += 1\n                continue\n            if ch in \"<>&|;\":"
+        },
+        {
+          "find": "            quote = \"\"\n            # Close the quote before the `;` and reopen it after: bracketing the inner\n            # text while the quotes still surrounded it left shlex yielding ONE word\n            # (`;git add -A;`), so the inner command still never became a segment.\n            out.append('\";')\n            i += 2\n            continue",
+          "replace": "            # EXTRACTED, not spliced. Round 20 bracketed the substitution with `;`\n            # inside the outer text, which split the git invocation itself: every token\n            # AFTER the substitution landed in a segment whose command word was not\n            # `git`, so `git commit -m \"release $(cat VERSION)\" -a` lost its `-a` and\n            # committed BOTH sessions' files at rc 0 (round 23, verified against git).\n            # Only tokens after the substitution were affected, which is why every\n            # existing test missed it -- they all put the substitution last or alone.\n            # The body is analysed as its own script, appended after the outer text, so\n            # the outer quoting survives untouched.\n            depth = 1\n            j = i + 2\n            inner_quote = \"\"\n            while j < n and depth:\n                c = command[j]\n                if inner_quote:\n                    if c == inner_quote:\n                        inner_quote = \"\"\n                elif c in \"'\\\"\":\n                    inner_quote = c\n                elif c == \"(\":\n                    depth += 1\n                elif c == \")\":\n                    depth -= 1\n                    if not depth:\n                        break\n                j += 1\n            if depth:\n                confident = False          # unbalanced: we did not read the text\n                break\n            extra_scripts.append(command[i + 2:j])\n            i = j + 1\n            continue"
+        },
+        {
+          "find": "    quote_stack: List[str] = []\n    subst_depth: List[int] = []",
+          "replace": "    quote_stack: List[str] = []\n    subst_depth: List[int] = []\n    #: Command-substitution bodies lifted out of double quotes, analysed as their own\n    #: scripts after the outer text so that the outer token stream is never disturbed.\n    extra_scripts: List[str] = []"
+        },
+        {
+          "find": "    if quote or escaped or arith_depth or subst_depth or pending_markers:",
+          "replace": "    for script in extra_scripts:\n        out.append(\";\" + script + \";\")\n    if quote or escaped or arith_depth or subst_depth or pending_markers:"
+        },
+        {
+          "find": "OPAQUE_CONFIG_PREFIXES = (\"alias.\", \"clean.requireforce\", \"include.\", \"includeif.\")",
+          "replace": "#: `help.autocorrect` decides WHICH SUBCOMMAND git runs: with it set,\n#: `git -c help.autocorrect=immediate addd -A` really executes `add -A` and staged both\n#: sessions' files, and `... cleann -fd` deleted both sessions' untracked files, at\n#: rc 0 (round 23, verified). `decide_git` read the typo as the subcommand, matched no\n#: rule and returned None. A fourth key for the class round 21 opened.\nOPAQUE_CONFIG_PREFIXES = (\n    \"alias.\", \"clean.requireforce\", \"include.\", \"includeif.\", \"help.autocorrect\",\n)"
+        },
+        {
+          "find": "            if fed and not any(\n                tok == \"-c\" or (tok.startswith(\"-\") and not tok.startswith(\"--\")\n                                and \"c\" in tok[1:])\n                for tok in segment[1:]):",
+          "replace": "            # ONLY when the wrapper has no script to read at all. Gating on `fed`\n            # alone denied every ordinary piped-into wrapper -- `git status; echo x |\n            # bash build.sh` and `echo \"git is fine\" | sh cleanup.sh` were refused as\n            # untokenisable (round 23). A wrapper with a script FILE operand is the\n            # already-named script-file residual, whose contents this hook never sees\n            # either way; what round 22 closed was a script arriving on STDIN, which is\n            # exactly the case where no operand exists.\n            has_script = any(\n                tok == \"-c\" or (tok.startswith(\"-\") and not tok.startswith(\"--\")\n                                and \"c\" in tok[1:])\n                or not tok.startswith(\"-\")\n                for tok in segment[1:])\n            if fed and not has_script:"
+        }
+      ]
+    }
+  ]
+}

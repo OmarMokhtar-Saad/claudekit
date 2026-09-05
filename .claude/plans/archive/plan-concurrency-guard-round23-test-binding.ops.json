@@ -1,0 +1,38 @@
+{
+  "plan": "concurrency-guard-round23-test-binding",
+  "files": [
+    {
+      "path": "tests/test_concurrency_guard.py",
+      "edits": [
+        {
+          "find": "        (\"an-included-config-file-is-opaque\",\n         'OPAQUE_CONFIG_PREFIXES = (\"alias.\", \"clean.requireforce\", \"include.\", \"includeif.\")',\n         'OPAQUE_CONFIG_PREFIXES = (\"alias.\", \"clean.requireforce\")',\n         \"git -c include.path=/tmp/inc.cfg st\", 2),",
+          "replace": "        (\"a-quoted-substitution-body-is-extracted\",\n         \"            extra_scripts.append(command[i + 2:j])\", \"            pass\",\n         'echo \"$(git add -A)\"', 2),\n        (\"an-extracted-body-is-read-recursively\",\n         \"        inner_text, inner_confident = preprocess(script)\",\n         \"        inner_text, inner_confident = script, True\",\n         'echo \"$(echo \"$(git add -A)\")\"', 2),\n        (\"an-empty-argument-is-kept-as-an-argument\",\n         '            segments[-1].append(\"\")', \"            continue\",\n         'git commit -m \"\" -a', 2),\n        (\"an-escaped-operator-inside-quotes-needs-no-surgery\",\n         '            if ch in \"<>&|;\" and quote == \\'\"\\':', \"            if False:\",\n         'git commit -m \"wip\\\\;x\" -a', 2),\n        (\"a-wrapper-with-a-script-operand-is-not-denied\",\n         '                or not tok.startswith(\"-\")', \"                or False\",\n         \"git status; echo x | bash build.sh\", 0),\n        (\"an-included-config-file-is-opaque\",\n         'OPAQUE_CONFIG_PREFIXES = (\\n'\n         '    \"alias.\", \"clean.requireforce\", \"include.\", \"includeif.\", \"help.autocorrect\",\\n'\n         \")\",\n         'OPAQUE_CONFIG_PREFIXES = (\\n'\n         '    \"alias.\", \"clean.requireforce\", \"help.autocorrect\",\\n'\n         \")\",\n         \"git -c include.path=/tmp/inc.cfg st\", 2),"
+        },
+        {
+          "find": "        (\"substitution-nesting-is-tracked-to-the-right-paren\",\n         \"                subst_depth[-1] += 1\",\n         \"                pass\",\n         'echo \"$(f (x) ; git add -A)\"', 2),\n",
+          "replace": ""
+        },
+        {
+          "find": "        (\"a-quoted-arithmetic-expansion-is-not-a-heredoc\",\n         '        if quote == \\'\"\\' and command.startswith(\"$((\", i):',\n         '        if False and command.startswith(\"$((\", i):',\n         'x=\"$((1<<2))\"\\ngit add -A\\n2', 2),",
+          "replace": "        (\"a-quoted-arithmetic-expansion-is-not-a-heredoc\",\n         '        if quote == \\'\"\\' and command.startswith(\"$((\", i):',\n         '        if False and command.startswith(\"$((\", i):',\n         # the ALLOWED probe isolates this line now: with the guard gone the `<<` is\n         # read as a heredoc and a read-only script fails closed, while the tree-wide\n         # probe blocks either way\n         'x=\"$((1<<2))\"\\ngit log --oneline', 0),"
+        },
+        {
+          "find": "         \"    if quote or escaped or arith_depth or subst_depth or pending_markers:\",\n         \"    if quote or escaped or subst_depth or pending_markers:\",\n         \"echo $(( ; git status\", 2),",
+          "replace": "         \"    if quote or escaped or arith_depth or pending_markers:\",\n         \"    if quote or escaped or pending_markers:\",\n         \"echo $(( ; git status\", 2),"
+        },
+        {
+          "find": "         \"    if quote or escaped or arith_depth or subst_depth or pending_markers:\",\n         \"    if quote or escaped or arith_depth or subst_depth:\",\n         \"git log <<EOF\", 2),",
+          "replace": "         \"    if quote or escaped or arith_depth or pending_markers:\",\n         \"    if quote or escaped or arith_depth:\",\n         \"git log <<EOF\", 2),"
+        },
+        {
+          "find": "    \"git -c includeIf.gitdir:x.path=/tmp/f st\",",
+          "replace": "    \"git -c includeIf.gitdir:x.path=/tmp/f st\",\n    # round 23: `help.autocorrect` decides WHICH SUBCOMMAND git runs -- verified,\n    # `addd -A` really executed `add -A` and staged both sessions' files\n    \"git -c help.autocorrect=immediate addd -A\",\n    \"git -chelp.autocorrect=immediate addd -A\",\n    \"git --config-env=help.autocorrect=AC addd -A\",\n    \"git -c help.autocorrect=immediate cleann -fd\",\n    # round 23: round 22's escaped-operator fix emitted a closing `\"` while INSIDE\n    # double quotes, severing the line so every token after it was dropped. Verified:\n    # each of these committed or deleted both sessions' work at rc 0.\n    'git commit -m \"wip\\\\;x\" -a', 'git clean -e \"a\\\\;b\" -fd',\n    'git commit --author \"Claude\\\\;X <n@a.com>\" -a -m x', 'git commit -m \"a\\\\|b\" -a',\n    # round 23: round 20's `$(...)` lift spliced `;` into the OUTER command, dropping\n    # every flag after the substitution -- the ordinary release-commit spelling\n    'git commit -m \"release $(cat VERSION)\" -a', 'git commit -m \"$(date)\" -a',\n    'git clean -e \"$(cat p)\" -fd', 'echo \"$(echo \"$(git add -A)\")\"',\n    # an EMPTY argument is an argument: dropping it let `-m` swallow the `-a`\n    'git commit -m \"\" -a', 'git clean -e \"\" -fd', 'git commit -m \"\" --all',\n    'git add \"\" -A',\n    # git refuses an empty PATHSPEC, so over-blocking this costs nothing\n    'git add \"\" src/a.py',"
+        },
+        {
+          "find": "    \"bash -c 'git status'\", \"bash -lc 'git status'\", \"bash script.sh\",",
+          "replace": "    \"bash -c 'git status'\", \"bash -lc 'git status'\", \"bash script.sh\",\n    # round 23: gating the wrapper denial on `fed` alone refused every ordinary\n    # piped-into wrapper, including one whose git text is read-only. A wrapper with a\n    # script FILE operand is the named script-file residual either way.\n    \"git status; echo x | bash build.sh\", 'echo \"git is fine\" | sh cleanup.sh',\n    # a substitution mid-line must leave the outer command intact\n    'git commit -m \"release $(cat VERSION)\" src/a.py', 'echo \"$(git status)\"',\n    'echo \"$(echo \"$(git status)\")\"', 'git commit -m \"\" src/a.py',\n    'echo \"a $(date) b\"',"
+        }
+      ]
+    }
+  ]
+}

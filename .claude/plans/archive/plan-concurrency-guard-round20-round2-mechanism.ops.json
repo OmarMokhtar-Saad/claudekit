@@ -1,0 +1,26 @@
+{
+  "plan": "concurrency-guard-round20-round2-mechanism",
+  "files": [
+    {
+      "path": ".claude/hooks/concurrency-guard.py",
+      "edits": [
+        {
+          "find": "            start_segment(fed[-1])\n            continue\n        tok = core",
+          "replace": "            start_segment(fed[-1])\n            if any(ch in \"({\" for ch in core):\n                # Remember where this group's commands begin. The push HAS to happen\n                # here: a bare `(` or `{` is consumed by THIS branch, so pushing it in\n                # the later `elif` never ran, and `{ git checkout -p .; } < ans` still\n                # marked the wrong segment -- the `;` before `}` had already started an\n                # empty one. The `(` spelling only appeared fixed by luck, because with\n                # no `;` the fallback index happened to be the git command's.\n                group_starts.append(len(segments) - 1)\n            continue\n        tok = core"
+        },
+        {
+          "find": "        elif tok.strip(\"({\") == \"\":\n            group_starts.append(len(segments))",
+          "replace": "        elif tok.strip(\"({\") == \"\":"
+        },
+        {
+          "find": "            quote = \"\"\n            out.append(\";\")\n            i += 2\n            continue",
+          "replace": "            quote = \"\"\n            # Close the quote before the `;` and reopen it after: bracketing the inner\n            # text while the quotes still surrounded it left shlex yielding ONE word\n            # (`;git add -A;`), so the inner command still never became a segment.\n            out.append('\";')\n            i += 2\n            continue"
+        },
+        {
+          "find": "                    quote = quote_stack.pop()\n                    out.append(\";\")\n                    i += 1\n                    continue",
+          "replace": "                    quote = quote_stack.pop()\n                    out.append(';\"')\n                    i += 1\n                    continue"
+        }
+      ]
+    }
+  ]
+}

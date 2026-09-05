@@ -1,0 +1,14 @@
+{
+  "plan": "concurrency-guard-round25-bare-brace-argument",
+  "files": [
+    {
+      "path": ".claude/hooks/concurrency-guard.py",
+      "edits": [
+        {
+          "find": "        core = raw.lstrip(\")}\")\n        if core != raw:\n            closed_group_at = group_starts.pop() if group_starts else len(segments) - 1\n            start_segment(fed[-1])\n            if not core:\n                continue",
+          "replace": "        core = raw.lstrip(\")}\")\n        if core != raw and not group_starts and not raw.startswith(\")\"):\n            # A bare `}` with NO group open is an ordinary ARGUMENT: in bash it is a\n            # reserved word only in command-word position. Peeling it regardless\n            # started a new segment and dropped the flag behind it -- `git commit -m }\n            # -a` committed BOTH sessions' files at rc 0 (round 24, verified). A `)`\n            # is different: bash rejects a bare `)` as an argument, so it can only ever\n            # be a closer, and process substitution (`<(cmd)`) opens without pushing.\n            core = raw\n        if core != raw:\n            closed_group_at = group_starts.pop() if group_starts else len(segments) - 1\n            start_segment(fed[-1])\n            if not core:\n                continue"
+        }
+      ]
+    }
+  ]
+}

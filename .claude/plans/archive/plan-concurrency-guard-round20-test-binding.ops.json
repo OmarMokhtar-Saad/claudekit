@@ -1,0 +1,22 @@
+{
+  "plan": "concurrency-guard-round20-test-binding",
+  "files": [
+    {
+      "path": "tests/test_concurrency_guard.py",
+      "edits": [
+        {
+          "find": "    \"yes | git status; git add -p .\",",
+          "replace": "    \"yes | git status; git add -p .\",\n    # round 20 (found while probing my own round-19 fix): `punctuation_chars` FUSES a\n    # run of operator characters, so a heredoc arrives glued to the separator that\n    # follows it -- `git add -p . <<EOF` preprocesses to one token `<<;`. Classified\n    # whole it read as a SEPARATOR, the redirection meaning was lost, and the `--patch`\n    # exemption came back to life: verified against git, this staged BOTH sessions'\n    # files at exit 0 while the identical `<<<` and `<` spellings blocked.\n    \"git add -p . <<EOF\\ny\\ny\\nEOF\",\n    \"git commit -p -m wip . <<EOF\\ny\\nEOF\",\n    \"git checkout -p . <<-EOF\\ny\\nEOF\",\n    \"git add -p . 0< ans\","
+        },
+        {
+          "find": "    \"(git add -p .)\", \"{ git add -p .; }\", \"git add -p . && git status\",",
+          "replace": "    \"(git add -p .)\", \"{ git add -p .; }\", \"git add -p . && git status\",\n    # an OUTPUT redirection does not feed stdin, so the exemption survives it\n    \"git add -p . > out\", \"git add -p . 2>/dev/null\","
+        },
+        {
+          "find": "        (\"grouping-inherits-the-stdin-of-its-compound\",",
+          "replace": "        (\"a-fused-input-redirection-still-feeds-stdin\",\n         '        if \"<\" in tok:\\n            fed[-1] = True',\n         '        if False:\\n            fed[-1] = True',\n         # the heredoc spelling: its `<<` is fused to the following separator, so this\n         # line is the only thing that sees it\n         \"git add -p . <<EOF\\ny\\ny\\nEOF\", 2),\n        (\"grouping-inherits-the-stdin-of-its-compound\","
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "plan": "concurrency-guard-round24-dash-s",
+  "files": [
+    {
+      "path": ".claude/hooks/concurrency-guard.py",
+      "edits": [
+        {
+          "find": "            has_script = any(\n                tok == \"-c\" or (tok.startswith(\"-\") and not tok.startswith(\"--\")\n                                and \"c\" in tok[1:])\n                or not tok.startswith(\"-\")\n                for tok in segment[1:])",
+          "replace": "            # `-s` means READ THE SCRIPT FROM STDIN, so a following operand is a\n            # positional parameter, not a script file: `bash -s file <<EOF / git add -A\n            # / EOF` staged both sessions' files at rc 0 (round 24 -- found by probing\n            # this very fix, verified against bash and git). `sh -- file` really does\n            # run the FILE (verified: it printed the file's own output and staged\n            # nothing), so `--` is not the same case.\n            reads_stdin = any(\n                tok == \"-s\" or (tok.startswith(\"-\") and not tok.startswith(\"--\")\n                                and \"s\" in tok[1:])\n                for tok in segment[1:])\n            has_script = not reads_stdin and any(\n                tok == \"-c\" or (tok.startswith(\"-\") and not tok.startswith(\"--\")\n                                and \"c\" in tok[1:])\n                or not tok.startswith(\"-\")\n                for tok in segment[1:])"
+        }
+      ]
+    }
+  ]
+}

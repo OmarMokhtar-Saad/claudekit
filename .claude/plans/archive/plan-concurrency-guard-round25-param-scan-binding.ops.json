@@ -1,0 +1,18 @@
+{
+  "plan": "concurrency-guard-round25-param-scan-binding",
+  "files": [
+    {
+      "path": "tests/test_concurrency_guard.py",
+      "edits": [
+        {
+          "find": "    'git commit -m \"release $(cat VERSION)\" src/a.py', 'echo \"$(git status)\"',",
+          "replace": "    'git commit -m \"release $(cat VERSION)\" src/a.py', 'echo \"$(git status)\"',\n    # round 25: the `${` scan is quote-aware, so a `}` INSIDE quotes does not close it\n    'git commit -m ${x:-\"}\"} src/a.py', 'git commit -m ${x:-a;b} src/a.py',"
+        },
+        {
+          "find": "        (\"a-parameter-expansion-is-one-opaque-word\",",
+          "replace": "        (\"the-parameter-expansion-scan-is-quote-aware\",\n         \"                # Quote-aware like the `$(` scan: `${x:-\\\"}\\\"}` has a `}` INSIDE quotes,\\n\"\n         \"                # and closing on it left an unbalanced quote behind that failed the\\n\"\n         \"                # whole read-only command closed (`git commit -m ${x:-\\\"}\\\"} src/a.py`\\n\"\n         \"                # exited 2 -- found probing this fix, round 25).\\n\"\n         \"                if inner_quote:\",\n         \"                # Quote-aware like the `$(` scan: `${x:-\\\"}\\\"}` has a `}` INSIDE quotes,\\n\"\n         \"                # and closing on it left an unbalanced quote behind that failed the\\n\"\n         \"                # whole read-only command closed (`git commit -m ${x:-\\\"}\\\"} src/a.py`\\n\"\n         \"                # exited 2 -- found probing this fix, round 25).\\n\"\n         \"                if False:\",\n         'git commit -m ${x:-\"}\"} src/a.py', 0),\n        (\"a-parameter-expansion-is-one-opaque-word\","
+        }
+      ]
+    }
+  ]
+}

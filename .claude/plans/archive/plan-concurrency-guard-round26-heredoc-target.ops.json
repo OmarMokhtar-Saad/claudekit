@@ -1,0 +1,36 @@
+{
+  "plan": "concurrency-guard-round26-heredoc-target",
+  "files": [
+    {
+      "path": ".claude/hooks/concurrency-guard.py",
+      "edits": [
+        {
+          "find": "            if marker:\n                pending_markers.append(marker)\n            out.append(\"<<\")",
+          "replace": "            if marker:\n                pending_markers.append(marker)\n            # The marker is CONSUMED here, so the `<<` token that reaches\n            # `split_segments` had no target left -- and the redirection's target-skip\n            # ate the next REAL argument instead: `git commit -m x <<EOF -a` lost its\n            # `-a` and committed BOTH sessions' files at rc 0 (round 26, found probing;\n            # verified against bash + git, where `-a` after the marker is still git's\n            # argument). A placeholder stands in for the marker so the skip lands on it.\n            out.append('<< \"' + QUOTED_WORD_SENTINEL + '\"')"
+        }
+      ]
+    },
+    {
+      "path": "tests/test_concurrency_guard.py",
+      "edits": [
+        {
+          "find": "    \"git rm -r >| out .\", \"git checkout >| out .\", \"git add -A >| out\", \"git add -A >& out\",",
+          "replace": "    \"git rm -r >| out .\", \"git checkout >| out .\", \"git add -A >| out\", \"git add -A >& out\",\n    # round 26: the heredoc MARKER is consumed in preprocess, so the `<<` token's\n    # target-skip ate the next real argument -- `-a` after the marker is still git's\n    # (verified: this committed both sessions' files at rc 0)\n    \"git commit -m x <<EOF -a\\nbody\\nEOF\", \"git add <<EOF -A\\nbody\\nEOF\",\n    \"git clean -e p <<EOF -fd\\nbody\\nEOF\","
+        },
+        {
+          "find": "        (\"a-redirection-run-is-not-a-pipe\",",
+          "replace": "        (\"a-consumed-heredoc-marker-leaves-a-placeholder-target\",\n         \"            out.append('<< \\\"' + QUOTED_WORD_SENTINEL + '\\\"')\",\n         \"            out.append(\\\"<<\\\")\",\n         \"git commit -m x <<EOF -a\\nbody\\nEOF\", 2),\n        (\"a-redirection-run-is-not-a-pipe\","
+        }
+      ]
+    },
+    {
+      "path": ".ai/CONCURRENCY.md",
+      "edits": [
+        {
+          "find": "| `>\\|` (noclobber override) is ONE redirection operator",
+          "replace": "| an argument AFTER a heredoc marker \u2014 `git commit -m x <<EOF -a` \u2014 is still git's argument, but the marker is consumed in `preprocess`, so the `<<` token's target-skip ate the `-a` and both sessions' files were committed (round 26, found probing, verified). A placeholder now stands in for the consumed marker | `git add <paths>` then `git commit` |\n| `>\\|` (noclobber override) is ONE redirection operator"
+        }
+      ]
+    }
+  ]
+}

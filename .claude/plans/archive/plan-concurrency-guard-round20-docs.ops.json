@@ -1,0 +1,27 @@
+{
+  "plan": "concurrency-guard-round20-docs",
+  "files": [
+    {
+      "path": ".ai/CONCURRENCY.md",
+      "edits": [
+        {
+          "find": "verified against git). A subshell does not hand a human back the keyboard.",
+          "replace": "verified against git). A subshell does not hand a human back the keyboard. The bit is\n  recorded for ANY token containing `<`, before that token is classified \u2014 because\n  `punctuation_chars` FUSES a run of operator characters, so a heredoc arrives glued to\n  the separator behind it (`git add -p . <<EOF` becomes the single token `<<;`).\n  Classified whole it read as a SEPARATOR, the redirection meaning was lost, and\n  `git add -p . <<EOF \u2026 EOF` staged BOTH sessions' files at exit 0 while the identical\n  `<<<` and `<` spellings blocked (round 20 \u2014 the same fused-token trap that cost\n  rounds 1-3 and 6 their command separators). An OUTPUT redirection still leaves the\n  exemption intact: `git add -p . > out` is allowed"
+        },
+        {
+          "find": "Round 19 found two more BLOCKING leaks:",
+          "replace": "Round 20's leak was found by ME, probing my own round-19 fix rather than by the\nreviewer: a heredoc feeding an interactive `-p` was invisible because its `<<` fuses to\nthe following separator. That is the THIRD spelling of one class \u2014 an exemption\njustified by an assumption about who is answering the prompt \u2014 after round 18's pipe and\nround 19's grouping. The lesson is not \"check heredocs\": it is that a token stream where\none token can carry two meanings needs the meaning extracted BEFORE the classification,\nwhich is the same conclusion rounds 1-3 reached about separators and had to reach again.\nRound 19 found two more BLOCKING leaks:"
+        }
+      ]
+    },
+    {
+      "path": "CHANGELOG.md",
+      "edits": [
+        {
+          "find": "  whether each listed global is real, and caught two the fix had invented.",
+          "replace": "  whether each listed global is real, and caught two the fix had invented.\n  A TWENTIETH round: probing round 19's own fix surfaced a third spelling of the\n  stdin-fed class. `punctuation_chars` fuses a run of operator characters, so a heredoc\n  arrives glued to the separator behind it -- `git add -p . <<EOF` becomes one token\n  `<<;` -- which classified whole read as a SEPARATOR, losing the redirection meaning.\n  `git add -p . <<EOF ... EOF` therefore staged BOTH sessions' files at exit 0 while the\n  identical `<<<` and `<` spellings blocked (verified against git). The stdin bit is now\n  recorded for any token containing `<` before that token is classified; an output\n  redirection still leaves the exemption intact."
+        }
+      ]
+    }
+  ]
+}

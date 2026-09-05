@@ -1,0 +1,31 @@
+{
+  "plan": "concurrency-guard-round26-cleanup",
+  "files": [
+    {
+      "path": ".claude/hooks/concurrency-guard.py",
+      "edits": [
+        {
+          "find": "        if core != raw and not group_starts and not raw.startswith(\")\"):\n            # A bare `}` with NO group open is an ordinary ARGUMENT: in bash it is a\n            # reserved word only in command-word position. Peeling it regardless\n            # started a new segment and dropped the flag behind it -- `git commit -m }\n            # -a` committed BOTH sessions' files at rc 0 (round 24, verified). A `)`\n            # is different: bash rejects a bare `)` as an argument, so it can only ever\n            # be a closer, and process substitution (`<(cmd)`) opens without pushing.\n            # Appended HERE, because the grouping branch further down would otherwise\n            # catch the same `}` a second time (`all()` over `}` is True) and start the\n            # segment anyway -- the first version of this fix stopped one trap short.\n            segments[-1].append(raw)\n            continue\n",
+          "replace": ""
+        }
+      ]
+    },
+    {
+      "path": "tests/test_concurrency_guard.py",
+      "edits": [
+        {
+          "find": "        (\"a-bare-brace-with-no-open-group-is-an-argument\",\n         '        if core != raw and not group_starts and not raw.startswith(\")\"):',\n         \"        if False:\",\n         \"git commit -m } -a\", 2),\n",
+          "replace": ""
+        },
+        {
+          "find": "        '{', '{}', '{ }',            # round 25: the opener, unquoted, was the gap",
+          "replace": "        # round 25: the opener, unquoted, was the gap. NOT `{ }` -- that is TWO words,\n        # and `git stash push -m { }` is genuinely scoped to a file named `}`, so it\n        # legitimately differs from the one-word control.\n        '{', '{}',"
+        },
+        {
+          "find": "        shipped.discard(\"--pathspec-from-file\")   # passed as PATHSPEC_FROM_FILE",
+          "replace": "        # passed as the PATHSPEC_FROM_FILE constant, so the string scan cannot see it,\n        # but it IS a denial and has abbreviation cases -- so it is ADDED, not discarded\n        # (the round-25 `==` ratchet called the row stale the moment it was discarded)\n        shipped.add(\"--pathspec-from-file\")"
+        }
+      ]
+    }
+  ]
+}

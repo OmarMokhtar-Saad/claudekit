@@ -1,0 +1,18 @@
+{
+  "plan": "concurrency-guard-round25-procsub-binding",
+  "files": [
+    {
+      "path": "tests/test_concurrency_guard.py",
+      "edits": [
+        {
+          "find": "        (\"process-substitution-is-a-separator\",\n         '    if body[:1] in (\"<\", \">\") and \"(\" in body:', \"    if False:\",\n         \"git add -A <(echo hi)\", 2),",
+          "replace": "        (\"process-substitution-is-an-opaque-word-with-a-lifted-body\",\n         '        if not quote and command[i:i + 2] in (\"<(\", \">(\") and at_token_boundary():',\n         \"        if False:\",\n         # round 25: `<(` used to be classified as a SEPARATOR, which put the tokens\n         # after the closing paren in a new segment and dropped the flag behind it\n         \"git commit -m <(echo x) -a\", 2),"
+        },
+        {
+          "find": "    \"git add --chmod +x $(date) .\", \"echo $(git add -A)\",",
+          "replace": "    \"git add --chmod +x $(date) .\", \"echo $(git add -A)\",\n    # process substitution is a word whose body is a command, exactly like `$(...)`\n    \"git commit -m <(echo x) -a\", \"git clean -e <(echo x) -fd\", \"git commit -m >(cat) -a\","
+        }
+      ]
+    }
+  ]
+}

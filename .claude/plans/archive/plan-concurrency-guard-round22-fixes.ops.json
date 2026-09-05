@@ -1,0 +1,34 @@
+{
+  "plan": "concurrency-guard-round22-fixes",
+  "files": [
+    {
+      "path": ".claude/hooks/concurrency-guard.py",
+      "edits": [
+        {
+          "find": "        if head.startswith(\"--\") and \"=\" in head and head.split(\"=\", 1)[0] in GIT_GLOBAL_WITH_VALUE:\n            out = out[1:]\n            continue",
+          "replace": "        if head.startswith(\"--\") and \"=\" in head and head.split(\"=\", 1)[0] in GIT_GLOBAL_WITH_VALUE:\n            # The FUSED spelling needs the same opacity test as the separate one, and\n            # not having it restored round 21's two BLOCKING leaks in full for the cost\n            # of one `=`: `git --config-env=alias.st=AL st` staged both sessions' files\n            # and `--config-env=clean.requireForce=RF clean -d` deleted both untracked\n            # files, rc 0, verified against git 2.50. Round 22, and the SEVENTH\n            # \"one site updated, its sibling missed\" -- which is why the parity is now\n            # asserted mechanically for every valued global instead of per spelling.\n            if head.split(\"=\", 1)[0] in (\"-c\", \"--config-env\"):\n                if _config_is_opaque(head.split(\"=\", 1)[1]):\n                    raise UnknownGitGlobal(head)\n            out = out[1:]\n            continue"
+        },
+        {
+          "find": "OPAQUE_CONFIG_PREFIXES = (\"alias.\", \"clean.requireforce\")",
+          "replace": "#: `include.path` / `includeIf.*` pull in a whole config FILE, so an alias can arrive\n#: one indirection further out: `git -c include.path=<file> st` with `[alias] st = add\n#: -A` in that file staged both sessions' files at rc 0 (round 22, verified). git's\n#: config sections are case-insensitive, which `_config_is_opaque` already handles.\nOPAQUE_CONFIG_PREFIXES = (\"alias.\", \"clean.requireforce\", \"include.\", \"includeif.\")"
+        },
+        {
+          "find": "        if escaped:\n            # A line continuation is whitespace in bash; anything else keeps its\n            # backslash so shlex still sees the escape.\n            out.append(\" \" if ch == \"\\n\" else ch)\n            escaped = False\n            i += 1\n            continue",
+          "replace": "        if escaped:\n            # A line continuation is whitespace in bash; anything else keeps its\n            # backslash so shlex still sees the escape.\n            if ch in \"<>&|;\":\n                # An ESCAPED operator character is a WORD, exactly as a quoted one is,\n                # and round 21's sentinel was applied only to the quoted branch. So\n                # `git checkout \\> .` still had its `>` classified as a redirection,\n                # whose target-skip then ate the `.`: verified against git 2.50, that\n                # DESTROYED both sessions' in-flight edits and `git commit -m x \\> .`\n                # committed both, rc 0. Same class, escaped spelling.\n                out.append(QUOTED_WORD_SENTINEL)\n            out.append(\" \" if ch == \"\\n\" else ch)\n            escaped = False\n            i += 1\n            continue"
+        },
+        {
+          "find": "        if os.path.basename(segment[0]) in SCRIPT_WRAPPERS:\n            for i, tok in enumerate(segment[1:], start=1):",
+          "replace": "        if os.path.basename(segment[0]) in SCRIPT_WRAPPERS:\n            # `bash`/`sh`/`zsh`/`dash` read STDIN as a SCRIPT, so a heredoc or\n            # here-string handed to one is CODE -- and `preprocess` strips heredoc\n            # bodies as data, deliberately, so `cat > f <<EOF ... EOF` can document a\n            # command without triggering it. The two rules met and the script vanished:\n            # `sh <<'EOF' / git reset --hard / EOF` destroyed both sessions' edits and\n            # `bash <<< 'git add -A'` staged both, rc 0 (round 22, verified). Only the\n            # `-c` spelling was ever unwrapped, and its test asserted only that one.\n            # The script text is genuinely not available here, so this fails CLOSED\n            # rather than guessing -- the same inversion round 19 chose for unknown\n            # globals. `bash -c '<script>'` is still read, and an unfed wrapper\n            # (`bash script.sh`) still relies on the named script-file residual.\n            if fed and not any(\n                tok == \"-c\" or (tok.startswith(\"-\") and not tok.startswith(\"--\")\n                                and \"c\" in tok[1:])\n                for tok in segment[1:]):\n                raise ValueError(\"a script fed to a shell wrapper cannot be read\")\n            for i, tok in enumerate(segment[1:], start=1):"
+        },
+        {
+          "find": "        if arith_depth and command.startswith(\"))\", i):\n            arith_depth -= 1\n            out.append(\"))\")\n            i += 2\n            continue\n\n        if command.startswith(\"<<<\", i):          # here-STRING, not a heredoc",
+          "replace": "        if command.startswith(\"<<<\", i):          # here-STRING, not a heredoc"
+        },
+        {
+          "find": "        else:\n            segments[-1].append(tok.replace(QUOTED_WORD_SENTINEL, \"\"))",
+          "replace": "        else:\n            # REDUNDANT-BY-DESIGN, and named as such rather than left to read as\n            # load-bearing: mutation testing (round 22) shows removing this strip\n            # changes no verdict, because a sentinel is only inserted when the quoted\n            # body is ENTIRELY operator characters, so such a token can only ever be a\n            # pathspec -- and `\\x01>` is non-tree-wide exactly as `>` is. It stays so\n            # that a future rule which DOES read such a token gets the real word, the\n            # same posture this file takes for `lexer.commenters`.\n            segments[-1].append(tok.replace(QUOTED_WORD_SENTINEL, \"\"))"
+        }
+      ]
+    }
+  ]
+}

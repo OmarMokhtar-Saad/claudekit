@@ -1,0 +1,42 @@
+{
+  "plan": "concurrency-guard-round19-fixes",
+  "files": [
+    {
+      "path": ".claude/hooks/concurrency-guard.py",
+      "edits": [
+        {
+          "find": "            start_segment()\n            if not core:\n                continue",
+          "replace": "            start_segment(fed[-1])\n            if not core:\n                continue"
+        },
+        {
+          "find": "            # -- literal `git add -A` included -- was dropped.\n            start_segment()\n            continue",
+          "replace": "            # -- literal `git add -A` included -- was dropped.\n            start_segment(fed[-1])\n            continue"
+        },
+        {
+          "find": "        if kind == \"separator\" or tok in OPERATORS:\n            # The right operand of a PIPE reads its stdin from the left one.\n            start_segment(\"|\" in tok)",
+          "replace": "        if kind == \"separator\" or tok in OPERATORS:\n            # The right operand of a PIPE reads its stdin from the left one; every\n            # OTHER separator starts a sibling that INHERITS the stdin of the compound\n            # it sits in. Resetting to False there -- and in the grouping branches\n            # above -- discarded round 18's whole fix the moment the command was\n            # wrapped: `yes | (git checkout -p .)` DESTROYED another session's\n            # in-flight edit and `yes | { git commit -p -m wip .; }` committed both\n            # sessions' files, exit 0, while the identical UNWRAPPED spellings blocked\n            # (round 19, verified against git 2.50). A subshell does not give a human\n            # back the keyboard: grouping never changes stdin.\n            start_segment(True if \"|\" in tok else fed[-1])"
+        },
+        {
+          "find": "def strip_git_globals(args: Sequence[str]) -> List[str]:\n    \"\"\"Drop git's pre-subcommand global options (`-C dir`, `--git-dir=...`, `-c k=v`).\"\"\"\n    out = list(args)",
+          "replace": "class UnknownGitGlobal(ValueError):\n    \"\"\"An option before the subcommand that this hook does not model.\n\n    Raised rather than tolerated. `strip_git_globals` used to `break` on the first\n    token it did not recognise, so the OPTION became `sub`, matched no rule, and\n    `decide_git` returned None -- one ordinary flag disarmed add, commit, reset,\n    checkout, clean and stash at once. Round 19, verified against git 2.50:\n    `git --no-lazy-fetch add -A` staged both sessions' files,\n    `git --no-literal-pathspecs reset --hard` destroyed another session's edit, and\n    `git --attr-source=HEAD clean -fd` deleted its untracked file. All are documented\n    globals, not obfuscation.\n\n    Enumerating the four missing members would have been the fifth hand-patch in this\n    class (`:(top,glob)` r5, `--pathspec-from-file=` r15, long-option prefixes r16,\n    `add -e`/`-i` r18, globals r19), so the FAIL DIRECTION is inverted instead: an\n    unknown pre-subcommand option is now indistinguishable from text this hook cannot\n    read, and takes the same fail-CLOSED path. The known members are still listed,\n    because they must NOT block.\n    \"\"\"\n\n\ndef strip_git_globals(args: Sequence[str]) -> List[str]:\n    \"\"\"Drop git's pre-subcommand global options (`-C dir`, `--git-dir=...`, `-c k=v`).\n\n    Raises `UnknownGitGlobal` for an unrecognised option before the subcommand.\n    \"\"\"\n    out = list(args)"
+        },
+        {
+          "find": "        if len(head) > 2 and head[:2] in (\"-C\", \"-c\"):\n            out = out[1:]\n            continue\n        break\n    return out",
+          "replace": "        if len(head) > 2 and head[:2] in (\"-C\", \"-c\"):\n            out = out[1:]\n            continue\n        if head.startswith(\"-\") and head != \"-\":\n            # Not a subcommand and not a global we model: fail CLOSED. git does NOT\n            # abbreviate globals (`git --lit status` -> `unknown option: --lit`), so\n            # exact membership above is right and this branch cannot be reached by an\n            # abbreviation of a known one.\n            raise UnknownGitGlobal(head)\n        break\n    return out"
+        },
+        {
+          "find": "    args = strip_git_globals(argv[1:])\n    if not args:\n        return None",
+          "replace": "    # An UnknownGitGlobal propagates to `analyse`'s caller, which fails closed on\n    # ValueError exactly as it does for untokenisable text.\n    args = strip_git_globals(argv[1:])\n    if not args:\n        return None"
+        },
+        {
+          "find": "#: git global options taking a separate value argument.\nGIT_GLOBAL_WITH_VALUE = frozenset({\n    \"-C\", \"-c\", \"--git-dir\", \"--work-tree\", \"--namespace\", \"--exec-path\",\n    \"--super-prefix\", \"--config-env\",\n})",
+          "replace": "#: git global options taking a separate value argument. Exact membership: git does not\n#: abbreviate globals (`git --lit status` -> `unknown option: --lit`), and an\n#: unrecognised one now fails CLOSED rather than becoming the \"subcommand\".\nGIT_GLOBAL_WITH_VALUE = frozenset({\n    \"-C\", \"-c\", \"--git-dir\", \"--work-tree\", \"--namespace\", \"--exec-path\",\n    \"--super-prefix\", \"--config-env\", \"--attr-source\",\n})"
+        },
+        {
+          "find": "    \"--literal-pathspecs\", \"--glob-pathspecs\", \"--noglob-pathspecs\",\n    \"--icase-pathspecs\", \"--no-optional-locks\", \"--html-path\", \"--info-path\",\n})",
+          "replace": "    \"--literal-pathspecs\", \"--glob-pathspecs\", \"--noglob-pathspecs\",\n    \"--icase-pathspecs\", \"--no-optional-locks\", \"--html-path\", \"--info-path\",\n    # round 19: absent, so each of these made the FLAG the subcommand and disarmed\n    # every rule. `--no-literal-pathspecs` is the negation of a member that was\n    # already here, which is the sibling-drift shape rounds 5-9, 11, 13 and 14 were.\n    \"--no-advice\", \"--no-lazy-fetch\", \"--no-literal-pathspecs\",\n    \"--no-glob-pathspecs\", \"--no-icase-pathspecs\",\n})"
+        }
+      ]
+    }
+  ]
+}

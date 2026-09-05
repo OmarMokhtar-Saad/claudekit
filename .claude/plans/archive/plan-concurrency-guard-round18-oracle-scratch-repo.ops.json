@@ -1,0 +1,22 @@
+{
+  "plan": "concurrency-guard-round18-oracle-scratch-repo",
+  "files": [
+    {
+      "path": "tests/test_concurrency_guard.py",
+      "edits": [
+        {
+          "find": "    def test_every_required_value_option_git_reports_is_in_the_table(self):",
+          "replace": "    def test_every_required_value_option_git_reports_is_in_the_table(self, tmp_path):"
+        },
+        {
+          "find": "        name = re.compile(r\"--(?:\\[no-\\])?([a-z][a-z0-9-]*)\")\n        asserted = 0",
+          "replace": "        # EVERY probe runs in a DISPOSABLE repo, never in this one. The first version\n        # of this test passed `cwd=str(REPO)`, and probing arity means EXECUTING\n        # `git <sub> <opt>`: an option whose value is OPTIONAL runs for real, so the\n        # sweep executed `git checkout --force`, `git clean --force`, `git commit\n        # --amend` and `git stash` in the working tree. It reverted tracked files,\n        # deleted untracked ones, detached HEAD and stacked stashes -- destroying\n        # uncommitted work repeatedly, which is the exact incident this hook exists to\n        # prevent, caused by the hook's own test suite. A hook cannot save us here: it\n        # sees the Bash tool, not a subprocess inside pytest. The isolation is the\n        # scratch repo, and it is the same lesson the doc draws for sessions.\n        probe_repo = tmp_path / \"arity\"\n        probe_repo.mkdir()\n        for argv in ([\"init\", \"-q\", \".\"], [\"config\", \"user.email\", \"a@b.c\"],\n                     [\"config\", \"user.name\", \"a\")]:\n            subprocess.run([\"git\"] + argv, cwd=str(probe_repo),\n                           capture_output=True, text=True)\n        (probe_repo / \"seed.txt\").write_text(\"1\\n\")\n        subprocess.run([\"git\", \"add\", \"-A\"], cwd=str(probe_repo), capture_output=True)\n        subprocess.run([\"git\", \"commit\", \"-qm\", \"base\"], cwd=str(probe_repo),\n                       capture_output=True)\n        name = re.compile(r\"--(?:\\[no-\\])?([a-z][a-z0-9-]*)\")\n        asserted = 0"
+        },
+        {
+          "find": "                probed = subprocess.run(\n                    [\"git\", sub, opt], capture_output=True, text=True, cwd=str(REPO))",
+          "replace": "                probed = subprocess.run(\n                    [\"git\", sub, opt], capture_output=True, text=True,\n                    cwd=str(probe_repo))"
+        }
+      ]
+    }
+  ]
+}

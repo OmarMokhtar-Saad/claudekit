@@ -1,0 +1,14 @@
+{
+  "plan": "concurrency-guard-round20-round2-loop-redirection",
+  "files": [
+    {
+      "path": ".claude/hooks/concurrency-guard.py",
+      "edits": [
+        {
+          "find": "            if closed_group_at is not None:\n                # The redirection belongs to the group that just closed: every command\n                # inside it read from that file.\n                for idx in range(closed_group_at, len(fed)):\n                    fed[idx] = True",
+          "replace": "            # The redirection belongs to the group that just closed -- every command\n            # inside it read from that file -- and when no group closed we cannot tell\n            # WHICH commands it feeds: `while read x; do git add -p .; done < f` hangs\n            # the redirection off `done`, and `do`/`done` are not grouping tokens, so\n            # tracking them would mean a shell grammar. Every segment is marked\n            # instead, which closes the CLASS rather than one more spelling -- the fix\n            # for the fix for the fix, three rounds running, is the argument for taking\n            # the whole class. The cost is an over-block: an input redirection anywhere\n            # in the command text denies an interactive `-p` elsewhere in it\n            # (`cat < f; git add -p .`), named in the doc's residuals next to the\n            # `;`-sibling one. `fed` only ever gates the `--patch` exemption, so\n            # nothing that does not carry `-p` changes verdict.\n            start = closed_group_at if closed_group_at is not None else 0\n            for idx in range(start, len(fed)):\n                fed[idx] = True"
+        }
+      ]
+    }
+  ]
+}
