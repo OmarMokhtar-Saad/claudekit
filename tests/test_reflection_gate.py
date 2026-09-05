@@ -353,6 +353,28 @@ class TestStopGate:
         assert "nothing-durable" in proc.stderr
         assert "/goal clear" in proc.stderr
 
+    def test_the_demand_states_the_field_set_and_the_text_budget(self, env, ref):
+        """Filing a receipt against the self-describing demand STILL cost three refusal
+        rounds -- an unknown field, the 240-char single-line cap, and the credential-shape
+        rule -- because each lived only in the validator. Both demand branches now name
+        the closed field set and the text budget, read from the same constants."""
+        seed_two_failures(env)
+        proc = run("Stop", {"hook_event_name": "Stop", "session_id": SESSION}, env)
+        assert proc.returncode == 2
+        # Pinned literally as well as read from the constant: a test that only iterates
+        # RECEIPT_OPTIONAL_FIELDS narrows its own assertion when the constant narrows,
+        # and a mutation that dropped "issue" from the table survived exactly that way.
+        assert ref.RECEIPT_OPTIONAL_FIELDS == frozenset({"changedApproach", "issue"})
+        assert ref.RECEIPT_FIELDS >= ref.RECEIPT_OPTIONAL_FIELDS
+        assert ref._SAFE_TEXT_MAX == 240
+        for branch in (proc.stderr, ref.receipt_instructions(), ref.receipt_instructions(SESSION)):
+            for optional in ref.RECEIPT_OPTIONAL_FIELDS:
+                assert optional in branch
+            assert "Any OTHER field is refused" in branch
+            assert str(ref._SAFE_TEXT_MAX) in branch
+            assert "ONE line" in branch
+            assert "credential-shaped" in branch
+
     def test_interrupt_once_stop_hook_active_is_honoured(self, env):
         seed_two_failures(env)
         first = run("Stop", {"hook_event_name": "Stop", "session_id": SESSION}, env)

@@ -1,0 +1,34 @@
+{
+  "plan": "reflection-demand-writing-rules",
+  "files": [
+    {
+      "path": ".claude/hooks/reflection.py",
+      "edits": [
+        {
+          "find": "NON_ATTEMPT_REASONS = frozenset({\"setup-error\", \"syntax-error\", \"capability-probe\"})\n\n_SAFE_TEXT = re.compile(r\"^[^\\r\\n\\x00]{1,240}$\")",
+          "replace": "NON_ATTEMPT_REASONS = frozenset({\"setup-error\", \"syntax-error\", \"capability-probe\"})\n\n# The receipt's field set and text budget, hoisted so the DEMAND and the VALIDATOR read\n# from one table. Filing a receipt against the 2026-09-05 self-describing demand still\n# cost three refusal rounds -- unknown field, 240-char cap, credential shape -- because\n# each of those rules lived only in the validator. A demand that names the closed field\n# set and the text budget costs one round instead.\nRECEIPT_FIELDS = frozenset({\n    \"schemaVersion\", \"taskId\", \"trigger\", \"failureFingerprints\", \"failedAssumption\",\n    \"approachesCompared\", \"chosenExperiment\", \"changedApproach\", \"proofCommandOrCheck\",\n    \"proofOutcome\", \"durableDisposition\", \"issue\",\n})\nRECEIPT_OPTIONAL_FIELDS = frozenset({\"changedApproach\", \"issue\"})\n\n_SAFE_TEXT_MAX = 240\n_SAFE_TEXT = re.compile(r\"^[^\\r\\n\\x00]{1,%d}$\" % _SAFE_TEXT_MAX)"
+        },
+        {
+          "find": "    allowed = {\n        \"schemaVersion\", \"taskId\", \"trigger\", \"failureFingerprints\", \"failedAssumption\",\n        \"approachesCompared\", \"chosenExperiment\", \"changedApproach\", \"proofCommandOrCheck\",\n        \"proofOutcome\", \"durableDisposition\", \"issue\",\n    }\n    unknown = set(receipt) - allowed",
+          "replace": "    unknown = set(receipt) - RECEIPT_FIELDS"
+        },
+        {
+          "find": "        raise ValueError(\"%s must be 1-240 characters on a single line\" % name)",
+          "replace": "        raise ValueError(\"%s must be 1-%d characters on a single line\"\n                         % (name, _SAFE_TEXT_MAX))"
+        },
+        {
+          "find": "              \"chosenExperiment, proofCommandOrCheck, proofOutcome.\\n\"\n            + \"If a /goal is set",
+          "replace": "              \"chosenExperiment, proofCommandOrCheck, proofOutcome.\\n\"\n            + \"  optional: %s. Any OTHER field is refused.\\n\"\n              % \", \".join(sorted(RECEIPT_OPTIONAL_FIELDS))\n            + _TEXT_RULES\n            + \"If a /goal is set"
+        },
+        {
+          "find": "        \"proofCommandOrCheck, proofOutcome, durableDisposition. \"\n        \"'nothing-durable' is a valid durableDisposition.\"\n    )",
+          "replace": "        \"proofCommandOrCheck, proofOutcome, durableDisposition. \"\n        \"'nothing-durable' is a valid durableDisposition. \"\n        \"Optional: \" + \", \".join(sorted(RECEIPT_OPTIONAL_FIELDS))\n        + \". Any OTHER field is refused.\\n\"\n        + _TEXT_RULES.rstrip(\"\\n\")\n    )"
+        },
+        {
+          "find": "def receipt_instructions(session_id: Optional[str] = None) -> str:",
+          "replace": "_TEXT_RULES = (\n    \"Every text field is ONE line of at most %d characters of plain prose: absolute\\n\"\n    \"paths, hex digests and long underscore-free identifiers are refused as path- or\\n\"\n    \"credential-shaped, so describe them in words instead of pasting them.\\n\"\n    % _SAFE_TEXT_MAX\n)\n\n\ndef receipt_instructions(session_id: Optional[str] = None) -> str:"
+        }
+      ]
+    }
+  ]
+}

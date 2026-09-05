@@ -12,6 +12,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **The reflection demand states the field set and the text budget.** Filing a receipt
+  against the newly self-describing demand still cost three refusal rounds -- an unknown
+  field, the 240-character single-line cap, and the path/credential shape rule -- because
+  each of those lived only in the validator. `RECEIPT_FIELDS`, `RECEIPT_OPTIONAL_FIELDS`
+  and `_SAFE_TEXT_MAX` are now one table read by both the demand and the validator, and
+  both demand branches print the optional-field list, the character budget and the
+  prose-only rule.
+
 - **The reflection receipt demand is self-describing.** A session on 2026-09-05 needed
   four Write+run cycles to clear one checkpoint: the demand said
   `inbox-<session-key>.json` without saying the key is a hash of the session id, and the
