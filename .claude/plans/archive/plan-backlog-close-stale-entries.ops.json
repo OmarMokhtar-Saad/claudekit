@@ -1,0 +1,18 @@
+{
+  "plan": "backlog-close-stale-entries",
+  "files": [
+    {
+      "path": ".ai/BACKLOG.md",
+      "edits": [
+        {
+          "find": "- [ ] **Add `gen-model-policy.py` to `iron-law-gate.py`'s `_CHECK_ONLY_SCRIPTS`** (one line, at\n  `.claude/hooks/iron-law-gate.py:265`). Until then the implementer agent cannot run the new DoD\n  gate \u2014 maintainers and CI can. Deliberately left to the lane that owns `.claude/hooks/**`.",
+          "replace": "- [x] **DONE (verified 2026-09-05) \u2014 `gen-model-policy.py` is in `_CHECK_ONLY_SCRIPTS`**\n  (`.claude/hooks/iron-law-gate.py:269-270`), and the `--check` requirement at :507-511 applies to\n  it like the other three generators. The lane that owns `.claude/hooks/**` landed it; this entry\n  outlived the fix."
+        },
+        {
+          "find": "- [ ] **`ledger_dir()` falls back to a host-shared temp dir** (`.claude/hooks/reflection.py:189-195`).",
+          "replace": "- [x] **DONE (verified 2026-09-05) \u2014 the fallback is no longer host-shared.** `ledger_dir()`\n  (`.claude/hooks/reflection.py:239-259`) narrows the temp fallback to\n  `<tmp>/claudekit-reflection-u<uid>/<project-key>`: the uid segment separates two users on one\n  host, the project segment separates two checkouts, and neither depends on anything\n  per-invocation (a pid- or time-derived path would break every checkpoint, since one hook process\n  writes the ledger and later ones read it). `ledger_dir_trusted()` / `ensure_ledger_dir()` then\n  audit the directory (`_is_private_dir` rejects a symlink outright) and warn rather than trust an\n  unowned root. The original record follows.\n- [ ] ~~**`ledger_dir()` falls back to a host-shared temp dir**~~ (`.claude/hooks/reflection.py:189-195`)."
+        }
+      ]
+    }
+  ]
+}

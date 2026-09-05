@@ -1,0 +1,14 @@
+{
+  "plan": "backlog-close-fleet-sync",
+  "files": [
+    {
+      "path": ".ai/BACKLOG.md",
+      "edits": [
+        {
+          "find": "- [ ] **Fleet-sync the `TOKEN-MODEL-POLICY` v3 block to the 16 kitted projects.** The block now\n  states routing in capability tiers instead of vendor model names (2026-08-21). The marker was\n  bumped v2 \u2192 v3 precisely so the sync is not skipped as \"already present\"; until the sync runs,\n  downstream copies still read vendor names. Owner decides when.",
+          "replace": "- [x] **DONE (verified 2026-09-05) \u2014 the v3 block is live in every kitted project found on\n  this machine.** Checked by extracting the text between the `CLAUDEKIT:TOKEN-MODEL-POLICY v3`\n  markers from each downstream `CLAUDE.md` and comparing its sha256 against upstream: 12 of 12\n  byte-identical (`ai-agent-system`, `ApiForge`, `AppiumLens`, `AutomationApp`, `Eatizaz`, `Lean`,\n  `LeanApis`, `MobileUIAutomator`, `qa-agents`, `qaforge-ai`, `SehhatyApp`, and one worktree), 0\n  different, 0 still on v2. Note the count: the entry says 16 projects, but only 12 checkouts on\n  this machine carry the marker at all \u2014 reconcile that number against the fleet list before\n  trusting \"16\" anywhere else."
+        }
+      ]
+    }
+  ]
+}

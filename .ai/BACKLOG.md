@@ -14,10 +14,14 @@ Priority-ordered. Sources: `review/tasks/` (file-level specs — read them befor
   still tells maintainers to keep set, so the repo gets no dogfood signal yet. Flipping it means
   every prompt edit needs an ops.json — real friction on the highest-churn files, and the velocity
   cost lands on the owner. Pinned dormant by a test, so nothing flips by accident.
-- [ ] **Fleet-sync the `TOKEN-MODEL-POLICY` v3 block to the 16 kitted projects.** The block now
-  states routing in capability tiers instead of vendor model names (2026-08-21). The marker was
-  bumped v2 → v3 precisely so the sync is not skipped as "already present"; until the sync runs,
-  downstream copies still read vendor names. Owner decides when.
+- [x] **DONE (verified 2026-09-05) — the v3 block is live in every kitted project found on
+  this machine.** Checked by extracting the text between the `CLAUDEKIT:TOKEN-MODEL-POLICY v3`
+  markers from each downstream `CLAUDE.md` and comparing its sha256 against upstream: 12 of 12
+  byte-identical (`ai-agent-system`, `ApiForge`, `AppiumLens`, `AutomationApp`, `Eatizaz`, `Lean`,
+  `LeanApis`, `MobileUIAutomator`, `qa-agents`, `qaforge-ai`, `SehhatyApp`, and one worktree), 0
+  different, 0 still on v2. Note the count: the entry says 16 projects, but only 12 checkouts on
+  this machine carry the marker at all — reconcile that number against the fleet list before
+  trusting "16" anywhere else.
 - [ ] **Push `perf/token-efficiency`?** 13 commits. The `TOKEN-MODEL-POLICY` marker went v1 → v2,
   so the per-PR review floor propagates to all 16 fleet-synced projects on their next sync.
 
@@ -65,9 +69,10 @@ enforcement-runtime lane owns. Do not start either before those land.
   own comment names: move content into the agents that consume it, since CLAUDE.md is charged ×4
   (main context + 3 pipeline subagent injections). Candidates: the blast-radius tiering block and
   parts of "How to work" that only the pipeline agents act on.
-- [ ] **Add `gen-model-policy.py` to `iron-law-gate.py`'s `_CHECK_ONLY_SCRIPTS`** (one line, at
-  `.claude/hooks/iron-law-gate.py:265`). Until then the implementer agent cannot run the new DoD
-  gate — maintainers and CI can. Deliberately left to the lane that owns `.claude/hooks/**`.
+- [x] **DONE (verified 2026-09-05) — `gen-model-policy.py` is in `_CHECK_ONLY_SCRIPTS`**
+  (`.claude/hooks/iron-law-gate.py:269-270`), and the `--check` requirement at :507-511 applies to
+  it like the other three generators. The lane that owns `.claude/hooks/**` landed it; this entry
+  outlived the fix.
 
 ## P0.5 — landed 2026-08-19, follow-ups from the reflection/review-discipline batch
 
@@ -84,7 +89,15 @@ defects discovered during execution. See CHANGELOG `[Unreleased]` and the plans 
   new `.claude/hooks/*.py` (`reflection.py`, `reflection-gate.py`) are invisible to the counter.
   The repo ships 21 hooks and documents 19. Fix: extend the glob to `*.py` (preferred), or render
   "19 shell hooks". Must go through the generator — hard rule 8 forbids hand-editing counts.
-- [ ] **`ledger_dir()` falls back to a host-shared temp dir** (`.claude/hooks/reflection.py:189-195`).
+- [x] **DONE (verified 2026-09-05) — the fallback is no longer host-shared.** `ledger_dir()`
+  (`.claude/hooks/reflection.py:239-259`) narrows the temp fallback to
+  `<tmp>/claudekit-reflection-u<uid>/<project-key>`: the uid segment separates two users on one
+  host, the project segment separates two checkouts, and neither depends on anything
+  per-invocation (a pid- or time-derived path would break every checkpoint, since one hook process
+  writes the ledger and later ones read it). `ledger_dir_trusted()` / `ensure_ledger_dir()` then
+  audit the directory (`_is_private_dir` rejects a symlink outright) and warn rather than trust an
+  unowned root. The original record follows.
+- [ ] ~~**`ledger_dir()` falls back to a host-shared temp dir**~~ (`.claude/hooks/reflection.py:189-195`).
   When `CLAUDEKIT_REFLECTION_DIR` is unset or non-absolute it uses `$TMPDIR/claudekit-reflection`,
   shared across every session and every project on the machine. Test-side isolation landed (each test
   gets its own ledger root), but that is containment, not a cure — the product still defaults to a
