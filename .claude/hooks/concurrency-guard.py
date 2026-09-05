@@ -202,6 +202,9 @@ REQUIRED_VALUE_SHORT_OPTS = {
     "stash": "m",
 }
 
+#: `--unified <n>` and `--inter-hunk-context <n>` are the `-p` diff options; git 2.55 (CI's
+#: runners) reports them on add/stage/checkout/commit/reset/restore, the local 2.50 did not.
+#: The completeness oracle found all twelve on CI in one run once it reported the whole list.
 #: Long options whose value is REQUIRED and arrives as the NEXT token, per subcommand.
 #: A separate value read as an OPERAND becomes a scoping pathspec, and the scoped-pathspec
 #: early return then fires before the flag rule is ever reached: `git commit -am wip
@@ -215,18 +218,17 @@ REQUIRED_VALUE_LONG_OPTS = {
     # `--inter-hunk-context <n>` exists on the git that GitHub's runners ship (newer
     # than the 2.50 here); the round-18 completeness oracle found it MISSING on CI.
     # Its separate value would have read as a scoping pathspec -- round 15's shape.
-    "add": frozenset({"--chmod", "--pathspec-from-file", "--inter-hunk-context"}),
-    "stage": frozenset({"--chmod", "--pathspec-from-file", "--inter-hunk-context"}),
+    "add": frozenset({"--chmod", "--pathspec-from-file", "--inter-hunk-context", "--unified", "--inter-hunk-context"}),
+    "stage": frozenset({"--chmod", "--pathspec-from-file", "--inter-hunk-context", "--unified", "--inter-hunk-context"}),
     "commit": frozenset({
         "--message", "--file", "--reuse-message", "--reedit-message", "--template",
         "--author", "--date", "--cleanup", "--trailer", "--squash", "--fixup",
-        "--pathspec-from-file",
-    }),
-    "checkout": frozenset({"--orphan", "--conflict", "--pathspec-from-file"}),
+        "--pathspec-from-file", "--unified", "--inter-hunk-context"}),
+    "checkout": frozenset({"--orphan", "--conflict", "--pathspec-from-file", "--unified", "--inter-hunk-context"}),
     "switch": frozenset({"--orphan", "--conflict", "--create", "--force-create"}),
-    "restore": frozenset({"--source", "--conflict", "--pathspec-from-file"}),
+    "restore": frozenset({"--source", "--conflict", "--pathspec-from-file", "--unified", "--inter-hunk-context"}),
     "clean": frozenset({"--exclude"}),
-    "reset": frozenset({"--pathspec-from-file"}),
+    "reset": frozenset({"--pathspec-from-file", "--unified", "--inter-hunk-context"}),
     "rm": frozenset({"--pathspec-from-file"}),
     "stash": frozenset({"--message", "--pathspec-from-file"}),
     "worktree": frozenset({"--expire", "--reason"}),

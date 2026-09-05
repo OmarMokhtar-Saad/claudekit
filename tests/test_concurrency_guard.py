@@ -142,6 +142,8 @@ BLOCKED = [
     # found by the completeness oracle on CI's newer git: a required-value option
     # absent from the table, whose value would scope the command
     "git add -A --inter-hunk-context 3", "git add --inter-hunk-context 3 .",
+    "git add -A --unified 3", "git commit -a --unified 3 -m x", "git checkout --unified 3 .",
+    "git reset --unified 3", "git restore --inter-hunk-context 3 .",
     # `-S`/`-u` take an OPTIONAL value, so git reads the next token as a PATHSPEC and
     # refuses it alongside `-a`. The hook must not need to know that: `--all` is tested
     # before any pathspec can look scoping.
@@ -1854,6 +1856,16 @@ class TestASeparateOptionValueIsNotAPathspec:
         ("add", "--pathspec-from-file"): ("git add --pathspec-from-file list.txt", 2),
         ("add", "--inter-hunk-context"): ("git add --inter-hunk-context 3 src/a.py", 0),
         ("stage", "--inter-hunk-context"): ("git stage --inter-hunk-context 3 src/a.py", 0),
+        ("add", "--unified"): ("git add --unified 3 src/a.py", 0),
+        ("stage", "--unified"): ("git stage --unified 3 src/a.py", 0),
+        ("checkout", "--unified"): ("git checkout --unified 3 -- src/a.py", 0),
+        ("checkout", "--inter-hunk-context"): ("git checkout --inter-hunk-context 3 -- src/a.py", 0),
+        ("commit", "--unified"): ("git commit --unified 3 -m x src/a.py", 0),
+        ("commit", "--inter-hunk-context"): ("git commit --inter-hunk-context 3 -m x src/a.py", 0),
+        ("reset", "--unified"): ("git reset --unified 3 -- src/a.py", 0),
+        ("reset", "--inter-hunk-context"): ("git reset --inter-hunk-context 3 -- src/a.py", 0),
+        ("restore", "--unified"): ("git restore --unified 3 src/a.py", 0),
+        ("restore", "--inter-hunk-context"): ("git restore --inter-hunk-context 3 src/a.py", 0),
         ("stage", "--chmod"): ("git stage --chmod +x src/a.py", 0),
         ("stage", "--pathspec-from-file"): ("git stage --pathspec-from-file l.txt", 2),
         ("commit", "--message"): ("git commit --message wip src/a.py", 0),
