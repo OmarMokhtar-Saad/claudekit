@@ -94,7 +94,20 @@ DISPOSITIONS = frozenset({
 
 NON_ATTEMPT_REASONS = frozenset({"setup-error", "syntax-error", "capability-probe"})
 
-_SAFE_TEXT = re.compile(r"^[^\r\n\x00]{1,240}$")
+# The receipt's field set and text budget, hoisted so the DEMAND and the VALIDATOR read
+# from one table. Filing a receipt against the 2026-09-05 self-describing demand still
+# cost three refusal rounds -- unknown field, 240-char cap, credential shape -- because
+# each of those rules lived only in the validator. A demand that names the closed field
+# set and the text budget costs one round instead.
+RECEIPT_FIELDS = frozenset({
+    "schemaVersion", "taskId", "trigger", "failureFingerprints", "failedAssumption",
+    "approachesCompared", "chosenExperiment", "changedApproach", "proofCommandOrCheck",
+    "proofOutcome", "durableDisposition", "issue",
+})
+RECEIPT_OPTIONAL_FIELDS = frozenset({"changedApproach", "issue"})
+
+_SAFE_TEXT_MAX = 240
+_SAFE_TEXT = re.compile(r"^[^\r\n\x00]{1,%d}$" % _SAFE_TEXT_MAX)
 # Absolute POSIX/UNC/Windows paths and home-shaped prefixes.
 _ABSOLUTE_PATH = re.compile(
     r"(?i)(?:[a-z]:[\\/]|\\\\[^\\/\s]+[\\/][^\\/\s]+|(?:^|\s)/(?!/)|~/|"
@@ -570,7 +583,8 @@ def _safe_text(name: str, value: Any, required: bool = True) -> str:
     if not rendered and not required:
         return ""
     if not _SAFE_TEXT.match(rendered):
-        raise ValueError("%s must be 1-240 characters on a single line" % name)
+        raise ValueError("%s must be 1-%d characters on a single line"
+                         % (name, _SAFE_TEXT_MAX))
     if (_ABSOLUTE_PATH.search(rendered) or _SECRET.search(rendered)
             or looks_like_credential(rendered)):
         raise ValueError("%s contains path-shaped or credential-shaped text" % name)
@@ -997,12 +1011,7 @@ def learning_loop_pending(session_id: str) -> bool:
 
 
 def _validate_receipt_shape(receipt: Dict[str, Any]) -> None:
-    allowed = {
-        "schemaVersion", "taskId", "trigger", "failureFingerprints", "failedAssumption",
-        "approachesCompared", "chosenExperiment", "changedApproach", "proofCommandOrCheck",
-        "proofOutcome", "durableDisposition", "issue",
-    }
-    unknown = set(receipt) - allowed
+    unknown = set(receipt) - RECEIPT_FIELDS
     if unknown:
         raise ValueError("receipt contains unknown fields: " + ", ".join(sorted(unknown)))
     if receipt.get("schemaVersion") != SCHEMA_VERSION:
@@ -1100,6 +1109,14 @@ def duty_summary(session_id: str) -> Tuple[List[str], Dict[str, Any]]:
     return duties, {"checkpoint": checkpoint}
 
 
+_TEXT_RULES = (
+    "Every text field is ONE line of at most %d characters of plain prose: absolute\n"
+    "paths, hex digests and long underscore-free identifiers are refused as path- or\n"
+    "credential-shaped, so describe them in words instead of pasting them.\n"
+    % _SAFE_TEXT_MAX
+)
+
+
 def receipt_instructions(session_id: Optional[str] = None) -> str:
     """The demand, SELF-DESCRIBING when the session is known.
 
@@ -1137,6 +1154,9 @@ def receipt_instructions(session_id: Optional[str] = None) -> str:
             + "  durableDisposition: one of %s\n" % ", ".join(sorted(DISPOSITIONS))
             + "  plus taskId, failedAssumption, approachesCompared (>=2), "
               "chosenExperiment, proofCommandOrCheck, proofOutcome.\n"
+            + "  optional: %s. Any OTHER field is refused.\n"
+              % ", ".join(sorted(RECEIPT_OPTIONAL_FIELDS))
+            + _TEXT_RULES
             + "If a /goal is set and the remaining step is human-only, run /goal clear: "
               "the goal loop cannot be satisfied by waiting."
         )
@@ -1150,7 +1170,10 @@ def receipt_instructions(session_id: Optional[str] = None) -> str:
         "Required receipt fields: schemaVersion, taskId, trigger, failureFingerprints, "
         "failedAssumption, approachesCompared (>=2), chosenExperiment, "
         "proofCommandOrCheck, proofOutcome, durableDisposition. "
-        "'nothing-durable' is a valid durableDisposition."
+        "'nothing-durable' is a valid durableDisposition. "
+        "Optional: " + ", ".join(sorted(RECEIPT_OPTIONAL_FIELDS))
+        + ". Any OTHER field is refused.\n"
+        + _TEXT_RULES.rstrip("\n")
     )
 
 
