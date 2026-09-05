@@ -3,11 +3,19 @@
 # tests/requirements.txt is the resolved, hash-pinned lock generated from this
 # file; CI installs it with --require-hashes. See that file's header for the
 # regeneration procedure.
-pytest>=7.0
-jsonschema>=4.0
+# UPPER BOUNDS ARE THE PYTHON 3.9 FLOOR, NOT A VERSION PREFERENCE. pyproject declares
+# `requires-python = ">=3.9"` and the CI matrix runs a 3.9 leg, but pytest 9, jsonschema
+# 4.26 and setuptools 84 all declare `requires_python >= 3.10`. Without these caps the
+# resolver still does the right thing on 3.9 -- and Dependabot, which reads this file
+# with no interpreter in hand, does not: it opened six PRs (#6, #12, #15, #17, #18, #19)
+# raising these floors past the 3.9 wall, each of which would have broken that leg.
+# Verified 2026-09-05 by resolving this file on python3.9 and by reading requires_python
+# from PyPI. Lift each cap in the same change that drops 3.9, not before.
+pytest>=7.0,<9
+jsonschema>=4.0,<4.26
 # Python 3.12+ venvs no longer bundle setuptools; test_packaging execs setup.py
 # (the wheel-bundling shim), which imports it.
-setuptools>=64
+setuptools>=64,<84
 # Coverage gate in CI (security modules must stay >= 85%). Kept here rather than
 # on the CI command line: hash-checking mode rejects unhashed requirements.
 pytest-cov>=4.0

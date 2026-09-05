@@ -1,0 +1,14 @@
+{
+  "plan": "deps-python39-caps",
+  "files": [
+    {
+      "path": "tests/requirements.in",
+      "edits": [
+        {
+          "find": "pytest>=7.0\njsonschema>=4.0\n# Python 3.12+ venvs no longer bundle setuptools; test_packaging execs setup.py\n# (the wheel-bundling shim), which imports it.\nsetuptools>=64\n",
+          "replace": "# UPPER BOUNDS ARE THE PYTHON 3.9 FLOOR, NOT A VERSION PREFERENCE. pyproject declares\n# `requires-python = \">=3.9\"` and the CI matrix runs a 3.9 leg, but pytest 9, jsonschema\n# 4.26 and setuptools 84 all declare `requires_python >= 3.10`. Without these caps the\n# resolver still does the right thing on 3.9 -- and Dependabot, which reads this file\n# with no interpreter in hand, does not: it opened six PRs (#6, #12, #15, #17, #18, #19)\n# raising these floors past the 3.9 wall, each of which would have broken that leg.\n# Verified 2026-09-05 by resolving this file on python3.9 and by reading requires_python\n# from PyPI. Lift each cap in the same change that drops 3.9, not before.\npytest>=7.0,<9\njsonschema>=4.0,<4.26\n# Python 3.12+ venvs no longer bundle setuptools; test_packaging execs setup.py\n# (the wheel-bundling shim), which imports it.\nsetuptools>=64,<84\n"
+        }
+      ]
+    }
+  ]
+}
