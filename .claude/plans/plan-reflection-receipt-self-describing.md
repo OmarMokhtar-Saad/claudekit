@@ -25,5 +25,9 @@ part is not ours to fix, but the Stop demand can say what to do about it.
    fingerprints expected vs supplied, disposition enum).
 3. `reflection-gate.py` passes the session id at all three call sites; the Stop demand adds
    one line: if a `/goal` is set and the remaining step is human-only, `/goal clear`.
-4. Tests: the Stop demand contains the exact filename, trigger and fingerprints; each
+4. Tests: `tests/test_reflection_gate.py` asserts the Stop demand contains the exact
+   filename, trigger and fingerprints; `tests/test_reflection_ledger.py` asserts each
    validator refusal names the expected value. Mutation proof recorded in the archive row.
+5. `CHANGELOG.md`: an `[Unreleased]` entry for the user-visible change (the demand text
+   every blocked session reads is user-visible), and `.claude/plans/INDEX.md` +
+   `.claude/plans/archive/README.md` for the plan lifecycle.

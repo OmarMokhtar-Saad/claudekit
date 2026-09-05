@@ -1,0 +1,23 @@
+{
+  "plan": "plan-names-its-artifacts",
+  "files": [
+    {
+      "path": ".claude/plans/plan-reflection-receipt-self-describing.md",
+      "edits": [
+        {
+          "find": "4. Tests: the Stop demand contains the exact filename, trigger and fingerprints; each\n   validator refusal names the expected value. Mutation proof recorded in the archive row.",
+          "replace": "4. Tests: the Stop demand contains the exact filename, trigger and fingerprints; each\n   validator refusal names the expected value. Mutation proof recorded in the archive row.\n5. `CHANGELOG.md`: an `[Unreleased]` entry for the user-visible change (the demand text\n   every blocked session reads is user-visible), and `.claude/plans/INDEX.md` +\n   `.claude/plans/archive/README.md` for the plan lifecycle."
+        }
+      ]
+    },
+    {
+      "path": "CLAUDE.md",
+      "edits": [
+        {
+          "find": "python3 scripts/check-context-floor.py --check # always-on context budget",
+          "replace": "python3 scripts/check-context-floor.py --check # always-on context budget\npython3 scripts/check-plan-artifacts.py --check # every path an ops config writes is named in its plan"
+        }
+      ]
+    }
+  ]
+}

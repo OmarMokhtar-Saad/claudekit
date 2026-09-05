@@ -1,0 +1,14 @@
+{
+  "plan": "plan-names-its-artifacts-tests",
+  "files": [
+    {
+      "path": ".claude/plans/plan-reflection-receipt-self-describing.md",
+      "edits": [
+        {
+          "find": "4. Tests: the Stop demand contains the exact filename, trigger and fingerprints; each\n   validator refusal names the expected value.",
+          "replace": "4. Tests: `tests/test_reflection_gate.py` asserts the Stop demand contains the exact\n   filename, trigger and fingerprints; `tests/test_reflection_ledger.py` asserts each\n   validator refusal names the expected value."
+        }
+      ]
+    }
+  ]
+}
