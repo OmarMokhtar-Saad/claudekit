@@ -353,6 +353,11 @@ BLOCKED = [
     # round 27: bare `$name` was the one expansion spelling not made opaque; an unset
     # name expands to NOTHING, so `git stash push $x` degraded to a bare stash
     "git add $x -A", "git stash push $x", "git add $DIR -A", "git commit -m $x -a",
+    # round 28: POSITIONAL and SPECIAL parameters were outside the `$name` character
+    # class and expand to zero words when unset -- `"$@"` is the commonest wrapper
+    # idiom there is. Verified: both sessions' files staged / both edits stashed.
+    'git add $1 -A', 'git add $@ -A', 'git add "$@" -A', 'git add $! -A',
+    'git stash push $1', 'git stash push "$@"', 'git commit -m $1 -a',
     "git rm -r \\> .", "git add \\| .",
     # round 22: a shell wrapper reads STDIN as a SCRIPT, and `preprocess` strips
     # heredoc bodies as data -- so the script vanished. Verified: the `sh` form
@@ -1525,6 +1530,7 @@ class TestNoConstructSwallowsTheFlagBehindIt:
         # structurally invisible to it -- and 78 rows of its own tails leaked. Every
         # construct below reached the whole tree at rc 0 before round 25.
         '$(date)', '$(cat VERSION)', '$((1))', '$((1<<2))', '${x:-a;b}', '${x:-plain}',
+        '$1', '"$@"', '$@', '$!', '$x',    # round 28: zero-word expansions, so the oracle sees them
         '")"', '"("', '"}"', '"{"', '\\)', '\\}', '}',
         # round 25: the opener, unquoted, was the gap. NOT `{ }` -- that is TWO words,
         # and `git stash push -m { }` is genuinely scoped to a file named `}`, so it
@@ -2568,6 +2574,10 @@ class TestTheMutationRecordIsExecutable:
         ("a-brace-expansion-is-an-opaque-word",
          "        if not quote and command.startswith(\"{\", i) and at_token_boundary_or_word():", "        if False:",
          "git add {,} -A", 2),
+        ("a-positional-or-special-parameter-is-an-opaque-word-too",
+         '                command[i + 1] in "_@*#?!-" or command[i + 1].isalnum()):',
+         '                command[i + 1] == "_" or command[i + 1].isalpha()):',
+         'git add "$@" -A', 2),
         ("a-bare-parameter-expansion-is-an-opaque-word",
          "        if quote != \"'\" and command.startswith(\"$\", i) and i + 1 < n and (command[i + 1] == \"_\" or command[i + 1].isalpha()):", "        if False:",
          "git add $x -A", 2),

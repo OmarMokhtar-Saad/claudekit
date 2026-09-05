@@ -484,15 +484,27 @@ def preprocess(command: str) -> Tuple[str, bool]:
             i = j + 1
             continue
 
-        if quote != "'" and command.startswith("$", i) and i + 1 < n and (command[i + 1] == "_" or command[i + 1].isalpha()):
+        if quote != "'" and command.startswith("$", i) and i + 1 < n and (
+                command[i + 1] in "_@*#?!-" or command[i + 1].isalnum()):
+            # POSITIONAL and SPECIAL parameters too (`$1`, `$@`, `"$@"`, `$!`), not only
+            # `[A-Za-z_]` names: unquoted and unset they expand to ZERO words -- the
+            # identical mechanism as `{,}` and `$x` -- so `git add "$@" -A` handed git
+            # `add -A` and staged both sessions' files, and `git stash push $1` stashed
+            # both sessions' in-flight edits, rc 0 (round 28, verified). `"$@"` is the
+            # commonest idiom in any wrapper script. `(` stays out of the class: the
+            # `$(` branch below handles it. Round 28's measurement: the bash oracle's
+            # converse direction DOES detect this shape -- no corpus row spelled it.
             # A bare `$name` is the one expansion spelling that was not opaque, and
             # an UNSET name expands to nothing: `git add $x -A` staged both sessions'
             # files and `git stash push $x` degraded to a bare `stash push`, rc 0
             # (round 27, verified). `${x}` already failed closed one spelling over
             # for the identical reason, so this is its sibling.
             j = i + 1
-            while j < n and (command[j] == "_" or command[j].isalnum()):
-                j += 1
+            if command[j] == "_" or command[j].isalpha():
+                while j < n and (command[j] == "_" or command[j].isalnum()):
+                    j += 1
+            else:
+                j += 1                     # a positional or special parameter is ONE char
             out.append('"' + QUOTED_WORD_SENTINEL + '"')
             i = j
             continue

@@ -1,0 +1,44 @@
+{
+  "plan": "concurrency-guard-round29-binding-and-docs",
+  "files": [
+    {
+      "path": "tests/test_concurrency_guard.py",
+      "edits": [
+        {
+          "find": "    \"git add $x -A\", \"git stash push $x\", \"git add $DIR -A\", \"git commit -m $x -a\",",
+          "replace": "    \"git add $x -A\", \"git stash push $x\", \"git add $DIR -A\", \"git commit -m $x -a\",\n    # round 28: POSITIONAL and SPECIAL parameters were outside the `$name` character\n    # class and expand to zero words when unset -- `\"$@\"` is the commonest wrapper\n    # idiom there is. Verified: both sessions' files staged / both edits stashed.\n    'git add $1 -A', 'git add $@ -A', 'git add \"$@\" -A', 'git add $! -A',\n    'git stash push $1', 'git stash push \"$@\"', 'git commit -m $1 -a',"
+        },
+        {
+          "find": "        '$(date)', '$(cat VERSION)', '$((1))', '$((1<<2))', '${x:-a;b}', '${x:-plain}',",
+          "replace": "        '$(date)', '$(cat VERSION)', '$((1))', '$((1<<2))', '${x:-a;b}', '${x:-plain}',\n        '$1', '\"$@\"', '$@', '$!', '$x',    # round 28: zero-word expansions, so the oracle sees them"
+        },
+        {
+          "find": "        (\"a-bare-parameter-expansion-is-an-opaque-word\",",
+          "replace": "        (\"a-positional-or-special-parameter-is-an-opaque-word-too\",\n         '                command[i + 1] in \"_@*#?!-\" or command[i + 1].isalnum()):',\n         '                command[i + 1] == \"_\" or command[i + 1].isalpha()):',\n         'git add \"$@\" -A', 2),\n        (\"a-bare-parameter-expansion-is-an-opaque-word\","
+        }
+      ]
+    },
+    {
+      "path": ".ai/CONCURRENCY.md",
+      "edits": [
+        {
+          "find": "`${...}`, bare `$name`, a brace expansion `{a,b}`/`{a..b}`, `<(...)`/`>(...)` and the bare",
+          "replace": "`${...}`, bare `$name` and the positional/special parameters `$1`\u2026`$9`, `$@`, `$*`, `$#`, `$?`,\n`$!`, `$-` (round 28 \u2014 they were outside the `$name` character class and expand to zero\nwords when unset; `git add \"$@\" -A` staged both sessions' files), a brace expansion\n`{a,b}`/`{a..b}`, `<(...)`/`>(...)` and the bare"
+        },
+        {
+          "find": "Round 27 built the bash oracle instead of running another review round, and the shipped\nhook passes it.",
+          "replace": "Round 27 built the bash oracle instead of running another review round, and the shipped\nhook passes it. Round 28 was run once, as a MEASUREMENT: it found `$1`/`\"$@\"` outside the\n`$name` class (fixed), and established the oracle's real limit \u2014 its converse direction\ndetects that exact shape, but the oracle is CORPUS-BOUND and no row spelled it. The\nmeasured coverage: 1053 rows, 68.7% return at the verdict gate, 286 compare. So the\noracle changes what a leak needs in order to survive \u2014 it must now be a spelling absent\nfrom BLOCKED, ALLOWED and the construct matrix \u2014 and the round-28 constructs were added\nso that this class is in the corpus from now on."
+        }
+      ]
+    },
+    {
+      "path": "CHANGELOG.md",
+      "edits": [
+        {
+          "find": "  operand the hook believes in must be a word bash actually handed git.",
+          "replace": "  operand the hook believes in must be a word bash actually handed git.\n  A single MEASUREMENT round (28) then found positional and special parameters\n  (`$1`, `\"$@\"`, `$!`) outside the `$name` opacity class -- unset, they expand to zero\n  words, so `git add \"$@\" -A` staged both sessions' files -- and showed the oracle's\n  converse direction detects exactly that shape while no corpus row spelled it. Fixed,\n  and the spellings are in the corpus now."
+        }
+      ]
+    }
+  ]
+}

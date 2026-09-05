@@ -317,7 +317,10 @@ half, and it stays an enumeration deliberately: making an unknown leading word
 fail closed would deny `echo git add -A`, an ordinary line that mutates nothing.
 
 **Every EXPANSION is one opaque WORD, in every quote state — `$(...)`, `$((...))`,
-`${...}`, bare `$name`, a brace expansion `{a,b}`/`{a..b}`, `<(...)`/`>(...)` and the bare
+`${...}`, bare `$name` and the positional/special parameters `$1`…`$9`, `$@`, `$*`, `$#`, `$?`,
+`$!`, `$-` (round 28 — they were outside the `$name` character class and expand to zero
+words when unset; `git add "$@" -A` staged both sessions' files), a brace expansion
+`{a,b}`/`{a..b}`, `<(...)`/`>(...)` and the bare
 arithmetic command `((...))` are each read to
 their matching closer and replaced by a placeholder, with a command body lifted out and
 analysed as its own script.** Round 24 found that round 23's extraction was gated on
@@ -811,7 +814,13 @@ Round 26 returned two more BLOCKING, both outside what round 26's own fixes touc
 each one an existing rule with a position or value gate that bash does not have; the
 parity test written to close the wrapper class had itself enumerated only bare wrappers.
 Round 27 built the bash oracle instead of running another review round, and the shipped
-hook passes it.
+hook passes it. Round 28 was run once, as a MEASUREMENT: it found `$1`/`"$@"` outside the
+`$name` class (fixed), and established the oracle's real limit — its converse direction
+detects that exact shape, but the oracle is CORPUS-BOUND and no row spelled it. The
+measured coverage: 1053 rows, 68.7% return at the verdict gate, 286 compare. So the
+oracle changes what a leak needs in order to survive — it must now be a spelling absent
+from BLOCKED, ALLOWED and the construct matrix — and the round-28 constructs were added
+so that this class is in the corpus from now on.
 So the honest status is: **twenty-six review rounds, two approvals (8 and 12), and every
 single round has found something** — and rounds 17 through 25 each found a leak inside the fix
 that preceded them. Nine consecutive rounds. The suite grew from 1122 cases to well over two thousand across those rounds
