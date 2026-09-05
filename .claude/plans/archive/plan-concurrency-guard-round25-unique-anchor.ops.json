@@ -1,0 +1,14 @@
+{
+  "plan": "concurrency-guard-round25-unique-anchor",
+  "files": [
+    {
+      "path": "tests/test_concurrency_guard.py",
+      "edits": [
+        {
+          "find": "        (\"a-quoted-substitution-body-is-extracted\",\n         \"            extra_scripts.append(command[i + 2:j])\", \"            pass\",",
+          "replace": "        (\"a-quoted-substitution-body-is-extracted\",\n         # the process-substitution branch shares this line verbatim, so the anchor\n         # carries the placeholder comment that only the `$(` branch has\n         \"            extra_scripts.append(command[i + 2:j])\\n\"\n         \"            # A PLACEHOLDER word takes the expansion's place\",\n         \"            pass\\n\"\n         \"            # A PLACEHOLDER word takes the expansion's place\","
+        }
+      ]
+    }
+  ]
+}

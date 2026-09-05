@@ -1,0 +1,22 @@
+{
+  "plan": "concurrency-guard-round27-fixes",
+  "files": [
+    {
+      "path": ".claude/hooks/concurrency-guard.py",
+      "edits": [
+        {
+          "find": "        if not quote and command[i:i + 2] in (\"<(\", \">(\") and at_token_boundary():",
+          "replace": "        if not quote and command[i:i + 2] in (\"<(\", \">(\"):\n            # In ANY position within a word, not only at a token boundary: bash\n            # performs process substitution mid-word (`echo x<(echo y)` prints\n            # `x/dev/fd/63`). Gated on the boundary, a GLUED `<(` went out verbatim,\n            # `classify_operator` read it as a separator, and the flag behind it was\n            # dropped -- `git commit -m x<(echo y) -a` committed both sessions' files\n            # and `git clean -e p<(echo y) -fd` deleted both sessions' untracked work,\n            # rc 0 (round 26, verified against bash + git)."
+        },
+        {
+          "find": "            has_script = not reads_stdin and any(\n                tok == \"-c\" or (tok.startswith(\"-\") and not tok.startswith(\"--\")\n                                and \"c\" in tok[1:])\n                or not tok.startswith(\"-\")\n                for tok in segment[1:])",
+          "replace": "            # A bare word is a script FILE only if it is not the VALUE of the\n            # wrapper's own option: `bash -O extglob <<EOF \u2026 EOF` read `extglob` as a\n            # script, skipped the fail-closed raise, and never analysed the stdin\n            # script -- it staged both sessions' files, and the `<<< \"git checkout\n            # -f\"` spelling destroyed both sessions' in-flight edits, rc 0 (round 26,\n            # verified). The parity test written to close this class enumerated only\n            # BARE wrappers, which is why 2521 tests saw nothing.\n            words = segment[1:]\n            operands = [\n                tok for idx, tok in enumerate(words)\n                if not tok.startswith(\"-\")\n                and not (idx and words[idx - 1] in WRAPPER_VALUE_OPTS)\n            ]\n            has_script = not reads_stdin and (\n                any(tok == \"-c\" or (tok.startswith(\"-\") and not tok.startswith(\"--\")\n                                    and \"c\" in tok[1:]) for tok in words)\n                or bool(operands))"
+        },
+        {
+          "find": "#: Commands whose ARGUMENT is a shell script to be analysed recursively.\nSCRIPT_WRAPPERS = frozenset({\"bash\", \"sh\", \"zsh\", \"dash\", \"eval\"})",
+          "replace": "#: Commands whose ARGUMENT is a shell script to be analysed recursively.\nSCRIPT_WRAPPERS = frozenset({\"bash\", \"sh\", \"zsh\", \"dash\", \"eval\"})\n\n#: Shell-wrapper options that take a SEPARATE value, so the word after them is not a\n#: script file (`bash -O extglob`, `bash --rcfile f`). Round 26.\nWRAPPER_VALUE_OPTS = frozenset({\"-O\", \"+O\", \"-o\", \"+o\", \"--rcfile\", \"--init-file\"})"
+        }
+      ]
+    }
+  ]
+}

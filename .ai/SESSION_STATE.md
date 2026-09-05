@@ -2,6 +2,37 @@
 
 > Update this file at the end of every significant AI working session. It is the resume point.
 
+**Last updated:** 2026-09-05 · **By:** Claude (Opus 5) — **concurrency-guard adversarial
+loop, rounds 15–26, on `feat/concurrency-guard`.** Twelve fresh `code-reviewer` rounds this
+session, every one REJECTED with ≥1 BLOCKING; rounds 17–26 each found their leak INSIDE the
+previous round's fix. ~30 BLOCKING leaks fixed, each verified against real git/bash before
+touching code, each bound by BLOCKED/ALLOWED probes and a `MUTANTS` entry verified to flip.
+Suite 1122 → 2565; full suite 9677 passed. Hook sha `2c9f06fb`. **The loop did not converge
+and round 27 was deliberately NOT run** — see `.ai/CONCURRENCY.md` "Record-only mode" for
+the honest count and the three options (advisory forever / build the bash round-trip
+invariant / replace the tokeniser). **Open decision for the owner:** which of the three.
+Fleet stays `tier: advisory`.
+
+**Start here if you are picking this up.** Three things you must know:
+
+1. **Round 18's own test destroyed uncommitted work in this tree, repeatedly.** It probed
+   `git <sub> <opt>` arity with `cwd=REPO`; optional-value options RAN (`checkout --force`,
+   `clean --force`, `commit --amend`, `stash`). It reverted tracked files, deleted untracked
+   ones (the archived ops configs for rounds 1–14 are gone for good), detached HEAD and
+   stacked stashes — three times before it was diagnosed, and it was first misdiagnosed as
+   a concurrent session. Fixed (probes run in `tmp_path`); memory
+   `arity-probes-need-a-scratch-repo` records it. Never run a CLI-probing test in the repo.
+2. **The recurring class is "a shell construct makes a later token vanish while
+   `confident` stays True"** — eleven instances. `TestNoConstructSwallowsTheFlagBehindIt`
+   is a metamorphic ratchet against it and caught two leaks before a reviewer did, but it is
+   ENUMERATIVE; the bash round-trip invariant two reviewers asked for is NOT built. That is
+   the highest-value thing left, and the doc says so plainly.
+3. **Probe every fix; do not read it.** Five consecutive rounds, probing the fresh fix found
+   the next leak before the reviewer did, and three fixes this session were wrong on first
+   execution in ways the diff did not show.
+
+---
+
 **Last updated:** 2026-09-01 · **By:** Claude (Opus 5) — **graph `verify`/`render`/`diff`/
 `impact` shipped on `feat/graph-render-diff`.** `project-graph.py` 573 -> 1312 lines. The
 IR and its validator already existed; what was missing was checking the agent's claims

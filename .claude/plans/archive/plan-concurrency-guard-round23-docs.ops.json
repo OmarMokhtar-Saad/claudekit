@@ -1,0 +1,39 @@
+{
+  "plan": "concurrency-guard-round23-docs",
+  "files": [
+    {
+      "path": ".ai/CONCURRENCY.md",
+      "edits": [
+        {
+          "find": "| `-c alias.<x>=...`, `-c include.path=<file>`,",
+          "replace": "| `-c help.autocorrect=<x>` \u2014 it decides WHICH SUBCOMMAND runs, so the text says one thing and git does another: `git -c help.autocorrect=immediate addd -A` really executed `add -A` and staged both sessions' files, and `cleann -fd` deleted both sessions' untracked files, rc 0 (round 23, verified) | run the command without the config override |\n| `-c alias.<x>=...`, `-c include.path=<file>`,"
+        },
+        {
+          "find": "Multi-line commands ARE analysed. One quote-aware pass (`preprocess`) turns",
+          "replace": "**A double-quoted `$(...)` is EXTRACTED and analysed as its own script, never spliced\ninto the outer text.** Round 20 bracketed it with `;` in place, which split the git\ninvocation itself: every token AFTER the substitution landed in a segment whose command\nword was not `git`, so the flag behind it was silently dropped \u2014\n`git commit -m \"release $(cat VERSION)\" -a` committed BOTH sessions' files and\n`git clean -e \"$(cat p)\" -fd` deleted both sessions' untracked files, rc 0 (round 23,\nverified against git). Every existing test missed it because they all put the\nsubstitution last or alone. Bodies are re-read through `preprocess` recursively, so a\nsubstitution nested inside another one is seen; an unbalanced one fails closed.\n\nAn ESCAPED operator inside double quotes needs no surgery at all \u2014 shlex already keeps\nit literal \u2014 and round 22's `\"\u2026\"` wrapper, emitted there, CLOSED the live quote and\nsevered the line the same way: `git commit -m \"wip\\;x\" -a` committed both sessions'\nfiles, as did the attribution spelling this project mandates,\n`git commit --author \"Claude\\;X <\u2026>\" -a`.\n\nAn EMPTY argument is an ARGUMENT. `all()` over an empty string is True, so an empty\ntoken was swallowed by the grouping branch and STARTED A NEW SEGMENT, dropping every\nflag behind it \u2014 latent until extraction started leaving `\"\"` behind. It is kept rather\nthan skipped, because git reads `-m \"\"` as an option with an empty value, so the flag\nbehind it really is a flag: skipping it instead let `-m` swallow the `-a`, which was the\nsame fail-open one step further along.\n\nMulti-line commands ARE analysed. One quote-aware pass (`preprocess`) turns"
+        },
+        {
+          "find": "* a `-p` after a PIPELINE is over-blocked:",
+          "replace": "* `git add \"\" <path>` is over-blocked \u2014 an empty pathspec is kept as an argument, and\n  git refuses it anyway (`fatal: empty string is not a valid pathspec`), so nothing that\n  works is denied\n* `help.autocorrect` set in the user's own `~/.gitconfig` rather than on the command\n  line is outside the text the hook reads and cannot be seen. Only the `-c` spelling is\n  covered \u2014 the same limit as every other config residual\n* a `-p` after a PIPELINE is over-blocked:"
+        },
+        {
+          "find": "So the honest status is: **twenty-two rounds, two approvals (8 and 12), and every single\nround has found something**",
+          "replace": "Round 23 found three more BLOCKING, two of them inside rounds 20 and 22's own fixes, and\nall three in the same layer: a pre-tokenisation transform that silently deletes part of\na command. That class now has instances in rounds 1, 2, 3, 6, 20, 21, 22 and 23 \u2014 and\nthe round-23 reviewer proposed the check it has earned, which is not another case list\nbut a ROUND-TRIP INVARIANT: for a corpus of command texts, the word tokens `preprocess`\nyields must be a superset of the words bash itself would produce. Both round-23 leaks\ndropped a word (`-a`) while `confident` stayed True, and either would have failed such a\ncheck without anyone enumerating `\\;` or `$(date)`. **That invariant is not implemented\nyet, and it is the single highest-value thing left to do to this hook.**\nSo the honest status is: **twenty-three rounds, two approvals (8 and 12), and every\nsingle round has found something**"
+        },
+        {
+          "find": "round has found something** \u2014 and rounds 17, 19, 20, 21 and 22 each found a leak inside\nthe fix that preceded them. Five of the last six rounds. The suite grew from 1122 cases\nto 1803 across those rounds, and it never once predicted the next leak: every one was\nfound by a fresh adversarial reader executing spellings nobody had enumerated. That is\nthe number to weigh before promoting the fleet.",
+          "replace": "round has found something** \u2014 and rounds 17 through 23 each found a leak inside the fix\nthat preceded them. Six of the last seven rounds. The suite grew from 1122 cases to 1860\nacross those rounds, and it never once predicted the next leak: every one was found by a\nfresh adversarial reader executing spellings nobody had enumerated. Three separate\nfixes this session also failed on their first attempt and were caught only by re-running\nthe probe rather than by reading the diff. That is the number to weigh before promoting\nthe fleet."
+        }
+      ]
+    },
+    {
+      "path": "CHANGELOG.md",
+      "edits": [
+        {
+          "find": "  rather than leaving a verdict-neutral line reading as load-bearing.",
+          "replace": "  rather than leaving a verdict-neutral line reading as load-bearing.\n  A TWENTY-THIRD round found three more BLOCKING, two inside rounds 20 and 22's own\n  fixes, all three in the pre-tokenisation layer. (1) Round 22's escaped-operator fix\n  emitted a closing `\"` while already INSIDE double quotes, severing the command line so\n  that every token after it was dropped: `git commit -m \"wip\\;x\" -a` committed BOTH\n  sessions' files, `git clean -e \"a\\;b\" -fd` deleted both sessions' untracked files, and\n  so did the attribution spelling this project mandates on every AI commit. Inside\n  quotes shlex already keeps the character literal, so no surgery is needed there.\n  (2) Round 20's double-quoted `$(...)` lift spliced `;` into the OUTER command, so\n  `git commit -m \"release $(cat VERSION)\" -a` lost its `-a` and committed both sessions'\n  files; substitution bodies are now EXTRACTED and re-read recursively instead, leaving\n  the outer token stream untouched. (3) `help.autocorrect` is a `-c` key that decides\n  which subcommand git runs -- `git -c help.autocorrect=immediate addd -A` really\n  executed `add -A`. Also fixed: an EMPTY argument was swallowed by the grouping branch\n  and started a new segment (dropping the flag behind it), and the round-22 wrapper\n  denial was gated on the text-wide stdin bit, which refused every ordinary piped-into\n  wrapper -- it now fires only when the wrapper has no script to read at all."
+        }
+      ]
+    }
+  ]
+}

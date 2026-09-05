@@ -1,0 +1,14 @@
+{
+  "plan": "concurrency-guard-round25-bare-brace-argument-2",
+  "files": [
+    {
+      "path": ".claude/hooks/concurrency-guard.py",
+      "edits": [
+        {
+          "find": "            # be a closer, and process substitution (`<(cmd)`) opens without pushing.\n            core = raw\n        if core != raw:",
+          "replace": "            # be a closer, and process substitution (`<(cmd)`) opens without pushing.\n            # Appended HERE, because the grouping branch further down would otherwise\n            # catch the same `}` a second time (`all()` over `}` is True) and start the\n            # segment anyway -- the first version of this fix stopped one trap short.\n            segments[-1].append(raw)\n            continue\n        if core != raw:"
+        }
+      ]
+    }
+  ]
+}

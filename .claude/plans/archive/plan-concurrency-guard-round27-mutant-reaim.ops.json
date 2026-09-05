@@ -1,0 +1,26 @@
+{
+  "plan": "concurrency-guard-round27-mutant-reaim",
+  "files": [
+    {
+      "path": "tests/test_concurrency_guard.py",
+      "edits": [
+        {
+          "find": "        (\"process-substitution-is-an-opaque-word-with-a-lifted-body\",\n         '        if not quote and command[i:i + 2] in (\"<(\", \">(\") and at_token_boundary():',\n         \"        if False:\",\n         # round 25: `<(` used to be classified as a SEPARATOR, which put the tokens\n         # after the closing paren in a new segment and dropped the flag behind it\n         \"git commit -m <(echo x) -a\", 2),\n",
+          "replace": ""
+        },
+        {
+          "find": "         '        if not quote and command[i:i + 2] in (\"<(\", \">(\"):',\n         '        if not quote and command[i:i + 2] in (\"<(\", \">(\") and at_token_boundary():',\n         \"git commit -m x<(echo y) -a\", 2),",
+          "replace": "         '        if not quote and command[i:i + 2] in (\"<(\", \">(\"):',\n         '        if not quote and command[i:i + 2] in (\"<(\", \">(\") and at_token_boundary():',\n         # this entry subsumes the round-25 one (deleted): the boundary-gated form\n         # still lifts a standalone `<(`, so only the GLUED probe isolates the line\n         \"git commit -m x<(echo y) -a\", 2),"
+        },
+        {
+          "find": "         \"            has_script = not reads_stdin and any(\",\n         \"            has_script = any(\",",
+          "replace": "         \"            has_script = not reads_stdin and (\",\n         \"            has_script = (\","
+        },
+        {
+          "find": "         '                or not tok.startswith(\"-\")', \"                or False\",\n         \"git status; echo x | bash build.sh\", 0),",
+          "replace": "         \"                or bool(operands))\", \"                or False)\",\n         \"git status; echo x | bash build.sh\", 0),"
+        }
+      ]
+    }
+  ]
+}

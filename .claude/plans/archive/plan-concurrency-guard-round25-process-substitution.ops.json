@@ -1,0 +1,14 @@
+{
+  "plan": "concurrency-guard-round25-process-substitution",
+  "files": [
+    {
+      "path": ".claude/hooks/concurrency-guard.py",
+      "edits": [
+        {
+          "find": "        if quote != \"'\" and command.startswith(\"${\", i):",
+          "replace": "        if not quote and command[i:i + 2] in (\"<(\", \">(\") and at_token_boundary():\n            # PROCESS SUBSTITUTION is a word whose body is a command, exactly like\n            # `$(...)`: the body is lifted out and read as its own script, and a\n            # placeholder holds the word's place. Classifying `<(` as a separator in\n            # `split_segments` had put the tokens AFTER the closing paren in a new\n            # segment, so `git commit -m <(echo x) -a` lost its `-a` -- found by the\n            # widened metamorphic ratchet on its first run, round 25.\n            depth = 1\n            j = i + 2\n            inner_quote = \"\"\n            while j < n and depth:\n                c = command[j]\n                if inner_quote:\n                    if c == inner_quote:\n                        inner_quote = \"\"\n                elif c in \"'\\\"\":\n                    inner_quote = c\n                elif c == \"(\":\n                    depth += 1\n                elif c == \")\":\n                    depth -= 1\n                    if not depth:\n                        break\n                j += 1\n            if depth:\n                confident = False\n                break\n            extra_scripts.append(command[i + 2:j])\n            out.append('\"' + QUOTED_WORD_SENTINEL + '\"')\n            i = j + 1\n            continue\n\n        if quote != \"'\" and command.startswith(\"${\", i):"
+        }
+      ]
+    }
+  ]
+}

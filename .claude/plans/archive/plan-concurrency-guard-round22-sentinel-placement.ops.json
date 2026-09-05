@@ -1,0 +1,18 @@
+{
+  "plan": "concurrency-guard-round22-sentinel-placement",
+  "files": [
+    {
+      "path": ".claude/hooks/concurrency-guard.py",
+      "edits": [
+        {
+          "find": "            if ch in \"<>&|;\":",
+          "replace": "            if ch in \"<>&|;\":\n                # The backslash was already emitted by the branch below, and it would\n                # ESCAPE THE SENTINEL rather than the operator -- shlex then split\n                # `\\<sentinel>>` into two tokens and the `>` went back to being a\n                # redirection, so the leak was only masked by the empty pathspec that\n                # remained, not closed. Replace the backslash: the sentinel alone makes\n                # the word non-operator, and the character behind it needs no escape.\n                if out and out[-1] == \"\\\\\":\n                    out[-1] = QUOTED_WORD_SENTINEL\n                else:\n                    out.append(QUOTED_WORD_SENTINEL)"
+        },
+        {
+          "find": "                # committed both, rc 0. Same class, escaped spelling.\n                out.append(QUOTED_WORD_SENTINEL)",
+          "replace": "                # committed both, rc 0. Same class, escaped spelling."
+        }
+      ]
+    }
+  ]
+}

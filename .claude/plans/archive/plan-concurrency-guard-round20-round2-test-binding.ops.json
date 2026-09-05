@@ -1,0 +1,46 @@
+{
+  "plan": "concurrency-guard-round20-round2-test-binding",
+  "files": [
+    {
+      "path": "tests/test_concurrency_guard.py",
+      "edits": [
+        {
+          "find": "    \"git add -p . 0< ans\",",
+          "replace": "    \"git add -p . 0< ans\",\n    \"git clean -i\", \"git clean --interactive\", \"git clean -i -d\", \"git clean --inter\",\n    \"git commit --interactive -m wip\", \"git commit --inter -m wip\",\n    # round 20 second pass: a redirection attached to the GROUP feeds every command\n    # inside it, and the closer had already started a new segment, so the git command\n    # kept fed=False. Verified against git 2.50: this DESTROYED both sessions'\n    # in-flight edits, unattended, at rc 0.\n    \"{ git checkout -p .; } < ans\", \"( git checkout -p . ) < ans\",\n    \"{ git add -p .; } <<< y\", \"{ git commit -p -m wip .; } <<EOF\\ny\\nEOF\",\n    # the redirection can also hang off a LOOP, where `do`/`done` are not grouping\n    # tokens at all -- so an input redirection anywhere now marks every segment\n    \"while read x; do git add -p .; done < f\",\n    \"for f in a; do git checkout -p .; done < list\",\n    \"cat < f; git add -p .\",\n    # round 20: a DOUBLE-QUOTED command substitution was copied verbatim as quoted\n    # data, so shlex yielded one word and the inner command never became a segment.\n    # `x=\"$(git ...)\"` is the commonest scripted capture spelling there is, and the\n    # doc claimed the whole `$(...)` class was caught when only the unquoted form was.\n    'echo \"$(git add -A)\"', 'x=\"$(git checkout -f)\"', 'echo \"$(git reset --hard)\"',\n    'echo \"before $(git add -A) after\"', 'echo \"$(git clean -fd)\"',\n    'echo \"$(cd src && git add -A)\"',"
+        },
+        {
+          "find": "    \"git add -p . > out\", \"git add -p . 2>/dev/null\",",
+          "replace": "    \"git add -p . > out\", \"git add -p . 2>/dev/null\",\n    # round 20: the read-only globals the fail-closed inversion had denied. The doc\n    # justified that with \"it is not a command git would run either\" -- false, and\n    # `git --version` is in doctor and CI scripts everywhere, where a denial anywhere\n    # in a compound kills the whole call.\n    \"git --version\", \"git -v\", \"git --help\", \"git -h\", \"git --man-path\",\n    \"git --list-cmds=main\", \"git status && git --version\",\n    # `commit -i` is `--include`, which takes paths and is scoped by them -- not the\n    # interactive flag denied above\n    \"git commit -i src/a.py -m x\", \"git clean -i -n\",\n    # a substitution that is read-only, or scoped, is still allowed\n    'echo \"$(git status)\"', 'echo \"$(git log --oneline)\"',\n    'echo \"$(git add src/a.py)\"', \"echo '$(git add -A)'\","
+        },
+        {
+          "find": "                         \"--no-advice\", \"--no-lazy-fetch\", \"--no-literal-pathspecs\",\n                         \"--no-optional-locks\", \"--no-pager\", \"--no-replace-objects\",\n                         \"--noglob-pathspecs\", \"--paginate\", \"-P\", \"-p\"},",
+          "replace": "                         \"--man-path\", \"--no-advice\", \"--no-lazy-fetch\",\n                         \"--no-literal-pathspecs\", \"--no-optional-locks\", \"--no-pager\",\n                         \"--no-replace-objects\", \"--noglob-pathspecs\", \"--paginate\",\n                         \"--version\", \"-P\", \"-h\", \"-p\", \"-v\", \"--help\"},"
+        },
+        {
+          "find": "    \"GIT_GLOBAL_WITH_VALUE\": {\"--attr-source\", \"--config-env\", \"--exec-path\",\n                              \"--git-dir\", \"--namespace\", \"--super-prefix\",\n                              \"--work-tree\", \"-C\", \"-c\"},",
+          "replace": "    \"GIT_GLOBAL_WITH_VALUE\": {\"--attr-source\", \"--config-env\", \"--exec-path\",\n                              \"--git-dir\", \"--list-cmds\", \"--namespace\",\n                              \"--super-prefix\", \"--work-tree\", \"-C\", \"-c\"},"
+        },
+        {
+          "find": "        for glob in sorted(guard.GIT_GLOBAL_FLAGS):\n            p = subprocess.run([\"git\", glob, \"status\", \"--porcelain\"],\n                               cwd=str(repo), capture_output=True, text=True)",
+          "replace": "        for glob in sorted(guard.GIT_GLOBAL_FLAGS):\n            # STANDALONE, not `git <glob> status`: `--version`, `-v`, `--help`, `-h`\n            # and `--man-path` are terminal actions rather than modifiers, so\n            # appending a subcommand made git reject them and this test called five\n            # real globals \"dead weight\" (round 20). Every member is accepted alone.\n            p = subprocess.run([\"git\", glob],\n                               cwd=str(repo), capture_output=True, text=True)"
+        },
+        {
+          "find": "        (\"grouping-inherits-the-stdin-of-its-compound\",\n         \"            start_segment(fed[-1])\\n            continue\",\n         \"            start_segment(False)\\n            continue\",\n         \"yes | (git checkout -p .)\", 2),",
+          "replace": "        (\"grouping-inherits-the-stdin-of-its-compound\",\n         '            start_segment(fed[-1])\\n            if any(ch in \"({\" for ch in core):',\n         '            start_segment(False)\\n            if any(ch in \"({\" for ch in core):',\n         \"yes | (git checkout -p .)\", 2),\n        (\"a-group-redirection-feeds-the-commands-inside-it\",\n         \"            start = closed_group_at if closed_group_at is not None else 0\",\n         \"            start = len(fed) - 1\",\n         \"{ git checkout -p .; } < ans\", 2),\n        (\"a-double-quoted-command-substitution-is-a-command\",\n         \"        if quote == '\\\"' and command.startswith(\\\"$(\\\", i):\",\n         \"        if False and command.startswith(\\\"$(\\\", i):\",\n         'echo \"$(git add -A)\"', 2),\n        (\"clean-denies-the-interactive-flag-too\",\n         '        if has_flag(flags, (\"--force\", \"--interactive\"), \"fi\"):',\n         '        if has_flag(flags, (\"--force\",), \"f\"):',\n         \"git clean -i\", 2),\n        (\"commit-denies-the-interactive-flag\",\n         '        if has_flag(flags, (\"--interactive\",)):\\n            return \"commit\", \"commit-all\"',\n         '        if False:\\n            return \"commit\", \"commit-all\"',\n         \"git commit --interactive -m wip\", 2),"
+        },
+        {
+          "find": "         \"        if pathspecs and not tree_wide(pathspecs):\\n\"\n         \"            return None\\n\"\n         '        if has_flag(flags, (\"--all\",), \"a\"):\\n'\n         '            return \"commit\", \"commit-all\"',",
+          "replace": "         \"        if pathspecs and not tree_wide(pathspecs):\\n\"\n         \"            return None\\n\"\n         '        if has_flag(flags, (\"--all\",), \"a\"):\\n'\n         '            return \"commit\", \"commit-all\"\\n'\n         \"        # `--interactive` runs the same interactive-add loop\","
+        },
+        {
+          "find": "         '        if has_flag(flags, (\"--all\",), \"a\"):\\n'\n         '            return \"commit\", \"commit-all\"\\n'\n         \"        if pathspecs and not tree_wide(pathspecs):\\n\"\n         \"            return None\",",
+          "replace": "         '        if has_flag(flags, (\"--all\",), \"a\"):\\n'\n         '            return \"commit\", \"commit-all\"\\n'\n         \"        # `--interactive` runs the same interactive-add loop\","
+        },
+        {
+          "find": "         \"    if quote or escaped or arith_depth:\", \"    if quote or escaped:\",\n         \"echo $(( ; git status\", 2),",
+          "replace": "         \"    if quote or escaped or arith_depth or subst_depth:\",\n         \"    if quote or escaped or subst_depth:\",\n         \"echo $(( ; git status\", 2),"
+        }
+      ]
+    }
+  ]
+}

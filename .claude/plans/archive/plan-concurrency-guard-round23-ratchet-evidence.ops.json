@@ -1,0 +1,18 @@
+{
+  "plan": "concurrency-guard-round23-ratchet-evidence",
+  "files": [
+    {
+      "path": "tests/test_concurrency_guard.py",
+      "edits": [
+        {
+          "find": "    token stream fails it without anyone writing a case for that spelling.\n    \"\"\"",
+          "replace": "    token stream fails it without anyone writing a case for that spelling.\n\n    Proven to bind, by re-introducing round 23's own defects in a scratch copy of the\n    hook: reverting the escaped-operator-in-quotes fix fails 18 rows, and reverting the\n    empty-argument fix fails 16. Round 23's substitution SPLICE is covered by the\n    `\"$(date)\"` x `-a` row, measured at exit 0 before the fix while its `\"plain\"`\n    control blocked -- exactly the inequality asserted below. Reverting the extraction\n    to a plain DROP fails no row, and that is correct: dropping the body leaves the\n    outer flag intact, so it is not this class's failure mode.\n    \"\"\""
+        },
+        {
+          "find": "    case lists did not stop it, because each round enumerated the construct it had just\n    found (`\\;`, `$(date)`, `\"$((1<<2))\"`, `<<EOF`) and the next round arrived with\n    another one.",
+          "replace": "    case lists did not stop it, because each round enumerated the construct it had just\n    found -- an escaped semicolon, a command substitution, a quoted arithmetic\n    expansion, a heredoc -- and the next round arrived with another one."
+        }
+      ]
+    }
+  ]
+}

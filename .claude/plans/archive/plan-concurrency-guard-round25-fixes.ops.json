@@ -1,0 +1,42 @@
+{
+  "plan": "concurrency-guard-round25-fixes",
+  "files": [
+    {
+      "path": ".claude/hooks/concurrency-guard.py",
+      "edits": [
+        {
+          "find": "        if quote == '\"' and command.startswith(\"$(\", i):\n            # EXTRACTED, not spliced.",
+          "replace": "        if quote != \"'\" and command.startswith(\"$(\", i):\n            # In ANY quote state except single quotes. Round 23 gated this on\n            # `quote == '\"'`, so the UNQUOTED spelling still went out verbatim: shlex\n            # made `(` and `)` their own tokens, `split_segments` treated them as\n            # grouping, and the flag behind the expansion landed in a segment whose\n            # command word was not `git`. `git commit -m $(cat VERSION) -a` and\n            # `git commit -m $((1)) -a` committed BOTH sessions' files and\n            # `git clean -e $(cat p) -fd` deleted both sessions' untracked files, all\n            # rc 0 (round 24, verified against git) -- tenth instance of this class and\n            # the third round running whose leak sat inside the previous round's fix.\n            # EXTRACTED, not spliced."
+        },
+        {
+          "find": "            extra_scripts.append(command[i + 2:j])\n            i = j + 1\n            continue",
+          "replace": "            extra_scripts.append(command[i + 2:j])\n            # A PLACEHOLDER word takes the expansion's place, so the outer token stream\n            # keeps the same shape whether the expansion was quoted or not: removing it\n            # outright left `-m` with nothing to consume and the flag behind it became\n            # the message instead.\n            out.append('\"' + QUOTED_WORD_SENTINEL + '\"')\n            i = j + 1\n            continue"
+        },
+        {
+          "find": "        if command.startswith(\"((\", i) and at_token_boundary():",
+          "replace": "        if quote != \"'\" and command.startswith(\"${\", i):\n            # One opaque WORD, read to its matching brace. There was no `${` extent at\n            # all, so a `;` inside an unquoted parameter expansion fell through to the\n            # operator path and SEPARATED the command: `git commit -m ${x:-a;b} -a`\n            # committed both sessions' files at rc 0, and bash keeps it one word\n            # (`echo ${x:-a;b}` prints `a;b`) -- round 24, verified.\n            depth = 1\n            j = i + 2\n            while j < n and depth:\n                if command[j] == \"{\":\n                    depth += 1\n                elif command[j] == \"}\":\n                    depth -= 1\n                    if not depth:\n                        break\n                j += 1\n            if depth:\n                confident = False\n                break\n            out.append('\"' + QUOTED_WORD_SENTINEL + '\"')\n            i = j + 1\n            continue\n\n        if command.startswith(\"((\", i) and at_token_boundary():"
+        },
+        {
+          "find": "#: Marks a QUOTED word so `classify_operator` cannot mistake it for the operator it\n#: spells. Stripped again in `split_segments`, before any rule reads argv.\nQUOTED_WORD_SENTINEL = \"\\x01\"",
+          "replace": "#: Marks a QUOTED word so `classify_operator` cannot mistake it for the operator it\n#: spells. Stripped again in `split_segments`, before any rule reads argv.\nQUOTED_WORD_SENTINEL = \"\\x01\"\n\n#: Characters that mean something to the SHELL and nothing to git when quoted. Rounds\n#: 21 and 22 covered `<>&|;` and left the GROUPING characters out, so a quoted or\n#: escaped `)` was still peeled as a real closer: `git commit -m \")\" -a` committed both\n#: sessions' files and `git add \")\" .` staged both, rc 0 (round 24, verified with a\n#: file named `)` present). One set, used by every branch that needs it.\nSHELL_ONLY_CHARS = \"<>&|;(){}\""
+        },
+        {
+          "find": "            if ch in \"<>&|;\" and quote == '\"':",
+          "replace": "            if ch in SHELL_ONLY_CHARS and quote == '\"':"
+        },
+        {
+          "find": "            if ch in \"<>&|;\":",
+          "replace": "            if ch in SHELL_ONLY_CHARS:"
+        },
+        {
+          "find": "                if body and all(c in \"<>&|;\" for c in body):",
+          "replace": "                if body and all(c in SHELL_ONLY_CHARS for c in body):"
+        },
+        {
+          "find": "            out.append(\" \" if ch == \"\\n\" else ch)\n            escaped = False",
+          "replace": "            # A line continuation is DELETED by bash, joining the words on either\n            # side. Emitting a space SPLIT them instead, so one bash word arrived as\n            # two and the extra one read as a scoping pathspec or a second operand:\n            # `git reset HEA\\<newline>D` emptied the shared index and\n            # `git stash push -m a\\<newline>b` stashed the whole tree, both rc 0\n            # (round 24, verified against git).\n            out.append(\"\" if ch == \"\\n\" else ch)\n            escaped = False"
+        }
+      ]
+    }
+  ]
+}
