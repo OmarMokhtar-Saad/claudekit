@@ -1165,7 +1165,19 @@ class TestAnUnknownPreSubcommandOptionFailsClosed:
         repo = tmp_path / "globals"
         repo.mkdir()
         subprocess.run(["git", "init", "-q", "."], cwd=str(repo), capture_output=True)
+        # Members git itself only learned recently. On an older git (ubuntu-latest
+        # ships 2.43) they are "unknown option" -- which is an environment fact, not
+        # dead weight, so they are skipped BELOW the version that introduced them.
+        # The hook must still list them: a newer git accepts them, and an unlisted
+        # accepted global became the "subcommand" in round 19.
+        introduced = {"--no-lazy-fetch": (2, 44), "--no-advice": (2, 45),
+                      "--attr-source": (2, 41)}
+        ver = subprocess.run(["git", "--version"], capture_output=True, text=True).stdout
+        m = re.search(r"(\d+)\.(\d+)", ver)
+        local = (int(m.group(1)), int(m.group(2))) if m else (0, 0)
         for glob in sorted(guard.GIT_GLOBAL_FLAGS):
+            if local < introduced.get(glob, (0, 0)):
+                continue
             # STANDALONE, not `git <glob> status`: `--version`, `-v`, `--help`, `-h`
             # and `--man-path` are terminal actions rather than modifiers, so
             # appending a subcommand made git reject them and this test called five
