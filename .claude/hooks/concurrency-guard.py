@@ -212,8 +212,11 @@ REQUIRED_VALUE_SHORT_OPTS = {
 #: here was confirmed against git 2.50 with `git <sub> <opt>` reporting
 #: "requires a value".
 REQUIRED_VALUE_LONG_OPTS = {
-    "add": frozenset({"--chmod", "--pathspec-from-file"}),
-    "stage": frozenset({"--chmod", "--pathspec-from-file"}),
+    # `--inter-hunk-context <n>` exists on the git that GitHub's runners ship (newer
+    # than the 2.50 here); the round-18 completeness oracle found it MISSING on CI.
+    # Its separate value would have read as a scoping pathspec -- round 15's shape.
+    "add": frozenset({"--chmod", "--pathspec-from-file", "--inter-hunk-context"}),
+    "stage": frozenset({"--chmod", "--pathspec-from-file", "--inter-hunk-context"}),
     "commit": frozenset({
         "--message", "--file", "--reuse-message", "--reedit-message", "--template",
         "--author", "--date", "--cleanup", "--trailer", "--squash", "--fixup",

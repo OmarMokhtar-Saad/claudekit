@@ -139,6 +139,9 @@ BLOCKED = [
     "git commit -a --date now", "git commit -a --cleanup whitespace",
     'git commit -am wip --trailer "K: v"', "git commit -a --squash HEAD",
     "git add -A --chmod +x", "git stage -A --chmod +x",
+    # found by the completeness oracle on CI's newer git: a required-value option
+    # absent from the table, whose value would scope the command
+    "git add -A --inter-hunk-context 3", "git add --inter-hunk-context 3 .",
     # `-S`/`-u` take an OPTIONAL value, so git reads the next token as a PATHSPEC and
     # refuses it alongside `-a`. The hook must not need to know that: `--all` is tested
     # before any pathspec can look scoping.
@@ -1849,6 +1852,8 @@ class TestASeparateOptionValueIsNotAPathspec:
     LONG_CASES = {
         ("add", "--chmod"): ("git add --chmod +x src/a.py", 0),
         ("add", "--pathspec-from-file"): ("git add --pathspec-from-file list.txt", 2),
+        ("add", "--inter-hunk-context"): ("git add --inter-hunk-context 3 src/a.py", 0),
+        ("stage", "--inter-hunk-context"): ("git stage --inter-hunk-context 3 src/a.py", 0),
         ("stage", "--chmod"): ("git stage --chmod +x src/a.py", 0),
         ("stage", "--pathspec-from-file"): ("git stage --pathspec-from-file l.txt", 2),
         ("commit", "--message"): ("git commit --message wip src/a.py", 0),
