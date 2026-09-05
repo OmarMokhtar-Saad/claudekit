@@ -2579,8 +2579,15 @@ class TestTheMutationRecordIsExecutable:
          '                command[i + 1] == "_" or command[i + 1].isalpha()):',
          'git add "$@" -A', 2),
         ("a-bare-parameter-expansion-is-an-opaque-word",
-         "        if quote != \"'\" and command.startswith(\"$\", i) and i + 1 < n and (command[i + 1] == \"_\" or command[i + 1].isalpha()):", "        if False:",
-         "git add $x -A", 2),
+         "                j += 1                     # a positional or special parameter is ONE char\n"
+         "            out.append('\"' + QUOTED_WORD_SENTINEL + '\"')\n",
+         "                j += 1                     # a positional or special parameter is ONE char\n",
+         # with NO placeholder `$x` leaves no token and `-m` swallows the `-a`. The
+         # header this entry anchored on was split in round 28; a first re-aim on the
+         # name scan did NOT flip (the else branch advances past `x` anyway) and was
+         # refused by the flip assertion -- but the surrounding shell had no `set -e`
+         # and committed the stale entry regardless. This is the corrected anchor.
+         "git commit -m $x -a", 2),
         ("process-substitution-is-lifted-in-any-word-position",
          '        if not quote and command[i:i + 2] in ("<(", ">("):',
          '        if not quote and command[i:i + 2] in ("<(", ">(") and at_token_boundary():',
