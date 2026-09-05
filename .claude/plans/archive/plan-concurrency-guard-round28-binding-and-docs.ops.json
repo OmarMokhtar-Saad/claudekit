@@ -1,0 +1,52 @@
+{
+  "plan": "concurrency-guard-round28-binding-and-docs",
+  "files": [
+    {
+      "path": "tests/test_concurrency_guard.py",
+      "edits": [
+        {
+          "find": "    'bash -O extglob <<< \"git checkout -f\"', 'zsh -o x <<< \"git add -A\"',",
+          "replace": "    'bash -O extglob <<< \"git checkout -f\"', 'zsh -o x <<< \"git add -A\"',\n    # round 27: an EMPTY brace expansion `{,}` yields zero words under bash, so git\n    # received `add -A` while the hook kept `{,}` as a scoping pathspec -- a PHANTOM.\n    # Verified under bash 3.2 (zsh differs): both sessions' files staged, both\n    # sessions' edits stashed. `{a,b}` is over-blocked by the same rule, named in\n    # the residuals.\n    \"git add {,} -A\", \"git stash push {,}\", \"git rm -r {,}\", \"git add {a,b} -A\",\n    \"git commit -m {,} -a\",\n    # round 27: bare `$name` was the one expansion spelling not made opaque; an unset\n    # name expands to NOTHING, so `git stash push $x` degraded to a bare stash\n    \"git add $x -A\", \"git stash push $x\", \"git add $DIR -A\", \"git commit -m $x -a\","
+        },
+        {
+          "find": "    \"bash -O extglob build.sh\", \"bash -O extglob -c 'git status'\", \"echo x<(echo y)\",",
+          "replace": "    \"bash -O extglob build.sh\", \"bash -O extglob -c 'git status'\", \"echo x<(echo y)\",\n    # an opaque `$name` where its value cannot make the command tree-wide\n    \"git commit -m $msg src/a.py\", \"git log $b\", \"git push origin $b\", \"echo {a,b}\","
+        },
+        {
+          "find": "        (\"process-substitution-is-lifted-in-any-word-position\",",
+          "replace": "        (\"a-brace-expansion-is-an-opaque-word\",\n         \"        if not quote and command.startswith(\\\"{\\\", i) and at_token_boundary_or_word():\", \"        if False:\",\n         \"git add {,} -A\", 2),\n        (\"a-bare-parameter-expansion-is-an-opaque-word\",\n         \"        if quote != \\\"'\\\" and command.startswith(\\\"$\\\", i) and i + 1 < n and (command[i + 1] == \\\"_\\\" or command[i + 1].isalpha()):\", \"        if False:\",\n         \"git add $x -A\", 2),\n        (\"process-substitution-is-lifted-in-any-word-position\","
+        }
+      ]
+    },
+    {
+      "path": ".ai/CONCURRENCY.md",
+      "edits": [
+        {
+          "find": "**Every EXPANSION is one opaque WORD, in every quote state \u2014 `$(...)`, `$((...))`,\n`${...}`, `<(...)`/`>(...)` and the bare arithmetic command `((...))` are each read to",
+          "replace": "**Every EXPANSION is one opaque WORD, in every quote state \u2014 `$(...)`, `$((...))`,\n`${...}`, bare `$name`, a brace expansion `{a,b}`/`{a..b}`, `<(...)`/`>(...)` and the bare\narithmetic command `((...))` are each read to"
+        },
+        {
+          "find": "| a BRACE anywhere but command-word position is an ordinary WORD \u2014 `git commit -m { -a`,",
+          "replace": "| a BRACE EXPANSION \u2014 `{,}` yields ZERO words under bash, so `git add {,} -A` handed git exactly `add -A` while the hook kept `{,}` as a positive scoping pathspec: both sessions' files staged, and `git stash push {,}` stashed both sessions' in-flight edits (round 27, verified under bash 3.2; zsh passes two empty words and differs). Any word carrying an unquoted `{\u2026,\u2026}`/`{a..b}` list is an opaque placeholder now \u2014 a PHANTOM the hook cannot resolve | spell the paths out |\n| a bare `$name` \u2014 the one expansion spelling that was not opaque; an unset name expands to nothing, so `git add $x -A` staged both sessions' files and `git stash push $x` degraded to a bare stash (round 27). `${x}` had failed closed for the identical reason one spelling over | spell the value out |\n| a lone BRACE anywhere but command-word position is an ordinary WORD (`{`, `}`, `{}` \u2014 not an expansion list) \u2014 `git commit -m { -a`,"
+        },
+        {
+          "find": "* an EXPANSION used as a pathspec is over-blocked:",
+          "replace": "* a brace expansion that DOES name real paths is over-blocked: `git add {a,b} -A` is\n  scoped by git to `a` and `b`, but the hook cannot know how many words `{\u2026}` yields\n  (`{,}` yields none), so every brace list is a placeholder (round 27)\n* an EXPANSION used as a pathspec is over-blocked:"
+        },
+        {
+          "find": "know, and a placeholder cannot hide a flag). A denial is never compared, because a denial\nis never a leak.",
+          "replace": "know, and a placeholder cannot hide a flag). **And the CONVERSE, added after round 27\nshowed the subset check alone was blind to a PHANTOM pathspec: every non-flag operand the\nhook believes in must be a word bash actually handed git.** `git add {,} -A` reached git\nas `add -A` while the hook kept `{,}` as a scoping operand and allowed it \u2014 the subset\ndirection saw nothing wrong, because nothing bash produced was missing. A denial is never\ncompared, because a denial is never a leak \u2014 which also means roughly seven in ten corpus\nrows return at the verdict gate and compare nothing; the ~300 that do are the allowed\ncommands, and those are exactly the ones where a leak could hide."
+        }
+      ]
+    },
+    {
+      "path": "CHANGELOG.md",
+      "edits": [
+        {
+          "find": "  nobody enumerating a spelling first.",
+          "replace": "  nobody enumerating a spelling first.\n  Round 27's review then found the oracle was one-directional: `git add {,} -A` reached\n  git as `add -A` (an empty brace expansion yields no words under bash) while the hook\n  kept `{,}` as a scoping pathspec and allowed it -- both sessions' files staged, both\n  sessions' edits stashed -- and bare `$name` was the one expansion spelling not made\n  opaque. Both are placeholders now, and the oracle asserts the converse too: every\n  operand the hook believes in must be a word bash actually handed git."
+        }
+      ]
+    }
+  ]
+}

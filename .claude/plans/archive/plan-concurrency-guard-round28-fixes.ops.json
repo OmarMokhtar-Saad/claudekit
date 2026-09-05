@@ -1,0 +1,18 @@
+{
+  "plan": "concurrency-guard-round28-fixes",
+  "files": [
+    {
+      "path": ".claude/hooks/concurrency-guard.py",
+      "edits": [
+        {
+          "find": "        if quote != \"'\" and command.startswith(\"${\", i):",
+          "replace": "        if not quote and command.startswith(\"{\", i) and at_token_boundary_or_word():\n            # BRACE EXPANSION. `{,}` expands to ZERO words under bash, so\n            # `git add {,} -A` handed git exactly `add -A` while the hook kept `{,}`\n            # as a positive, scoping pathspec -- both sessions' files staged, and\n            # `git stash push {,}` stashed both sessions' in-flight edits, rc 0\n            # (round 27, verified under bash 3.2; zsh differs, which is why an\n            # earlier check missed it). A word carrying an unquoted `{\u2026,\u2026}` or\n            # `{a..b}` list is a PHANTOM the hook cannot resolve, so it becomes the\n            # same opaque placeholder as `${\u2026}`. Cost: `git add {a,b} -A` is now\n            # over-blocked -- named in the doc's residuals beside `${\u2026}`'s.\n            j = command.find(\"}\", i)\n            body = command[i + 1:j] if j != -1 else \"\"\n            if j != -1 and (\",\" in body or \"..\" in body) and \"\\n\" not in body and \" \" not in body:\n                out.append('\"' + QUOTED_WORD_SENTINEL + '\"')\n                i = j + 1\n                continue\n\n        if quote != \"'\" and command.startswith(\"$\", i) and i + 1 < n and (command[i + 1] == \"_\" or command[i + 1].isalpha()):\n            # A bare `$name` is the one expansion spelling that was not opaque, and\n            # an UNSET name expands to nothing: `git add $x -A` staged both sessions'\n            # files and `git stash push $x` degraded to a bare `stash push`, rc 0\n            # (round 27, verified). `${x}` already failed closed one spelling over\n            # for the identical reason, so this is its sibling.\n            j = i + 1\n            while j < n and (command[j] == \"_\" or command[j].isalnum()):\n                j += 1\n            out.append('\"' + QUOTED_WORD_SENTINEL + '\"')\n            i = j\n            continue\n\n        if quote != \"'\" and command.startswith(\"${\", i):"
+        },
+        {
+          "find": "    def at_token_boundary() -> bool:",
+          "replace": "    def at_token_boundary_or_word() -> bool:\n        # A brace expansion may start a word or sit inside one (`a{b,c}`); it may\n        # NOT follow `$` (that is `${\u2026}`, handled below) or sit inside quotes.\n        return not out or out[-1] != \"$\"\n\n    def at_token_boundary() -> bool:"
+        }
+      ]
+    }
+  ]
+}

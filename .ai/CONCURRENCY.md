@@ -67,7 +67,9 @@ scoped alternative:
 | `-c alias.<x>=...`, `-c include.path=<file>`, `-c includeIf.<...>.path=<file>` or `-c clean.requireForce=<false>` — in EVERY spelling: `-c k=v`, `-ck=v`, `--config-env k=v` and `--config-env=k=v`. Round 22: the fused `--config-env=` form skipped the opacity test entirely, restoring round 21's two leaks for the cost of one `=` (verified: the alias form staged both sessions' files, the requireForce form deleted both untracked files), and `include.path` reaches an alias one indirection further out through a config FILE. Parity across spellings is now asserted mechanically for every valued global rather than per spelling — the setting decides what the command MEANS, and the hook was parsing the token and discarding it. `git -c clean.requireForce=false clean -d` deleted another session's untracked file AND a subdirectory at rc 0; `git -c alias.st='add -A' st` staged both sessions' files | run the command without the config override |
 | a shell WRAPPER reading stdin via `-s`, even WITH an operand (`bash -s file <<EOF … EOF`) — `-s` means read the script from stdin, so the operand is a positional parameter, not a script file (round 24, verified: it staged both sessions' files). `sh -- file` is NOT this case and stays allowed — checked rather than assumed: it runs the FILE and staged nothing | pass the script as `bash -c '<script>'` |
 | a shell WRAPPER whose script arrives on STDIN (`bash <<EOF … EOF`, `sh <<< '…'`, `cat <<EOF \| bash`, and `bash -s <operand> <<EOF …` since `-s` reads the script from stdin and makes the operand a positional) — `bash`/`sh`/`zsh`/`dash` read stdin as CODE, while `preprocess` strips heredoc bodies as DATA so that `cat > f <<EOF … EOF` can document a command without triggering it. The two rules met and the script vanished: verified, the `sh` form destroyed both sessions' edits and the here-string staged both, rc 0. Until round 22 only the `-c` spelling was unwrapped; a wrapper with a script FILE operand (`bash build.sh`, `sh -- file`) stays the named script-file residual. The script text is genuinely unavailable at that point, so it fails CLOSED | pass the script as `bash -c '<script>'`, which IS read |
-| a BRACE anywhere but command-word position is an ordinary WORD — `git commit -m { -a`, `git commit -m {} -a`, and `{ git commit -m } -a; }` each committed both sessions' files (round 25, verified). Round 24 fixed only the bare `}`, gated on no group being open, so wrapping the command undid it; position decides now, opener and closer alike | `git add <paths>` then `git commit` |
+| a BRACE EXPANSION — `{,}` yields ZERO words under bash, so `git add {,} -A` handed git exactly `add -A` while the hook kept `{,}` as a positive scoping pathspec: both sessions' files staged, and `git stash push {,}` stashed both sessions' in-flight edits (round 27, verified under bash 3.2; zsh passes two empty words and differs). Any word carrying an unquoted `{…,…}`/`{a..b}` list is an opaque placeholder now — a PHANTOM the hook cannot resolve | spell the paths out |
+| a bare `$name` — the one expansion spelling that was not opaque; an unset name expands to nothing, so `git add $x -A` staged both sessions' files and `git stash push $x` degraded to a bare stash (round 27). `${x}` had failed closed for the identical reason one spelling over | spell the value out |
+| a lone BRACE anywhere but command-word position is an ordinary WORD (`{`, `}`, `{}` — not an expansion list) — `git commit -m { -a`, `git commit -m {} -a`, and `{ git commit -m } -a; }` each committed both sessions' files (round 25, verified). Round 24 fixed only the bare `}`, gated on no group being open, so wrapping the command undid it; position decides now, opener and closer alike | `git add <paths>` then `git commit` |
 | process substitution GLUED to a word (`git commit -m x<(echo y) -a`) — bash performs it mid-word (`echo x<(echo y)` prints `x/dev/fd/63`), and gating the lift on a token boundary let `<(` reach the classifier as a separator, dropping the flag behind it; both sessions' files were committed (round 26, verified) | `git add <paths>` then `git commit` |
 | a shell WRAPPER whose own option takes a VALUE, fed on stdin (`bash -O extglob <<EOF …`, `bash --rcfile f <<< '…'`) — the value was counted as a script file, so the fail-closed rule for stdin scripts was skipped; `-O extglob <<< "git checkout -f"` destroyed both sessions' in-flight edits (round 26, verified). `WRAPPER_VALUE_OPTS` names the options whose next word is not a script | pass the script as `bash -c '<script>'` |
 | an argument AFTER a heredoc marker — `git commit -m x <<EOF -a` — is still git's argument, but the marker is consumed in `preprocess`, so the `<<` token's target-skip ate the `-a` and both sessions' files were committed (round 26, found probing, verified). A placeholder now stands in for the consumed marker | `git add <paths>` then `git commit` |
@@ -315,7 +317,8 @@ half, and it stays an enumeration deliberately: making an unknown leading word
 fail closed would deny `echo git add -A`, an ordinary line that mutates nothing.
 
 **Every EXPANSION is one opaque WORD, in every quote state — `$(...)`, `$((...))`,
-`${...}`, `<(...)`/`>(...)` and the bare arithmetic command `((...))` are each read to
+`${...}`, bare `$name`, a brace expansion `{a,b}`/`{a..b}`, `<(...)`/`>(...)` and the bare
+arithmetic command `((...))` are each read to
 their matching closer and replaced by a placeholder, with a command body lifted out and
 analysed as its own script.** Round 24 found that round 23's extraction was gated on
 being inside double quotes, so every UNQUOTED spelling still went out verbatim: shlex made
@@ -610,6 +613,9 @@ seen, and are named rather than hidden:
   changes verdict
 * an unterminated `$(` inside double quotes fails closed, like every other unreadable
   text
+* a brace expansion that DOES name real paths is over-blocked: `git add {a,b} -A` is
+  scoped by git to `a` and `b`, but the hook cannot know how many words `{…}` yields
+  (`{,}` yields none), so every brace list is a placeholder (round 27)
 * an EXPANSION used as a pathspec is over-blocked: `git add $((1)) src/a.py` and
   `git add "$(date)" .` are denied, because the placeholder that stands for the expansion
   is not a path the hook can read — it could expand to `.`. Deliberate fail-closed; the
@@ -746,7 +752,29 @@ the round-23 reviewer proposed the check it has earned, which is not another cas
 but a ROUND-TRIP INVARIANT: for a corpus of command texts, the word tokens `preprocess`
 yields must be a superset of the words bash itself would produce. Both round-23 leaks
 dropped a word (`-a`) while `confident` stayed True, and either would have failed such a
-check without anyone enumerating `\;` or `$(date)`. **The round-trip invariant was NOT built.** What exists is `TestNoConstructSwallowsTheFlagBehindIt`, an ENUMERATED construct list crossed against tails — a metamorphic check, and a useful one, but still enumeration: a construct it does not list is a construct it cannot see. Round 25 proved the distinction load-bearing by finding three leaks (`{`, `{}` and `>|`) that a genuine bash-superset comparison would have caught with nobody enumerating anything. An earlier version of this paragraph said "the check now EXISTS" about the round-trip form, and that was false; it is corrected here rather than quietly reworded, because a doc claiming a protection the code lacks is the defect this file most often records. Round 24 also showed the ratchet's first version was BLIND: its constructs
+check without anyone enumerating `\;` or `$(date)`. **The round-trip invariant now EXISTS, built in round 27 after the loop failed to
+converge: `TestBashIsTheOracleForWhatReachesGit`.** It asks BASH rather than a list.
+Every corpus command — all of `BLOCKED`, all of `ALLOWED`, and the whole metamorphic
+construct×tail matrix, ~1000 texts — runs under real bash in a throwaway directory with a
+stub `git` on `PATH` that records its argv and does nothing (stdin closed, PATH restricted,
+5-second timeout, `sudo`/`doas` excluded). The hook's own segments are computed from the
+same text, and: **when the hook ALLOWS the command, every word bash actually handed git
+must appear in the hook's segments** — every word when the text has no expansion, the
+flags when it has one (an expansion becomes a placeholder whose value the hook cannot
+know, and a placeholder cannot hide a flag). **And the CONVERSE, added after round 27
+showed the subset check alone was blind to a PHANTOM pathspec: every non-flag operand the
+hook believes in must be a word bash actually handed git.** `git add {,} -A` reached git
+as `add -A` while the hook kept `{,}` as a scoping operand and allowed it — the subset
+direction saw nothing wrong, because nothing bash produced was missing. A denial is never
+compared, because a denial is never a leak — which also means roughly seven in ten corpus
+rows return at the verdict gate and compare nothing; the ~300 that do are the allowed
+commands, and those are exactly the ones where a leak could hide. Proven to bind by re-introducing three closed leaks in a scratch copy:
+the glued `<(…)` gate, the consumed heredoc marker and the line-continuation-as-space
+each surface as `bash handed git '-a' and the hook never saw it` (or `HEAD` for the
+word split), while the shipped hook passes 998 of them. The metamorphic list stays, as
+the fast enumerated layer; the oracle is the one that does not need a new spelling
+enumerated first. An earlier version of this paragraph said the invariant existed when
+it did not, and round 25 found three leaks in that gap; both facts stay recorded here. Round 24 also showed the ratchet's first version was BLIND: its constructs
 were scoped to words that could sit inside quotes, so an unquoted expansion, a quoted
 grouping character and a bare `}` were structurally outside it — and 78 rows of its own
 tails leaked. It now carries every one of those, and on its very first widened run it
@@ -782,8 +810,10 @@ Round 25 returned three more BLOCKING — the brace opener round 24 never covere
 Round 26 returned two more BLOCKING, both outside what round 26's own fixes touched, and
 each one an existing rule with a position or value gate that bash does not have; the
 parity test written to close the wrapper class had itself enumerated only bare wrappers.
-So the honest status is: **twenty-six rounds, two approvals (8 and 12), and every single
-round has found something** — and rounds 17 through 25 each found a leak inside the fix
+Round 27 built the bash oracle instead of running another review round, and the shipped
+hook passes it.
+So the honest status is: **twenty-six review rounds, two approvals (8 and 12), and every
+single round has found something** — and rounds 17 through 25 each found a leak inside the fix
 that preceded them. Nine consecutive rounds. The suite grew from 1122 cases to well over two thousand across those rounds
 (the exact number lives in the test run, not in this file), and it never once predicted the next leak: every one was found by a
 fresh adversarial reader executing spellings nobody had enumerated. Three separate
