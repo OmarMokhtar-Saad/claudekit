@@ -1941,6 +1941,7 @@ class TestASeparateOptionValueIsNotAPathspec:
                        capture_output=True)
         name = re.compile(r"--(?:\[no-\])?([a-z][a-z0-9-]*)")
         asserted = 0
+        missing = []
         for sub in sorted(guard.REQUIRED_VALUE_LONG_OPTS):
             helped = subprocess.run(["git", sub, "-h"], capture_output=True, text=True)
             helptext = helped.stdout + helped.stderr
@@ -1952,10 +1953,16 @@ class TestASeparateOptionValueIsNotAPathspec:
                 if "requires a value" not in (probed.stdout + probed.stderr):
                     continue          # optional value or no value: not this table
                 asserted += 1
-                assert opt in guard.REQUIRED_VALUE_LONG_OPTS[sub], (
-                    f"git {sub} {opt} takes a separate value and is not in "
-                    f"REQUIRED_VALUE_LONG_OPTS[{sub!r}]: its value would be read as a "
-                    f"scoping pathspec, which is round 15's leak")
+                if opt not in guard.REQUIRED_VALUE_LONG_OPTS[sub]:
+                    missing.append(f"git {sub} {opt}")
+        # ALL of them at once. Asserting inside the loop stopped at the first missing
+        # option per run, so CI's git 2.55 (five minor versions past the 2.50 here)
+        # revealed `add --inter-hunk-context` alone, and the next run would have
+        # revealed the next one -- one push per option. The whole list, one push.
+        assert not missing, (
+            "these options take a separate value on THIS git and are not in "
+            "REQUIRED_VALUE_LONG_OPTS -- each value would be read as a scoping pathspec, "
+            "which is round 15's leak:\n  " + "\n  ".join(missing))
         # Anti-vacuity floor: the first draft asserted nothing at all and was green.
         assert asserted >= 25, (
             f"only {asserted} options were checked; the enumeration is broken and this "

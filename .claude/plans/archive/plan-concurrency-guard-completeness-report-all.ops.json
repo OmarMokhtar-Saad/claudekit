@@ -1,0 +1,18 @@
+{
+  "plan": "concurrency-guard-completeness-report-all",
+  "files": [
+    {
+      "path": "tests/test_concurrency_guard.py",
+      "edits": [
+        {
+          "find": "                asserted += 1\n                assert opt in guard.REQUIRED_VALUE_LONG_OPTS[sub], (\n                    f\"git {sub} {opt} takes a separate value and is not in \"\n                    f\"REQUIRED_VALUE_LONG_OPTS[{sub!r}]: its value would be read as a \"\n                    f\"scoping pathspec, which is round 15's leak\")\n        # Anti-vacuity floor: the first draft asserted nothing at all and was green.\n        assert asserted >= 25, (",
+          "replace": "                asserted += 1\n                if opt not in guard.REQUIRED_VALUE_LONG_OPTS[sub]:\n                    missing.append(f\"git {sub} {opt}\")\n        # ALL of them at once. Asserting inside the loop stopped at the first missing\n        # option per run, so CI's git 2.55 (five minor versions past the 2.50 here)\n        # revealed `add --inter-hunk-context` alone, and the next run would have\n        # revealed the next one -- one push per option. The whole list, one push.\n        assert not missing, (\n            \"these options take a separate value on THIS git and are not in \"\n            \"REQUIRED_VALUE_LONG_OPTS -- each value would be read as a scoping pathspec, \"\n            \"which is round 15's leak:\\n  \" + \"\\n  \".join(missing))\n        # Anti-vacuity floor: the first draft asserted nothing at all and was green.\n        assert asserted >= 25, ("
+        },
+        {
+          "find": "        name = re.compile(r\"--(?:\\[no-\\])?([a-z][a-z0-9-]*)\")\n        asserted = 0",
+          "replace": "        name = re.compile(r\"--(?:\\[no-\\])?([a-z][a-z0-9-]*)\")\n        asserted = 0\n        missing = []"
+        }
+      ]
+    }
+  ]
+}
