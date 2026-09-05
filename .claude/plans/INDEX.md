@@ -24,11 +24,11 @@ index never outranks the current files.
 |---|---:|
 | `drifted` | 4 |
 | `approved` | 50 |
-| `planned` | 13 |
+| `planned` | 14 |
 | `executed` | 28 |
 | `not_started` | 24 |
 | `legacy` | 3 |
-| **total** | **122** |
+| **total** | **123** |
 
 ## Plans
 
@@ -108,6 +108,7 @@ index never outranks the current files.
 | `.claude/plans/plan-receipts-regressions.md` | `approved` | 1 |  |
 | `.claude/plans/plan-reflection-ledger-isolation.md` | `approved` | 1 |  |
 | `.claude/plans/plan-reflection-lifecycle-gates.md` | `approved` | 1 |  |
+| `.claude/plans/plan-reflection-receipt-self-describing.md` | `planned` | 1 |  |
 | `.claude/plans/plan-reflection-test-isolation.md` | `approved` | 1 |  |
 | `.claude/plans/plan-rejection-retro-loop-impl.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-rejection-retro-loop.md` | `planned` | 7 |  |

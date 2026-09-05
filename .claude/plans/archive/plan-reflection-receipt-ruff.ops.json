@@ -1,0 +1,14 @@
+{
+  "plan": "reflection-receipt-ruff",
+  "files": [
+    {
+      "path": "tests/test_reflection_ledger.py",
+      "edits": [
+        {
+          "find": "        bad = valid_receipt(ref); bad[\"durableDisposition\"] = \"shrug\"",
+          "replace": "        bad = valid_receipt(ref)\n        bad[\"durableDisposition\"] = \"shrug\""
+        }
+      ]
+    }
+  ]
+}

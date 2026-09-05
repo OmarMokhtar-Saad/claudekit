@@ -289,7 +289,7 @@ def is_unchanged_rerun(event: Dict[str, Any], session_id: str) -> bool:
     return reflection.bounded_token(target, "unknown-target") in active_targets
 
 
-def checkpoint_reason(checkpoint: Dict[str, Any], extra: str = "") -> str:
+def checkpoint_reason(checkpoint: Dict[str, Any], extra: str = "", session_id: str = "") -> str:
     return (
         "REFLECTION CHECKPOINT PENDING (%s / %s)\n"
         "%d active failure(s); sanitized fingerprints: %s.\n"
@@ -299,7 +299,7 @@ def checkpoint_reason(checkpoint: Dict[str, Any], extra: str = "") -> str:
             checkpoint["depth"], checkpoint["trigger"], checkpoint["attemptCount"],
             ",".join(checkpoint["failureFingerprints"]),
             (extra + "\n") if extra else "",
-            reflection.receipt_instructions(),
+            reflection.receipt_instructions(session_id),
         )
     )
 
@@ -364,7 +364,7 @@ def handle_failure(event: Dict[str, Any], session_id: str) -> int:
         entry["failureId"], entry["fingerprint"]))
     checkpoint = reflection.pending_checkpoint(session_id)
     if checkpoint is not None:
-        sys.stdout.write(checkpoint_reason(checkpoint) + "\n")
+        sys.stdout.write(checkpoint_reason(checkpoint, session_id=session_id) + "\n")
     return 0
 
 
@@ -387,7 +387,8 @@ def handle_pre_tool_use(event: Dict[str, Any], session_id: str) -> int:
     if is_receipt_inbox_write(event, session_id):
         return 0
     if is_mutation(event):
-        return deny(checkpoint_reason(checkpoint, "Blocked action: implementation mutation."))
+        return deny(checkpoint_reason(checkpoint, "Blocked action: implementation mutation.",
+                                      session_id=session_id))
     if is_unchanged_rerun(event, session_id):
         return deny(checkpoint_reason(
             checkpoint,
@@ -417,7 +418,7 @@ def handle_pre_compact(event: Dict[str, Any], session_id: str) -> int:
             ["Reflection duties that survived compaction (the ledger is external "
              "to this transcript):"]
             + ["  - " + duty for duty in duties]
-            + [reflection.receipt_instructions()]
+            + [reflection.receipt_instructions(session_id)]
         )
         try:
             # The ledger root is created and ownership-checked in exactly one place.
@@ -493,7 +494,7 @@ def handle_stop(event: Dict[str, Any], session_id: str, subagent: bool) -> int:
         "%s BLOCKED - unmet duties:\n%s\n%s\nThis interrupts once: if you deliberately "
         "choose to stop anyway, the next attempt proceeds." % (
             label, "\n".join("  - " + duty for duty in duties),
-            reflection.receipt_instructions(),
+            reflection.receipt_instructions(session_id),
         )
     )
 

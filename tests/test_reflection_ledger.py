@@ -258,6 +258,28 @@ def valid_receipt(ref, trigger="second-failure", fingerprints=None):
 
 
 class TestReceipts:
+    def test_every_refusal_names_the_value_it_wanted(self, ref):
+        """The refusals used to say only "not a supported enum value"; a writer who guessed
+        wrong learned nothing and guessed again. Each one now names the expected value."""
+        fail(ref, target="a")
+        fail(ref, target="b")
+        token = ref.read_session_token(SESSION)
+        cp = ref.pending_checkpoint(SESSION)
+        with pytest.raises(ValueError) as e:
+            ref.record_receipt(SESSION, valid_receipt(ref, trigger="not-a-trigger"), token)
+        assert "second-failure" in str(e.value) and "learning-loop" in str(e.value)
+        with pytest.raises(ValueError) as e:
+            ref.record_receipt(SESSION, valid_receipt(ref, trigger="premise-invalidated"), token)
+        assert cp["trigger"] in str(e.value)
+        with pytest.raises(ValueError) as e:
+            ref.record_receipt(SESSION, valid_receipt(ref, fingerprints=["wrong"]), token)
+        assert json.dumps(sorted(cp["failureFingerprints"])) in str(e.value) and '"wrong"' in str(e.value)
+        bad = valid_receipt(ref)
+        bad["durableDisposition"] = "shrug"
+        with pytest.raises(ValueError) as e:
+            ref.record_receipt(SESSION, bad, token)
+        assert "nothing-durable" in str(e.value) and "shrug" in str(e.value)
+
     def test_valid_receipt_clears_the_checkpoint(self, ref):
         fail(ref, target="a")
         fail(ref, target="b")

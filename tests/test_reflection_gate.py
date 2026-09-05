@@ -336,6 +336,23 @@ class TestStopGate:
         assert proc.returncode == 2
         assert "STOP BLOCKED" in proc.stderr
 
+    def test_stop_demand_names_the_exact_path_trigger_and_fingerprints(self, env, ref):
+        """A 2026-09-05 session needed four Write+run cycles to clear one checkpoint:
+        the demand said `inbox-<session-key>.json` (the key is a HASH of the session id),
+        and three trigger refusals in a row never named the value required. Every value
+        a correct receipt needs is now printed verbatim in the demand itself."""
+        seed_two_failures(env)
+        proc = run("Stop", {"hook_event_name": "Stop", "session_id": SESSION}, env)
+        assert proc.returncode == 2
+        cp = ref.pending_checkpoint(SESSION)
+        assert str(ref.inbox_path(SESSION)) in proc.stderr          # the hashed filename
+        assert "inbox-<session-key>" not in proc.stderr             # never the placeholder
+        assert "--session-id %s " % SESSION in proc.stderr
+        assert "trigger: %r" % cp["trigger"] in proc.stderr
+        assert json.dumps(cp["failureFingerprints"]) in proc.stderr
+        assert "nothing-durable" in proc.stderr
+        assert "/goal clear" in proc.stderr
+
     def test_interrupt_once_stop_hook_active_is_honoured(self, env):
         seed_two_failures(env)
         first = run("Stop", {"hook_event_name": "Stop", "session_id": SESSION}, env)

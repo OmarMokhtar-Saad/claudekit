@@ -1020,7 +1020,7 @@ def record_receipt(
     checkpoint = pending_checkpoint(session_id)
     trigger = str(receipt.get("trigger", ""))
     if trigger not in TRIGGERS:
-        raise ValueError("trigger is not a supported enum value")
+        raise ValueError("trigger %r is not one of: %s" % (trigger, ", ".join(sorted(TRIGGERS))))
     if checkpoint is None:
         if not learning_loop_pending(session_id):
             raise ValueError("no reflection checkpoint or learning-loop duty is pending")
@@ -1028,17 +1028,20 @@ def record_receipt(
             raise ValueError("a learning-loop duty must be discharged with trigger "
                              "'learning-loop'")
     elif trigger != checkpoint["trigger"]:
-        raise ValueError("trigger does not match the pending checkpoint")
+        raise ValueError("trigger %r does not match the pending checkpoint, which requires %r"
+                         % (trigger, checkpoint["trigger"]))
     disposition = str(receipt.get("durableDisposition", ""))
     if disposition not in DISPOSITIONS:
-        raise ValueError("durableDisposition is not a supported enum value")
+        raise ValueError("durableDisposition %r is not one of: %s"
+                         % (disposition, ", ".join(sorted(DISPOSITIONS))))
     compared = receipt.get("approachesCompared")
     if not isinstance(compared, list) or len(compared) < 2:
         raise ValueError("approachesCompared must contain at least two approaches")
     expected_fps = [] if checkpoint is None else checkpoint["failureFingerprints"]
     supplied_fps = receipt.get("failureFingerprints", expected_fps)
     if not isinstance(supplied_fps, list) or sorted(supplied_fps) != sorted(expected_fps):
-        raise ValueError("failureFingerprints do not match the pending checkpoint")
+        raise ValueError("failureFingerprints must equal %s exactly (got %s)"
+                         % (json.dumps(sorted(expected_fps)), json.dumps(supplied_fps)))
     active = active_entries(session_id)
     entry: Dict[str, Any] = {
         "schemaVersion": SCHEMA_VERSION,
@@ -1097,12 +1100,49 @@ def duty_summary(session_id: str) -> Tuple[List[str], Dict[str, Any]]:
     return duties, {"checkpoint": checkpoint}
 
 
-def receipt_instructions() -> str:
-    return (
+def receipt_instructions(session_id: Optional[str] = None) -> str:
+    """The demand, SELF-DESCRIBING when the session is known.
+
+    Without the session it can only say `inbox-<session-key>.json`; a 2026-09-05 session
+    read that as the raw session id, then hit three trigger refusals in a row, each one a
+    Write+run cycle -- because the key is a hash, the required trigger is whatever the
+    pending checkpoint says, and the fingerprint list must match exactly, and none of
+    that was written down where the writer could see it. With the session id every one
+    of those values is printed verbatim, so a correct receipt takes one attempt.
+    """
+    steps = (
         "Clear it in two steps (this route keeps receipt free text OUT of any shell\n"
         "command line, so command-guard.sh cannot refuse a receipt that legitimately\n"
         "mentions subprocess.run, os.system( or __import__():\n"
-        "  1. Write the JSON payload to .claude/reflection/inbox-<session-key>.json\n"
+    )
+    if session_id and valid_session(session_id):
+        checkpoint = pending_checkpoint(session_id)
+        trigger = checkpoint["trigger"] if checkpoint else "learning-loop"
+        fps = checkpoint["failureFingerprints"] if checkpoint else []
+        try:
+            path = str(inbox_path(session_id))
+        except Exception:  # noqa: BLE001 - the demand must never itself fail
+            path = ".claude/reflection/inbox-<session-key>.json"
+        return (
+            steps
+            + "  1. Write the JSON payload to EXACTLY this path with the Write tool\n"
+            + "     (it stays writable while a checkpoint is pending):\n"
+            + "     %s\n" % path
+            + "  2. python3 .claude/hooks/reflection.py receipt --session-id %s "
+              "--session-token <token> --inbox\n" % session_id
+            + "Required fields and the values THIS checkpoint requires:\n"
+            + "  schemaVersion: %d\n" % SCHEMA_VERSION
+            + "  trigger: %r  (the only value accepted right now)\n" % trigger
+            + "  failureFingerprints: %s  (must match exactly)\n" % json.dumps(fps)
+            + "  durableDisposition: one of %s\n" % ", ".join(sorted(DISPOSITIONS))
+            + "  plus taskId, failedAssumption, approachesCompared (>=2), "
+              "chosenExperiment, proofCommandOrCheck, proofOutcome.\n"
+            + "If a /goal is set and the remaining step is human-only, run /goal clear: "
+              "the goal loop cannot be satisfied by waiting."
+        )
+    return (
+        steps
+        + "  1. Write the JSON payload to .claude/reflection/inbox-<session-key>.json\n"
         "     using the Write tool (this exact path stays writable while a checkpoint\n"
         "     is pending).\n"
         "  2. python3 .claude/hooks/reflection.py receipt --session-id <id> "
