@@ -1,0 +1,22 @@
+{
+  "plan": "claude-md-floor-trim2",
+  "files": [
+    {
+      "path": "CLAUDE.md",
+      "edits": [
+        {
+          "find": "python3 scripts/check-plan-artifacts.py --check # plan names every path its ops writes",
+          "replace": "python3 scripts/check-plan-artifacts.py --check # plan names its ops' paths"
+        },
+        {
+          "find": "python3 scripts/gen-model-policy.py --check # model-policy gate (tiers \u2194 frontmatter)",
+          "replace": "python3 scripts/gen-model-policy.py --check # model-policy gate"
+        },
+        {
+          "find": "python3 scripts/check-context-floor.py --check # always-on context budget",
+          "replace": "python3 scripts/check-context-floor.py --check # context budget (CLAUDE.md counts x4)"
+        }
+      ]
+    }
+  ]
+}
