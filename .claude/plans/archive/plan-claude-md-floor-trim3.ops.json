@@ -1,0 +1,34 @@
+{
+  "plan": "claude-md-floor-trim3",
+  "files": [
+    {
+      "path": "CLAUDE.md",
+      "edits": [
+        {
+          "find": "python3 -m pytest tests/ -q                 # full suite \u2014 zero failures tolerated",
+          "replace": "python3 -m pytest tests/ -q # full suite \u2014 zero failures tolerated"
+        },
+        {
+          "find": "mypy                                        # types (py3.9 target)",
+          "replace": "mypy # types (py3.9 target)"
+        },
+        {
+          "find": "python3 scripts/gen-docs.py --check         # docs-drift gate (counts)",
+          "replace": "python3 scripts/gen-docs.py --check # docs-drift gate (counts)"
+        },
+        {
+          "find": "python3 scripts/gen-registry.py --check     # registry-drift gate",
+          "replace": "python3 scripts/gen-registry.py --check # registry-drift gate"
+        },
+        {
+          "find": "shellcheck install.sh .claude/hooks/*.sh    # shell lint",
+          "replace": "shellcheck install.sh .claude/hooks/*.sh # shell lint"
+        },
+        {
+          "find": "ck doctor --strict                          # installed-tree health",
+          "replace": "ck doctor --strict # installed-tree health"
+        }
+      ]
+    }
+  ]
+}

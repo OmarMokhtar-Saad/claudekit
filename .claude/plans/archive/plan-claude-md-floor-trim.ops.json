@@ -1,0 +1,14 @@
+{
+  "plan": "claude-md-floor-trim",
+  "files": [
+    {
+      "path": "CLAUDE.md",
+      "edits": [
+        {
+          "find": "python3 scripts/check-plan-artifacts.py --check # every path an ops config writes is named in its plan",
+          "replace": "python3 scripts/check-plan-artifacts.py --check # plan names every path its ops writes"
+        }
+      ]
+    }
+  ]
+}

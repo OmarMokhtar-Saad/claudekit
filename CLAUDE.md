@@ -13,15 +13,16 @@ This repo runs its own enforcement hooks on itself. If Edit/Write is blocked by 
 ## Commands
 
 ```bash
-python3 -m pytest tests/ -q                 # full suite — zero failures tolerated
+python3 -m pytest tests/ -q # full suite — zero failures tolerated
 ruff check src/ tests/ scripts/ .claude/operations/scripts/ # lint (100)
-mypy                                        # types (py3.9 target)
-python3 scripts/gen-docs.py --check         # docs-drift gate (counts)
-python3 scripts/gen-registry.py --check     # registry-drift gate
-python3 scripts/gen-model-policy.py --check # model-policy gate (tiers ↔ frontmatter)
-python3 scripts/check-context-floor.py --check # always-on context budget
-shellcheck install.sh .claude/hooks/*.sh    # shell lint
-ck doctor --strict                          # installed-tree health
+mypy # types (py3.9 target)
+python3 scripts/gen-docs.py --check # docs-drift gate (counts)
+python3 scripts/gen-registry.py --check # registry-drift gate
+python3 scripts/gen-model-policy.py --check # model-policy gate
+python3 scripts/check-context-floor.py --check # context budget (CLAUDE.md counts x4)
+python3 scripts/check-plan-artifacts.py --check # plan names its ops' paths
+shellcheck install.sh .claude/hooks/*.sh # shell lint
+ck doctor --strict # installed-tree health
 ```
 
 ## How to work
