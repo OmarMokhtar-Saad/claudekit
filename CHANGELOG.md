@@ -386,6 +386,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   sessions' edits stashed -- and bare `$name` was the one expansion spelling not made
   opaque. Both are placeholders now, and the oracle asserts the converse too: every
   operand the hook believes in must be a word bash actually handed git.
+  A single MEASUREMENT round (28) then found positional and special parameters
+  (`$1`, `"$@"`, `$!`) outside the `$name` opacity class -- unset, they expand to zero
+  words, so `git add "$@" -A` staged both sessions' files -- and showed the oracle's
+  converse direction detects exactly that shape while no corpus row spelled it. Fixed,
+  and the spellings are in the corpus now.
   Contract, residuals and rollout in [.ai/CONCURRENCY.md](.ai/CONCURRENCY.md).
 
 - **`/ask` + the `request-shaping` skill -- input-side request normalization.**
