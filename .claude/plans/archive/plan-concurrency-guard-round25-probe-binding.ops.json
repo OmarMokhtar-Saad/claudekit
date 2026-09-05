@@ -1,0 +1,14 @@
+{
+  "plan": "concurrency-guard-round25-probe-binding",
+  "files": [
+    {
+      "path": "tests/test_concurrency_guard.py",
+      "edits": [
+        {
+          "find": "    \"git checkout \\\\> .\", \"git commit -m x \\\\> .\", \"git add \\\\> .\",",
+          "replace": "    \"git checkout \\\\> .\", \"git commit -m x \\\\> .\", \"git add \\\\> .\",\n    # round 24/25: every expansion is now ONE opaque word with a placeholder, in every\n    # quote state, because the unquoted spellings severed the outer command and\n    # dropped the flag behind it. Each of these committed, staged or deleted BOTH\n    # sessions' work at rc 0 (verified against git).\n    \"git commit -m $(date) -a\", \"git commit -m $(cat VERSION) -a\",\n    \"git commit -m $((1)) -a\", \"git clean -e $(cat p) -fd\",\n    \"git add --chmod +x $(date) .\", \"echo $(git add -A)\",\n    \"git commit -m ${x:-a;b} -a\", \"git clean -e ${x:-a;b} -fd\", \"git add ${x:-a;b} .\",\n    # a QUOTED or ESCAPED grouping character is a word, not a closer -- rounds 21/22\n    # closed `<>&|;` and left `(){}` out\n    'git commit -m \")\" -a', 'git add \")\" .', 'git add \"}\" .',\n    'git checkout \")\" -f', 'git clean \")\" -fd', 'git commit -m \\\\) -a',\n    \"git commit -m } -a\",\n    # bash DELETES a line continuation, joining the words; emitting a space split one\n    # word into two and the extra one read as a revision operand\n    \"git reset HEA\\\\\\nD\", \"git stash push -m a\\\\\\nb\","
+        }
+      ]
+    }
+  ]
+}

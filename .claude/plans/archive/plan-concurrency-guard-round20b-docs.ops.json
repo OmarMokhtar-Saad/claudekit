@@ -1,0 +1,47 @@
+{
+  "plan": "concurrency-guard-round20b-docs",
+  "files": [
+    {
+      "path": ".ai/CONCURRENCY.md",
+      "edits": [
+        {
+          "find": "| `clean -f` / `--force` (any cluster; `-n` / `--dry-run` exempt) | delete the files you created |",
+          "replace": "| `clean -f` / `--force` / `-i` / `--interactive` (any cluster; `-n` / `--dry-run` exempt) \u2014 `-i` satisfies git's requireForce exactly as `-f` does and deletes as much: `printf '1\\n' \\| git clean -i` removed both of another session's untracked files at rc 0 with no `-f` anywhere | delete the files you created |\n| `commit --interactive` (long spelling only) \u2014 it runs the same interactive-add loop as `git add -i` and then COMMITS; verified, both sessions' files landed in one commit. `commit -i` is `--include`, which takes paths and is scoped by them | `git add <paths>` then `git commit` |"
+        },
+        {
+          "find": "  exemption intact: `git add -p . > out` is allowed The hook was",
+          "replace": "  exemption intact: `git add -p . > out` is allowed. A\n  redirection attached to a GROUP feeds every command INSIDE it, and the closer has\n  already started a new segment by the time the `<` is read, so marking only the\n  current segment marked an empty one \u2014 `{ git checkout -p .; } < ans` DESTROYED both\n  sessions' in-flight edits, unattended, at rc 0. The redirection can also hang off a\n  LOOP (`while read x; do git add -p .; done < f`), where `do`/`done` are not grouping\n  tokens at all, so an input redirection ANYWHERE in the command text now marks every\n  segment. That closes the class instead of a fourth spelling, and its cost is named in\n  the residuals below The hook was"
+        },
+        {
+          "find": "* a git command in BACKTICKS (`` `git add -A` ``) is not seen. `$(git add -A)` IS\n  caught \u2014 the `$` and `(` split off as their own tokens and the inner command\n  becomes its own segment \u2014 so this bullet used to understate the guard",
+          "replace": "* a git command in BACKTICKS (`` `git add -A` ``) is not seen. `$(git add -A)` IS\n  caught, in both the bare and the DOUBLE-QUOTED spelling: inside double quotes it used\n  to be copied verbatim as quoted data, so shlex yielded one word and the inner command\n  never became a segment \u2014 `echo \"$(git add -A)\"` staged both sessions' paths and\n  `x=\"$(git checkout -f)\"` discarded a session's work, both at exit 0 (round 20), while\n  this bullet already claimed the class was closed. The substitution is now lifted OUT\n  of the quotes and analysed as its own segment; `'$(git add -A)'` in SINGLE quotes\n  stays allowed, because it is not a command"
+        },
+        {
+          "find": "* a `-p` after a PIPELINE is over-blocked:",
+          "replace": "* an input redirection ANYWHERE in the command text over-blocks a `-p` elsewhere in\n  it: `cat < f; git add -p .` is denied. The hook cannot tell which commands a\n  redirection feeds without a shell grammar \u2014 `done < f` hangs it off a loop \u2014 so it\n  marks them all. `fed` gates only the `--patch` exemption, so nothing that lacks `-p`\n  changes verdict\n* an unterminated `$(` inside double quotes fails closed, like every other unreadable\n  text\n* a `-p` after a PIPELINE is over-blocked:"
+        },
+        {
+          "find": "* an unknown pre-subcommand option denies the whole invocation, including a read-only\n  one: `git --frobnicate status` blocks. It is not a command git would run either\n  (`unknown option`, exit 129), so nothing that works is denied",
+          "replace": "* an unknown pre-subcommand option denies the whole invocation, including a read-only\n  one: `git --frobnicate status` blocks. **The first version of this bullet went on to\n  claim \"it is not a command git would run either, so nothing that works is denied\" \u2014\n  and that was false when executed:** `git --version`, `git -v`, `git --help`,\n  `git -h` and `git --man-path` all run at rc 0 and were all DENIED, with\n  `git --version` appearing in doctor and CI scripts constantly and a denial anywhere\n  in a compound killing the whole call (round 20). They are members now. What remains\n  true is narrower: an option git does not accept is denied, and so is one git accepts\n  that this hook has never heard of \u2014 the second half is the cost of failing closed,\n  and `test_git_accepts_every_global_this_hook_lists` keeps the member list honest by\n  asking git. That test had to be fixed too: it probed `git <glob> status`, which the\n  terminal globals reject, so it called five real ones dead weight"
+        },
+        {
+          "find": "Round 20's leak was found by ME, probing my own round-19 fix rather than by the\nreviewer:",
+          "replace": "Round 20 then returned FOUR BLOCKING findings and a MAJOR, the largest single round of\nthe series: `git clean -i` (the sixth \"one site updated, its sibling missed\"),\n`git commit --interactive` (`git add -i`'s sibling, denied two rounds after it),\na group-attached redirection defeating the stdin bit, a double-quoted command\nsubstitution never being analysed at all \u2014 and the `git --version` over-block above,\nwhich my own round-19 inversion introduced and my own doc then justified with a sentence\nthat execution refutes. Round 20's earlier leak was found by ME, probing my own round-19\nfix rather than by the reviewer:"
+        },
+        {
+          "find": "So the honest status is: **nineteen rounds, two approvals (8 and 12), and every single\nround has found something.**",
+          "replace": "So the honest status is: **twenty rounds, two approvals (8 and 12), and every single\nround has found something** \u2014 and rounds 17, 19 and 20 each found a leak inside the\nfix that preceded them. Three of the last four rounds. That is the number to weigh\nbefore anyone promotes the fleet, not the size of the test suite."
+        }
+      ]
+    },
+    {
+      "path": "CHANGELOG.md",
+      "edits": [
+        {
+          "find": "  redirection still leaves the exemption intact.",
+          "replace": "  redirection still leaves the exemption intact.\n  A second round-20 pass returned FOUR BLOCKING findings and a MAJOR, the largest of\n  the series. (1) `git clean -i`/`--interactive` deletes another session's untracked\n  files with no `-f` -- it satisfies git's requireForce exactly as `-f` does (verified,\n  both files gone at rc 0); round 18 had denied `git add -i` and left `clean`'s\n  identical flag, the sixth \"one site updated, its sibling missed\". (2)\n  `git commit --interactive` runs the same interactive-add loop and then COMMITS: both\n  sessions' files landed in one commit at rc 0. (3) A redirection attached to a GROUP\n  feeds every command inside it, but the closer had already begun a new segment, so\n  `{ git checkout -p .; } < ans` destroyed both sessions' in-flight edits unattended;\n  since the redirection can also hang off a loop (`done < f`), an input redirection\n  anywhere in the command text now marks every segment. (4) A DOUBLE-QUOTED command\n  substitution was copied verbatim as quoted data, so `echo \"$(git add -A)\"` staged\n  both sessions' paths and `x=\"$(git checkout -f)\"` discarded a session's work, both at\n  exit 0 -- the commonest scripted capture spelling there is, while the doc claimed the\n  `$(...)` class was closed. And the MAJOR was mine: round 19's fail-closed inversion\n  denied `git --version`, `-v`, `--help`, `-h` and `--man-path`, which all run at rc 0,\n  and the doc justified it with a sentence execution refutes."
+        }
+      ]
+    }
+  ]
+}

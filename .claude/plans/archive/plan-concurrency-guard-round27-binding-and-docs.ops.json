@@ -1,0 +1,56 @@
+{
+  "plan": "concurrency-guard-round27-binding-and-docs",
+  "files": [
+    {
+      "path": "tests/test_concurrency_guard.py",
+      "edits": [
+        {
+          "find": "    \"git clean -e p <<EOF -fd\\nbody\\nEOF\",",
+          "replace": "    \"git clean -e p <<EOF -fd\\nbody\\nEOF\",\n    # round 26: process substitution GLUED to a word is still a substitution (bash\n    # performs it mid-word), and gating the lift on a token boundary let `<(` reach\n    # the classifier as a separator. Verified: both committed/deleted both sessions'\n    # work at rc 0.\n    \"git commit -m x<(echo y) -a\", \"git clean -e p<(echo y) -fd\", \"git commit -m x>(cat) -a\",\n    # round 26: a wrapper option's VALUE is not a script file, so the stdin script\n    # must still be treated as unreadable -- verified, `-O extglob` staged both\n    # sessions' files and the here-string spelling destroyed both in-flight edits\n    \"bash -O extglob <<EOF\\ngit add -A\\nEOF\", \"bash --rcfile f <<EOF\\ngit add -A\\nEOF\",\n    'bash -O extglob <<< \"git checkout -f\"', 'zsh -o x <<< \"git add -A\"',"
+        },
+        {
+          "find": "    \"git commit -m { src/a.py\", \"git status >| out\", \"git add src/a.py >| out\",",
+          "replace": "    \"git commit -m { src/a.py\", \"git status >| out\", \"git add src/a.py >| out\",\n    # a wrapper option's value followed by a REAL script file stays the file residual\n    \"bash -O extglob build.sh\", \"bash -O extglob -c 'git status'\", \"echo x<(echo y)\","
+        },
+        {
+          "find": "        '<(echo x)',\n    ]",
+          "replace": "        '<(echo x)',\n        'a<(echo x)', 'a>(cat)b',   # round 26: glued, which the lift's boundary gate missed\n    ]"
+        },
+        {
+          "find": "        spellings = [\n            \"%s -c 'git add -A'\" % wrapper,",
+          "replace": "        spellings = [\n            \"%s -c 'git add -A'\" % wrapper,\n            # round 26: every spelling below was a BARE wrapper, so a wrapper option\n            # whose VALUE looked like a script file was invisible to this very test\n            \"%s -O extglob <<EOF\\ngit add -A\\nEOF\" % wrapper,\n            \"%s --rcfile f <<< 'git add -A'\" % wrapper,"
+        },
+        {
+          "find": "    \"SCRIPT_WRAPPERS\": {\"bash\", \"dash\", \"eval\", \"sh\", \"zsh\"},",
+          "replace": "    \"SCRIPT_WRAPPERS\": {\"bash\", \"dash\", \"eval\", \"sh\", \"zsh\"},\n    \"WRAPPER_VALUE_OPTS\": {\"+O\", \"+o\", \"--init-file\", \"--rcfile\", \"-O\", \"-o\"},"
+        },
+        {
+          "find": "        (\"a-consumed-heredoc-marker-leaves-a-placeholder-target\",",
+          "replace": "        (\"process-substitution-is-lifted-in-any-word-position\",\n         '        if not quote and command[i:i + 2] in (\"<(\", \">(\"):',\n         '        if not quote and command[i:i + 2] in (\"<(\", \">(\") and at_token_boundary():',\n         \"git commit -m x<(echo y) -a\", 2),\n        (\"a-wrapper-option-value-is-not-a-script-file\",\n         \"                and not (idx and words[idx - 1] in WRAPPER_VALUE_OPTS)\",\n         \"                and True\",\n         \"bash -O extglob <<EOF\\ngit add -A\\nEOF\", 2),\n        (\"a-consumed-heredoc-marker-leaves-a-placeholder-target\","
+        }
+      ]
+    },
+    {
+      "path": ".ai/CONCURRENCY.md",
+      "edits": [
+        {
+          "find": "| an argument AFTER a heredoc marker",
+          "replace": "| process substitution GLUED to a word (`git commit -m x<(echo y) -a`) \u2014 bash performs it mid-word (`echo x<(echo y)` prints `x/dev/fd/63`), and gating the lift on a token boundary let `<(` reach the classifier as a separator, dropping the flag behind it; both sessions' files were committed (round 26, verified) | `git add <paths>` then `git commit` |\n| a shell WRAPPER whose own option takes a VALUE, fed on stdin (`bash -O extglob <<EOF \u2026`, `bash --rcfile f <<< '\u2026'`) \u2014 the value was counted as a script file, so the fail-closed rule for stdin scripts was skipped; `-O extglob <<< \"git checkout -f\"` destroyed both sessions' in-flight edits (round 26, verified). `WRAPPER_VALUE_OPTS` names the options whose next word is not a script | pass the script as `bash -c '<script>'` |\n| an argument AFTER a heredoc marker"
+        },
+        {
+          "find": "So the honest status is: **twenty-five rounds, two approvals (8 and 12), and every single\nround has found something**",
+          "replace": "Round 26 returned two more BLOCKING, both outside what round 26's own fixes touched, and\neach one an existing rule with a position or value gate that bash does not have; the\nparity test written to close the wrapper class had itself enumerated only bare wrappers.\nSo the honest status is: **twenty-six rounds, two approvals (8 and 12), and every single\nround has found something**"
+        }
+      ]
+    },
+    {
+      "path": "CHANGELOG.md",
+      "edits": [
+        {
+          "find": "  the ratchet is enumerative.",
+          "replace": "  the ratchet is enumerative.\n  A TWENTY-SIXTH round found two more BLOCKING: process substitution glued to a word\n  (`git commit -m x<(echo y) -a`) was not lifted because the lift was gated on a token\n  boundary bash does not require, and a shell wrapper's own option VALUE (`bash -O\n  extglob`) was counted as a script file, skipping the fail-closed rule for a script\n  arriving on stdin -- `bash -O extglob <<< \"git checkout -f\"` destroyed both sessions'\n  in-flight edits. Both verified against bash and git; both fixed and bound. Probing\n  round 26's own redirection work also found that a heredoc's consumed marker left the\n  `<<` token skipping the next REAL argument, so `git commit -m x <<EOF -a` committed\n  both sessions' files; a placeholder now stands in for the marker."
+        }
+      ]
+    }
+  ]
+}

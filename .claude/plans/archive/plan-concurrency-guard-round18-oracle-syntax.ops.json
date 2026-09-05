@@ -1,0 +1,14 @@
+{
+  "plan": "concurrency-guard-round18-oracle-syntax",
+  "files": [
+    {
+      "path": "tests/test_concurrency_guard.py",
+      "edits": [
+        {
+          "find": "                     [\"config\", \"user.name\", \"a\")]:",
+          "replace": "                     [\"config\", \"user.name\", \"a\"]):"
+        }
+      ]
+    }
+  ]
+}

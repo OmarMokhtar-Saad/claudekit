@@ -1,0 +1,22 @@
+{
+  "plan": "concurrency-guard-round25-arith-precedence",
+  "files": [
+    {
+      "path": ".claude/hooks/concurrency-guard.py",
+      "edits": [
+        {
+          "find": "        if quote == '\"' and command.startswith(\"$((\", i):",
+          "replace": "        if quote != \"'\" and command.startswith(\"$((\", i):"
+        },
+        {
+          "find": "        if command.startswith(\"$((\", i):\n            # `$((1<<2))` is an arithmetic shift, not a heredoc. Reading it as one\n            # invented a marker that never arrived, so `confident` went False and a\n            # purely read-only `git log` script was DENIED (round 15). Fail-closed\n            # direction, but still a false positive on an ordinary line.\n            arith_depth += 1\n            out.append(\"$((\")\n            i += 3\n            continue\n\n",
+          "replace": ""
+        },
+        {
+          "find": "            # ARITHMETIC, not a command substitution -- and this test has to come",
+          "replace": "            # ARITHMETIC, not a command substitution, in EVERY quote state. This\n            # branch was `quote == '\"'` only, and once round 25 let the `$(`\n            # extraction run unquoted too, the extraction matched `$((` first and\n            # swallowed the newline behind it -- `echo $((1+2))` above `git add -A`\n            # went from BLOCK to ALLOW, a regression the suite caught immediately.\n            # It also replaces the unquoted-only arithmetic branch that used to sit\n            # further down, which is now unreachable and deleted rather than left to\n            # read as load-bearing.\n            # This test has to come"
+        }
+      ]
+    }
+  ]
+}

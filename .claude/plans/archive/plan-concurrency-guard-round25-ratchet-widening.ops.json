@@ -1,0 +1,26 @@
+{
+  "plan": "concurrency-guard-round25-ratchet-widening",
+  "files": [
+    {
+      "path": "tests/test_concurrency_guard.py",
+      "edits": [
+        {
+          "find": "        \"eval '{cmd}'\",\n        \"bash -lc '{cmd}'\",\n    ]",
+          "replace": "        \"eval '{cmd}'\",\n        \"bash -lc '{cmd}'\",\n        # round 24: the doc claimed here-strings and line continuations were in this\n        # list, and neither was -- the missing continuation is exactly where\n        # `git reset HEA\\<nl>D` lived. Both are decorations, not part of the command.\n        \"cat <<< 'a string'\\n{cmd}\",\n        \"echo one \\\\\\n  two\\n{cmd}\",\n        \"x=$(date)\\n{cmd}\",\n        \"echo ${x:-a;b}\\n{cmd}\",\n        \"echo $((1<<2))\\n{cmd}\",\n    ]"
+        },
+        {
+          "find": "        '\"$(printf %s wip)\"',\n    ]",
+          "replace": "        '\"$(printf %s wip)\"',\n        # round 24: the reviewer showed this list was scoped to QUOTED words, so an\n        # unquoted expansion, a quoted grouping character and a bare `}` were all\n        # structurally invisible to it -- and 78 rows of its own tails leaked. Every\n        # construct below reached the whole tree at rc 0 before round 25.\n        '$(date)', '$(cat VERSION)', '$((1))', '$((1<<2))', '${x:-a;b}', '${x:-plain}',\n        '\")\"', '\"(\"', '\"}\"', '\"{\"', '\\\\)', '\\\\}', '}',\n        'a\\\\\\nb',                   # a line continuation INSIDE a word\n        '\"a$(date)b\"', 'a$(date)b', 'a${x:-b}c',\n        '<(echo x)',\n    ]"
+        },
+        {
+          "find": "        for needed in ('\"wip\\\\;x\"', '\"$(date)\"', '\"\"', '\"$((1<<2))\"'):\n            assert needed in self.CONSTRUCTS, needed\n        assert len(self.CONSTRUCTS) >= 20 and len(self.TAILS) >= 6",
+          "replace": "        for needed in ('\"wip\\\\;x\"', '\"$(date)\"', '\"\"', '\"$((1<<2))\"',\n                       '$(date)', '\")\"', '}', '${x:-a;b}', 'a\\\\\\nb'):\n            assert needed in self.CONSTRUCTS, needed\n        assert len(self.CONSTRUCTS) >= 35 and len(self.TAILS) >= 6"
+        },
+        {
+          "find": "        (\"a-parameter-expansion-is-one-opaque-word\",",
+          "replace": "        (\"a-bare-brace-with-no-open-group-is-an-argument\",\n         '        if core != raw and not group_starts and not raw.startswith(\")\"):',\n         \"        if False:\",\n         \"git commit -m } -a\", 2),\n        (\"a-parameter-expansion-is-one-opaque-word\","
+        }
+      ]
+    }
+  ]
+}

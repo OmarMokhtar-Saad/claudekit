@@ -1,0 +1,26 @@
+{
+  "plan": "concurrency-guard-round21-mechanism",
+  "files": [
+    {
+      "path": ".claude/hooks/concurrency-guard.py",
+      "edits": [
+        {
+          "find": "        if head in GIT_GLOBAL_WITH_VALUE:\n            out = out[2:] if len(out) > 1 else []\n            continue",
+          "replace": "        if head in (\"-c\", \"--config-env\") and len(out) > 1 and _config_is_opaque(out[1]):\n            # BEFORE the generic value-consuming branch below, which matched `-c`\n            # first and threw the setting away before anything could read it.\n            raise UnknownGitGlobal(out[1])\n        if head in GIT_GLOBAL_WITH_VALUE:\n            out = out[2:] if len(out) > 1 else []\n            continue"
+        },
+        {
+          "find": "        if head in (\"-c\", \"--config-env\") and len(out) > 1 and _config_is_opaque(out[1]):\n            raise UnknownGitGlobal(out[1])",
+          "replace": ""
+        },
+        {
+          "find": "        # Fused short form: -C/tmp/x or -cuser.name=x\n        if len(head) > 2 and head[:2] in (\"-C\", \"-c\"):\n            out = out[1:]\n            continue",
+          "replace": "        # Fused short form: -C/tmp/x or -cuser.name=x\n        if len(head) > 2 and head[:2] in (\"-C\", \"-c\"):\n            if head[:2] == \"-c\" and _config_is_opaque(head[2:]):\n                raise UnknownGitGlobal(head)\n            out = out[1:]\n            continue"
+        },
+        {
+          "find": "        if quote:\n            if ch == quote:\n                quote = \"\"",
+          "replace": "        if arith_depth and command.startswith(\"))\", i):\n            # Also while QUOTED: `x=\"$((1<<2))\"` opens the arithmetic inside double\n            # quotes, so the copy branch below would swallow the closer, leave\n            # `arith_depth` at 1, and fail closed on a purely read-only script --\n            # round 15's documented allowance, regressed for the quoted spelling by\n            # this round's own fix if the decrement stays unquoted-only.\n            arith_depth -= 1\n            out.append(\"))\")\n            i += 2\n            continue\n\n        if quote:\n            if ch == quote:\n                quote = \"\""
+        }
+      ]
+    }
+  ]
+}

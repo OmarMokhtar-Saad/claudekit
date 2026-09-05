@@ -1,0 +1,26 @@
+{
+  "plan": "concurrency-guard-round23-extraction-cleanup",
+  "files": [
+    {
+      "path": ".claude/hooks/concurrency-guard.py",
+      "edits": [
+        {
+          "find": "            quote_stack.append(quote)\n            subst_depth.append(1)\n            # EXTRACTED, not spliced.",
+          "replace": "            # EXTRACTED, not spliced."
+        },
+        {
+          "find": "        if subst_depth:\n            # Track nesting so the quote is restored at the RIGHT paren.\n            if ch == \"(\":\n                subst_depth[-1] += 1\n            elif ch == \")\":\n                subst_depth[-1] -= 1\n                if subst_depth[-1] == 0:\n                    subst_depth.pop()\n                    quote = quote_stack.pop()\n                    out.append(';\"')\n                    i += 1\n                    continue\n\n",
+          "replace": ""
+        },
+        {
+          "find": "    quote_stack: List[str] = []\n    subst_depth: List[int] = []",
+          "replace": "    # The round-20 splice needed a quote stack and a nesting counter that the main\n    # loop unwound; extraction reads the substitution's extent in one scan instead, so\n    # both are gone. Leaving the two pushes behind with nothing to pop them made\n    # `confident` False for EVERY quoted substitution -- an ordinary\n    # `echo \"$(git status)\"` was denied until the probes caught it."
+        },
+        {
+          "find": "    if quote or escaped or arith_depth or subst_depth or pending_markers:",
+          "replace": "    if quote or escaped or arith_depth or pending_markers:"
+        }
+      ]
+    }
+  ]
+}

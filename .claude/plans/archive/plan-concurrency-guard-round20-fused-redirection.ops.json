@@ -1,0 +1,18 @@
+{
+  "plan": "concurrency-guard-round20-fused-redirection",
+  "files": [
+    {
+      "path": ".claude/hooks/concurrency-guard.py",
+      "edits": [
+        {
+          "find": "        tok = core\n        kind = classify_operator(tok)",
+          "replace": "        tok = core\n        kind = classify_operator(tok)\n        # An INPUT redirection feeds the CURRENT segment's stdin, and that must be\n        # recorded before the token is classified any further -- `punctuation_chars`\n        # fuses a run of operator characters, so a heredoc arrives GLUED to the\n        # separator that follows it (`git add -p . <<EOF` preprocesses to `... <<;`,\n        # one token `<<;`). Classified whole it read as a SEPARATOR, the redirection\n        # meaning was lost, and the `--patch` exemption came back: verified against\n        # git 2.50, `git add -p . <<EOF\\ny\\ny\\nEOF` staged BOTH sessions' files at\n        # exit 0, while the identical `<<<` and `<` spellings blocked. Same class as\n        # rounds 18 and 19, third spelling -- and the same fused-token trap that cost\n        # rounds 1-3 and 6 their separators.\n        if \"<\" in tok:\n            fed[-1] = True"
+        },
+        {
+          "find": "        if kind == \"redirection\":\n            # An INPUT redirection feeds stdin, so no human is answering a `-p` prompt.\n            # `<<` counts too: the heredoc BODY is stripped as data, but stdin is still\n            # supplied by the command line.\n            if \"<\" in tok:\n                fed[-1] = True",
+          "replace": "        if kind == \"redirection\":"
+        }
+      ]
+    }
+  ]
+}

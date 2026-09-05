@@ -1,0 +1,14 @@
+{
+  "plan": "concurrency-guard-round28-mutant-reaim-2",
+  "files": [
+    {
+      "path": "tests/test_concurrency_guard.py",
+      "edits": [
+        {
+          "find": "        (\"an-arithmetic-expansion-becomes-one-opaque-word\",\n         \"            depth = 1\\n            j = i + 3\\n\",\n         \"            depth = 1\\n            j = i + 3\\n\"\n         \"            out.append('\\\"' + QUOTED_WORD_SENTINEL + '\\\"')\\n\",\n         # a SECOND placeholder makes the expansion two words, so `-m` takes the first\n         # and the second becomes a scoping pathspec -- the round-25 anchor spanned the\n         # `$(` branch header, which round 28 moved\n         \"git commit -m $((1)) -a\", 2),",
+          "replace": "        (\"an-arithmetic-expansion-becomes-one-opaque-word\",\n         \"                confident = False          # unclosed: the text was not understood\\n\"\n         \"                break\\n\"\n         \"            out.append('\\\"' + QUOTED_WORD_SENTINEL + '\\\"')\\n\",\n         \"                confident = False          # unclosed: the text was not understood\\n\"\n         \"                break\\n\",\n         # with NO placeholder the expansion leaves no token, so `-m` swallows the\n         # `-a` behind it as its message. The previous re-aim emitted a SECOND\n         # placeholder instead and did not flip -- commit tests `--all` before the\n         # scoped-pathspec return, so an extra pathspec changes nothing there.\n         \"git commit -m $((1)) -a\", 2),"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "plan": "concurrency-guard-round23-ratchet-docs",
+  "files": [
+    {
+      "path": ".ai/CONCURRENCY.md",
+      "edits": [
+        {
+          "find": "**That invariant is not implemented\nyet, and it is the single highest-value thing left to do to this hook.**",
+          "replace": "The check now EXISTS, in the form that fits the class rather than the form the reviewer\nsketched: `TestNoConstructSwallowsTheFlagBehindIt` is METAMORPHIC. It crosses 21\nconstructs against 10 tails that put a tree-wide flag or pathspec AFTER the construct,\nand asserts the verdict against a `\"plain\"` control \u2014 so a construct nobody has thought\nof still has to satisfy it, and no future round has to enumerate its spelling first.\nThe invariant is ONE-DIRECTIONAL: a construct may make the verdict more restrictive (an\nunknowable `\"$(date)\"` expansion fails closed, and git refuses the empty pathspec that\nremains), never less. Every instance of this class turned a 2 into a 0. It is proven to\nbind by re-introducing round 23's own defects in a scratch copy \u2014 18 rows fail with the\nescaped-operator fix reverted, 16 with the empty-argument fix reverted \u2014 and it caught a\nwrong row of mine on its first run, via the same vacuity guard that requires the control\nto match its expectation. What it does NOT catch is written down too: reverting the\nsubstitution extraction to a plain DROP fails no row, because dropping a body leaves the\nouter flag intact and that is not this class's failure mode."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,58 @@
+{
+  "plan": "concurrency-guard-round20-round2-fixes",
+  "files": [
+    {
+      "path": ".claude/hooks/concurrency-guard.py",
+      "edits": [
+        {
+          "find": "        if has_flag(flags, (\"--force\",), \"f\"):\n            return \"clean\", \"clean-force\"",
+          "replace": "        # `-i`/`--interactive` satisfies git's requireForce exactly as `-f` does, and\n        # deletes just as much: verified against git 2.50, `printf '1\\n' | git clean -i`\n        # removed BOTH of another session's untracked files at rc 0 with no `-f`\n        # anywhere. Round 20, and the SIXTH instance of \"one site updated, its sibling\n        # missed\" -- round 18 denied `git add -i` and left `clean`'s identical flag.\n        if has_flag(flags, (\"--force\", \"--interactive\"), \"fi\"):\n            return \"clean\", \"clean-force\""
+        },
+        {
+          "find": "        if has_flag(flags, (\"--all\",), \"a\"):\n            return \"commit\", \"commit-all\"",
+          "replace": "        if has_flag(flags, (\"--all\",), \"a\"):\n            return \"commit\", \"commit-all\"\n        # `--interactive` runs the same interactive-add loop as `git add -i` and then\n        # COMMITS: verified against git 2.50, it committed both sessions' files at\n        # rc 0. LONG spelling only -- `commit -i` is `--include`, which takes paths and\n        # is scoped by them. This is `add -i`'s sibling, denied here two rounds later.\n        if has_flag(flags, (\"--interactive\",)):\n            return \"commit\", \"commit-all\""
+        },
+        {
+          "find": "    segments: List[List[str]] = [[]]\n    fed: List[bool] = [False]\n\n    def start_segment(stdin_fed: bool = False) -> None:\n        segments.append([])\n        fed.append(stdin_fed)",
+          "replace": "    segments: List[List[str]] = [[]]\n    fed: List[bool] = [False]\n    # Index of the segment a just-CLOSED group began at. A redirection attached to the\n    # group (`{ git checkout -p .; } < ans`) feeds every command INSIDE it, but the\n    # closer has already started a new segment by the time the `<` is read, so marking\n    # only `fed[-1]` marked an empty segment and the git command kept `fed=False`.\n    # Verified against git 2.50: that spelling DESTROYED both sessions' in-flight edits\n    # unattended at rc 0 -- round 19's leak in the redirection spelling, the third time\n    # in five rounds that a fix carried the next leak.\n    group_starts: List[int] = []\n    closed_group_at: Optional[int] = None\n\n    def start_segment(stdin_fed: bool = False) -> None:\n        segments.append([])\n        fed.append(stdin_fed)"
+        },
+        {
+          "find": "        core = raw.lstrip(\")}\")\n        if core != raw:\n            start_segment(fed[-1])\n            if not core:\n                continue",
+          "replace": "        core = raw.lstrip(\")}\")\n        if core != raw:\n            closed_group_at = group_starts.pop() if group_starts else len(segments) - 1\n            start_segment(fed[-1])\n            if not core:\n                continue"
+        },
+        {
+          "find": "        if \"<\" in tok:\n            fed[-1] = True",
+          "replace": "        if \"<\" in tok:\n            fed[-1] = True\n            if closed_group_at is not None:\n                # The redirection belongs to the group that just closed: every command\n                # inside it read from that file.\n                for idx in range(closed_group_at, len(fed)):\n                    fed[idx] = True"
+        },
+        {
+          "find": "        elif tok.strip(\"({\") == \"\":",
+          "replace": "        elif tok.strip(\"({\") == \"\":\n            group_starts.append(len(segments))"
+        },
+        {
+          "find": "        else:\n            segments[-1].append(tok)\n    return [(s, f) for s, f in zip(segments, fed) if s]",
+          "replace": "        else:\n            segments[-1].append(tok)\n            # A real word ends any pending group-close: a redirection further along the\n            # line belongs to that word's command, not to the group behind it.\n            closed_group_at = None\n    return [(s, f) for s, f in zip(segments, fed) if s]"
+        },
+        {
+          "find": "    pending_markers: List[str] = []\n    arith_depth = 0",
+          "replace": "    pending_markers: List[str] = []\n    arith_depth = 0\n    # A `$(...)` inside DOUBLE quotes is a command, and it was copied verbatim as\n    # quoted data, so shlex yielded one word and the inner command never became a\n    # segment: `echo \"$(git add -A)\"` staged both sessions' paths at rc 0 (verified\n    # against git 2.50), as did `x=\"$(git checkout -f)\"` -- the commonest scripted\n    # capture spelling there is. The UNQUOTED form was already caught, which is why\n    # the doc claimed the whole class was. Inside the substitution the text is\n    # processed UNQUOTED, bracketed by `;` so it is its own segment, and the quote is\n    # restored at the matching paren.\n    quote_stack: List[str] = []\n    subst_depth: List[int] = []"
+        },
+        {
+          "find": "        if quote:\n            if ch == quote:\n                quote = \"\"\n            out.append(ch)\n            i += 1\n            continue",
+          "replace": "        if quote == '\"' and command.startswith(\"$(\", i):\n            quote_stack.append(quote)\n            subst_depth.append(1)\n            quote = \"\"\n            out.append(\";\")\n            i += 2\n            continue\n\n        if quote:\n            if ch == quote:\n                quote = \"\"\n            out.append(ch)\n            i += 1\n            continue\n\n        if subst_depth:\n            # Track nesting so the quote is restored at the RIGHT paren.\n            if ch == \"(\":\n                subst_depth[-1] += 1\n            elif ch == \")\":\n                subst_depth[-1] -= 1\n                if subst_depth[-1] == 0:\n                    subst_depth.pop()\n                    quote = quote_stack.pop()\n                    out.append(\";\")\n                    i += 1\n                    continue"
+        },
+        {
+          "find": "    if quote or escaped or arith_depth:",
+          "replace": "    if quote or escaped or arith_depth or subst_depth:"
+        },
+        {
+          "find": "    \"--no-advice\", \"--no-lazy-fetch\", \"--no-literal-pathspecs\",\n})",
+          "replace": "    \"--no-advice\", \"--no-lazy-fetch\", \"--no-literal-pathspecs\",\n    # Round 20: the fail-closed inversion denied these, and the doc justified it with\n    # \"it is not a command git would run either\" -- false, executed: all six run at\n    # rc 0, `git --version` is in doctor and CI scripts everywhere, and a denial\n    # anywhere in a compound kills the whole call. An over-block with a rationale\n    # refuted by execution is the class this file keeps warning about.\n    \"--version\", \"-v\", \"--help\", \"-h\", \"--man-path\",\n})"
+        },
+        {
+          "find": "    \"--super-prefix\", \"--config-env\", \"--attr-source\",\n})",
+          "replace": "    \"--super-prefix\", \"--config-env\", \"--attr-source\", \"--list-cmds\",\n})"
+        }
+      ]
+    }
+  ]
+}

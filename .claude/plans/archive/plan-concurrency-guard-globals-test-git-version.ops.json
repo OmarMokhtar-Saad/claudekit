@@ -1,0 +1,14 @@
+{
+  "plan": "concurrency-guard-globals-test-git-version",
+  "files": [
+    {
+      "path": "tests/test_concurrency_guard.py",
+      "edits": [
+        {
+          "find": "        repo = tmp_path / \"globals\"\n        repo.mkdir()\n        subprocess.run([\"git\", \"init\", \"-q\", \".\"], cwd=str(repo), capture_output=True)\n        for glob in sorted(guard.GIT_GLOBAL_FLAGS):",
+          "replace": "        repo = tmp_path / \"globals\"\n        repo.mkdir()\n        subprocess.run([\"git\", \"init\", \"-q\", \".\"], cwd=str(repo), capture_output=True)\n        # Members git itself only learned recently. On an older git (ubuntu-latest\n        # ships 2.43) they are \"unknown option\" -- which is an environment fact, not\n        # dead weight, so they are skipped BELOW the version that introduced them.\n        # The hook must still list them: a newer git accepts them, and an unlisted\n        # accepted global became the \"subcommand\" in round 19.\n        introduced = {\"--no-lazy-fetch\": (2, 44), \"--no-advice\": (2, 45),\n                      \"--attr-source\": (2, 41)}\n        ver = subprocess.run([\"git\", \"--version\"], capture_output=True, text=True).stdout\n        m = re.search(r\"(\\d+)\\.(\\d+)\", ver)\n        local = (int(m.group(1)), int(m.group(2))) if m else (0, 0)\n        for glob in sorted(guard.GIT_GLOBAL_FLAGS):\n            if local < introduced.get(glob, (0, 0)):\n                continue"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "plan": "concurrency-guard-round23-ratchet-direction",
+  "files": [
+    {
+      "path": "tests/test_concurrency_guard.py",
+      "edits": [
+        {
+          "find": "        assert got == control, (\n            f\"the construct {construct!r} swallowed what followed it: {command!r} \"\n            f\"-> {got}, but the same command with a plain word -> {control}\")",
+          "replace": "        # ONE-DIRECTIONAL: a construct may make the verdict MORE restrictive -- an\n        # unreadable or unknowable expansion should fail closed, and\n        # `git add --chmod +x \"$(date)\" -A` legitimately does, since the hook cannot\n        # know what the substitution expands to and git itself refuses the empty\n        # pathspec that remains. What it must never do is make the verdict LESS\n        # restrictive, which is what every instance of this class did: each turned a 2\n        # into a 0 by swallowing the token behind the construct.\n        if control == 2:\n            assert got == 2, (\n                f\"the construct {construct!r} swallowed what followed it: \"\n                f\"{command!r} -> {got}, but with a plain word -> 2\")"
+        },
+        {
+          "find": "        assert len(self.CONSTRUCTS) >= 20 and len(self.TAILS) >= 6",
+          "replace": "        assert len(self.CONSTRUCTS) >= 20 and len(self.TAILS) >= 6\n        # The invariant is one-directional, so the matrix is only worth having if most\n        # rows have a BLOCKING control -- otherwise it asserts nothing at all.\n        blocking = [t for t in self.TAILS if t[1] == 2]\n        assert len(blocking) >= 5, \"too few blocking controls to catch a swallowed flag\""
+        }
+      ]
+    }
+  ]
+}

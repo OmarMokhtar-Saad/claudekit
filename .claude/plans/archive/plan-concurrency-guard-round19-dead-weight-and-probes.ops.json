@@ -1,0 +1,43 @@
+{
+  "plan": "concurrency-guard-round19-dead-weight-and-probes",
+  "files": [
+    {
+      "path": ".claude/hooks/concurrency-guard.py",
+      "edits": [
+        {
+          "find": "    \"--no-advice\", \"--no-lazy-fetch\", \"--no-literal-pathspecs\",\n    \"--no-glob-pathspecs\", \"--no-icase-pathspecs\",\n})",
+          "replace": "    # `--no-glob-pathspecs` and `--no-icase-pathspecs` sat here for one execution and\n    # do NOT belong: git rejects both (`unknown option`), so they were dead weight --\n    # me inventing plausible negations of members that do exist. Caught by\n    # `test_git_accepts_every_global_this_hook_lists`, which asks git rather than\n    # trusting the author. The negation git really does accept is\n    # `--no-literal-pathspecs`.\n    \"--no-advice\", \"--no-lazy-fetch\", \"--no-literal-pathspecs\",\n})"
+        }
+      ]
+    },
+    {
+      "path": "tests/test_concurrency_guard.py",
+      "edits": [
+        {
+          "find": "    \"GIT_GLOBAL_FLAGS\": {\"--bare\", \"--glob-pathspecs\", \"--html-path\",\n                         \"--icase-pathspecs\", \"--info-path\", \"--literal-pathspecs\",\n                         \"--no-advice\", \"--no-glob-pathspecs\", \"--no-icase-pathspecs\",\n                         \"--no-lazy-fetch\", \"--no-literal-pathspecs\",\n                         \"--no-optional-locks\", \"--no-pager\", \"--no-replace-objects\",\n                         \"--noglob-pathspecs\", \"--paginate\", \"-P\", \"-p\"},",
+          "replace": "    \"GIT_GLOBAL_FLAGS\": {\"--bare\", \"--glob-pathspecs\", \"--html-path\",\n                         \"--icase-pathspecs\", \"--info-path\", \"--literal-pathspecs\",\n                         \"--no-advice\", \"--no-lazy-fetch\", \"--no-literal-pathspecs\",\n                         \"--no-optional-locks\", \"--no-pager\", \"--no-replace-objects\",\n                         \"--noglob-pathspecs\", \"--paginate\", \"-P\", \"-p\"},"
+        },
+        {
+          "find": "        \"--literal-pathspecs\", \"--no-literal-pathspecs\",\n    ])",
+          "replace": "        \"--literal-pathspecs\", \"--no-literal-pathspecs\", \"--no-lazy-fetch\",\n    ])"
+        },
+        {
+          "find": "         \"git --no-advice add -A\", 2),\n        (\"grouping-inherits-the-stdin-of-its-compound\",",
+          "replace": "         # `--frobnicate`, not `--no-advice`: the latter is a KNOWN member now and is\n         # stripped normally, so it blocked either way and could not isolate this line\n         \"git --frobnicate add -A\", 2),\n        (\"grouping-inherits-the-stdin-of-its-compound\","
+        },
+        {
+          "find": "         '            start_segment(\"|\" in tok)',\n         \"yes | { git commit -p -m wip .; }\", 2),",
+          "replace": "         '            start_segment(\"|\" in tok)',\n         # the `;` inside `if ...; then ...; fi` is the separator path; the braces case\n         # is decided by the GROUPING branch above and cannot isolate this one\n         \"yes | if true; then git commit -p -m wip .; fi\", 2),"
+        },
+        {
+          "find": "    \"git --no-literal-pathspecs add src/a.py\",\n    # a newline INSIDE quotes is data and must not split the command",
+          "replace": "    \"git --no-literal-pathspecs add src/a.py\", \"git -C/tmp/x add src/a.py\",\n    # a newline INSIDE quotes is data and must not split the command"
+        },
+        {
+          "find": "    \"git --no-advice clean -fd\", \"git --no-advice reset --hard\",\n    \"git --frobnicate add -A\",",
+          "replace": "    \"git --no-advice clean -fd\", \"git --no-advice reset --hard\",\n    \"git --frobnicate add -A\",\n    # round 19, and an OVER-block I introduced rather than a leak: a `;` sibling\n    # inherits the pipeline's stdin, so a `-p` after a pipeline is denied even though\n    # bash hands it the terminal back. Named in the doc's residuals -- telling a\n    # compound's sibling from a top-level one needs a real shell grammar, and\n    # fail-closed is the direction this hook takes.\n    \"yes | git status; git add -p .\","
+        }
+      ]
+    }
+  ]
+}

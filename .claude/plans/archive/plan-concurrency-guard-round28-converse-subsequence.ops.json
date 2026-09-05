@@ -1,0 +1,18 @@
+{
+  "plan": "concurrency-guard-round28-converse-subsequence",
+  "files": [
+    {
+      "path": "tests/test_concurrency_guard.py",
+      "edits": [
+        {
+          "find": "                    # CONTAINMENT, not equality: an expansion glued to literal text\n                    # (`a<(echo x)`) leaves the hook a FRAGMENT (`a`) of bash's word\n                    # (`a/dev/fd/63`), which is not a phantom. A phantom -- `{,}`,\n                    # which bash turned into nothing -- is a fragment of no bash word.\n                    assert any(word in bw for bw in bash_words), (",
+          "replace": "                    # An in-order SUBSEQUENCE, not equality: an expansion glued to\n                    # literal text on BOTH sides (`a>(cat)b`) leaves the hook `ab` once\n                    # the placeholder is stripped, against bash's `a/dev/fd/63b` -- the\n                    # hook's letters all appear, in order, with the expansion's value\n                    # between them. That is not a phantom. A phantom -- `{,}`, which bash\n                    # turned into nothing -- is a subsequence of no bash word, because\n                    # no bash word carries its braces.\n                    assert any(_is_subsequence(word, bw) for bw in bash_words), ("
+        },
+        {
+          "find": "class TestBashIsTheOracleForWhatReachesGit:",
+          "replace": "def _is_subsequence(needle, hay):\n    it = iter(hay)\n    return all(ch in it for ch in needle)\n\n\nclass TestBashIsTheOracleForWhatReachesGit:"
+        }
+      ]
+    }
+  ]
+}

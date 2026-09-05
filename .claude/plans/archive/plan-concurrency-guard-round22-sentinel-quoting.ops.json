@@ -1,0 +1,14 @@
+{
+  "plan": "concurrency-guard-round22-sentinel-quoting",
+  "files": [
+    {
+      "path": ".claude/hooks/concurrency-guard.py",
+      "edits": [
+        {
+          "find": "            if ch in \"<>&|;\":\n                # The backslash was already emitted by the branch below, and it would\n                # ESCAPE THE SENTINEL rather than the operator -- shlex then split\n                # `\\<sentinel>>` into two tokens and the `>` went back to being a\n                # redirection, so the leak was only masked by the empty pathspec that\n                # remained, not closed. Replace the backslash: the sentinel alone makes\n                # the word non-operator, and the character behind it needs no escape.\n                if out and out[-1] == \"\\\\\":\n                    out[-1] = QUOTED_WORD_SENTINEL\n                else:\n                    out.append(QUOTED_WORD_SENTINEL)\n                # An ESCAPED operator character is a WORD, exactly as a quoted one is,\n                # and round 21's sentinel was applied only to the quoted branch. So\n                # `git checkout \\> .` still had its `>` classified as a redirection,\n                # whose target-skip then ate the `.`: verified against git 2.50, that\n                # DESTROYED both sessions' in-flight edits and `git commit -m x \\> .`\n                # committed both, rc 0. Same class, escaped spelling.\n            out.append(\" \" if ch == \"\\n\" else ch)",
+          "replace": "            if ch in \"<>&|;\":\n                # An ESCAPED operator character is a WORD, exactly as a quoted one is,\n                # and round 21's sentinel covered only the quoted branch: `git checkout\n                # \\> .` still had its `>` classified as a redirection whose target-skip\n                # ate the `.`, which DESTROYED both sessions' in-flight edits at rc 0\n                # (round 22, verified against git 2.50).\n                #\n                # It is re-emitted QUOTED, not merely sentinel-prefixed. Two attempts\n                # failed first and both were caught by running the probe rather than\n                # reading the diff: the backslash already emitted below ESCAPES the\n                # sentinel instead of the operator, and even with that fixed, shlex\n                # with `punctuation_chars` splits a punctuation character away from an\n                # adjacent word character, so `<sentinel>>` still arrived as two\n                # tokens. Quoting is what the quoted branch relies on too -- that is\n                # the only reason its sentinel survives tokenisation.\n                if out and out[-1] == \"\\\\\":\n                    out.pop()\n                out.append('\"' + QUOTED_WORD_SENTINEL + ch + '\"')\n                escaped = False\n                i += 1\n                continue\n            out.append(\" \" if ch == \"\\n\" else ch)"
+        }
+      ]
+    }
+  ]
+}

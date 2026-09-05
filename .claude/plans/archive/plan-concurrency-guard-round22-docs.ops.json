@@ -1,0 +1,35 @@
+{
+  "plan": "concurrency-guard-round22-docs",
+  "files": [
+    {
+      "path": ".ai/CONCURRENCY.md",
+      "edits": [
+        {
+          "find": "| `-c alias.<x>=...` or `-c clean.requireForce=<false>` (either spelling, fused or separate, any case)",
+          "replace": "| `-c alias.<x>=...`, `-c include.path=<file>`, `-c includeIf.<...>.path=<file>` or `-c clean.requireForce=<false>` \u2014 in EVERY spelling: `-c k=v`, `-ck=v`, `--config-env k=v` and `--config-env=k=v`. Round 22: the fused `--config-env=` form skipped the opacity test entirely, restoring round 21's two leaks for the cost of one `=` (verified: the alias form staged both sessions' files, the requireForce form deleted both untracked files), and `include.path` reaches an alias one indirection further out through a config FILE. Parity across spellings is now asserted mechanically for every valued global rather than per spelling"
+        },
+        {
+          "find": "| a QUOTED operator-only pathspec (`git add '>' .`) \u2014 `shlex` discards quoting, so the word `>` was classified as a REDIRECTION and the tree-wide token behind it was swallowed as its target (verified with a file named `>` present)",
+          "replace": "| a shell WRAPPER whose script arrives on STDIN (`bash <<EOF \u2026 EOF`, `sh <<< '\u2026'`, `cat <<EOF \\| bash`) \u2014 `bash`/`sh`/`zsh`/`dash` read stdin as CODE, while `preprocess` strips heredoc bodies as DATA so that `cat > f <<EOF \u2026 EOF` can document a command without triggering it. The two rules met and the script vanished: verified, the `sh` form destroyed both sessions' edits and the here-string staged both, rc 0. Only the `-c` spelling was ever unwrapped. The script text is genuinely unavailable at that point, so it fails CLOSED | pass the script as `bash -c '<script>'`, which IS read |\n| a QUOTED **or ESCAPED** operator-only pathspec (`git add '>' .`, `git checkout \\> .`) \u2014 `shlex` discards quoting, so the word `>` was classified as a REDIRECTION and the tree-wide token behind it was swallowed as its target (verified with a file named `>` present). Round 21 fixed the quoted spelling and round 22 the escaped one \u2014 `git checkout \\> .` DESTROYED both sessions' in-flight edits at rc 0. The word is re-emitted QUOTED, not merely sentinel-prefixed: two earlier attempts failed because the backslash escaped the sentinel instead of the operator, and because `shlex` with `punctuation_chars` splits a punctuation character away from an adjacent word character anyway. Quoting is the only reason the quoted branch's own sentinel survives tokenisation"
+        },
+        {
+          "find": "So the honest status is: **twenty-one rounds, two approvals (8 and 12), and every single\nround has found something**",
+          "replace": "Round 22 found four more BLOCKING \u2014 two of them inside round 21's own fixes \u2014 and the\n`one-site-updated-sibling-missed` class reached EIGHT recorded instances, two in that\nsingle round. It has a mechanical check now rather than a ninth hand-patch:\n`TestEverySpellingOfAGlobalAndAWrapperIsCovered` asserts, off the shipped collections,\nthat a valued global reaches the same verdict fused as separate and that a wrapper\nreaches the same verdict however its script is handed to it. Both round-22 leaks were\ninvisible to 1731 tests precisely because the two existing parametrisations each\nasserted exactly ONE spelling.\nSo the honest status is: **twenty-two rounds, two approvals (8 and 12), and every single\nround has found something**"
+        },
+        {
+          "find": "round has found something** \u2014 and rounds 17, 19, 20 and 21 each found a leak inside the\nfix that preceded them. Four of the last five rounds.",
+          "replace": "round has found something** \u2014 and rounds 17, 19, 20, 21 and 22 each found a leak inside\nthe fix that preceded them. Five of the last six rounds. The suite grew from 1122 cases\nto 1803 across those rounds, and it never once predicted the next leak: every one was\nfound by a fresh adversarial reader executing spellings nobody had enumerated. That is\nthe number to weigh before promoting the fleet."
+        }
+      ]
+    },
+    {
+      "path": "CHANGELOG.md",
+      "edits": [
+        {
+          "find": "  wrapper word was not listed.",
+          "replace": "  wrapper word was not listed.\n  A TWENTY-SECOND round found four more BLOCKING, two of them inside round 21's own\n  fixes. (1) The FUSED `--config-env=key=value` spelling skipped the opacity test the\n  separate form had, restoring both of round 21's leaks for the cost of one `=`\n  (verified: the alias form staged both sessions' files, the `clean.requireForce` form\n  deleted both untracked files). (2) `include.path` and `includeIf.*` pull in a config\n  FILE, so an alias arrives one indirection further out and was not opaque. (3) Round\n  21's sentinel covered only the QUOTED operator-only pathspec, so the ESCAPED spelling\n  still had its `>` classified as a redirection whose target-skip ate the tree-wide\n  token: `git checkout \\> .` destroyed both sessions' in-flight edits at rc 0. (4) A\n  shell wrapper reads STDIN as a script, while `preprocess` strips heredoc bodies as\n  data -- so `sh <<'EOF' git reset --hard EOF` destroyed both sessions' edits and\n  `bash <<< 'git add -A'` staged both, at rc 0, while only the `-c` spelling was ever\n  unwrapped; that now fails closed. The \"one site updated, its sibling missed\" class\n  reached eight instances and finally has a mechanical check: parity across spellings is\n  asserted off the shipped collections, because the two existing parametrisations each\n  covered exactly one spelling, which is why 1731 tests saw neither leak. Also removed\n  an unreachable duplicate branch, and marked the sentinel strip REDUNDANT-BY-DESIGN\n  rather than leaving a verdict-neutral line reading as load-bearing."
+        }
+      ]
+    }
+  ]
+}

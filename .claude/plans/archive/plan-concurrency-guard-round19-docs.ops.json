@@ -1,0 +1,39 @@
+{
+  "plan": "concurrency-guard-round19-docs",
+  "files": [
+    {
+      "path": ".ai/CONCURRENCY.md",
+      "edits": [
+        {
+          "find": "  diff3 main`, `git restore --source HEAD -- src/a.py`, `git clean --exclude '*.log' -n`,",
+          "replace": "  diff3 main`, `git restore --source HEAD -- src/a.py`, `git clean --exclude '*.log' -n`,"
+        },
+        {
+          "find": "`split_segments` now carries one bit per\n  segment \u2014 stdin is fed when the segment is the right operand of a `|` or carries a\n  `<` / `<<<` redirection \u2014 and the exemption is refused when it is set.",
+          "replace": "`split_segments` now carries one bit per\n  segment \u2014 stdin is fed when the segment is the right operand of a `|` or carries a\n  `<` / `<<<` redirection \u2014 and the exemption is refused when it is set. **That bit is\n  INHERITED by grouping and by non-pipe separators**, because resetting it discarded the\n  whole fix the moment the command was wrapped: `yes | (git checkout -p .)` destroyed\n  another session's in-flight edit and `yes | { git commit -p -m wip .; }` committed both\n  sessions' files, exit 0, while the identical unwrapped spellings blocked (round 19,\n  verified against git). A subshell does not hand a human back the keyboard."
+        },
+        {
+          "find": "**A NEGATIVE pathspec is the inversion, and it does not scope anything.**",
+          "replace": "**An option before the subcommand that this hook does not model FAILS CLOSED.**\n`strip_git_globals` used to stop at the first token it did not recognise, so the OPTION\nbecame the subcommand, matched no rule, and one ordinary documented flag disarmed\n`add`, `commit`, `reset`, `checkout`, `clean` and `stash` at once. Verified against git\n2.50: `git --no-lazy-fetch add -A` staged both sessions' files,\n`git --no-literal-pathspecs reset --hard` destroyed another session's edit, and\n`git --attr-source=HEAD clean -fd` deleted its untracked file \u2014 all exit 0 (round 19).\nEnumerating the four missing members would have been the FIFTH hand-patch in the\n\"a legal git spelling the denylist does not enumerate\" class (`:(top,glob)` r5,\n`--pathspec-from-file=` r15, long-option prefixes r16, `add -e`/`-i` r18, globals r19),\nso the fail DIRECTION was inverted instead: an unknown pre-subcommand option is now\nindistinguishable from text the hook cannot read and takes the same fail-closed path.\nThe known globals are still listed because they must NOT block, and exact membership is\nright there \u2014 git does not abbreviate globals (`git --lit status` \u2192 `unknown option`).\n`test_git_accepts_every_global_this_hook_lists` asks GIT whether each listed member is\nreal, which immediately caught two I had invented (`--no-glob-pathspecs`,\n`--no-icase-pathspecs` \u2014 git rejects both; the negation it accepts is\n`--no-literal-pathspecs`).\n\n**A NEGATIVE pathspec is the inversion, and it does not scope anything.**"
+        },
+        {
+          "find": "* an ABBREVIATED exemption is over-blocked:",
+          "replace": "* a `-p` after a PIPELINE is over-blocked: `yes | git status; git add -p .` is denied,\n  because a `;` sibling inherits the pipeline's stdin bit even though bash hands the\n  terminal back to it (round 19 \u2014 my own over-block, introduced by the fix above).\n  Telling a compound's sibling from a top-level one needs a real shell grammar; the\n  fail-closed direction is the one this hook takes, and the workaround is to run the\n  interactive patch as its own command\n* an unknown pre-subcommand option denies the whole invocation, including a read-only\n  one: `git --frobnicate status` blocks. It is not a command git would run either\n  (`unknown option`, exit 129), so nothing that works is denied\n* an ABBREVIATED exemption is over-blocked:"
+        },
+        {
+          "find": "So the honest status is: **eighteen rounds, two approvals (8 and 12), and every single\nround has found something.**",
+          "replace": "Round 19 found two more BLOCKING leaks: the round-18 stdin bit discarded by grouping and\nby non-pipe separators \u2014 a leak INSIDE the previous round's fix, for the second time in\nfive rounds \u2014 and an unrecognised git global becoming the \"subcommand\", which disarmed\nevery rule at once. Both were invisible to the whole suite.\nSo the honest status is: **nineteen rounds, two approvals (8 and 12), and every single\nround has found something.**"
+        }
+      ]
+    },
+    {
+      "path": "CHANGELOG.md",
+      "edits": [
+        {
+          "find": "  asserted zero options while passing, so it carries an anti-vacuity floor.",
+          "replace": "  asserted zero options while passing, so it carries an anti-vacuity floor.\n  A NINETEENTH round found two more BLOCKING leaks. (1) The round-18 stdin-fed bit was\n  reset to False by grouping tokens and by non-pipe separators, so the fix vanished the\n  moment the command was wrapped: `yes | (git checkout -p .)` destroyed another\n  session's in-flight edit and `yes | { git commit -p -m wip .; }` committed both\n  sessions' files, both exit 0, while the unwrapped spellings blocked. Grouping never\n  changes stdin, so the bit is now inherited. (2) `strip_git_globals` stopped at the\n  first token it did not recognise, making that OPTION the subcommand -- so one\n  documented global disarmed add, commit, reset, checkout, clean and stash at once\n  (`git --no-lazy-fetch add -A` staged both sessions' files;\n  `git --no-literal-pathspecs reset --hard` destroyed a session's edit;\n  `git --attr-source=HEAD clean -fd` deleted its untracked file). Rather than\n  hand-adding the four missing members -- which would have been the fifth patch in that\n  class -- an unknown pre-subcommand option now fails CLOSED. A new test asks git\n  whether each listed global is real, and caught two the fix had invented."
+        }
+      ]
+    }
+  ]
+}

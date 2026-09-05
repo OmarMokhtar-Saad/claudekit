@@ -1,0 +1,54 @@
+{
+  "plan": "concurrency-guard-round21-fixes",
+  "files": [
+    {
+      "path": ".claude/hooks/concurrency-guard.py",
+      "edits": [
+        {
+          "find": "        if quote == '\"' and command.startswith(\"$(\", i):",
+          "replace": "        if quote == '\"' and command.startswith(\"$((\", i):\n            # ARITHMETIC, not a command substitution -- and this test has to come\n            # BEFORE the `$(` lift below, which `startswith(\"$(\")` also matches. The\n            # lift fired first, skipped two characters, left `arith_depth` at 0, and\n            # the `<<` inside was then read as a HEREDOC whose invented marker\n            # swallowed every following line with `confident` still True:\n            # `x=\"$((1<<2))\"\\ngit add -A\\n2` staged both sessions' files at exit 0\n            # (round 21, verified against git). That is the fail-OPEN shape this layer\n            # was rewritten to eliminate, arriving inside round 20's own fix.\n            arith_depth += 1\n            out.append(\"$((\")\n            i += 3\n            continue\n\n        if quote == '\"' and command.startswith(\"$(\", i):"
+        },
+        {
+          "find": "        if command.startswith(\"$((\", i):",
+          "replace": "        if command.startswith(\"((\", i) and at_token_boundary():\n            # The bash arithmetic COMMAND `(( 1 << 2 ))` is not `$((`, so the guard\n            # below never saw it and its `<<` became a heredoc marker too, swallowing\n            # the commands after it (`(( 1 << 2 ))\\ngit checkout -f\\n2` exit 0,\n            # verified). Only at a token boundary, so a subshell-in-subshell `((` from\n            # `( (echo x) )` is untouched -- `split_segments` handles grouping.\n            arith_depth += 1\n            out.append(\"((\")\n            i += 2\n            continue\n\n        if command.startswith(\"$((\", i):"
+        },
+        {
+          "find": "    if quote or escaped or arith_depth or subst_depth:",
+          "replace": "    if quote or escaped or arith_depth or subst_depth or pending_markers:"
+        },
+        {
+          "find": "        if ch in \"'\\\"\":\n            quote = ch\n            out.append(ch)\n            i += 1\n            continue",
+          "replace": "        if ch in \"'\\\"\":\n            quote = ch\n            quote_content_at = len(out) + 1\n            out.append(ch)\n            i += 1\n            continue"
+        },
+        {
+          "find": "        if quote:\n            if ch == quote:\n                quote = \"\"\n            out.append(ch)\n            i += 1\n            continue",
+          "replace": "        if quote:\n            if ch == quote:\n                quote = \"\"\n                # `shlex` discards quoting, so `classify_operator` cannot tell the\n                # WORD `>` from the OPERATOR `>`. A quoted operator-only token was\n                # classified as a redirection and its `skip_next` then swallowed the\n                # argument behind it: `git add '>' .` dropped the `.` and staged both\n                # sessions' files at exit 0 (round 21, verified against git with a\n                # file named `>` present). A sentinel makes the token no longer\n                # operator-only; `split_segments` strips it before argv is read.\n                body = \"\".join(out[quote_content_at:])\n                if body and all(c in \"<>&|;\" for c in body):\n                    out.insert(quote_content_at, QUOTED_WORD_SENTINEL)\n            out.append(ch)\n            i += 1\n            continue"
+        },
+        {
+          "find": "    pending_markers: List[str] = []\n    arith_depth = 0",
+          "replace": "    pending_markers: List[str] = []\n    arith_depth = 0\n    quote_content_at = 0"
+        },
+        {
+          "find": "#: Shell operators that separate one command from the next.",
+          "replace": "#: Marks a QUOTED word so `classify_operator` cannot mistake it for the operator it\n#: spells. Stripped again in `split_segments`, before any rule reads argv.\nQUOTED_WORD_SENTINEL = \"\\x01\"\n\n#: Shell operators that separate one command from the next."
+        },
+        {
+          "find": "        else:\n            segments[-1].append(tok)",
+          "replace": "        else:\n            segments[-1].append(tok.replace(QUOTED_WORD_SENTINEL, \"\"))"
+        },
+        {
+          "find": "        # Fused short form: -C/tmp/x or -cuser.name=x\n        if len(head) > 2 and head[:2] in (\"-C\", \"-c\"):\n            out = out[1:]\n            continue",
+          "replace": "        # Fused short form: -C/tmp/x or -cuser.name=x\n        if len(head) > 2 and head[:2] in (\"-C\", \"-c\"):\n            out = out[1:]\n            continue\n        if head in (\"-c\", \"--config-env\") and len(out) > 1 and _config_is_opaque(out[1]):\n            raise UnknownGitGlobal(out[1])"
+        },
+        {
+          "find": "class UnknownGitGlobal(ValueError):",
+          "replace": "#: `-c` keys whose VALUE changes what a command means or whether it is destructive.\n#: The hook already parses these tokens and used to throw them away, which is the very\n#: argument this file makes about evidence it is holding.\nOPAQUE_CONFIG_PREFIXES = (\"alias.\", \"clean.requireforce\")\n\n\ndef _config_is_opaque(setting: str) -> bool:\n    \"\"\"True when a `-c key=value` decides something this hook cannot then model.\n\n    `git -c alias.st='add -A' st` makes the command word an ALIAS whose expansion only\n    git knows, and `git -c clean.requireForce=false clean -d` DELETED another session's\n    untracked file and subdirectory at rc 0 (round 21, both verified) -- because the\n    `clean` rule's premise, that git refuses to delete without `-f`, is config-dependent\n    and the config was in the command text. Both fail CLOSED rather than being\n    enumerated away, the same inversion round 19 chose for unknown globals.\n    \"\"\"\n    key = setting.split(\"=\", 1)[0].strip().lower()\n    return any(key == p or key.startswith(p) for p in OPAQUE_CONFIG_PREFIXES)\n\n\nclass UnknownGitGlobal(ValueError):"
+        },
+        {
+          "find": "    \"sudo\", \"env\", \"command\", \"time\", \"nice\", \"nohup\", \"exec\", \"builtin\",",
+          "replace": "    \"sudo\", \"env\", \"command\", \"time\", \"nice\", \"nohup\", \"exec\", \"builtin\",\n    # round 21: an unlisted wrapper word makes the segment's command word not `git`,\n    # so `is_git` says no and the WHOLE segment is dropped -- `caffeinate git add -A`\n    # staged both sessions' files at exit 0 (verified). macOS-native `caffeinate` was\n    # the miss; the others are the same shape on Linux.\n    \"caffeinate\", \"timeout\", \"stdbuf\", \"setsid\", \"ionice\", \"chrt\", \"doas\","
+        }
+      ]
+    }
+  ]
+}

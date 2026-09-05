@@ -1,0 +1,23 @@
+{
+  "plan": "concurrency-guard-round25-param-scan-quotes",
+  "files": [
+    {
+      "path": ".claude/hooks/concurrency-guard.py",
+      "edits": [
+        {
+          "find": "            depth = 1\n            j = i + 2\n            while j < n and depth:\n                if command[j] == \"{\":\n                    depth += 1\n                elif command[j] == \"}\":\n                    depth -= 1\n                    if not depth:\n                        break\n                j += 1\n            if depth:\n                confident = False\n                break\n            out.append('\"' + QUOTED_WORD_SENTINEL + '\"')\n            i = j + 1\n            continue\n\n        if command.startswith(\"((\", i) and at_token_boundary():",
+          "replace": "            depth = 1\n            j = i + 2\n            inner_quote = \"\"\n            while j < n and depth:\n                c = command[j]\n                # Quote-aware like the `$(` scan: `${x:-\"}\"}` has a `}` INSIDE quotes,\n                # and closing on it left an unbalanced quote behind that failed the\n                # whole read-only command closed (`git commit -m ${x:-\"}\"} src/a.py`\n                # exited 2 -- found probing this fix, round 25).\n                if inner_quote:\n                    if c == inner_quote:\n                        inner_quote = \"\"\n                elif c in \"'\\\"\":\n                    inner_quote = c\n                elif c == \"{\":\n                    depth += 1\n                elif c == \"}\":\n                    depth -= 1\n                    if not depth:\n                        break\n                j += 1\n            if depth:\n                confident = False\n                break\n            out.append('\"' + QUOTED_WORD_SENTINEL + '\"')\n            i = j + 1\n            continue\n\n        if command.startswith(\"((\", i) and at_token_boundary():"
+        }
+      ]
+    },
+    {
+      "path": ".ai/CONCURRENCY.md",
+      "edits": [
+        {
+          "find": "* `git add \"\" <path>` is over-blocked",
+          "replace": "* an EXPANSION used as a pathspec is over-blocked: `git add $((1)) src/a.py` and\n  `git add \"$(date)\" .` are denied, because the placeholder that stands for the expansion\n  is not a path the hook can read \u2014 it could expand to `.`. Deliberate fail-closed; the\n  workaround is to spell the path out (round 25)\n* `git add \"\" <path>` is over-blocked"
+        }
+      ]
+    }
+  ]
+}

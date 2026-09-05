@@ -1,0 +1,18 @@
+{
+  "plan": "concurrency-guard-round27-oracle-helper",
+  "files": [
+    {
+      "path": "tests/test_concurrency_guard.py",
+      "edits": [
+        {
+          "find": "    @staticmethod\n    def _hook_git_argvs(cmd):\n        text, confident = guard.preprocess(cmd)\n        if not confident:\n            return None          # the hook fails closed here; nothing to compare\n        lexer = shlex.shlex(text, posix=True, punctuation_chars=True)\n        lexer.whitespace_split = True\n        lexer.commenters = \"\"\n        out = []\n        for segment, _fed in guard.split_segments(list(lexer)):\n            segment = guard.strip_prefixes(segment)\n            if segment and guard.is_git(segment[0]):\n                out.append(segment[1:])\n        return out",
+          "replace": "    @classmethod\n    def _hook_git_argvs(cls, cmd):\n        \"\"\"The git argvs the hook derives -- mirroring `analyse`'s wrapper handling.\n\n        The first draft read only top-level segments and false-alarmed on every\n        `bash -c '...'` and `eval ...` spelling, where the hook itself recurses into\n        the inner script. A stdin-fed wrapper is left to the verdict gate in the test:\n        the hook fails closed there, and a denial cannot be a leak.\n        \"\"\"\n        text, confident = guard.preprocess(cmd)\n        if not confident:\n            return None          # the hook fails closed here; nothing to compare\n        lexer = shlex.shlex(text, posix=True, punctuation_chars=True)\n        lexer.whitespace_split = True\n        lexer.commenters = \"\"\n        out = []\n        for segment, _fed in guard.split_segments(list(lexer)):\n            segment = guard.strip_prefixes(segment)\n            if not segment:\n                continue\n            head = os.path.basename(segment[0])\n            if head == \"eval\":\n                inner = cls._hook_git_argvs(\" \".join(segment[1:]))\n                out.extend(inner or [])\n                continue\n            if head in guard.SCRIPT_WRAPPERS:\n                for i, tok in enumerate(segment[1:], start=1):\n                    is_c = tok == \"-c\" or (tok.startswith(\"-\") and not tok.startswith(\"--\")\n                                           and \"c\" in tok[1:])\n                    if is_c and i + 1 < len(segment):\n                        inner = cls._hook_git_argvs(segment[i + 1])\n                        out.extend(inner or [])\n                        break\n                continue\n            if guard.is_git(segment[0]):\n                out.append(segment[1:])\n        return out"
+        },
+        {
+          "find": "        bash = self._bash_git_argvs(cmd, tmp_path)\n        if not bash:\n            pytest.skip(\"bash refused or ran no git for this text\")\n        hook = self._hook_git_argvs(cmd)\n        if hook is None:\n            return               # fail-closed is never a leak",
+          "replace": "        bash = self._bash_git_argvs(cmd, tmp_path)\n        if not bash:\n            pytest.skip(\"bash refused or ran no git for this text\")\n        # A DENIAL can never be a leak, whatever the hook's argv looked like -- the\n        # class this invariant guards is \"bash handed git a flag and the hook ALLOWED\".\n        # So the comparison only runs when the hook let the command through; that is\n        # also what keeps stdin-fed wrappers (which fail closed) out of the comparison.\n        if run_guard(cmd).returncode != 0:\n            return\n        hook = self._hook_git_argvs(cmd)\n        if hook is None:\n            return               # fail-closed is never a leak"
+        }
+      ]
+    }
+  ]
+}

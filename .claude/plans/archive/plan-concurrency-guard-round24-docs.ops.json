@@ -1,0 +1,27 @@
+{
+  "plan": "concurrency-guard-round24-docs",
+  "files": [
+    {
+      "path": ".ai/CONCURRENCY.md",
+      "edits": [
+        {
+          "find": "| a shell WRAPPER whose script arrives on STDIN",
+          "replace": "| a shell WRAPPER reading stdin via `-s`, even WITH an operand (`bash -s file <<EOF \u2026 EOF`) \u2014 `-s` means read the script from stdin, so the operand is a positional parameter, not a script file (round 24, verified: it staged both sessions' files). `sh -- file` is NOT this case and stays allowed \u2014 checked rather than assumed: it runs the FILE and staged nothing | pass the script as `bash -c '<script>'` |\n| a shell WRAPPER whose script arrives on STDIN"
+        },
+        {
+          "find": "So the honest status is: **twenty-three rounds, two approvals (8 and 12), and every\nsingle round has found something**",
+          "replace": "Round 24's first finding came from probing round 23's own wrapper fix rather than from\nthe reviewer: `bash -s file` reads its script from STDIN, so the operand round 23 counted\nas a script file is a positional parameter. Fourth consecutive round in which follow-up\nprobing of a fix found the next leak \u2014 which is the argument for probing every fix\ninstead of reading it.\nSo the honest status is: **twenty-four rounds, two approvals (8 and 12), and every\nsingle round has found something**"
+        }
+      ]
+    },
+    {
+      "path": "CHANGELOG.md",
+      "edits": [
+        {
+          "find": "  wrapper -- it now fires only when the wrapper has no script to read at all.",
+          "replace": "  wrapper -- it now fires only when the wrapper has no script to read at all.\n  A TWENTY-FOURTH round: probing that very fix showed `bash -s` reads its script from\n  STDIN, so an operand after `-s` is a positional parameter rather than a script file --\n  `bash -s file <<EOF / git add -A / EOF` staged both sessions' files at rc 0. `sh --\n  file` is not the same case and was verified to run the file instead."
+        }
+      ]
+    }
+  ]
+}

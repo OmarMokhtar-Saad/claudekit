@@ -1,0 +1,14 @@
+{
+  "plan": "concurrency-guard-round28-converse-wordsplit",
+  "files": [
+    {
+      "path": "tests/test_concurrency_guard.py",
+      "edits": [
+        {
+          "find": "                    assert any(_is_subsequence(word, bw) for bw in bash_words), (",
+          "replace": "                    # When an unquoted expansion's OUTPUT word-splits (`a$(date)b` ->\n                    # `aSat Sep 5 ... 2026b`), the hook's `ab` spans several bash words,\n                    # so with an expansion present the subsequence is taken over the\n                    # CONCATENATION of bash's words. `{,}` is a subsequence of neither.\n                    haystacks = [\"\".join(w for argv in bash for w in argv)] if expands else bash_words\n                    assert any(_is_subsequence(word, bw) for bw in haystacks), ("
+        }
+      ]
+    }
+  ]
+}

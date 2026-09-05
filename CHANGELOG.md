@@ -14,6 +14,385 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`concurrency-guard.py` -- tree-wide git is blocked when sessions share a tree.**
+  Several Claude sessions (and two accounts) on one working tree share one `.git/index`,
+  so a `git add -A` in one session stages and commits another session's half-written
+  files, and a `reset --hard` deletes them. It cost real work twice in one project.
+  PreToolUse/Bash, tier `blocking`: denies `add`/`stage` with `-A|-u|--all` or a
+  tree-wide pathspec, `commit -a` in any flag position, `reset --hard|--merge|--keep`
+  and bare `reset` (which unstages every path another session staged),
+  `checkout|restore|switch` with a tree-wide pathspec, `checkout -f`/`switch -f`,
+  `clean -f*`, unscoped `stash`/`stash push`, `rm .` and `worktree remove --force`,
+  each with the scoped alternative on stderr. Scoped and RESTORATIVE forms stay
+  allowed -- `git add -A -- src/`, `git add -- -A`, `git stash push src/a.py`, and
+  `stash apply|pop|drop`, because blocking `pop` would cause the very loss the hook
+  exists to prevent.
+  Tokenises with `shlex` rather than matching regexes over command text. Two
+  adversarial review rounds each rejected a version of this hook, and both CRITICAL
+  findings were the same shape -- a pattern that looked right but was never reached.
+  Round 1 (regex shell hook): an unanchored `\.` blocked `git add .ai/x.md`, so the
+  guard denied the exact remediation it prescribes, while `git commit -m x -a`,
+  `git checkout HEAD -- .`, `git -C <dir> add -A`, `git add -u` and `git rm -r .` all
+  leaked. Round 2 (Python): `shlex` keeps the newline in its whitespace set, so the
+  `"\n"` separator entry was dead code and every line after the first was discarded --
+  `git status\ngit add -A` was allowed, i.e. the guard was inert for the commonest
+  shape a session writes. Unquoted newlines are now substituted before tokenising and
+  heredoc bodies stripped as data. Round 2 also caught `git stage` (git's own synonym
+  for `add`), `git switch -f`, `bash -lc`, and a false positive on the scoped
+  `git stash push <path>`.
+  `minimal` is advisory rather than off, so the decision is still recorded as
+  `WOULD-BLOCK` in the tree that develops under `minimal`; only the subcommand and
+  rule id are logged, never the command text. `CK_ALLOW_BROAD_GIT=1` downgrades to a
+  logged warning for a deliberate solo session -- an env var, not a command flag, so
+  the turn writing the command cannot exempt itself.
+  A denylist speed bump, not a sandbox: the isolation that actually holds is one git
+  worktree per session, which `tests/test_concurrency_guard.py` proves both ways -- a
+  shared tree loses the work, separate worktrees keep both changes through the merge.
+  THREE adversarial review rounds each rejected a version of this hook, every time
+  for the same class: a pre-tokenisation text transform that silently dropped
+  commands, so the guard failed OPEN while documented as fail-closed. Round 3 found
+  `git add -A >/dev/null 2>&1` allowed (redirection read as a scoping pathspec), a
+  `#` comment discarding the rest of the script, and a quoted `<<` inventing a
+  heredoc marker that ate the remainder. Rather than patch the three, the layer was
+  replaced by one quote-aware pass that reports whether it understood the text -- and
+  a command it cannot read is DENIED. The class is now closed mechanically: the suite
+  cross-products every representative blocked command with 21 ordinary shell
+  decorations (redirections, comments, heredocs, here-strings, line continuations,
+  `eval`, `bash -lc`, grouping, chains) and asserts the block survives each, because
+  each historical CRITICAL was exactly one such decoration. Tests parametrise over
+  the hook's own constants with subset canaries, after a hand-copied list was found
+  to have already drifted from the source.
+  A FOURTH round found the argv layer wrong where the text layer was right: a value
+  fused to a short option was scanned as a flag cluster, so `git commit -m"refactor"`
+  was denied as `commit -a` and `git checkout -bfeature` as `checkout -f` -- ordinary
+  work blocked by the letters in its own message. Option arguments are now cut per
+  subcommand before any cluster scan, process substitution no longer reads as a
+  scoping pathspec, and the round-3 `git stash push -m wip` fix is bound by tests
+  after a mutation proved it was not.
+  A FIFTH round found no blocking defect but two more unbound paths, and the fix for
+  those is structural: the mutation record is now an executable gate
+  (`TestTheMutationRecordIsExecutable`) rather than a paragraph. Turning it into a test
+  immediately falsified it — two lines this project had documented as
+  "REDUNDANT-BY-DESIGN, reverting changes nothing observable" each flip
+  `echo file#1.txt; git add -A` from a block to an allow. Round 5 also fixed a real
+  leak (`git add ':(top,glob)'` stages the whole tree; magic pathspec signatures are
+  now parsed to their closing paren instead of prefix-matched), made a closing `)` end
+  the command it wraps, and closed the last fail-open payload path (a `command` field
+  that is present but not a string).
+  A SIXTH round found two more fail-opens, both in ordinary usage rather than
+  obfuscation. `shlex` fuses a run of punctuation, so a closing group arrives GLUED to
+  the separator after it (`);`, `)&&`, `))`) and the whole token classified as "not an
+  operator": the separator was lost and the next command merged into the previous
+  segment, so `(echo x); git add -A`, `x=$(date); git add -A` and an arithmetic
+  expansion above `git add -A` were all allowed. Closing groups are now peeled off
+  before classification. And a NEGATIVE pathspec was read as narrowing when it means
+  the opposite -- `git add -A ':!node_modules'` stages the whole tree (verified against
+  git) and exited 0; only positive pathspecs scope a command now, and `git commit --`
+  with a tree-wide pathspec is blocked like `commit -a`. The mutation table gained the
+  five entries round 6 found surviving, and the doc no longer claims nothing survives:
+  it claims only that the listed lines are bound.
+  A SEVENTH round found no blocking defect and two more fail-opens of the same shape as
+  round 6's: `git reset -- .` empties the shared index exactly as bare `git reset` does
+  (verified against git) but the reset rule never consulted the pathspec, and a
+  wrapper's OWN option (`sudo -u me git add -A`, `nice -n 10 ...`) became the command
+  word so the git call behind it was dropped -- the bare `sudo git add -A` form was
+  tested, the flagged form was not. Both fixed. That "one subcommand's pathspec rule was
+  updated and its siblings were not" had now happened three rounds running, so the
+  parallel is asserted mechanically: `TestTheDashDashFormAgreesWithTheBareForm`
+  parametrises every ruled subcommand against every shipped tree-wide pathspec, in both
+  directions. Round 7 also made a dry run explicitly allowed for `add` and `commit` --
+  denying the safe preview of the command the hook teaches you to avoid is the same
+  false-positive class that produced round 4's rejection.
+  An EIGHTH round returned the first APPROVED verdict, and it still carried a MAJOR:
+  `git reset HEAD src/a.py` -- the classic unstage-one-file, scoped in real git -- was
+  denied, while the blocked table told the reader a non-tree-wide pathspec is allowed.
+  `reset` now reads its operand pathspecs when a revision precedes them, and a single
+  ambiguous operand stays a revision so `git reset main` cannot leak. Also fixed: `rm`
+  gained the dry-run exemption every other ruled subcommand already had, and the stash
+  restorative list became an ALLOWLIST that actually lifts a default deny -- it had been
+  dead code sitting in front of a denylist, credited by the doc with a protection it did
+  not provide. Honest status after eight rounds: the guard has passed one review, and
+  every round so far has found something.
+  A NINTH round rejected it again, and its CRITICAL was inside round 8's own fix:
+  `git reset . src/a.py` dropped the tree-wide first operand as "the revision" and
+  emptied the shared index while exiting 0 -- appending any second token to a denied
+  command turned it into an allow. A tree-wide first operand is now kept in the pathspec
+  set. Round 9 also found `eval git add -A` unseen (bash concatenates eval's arguments;
+  only the fully quoted form had ever been tested), `git add -p .` denied although `-p`
+  confirms every hunk with a human, and an unknown stash verb carrying a pathspec
+  walking past the default deny. The deletion half of the constants ratchet is closed
+  too: a frozen copy of every shipped collection is compared for equality, because
+  removing a member used to remove its own test case -- six members were deletable with
+  the suite green.
+  A TENTH round found no mis-verdict that ships, and one gap worth the round: the
+  `TREE_WIDE_MAGIC` prefix loop -- the only thing blocking `git add ':/*'`, which stages
+  the whole tree from a subdirectory -- could be deleted with all 950 tests green,
+  because the two parametrisations over that constant covered only the cases the loop
+  does NOT decide. Freezing a collection's membership says nothing about whether each
+  member's behaviour is proven by the code path you think. Also bound: `--merge` and
+  `--keep` were each removable from the destructive-reset rule, since the command still
+  blocked and only the remediation text changed -- which the exit-code mutation table
+  cannot express, so that limit is now stated in the doc and covered by a remediation
+  assertion. One dead line deleted rather than left to read as load-bearing.
+  An ELEVENTH round found the series' worst leak in its most ordinary spelling:
+  `git commit -m wip .` commits every modified tracked file in the shared tree
+  (verified against git) and exited 0, because the commit branch discarded ALL operands
+  as "the message" and only `git commit -- .` blocked. The message operand is now
+  consumed and the rest read as pathspecs, the way the `stash push` branch already did.
+  Two more fail-opens: git's wildmatch grammar beat the enumerated tree-wide list
+  (`./*`, `?*`, `*?`, `[a-z.]*` each stage everything), so tree-wideness is now decided
+  structurally -- a first path component carrying `*`, `?` or `[` reaches the whole tree,
+  while `src/*` stays scoped; and a shell function DEFINITION swallowed its body,
+  because `()` is a single token the closing-group peel could not touch, so
+  `stage() { git add -A; }` exited 0.
+  A TWELFTH round approved it with no blocking finding, and its MAJOR was the new
+  structural rule over-firing: `[` was in the widening-metacharacter set, so
+  `git add 'notes[1].md'` -- a scoped stage of a real tracked file, and one fleet repo
+  has three such names under `.run/` -- was denied with a remediation that told the user
+  to do what they had just done. A bracket expression matches exactly one character and
+  cannot widen a match, so `[` is out; `*` and `?` stay, and the residual `?` filename
+  is named. The mirror-image gap closed with it: a leading run of `../` is normalised
+  like `./`, so `git add ../..` (which stages the whole tree from a subdirectory) blocks
+  like `git add ..`.
+  A THIRTEENTH round found two more false positives of the same family and no blocking
+  defect. `git add ':(literal)what?.txt'` was denied although `:(literal)` turns
+  wildmatch off and git stages exactly that one file -- and that signature is the escape
+  the residuals offer for a literal `?` in a filename, so the workaround was blocked
+  too; the `:(...)` branch now reads its keywords before the structural rule runs.
+  `git commit -p .` was denied while every listed sibling's `-p .` was allowed, though
+  the doc already claimed the exemption covered "every subcommand that has one".
+  Two smaller ones: `.` and `..` components are now collapsed lexically, so the
+  interior form `a/../..` blocks like `..` (it stages the whole tree from a
+  subdirectory), and `git worktree add -f` is bound by a test so the `remove`-only
+  operand guard cannot be dropped unnoticed.
+  A FOURTEENTH round found round 13's own new branch failing OPEN: `:(literal)` was
+  given a membership-only test, which skipped the dot collapse, so
+  `git commit -m wip ':(literal)a/../..'` committed every modified tracked file from a
+  subdirectory (verified) and exited 0 across every ruled subcommand -- while the
+  identical path blocked without the signature, and with `:(glob)` instead. That
+  signature suppresses PATTERN matching, never path resolution. The fix is structural
+  rather than another branch: `is_tree_wide_token` takes a `wildmatch` flag and every
+  keyword path calls that ONE normaliser, so a future keyword cannot opt out of
+  normalisation by carrying its own copy of the rule.
+  A FIFTEENTH round found round 11's leak in a THIRD spelling, and the most ordinary one
+  yet: an option's SEPARATE value was read as a scoping pathspec, and the
+  scoped-pathspec early return then fired before the flag rule was reached. Only `-m`
+  had ever been modelled, so `git commit -am wip --author 'Claude
+  <noreply@anthropic.com>'` -- the attribution this project mandates on every AI commit
+  -- committed both sessions' files and exited 0, as did `git add -A --chmod +x`,
+  `git commit . -m wip` (the operand list was read by COUNT, not POSITION, so a
+  pathspec BEFORE `-m` was dropped as "the message") and
+  `git rm -r --pathspec-from-file=list.txt`, which deleted every tracked file because
+  the fused spelling left the pathspec list empty and no rule fired at all. All four
+  verified against real git. The fix is structural rather than four patches: ONE
+  consumption model (`option_needs_next_token`, called from `split_args`) serves every
+  subcommand and every option, `REQUIRED_VALUE_SHORT_OPTS` and
+  `REQUIRED_VALUE_LONG_OPTS` carry the per-subcommand tables with every member
+  confirmed against git, `commit` now tests `--all` BEFORE any pathspec can look
+  scoping (git itself refuses a pathspec with `-a`), and a file-supplied pathspec list
+  is treated as tree-wide -- fail closed. `-S`/`-u` stay excluded because git's own
+  value for them is optional, so their next token really is a pathspec. Also fixed: an
+  arithmetic shift (`echo $((1<<2))`) read as a heredoc marker, which denied a
+  read-only `git log` script.
+  A SIXTEENTH round found a BLOCKING leak in a dimension the previous fifteen never
+  probed: every long-option denial was EXACT-match, while git resolves any UNAMBIGUOUS
+  PREFIX of a long option. Dropping three characters restored round 15's leak in full --
+  `git add --al` staged the whole tree, `git add --up` staged every tracked
+  modification, `git checkout --fo` destroyed another session's edit, `git clean --fo`
+  deleted untracked work, `git worktree remove --forc` removed a dirty worktree, and
+  `git rm -r --pathspec-fr=list.txt` deleted every tracked file. All verified against
+  real git, all exit 0, and none of them obfuscation: these are spellings git documents
+  as supported. `has_flag` now matches a denial by prefix and takes `exact=True` for the
+  EXEMPTIONS, which stay equality tests -- prefix-matching an allowlist is the fail-OPEN
+  direction. The default polarity is the fail-closed one, so a denial added later is
+  abbreviation-proof without the author thinking about it. Bound off the rule table
+  rather than a case list: the shipped hook is scanned for the long names each rule
+  carries and every abbreviation length is generated, so a name added without its cases
+  cannot pass. `EXPECTED_CONSTANTS` could never have caught this -- it freezes each
+  rule's MEMBERS and says nothing about its MATCHING SEMANTICS.
+  Two further leaks were found while fixing that one, both at the point where the new
+  abbreviation rule meets round 15's value consumption, and both verified against real
+  git: an ABBREVIATED value-taking option's value stayed an operand and scoped the
+  command (`git add -A --chm +x` staged both sessions' files, `git stash push --mes wip`
+  stashed the whole tree), and a value that LOOKS like an option was consumed anyway, so
+  `git commit --d -a` swallowed the `-a` and dropped the `--all` denial -- a rule round
+  15 wrote into a docstring and did not implement. `option_needs_next_token` now matches
+  long options through the same `matches_long` the denials use, so there is one matcher
+  rather than two that can disagree.
+  A SEVENTEENTH round then found a BLOCKING leak inside that fix, in the half that was
+  reasoned about instead of executed. An option-looking value was left in `flags` on the
+  written reasoning that doing so "can only ADD a denial, never lift one" -- but `flags`
+  is the same list the EXEMPTIONS are read from, so the command line could inject one:
+  `git commit -a -m --dry-run` committed BOTH sessions' files, `git clean -f -e -n`
+  deleted both sessions' untracked files, and `git stash push -m --patch` stashed the
+  whole shared tree, all exit 0, all verified against real git. A consumed value now
+  reaches NEITHER list. The cost -- an option-looking token behind a value-taking option
+  is dropped, so `git commit --d -a` exits 0 -- is bounded and the bound is TESTED, not
+  assumed: a test asserts against real git that every such command is refused, and fails
+  loudly if a future git accepts one. A tree-wide pathspec is unaffected
+  (`git commit -m -a .` still blocks). Three consecutive rounds found the same two lines
+  wrong from three directions: the value as a pathspec, its option name abbreviated, and
+  the value as a flag.
+  An EIGHTEENTH round found two more BLOCKING leaks, both OUTSIDE those lines.
+  (1) `git add -e`/`--edit` and `-i`/`--interactive` with no pathspec open the TREE-WIDE
+  diff -- `-u` semantics by another name -- so `GIT_EDITOR=true git add -e` staged
+  another session's file at exit 0; `--edit` appeared nowhere in the hook, the doc or
+  the suite. That is the fourth instance of "a legal git spelling the denylist does not
+  enumerate". (2) The `--patch` exemption was honoured with stdin fed from the command
+  line, so `yes | git commit -p -m wip .` committed BOTH sessions' files and
+  `yes | git checkout -p .` destroyed another session's edit -- an exemption whose whole
+  justification is that a human confirms every hunk, resting on an assumption the hook
+  never checked. `split_segments` now carries one stdin-fed bit per segment (the right
+  operand of a `|`, or a `<`/`<<<` redirection) and the exemption is refused when it is
+  set; the hook was already looking at that evidence and discarding it. Also: the
+  value-option tables are now driven from git's own `-h` output, closing the
+  MISSING-member direction that nothing had bound -- and the first draft of that test
+  asserted zero options while passing, so it carries an anti-vacuity floor.
+  A NINETEENTH round found two more BLOCKING leaks. (1) The round-18 stdin-fed bit was
+  reset to False by grouping tokens and by non-pipe separators, so the fix vanished the
+  moment the command was wrapped: `yes | (git checkout -p .)` destroyed another
+  session's in-flight edit and `yes | { git commit -p -m wip .; }` committed both
+  sessions' files, both exit 0, while the unwrapped spellings blocked. Grouping never
+  changes stdin, so the bit is now inherited. (2) `strip_git_globals` stopped at the
+  first token it did not recognise, making that OPTION the subcommand -- so one
+  documented global disarmed add, commit, reset, checkout, clean and stash at once
+  (`git --no-lazy-fetch add -A` staged both sessions' files;
+  `git --no-literal-pathspecs reset --hard` destroyed a session's edit;
+  `git --attr-source=HEAD clean -fd` deleted its untracked file). Rather than
+  hand-adding the four missing members -- which would have been the fifth patch in that
+  class -- an unknown pre-subcommand option now fails CLOSED. A new test asks git
+  whether each listed global is real, and caught two the fix had invented.
+  A TWENTIETH round: probing round 19's own fix surfaced a third spelling of the
+  stdin-fed class. `punctuation_chars` fuses a run of operator characters, so a heredoc
+  arrives glued to the separator behind it -- `git add -p . <<EOF` becomes one token
+  `<<;` -- which classified whole read as a SEPARATOR, losing the redirection meaning.
+  `git add -p . <<EOF ... EOF` therefore staged BOTH sessions' files at exit 0 while the
+  identical `<<<` and `<` spellings blocked (verified against git). The stdin bit is now
+  recorded for any token containing `<` before that token is classified; an output
+  redirection still leaves the exemption intact.
+  A second round-20 pass returned FOUR BLOCKING findings and a MAJOR, the largest of
+  the series. (1) `git clean -i`/`--interactive` deletes another session's untracked
+  files with no `-f` -- it satisfies git's requireForce exactly as `-f` does (verified,
+  both files gone at rc 0); round 18 had denied `git add -i` and left `clean`'s
+  identical flag, the sixth "one site updated, its sibling missed". (2)
+  `git commit --interactive` runs the same interactive-add loop and then COMMITS: both
+  sessions' files landed in one commit at rc 0. (3) A redirection attached to a GROUP
+  feeds every command inside it, but the closer had already begun a new segment, so
+  `{ git checkout -p .; } < ans` destroyed both sessions' in-flight edits unattended;
+  since the redirection can also hang off a loop (`done < f`), an input redirection
+  anywhere in the command text now marks every segment. (4) A DOUBLE-QUOTED command
+  substitution was copied verbatim as quoted data, so `echo "$(git add -A)"` staged
+  both sessions' paths and `x="$(git checkout -f)"` discarded a session's work, both at
+  exit 0 -- the commonest scripted capture spelling there is, while the doc claimed the
+  `$(...)` class was closed. And the MAJOR was mine: round 19's fail-closed inversion
+  denied `git --version`, `-v`, `--help`, `-h` and `--man-path`, which all run at rc 0,
+  and the doc justified it with a sentence execution refutes.
+  A TWENTY-FIRST round found two more BLOCKING and a MAJOR. (1) `arith_depth` was
+  raised only by the UNQUOTED `$((` branch, and round 20's `$(` lift matched `$((`
+  first, so a `<<` inside `x="$((1<<2))"` or inside the bare arithmetic command
+  `(( 1 << 2 ))` was read as a HEREDOC whose invented marker swallowed every following
+  command with `confident` still True -- `x="$((1<<2))"` then `git add -A` staged both
+  sessions' files at exit 0 (verified). That is the fail-open shape this layer exists to
+  prevent, inside the previous round's fix. An unconsumed heredoc marker now fails
+  closed too. (2) `-c` carries config that decides what a command MEANS, and
+  `strip_git_globals` discarded the value: `git -c clean.requireForce=false clean -d`
+  deleted another session's untracked file and a subdirectory at rc 0, and
+  `git -c alias.st='add -A' st` staged both sessions' files. `alias.*` and
+  `clean.requireForce` now fail closed in every spelling. (3) MAJOR: `shlex` discards
+  quoting, so a quoted operator-only pathspec was classified as a redirection and the
+  tree-wide token behind it was eaten as its target -- `git add '>' .` staged both
+  sessions' files with a file named `>` present. Also: two round-20 lines carrying a
+  verdict had no mutation entry, and `caffeinate git add -A` was invisible because the
+  wrapper word was not listed.
+  A TWENTY-SECOND round found four more BLOCKING, two of them inside round 21's own
+  fixes. (1) The FUSED `--config-env=key=value` spelling skipped the opacity test the
+  separate form had, restoring both of round 21's leaks for the cost of one `=`
+  (verified: the alias form staged both sessions' files, the `clean.requireForce` form
+  deleted both untracked files). (2) `include.path` and `includeIf.*` pull in a config
+  FILE, so an alias arrives one indirection further out and was not opaque. (3) Round
+  21's sentinel covered only the QUOTED operator-only pathspec, so the ESCAPED spelling
+  still had its `>` classified as a redirection whose target-skip ate the tree-wide
+  token: `git checkout \> .` destroyed both sessions' in-flight edits at rc 0. (4) A
+  shell wrapper reads STDIN as a script, while `preprocess` strips heredoc bodies as
+  data -- so `sh <<'EOF' git reset --hard EOF` destroyed both sessions' edits and
+  `bash <<< 'git add -A'` staged both, at rc 0, while only the `-c` spelling was ever
+  unwrapped; that now fails closed. The "one site updated, its sibling missed" class
+  reached eight instances and finally has a mechanical check: parity across spellings is
+  asserted off the shipped collections, because the two existing parametrisations each
+  covered exactly one spelling, which is why 1731 tests saw neither leak. Also removed
+  an unreachable duplicate branch, and marked the sentinel strip REDUNDANT-BY-DESIGN
+  rather than leaving a verdict-neutral line reading as load-bearing.
+  A TWENTY-THIRD round found three more BLOCKING, two inside rounds 20 and 22's own
+  fixes, all three in the pre-tokenisation layer. (1) Round 22's escaped-operator fix
+  emitted a closing `"` while already INSIDE double quotes, severing the command line so
+  that every token after it was dropped: `git commit -m "wip\;x" -a` committed BOTH
+  sessions' files, `git clean -e "a\;b" -fd` deleted both sessions' untracked files, and
+  so did the attribution spelling this project mandates on every AI commit. Inside
+  quotes shlex already keeps the character literal, so no surgery is needed there.
+  (2) Round 20's double-quoted `$(...)` lift spliced `;` into the OUTER command, so
+  `git commit -m "release $(cat VERSION)" -a` lost its `-a` and committed both sessions'
+  files; substitution bodies are now EXTRACTED and re-read recursively instead, leaving
+  the outer token stream untouched. (3) `help.autocorrect` is a `-c` key that decides
+  which subcommand git runs -- `git -c help.autocorrect=immediate addd -A` really
+  executed `add -A`. Also fixed: an EMPTY argument was swallowed by the grouping branch
+  and started a new segment (dropping the flag behind it), and the round-22 wrapper
+  denial was gated on the text-wide stdin bit, which refused every ordinary piped-into
+  wrapper -- it now fires only when the wrapper has no script to read at all.
+  A TWENTY-FOURTH round: probing that very fix showed `bash -s` reads its script from
+  STDIN, so an operand after `-s` is a positional parameter rather than a script file --
+  `bash -s file <<EOF / git add -A / EOF` staged both sessions' files at rc 0. `sh --
+  file` is not the same case and was verified to run the file instead.
+  The round-24 review then returned FIVE BLOCKING, all one class -- a construct making
+  the token behind it vanish: (1) round 23's substitution extraction was gated on double
+  quotes, so `git commit -m $(cat VERSION) -a` and `git commit -m $((1)) -a` committed
+  both sessions' files and `git clean -e $(cat p) -fd` deleted both sessions' untracked
+  files; (2) the quoted-word sentinel omitted `(){}`, so `git commit -m ")" -a` was
+  peeled as a real closer; (3) a bare `}` argument was peeled likewise; (4) a line
+  continuation became a space where bash deletes it, so `git reset HEA\<nl>D` emptied
+  the shared index; (5) `${x:-a;b}` had no extent and its `;` separated the command.
+  Every expansion is now one opaque placeholder word read to its matching closer, in
+  every quote state, with command bodies lifted out and analysed -- one mechanism
+  replacing five, `arith_depth` removed. The metamorphic ratchet, which the reviewer
+  showed was scoped to quoted words and blind to all five, now carries the unquoted
+  constructs and found a sixth leak (process substitution `<(...)`) on its first run.
+  A TWENTY-FIFTH round found three more BLOCKING: a bare `{`/`{}` argument treated as a
+  group opener (`git commit -m { -a` committed both sessions' files); round 24's bare-`}`
+  fix gated on no group being open, so `{ git commit -m } -a; }` undid it; and `>|` read
+  as a pipe rather than the noclobber redirection it is, severing the command. Braces
+  are now decided by POSITION -- reserved words only where bash treats them as such --
+  and a redirection-character run without a separator is one redirection operator. The
+  doc's claim that a bash round-trip invariant "now exists" was false and is corrected:
+  the ratchet is enumerative.
+  A TWENTY-SIXTH round found two more BLOCKING: process substitution glued to a word
+  (`git commit -m x<(echo y) -a`) was not lifted because the lift was gated on a token
+  boundary bash does not require, and a shell wrapper's own option VALUE (`bash -O
+  extglob`) was counted as a script file, skipping the fail-closed rule for a script
+  arriving on stdin -- `bash -O extglob <<< "git checkout -f"` destroyed both sessions'
+  in-flight edits. Both verified against bash and git; both fixed and bound. Probing
+  round 26's own redirection work also found that a heredoc's consumed marker left the
+  `<<` token skipping the next REAL argument, so `git commit -m x <<EOF -a` committed
+  both sessions' files; a placeholder now stands in for the marker.
+  After twenty-six rounds without convergence, the bash ROUND-TRIP INVARIANT two
+  reviewers had asked for was built instead of a twenty-seventh round:
+  `TestBashIsTheOracleForWhatReachesGit` runs ~1000 corpus commands under real bash with a
+  recording stub `git`, and asserts that whenever the hook allows a command, every word
+  bash actually handed git reached the hook (flags only when the text contains an
+  expansion). It is proven to bind by re-introducing three closed leaks, and the shipped
+  hook passes it. This is the check that would have caught the last eleven leaks with
+  nobody enumerating a spelling first.
+  Round 27's review then found the oracle was one-directional: `git add {,} -A` reached
+  git as `add -A` (an empty brace expansion yields no words under bash) while the hook
+  kept `{,}` as a scoping pathspec and allowed it -- both sessions' files staged, both
+  sessions' edits stashed -- and bare `$name` was the one expansion spelling not made
+  opaque. Both are placeholders now, and the oracle asserts the converse too: every
+  operand the hook believes in must be a word bash actually handed git.
+  A single MEASUREMENT round (28) then found positional and special parameters
+  (`$1`, `"$@"`, `$!`) outside the `$name` opacity class -- unset, they expand to zero
+  words, so `git add "$@" -A` staged both sessions' files -- and showed the oracle's
+  converse direction detects exactly that shape while no corpus row spelled it. Fixed,
+  and the spellings are in the corpus now.
+  Contract, residuals and rollout in [.ai/CONCURRENCY.md](.ai/CONCURRENCY.md).
+
 - **`/ask` + the `request-shaping` skill -- input-side request normalization.**
   Every prompt asset in the kit was output-side (`writing-plans`, `writing-skills`,
   `prompt-evaluation`, `token-optimization` all improve text we emit). Nothing normalized

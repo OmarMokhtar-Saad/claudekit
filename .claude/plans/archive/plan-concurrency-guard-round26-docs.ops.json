@@ -1,0 +1,43 @@
+{
+  "plan": "concurrency-guard-round26-docs",
+  "files": [
+    {
+      "path": ".ai/CONCURRENCY.md",
+      "edits": [
+        {
+          "find": "The check now EXISTS, and round 24 showed its first version was BLIND:",
+          "replace": "**The round-trip invariant was NOT built.** What exists is `TestNoConstructSwallowsTheFlagBehindIt`, an ENUMERATED construct list crossed against tails \u2014 a metamorphic check, and a useful one, but still enumeration: a construct it does not list is a construct it cannot see. Round 25 proved the distinction load-bearing by finding three leaks (`{`, `{}` and `>|`) that a genuine bash-superset comparison would have caught with nobody enumerating anything. An earlier version of this paragraph said \"the check now EXISTS\" about the round-trip form, and that was false; it is corrected here rather than quietly reworded, because a doc claiming a protection the code lacks is the defect this file most often records. Round 24 also showed the ratchet's first version was BLIND:"
+        },
+        {
+          "find": "It crosses 21\nconstructs against 10 tails",
+          "replace": "It crosses every entry of `CONSTRUCTS`\nagainst every entry of `TAILS` (counts live in the test, not here \u2014 hand-maintained\ncounts drift, and this file has recorded that before)"
+        },
+        {
+          "find": "The suite grew from 1122 cases to 1860\nacross those rounds",
+          "replace": "The suite grew from 1122 cases to well over two thousand across those rounds\n(the exact number lives in the test run, not in this file)"
+        },
+        {
+          "find": "| a QUOTED **or ESCAPED** operator-only pathspec",
+          "replace": "| a BRACE anywhere but command-word position is an ordinary WORD \u2014 `git commit -m { -a`, `git commit -m {} -a`, and `{ git commit -m } -a; }` each committed both sessions' files (round 25, verified). Round 24 fixed only the bare `}`, gated on no group being open, so wrapping the command undid it; position decides now, opener and closer alike | `git add <paths>` then `git commit` |\n| `>\\|` (noclobber override) is ONE redirection operator \u2014 reading its `\\|` as a pipe severed the command at the redirection: `git commit -m wip >\\| out -a` committed both sessions' files, `git clean -e p >\\| out -fd` deleted both sessions' untracked files (round 25, verified) | drop the redirection or move it to the end |\n| a QUOTED **or ESCAPED** operator-only pathspec"
+        },
+        {
+          "find": "So the honest status is: **twenty-four rounds, two approvals (8 and 12), and every\nsingle round has found something**",
+          "replace": "Round 25 returned three more BLOCKING \u2014 the brace opener round 24 never covered, round\n24's own brace fix undone by wrapping, and `>|` read as a pipe \u2014 plus the doc drift above.\nSo the honest status is: **twenty-five rounds, two approvals (8 and 12), and every single\nround has found something**"
+        },
+        {
+          "find": "round has found something** \u2014 and rounds 17 through 23 each found a leak inside the fix\nthat preceded them. Six of the last seven rounds.",
+          "replace": "round has found something** \u2014 and rounds 17 through 25 each found a leak inside the fix\nthat preceded them. Nine consecutive rounds."
+        }
+      ]
+    },
+    {
+      "path": "CHANGELOG.md",
+      "edits": [
+        {
+          "find": "  constructs and found a sixth leak (process substitution `<(...)`) on its first run.",
+          "replace": "  constructs and found a sixth leak (process substitution `<(...)`) on its first run.\n  A TWENTY-FIFTH round found three more BLOCKING: a bare `{`/`{}` argument treated as a\n  group opener (`git commit -m { -a` committed both sessions' files); round 24's bare-`}`\n  fix gated on no group being open, so `{ git commit -m } -a; }` undid it; and `>|` read\n  as a pipe rather than the noclobber redirection it is, severing the command. Braces\n  are now decided by POSITION -- reserved words only where bash treats them as such --\n  and a redirection-character run without a separator is one redirection operator. The\n  doc's claim that a bash round-trip invariant \"now exists\" was false and is corrected:\n  the ratchet is enumerative."
+        }
+      ]
+    }
+  ]
+}
