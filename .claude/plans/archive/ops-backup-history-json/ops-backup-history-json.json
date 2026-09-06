@@ -1,0 +1,31 @@
+{
+  "plan": "backup-history-json-hardening",
+  "operations": [
+    {
+      "id": "op1",
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/restore-backup.py",
+      "edits": [
+        {
+          "find": "def manifest_file_count(manifest, key):\n    \"\"\"len() of a manifest list field, tolerating a field that is not a list.\n\n    `{\"files\": null}` is valid JSON in a valid object, and `.get('files', [])` returns\n    None for it because the key IS present -- which is how the first version of this\n    change crashed `--list` outright on a manifest the previous implementation had\n    listed as a one-line error. Anything that is not a list counts as 0 and the row\n    still prints; a truncated count is a far smaller harm than a traceback that hides\n    every backup sorting after it.\n    \"\"\"\n    value = manifest.get(key) if isinstance(manifest, dict) else None\n    return len(value) if isinstance(value, list) else 0",
+          "replace": "def manifest_file_list(manifest, key):\n    \"\"\"A manifest list field, or [] when it is anything other than a list.\n\n    `{\"files\": null}` is valid JSON in a valid object, and `.get('files', [])` returns\n    None for it because the key IS present -- which is how the first version of this\n    change crashed `--list` outright on a manifest the previous implementation had\n    listed as a one-line error.\n\n    Both output modes go through here, and the second one is why this returns a LIST\n    rather than only a count. `--list --json` used to emit the raw value with\n    `\"readable\": true, \"error\": null`, so a machine consumer was told the row was fine\n    and handed a non-list: `len()` raised the same TypeError, and `\"files\": \"a.py\"`\n    was worse than raising, because iterating a string reports four files and no error\n    at all. A field that is not a list is not data a consumer can use, and the row says\n    so in `error` instead.\n    \"\"\"\n    value = manifest.get(key) if isinstance(manifest, dict) else None\n    return value if isinstance(value, list) else []\n\n\ndef manifest_field_faults(manifest):\n    \"\"\"Names of list fields present but malformed, so a row can report its own damage.\n\n    Empty for a well-formed manifest, so `error` stays None for the overwhelming case.\n    \"\"\"\n    if not isinstance(manifest, dict):\n        return []\n    return ['%s is %s, not a list' % (key, type(manifest[key]).__name__)\n            for key in ('files', 'created_files')\n            if key in manifest and not isinstance(manifest[key], list)]\n\n\ndef manifest_file_count(manifest, key):\n    \"\"\"len() of a manifest list field, tolerating a field that is not a list.\"\"\"\n    return len(manifest_file_list(manifest, key))"
+        },
+        {
+          "find": "                    \"files\": (manifest or {}).get('files', []),\n                    \"created_files\": (manifest or {}).get('created_files', []),\n                    \"post_state\": (manifest or {}).get('post_state'),\n                    \"readable\": manifest is not None,\n                    \"error\": error,\n                }\n                for path, manifest, error in rows",
+          "replace": "                    \"files\": manifest_file_list(manifest, 'files'),\n                    \"created_files\": manifest_file_list(manifest, 'created_files'),\n                    \"post_state\": (manifest or {}).get('post_state'),\n                    \"readable\": manifest is not None,\n                    \"error\": error or ('; '.join(manifest_field_faults(manifest)) or None),\n                }\n                for path, manifest, error in rows"
+        }
+      ]
+    },
+    {
+      "id": "op2",
+      "type": "code_edit",
+      "path": "tests/test_backup_history.py",
+      "edits": [
+        {
+          "find": "def test_list_still_needs_no_backup_argument_and_restore_still_does(tmp_path):",
+          "replace": "@pytest.mark.parametrize(\"files_value\", [None, 3, \"a.py\", {\"a\": 1}])\ndef test_json_never_hands_a_consumer_a_non_list_file_field(tmp_path, files_value):\n    \"\"\"`--json` exists for machine consumers, which is where a wrong TYPE does the most\n    damage. The text branch was hardened for this and the JSON branch was not: it emitted\n    the raw value with `readable: true, error: null`, so `len()` raised the same TypeError\n    the text fix was filed for -- and `\"files\": \"a.py\"` did not raise at all, it reported\n    four files.\"\"\"\n    root = tmp_path / \"backups\"\n    _backup(root, \"bad-20260101-120000-000000\",\n            {\"plan\": \"bad\", \"timestamp\": \"2026-01-01T12:00:00+00:00\",\n             \"files\": files_value, \"created_files\": files_value})\n\n    result = _run([\"--list\", \"--json\", \"--backup-dir\", str(root)], cwd=tmp_path)\n\n    row = json.loads(result.stdout)[0]\n    assert isinstance(row[\"files\"], list), row\n    assert isinstance(row[\"created_files\"], list), row\n    assert row[\"files\"] == [] and row[\"created_files\"] == []\n    # Silently substituting [] would be its own lie; the row must say what it dropped.\n    assert row[\"error\"] and \"not a list\" in row[\"error\"], row\n\n\ndef test_a_well_formed_manifest_still_reports_no_error(tmp_path):\n    \"\"\"Vacuity guard for the above: `error` must stay None in the ordinary case.\"\"\"\n    root = tmp_path / \"backups\"\n    _backup(root, \"good-20260101-120000-000000\",\n            _manifest(\"good\", \"2026-01-01T12:00:00+00:00\", files=[\"a.py\"], created=[\"b.py\"]))\n\n    result = _run([\"--list\", \"--json\", \"--backup-dir\", str(root)], cwd=tmp_path)\n\n    row = json.loads(result.stdout)[0]\n    assert row[\"error\"] is None, row\n    assert row[\"files\"] == [\"a.py\"] and row[\"created_files\"] == [\"b.py\"]\n\n\ndef test_list_still_needs_no_backup_argument_and_restore_still_does(tmp_path):"
+        }
+      ]
+    }
+  ]
+}
