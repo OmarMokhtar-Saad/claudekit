@@ -1,4 +1,6 @@
 {
+  "skillListingBudgetFraction": 0.03,
+  "skillListingMaxDescChars": 1536,
   "hooks": {
     "PreToolUse": [
       {

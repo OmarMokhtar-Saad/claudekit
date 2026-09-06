@@ -1,0 +1,49 @@
+{
+  "plan": "agent-memory-learning-changelog-splice",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "description": "The Unreleased entry's add_after payload lacked its leading newline, so the section header and the first bullet share a line; restore the blank line between them.",
+      "edits": [
+        {
+          "find": "## [Unreleased]- **Agents now learn from the project,",
+          "replace": "## [Unreleased]\n\n- **Agents now learn from the project,"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/cost-tracker.sh",
+      "description": "test_no_unlisted_hook_carries_a_profile_guard: cost-tracker.sh is not a GUARDED_HOOK, so its new ECC_HOOK_PROFILE guard was an undeclared one. Drop the guard; the propose call is cheap and never blocks.",
+      "edits": [
+        {
+          "find": "# hook (tests/test_ops_enforcement_scope.py). Not in the minimal profile; never blocks.\nif [ \"${ECC_HOOK_PROFILE:-standard}\" != \"minimal\" ]; then\n    PROJECT_ROOT=\"$(cd \"$SCRIPT_DIR/../..\" && pwd)\"\n    LEDGER=\"$PROJECT_ROOT/.claude/operations/scripts/knowledge-ledger.py\"\n    [ -f \"$LEDGER\" ] && python3 \"$LEDGER\" propose >/dev/null 2>&1 || true\nfi\n",
+          "replace": "# hook (tests/test_ops_enforcement_scope.py). No profile guard: this hook is not in\n# profiles.GUARDED_HOOKS, so a guard here would be an undeclared one (test_profiles.py);\n# the call is read-mostly, backgrounded by settings.json, and never blocks.\nPROJECT_ROOT=\"$(cd \"$SCRIPT_DIR/../..\" && pwd)\"\nLEDGER=\"$PROJECT_ROOT/.claude/operations/scripts/knowledge-ledger.py\"\n[ -f \"$LEDGER\" ] && python3 \"$LEDGER\" propose >/dev/null 2>&1 || true\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/plans/archive/README.md",
+      "description": "The archive row described a minimal-profile guard that no longer exists.",
+      "edits": [
+        {
+          "find": "so the call was folded into `cost-tracker.sh` behind the minimal-profile guard)",
+          "replace": "so the call was folded into `cost-tracker.sh`; a profile guard there tripped `test_no_unlisted_hook_carries_a_profile_guard`, so the block carries none)"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/plans/plan-agent-memory-learning.md",
+      "description": "Name this sixth corrective config and its paths (check-plan-artifacts.py).",
+      "edits": [
+        {
+          "find": "  `.claude/plans/plan-agent-memory-learning.md` itself (so does `-plan-note.ops.json`).\n",
+          "replace": "  `.claude/plans/plan-agent-memory-learning.md` itself (so does `-plan-note.ops.json`).\n- `plan-agent-memory-learning-changelog-splice.ops.json` \u2014 restores the newline between\n  `## [Unreleased]` and its first bullet in `CHANGELOG.md`; removes the undeclared\n  `ECC_HOOK_PROFILE` guard from the `propose` block in `.claude/hooks/cost-tracker.sh`\n  (`cost-tracker` is not a `GUARDED_HOOK`); updates the row in\n  `.claude/plans/archive/README.md` and this list.\n"
+        }
+      ]
+    }
+  ]
+}

@@ -1185,6 +1185,54 @@ def _emit(payload: Dict[str, Any]) -> int:
     return 0
 
 
+_LEDGER_REL = (".claude", "operations", "scripts", "knowledge-ledger.py")
+_ISSUES_REL = (".claude", "knowledge", "issues")
+
+
+def bridge_receipt_to_ledger(entry: Dict[str, Any]) -> bool:
+    """Append an `open` issue-ledger entry for an ACCEPTED receipt. Never raises.
+
+    The receipt ledger is session-scoped and evaporates with $TMPDIR; the issue ledger is
+    the durable store for findings. This is the bridge between them, and it carries ONLY
+    fields that already passed `_safe_text` - single line, <= 240 chars, no absolute path,
+    no credential shape. Never raw payload text, never a file path, and the child is spawned
+    from an argv list, never through a shell.
+
+    A no-op unless `.claude/knowledge/issues/` already exists: a project that never opted
+    into the ledger does not get one created by a hook. The result is ignored by the caller
+    - `knowledge-ledger.py open` refuses a duplicate signature with exit 1, which is exactly
+    the idempotence this path wants.
+    """
+    root = project_root()
+    if not root.joinpath(*_ISSUES_REL).is_dir():
+        return False
+    script = root.joinpath(*_LEDGER_REL)
+    if not script.is_file():
+        return False
+    # The durable writer enforces its OWN boundary. `record_receipt` already ran
+    # `_safe_text` over this field, but a boundary that only holds when the caller
+    # remembered to hold it is not a boundary - and `bridge_receipt_to_ledger` is a
+    # public function that a future caller will reach with a raw dict. Re-applied here,
+    # a path-shaped or credential-shaped signature is REFUSED, not written.
+    try:
+        signature = _safe_text("failedAssumption", entry.get("failedAssumption"),
+                               required=False)
+    except ValueError:
+        return False
+    if not signature:
+        return False
+    slug = "reflection-" + hashlib.sha256(signature.encode("utf-8")).hexdigest()[:12]
+    try:
+        subprocess.run(
+            [sys.executable, str(script), "open", "--slug", slug,
+             "--signature", signature, "--origin", "workflow"],
+            capture_output=True, text=True, timeout=20, cwd=str(root),
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return True
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(description="ClaudeKit reflection ledger")
     sub = parser.add_subparsers(dest="operation")
@@ -1267,6 +1315,13 @@ def main(argv: Optional[List[str]] = None) -> int:
     except (OSError, TypeError, ValueError) as err:
         print("reflection: receipt refused - %s" % err, file=sys.stderr)
         return 2
+    # AFTER acceptance, BEFORE emission. The blocking contract (refusal -> exit 2 on
+    # stderr) was decided above and nothing this bridge can do may change the return
+    # value, so it is wrapped whole: a durable side effect must never fail a receipt.
+    try:
+        bridge_receipt_to_ledger(entry)
+    except Exception:
+        pass
     if args.inbox:
         # Consume the drop box so a stale payload can never be replayed by accident.
         try:

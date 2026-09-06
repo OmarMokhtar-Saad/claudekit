@@ -545,4 +545,100 @@ class TestMalformedStatusFailsClosed:
         assert applied.returncode == 0, applied.stdout + applied.stderr
         assert (tmp_path / "archive" / "legacy.md").is_file(), "a fixed entry still prunes"
 
+# --------------------------------------------------------------------------- P3/P6
+
+
+def _open_entry(ledger, root, slug, signature, evidence=None, date=None):
+    args = ["open", "--slug", slug, "--signature", signature, "--origin", "workflow"]
+    for rel in evidence or []:
+        args += ["--evidence", rel]
+    if date:
+        args += ["--date", date]
+    return run(args, ledger, root=root)
+
+
+class TestEvidenceStaleness:
+    """`prune` retires an open finding when its EVIDENCE moved on, never on a clock alone,
+    and never without the operator asking."""
+
+    def _tree(self, tmp_path):
+        root = tmp_path / "repo"
+        (root / ".claude").mkdir(parents=True)
+        target = root / "src.py"
+        target.write_text("original\n", encoding="utf-8")
+        return root, (tmp_path / "ledger"), target
+
+    def test_open_stamps_a_sha256_for_each_evidence_path(self, tmp_path):
+        root, ledger, _ = self._tree(tmp_path)
+        res = _open_entry(ledger, root, "e1", "boom in src", ["src.py"])
+        assert res.returncode == 0, res.stdout + res.stderr
+        text = (ledger / "e1.md").read_text(encoding="utf-8")
+        assert "evidence: [src.py@sha256:" in text, text
+
+    def test_default_prune_never_retires_an_open_entry(self, tmp_path):
+        root, ledger, target = self._tree(tmp_path)
+        _open_entry(ledger, root, "e1", "boom in src", ["src.py"])
+        target.write_text("changed\n", encoding="utf-8")
+        res = run(["prune", "--apply"], ledger, root=root)
+        assert res.returncode == 0, res.stdout + res.stderr
+        assert (ledger / "e1.md").is_file(), "default prune retired an unfixed finding"
+
+    def test_supersede_archives_only_when_every_evidence_file_moved_on(self, tmp_path):
+        root, ledger, target = self._tree(tmp_path)
+        (root / "other.py").write_text("stable\n", encoding="utf-8")
+        _open_entry(ledger, root, "e1", "boom in src", ["src.py", "other.py"])
+        target.write_text("changed\n", encoding="utf-8")
+        res = run(["prune", "--apply", "--supersede"], ledger, root=root)
+        assert (ledger / "e1.md").is_file(), "one unchanged file means it is still live"
+        target.write_text("original\n", encoding="utf-8")
+        (root / "other.py").write_text("moved on\n", encoding="utf-8")
+        (root / "src.py").write_text("moved on too\n", encoding="utf-8")
+        res = run(["prune", "--apply", "--supersede"], ledger, root=root)
+        assert (ledger / "archive" / "e1.md").is_file(), res.stdout + res.stderr
+
+    def test_ttl_is_only_a_fallback_for_entries_citing_no_evidence(self, tmp_path):
+        root, ledger, target = self._tree(tmp_path)
+        _open_entry(ledger, root, "aged", "very old finding", date="2000-01-01")
+        _open_entry(ledger, root, "evid", "fresh evidence finding", ["src.py"],
+                    date="2000-01-01")
+        run(["prune", "--apply", "--supersede", "--ttl-days", "1"], ledger, root=root)
+        assert (ledger / "archive" / "aged.md").is_file(), "no evidence + old => retired"
+        assert (ledger / "evid.md").is_file(), "evidence still matches => age is irrelevant"
+
+    def test_fixed_entries_are_never_superseded(self, tmp_path):
+        root, ledger, target = self._tree(tmp_path)
+        run(["record", "--slug", "done", "--signature", "fixed thing",
+             "--root-cause", "rc", "--fix", "f", "--files", "src.py",
+             "--reusability", "9", "--novelty", "9", "--verified"], ledger, root=root)
+        target.write_text("changed\n", encoding="utf-8")
+        run(["prune", "--apply", "--supersede"], ledger, root=root)
+        assert (ledger / "done.md").is_file()
+
+
+class TestProposeIsProposeOnly:
+    def test_cluster_of_three_writes_a_proposal_and_no_skill(self, tmp_path):
+        root = tmp_path / "repo"
+        (root / ".claude" / "skills").mkdir(parents=True)
+        ledger = tmp_path / "ledger"
+        for i in range(3):
+            _open_entry(ledger, root, "flaky%d" % i,
+                        "flaky timeout in worker pool number %d" % i)
+        res = run(["propose"], ledger, root=root)
+        assert res.returncode == 0, res.stdout + res.stderr
+        proposals = list((root / ".claude" / "knowledge" / "proposals").glob("*.md"))
+        assert proposals, res.stdout
+        assert not list((root / ".claude" / "skills").iterdir()), (
+            "propose wrote into .claude/skills/ — hard rule 5")
+
+    def test_two_findings_are_not_enough(self, tmp_path):
+        root = tmp_path / "repo"
+        (root / ".claude").mkdir(parents=True)
+        ledger = tmp_path / "ledger"
+        for i in range(2):
+            _open_entry(ledger, root, "flaky%d" % i,
+                        "flaky timeout in worker pool number %d" % i)
+        res = run(["propose"], ledger, root=root)
+        assert res.returncode == 0
+        assert not (root / ".claude" / "knowledge" / "proposals").exists()
+
 

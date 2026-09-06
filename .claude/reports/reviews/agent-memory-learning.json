@@ -1,0 +1,56 @@
+{
+  "plan": ".claude/plans/plan-agent-memory-learning.md",
+  "slug": "agent-memory-learning",
+  "ops_path": ".claude/plans/plan-agent-memory-learning.ops.json",
+  "ops_sha256": "fab236095a445356be1f2b1d45c7df1a085a9b0dcfd92cfbdab18002826b4f98",
+  "score": 94,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] plan-agent-memory-learning.md:379 claims 28 operations; ops.json has 25.",
+    "[MINOR] plan-agent-memory-learning.md:152 broken lead-in conflates 8,817-char floor figure with 16,198-char listing measurement.",
+    "[MINOR] ops.json test_a_fixed_finding_is_not_injected asserts only absence; assert record rc==0 and done.md exists first.",
+    "[MINOR] ops.json prune --apply --supersede prints ARCHIVED then \"LEDGER: clean\"; guard with did_archive."
+  ],
+  "verdict_origin": "rubric",
+  "recorded_utc": "2026-09-06T18:03:59Z",
+  "operations": 28,
+  "edits": 45,
+  "rounds": [
+    {
+      "score": 82,
+      "decision": "REVISE",
+      "findings": [
+        "[MAJOR] tests/test_reflection_ledger.py op uses shutil.copy2 and re.search but the file imports neither; add `import re`/`import shutil` anchored on `import importlib.util`.",
+        "[MAJOR] tests/test_session_memory_context.py copies hooks into root/.claude/hooks/ which _repo() never creates -> FileNotFoundError; mkdir before copy.",
+        "[MAJOR] reflection.py bridge_receipt_to_ledger writes entry[\"failedAssumption\"] to the durable ledger without re-applying _safe_text; sanitize locally, except ValueError -> return False.",
+        "[MAJOR] settings.json skillListingBudgetFraction/skillListingMaxDescChars cited to no source; ratchet hard-codes 200_000/0.01 and measures only description spans. Cite in .claude/reports/research/ and scope t",
+        "[MAJOR] continuous-learning honesty fix incomplete: skills-registry.json:634 and .agents/skills/continuous-learning/SKILL.md still claim the extractor; add ops.",
+        "[MAJOR] Stop-hook propose auto-writes .claude/knowledge/proposals/<slug>.md with no commit/ignore policy; extend .gitignore op or state rule in README.",
+        "[MINOR] plan says 25 operations; config has 22.",
+        "[MINOR] cmd_propose slug from sorted(shared)[:3] can collide; append short hash.",
+        "[MINOR] session-memory-context.py fresh_memories prepends src to sys.path and never restores."
+      ],
+      "recorded_utc": "2026-09-06T17:42:24Z",
+      "ops_sha256": "ffa92c9dcb8bcba7cba81374f648857149fd1503f136b8907e92bb3e39c8c522",
+      "verdict_origin": "rubric"
+    },
+    {
+      "score": 81,
+      "decision": "REVISE",
+      "findings": [
+        "[CRITICAL] session-start.sh op splits the helper invocation across two lines so gen-docs.py _is_helper_module() does not classify session-memory-context.py as a helper; HOOK_GLOBS includes *.py so the hook count",
+        "[CRITICAL] tests/test_reflection_ledger.py TestReceiptToLedgerBridge methods take (self, tmp_path, monkeypatch) but call ref.bridge_receipt_to_ledger; ref is a fixture -> AttributeError; the sanitizer proof neve",
+        "[MAJOR] Two contradictory measured totals (16,198 chars in the research note vs 13,759 in plan + CHANGELOG). Fix: one number, labelled.",
+        "[MINOR] registry description string differs from both SKILL.md copies.",
+        "[MINOR] session-start.sh withhold branches print nothing to stdout unlike the neighbouring block.",
+        "[MINOR] render_closed/cmd_record drop evidence: stamps.",
+        "[MINOR] Stop propose step has no ECC_HOOK_PROFILE short-circuit.",
+        "[MINOR] numeric proofs unverified by the reviewer; hand to code-reviewer."
+      ],
+      "recorded_utc": "2026-09-06T17:53:53Z",
+      "ops_sha256": "6ab38987be6a55052203b75b8ab065d26e2dd95e8a5336f19374cecdb3ef48fc",
+      "verdict_origin": "rubric"
+    }
+  ],
+  "round": 3
+}

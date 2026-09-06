@@ -472,7 +472,8 @@ class TestInvokedHelpersAreCheckedNotAssumed:
         into an empty temp dir configures no project commands, so the overall --strict
         verdict is not this check's to own."""
         proc = _doctor(full_project)
-        assert "Hook helper scripts resolve (1 invoked)" in proc.stdout, proc.stdout
+        # 2 = dispatch_resolve.py (dispatch.sh) + session-memory-context.py (session-start.sh)
+        assert "Hook helper scripts resolve (2 invoked)" in proc.stdout, proc.stdout
         assert "invoke missing helpers" not in proc.stdout, proc.stdout
         assert "may have stopped matching" not in proc.stdout, proc.stdout
 
