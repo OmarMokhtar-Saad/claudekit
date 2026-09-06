@@ -94,7 +94,147 @@ def test_newest_first_is_by_time_not_by_name(restore, two_backups):
 def test_load_backups_pairs_each_path_with_its_manifest(restore, two_backups):
     rows = restore.load_backups(str(two_backups))
 
-    assert [manifest["plan"] for _, manifest in rows] == ["aa-new-plan", "zz-old-plan"]
+    assert [manifest["plan"] for _, manifest, _ in rows] == ["aa-new-plan", "zz-old-plan"]
+
+def test_order_is_wrong_under_every_listdir_order(restore, tmp_path):
+    """Three backups, so no enumeration order is accidentally correct.
+
+    The two-fixture version of this could not do that job. Review mutation M8 removed the
+    sort ENTIRELY and the two-backup ordering test still passed, because APFS happened to
+    enumerate `aa-new-plan` before `zz-old-plan` -- it only reds a name sort because a name
+    sort actively inverts two rows. With three backups whose time order is a rotation of
+    both their name order and any stable enumeration order, no accident passes.
+    """
+    root = tmp_path / "backups"
+    _backup(root, "zzz-middle-20260101-000000-000000",
+            _manifest("zzz-middle", "2026-06-01T00:00:00+00:00"))
+    _backup(root, "aaa-newest-20260101-000000-000001",
+            _manifest("aaa-newest", "2026-09-01T00:00:00+00:00"))
+    _backup(root, "mmm-oldest-20260101-000000-000002",
+            _manifest("mmm-oldest", "2026-01-01T00:00:00+00:00"))
+
+    plans = [manifest["plan"] for _, manifest, _ in restore.load_backups(str(root))]
+
+    assert plans == ["aaa-newest", "zzz-middle", "mmm-oldest"], plans
+    assert plans != sorted(plans, reverse=True), "vacuity: name order must differ from time order"
+
+
+def test_the_name_tiebreak_orders_a_same_timestamp_pair(restore, tmp_path):
+    """The documented tie-break, which no test covered: the mutant dropping `row[0]` from
+    the sort key survived all 11 original tests."""
+    root = tmp_path / "backups"
+    same = "2026-05-05T05:05:05+00:00"
+    _backup(root, "aaa-plan-20260505-050505-000000", _manifest("aaa-plan", same))
+    _backup(root, "zzz-plan-20260505-050505-000001", _manifest("zzz-plan", same))
+
+    plans = [manifest["plan"] for _, manifest, _ in restore.load_backups(str(root))]
+
+    assert plans == ["zzz-plan", "aaa-plan"], (
+        "equal timestamps must fall back to reverse name order, got %r" % (plans,))
+
+
+def test_a_west_of_utc_offset_is_ordered_by_the_instant_not_the_string(restore, tmp_path):
+    """`02:00-08:00` is 10:00Z -- an hour NEWER than `09:00+00:00`, and a string compare
+    puts it older. The producer only ever writes `+00:00`, so this is the coupling the
+    change exists to remove rather than a live defect; parsing is what removes it."""
+    root = tmp_path / "backups"
+    _backup(root, "west-20260101-020000-000000",
+            _manifest("west", "2026-01-01T02:00:00-08:00"))
+    _backup(root, "utc-20260101-090000-000000",
+            _manifest("utc", "2026-01-01T09:00:00+00:00"))
+
+    plans = [manifest["plan"] for _, manifest, _ in restore.load_backups(str(root))]
+
+    assert plans == ["west", "utc"], plans
+
+
+def test_a_naive_timestamp_is_read_as_utc_and_still_orders(restore, tmp_path):
+    """A naive stamp must not raise on comparison against an aware one."""
+    root = tmp_path / "backups"
+    _backup(root, "naive-20260101-120000-000000", _manifest("naive", "2026-01-01T12:00:00"))
+    _backup(root, "aware-20260101-090000-000000",
+            _manifest("aware", "2026-01-01T09:00:00+00:00"))
+
+    plans = [manifest["plan"] for _, manifest, _ in restore.load_backups(str(root))]
+
+    assert plans == ["naive", "aware"], plans
+
+
+@pytest.mark.parametrize("timestamp", [None, 1234567890, "not-a-date", ""])
+def test_an_unusable_timestamp_sorts_last_without_raising(restore, tmp_path, timestamp):
+    root = tmp_path / "backups"
+    _backup(root, "dated-20260101-090000-000000",
+            _manifest("dated", "2026-01-01T09:00:00+00:00"))
+    _backup(root, "zzz-undated-20260101-120000-000000",
+            {"plan": "zzz-undated", "timestamp": timestamp, "files": []})
+
+    plans = [manifest["plan"] for _, manifest, _ in restore.load_backups(str(root))]
+
+    assert plans == ["dated", "zzz-undated"], plans
+
+
+@pytest.mark.parametrize("files_value", [None, 3, "a.py", {"a": 1}])
+def test_a_non_list_files_field_does_not_crash_the_listing(tmp_path, files_value):
+    """Regression: `{"files": null}` is valid JSON in a valid object, and `.get('files', [])`
+    returns None because the key IS present. The first version of this change called len()
+    on it, raised TypeError, exited 1, and printed only the rows sorting ABOVE it -- worse
+    than the implementation it replaced, which printed all three as one-line errors."""
+    root = tmp_path / "backups"
+    _backup(root, "bad-20260101-120000-000000",
+            {"plan": "bad", "timestamp": "2026-01-01T12:00:00+00:00", "files": files_value})
+    _backup(root, "aaa-good-20260101-110000-000000",
+            _manifest("aaa-good", "2026-01-01T11:00:00+00:00"))
+
+    result = _run(["--list", "--backup-dir", str(root)], cwd=tmp_path)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "Traceback" not in result.stderr, result.stderr
+    # The row sorting BELOW the malformed one must still be reachable.
+    assert "aaa-good" in result.stdout, result.stdout
+    assert "0 modified" in result.stdout
+
+
+def test_the_concrete_error_reaches_the_text_listing(tmp_path):
+    """A generic sentence keeps the row and throws away what makes it actionable."""
+    root = tmp_path / "backups"
+    _backup(root, "broken-20260101-120000-000000", None)
+
+    result = _run(["--list", "--backup-dir", str(root)], cwd=tmp_path)
+
+    assert "Error reading manifest: JSONDecodeError" in result.stdout, result.stdout
+    assert "line 1 column 3" in result.stdout, (
+        "the parser's own position must survive: %s" % result.stdout)
+
+
+def test_a_manifest_that_is_a_json_list_names_its_type(tmp_path):
+    root = tmp_path / "backups"
+    directory = root / "listy-20260101-120000-000000"
+    directory.mkdir(parents=True)
+    (directory / "manifest.json").write_text("[1, 2]", encoding="utf-8")
+
+    result = _run(["--list", "--backup-dir", str(root)], cwd=tmp_path)
+
+    assert "manifest is list, not an object" in result.stdout, result.stdout
+
+
+def test_json_carries_the_error_string_for_an_unreadable_row(tmp_path):
+    root = tmp_path / "backups"
+    _backup(root, "broken-20260101-120000-000000", None)
+
+    result = _run(["--list", "--json", "--backup-dir", str(root)], cwd=tmp_path)
+
+    rows = json.loads(result.stdout)
+    assert rows[0]["readable"] is False
+    assert "JSONDecodeError" in rows[0]["error"]
+
+
+def test_json_without_list_is_refused_rather_than_silently_inert(tmp_path):
+    """It used to fall through to `--backup required`, which names the wrong flag."""
+    result = _run(["--json"], cwd=tmp_path)
+
+    assert result.returncode == 1
+    assert "--json applies to --list" in result.stdout, result.stdout
+
 
 
 def test_an_unparseable_manifest_is_listed_not_dropped(restore, tmp_path):
@@ -106,8 +246,10 @@ def test_an_unparseable_manifest_is_listed_not_dropped(restore, tmp_path):
     rows = restore.load_backups(str(root))
 
     assert len(rows) == 2
-    broken = [m for path, m in rows if Path(path).name.startswith("broken")]
-    assert broken == [None]
+    broken = [(m, e) for path, m, e in rows if Path(path).name.startswith("broken")]
+    assert broken[0][0] is None
+    assert "JSONDecodeError" in broken[0][1], (
+        "the concrete exception must survive to the caller: %r" % (broken[0][1],))
     # Undatable sorts LAST: it must never be offered as "the latest backup".
     assert Path(rows[0][0]).name.startswith("good")
 

@@ -26,6 +26,7 @@ import json
 import os
 import shutil
 import sys
+from datetime import datetime, timezone
 from pathlib import PurePath
 from typing import List
 
@@ -292,17 +293,44 @@ def restore_from_backup(backup_dir, force=False, dry_run=False, post=False):
         return False
 
 
-def _backup_sort_key(manifest):
-    """Sort key for one backup: its manifest `timestamp`, or '' when it has none.
+# Every datetime below is timezone-aware, so an undated backup can be compared against a
+# dated one without TypeError. `datetime.min` is the sentinel because it sorts LAST under
+# reverse=True, which is the wanted behaviour -- a backup whose manifest cannot be dated
+# must never be offered as "the latest backup".
+_UNDATED = datetime.min.replace(tzinfo=timezone.utc)
 
-    '' sorts LAST under reverse=True, which is the wanted behaviour -- a backup whose
-    manifest cannot be dated is not a candidate for "the latest backup".
+
+def manifest_datetime(manifest):
+    """The manifest's `timestamp` as an aware datetime, or None if it has none/unusable.
+
+    Parsed rather than string-compared. The first version of this sorted the raw ISO
+    string, which is chronological ONLY for the single producer's exact output format --
+    `execute-json-ops.py` always writes `datetime.now(timezone.utc).isoformat()`, so always
+    a `+00:00` offset. That is true today and it is exactly the kind of undocumented format
+    coupling this whole change exists to remove: under string order a hand-written or
+    imported `2026-01-01T02:00:00-08:00` (10:00Z) sorts BELOW `2026-01-01T09:00:00+00:00`,
+    an hour older, silently and with no error.
+
+    A naive timestamp is read as UTC. That is an assumption, but it is the producer's own
+    convention and the alternative -- refusing to order it -- would be worse than being
+    an hour or two out on a hand-edited file.
     """
-    if isinstance(manifest, dict):
-        timestamp = manifest.get('timestamp')
-        if isinstance(timestamp, str):
-            return timestamp
-    return ''
+    if not isinstance(manifest, dict):
+        return None
+    timestamp = manifest.get('timestamp')
+    if not isinstance(timestamp, str):
+        return None
+    try:
+        # `fromisoformat` gained 'Z' support in 3.11; the floor here is 3.9.
+        parsed = datetime.fromisoformat(timestamp.strip().replace('Z', '+00:00'))
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
+def _backup_sort_key(manifest):
+    """Sort key for one backup. See manifest_datetime for the parsing and its assumptions."""
+    return manifest_datetime(manifest) or _UNDATED
 
 
 def load_backups(backup_base_dir):
@@ -319,7 +347,10 @@ def load_backups(backup_base_dir):
 
     A manifest that will not parse yields `None` rather than dropping the row: it is still
     a backup that exists, and hiding it would hide the one row someone needs in order to
-    repair it.
+    repair it. The third element carries WHY it would not parse -- collapsing
+    `PermissionError`, a JSON syntax error naming its line and column, and a
+    `manifest.json` that is a directory into one generic sentence would keep the row and
+    destroy the information needed to act on it.
     """
     if not os.path.exists(backup_base_dir):
         return []
@@ -330,22 +361,39 @@ def load_backups(backup_base_dir):
         manifest_path = os.path.join(backup_path, 'manifest.json')
         if not os.path.isdir(backup_path) or not os.path.exists(manifest_path):
             continue
+        error = None
         try:
             with open(manifest_path, 'r', encoding='utf-8') as handle:
                 manifest = json.load(handle)
             if not isinstance(manifest, dict):
+                error = 'manifest is %s, not an object' % type(manifest).__name__
                 manifest = None
-        except Exception:
+        except Exception as exc:
+            error = '%s: %s' % (type(exc).__name__, exc)
             manifest = None
-        rows.append((backup_path, manifest))
+        rows.append((backup_path, manifest, error))
 
     rows.sort(key=lambda row: (_backup_sort_key(row[1]), row[0]), reverse=True)
     return rows
 
 
+def manifest_file_count(manifest, key):
+    """len() of a manifest list field, tolerating a field that is not a list.
+
+    `{"files": null}` is valid JSON in a valid object, and `.get('files', [])` returns
+    None for it because the key IS present -- which is how the first version of this
+    change crashed `--list` outright on a manifest the previous implementation had
+    listed as a one-line error. Anything that is not a list counts as 0 and the row
+    still prints; a truncated count is a far smaller harm than a traceback that hides
+    every backup sorting after it.
+    """
+    value = manifest.get(key) if isinstance(manifest, dict) else None
+    return len(value) if isinstance(value, list) else 0
+
+
 def list_backups(backup_base_dir):
     """Backup directory paths, most recent first. `load_backups` owns the ordering."""
-    return [path for path, _ in load_backups(backup_base_dir)]
+    return [row[0] for row in load_backups(backup_base_dir)]
 
 
 def main():
@@ -391,6 +439,12 @@ Examples:
         import logging
         logging.basicConfig(level=logging.DEBUG)
 
+    # --json shapes --list's output and does nothing on its own. Saying so beats letting a
+    # machine consumer fall through to "--backup required" and wonder which flag was wrong.
+    if args.json and not args.list:
+        print("Error: --json applies to --list; pass both")
+        sys.exit(1)
+
     if args.list:
         rows = load_backups(args.backup_dir)
 
@@ -408,8 +462,9 @@ Examples:
                     "created_files": (manifest or {}).get('created_files', []),
                     "post_state": (manifest or {}).get('post_state'),
                     "readable": manifest is not None,
+                    "error": error,
                 }
-                for path, manifest in rows
+                for path, manifest, error in rows
             ], indent=2))
             sys.exit(0)
 
@@ -419,16 +474,19 @@ Examples:
             print("No backups found\n")
             sys.exit(0)
 
-        for path, manifest in rows:
+        for path, manifest, error in rows:
             print(f"  {os.path.basename(path)}")
             if manifest is None:
-                print("    Error: manifest missing, unparseable, or not an object")
+                # The concrete exception, not a generic sentence: "Permission denied" and
+                # "Expecting value: line 1 column 1" are what make the row actionable, and
+                # keeping the row while discarding them defeats the point of keeping it.
+                print(f"    Error reading manifest: {error}")
                 print()
                 continue
             print(f"    Plan:      {manifest.get('plan', 'unknown')}")
             print(f"    Timestamp: {manifest.get('timestamp', 'unknown')}")
-            print(f"    Files:     {len(manifest.get('files', []))} modified, "
-                  f"{len(manifest.get('created_files', []))} created")
+            print(f"    Files:     {manifest_file_count(manifest, 'files')} modified, "
+                  f"{manifest_file_count(manifest, 'created_files')} created")
             # post_state is stamped only after the executor finishes. Its absence marks a
             # run that died mid-flight -- which is precisely the backup someone hunting
             # through this list is usually looking for.
