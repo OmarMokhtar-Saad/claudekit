@@ -4,6 +4,7 @@ restore-backup.py - Restore files from backup
 
 Purpose: Restore files from a previous backup (manual recovery)
 Usage: python3 scripts/restore-backup.py --backup backups/<backup_dir> [--force] [--dry-run]
+       python3 scripts/restore-backup.py --list [--json]
 
 Safety Guards (12 total):
   GUARD 1:  Backup directory existence
@@ -291,25 +292,60 @@ def restore_from_backup(backup_dir, force=False, dry_run=False, post=False):
         return False
 
 
-def list_backups(backup_base_dir):
-    """List available backups, most recent first."""
+def _backup_sort_key(manifest):
+    """Sort key for one backup: its manifest `timestamp`, or '' when it has none.
+
+    '' sorts LAST under reverse=True, which is the wanted behaviour -- a backup whose
+    manifest cannot be dated is not a candidate for "the latest backup".
+    """
+    if isinstance(manifest, dict):
+        timestamp = manifest.get('timestamp')
+        if isinstance(timestamp, str):
+            return timestamp
+    return ''
+
+
+def load_backups(backup_base_dir):
+    """[(path, manifest_or_None)] for every backup, most recent FIRST.
+
+    Ordering is by the `timestamp` INSIDE manifest.json, not by directory name. The old
+    implementation sorted names, justified by a comment claiming that a lexicographic sort
+    over `<plan>-<YYYYmmdd>-<HHMMSS>-<micros>` is a chronological one. It is not: that form
+    orders by PLAN SLUG first and only then by time. Measured on this repo's 101 backups,
+    name order called `reflection-receipt-...-110635` the newest when
+    `claude-md-floor-trim3-...-175126` was more than six hours later -- while `--list`
+    printed "most recent first" and anyone reaching for the latest backup to restore got
+    the alphabetically-last plan. Name order survives only as the tie-break.
+
+    A manifest that will not parse yields `None` rather than dropping the row: it is still
+    a backup that exists, and hiding it would hide the one row someone needs in order to
+    repair it.
+    """
     if not os.path.exists(backup_base_dir):
         return []
 
-    backups = []
+    rows = []
     for entry in os.listdir(backup_base_dir):
         backup_path = os.path.join(backup_base_dir, entry)
-        if os.path.isdir(backup_path):
-            manifest_path = os.path.join(backup_path, 'manifest.json')
-            if os.path.exists(manifest_path):
-                backups.append(backup_path)
+        manifest_path = os.path.join(backup_path, 'manifest.json')
+        if not os.path.isdir(backup_path) or not os.path.exists(manifest_path):
+            continue
+        try:
+            with open(manifest_path, 'r', encoding='utf-8') as handle:
+                manifest = json.load(handle)
+            if not isinstance(manifest, dict):
+                manifest = None
+        except Exception:
+            manifest = None
+        rows.append((backup_path, manifest))
 
-    # Sorted by NAME, newest-first, which works only because `execute-json-ops.py` names
-    # every backup directory `<plan>-<YYYYmmdd>-<HHMMSS>-<micros>` -- a lexicographic sort
-    # over that form is a chronological one. That coupling is load-bearing and was
-    # undocumented (F79): change the executor's naming and this silently starts returning
-    # the wrong "latest" backup, which is the one a restore reaches for.
-    return sorted(backups, reverse=True)
+    rows.sort(key=lambda row: (_backup_sort_key(row[1]), row[0]), reverse=True)
+    return rows
+
+
+def list_backups(backup_base_dir):
+    """Backup directory paths, most recent first. `load_backups` owns the ordering."""
+    return [path for path, _ in load_backups(backup_base_dir)]
 
 
 def main():
@@ -319,8 +355,11 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # List available backups
+  # List available backups, most recent first
   python3 scripts/restore-backup.py --list
+
+  # The same history as JSON, for a gate or a script
+  python3 scripts/restore-backup.py --list --json
 
   # Preview what would be restored (no files touched)
   python3 scripts/restore-backup.py --backup backups/my-plan-20240101-120000 --dry-run
@@ -340,6 +379,8 @@ Examples:
     parser.add_argument('--force', action='store_true', help='Skip confirmation prompt')
     parser.add_argument('--dry-run', action='store_true', help='Preview what would be restored without touching files')
     parser.add_argument('--list', action='store_true', help='List available backups')
+    parser.add_argument('--json', action='store_true',
+                        help='With --list, emit the backup history as JSON (machine-readable)')
     parser.add_argument('--backup-dir', default='backups', help='Base backup directory (default: backups)')
     parser.add_argument('--verbose', '-v', action='store_true', help='Enable debug logging')
     parser.add_argument('--version', action='version', version=f'%(prog)s {__version__}')
@@ -351,26 +392,48 @@ Examples:
         logging.basicConfig(level=logging.DEBUG)
 
     if args.list:
-        print(f"Available backups in: {args.backup_dir}\n")
-        backups = list_backups(args.backup_dir)
+        rows = load_backups(args.backup_dir)
 
-        if not backups:
+        # --json exists so the execution history can be READ by something other than a
+        # person: the queued-ops and archive gates currently rely on hand-kept README rows
+        # for facts the manifests already hold. Emitted alone, with no banner, so it pipes.
+        if args.json:
+            print(json.dumps([
+                {
+                    "backup": os.path.basename(path),
+                    "path": path,
+                    "plan": (manifest or {}).get('plan'),
+                    "timestamp": (manifest or {}).get('timestamp'),
+                    "files": (manifest or {}).get('files', []),
+                    "created_files": (manifest or {}).get('created_files', []),
+                    "post_state": (manifest or {}).get('post_state'),
+                    "readable": manifest is not None,
+                }
+                for path, manifest in rows
+            ], indent=2))
+            sys.exit(0)
+
+        print(f"Available backups in: {args.backup_dir}\n")
+
+        if not rows:
             print("No backups found\n")
             sys.exit(0)
 
-        for backup_path in backups:
-            manifest_path = os.path.join(backup_path, 'manifest.json')
-            try:
-                with open(manifest_path, 'r', encoding='utf-8') as f:
-                    manifest = json.load(f)
-                print(f"  {os.path.basename(backup_path)}")
-                print(f"    Timestamp: {manifest.get('timestamp', 'unknown')}")
-                print(f"    Files: {len(manifest.get('files', []))}")
+        for path, manifest in rows:
+            print(f"  {os.path.basename(path)}")
+            if manifest is None:
+                print("    Error: manifest missing, unparseable, or not an object")
                 print()
-            except Exception as e:
-                print(f"  {os.path.basename(backup_path)}")
-                print(f"    Error reading manifest: {e}")
-                print()
+                continue
+            print(f"    Plan:      {manifest.get('plan', 'unknown')}")
+            print(f"    Timestamp: {manifest.get('timestamp', 'unknown')}")
+            print(f"    Files:     {len(manifest.get('files', []))} modified, "
+                  f"{len(manifest.get('created_files', []))} created")
+            # post_state is stamped only after the executor finishes. Its absence marks a
+            # run that died mid-flight -- which is precisely the backup someone hunting
+            # through this list is usually looking for.
+            print(f"    Complete:  {'yes' if manifest.get('post_state') else 'no'}")
+            print()
 
         sys.exit(0)
 
