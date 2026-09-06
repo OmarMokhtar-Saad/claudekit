@@ -85,6 +85,27 @@ class ModelPolicyIsTheSourceOfTruth(unittest.TestCase):
         spec.loader.exec_module(module)
         self.assertEqual(set(module.agent_files(AGENTS_DIR)), set(policy["roles"]))
 
+    def test_the_shipped_degrade_chain_terminates(self):
+        """The shipped table must load clean AND every chain in it must end.
+
+        Walked here rather than asserting the literal map, so the property under test
+        is termination itself: retargeting a tier keeps this test meaningful, and a
+        table edited into a loop fails it whatever the tier names are."""
+        spec = importlib.util.spec_from_file_location("gen_model_policy", SCRIPT)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        tiers = module.load_policy(POLICY)["capability_tiers"]
+        for start in tiers:
+            seen, cursor, hops = [], start, 0
+            while cursor is not None:
+                self.assertIn(cursor, tiers, f"{start} degrades to unknown {cursor}")
+                self.assertNotIn(cursor, seen, f"degrade chain from {start} cycles")
+                seen.append(cursor)
+                cursor = tiers[cursor]["degrade_to"]
+                hops += 1
+                self.assertLessEqual(hops, len(tiers) + 1)
+            self.assertTrue(seen, f"{start} has no chain at all")
+
     # The models the 29 agents shipped on before the tier indirection existed.
     # Pinned as LITERALS on purpose: asserting frontmatter == resolve(table) only
     # proves the two agree, which stays true if every tier is retargeted at once.
@@ -215,6 +236,31 @@ class MalformedPolicyFailsClosed(unittest.TestCase):
         policy = subset_policy(self.AGENTS)
         policy["roles"]["ghost"] = {"accountable_for": "nothing", "tier": "fast"}
         self.assert_rejected(policy, "no agent file")
+
+    def test_degrade_to_naming_an_unknown_tier_is_rejected(self):
+        policy = subset_policy(self.AGENTS)
+        policy["capability_tiers"]["fast"]["degrade_to"] = "turbo"
+        self.assert_rejected(policy, "degrades to unknown tier")
+
+    def test_a_degrade_to_cycle_is_rejected(self):
+        """The defect the chain walk exists for: every hop is individually valid, so a
+        one-step check passes while "degrade one tier, never stop" would never stop."""
+        policy = subset_policy(self.AGENTS)
+        policy["capability_tiers"]["most-capable"]["degrade_to"] = "fast"
+        policy["capability_tiers"]["fast"]["degrade_to"] = "most-capable"
+        self.assert_rejected(policy, "cycles")
+
+    def test_a_tier_degrading_to_itself_is_rejected(self):
+        policy = subset_policy(self.AGENTS)
+        policy["capability_tiers"]["fast"]["degrade_to"] = "fast"
+        self.assert_rejected(policy, "cycles")
+
+    def test_a_tier_without_degrade_to_is_rejected(self):
+        """Silence is not a terminal chain: an absent key would let a tier with no
+        declared fallback pass as if it had one."""
+        policy = subset_policy(self.AGENTS)
+        del policy["capability_tiers"]["balanced"]["degrade_to"]
+        self.assert_rejected(policy, "no degrade_to")
 
     def test_a_late_malformed_agent_does_not_leave_earlier_agents_rewritten(self):
         """The partial-write regression: fail closed means NOTHING was written.

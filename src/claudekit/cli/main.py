@@ -326,6 +326,26 @@ def _stale_reference_summary(stale):
     return f"{shown}{more}"
 
 
+def _parse_semver(text):
+    """(major, minor, patch) from a version string, or None if it is not one.
+
+    Defensive on purpose, and stdlib-only (no packaging/pkg_resources). The
+    manifest is unsigned, hand-editable JSON, so `version` can hold anything at
+    all. None means UNKNOWN - never "equal" - so an unreadable version can only
+    ever produce a skip, never a silent all-clear and never a traceback out of
+    doctor. Pre-release and build suffixes (1.2.3rc1, 1.2.3+meta) are unknown
+    rather than guessed: this kit has never shipped one, and inventing an
+    ordering for them would be a comparison nobody reviewed.
+    """
+    parts = str(text).split(".")
+    if len(parts) != 3:
+        return None
+    try:
+        return tuple(int(part) for part in parts)
+    except ValueError:
+        return None
+
+
 def cmd_doctor(args):
     """Run health checks on the current ClaudeKit installation."""
     print(f"\n{C.CYAN}ClaudeKit Doctor v{__version__}{C.NC}\n")
@@ -671,6 +691,46 @@ def cmd_doctor(args):
                 check(f"Profile declarations match hook guards "
                       f"({len(_names)} profiles, active: {_prof.select_name(profiles_root)})",
                       True)
+
+    # Install-vs-kit version drift. The manifest already records the version this
+    # project was installed from (install.sh writes it); comparing that to the
+    # running __version__ turns "how far behind is this project" into a doctor line
+    # instead of a hand-kept fleet spreadsheet.
+    #
+    # The SEVERITY is deliberately not uniform, because the fleet's steady state is
+    # many projects sharing one global claude-kit install with staggered syncs. A
+    # warning on ANY difference would redden `ck doctor --strict` - a gate this
+    # repo lists in its own Definition of Done - across every project the moment a
+    # release lands, which trains people to ignore it. So:
+    #   major/minor apart -> warn: the project is genuinely behind a feature or
+    #     breaking change, and --strict is right to say so;
+    #   patch apart       -> a plain informational line, routed around check() on
+    #     purpose so it can touch neither the readiness score nor --strict;
+    #   equal             -> pass;
+    #   absent/ejected/unparseable version -> skip, per the skip contract above.
+    _drift_manifest = _load_manifest(".")
+    _installed_version = (_drift_manifest or {}).get("version")
+    _recorded_semver = _parse_semver(_installed_version)
+    _running_semver = _parse_semver(__version__)
+    if _recorded_semver is None or _running_semver is None:
+        check("Install version recorded", "skip",
+              f"no comparable version in {MANIFEST_NAME} "
+              f"(recorded {_installed_version!r}) — ejected, hand-managed or "
+              "installed before provenance was stamped")
+    elif _recorded_semver == _running_semver:
+        check(f"Install matches kit v{__version__}", True)
+    elif _recorded_semver[:2] == _running_semver[:2]:
+        # Patch-level only: reported, never scored. Nobody is expected to act on it.
+        info(f"Install version differs by patch only: this project records "
+             f"v{_installed_version}, the claudekit package on this machine is "
+             f"v{__version__} — informational, no action needed")
+    else:
+        check(f"Install version drift: this project records v{_installed_version}, "
+              f"the claudekit package on this machine is v{__version__}",
+              "warn",
+              "if the project is the older one, refresh it: `ck update` (or re-run "
+              "install.sh against it); if the project is NEWER, it is this machine's "
+              "installed claudekit package that is stale, not the project")
 
     # An ejected install is self-managed by design: no manifest, every asset
     # kept. That is healthy, so it reports as a skip and cannot redden --strict.
