@@ -2,16 +2,33 @@
 
 > Update this file at the end of every significant AI working session. It is the resume point.
 
-**Last updated:** 2026-09-05 · **By:** Claude (Opus 5) — **concurrency-guard adversarial
-loop, rounds 15–26, on `feat/concurrency-guard`.** Twelve fresh `code-reviewer` rounds this
-session, every one REJECTED with ≥1 BLOCKING; rounds 17–26 each found their leak INSIDE the
-previous round's fix. ~30 BLOCKING leaks fixed, each verified against real git/bash before
-touching code, each bound by BLOCKED/ALLOWED probes and a `MUTANTS` entry verified to flip.
-Suite 1122 → 2565; full suite 9677 passed. Hook sha `2c9f06fb`. **The loop did not converge
-and round 27 was deliberately NOT run** — see `.ai/CONCURRENCY.md` "Record-only mode" for
-the honest count and the three options (advisory forever / build the bash round-trip
-invariant / replace the tokeniser). **Open decision for the owner:** which of the three.
-Fleet stays `tier: advisory`.
+**Last updated:** 2026-09-06 · **By:** Claude (Opus 5) — **OmniRoute adoption, merged to
+`main` as `a677b68`+`34c5be5`.** Two ideas adapted from the MIT-licensed
+`diegosouzapw/OmniRoute` AI gateway, no code vendored: `degrade_to` makes the tier fallback
+chain data with cycle/termination validation (it was prose in CLAUDE.md while `escalate_to`
+was already checked), and `cmd_doctor` now compares the manifest version `install.sh`
+stamps against the running `__version__`. Plan reviewed twice: **82 REVISE → 93 APPROVED**.
+Suite 10896 → 10915 passed, all nine gates green. Verified behaviourally, not asserted:
+patch drift exits `--strict` 0 and major drift exits 1 on a copy of a real kitted tree, and
+all 14 kitted projects report `Install matches kit v3.1.0`.
+
+**The one thing to know if you pick this up:** the fleet does **not** have this yet.
+`claude-kit` is an editable install that resolves against the shared checkout's *working
+tree*, and that checkout is on `fix/backup-history-ordering` (another session's live work,
+deliberately not disturbed). The moment it sits on a branch containing `main`, all 15
+projects get the check with no reinstall and no per-project sync. `.claude/model-policy.json`
+is claudekit-only and never syncs downstream, so change (1) has no fleet surface at all.
+
+**Trap this session paid for:** record the reviewer verdict *after*
+`validate-config-json.py --stamp-baseline`, never before — the stamp rewrites ops.json, the
+hash moves, and the approval gate then refuses the config it just approved while the
+implementer (no Edit/Write by design) cannot fix it. `review-record.py diff` is how you
+prove the delta is only the machine-added `baseline` block before re-binding the verdict.
+
+**Still open and owner-gated, unchanged by this session:** the concurrency-guard decision
+(#23, advisory; PR #28), release tag + PyPI publish, and `changelog.d/` changelog fragments
+— the third OmniRoute candidate, deliberately not decided here because it changes release
+process.
 
 **Start here if you are picking this up.** Three things you must know:
 
