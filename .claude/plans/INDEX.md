@@ -22,13 +22,13 @@ index never outranks the current files.
 
 | State | Plans |
 |---|---:|
-| `drifted` | 4 |
+| `drifted` | 5 |
 | `approved` | 50 |
 | `planned` | 14 |
 | `executed` | 28 |
 | `not_started` | 24 |
 | `legacy` | 3 |
-| **total** | **123** |
+| **total** | **124** |
 
 ## Plans
 
@@ -44,6 +44,7 @@ index never outranks the current files.
 | `.claude/plans/plan-008-batch1-one-tree.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-008-paper-trail.md` | `executed` | 5 |  |
 | `.claude/plans/plan-adapt-eject-interaction.md` | `not_started` | 0 |  |
+| `.claude/plans/plan-agent-memory-learning.md` | `drifted` | 7 |  |
 | `.claude/plans/plan-agent-tool-grants.md` | `approved` | 1 |  |
 | `.claude/plans/plan-approval-machinery.md` | `approved` | 1 |  |
 | `.claude/plans/plan-backlog-triage-pass.md` | `executed` | 2 |  |

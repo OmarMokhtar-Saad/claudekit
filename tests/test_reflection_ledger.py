@@ -13,6 +13,8 @@ per-session state under the OS temp dir.
 import importlib.util
 import json
 import os
+import re
+import shutil
 import stat
 import subprocess
 import sys
@@ -712,4 +714,58 @@ class TestExplicitOverrideUnchanged:
         assert ref.ledger_dir_trusted() is True
         assert ref.append_entry(SESSION, {"ok": 1})
         assert len(ref.entries(SESSION)) == 1
+
+# --------------------------------------------------------------------------- P4 bridge
+
+
+class TestReceiptToLedgerBridge:
+    """An accepted receipt must reach the DURABLE store, carrying only sanitized text,
+    without touching the blocking contract."""
+
+    def _repo(self, tmp_path):
+        root = tmp_path / "repo"
+        (root / ".claude" / "knowledge" / "issues").mkdir(parents=True)
+        src = Path(__file__).resolve().parent.parent
+        dst = root / ".claude" / "operations" / "scripts"
+        dst.mkdir(parents=True)
+        for name in ("knowledge-ledger.py",):
+            shutil.copy2(src / ".claude" / "operations" / "scripts" / name, dst / name)
+        return root
+
+    def test_bridge_writes_a_sanitized_open_entry(self, ref, tmp_path, monkeypatch):
+        root = self._repo(tmp_path)
+        monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(root))
+        monkeypatch.setenv("CLAUDEKIT_PROJECT_ROOT", str(root))
+        entry = {"failedAssumption": "the executor lock was assumed process-wide"}
+        assert ref.bridge_receipt_to_ledger(entry) is True
+        written = list((root / ".claude" / "knowledge" / "issues").glob("reflection-*.md"))
+        assert written, "no ledger entry appeared"
+        text = written[0].read_text(encoding="utf-8")
+        assert "process-wide" in text
+        assert str(tmp_path) not in text, "an absolute path reached the durable store"
+        assert not re.search(r"[A-Za-z0-9+/]{32,}={0,2}", text), "credential-shaped token"
+
+    def test_bridge_refuses_a_path_or_credential_shaped_signature(
+            self, ref, tmp_path, monkeypatch):
+        """The bridge re-applies `_safe_text`; a raw dict does not get a free pass."""
+        root = self._repo(tmp_path)
+        monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(root))
+        monkeypatch.setenv("CLAUDEKIT_PROJECT_ROOT", str(root))
+        for bad in ("/Users/someone/secret/repo/src.py was assumed present",
+                    "assumed token ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 was valid"):
+            assert ref.bridge_receipt_to_ledger({"failedAssumption": bad}) is False, bad
+        assert not list((root / ".claude" / "knowledge" / "issues").glob("*.md"))
+
+    def test_bridge_is_a_no_op_without_an_issues_directory(self, ref, tmp_path,
+                                                           monkeypatch):
+        root = tmp_path / "bare"
+        root.mkdir()
+        monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(root))
+        assert ref.bridge_receipt_to_ledger({"failedAssumption": "x"}) is False
+
+    def test_bridge_never_raises_on_a_broken_tree(self, ref, tmp_path, monkeypatch):
+        root = self._repo(tmp_path)
+        (root / ".claude" / "operations" / "scripts" / "knowledge-ledger.py").unlink()
+        monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(root))
+        assert ref.bridge_receipt_to_ledger({"failedAssumption": "x"}) is False
 

@@ -33,6 +33,7 @@ Python stdlib only, Python 3.9+, no vector store, no index - plain keyword grep.
 """
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -40,7 +41,7 @@ import subprocess
 import sys
 from datetime import date as _date
 from pathlib import Path
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
 TOKEN_RE = re.compile(r"[a-z0-9_.]{2,}")
@@ -110,6 +111,60 @@ def min_combined_score() -> int:
     if isinstance(value, bool) or not isinstance(value, int):
         return DEFAULT_MIN_COMBINED_SCORE
     return value
+
+
+DEFAULT_TTL_DAYS = 90
+PROPOSAL_MIN_CLUSTER = 3
+# Signature tokens too common to mean two findings are the same class.
+_STOPWORDS = frozenset({"the", "and", "for", "with", "not", "was", "from", "that", "this"})
+
+
+# Evidence beats a clock. `ck memory` (src/claudekit/memory.py) already decides staleness
+# by re-hashing the files a claim rests on, and an `open` finding gets the same rule here:
+# a finding is retired because the code it described moved on, not because time passed.
+# The TTL is the FALLBACK for an entry citing no evidence - there is nothing to re-derive,
+# so a clock is all that is left. Stdlib hashlib, not an import of src/: ops scripts stay
+# standalone (hard rule 8).
+def evidence_hash(root: Path, rel: str) -> str:
+    """`<rel>@sha256:<hex>` for one repo-relative path, or `<rel>@missing`."""
+    try:
+        digest = hashlib.sha256((root / rel).read_bytes()).hexdigest()
+    except OSError:
+        return "%s@missing" % rel
+    return "%s@sha256:%s" % (rel, digest)
+
+
+def split_evidence(stamp: str) -> Tuple[str, str]:
+    """(path, hash) for one stamp; a stamp with no '@' reads as an unhashable path."""
+    rel, _, digest = stamp.partition("@")
+    return rel.strip(), digest.strip()
+
+
+def evidence_superseded(root: Path, meta: Dict[str, str]) -> bool:
+    """True when EVERY cited evidence file has moved on (changed or gone).
+
+    All, never any: one unchanged file means the finding still describes live code. An
+    entry citing no evidence is never superseded by this rule - it falls to the TTL.
+    """
+    stamps = split_files(meta.get("evidence", ""))
+    if not stamps:
+        return False
+    for stamp in stamps:
+        rel, digest = split_evidence(stamp)
+        if not rel or evidence_hash(root, rel) == "%s@%s" % (rel, digest):
+            return False
+    return True
+
+
+def entry_age_days(meta: Dict[str, str], today: _date) -> int:
+    """Whole days since `date:`; -1 when the date is unusable, so it never expires."""
+    raw = safe_date(meta.get("date", ""))
+    if not raw:
+        return -1
+    try:
+        return (today - _date.fromisoformat(raw)).days
+    except ValueError:
+        return -1
 
 
 def entry_paths(directory: Path) -> List[Path]:
@@ -269,7 +324,8 @@ def cmd_search(args: argparse.Namespace) -> int:
 def render_entry_text(slug: str, signature: str, root_cause: str, fix: str,
                       files: List[str], date: str, status: str, origin: str,
                       plan: str, severity: str, verified: bool,
-                      extra: List[str]) -> str:
+                      extra: List[str],
+                      evidence: Optional[List[str]] = None) -> str:
     """Render one entry. Every free-text value passes through scalar() before it lands
     on a frontmatter line, so no writer can break the one-line `key: value` contract.
 
@@ -289,6 +345,10 @@ def render_entry_text(slug: str, signature: str, root_cause: str, fix: str,
         "status: %s" % status,
         "origin: %s" % origin,
     ]
+    if evidence:
+        # Same one-line `key: [a, b]` contract as `files:`, read back by
+        # split_files(). Each stamp is `<path>@sha256:<hex>`.
+        head.append("evidence: [%s]" % ", ".join(evidence))
     if plan:
         head.append("plan: %s" % scalar(plan))
     if severity:
@@ -320,7 +380,8 @@ def render_entry_text(slug: str, signature: str, root_cause: str, fix: str,
 
 
 def render_fixed(args: argparse.Namespace, files: List[str], combined: int, threshold: int,
-                 origin: str, plan: str, severity: str) -> str:
+                 origin: str, plan: str, severity: str,
+                 evidence: Optional[List[str]] = None) -> str:
     return render_entry_text(
         args.slug, args.signature, args.root_cause, args.fix, files,
         args.date or _date.today().isoformat(), "fixed", origin, plan, severity, True,
@@ -334,11 +395,13 @@ def render_fixed(args: argparse.Namespace, files: List[str], combined: int, thre
             "Recorded at the Verifier PASS checkpoint.",
             "",
         ],
+        evidence=evidence,
     )
 
 
 def render_open(args: argparse.Namespace, files: List[str], origin: str, plan: str,
-                severity: str, status: str) -> str:
+                severity: str, status: str,
+                evidence: Optional[List[str]] = None) -> str:
     return render_entry_text(
         args.slug, args.signature, "", "", files,
         args.date or _date.today().isoformat(), status, origin, plan, severity, False,
@@ -351,6 +414,7 @@ def render_open(args: argparse.Namespace, files: List[str], origin: str, plan: s
             "`fixed`; `close --status wontfix --reason \"...\"` retires it unfixed.",
             "",
         ],
+        evidence=evidence,
     )
 
 
@@ -368,6 +432,10 @@ def render_closed(slug: str, meta: Dict[str, str], files: List[str], status: str
             scalar(reason),
             "",
         ],
+        # Closing a finding must not drop its provenance: the evidence
+        # stamps are what tell a later prune that the code this entry
+        # described has moved on.
+        evidence=split_files(meta.get("evidence", "")) or None,
     )
 
 
@@ -421,9 +489,18 @@ def cmd_open(args: argparse.Namespace) -> int:
         if args.reopen and prior == "fixed":
             status = "regressed"
 
+    root = project_root()
+    try:
+        stamps = [evidence_hash(root, rel)
+                  for rel in parse_files(",".join(args.evidence or []))]
+    except ValueError as exc:
+        print("open: invalid --evidence entry %r - same character rule as "
+              "--files." % str(exc), file=sys.stderr)
+        return 2
     directory.mkdir(parents=True, exist_ok=True)
     target.write_text(
-        render_open(args, files, args.origin, args.plan, args.severity, status),
+        render_open(args, files, args.origin, args.plan, args.severity, status,
+                    stamps),
         encoding="utf-8")
     print("OPENED %s (status: %s, verified: false)" % (target, status))
     return 0
@@ -517,8 +594,11 @@ def cmd_record(args: argparse.Namespace) -> int:
     severity = scalar(args.severity) or prior.get("severity", "")
 
     directory.mkdir(parents=True, exist_ok=True)
-    target.write_text(render_fixed(args, files, combined, threshold, origin, plan, severity),
-                      encoding="utf-8")
+    target.write_text(
+        render_fixed(args, files, combined, threshold, origin, plan, severity,
+                     # Promotion inherits the upstream `open` entry's evidence.
+                     split_files(prior.get("evidence", "")) or None),
+        encoding="utf-8")
     if prior_status in UNFIXED:
         print("TRANSITION %s: %s -> fixed" % (target.name, prior_status))
     print("RECORDED %s" % target)
@@ -570,7 +650,40 @@ def cmd_prune(args: argparse.Namespace) -> int:
         # Archiving an UNFIXED finding because its files moved would silently retire a
         # live bug. Those are reported separately and never touched.
         (stale_open if entry_status(meta) in UNFIXED else stale).append(path)
-    if not stale and not stale_open:
+    superseded: List[Path] = []
+    # OPT-IN. Archiving an unfixed finding is exactly the failure the
+    # stale_open split above exists to prevent, so default prune output and
+    # exit codes are unchanged unless an operator asks for --supersede.
+    if getattr(args, "supersede", False):
+        ttl = getattr(args, "ttl_days", DEFAULT_TTL_DAYS)
+        today = _date.today()
+        for path in entry_paths(directory):
+            if path in stale or path in stale_open:
+                continue
+            meta = parse_entry(path)
+            if entry_status(meta) not in UNFIXED:
+                continue  # `fixed`/`wontfix` are never retired by this rule
+            if evidence_superseded(root, meta):
+                superseded.append(path)
+            elif not split_files(meta.get("evidence", "")):
+                age = entry_age_days(meta, today)
+                if ttl > 0 and age >= ttl:
+                    superseded.append(path)
+        if superseded:
+            print("SUPERSEDED: %d open entr(ies) whose evidence moved on "
+                  "(or aged past the TTL fallback):" % len(superseded))
+            for path in superseded:
+                print("  %s" % path.name)
+            if args.apply:
+                archive = directory / "archive"
+                archive.mkdir(parents=True, exist_ok=True)
+                for path in superseded:
+                    path.rename(archive / path.name)
+                    print("ARCHIVED %s" % (archive / path.name))
+                superseded = []
+            else:
+                print("Re-run with --apply --supersede to archive them.")
+    if not stale and not stale_open and not superseded:
         print("LEDGER: clean - 0 stale entries")
         return 0
     if stale_open:
@@ -593,6 +706,80 @@ def cmd_prune(args: argparse.Namespace) -> int:
         path.rename(archive / path.name)
         print("ARCHIVED %s" % (archive / path.name))
     return 1 if stale_open else 0
+
+
+def cmd_propose(args: argparse.Namespace) -> int:
+    """Propose - never write - a candidate skill for a repeated class of finding.
+
+    `cmd_open` REFUSES a duplicate signature, so "the same signature three times" is
+    unreachable by construction; the reachable equivalent is a cluster of open findings
+    sharing signature tokens. Nothing here writes into `.claude/skills/` and nothing here
+    runs a generator: promotion is a human step (hard rule 5).
+    """
+    directory = ledger_dir()
+    live: List[Tuple[Path, Set[str]]] = []
+    for path in entry_paths(directory):
+        meta = parse_entry(path)
+        if entry_status(meta) not in UNFIXED:
+            continue
+        tokens = {t for t in tokenize(meta.get("signature", "")) if t not in _STOPWORDS}
+        if tokens:
+            live.append((path, tokens))
+    clusters: List[Tuple[Set[str], List[str]]] = []
+    used: Set[str] = set()
+    for index, (path, tokens) in enumerate(live):
+        if path.stem in used:
+            continue
+        members = [path.stem]
+        shared = set(tokens)
+        for other, other_tokens in live[index + 1:]:
+            if other.stem in used:
+                continue
+            common = shared & other_tokens
+            if len(common) >= 2:
+                members.append(other.stem)
+                shared = common
+        if len(members) >= args.min_cluster:
+            used.update(members)
+            clusters.append((shared, sorted(members)))
+    if not clusters:
+        print("PROPOSE: no cluster of %d+ open findings shares a signature"
+              % args.min_cluster)
+        return 0
+    out = project_root() / ".claude" / "knowledge" / "proposals"
+    out.mkdir(parents=True, exist_ok=True)
+    for shared, members in clusters:
+        # Shared tokens alone are not a unique name: two different clusters can share
+        # their top three tokens, and the second would then be silently skipped as
+        # "already proposed". A short hash of the MEMBER SET makes the name identify the
+        # cluster it actually describes.
+        stem = re.sub(r"[^a-z0-9._-]", "-", "-".join(sorted(shared)[:3]).lower())
+        digest = hashlib.sha256("\x00".join(members).encode("utf-8")).hexdigest()[:8]
+        slug = (stem[:48].strip("-") or "proposal") + "-" + digest
+        target = out / ("%s.md" % slug)
+        if target.exists():
+            print("PROPOSE: %s already proposed" % target.name)
+            continue
+        target.write_text("\n".join([
+            "# Candidate skill: %s" % slug,
+            "",
+            "%d open findings share the signature tokens `%s`."
+            % (len(members), ", ".join(sorted(shared))),
+            "",
+            "## Members",
+            "",
+        ] + ["- `%s`" % member for member in members] + [
+            "",
+            "## Next step (human)",
+            "",
+            "This is a PROPOSAL. Nothing was written to `.claude/skills/`. Read the member",
+            "entries, decide whether one reusable skill covers them, and if it does create",
+            "it with `ck skill new` - which charges its description against the always-on",
+            "context floor, so the decision has a price.",
+            "",
+        ]), encoding="utf-8")
+        print("PROPOSED %s" % target)
+    return 0
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -632,6 +819,10 @@ def build_parser() -> argparse.ArgumentParser:
     opening.add_argument("--date", default="")
     opening.add_argument("--reopen", action="store_true",
                         help="a fixed entry regressed: rewrite it as status: regressed")
+    opening.add_argument("--evidence", action="append", default=[],
+                        help="repo-relative file this finding rests on "
+                             "(repeatable); stamped with its sha256 so "
+                             "prune can tell when the code moved on")
     opening.set_defaults(func=cmd_open)
 
     closing = sub.add_parser("close", help="retire a finding deliberately not fixed")
@@ -645,8 +836,22 @@ def build_parser() -> argparse.ArgumentParser:
     listing.add_argument("--origin", default="", choices=("",) + ORIGINS)
     listing.set_defaults(func=cmd_list)
 
+    propose = sub.add_parser(
+        "propose", help="propose a candidate skill for a repeated finding")
+    propose.add_argument("--min-cluster", dest="min_cluster", type=int,
+                         default=PROPOSAL_MIN_CLUSTER)
+    propose.set_defaults(func=cmd_propose)
+
     prune = sub.add_parser("prune", help="archive entries whose files no longer exist")
     prune.add_argument("--apply", action="store_true")
+    prune.add_argument("--supersede", action="store_true",
+                       help="also retire OPEN entries whose evidence hashes "
+                            "no longer match (or, absent evidence, that are "
+                            "older than --ttl-days)")
+    prune.add_argument("--ttl-days", dest="ttl_days", type=int,
+                       default=DEFAULT_TTL_DAYS,
+                       help="fallback age gate for open entries citing no "
+                            "evidence (0 disables)")
     prune.set_defaults(func=cmd_prune)
     return parser
 

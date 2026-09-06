@@ -1,7 +1,15 @@
 ---
 name: continuous-learning
-description: "Use when setting up automatic pattern extraction from sessions — Stop hook that learns reusable patterns and saves them as skills"
-disable-model-invocation: true
+description: "Use when operating this project's learning loop — reflection receipts open ledger findings, and repeated findings become skill PROPOSALS a human promotes"
+disable-model-invocation: true# KEPT, deliberately (2026-09-06). Two measured reasons:
+#  (a) Cost. `skill descriptions` sits at 8,817 / 9,000 chars in the always-on context
+#      floor, and context_floor.model_invisible() exempts a skill carrying this flag.
+#      Flipping it would spend 129 of the 183 remaining chars on one skill.
+#  (b) Fit. This is an operator runbook invoked BY NAME from the ledger README, the
+#      proposals README and the SessionStart block -- not a skill a model should
+#      autoselect. What was actually broken here was the description, which claimed a
+#      Stop-hook extractor that "saves them as skills". No such extractor existed, and
+#      the propose step that replaced it never writes into .claude/skills/ (hard rule 5).
 ---
 
 # Continuous Learning

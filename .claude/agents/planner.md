@@ -5,6 +5,7 @@ description: |
 
 model: opus
 color: cyan
+memory: project
 tools: ["Read", "Grep", "Glob", "Write", "Bash"]
 ---
 
