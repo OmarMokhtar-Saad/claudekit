@@ -324,6 +324,41 @@ def test_list_json_on_an_empty_tree_is_an_empty_array(tmp_path):
     assert json.loads(result.stdout) == []
 
 
+@pytest.mark.parametrize("files_value", [None, 3, "a.py", {"a": 1}])
+def test_json_never_hands_a_consumer_a_non_list_file_field(tmp_path, files_value):
+    """`--json` exists for machine consumers, which is where a wrong TYPE does the most
+    damage. The text branch was hardened for this and the JSON branch was not: it emitted
+    the raw value with `readable: true, error: null`, so `len()` raised the same TypeError
+    the text fix was filed for -- and `"files": "a.py"` did not raise at all, it reported
+    four files."""
+    root = tmp_path / "backups"
+    _backup(root, "bad-20260101-120000-000000",
+            {"plan": "bad", "timestamp": "2026-01-01T12:00:00+00:00",
+             "files": files_value, "created_files": files_value})
+
+    result = _run(["--list", "--json", "--backup-dir", str(root)], cwd=tmp_path)
+
+    row = json.loads(result.stdout)[0]
+    assert isinstance(row["files"], list), row
+    assert isinstance(row["created_files"], list), row
+    assert row["files"] == [] and row["created_files"] == []
+    # Silently substituting [] would be its own lie; the row must say what it dropped.
+    assert row["error"] and "not a list" in row["error"], row
+
+
+def test_a_well_formed_manifest_still_reports_no_error(tmp_path):
+    """Vacuity guard for the above: `error` must stay None in the ordinary case."""
+    root = tmp_path / "backups"
+    _backup(root, "good-20260101-120000-000000",
+            _manifest("good", "2026-01-01T12:00:00+00:00", files=["a.py"], created=["b.py"]))
+
+    result = _run(["--list", "--json", "--backup-dir", str(root)], cwd=tmp_path)
+
+    row = json.loads(result.stdout)[0]
+    assert row["error"] is None, row
+    assert row["files"] == ["a.py"] and row["created_files"] == ["b.py"]
+
+
 def test_list_still_needs_no_backup_argument_and_restore_still_does(tmp_path):
     """The `--list` short-circuit must not have swallowed the `--backup` requirement."""
     result = _run([], cwd=tmp_path)

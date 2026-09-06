@@ -377,18 +377,41 @@ def load_backups(backup_base_dir):
     return rows
 
 
-def manifest_file_count(manifest, key):
-    """len() of a manifest list field, tolerating a field that is not a list.
+def manifest_file_list(manifest, key):
+    """A manifest list field, or [] when it is anything other than a list.
 
     `{"files": null}` is valid JSON in a valid object, and `.get('files', [])` returns
     None for it because the key IS present -- which is how the first version of this
     change crashed `--list` outright on a manifest the previous implementation had
-    listed as a one-line error. Anything that is not a list counts as 0 and the row
-    still prints; a truncated count is a far smaller harm than a traceback that hides
-    every backup sorting after it.
+    listed as a one-line error.
+
+    Both output modes go through here, and the second one is why this returns a LIST
+    rather than only a count. `--list --json` used to emit the raw value with
+    `"readable": true, "error": null`, so a machine consumer was told the row was fine
+    and handed a non-list: `len()` raised the same TypeError, and `"files": "a.py"`
+    was worse than raising, because iterating a string reports four files and no error
+    at all. A field that is not a list is not data a consumer can use, and the row says
+    so in `error` instead.
     """
     value = manifest.get(key) if isinstance(manifest, dict) else None
-    return len(value) if isinstance(value, list) else 0
+    return value if isinstance(value, list) else []
+
+
+def manifest_field_faults(manifest):
+    """Names of list fields present but malformed, so a row can report its own damage.
+
+    Empty for a well-formed manifest, so `error` stays None for the overwhelming case.
+    """
+    if not isinstance(manifest, dict):
+        return []
+    return ['%s is %s, not a list' % (key, type(manifest[key]).__name__)
+            for key in ('files', 'created_files')
+            if key in manifest and not isinstance(manifest[key], list)]
+
+
+def manifest_file_count(manifest, key):
+    """len() of a manifest list field, tolerating a field that is not a list."""
+    return len(manifest_file_list(manifest, key))
 
 
 def list_backups(backup_base_dir):
@@ -458,11 +481,11 @@ Examples:
                     "path": path,
                     "plan": (manifest or {}).get('plan'),
                     "timestamp": (manifest or {}).get('timestamp'),
-                    "files": (manifest or {}).get('files', []),
-                    "created_files": (manifest or {}).get('created_files', []),
+                    "files": manifest_file_list(manifest, 'files'),
+                    "created_files": manifest_file_list(manifest, 'created_files'),
                     "post_state": (manifest or {}).get('post_state'),
                     "readable": manifest is not None,
-                    "error": error,
+                    "error": error or ('; '.join(manifest_field_faults(manifest)) or None),
                 }
                 for path, manifest, error in rows
             ], indent=2))
