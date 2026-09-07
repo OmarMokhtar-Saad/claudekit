@@ -11,6 +11,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `open-source-forker` — never shipped and have been removed.
 
 ## [Unreleased]
+- **`restore-backup.py --list` ordered backups by plan name, not by time.** `list_backups`
+  sorted directory names in reverse, under a comment asserting that a lexicographic sort
+  over `<plan>-<YYYYmmdd>-<HHMMSS>-<micros>` is a chronological one. It orders by plan slug
+  first: measured on 101 real backups, `--list` announced "most recent first" and printed
+  `reflection-receipt-...-110635` above `claude-md-floor-trim3-...-175126`, six hours newer.
+  Anyone reaching for the latest backup to restore got the alphabetically-last plan.
+  Ordering now reads the `timestamp` inside each manifest, with name order as the tie-break.
+- **`--list` reports the whole manifest, and `--list --json` makes it machine-readable.**
+  Each row now carries the plan slug, modified and created file counts, and whether
+  `post_state` was stamped -- an unstamped backup being a run that died mid-flight. The
+  manifests already held the execution history; nothing could read it. `--json` exists so
+  the queued-ops and archive gates can consult that data instead of hand-kept README rows.
 
 - **Tier degradation is data, not folklore.** "On limits, degrade one tier, never stop"
   lived only as prose in CLAUDE.md while escalation was already structured

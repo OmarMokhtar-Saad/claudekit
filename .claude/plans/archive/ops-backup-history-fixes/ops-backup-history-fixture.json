@@ -1,0 +1,16 @@
+{
+  "plan": "backup-history-fixture-fix",
+  "operations": [
+    {
+      "id": "op1",
+      "type": "code_edit",
+      "path": "tests/test_backup_history.py",
+      "edits": [
+        {
+          "find": "    _backup(root, \"bbb-middle-20260101-000000-000000\",\n            _manifest(\"bbb-middle\", \"2026-06-01T00:00:00+00:00\"))\n    _backup(root, \"ccc-newest-20260101-000000-000001\",\n            _manifest(\"ccc-newest\", \"2026-09-01T00:00:00+00:00\"))\n    _backup(root, \"aaa-oldest-20260101-000000-000002\",\n            _manifest(\"aaa-oldest\", \"2026-01-01T00:00:00+00:00\"))\n\n    plans = [manifest[\"plan\"] for _, manifest, _ in restore.load_backups(str(root))]\n\n    assert plans == [\"ccc-newest\", \"bbb-middle\", \"aaa-oldest\"], plans",
+          "replace": "    _backup(root, \"zzz-middle-20260101-000000-000000\",\n            _manifest(\"zzz-middle\", \"2026-06-01T00:00:00+00:00\"))\n    _backup(root, \"aaa-newest-20260101-000000-000001\",\n            _manifest(\"aaa-newest\", \"2026-09-01T00:00:00+00:00\"))\n    _backup(root, \"mmm-oldest-20260101-000000-000002\",\n            _manifest(\"mmm-oldest\", \"2026-01-01T00:00:00+00:00\"))\n\n    plans = [manifest[\"plan\"] for _, manifest, _ in restore.load_backups(str(root))]\n\n    assert plans == [\"aaa-newest\", \"zzz-middle\", \"mmm-oldest\"], plans"
+        }
+      ]
+    }
+  ]
+}
