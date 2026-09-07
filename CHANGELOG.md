@@ -12,6 +12,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **The ops parse gate identifies files the way the kernel does.** Two review rounds on the
+  gate found the same defect three times, each in a different spelling: a plan naming one
+  file two ways (`x.py` and `./x.py`, a symlink and its target, or `x.py` and `X.py` on a
+  case-insensitive filesystem) was two files to the gate and one to the writer, so the gate
+  checked one spelling, withheld the other as "not checked", and **exited 0 reporting that
+  every file still parses while the executor left unparseable Python on disk**. The lexical
+  fixes each closed one spelling and left the next; the gate now groups by `(st_dev, st_ino)`
+  — what the operating system means by "the same file" — which closes all of them plus
+  hardlinks with one mechanism, and refuses such a plan rather than guessing, because the
+  writes go through `os.replace`, which replaces a symlink instead of following it. Naming a
+  file once, by one path, is now required. A plan that deletes a file and edits a link to it
+  is refused for the same reason.
+
 - **The parse gate now models the plan the executor will actually run.** Two divergences
   between `ops_precompile.py` and `execute-json-ops.py` let an ops.json pass the gate
   (exit 0, "every Python file still parses") and leave unparseable Python on disk; both were
