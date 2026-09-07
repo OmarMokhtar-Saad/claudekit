@@ -41,6 +41,46 @@ owner-gated release-process change rather than decided unilaterally.
 install resolving against the shared checkout's *working tree*, which is on
 `fix/backup-history-ordering`. It reaches all 15 projects automatically once that checkout
 sits on a branch containing `main` — no reinstall, no per-project sync.
+## 2026-09-06 — agent memory, and a learning loop with a reachable write path
+
+**The diagnosis, all executed before any code moved.** `.claude/knowledge/issues/` held **0
+entries in all 15 kitted repos**: `knowledge-ledger.py record` fires only at a Verifier PASS
+checkpoint, and per CLAUDE.md the verifier never auto-runs — so the durable write path was
+unreachable by construction, while the ungated `open` subcommand had no caller. Reflection
+receipts existed but landed in a session-scoped temp dir (`reflection.py::ledger_dir()`) and
+evaporated with `$TMPDIR`. `continuous-learning` claimed a Stop-hook extractor that is not
+in `settings.json`'s Stop array. No agent set `memory:`.
+
+**What was designed, and what was deliberately NOT built.** No fifth memory store. The four
+that exist got owners: `ck memory` (`.claude/memory/entries.jsonl`) is authoritative for
+*assertions about the tree*; `.claude/knowledge/issues/` is authoritative for *findings*;
+`.claude/agent-memory/<agent>/MEMORY.md` is Claude Code's native per-agent tier; and the
+reflection JSONL stays **ephemeral and feeds the ledger**. `src/claudekit/memory.py` was not
+touched — the ledger borrows its *rule* (evidence hash beats a clock) and the SessionStart
+helper *imports* its `freshness()` verdict rather than re-deriving staleness.
+
+**Two constraints that shaped the design more than the requirements did.**
+1. `src/claudekit/context_floor.py:104` charges the **full file text** of `planner.md`,
+   `reviewer.md` and `implementer.md` against `pipeline agent bodies`, which sat at
+   42,930 / 43,000 — 70 chars of headroom. So those two agents got the 16-char `memory:`
+   line and **no body text**; the recording policy for them lives in
+   `.claude/agent-memory/README.md`.
+2. `cmd_open` refuses a duplicate signature, so "the same signature 3 times" — the
+   requested proposal trigger — is unreachable by construction. The reachable equivalent,
+   shared-token clustering, was built instead and the reason is recorded in the code.
+
+**Prior rejections honoured.** `.claude/knowledge/rejections/reflection-lifecycle-gates.md`
+(CONDITIONAL 88) named a blockable escape hatch and a `minimal`-profile divergence: this
+change adds no PreToolUse hook, no new refusal, and only non-blocking exit-0 steps. Its
+`gen-docs` note was re-verified and found **stale**: `gen-docs.py:77` now globs
+`("*.sh", "*.py")`, so a new `.py` hook DOES move the count unless a sibling `.sh` names it
+with a literal `python3` on the same line (`gen-docs.py:110-126`) — and `ck doctor
+--strict` (`cli/main.py:203`) additionally demands a literal `$SCRIPT_DIR/` there.
+`session-start.sh` therefore invokes the helper on one literal line, deliberately, with the
+reason in a comment beside it.
+
+**Follow-ups.** Fleet sync to the other 14 repos is owner-gated. Whether
+`record --verified` should ever fire automatically is still open — it does not.
 
 ## 2026-09-05 — concurrency-guard rounds 15–26: a loop that did not converge
 

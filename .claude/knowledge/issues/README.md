@@ -8,8 +8,24 @@ bug we already know about.
   deliberate future phase — do not write outside this directory.
 - **No index, no vector store.** Retrieval is plain keyword/signature grep
   (`.claude/operations/scripts/knowledge-ledger.py`), stdlib-only, zero runtime deps.
-- **Never auto-injected.** The ledger is *pulled* by the debugger agent (Phase 0) on demand;
-  it is never appended to CLAUDE.md or preloaded into context.
+- **Injected only in one bounded place.** The ledger is *pulled* by the debugger agent
+  (Phase 0) on demand, and — since 2026-09-06 — up to **5 `open` one-line summaries** are
+  printed at SessionStart by `.claude/hooks/session-memory-context.py`, hard-capped at
+  ~600 tokens and withheld entirely unless they pass `prompt-injection-scanner.sh`. It is
+  still never appended to CLAUDE.md.
+- **`open` is the automatic path; `record --verified` is promotion.** `open` is ungated and
+  is written automatically when a reflection receipt is accepted
+  (`.claude/hooks/reflection.py`, sanitized fields only). `record --verified` still fires
+  only at a Verifier PASS with the rubric threshold met — and the Verifier never auto-runs.
+- **Staleness is decided by evidence, not by a clock.** `open --evidence <repo-relative
+  path>` stamps `evidence: [<path>@sha256:<hex>]`. `prune --apply --supersede` archives an
+  open entry only when **every** cited file's hash has changed or the file is gone — the
+  code the finding was about moved on. `--ttl-days` (default 90) is the fallback for
+  entries citing no evidence. Default `prune` is unchanged: it never retires an unfixed
+  finding. `fixed`/`wontfix` are never touched by this rule.
+- **Repeated findings become proposals, never skills.** `knowledge-ledger.py propose`
+  clusters open entries by shared signature tokens and writes
+  `.claude/knowledge/proposals/<slug>.md`. It never writes into `.claude/skills/`.
 
 ## Entry format
 
