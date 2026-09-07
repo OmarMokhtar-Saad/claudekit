@@ -22,13 +22,13 @@ index never outranks the current files.
 
 | State | Plans |
 |---|---:|
-| `drifted` | 6 |
+| `drifted` | 7 |
 | `approved` | 50 |
 | `planned` | 15 |
 | `executed` | 29 |
 | `not_started` | 24 |
 | `legacy` | 3 |
-| **total** | **127** |
+| **total** | **128** |
 
 ## Plans
 
@@ -154,6 +154,7 @@ index never outranks the current files.
 | `.claude/plans/plan-validator-comment-inert.md` | `approved` | 1 |  |
 | `.claude/plans/plan-validator-differential-gate.md` | `approved` | 1 |  |
 | `.claude/plans/plan-validator-segmentation.md` | `approved` | 1 |  |
+| `.claude/plans/plan-version-source-precedence.md` | `drifted` | 2 |  |
 | `.claude/plans/plan-work-loss-protection.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-workflow-file-templates-ops-schema.md` | `planned` | 1 |  |
 | `.claude/plans/plan-worktree-multi-agent.md` | `not_started` | 0 |  |
