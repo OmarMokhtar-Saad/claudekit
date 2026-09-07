@@ -968,8 +968,53 @@ def check_approval(config_file: str, plan_name: str) -> Tuple[bool, str]:
     return True, ""
 
 
+PRECOMPILE_SCRIPT = Path(__file__).resolve().parent / "ops_precompile.py"
+
+
+def check_parses(config_file: str) -> Tuple[bool, str]:
+    """Does every Python file this ops.json touches still parse once it is applied?
+
+    The gate this backs is about the RESULT, where approval, identity and drift are about
+    intent, provenance and preconditions. See its call site in execute_json_config.
+
+    IT IS DIFFERENTIAL AND IT DEFERS. It refuses only breakage this plan CAUSES (a file that
+    already did not parse is reported, not blamed), and it declines to refuse a missing or
+    ambiguous anchor, which `execute_code_edit` diagnoses far more precisely a moment later.
+    Both are ordering decisions, and both are pinned by tests/test_ops_parse_gate.py.
+
+    FAILS CLOSED. A missing, unreadable or crashing checker refuses the run. A guard that
+    waves through whatever it could not inspect is not a guard, and a silent pass is the
+    exact failure it was added for.
+    """
+    script = PRECOMPILE_SCRIPT
+    if not script.exists():
+        alt = Path.cwd() / ".claude" / "operations" / "scripts" / "ops_precompile.py"
+        if not alt.exists():
+            return False, (f"  the parse checker is missing (looked in {script} and {alt}).\n"
+                           "  It is a required gate, not an optional one: restore\n"
+                           "  .claude/operations/scripts/ops_precompile.py rather than\n"
+                           "  working around it.")
+        script = alt
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("ops_precompile", str(script))
+        if spec is None or spec.loader is None:
+            return False, (f"  the parse checker at {script} could not be loaded as a module.\n"
+                           "  Failing closed rather than skipping the gate.")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        ok, lines = module.check(config_file)
+    except Exception as exc:  # noqa: BLE001 - fail closed on ANY checker fault
+        return False, (f"  the parse checker itself failed to run ({exc!r}).\n"
+                       "  Failing closed: a gate that cannot inspect the result must not\n"
+                       "  wave it through. --no-parse-check is the documented way back in\n"
+                       "  while repairing the checker.")
+    return ok, "\n".join("  " + line for line in lines)
+
+
 def execute_json_config(config_file: str, dry_run: bool = False,
-                        require_approval: bool = True) -> bool:
+                        require_approval: bool = True,
+                        check_parse: bool = True) -> bool:
     """
     Execute JSON operations config.
 
@@ -1043,6 +1088,46 @@ def execute_json_config(config_file: str, dry_run: bool = False,
     else:
         print("Baseline: none — drift since planning cannot be detected "
               "(stamp via validate-config-json.py --stamp-baseline)")
+
+    # Parse gate: approval, identity and drift all gate on INTENT. None of them gates on the
+    # RESULT. This proves the text the edits produce is text Python can still read.
+    #
+    # RUNS IN DRY-RUN TOO, unlike the approval gate. A dry-run is the cheapest moment to learn
+    # a splice is malformed, and previewing an edit that cannot compile is exactly as
+    # misleading as previewing a drifted one.
+    #
+    # ORDERING -- THE AMBIGUITY VERDICT OUTRANKS THIS ONE. A missing or ambiguous anchor is NOT
+    # refused here. `execute_code_edit` already fails closed on both and RESULT-JSON names
+    # WHICH operation failed ('ambiguous-pattern'); refusing first would replace that precise
+    # diagnosis with the generic symptom `parse-gate: result does not parse` and flatten
+    # `operations` to []. The gate reports the miss, withholds the verdict for that file, and
+    # defers. Nothing is waved through: the executor refuses the same plan moments later with
+    # a better message. Pinned in both directions by tests/test_ops_parse_gate.py.
+    #
+    # DIFFERENTIAL. It refuses breakage this plan CAUSES, not breakage it inherits, so an
+    # already-unparseable file stays repairable through the engine. See `_parsed_before`.
+    #
+    # THE BREAK-GLASS. This checker is itself a file in the tree, so a gate with no bypass can
+    # lock its own repair out. Hence exactly one escape hatch, explicit and loud, on the same
+    # terms as the approval bypass.
+    if not check_parse:
+        print("Parse: BYPASSED (--no-parse-check)")
+        print("!!! PARSE GATE BYPASSED (--no-parse-check): executing an ops.json without "
+              "proving the Python it leaves behind still compiles. This exists to repair a "
+              "broken ops_precompile.py and for nothing else.", file=sys.stderr)
+    else:
+        parses, parse_detail = check_parses(config_file)
+        if not parses:
+            print("\nPARSE GATE: refusing — applying this ops.json would leave a Python "
+                  "file that does not parse.")
+            print(parse_detail)
+            print("\nFix the replace block (the report above names the splice, not the")
+            print("plan) and re-validate. Nothing has been written. If the checker ITSELF is")
+            print("what is broken, --no-parse-check is the documented way back in.")
+            _emit_result(plan_name, dry_run, 'failed', [],
+                         reason="parse-gate: result does not parse")
+            return False
+        print("Parse: every Python file this plan touches still parses after the edits")
 
     if dry_run:
         print("DRY RUN MODE - No changes will be made\n")
@@ -1275,6 +1360,9 @@ Safety:
     parser.add_argument('--no-approval', action='store_true',
                         help='Bypass the review-record approval gate (loudly logged; '
                              'bootstrap and maintenance runs only)')
+    parser.add_argument('--no-parse-check', action='store_true',
+                        help='Bypass the parse gate (loudly logged; exists for '
+                             'repairing a broken ops_precompile.py and nothing else)')
     parser.add_argument('--version', action='version', version=f'%(prog)s {__version__}')
     args = parser.parse_args()
 
@@ -1285,7 +1373,8 @@ Safety:
     signal.signal(signal.SIGTERM, _signal_handler)
 
     success = execute_json_config(args.config, dry_run=args.dry_run,
-                                  require_approval=not args.no_approval)
+                                  require_approval=not args.no_approval,
+                                  check_parse=not args.no_parse_check)
     sys.exit(0 if success else 1)
 
 

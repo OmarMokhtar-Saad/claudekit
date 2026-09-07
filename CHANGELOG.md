@@ -12,6 +12,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **The ops pipeline now gates on what an edit LEAVES, not only on what it matches.**
+  Approval, identity and drift all gate on intent; none of them proved the text coming out
+  the other side is text Python can still read. `ops_precompile.py` applies every edit in
+  memory, in the executor's own action precedence, and refuses the run if a touched `.py`
+  would no longer parse or would newly shadow a module-level import. It runs in `--dry-run`
+  as well as execute, and fails closed if the checker is missing or crashes.
+  `--no-parse-check` is the single break-glass, for repairing the checker itself.
+
+  Two ordering rules are part of the gate, not afterthoughts, and both are pinned in both
+  directions:
+
+  - **A precise verdict outranks a symptom.** A missing or ambiguous `find` anchor is
+    reported by the gate but not refused by it, because `execute_code_edit` already fails
+    closed on both and names *which* operation failed (`ambiguous-pattern`). Refusing at the
+    gate would replace `Pattern appears N times (ambiguous match)` with the generic
+    `parse-gate: result does not parse` and flatten `operations` to `[]`.
+  - **The gate is differential.** It refuses breakage a plan *causes*, not breakage it
+    *inherits*. An absolute check would make an already-unparseable file uneditable through
+    the engine unless one plan happened to fix the whole file — so the Iron Law path could
+    not be used to repair a syntax error, which is exactly when it is most wanted.
+
 ## [3.2.0] — 2026-09-07
 
 - **Upgrade note for kitted projects.** This release adds the `ck doctor` install-drift
