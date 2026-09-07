@@ -36,6 +36,15 @@ two releases old and nothing failed, because
 release that legitimately reached that number tripped a guard written for staleness. The test
 now DERIVES: every version literal under `src/` must equal the pyproject version.
 
+Closed in 2026-09 by removing the duplication instead of guarding it: `claudekit/_version.py`
+owns ONE precedence rule -- a source checkout reports its own `pyproject.toml`, everything
+else reports installed metadata -- and both `src/` literals are gone, so `pyproject.toml` is
+the only hand-bumped site left (`install.sh` already derived). The inverted precedence was
+itself a defect, not just duplication: an editable install freezes `importlib.metadata` at
+install time, so the CLI reported the pre-bump version while `install.sh` stamped the
+post-bump one into every manifest, and `ck doctor` called freshly installed projects DRIFTED
+(7 `tests/test_doctor_gate.py` failures that CI could not see, because CI installs fresh).
+
 Recorded here rather than in CLAUDE.md because that file is delivery-weighted x4
 (`CLAUDE_MD_MULTIPLIER` -- main context plus three pipeline subagents) and had **four
 characters** of headroom against its 31000 budget. The first draft of this correction put three

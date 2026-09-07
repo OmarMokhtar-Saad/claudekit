@@ -1,0 +1,19 @@
+{
+  "plan": ".claude/plans/plan-version-source-precedence.md",
+  "slug": "version-source-precedence",
+  "ops_path": ".claude/plans/plan-version-source-precedence.ops.json",
+  "ops_sha256": "5fbbc3a4707126a46d122995f5c55008467ed672431e94ceb52795777948fd55",
+  "score": 90,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] tests/test_packaging.py:47-73 `test_single_version_source_of_truth`'s literal-detection loop goes vacuous for `src/` once both hardcoded literals are removed; the new `test_no_hand_bumped_version_lite",
+    "[MINOR] The wheel-install mutation proof simulates a directory layout, not a real wheel artifact; disclosed under \"Open / not settled\", but the claimed protection for an actual release wheel rests on the sepa",
+    "[MINOR] All \"executed\"/\"measured\" mutation-proof and full-suite-pass claims are unverifiable from the artifacts alone; scoring assumes the design is sound, not that the proofs ran as claimed."
+  ],
+  "verdict_origin": "rubric",
+  "recorded_utc": "2026-09-07T10:27:15Z",
+  "operations": 6,
+  "edits": 4,
+  "rounds": [],
+  "round": 1
+}
