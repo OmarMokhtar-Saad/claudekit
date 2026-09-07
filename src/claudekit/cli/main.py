@@ -22,18 +22,30 @@ if __package__ in (None, ""):
 
 
 def _resolve_version() -> str:
-    """Single source of truth: installed package metadata, with a source-checkout fallback."""
+    """Single source of truth, resolved in claudekit._version: source tree, then metadata.
+
+    Imported inside the function, not at module scope, because the sys.path repair
+    above must run first for the raw-script mode (`python3 src/claudekit/cli/main.py`)
+    -- a module-level import here would also trip ruff E402.
+
+    This used to prefer `metadata.version()` and fall back to a hand-bumped literal,
+    which failed in both directions: the literal sat at 2.1.0 through the 3.0.0
+    release, and on an EDITABLE install the metadata is frozen at install time, so
+    after a version bump the CLI reported the old version while `install.sh` stamped
+    the new one into every manifest -- and `ck doctor` called freshly installed
+    projects DRIFTED. See claudekit/_version.py for the precedence and its failure
+    modes.
+    """
     try:
-        # Distribution name is "claude-kit" (the "claudekit" PyPI name was taken);
-        # the import package and console scripts remain "claudekit"/"ck".
-        return metadata.version("claude-kit")
-    except metadata.PackageNotFoundError:
-        # Bumped with the other version sites. It sat at 2.1.0 through the 3.0.0
-        # release because hard rule 7 names three sites and this is a fourth, and
-        # the packaging test's forbidden-literal list happened not to include
-        # "2.1.0" -- so a source checkout reported a version two releases old and
-        # nothing failed. The test now derives instead of listing.
-        return "3.2.0"
+        from claudekit._version import resolve_version
+    except ImportError:
+        # Nothing above claudekit on sys.path (an oddly copied single file). Metadata
+        # is then the only source; "unknown" over a fabricated number.
+        try:
+            return metadata.version("claude-kit")
+        except metadata.PackageNotFoundError:
+            return "unknown"
+    return resolve_version()
 
 
 __version__ = _resolve_version()

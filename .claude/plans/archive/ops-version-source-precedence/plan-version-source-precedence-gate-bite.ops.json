@@ -1,0 +1,16 @@
+{
+  "plan": "version-source-precedence-gate-bite",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_packaging.py",
+      "description": "Reviewer MINOR 1: with both src literals deleted, this loop's body never executes, so the rule-7 gate went vacuous for src/. Widen the pattern to ANY double-quoted semver in the shipped package (the old form only caught `__version__ =` and `return`, so a bare module constant or an f-string would reintroduce the exact defect undetected), and assert the loop is non-vacuous by construction: pyproject's own version IS a matching literal in a file the scan reaches only if the scan works, so instead we assert the shipped package contains no semver literal at all.",
+      "edits": [
+        {
+          "find": "    literal = re.compile(r'(?:__version__\\s*=|return)\\s+\"(\\d+\\.\\d+\\.\\d+)\"')\n    for py in (REPO / \"src\").rglob(\"*.py\"):\n        for found in literal.findall(py.read_text(encoding=\"utf-8\")):\n            assert found == version, (\n                f\"stale version literal {found!r} in {py}; pyproject says {version!r}\")",
+          "replace": "    # ANY double-quoted semver counts, not just `__version__ =` / `return \"x.y.z\"`.\n    # The narrow form was itself the hole: it would not have matched a bare module\n    # constant (`VERSION = \"3.1.0\"`) or an f-string, which is the same shape of miss\n    # that let `cli/main.py` sit at 2.1.0 for two releases. Since 3.2.0 the package\n    # derives its version and carries NO literal, so the honest assertion is that the\n    # count is zero -- a form that cannot go vacuous, because a reintroduced literal in\n    # any spelling fails it.\n    literal = re.compile(r'\"(\\d+\\.\\d+\\.\\d+)\"')\n    offenders = []\n    for py in (REPO / \"src\").rglob(\"*.py\"):\n        code = \"\\n\".join(line for line in py.read_text(encoding=\"utf-8\").splitlines()\n                         if not line.lstrip().startswith(\"#\"))\n        offenders += [(py.relative_to(REPO).as_posix(), f) for f in literal.findall(code)]\n    assert not offenders, (\n        \"the shipped package must derive its version, never hardcode one \"\n        \"(claudekit/_version.py:resolve_version); found %r, pyproject says %r\"\n        % (offenders, version))"
+        }
+      ]
+    }
+  ]
+}
