@@ -1,0 +1,20 @@
+{
+  "plan": "parse-gate-probe-test-bind",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_ops_parse_gate.py",
+      "description": "My device-guard test was VACUOUS and the mutation proof caught it: removing the guard left it green. On a case-insensitive filesystem the swapped name resolves to the same inode, so the probe answers True with or without the guard, and the test could not fail for its stated reason. Make the swapped lookup fail as it would on a case-sensitive parent, so True can only come from the guard refusing to probe.",
+      "edits": [
+        {
+          "find": "    def fake_stat(path, *args, **kwargs):\n        result = real_stat(path, *args, **kwargs)\n        if os.path.abspath(str(path)) == os.path.abspath(parent):\n            return _Foreign(result)\n        return result",
+          "replace": "    swapped = os.path.join(parent, 'Vol'.swapcase())\n\n    def fake_stat(path, *args, **kwargs):\n        # The swapped name must MISS, the way it would on a case-sensitive parent. Without\n        # this the probe resolves it to the same inode on APFS and answers True regardless of\n        # the guard -- which is exactly how the first version of this test came out vacuous\n        # under its own mutation.\n        if os.path.abspath(str(path)) == os.path.abspath(swapped):\n            raise OSError('probed on the parent device, which does not fold case')\n        result = real_stat(path, *args, **kwargs)\n        if os.path.abspath(str(path)) == os.path.abspath(parent):\n            return _Foreign(result)\n        return result"
+        },
+        {
+          "find": "    assert answer is True, (\n        'a probe that can only be performed on another device must collapse, not split')",
+          "replace": "    assert answer is True, (\n        'a probe that can only be performed on another device must collapse, not split')\n    # Control: with the parent on the SAME device, the identical foreign lookup is trusted and\n    # the answer flips to False. Without this the test could pass because nothing was probed\n    # at all, rather than because the guard fired.\n    monkeypatch.setattr(os, 'stat', lambda p, *a, **k: (\n        (_ for _ in ()).throw(OSError('absent'))\n        if os.path.abspath(str(p)) == os.path.abspath(swapped)\n        else real_stat(p, *a, **k)))\n    gate_mod._CASE_FOLD.clear()\n    try:\n        same_device = gate_mod._case_insensitive(str(probe_dir), own)\n    finally:\n        gate_mod._CASE_FOLD.clear()\n    assert same_device is False, (\n        'with the parent on the same device the probe must be trusted, so this control '\n        'proves the True above came from the guard and not from an unprobed path')"
+        }
+      ]
+    }
+  ]
+}

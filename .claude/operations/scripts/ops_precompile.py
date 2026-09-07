@@ -45,6 +45,7 @@ import ast
 import json
 import os
 import sys
+import unicodedata
 
 
 def _apply(src, edit, path, misses, spelling=None):
@@ -124,44 +125,189 @@ def _canon(path):
     return os.path.relpath(path)
 
 
+_CASE_FOLD: dict = {}
+
+
+def _case_insensitive(existing, st):
+    """Does THIS device fold case? Probed once per `st_dev`, and it writes nothing.
+
+    Case sensitivity is a property of the MOUNT, not of the operating system: APFS folds by
+    default, ext4 does not, and one checkout can span both through a mounted subtree. So it
+    cannot be a constant and it cannot be `sys.platform`.
+
+    THE PROBE LEAVES NOTHING BEHIND. It takes an ancestor that already exists, swaps the case
+    of that ancestor's OWN name, and stats it: the same `(st_dev, st_ino)` back means the
+    kernel folded the two spellings. The obvious alternative -- `mkstemp` a two-cased name and
+    look for its twin -- answers the same question but needs the directory to be writable and
+    drops a file into the author's tree in the middle of a read-only check.
+
+    UNDECIDABLE FOLDS TOWARD COLLAPSING. When no ancestor name carries a cased letter (`/`, a
+    numeric-only path) or the walk cannot stat, the answer given is True. The two errors are
+    NOT symmetric. Collapsing wrongly costs a FALSE REFUSAL -- loud, in the report, and fixed
+    by naming the file once. Staying distinct wrongly reopens exactly the hole this exists to
+    close: gate exit 0, `Errors: 0`, unparseable Python on disk. The quiet error is the unsafe
+    one, so the probe fails toward the loud one.
+    """
+    if st.st_dev in _CASE_FOLD:
+        return _CASE_FOLD[st.st_dev]
+    result, cur, cur_st = True, existing, st
+    while True:
+        parent, base = os.path.dirname(cur), os.path.basename(cur)
+        # NEVER ANSWER FROM ANOTHER DEVICE. The verdict is cached under `st.st_dev`, and
+        # swapping a component's case looks that NAME up in its PARENT directory -- so the
+        # device that decides the answer is the parent's, not `cur`'s. When `existing` is
+        # itself a mount point, its name lives in the parent mount: a case-insensitive volume
+        # mounted inside a case-sensitive tree would be probed against the case-sensitive
+        # parent, cached as sensitive, and its aliases would then stay distinct -- the silent
+        # exit-0 hole this module exists to close. Refusing the probe leaves `result` True,
+        # which collapses: loud, not silent.
+        #
+        # An earlier version of this guard compared `cur_st.st_dev` with `st.st_dev`, which on
+        # the first iteration compares a value with itself and can never differ. The test
+        # caught it; reasoning about it had not.
+        try:
+            if os.stat(parent).st_dev != st.st_dev:
+                break
+        except OSError:
+            break
+        swapped = base.swapcase()
+        if swapped != base:
+            try:
+                other = os.stat(os.path.join(parent, swapped))
+                result = (other.st_dev, other.st_ino) == (cur_st.st_dev, cur_st.st_ino)
+            except OSError:
+                result = False          # the swapped name is absent: this device is sensitive
+            break
+        if parent == cur:
+            break                       # nothing cased anywhere up the path: collapse
+        cur = parent
+        try:
+            cur_st = os.stat(cur)
+        except OSError:
+            break                       # cannot probe: collapse
+    _CASE_FOLD[st.st_dev] = result
+    return result
+
+
+def _fold(component, case_insensitive):
+    """One path component as the FILESYSTEM would compare it.
+
+    RESIDUAL, STATED BECAUSE IT IS THE SAME CLASS: Apple's on-disk normalisation is not strict
+    Unicode NFD -- it diverges for codepoints added after Unicode 3.2 -- so for those
+    codepoints `normalize('NFC', ...)` can disagree with what the filesystem itself folds.
+    That residual is confined to paths that DO NOT EXIST YET, because an existing path is
+    keyed by `(st_dev, st_ino)`, which is the kernel's own answer and cannot be wrong. A
+    plan naming a not-yet-created file twice, in two normalisations, using such a codepoint,
+    is the one shape still unmodelled here.
+
+    NFC ALWAYS. macOS normalises the names it stores, so `café.py` written NFD is read back
+    NFC and the two spellings are one file -- and a plan carrying both escaped every earlier
+    fix. A filesystem that does not normalise makes them two files, and folding them there is
+    a false refusal, which is the loud direction (see `_case_insensitive`). Probing
+    normalisation the way case is probed is not possible without writing, because it needs a
+    name whose own spelling is decomposable.
+
+    Lowercasing ONLY where the device was measured to fold case.
+    """
+    component = unicodedata.normalize('NFC', component)
+    return component.lower() if case_insensitive else component
+
+
+def _identity(path):
+    """What the KERNEL would call this path -- for a file that exists AND one that does not.
+
+    THIS IS THE SECOND OF TWO KEYS, AND THE SPLIT IS DELIBERATE. `_canon` is
+    `os.path.relpath` because it must equal the EXECUTOR's own accumulator key
+    (execute-json-ops.py:684); a checker that modelled a different file identity than the
+    writer is the divergence that key exists to close. This one answers a different question
+    -- "do two of the plan's keys name one file?" -- and is used only by `_aliases`.
+
+    FOUR ROUNDS OF REVIEW SAY LEXICAL IDENTITY CANNOT ANSWER IT. `os.path.relpath` missed
+    `./x.py`; `os.path.realpath` missed `X.py` on a case-insensitive filesystem;
+    `(st_dev, st_ino)` closed both and hardlinks with them, but an inode can only be read for
+    a path ALREADY ON DISK -- so every `file_create` target fell back to a lexical realpath,
+    which is precisely what the first two rounds disproved. Reproduced end to end three ways
+    (`file_create new.py` + `code_edit New.py`; create through a symlinked directory and edit
+    through the real one; `sub/n.py` and `SUB/n.py`): `ok=True`, executor exit 0, `Errors: 0`,
+    unparseable file on disk.
+
+    SO THE KEY IS AN INODE PLUS FOLDED COMPONENTS. Resolve the symlinks, walk up to the
+    nearest ancestor that EXISTS, key that ancestor by `(st_dev, st_ino)` -- the kernel's own
+    answer -- and append the components that do not exist yet, each folded by that device's
+    measured rules. A path already on disk yields a bare inode key exactly as before; a path
+    that does not exist yet is anchored to a real inode instead of to a string.
+
+    `os.path.realpath` FIRST, NOT INSTEAD. It resolves a symlinked directory in the middle of
+    the path, and it resolves a DANGLING link to the target it points at -- so a plan that
+    creates `pkg/m.py` and edits a broken `sym.py` aimed there is still one file. Dropping it
+    in favour of the ancestor walk alone regressed that pair to two keys.
+
+    OUTSIDE THE PROJECT ROOT IS STILL ONE FILE. The key is absolute, so `../other/x.py` gets
+    a real identity rather than an escape-shaped string; whether the plan is ALLOWED to write
+    there is a different gate's question and the executor's path guard answers it.
+    """
+    try:
+        cur = os.path.realpath(os.path.abspath(path))
+    except OSError:
+        cur = os.path.abspath(path)
+    tail = []
+    while True:
+        try:
+            st = os.stat(cur)
+            break
+        except OSError:
+            parent = os.path.dirname(cur)
+            if parent == cur:
+                # NO ANCESTOR EXISTS AT ALL -- an absolute path on a device that is not
+                # mounted, or a root that cannot be stat'd. There is no inode to anchor to,
+                # so this degrades to a lexical key, but a FOLDED one: the case and
+                # normalisation aliases still collapse instead of reopening the hole. Nothing
+                # can be written there either, so the executor fails on the same path a
+                # moment later.
+                return ('lex',) + tuple(
+                    _fold(c, True) for c in os.path.abspath(path).split(os.sep))
+            tail.append(os.path.basename(cur))
+            cur = parent
+    if not tail:
+        return ('ino', st.st_dev, st.st_ino)
+    folds = _case_insensitive(cur, st)
+    return ('ino', st.st_dev, st.st_ino) + tuple(
+        _fold(c, folds) for c in reversed(tail))
+
+
 def _aliases(paths):
-    """Distinct keys in one plan that name ONE file on disk: {realpath: [keys]}.
+    """Distinct keys in one plan that name ONE file: {identity: [keys]}.
 
     `pkg/m.py` plus a symlink `sym.py` pointing at it are two `os.path.relpath` keys and one
-    inode, and NEITHER side models it: this gate reads `sym.py` before the executor's earlier
+    file, and NEITHER side models it: this gate reads `sym.py` before the executor's earlier
     write to `pkg/m.py` has happened, and the executor writes through `os.replace`, which
     REPLACES the symlink with a regular file rather than following it. Measured: gate exit 0,
     `sym.py` unparseable afterwards. A gate that cannot model a plan must fail closed rather
     than withhold, so this is a refusal.
 
-    IDENTITY COMES FROM THE FILESYSTEM, NOT FROM A STRING. Grouping by `os.path.realpath`
-    was the first attempt and it was measurably not enough: realpath is case-PRESERVING, so
-    on the case-insensitive filesystem this repo is developed on (APFS), `x.py` and `X.py`
-    are one file that realpath spells two ways -- and a code review reproduced round 1's
-    exact failure through that spelling, gate exit 0 and unparseable disk included. So the
-    key is `(st_dev, st_ino)`, which is what the kernel means by "the same file". That one
-    change also collapses HARDLINKS, which share an inode but never a realpath, and which
-    the realpath version documented as an accepted blind spot.
+    IDENTITY COMES FROM `_identity`, WHICH ASKS THE FILESYSTEM, NOT FROM A STRING. Every
+    lexical canonicaliser tried here was measurably defeated by the next spelling -- see
+    `_identity` for the four rounds and the reproductions. The invariant, and not any one
+    spelling, is what
+    tests/test_ops_parse_gate.py::test_the_identity_is_invariant_under_every_alias_spelling
+    pins; the folds that this machine's filesystem does not perform SKIP there with a reason
+    rather than passing for the wrong reason.
 
-    A path that does not exist yet cannot be stat'd, so a `file_create` target falls back to
-    its realpath -- distinct new files stay distinct, and two spellings of one new path still
-    collapse. Tagging the two key kinds keeps an inode from ever colliding with a path
-    string.
+    OVER-REFUSAL IS THE FAILURE DIRECTION THAT WOULD BLOCK EVERY FUTURE CHANGE, so it is
+    measured, not asserted: all 601 archived ops configs in `.claude/plans/archive` were swept
+    through this function and NONE was flagged, before the change and after it.
     """
     groups: dict = {}
     for p in paths:
         if not isinstance(p, str) or not p:
             continue
         try:
-            st = os.stat(p)
-            key: tuple = ('ino', st.st_dev, st.st_ino)
-        except OSError:
-            # Not on disk (a file_create target, or a broken symlink): no inode exists to
-            # compare, so fall back to the lexical identity rather than dropping the path.
-            try:
-                key = ('path', os.path.realpath(p))
-            except OSError:
-                continue
+            key = _identity(p)
+        except (OSError, ValueError):
+            # A path the OS refuses to even look at (an embedded NUL). The validator refuses
+            # such a config outright; dropping it here is not a hole, it is a shape that
+            # never reaches the writer.
+            continue
         groups.setdefault(key, []).append(p)
     return {k: sorted(ks) for k, ks in groups.items() if len(ks) > 1}
 
@@ -202,7 +348,15 @@ def _normalize(ops):
 
 
 def simulate(ops):
-    """({path: final text}, [(path, reason) misses], {paths this plan CREATES}).
+    """({path: final text}, [(path, reason) misses], {CREATES}, {DELETES}, {NAMES}).
+
+    THE FIFTH VALUE IS EVERY PATH THE CONFIG NAMES, and it is separate from the four
+    above because those are what this module could MODEL. A `code_edit` of a path that is
+    not on disk yet is recorded as a miss and skipped -- so it entered none of the other
+    sets, and the alias check in `check` never saw it. Measured: `file_create new.py` plus
+    `code_edit New.py` on a case-folding filesystem, gate exit 0, executor `Errors: 0`,
+    unparseable file on disk. Alias detection is a question about the paths the plan NAMES,
+    not about the subset the checker managed to simulate.
 
     A MISS IS A PAIR, NOT A SENTENCE. The path travels as its own value because `check`
     needs it back to decide which file's parse verdict to withhold, and recovering it from
@@ -225,6 +379,7 @@ def simulate(ops):
     misses: list = []
     created: set = set()
     deleted: set = set()
+    named: set = set()
     # ONE SCHEMA, ONE IDENTITY. `_normalize` above has already applied the executor's
     # `operations`-wins precedence, so the LEGACY `files` key is no longer read here; and
     # every accumulator below is keyed on `_canon(path)`, which is the executor's own key.
@@ -240,6 +395,11 @@ def simulate(ops):
             misses.append(('<no path>', 'operation of type %r names no path, and the '
                                         'executor refuses such a config' % (kind,)))
             continue
+        # NAMED BEFORE MODELLED. Every branch below can decline to model this path -- a
+        # missing file to edit, an anchor that did not land -- and the alias check must
+        # still see it, because two spellings of ONE file is exactly the case where one
+        # of them cannot be modelled.
+        named.add(path)
         if kind == 'file_create':
             # `execute_file_create` indexes operation['content'] directly, so an absent key is
             # a KeyError there, not an empty file. Modelling it as '' would green-light a plan
@@ -271,7 +431,7 @@ def simulate(ops):
             for edit in op.get('edits') or []:
                 src = _apply(src, edit, path, misses, spelling)
             files[path] = src
-    return files, misses, created, deleted
+    return files, misses, created, deleted, named
 
 
 def _module_bound(node, out):
@@ -425,7 +585,7 @@ def check(config, quiet=False):
                 ops = json.load(fh)
         except (OSError, ValueError) as exc:
             return False, ['CANNOT READ %s: %s' % (config, exc)]
-    files, misses, created, deleted = simulate(ops)
+    files, misses, created, deleted, named = simulate(ops)
     # WHOSE REFUSAL IS THIS? A missing or ambiguous anchor is NOT this module's to refuse, and
     # the port originally made it one. `execute_code_edit` already fails closed on both --
     # 'pattern-not-found' and 'ambiguous-pattern' -- and RESULT-JSON then names WHICH operation
@@ -471,11 +631,16 @@ def check(config, quiet=False):
     # the same unmodellable shape, and checking only `files` pronounced `OK sym.py still
     # parses` on it. `created` is in `files` already, but naming it here keeps the set honest
     # if that ever changes.
-    for _ident, _keys in sorted(_aliases(set(files) | deleted | created).items()):
+    # `named` FIRST, and it is the set that matters: the others are only what could be
+    # modelled, and an unmodellable spelling is the whole hazard. They stay in the union so
+    # the set cannot shrink if `named` is ever narrowed.
+    for _ident, _keys in sorted(
+            _aliases(named | set(files) | deleted | created).items(), key=repr):
         bad += 1
-        # Name a PATH, never the identity. The group key is ('ino', st_dev, st_ino) for a
-        # file that exists, so printing the key put a bare inode number where the reader
-        # needs something they can open.
+        # Name a PATH, never the identity. The group key is an inode tuple, possibly with
+        # folded components appended for a path that does not exist yet (see `_identity`),
+        # so printing the key put a bare inode number where the reader needs something
+        # they can open.
         try:
             _one = os.path.realpath(_keys[0])
         except OSError:
