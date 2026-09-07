@@ -12,6 +12,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **On a source checkout, `ck --version` and `ck doctor` reported a stale version.** Version
+  resolution preferred `importlib.metadata`, which an editable install (`pip install -e .`)
+  freezes at install time, while `install.sh` derives the SOURCE version and stamps it into
+  each project's `.claudekit-manifest.json`. `ck doctor`'s install-drift check compares the
+  two, so after a version bump a freshly installed project was reported as DRIFTED until
+  someone re-ran pip — measured here as source 3.2.0 vs reported 3.1.0, and 7 failures in
+  `tests/test_doctor_gate.py` that CI never saw because CI installs fresh. Precedence now
+  lives in one place (`claudekit/_version.py`): a source checkout reports its own
+  `pyproject.toml`, detected by the `src/claudekit/` layout plus a `name = "claude-kit"`
+  check, so a vendored or wheel-installed copy is unaffected and installed packages take the
+  same metadata path as before. The two hand-bumped `"x.y.z"` fallback literals in
+  `claudekit/__init__.py` and `claudekit/cli/main.py` are gone — `pyproject.toml` is now the
+  only hand-maintained version site, closing the class that left `cli/main.py` two releases
+  stale through 3.0.0.
+
 ## [3.2.0] — 2026-09-07
 
 - **Upgrade note for kitted projects.** This release adds the `ck doctor` install-drift
