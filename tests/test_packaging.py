@@ -54,11 +54,23 @@ def test_single_version_source_of_truth():
     # failing; and it pre-forbade "3.1.0", so the release that legitimately reached
     # that number tripped a guard meant for staleness. Deriving catches the first
     # and cannot cause the second.
-    literal = re.compile(r'(?:__version__\s*=|return)\s+"(\d+\.\d+\.\d+)"')
+    # ANY double-quoted semver counts, not just `__version__ =` / `return "x.y.z"`.
+    # The narrow form was itself the hole: it would not have matched a bare module
+    # constant (`VERSION = "3.1.0"`) or an f-string, which is the same shape of miss
+    # that let `cli/main.py` sit at 2.1.0 for two releases. Since 3.2.0 the package
+    # derives its version and carries NO literal, so the honest assertion is that the
+    # count is zero -- a form that cannot go vacuous, because a reintroduced literal in
+    # any spelling fails it.
+    literal = re.compile(r'"(\d+\.\d+\.\d+)"')
+    offenders = []
     for py in (REPO / "src").rglob("*.py"):
-        for found in literal.findall(py.read_text(encoding="utf-8")):
-            assert found == version, (
-                f"stale version literal {found!r} in {py}; pyproject says {version!r}")
+        code = "\n".join(line for line in py.read_text(encoding="utf-8").splitlines()
+                         if not line.lstrip().startswith("#"))
+        offenders += [(py.relative_to(REPO).as_posix(), f) for f in literal.findall(code)]
+    assert not offenders, (
+        "the shipped package must derive its version, never hardcode one "
+        "(claudekit/_version.py:resolve_version); found %r, pyproject says %r"
+        % (offenders, version))
     # install.sh too. Scanning only src/ is why `VERSION="2.1.0"` survived TWO releases
     # there unnoticed, stamping a stale version into every install manifest. Any literal
     # assignment is the defect regardless of spelling -- export/readonly/indented/
