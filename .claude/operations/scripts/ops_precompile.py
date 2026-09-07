@@ -134,19 +134,36 @@ def _aliases(paths):
     `sym.py` unparseable afterwards. A gate that cannot model a plan must fail closed rather
     than withhold, so this is a refusal.
 
-    KNOWN LIMITS, stated rather than implied: hardlinks share an inode but not a realpath,
-    and a case-insensitive filesystem makes `Foo.py` and `foo.py` one file that realpath
-    still spells two ways. Neither is detected here.
+    IDENTITY COMES FROM THE FILESYSTEM, NOT FROM A STRING. Grouping by `os.path.realpath`
+    was the first attempt and it was measurably not enough: realpath is case-PRESERVING, so
+    on the case-insensitive filesystem this repo is developed on (APFS), `x.py` and `X.py`
+    are one file that realpath spells two ways -- and a code review reproduced round 1's
+    exact failure through that spelling, gate exit 0 and unparseable disk included. So the
+    key is `(st_dev, st_ino)`, which is what the kernel means by "the same file". That one
+    change also collapses HARDLINKS, which share an inode but never a realpath, and which
+    the realpath version documented as an accepted blind spot.
+
+    A path that does not exist yet cannot be stat'd, so a `file_create` target falls back to
+    its realpath -- distinct new files stay distinct, and two spellings of one new path still
+    collapse. Tagging the two key kinds keeps an inode from ever colliding with a path
+    string.
     """
     groups: dict = {}
     for p in paths:
         if not isinstance(p, str) or not p:
             continue
         try:
-            groups.setdefault(os.path.realpath(p), []).append(p)
+            st = os.stat(p)
+            key: tuple = ('ino', st.st_dev, st.st_ino)
         except OSError:
-            continue
-    return {rp: sorted(ks) for rp, ks in groups.items() if len(ks) > 1}
+            # Not on disk (a file_create target, or a broken symlink): no inode exists to
+            # compare, so fall back to the lexical identity rather than dropping the path.
+            try:
+                key = ('path', os.path.realpath(p))
+            except OSError:
+                continue
+        groups.setdefault(key, []).append(p)
+    return {k: sorted(ks) for k, ks in groups.items() if len(ks) > 1}
 
 
 def _normalize(ops):
@@ -158,6 +175,13 @@ def _normalize(ops):
     run. Reproduced in both directions -- a silent pass to an unparseable tree, and a refusal
     of a config that runs cleanly -- and reachable on a default install, where without
     `jsonschema` the validator skips the schema check and reports APPROVED on such a config.
+
+    THE PIN COVERS THE CONFIGS THE EXECUTOR ACCEPTS, and says so rather than claiming more:
+    differential fuzzing found six malformed shapes where this and `normalize_config`
+    disagree (`files: null` raises there and returns [] here, and five shapes where it
+    returns None and this converts anyway). Every one of those aborts the run before any
+    write, so the divergence is in the permissive-but-harmless direction -- but the pin is
+    three well-formed configs, not a proof of total agreement.
 
     ON THE EXECUTOR'S PATH THIS IS A NO-OP. `check_parses` hands `check` the dict
     `normalize_config` already produced, so there is exactly ONE normaliser in production.
@@ -247,7 +271,7 @@ def simulate(ops):
             for edit in op.get('edits') or []:
                 src = _apply(src, edit, path, misses, spelling)
             files[path] = src
-    return files, misses, created
+    return files, misses, created, deleted
 
 
 def _module_bound(node, out):
@@ -401,7 +425,7 @@ def check(config, quiet=False):
                 ops = json.load(fh)
         except (OSError, ValueError) as exc:
             return False, ['CANNOT READ %s: %s' % (config, exc)]
-    files, misses, created = simulate(ops)
+    files, misses, created, deleted = simulate(ops)
     # WHOSE REFUSAL IS THIS? A missing or ambiguous anchor is NOT this module's to refuse, and
     # the port originally made it one. `execute_code_edit` already fails closed on both --
     # 'pattern-not-found' and 'ambiguous-pattern' -- and RESULT-JSON then names WHICH operation
@@ -443,12 +467,23 @@ def check(config, quiet=False):
     # disk. This is the one case where the gate refuses something that is not itself a
     # SyntaxError, because it is not deferring to a better diagnosis later -- the executor
     # has none for this, it simply writes both.
-    for _real, _keys in sorted(_aliases(files).items()):
+    # The union, not just `files`: a plan that DELETES pkg/m.py and edits a symlink to it is
+    # the same unmodellable shape, and checking only `files` pronounced `OK sym.py still
+    # parses` on it. `created` is in `files` already, but naming it here keeps the set honest
+    # if that ever changes.
+    for _ident, _keys in sorted(_aliases(set(files) | deleted | created).items()):
         bad += 1
+        # Name a PATH, never the identity. The group key is ('ino', st_dev, st_ino) for a
+        # file that exists, so printing the key put a bare inode number where the reader
+        # needs something they can open.
+        try:
+            _one = os.path.realpath(_keys[0])
+        except OSError:
+            _one = _keys[0]
         out.append('ALIAS %s: this plan names one file (%s) %d ways. Neither this gate nor '
                    'the executor models that -- the writes go through os.replace, which '
                    'REPLACES a symlink instead of following it. Name the file once, by one '
-                   'path.' % (', '.join(_keys), _real, len(_keys)))
+                   'path.' % (', '.join(_keys), _one, len(_keys)))
     for path in sorted(files):
         if path in unresolved:
             out.append('?     %s not checked — an anchor above did not land, so the text '

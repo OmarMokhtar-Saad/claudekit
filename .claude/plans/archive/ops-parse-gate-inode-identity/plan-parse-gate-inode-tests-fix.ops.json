@@ -1,0 +1,32 @@
+{
+  "plan": "parse-gate-inode-tests-fix",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_ops_parse_gate.py",
+      "description": "My four new tests called a helper `mod()` that does not exist in this file and passed a whole config dict to write_ops, which takes the operations LIST. Rewrite them against the real fixtures (`gate`, `write_ops`). Caught by execution, not by review: the config validated and the gate's own parse check passed, because a NameError is not a syntax error.",
+      "edits": [
+        {
+          "find": "    cfg = write_ops(tmp_path, {'plan': 'case', 'operations': [\n        {'type': 'code_edit', 'path': 'x.py',\n         'edits': [{'find': 'A = 1', 'replace': 'A = 2\\nB = 3'}]},\n        {'type': 'code_edit', 'path': 'X.py',\n         'edits': [{'find': 'B = 3', 'replace': 'B = ('}]}]})\n    ok, lines = mod().check(cfg)",
+          "replace": "    cfg = write_ops(tmp_path, [\n        {'type': 'code_edit', 'path': 'x.py',\n         'edits': [{'find': 'A = 1', 'replace': 'A = 2\\nB = 3'}]},\n        {'type': 'code_edit', 'path': 'X.py',\n         'edits': [{'find': 'B = 3', 'replace': 'B = ('}]}])\n    ok, lines = load_gate().check(cfg)"
+        },
+        {
+          "find": "    cfg = write_ops(tmp_path, {'plan': 'hard', 'operations': [\n        {'type': 'code_edit', 'path': 'a.py',\n         'edits': [{'find': 'A = 1', 'replace': 'A = 2'}]},\n        {'type': 'code_edit', 'path': 'b.py',\n         'edits': [{'find': 'A = 2', 'replace': 'A = ('}]}]})\n    ok, lines = mod().check(cfg)",
+          "replace": "    cfg = write_ops(tmp_path, [\n        {'type': 'code_edit', 'path': 'a.py',\n         'edits': [{'find': 'A = 1', 'replace': 'A = 2'}]},\n        {'type': 'code_edit', 'path': 'b.py',\n         'edits': [{'find': 'A = 2', 'replace': 'A = ('}]}])\n    ok, lines = load_gate().check(cfg)"
+        },
+        {
+          "find": "    cfg = write_ops(tmp_path, {'plan': 'distinct', 'operations': [\n        {'type': 'code_edit', 'path': 'p.py',\n         'edits': [{'find': 'A = 1', 'replace': 'A = 2'}]},\n        {'type': 'code_edit', 'path': 'q.py',\n         'edits': [{'find': 'B = 1', 'replace': 'B = 2'}]},\n        {'type': 'file_create', 'path': 'new1.py', 'content': 'C = 1\\n'},\n        {'type': 'file_create', 'path': 'sub/new2.py', 'content': 'D = 1\\n'}]})\n    ok, lines = mod().check(cfg)",
+          "replace": "    cfg = write_ops(tmp_path, [\n        {'type': 'code_edit', 'path': 'p.py',\n         'edits': [{'find': 'A = 1', 'replace': 'A = 2'}]},\n        {'type': 'code_edit', 'path': 'q.py',\n         'edits': [{'find': 'B = 1', 'replace': 'B = 2'}]},\n        {'type': 'file_create', 'path': 'new1.py', 'content': 'C = 1\\n'},\n        {'type': 'file_create', 'path': 'sub/new2.py', 'content': 'D = 1\\n'}])\n    ok, lines = load_gate().check(cfg)"
+        },
+        {
+          "find": "    cfg = write_ops(tmp_path, {'plan': 'delalias', 'operations': [\n        {'type': 'file_delete', 'path': 'pkg/m.py', 'reason': 'probe'},\n        {'type': 'code_edit', 'path': 'sym.py',\n         'edits': [{'find': 'A = 1', 'replace': 'A = 2'}]}]})\n    ok, lines = mod().check(cfg)",
+          "replace": "    cfg = write_ops(tmp_path, [\n        {'type': 'file_delete', 'path': 'pkg/m.py', 'reason': 'probe'},\n        {'type': 'code_edit', 'path': 'sym.py',\n         'edits': [{'find': 'A = 1', 'replace': 'A = 2'}]}])\n    ok, lines = load_gate().check(cfg)"
+        },
+        {
+          "find": "        _files, misses, _created = gate.simulate(json.load(fh))",
+          "replace": "        _files, misses, _created, _deleted = gate.simulate(json.load(fh))"
+        }
+      ]
+    }
+  ]
+}

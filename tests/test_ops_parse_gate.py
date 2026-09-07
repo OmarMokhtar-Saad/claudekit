@@ -16,6 +16,7 @@ would flatten that per-operation diagnostic into a generic parse-gate reason.
 import importlib.util
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -581,7 +582,7 @@ def test_simulate_carries_the_path_as_data_not_a_formatted_string(gate, tmp_path
     cfg = write_ops(tmp_path, [{"type": "code_edit", "path": "c:d.py",
                                 "edits": [{"find": "nowhere", "replace": "y = 2"}]}])
     with open(cfg, encoding="utf-8") as fh:
-        _files, misses, _created = gate.simulate(json.load(fh))
+        _files, misses, _created, _deleted = gate.simulate(json.load(fh))
     assert [p for p, _r in misses] == ["c:d.py"], misses
 
 
@@ -749,6 +750,114 @@ def test_the_both_keys_refusal_also_stops_the_real_executor(tmp_path, monkeypatc
     assert res.returncode == 1, res.stdout
     assert "PARSE GATE" in res.stdout, res.stdout
     assert y.read_text() == "A = 1\nB = 1\n"
+
+
+def test_one_file_named_in_two_cases_is_refused_not_half_checked(tmp_path, monkeypatch):
+    """Round-2 CRITICAL. `os.path.relpath` and `os.path.realpath` are both case-PRESERVING,
+    so on a case-insensitive filesystem `x.py` and `X.py` were two keys and one file: the
+    gate checked one spelling, withheld the other as 'not checked', and exited 0 while the
+    executor threaded both edits and left the file unparseable.
+
+    Mutation that reds this: revert `_aliases` to grouping on `os.path.realpath`.
+
+    Skipped where the filesystem is case-SENSITIVE, because there the two names really are
+    two files and refusing them would be the bug. The skip is the point, not a convenience --
+    a test that passed on both filesystems would not be testing case identity at all.
+    """
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / 'x.py').write_text('A = 1\n', encoding='utf-8')
+    if not (tmp_path / 'X.py').exists():
+        pytest.skip('case-sensitive filesystem: x.py and X.py are genuinely two files')
+    cfg = write_ops(tmp_path, [
+        {'type': 'code_edit', 'path': 'x.py',
+         'edits': [{'find': 'A = 1', 'replace': 'A = 2\nB = 3'}]},
+        {'type': 'code_edit', 'path': 'X.py',
+         'edits': [{'find': 'B = 3', 'replace': 'B = ('}]}])
+    ok, lines = load_gate().check(cfg)
+    body = '\n'.join(lines)
+    assert ok is False, body
+    assert 'ALIAS' in body, body
+    # The per-spelling `not checked` line may still appear -- that anchor really did not land
+    # in the gate's model of THAT spelling -- but it must no longer be what the verdict rests
+    # on. Before the fix, `not checked` plus `OK x.py still parses` WAS the whole verdict and
+    # the run exited 0. Now the refusal decides.
+    assert 'x.py' in body and 'X.py' in body, body
+    # The message must name a path, not a bare inode number.
+    assert 'names one file (' in body, body
+    assert not re.search(r'names one file \(\d+\)', body), body
+
+
+def test_a_hardlinked_pair_is_refused_too(tmp_path, monkeypatch):
+    """Hardlinks share an inode but never a realpath, so the realpath version documented them
+    as an accepted blind spot. Keying on (st_dev, st_ino) closes them with the same mechanism.
+
+    Mutation that reds this: revert `_aliases` to grouping on `os.path.realpath`.
+    """
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / 'a.py').write_text('A = 1\n', encoding='utf-8')
+    try:
+        os.link(str(tmp_path / 'a.py'), str(tmp_path / 'b.py'))
+    except (OSError, AttributeError):
+        pytest.skip('this filesystem does not support hardlinks')
+    cfg = write_ops(tmp_path, [
+        {'type': 'code_edit', 'path': 'a.py',
+         'edits': [{'find': 'A = 1', 'replace': 'A = 2'}]},
+        {'type': 'code_edit', 'path': 'b.py',
+         'edits': [{'find': 'A = 2', 'replace': 'A = ('}]}])
+    ok, lines = load_gate().check(cfg)
+    assert ok is False, '\n'.join(lines)
+    assert 'ALIAS' in '\n'.join(lines)
+
+
+def test_distinct_files_and_new_files_are_never_called_aliases(tmp_path, monkeypatch):
+    """The failure direction that would block every future change. Two genuinely distinct
+    files, and two file_creates of paths that do not exist yet (which cannot be stat'd and so
+    take the realpath fallback), must NOT be grouped.
+
+    Mutation that reds this: make the `except OSError` fallback in `_aliases` return one
+    constant key for every missing path.
+    """
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / 'p.py').write_text('A = 1\n', encoding='utf-8')
+    (tmp_path / 'q.py').write_text('B = 1\n', encoding='utf-8')
+    cfg = write_ops(tmp_path, [
+        {'type': 'code_edit', 'path': 'p.py',
+         'edits': [{'find': 'A = 1', 'replace': 'A = 2'}]},
+        {'type': 'code_edit', 'path': 'q.py',
+         'edits': [{'find': 'B = 1', 'replace': 'B = 2'}]},
+        {'type': 'file_create', 'path': 'new1.py', 'content': 'C = 1\n'},
+        {'type': 'file_create', 'path': 'sub/new2.py', 'content': 'D = 1\n'}])
+    ok, lines = load_gate().check(cfg)
+    body = '\n'.join(lines)
+    assert ok is True, body
+    assert 'ALIAS' not in body, body
+
+
+def test_deleting_a_target_and_editing_its_link_is_refused(tmp_path, monkeypatch):
+    """Round-2 MINOR. `_aliases` saw only `files`, so a file_delete of a symlink's target plus
+    a code_edit of the link printed `OK sym.py still parses` and exited 0. The executor then
+    aborts on the dangling link and rolls back -- fail-closed, but the gate pronounced on a
+    plan it cannot model.
+
+    Mutation that reds this: pass `files` alone to `_aliases` instead of the union with
+    `deleted`.
+    """
+    monkeypatch.chdir(tmp_path)
+    pkg = tmp_path / 'pkg'
+    pkg.mkdir()
+    (pkg / 'm.py').write_text('A = 1\n', encoding='utf-8')
+    try:
+        os.symlink(str(pkg / 'm.py'), str(tmp_path / 'sym.py'))
+    except (OSError, NotImplementedError, AttributeError):
+        pytest.skip('this platform cannot create symlinks here')
+    cfg = write_ops(tmp_path, [
+        {'type': 'file_delete', 'path': 'pkg/m.py', 'reason': 'probe'},
+        {'type': 'code_edit', 'path': 'sym.py',
+         'edits': [{'find': 'A = 1', 'replace': 'A = 2'}]}])
+    ok, lines = load_gate().check(cfg)
+    body = '\n'.join(lines)
+    assert ok is False, body
+    assert 'ALIAS' in body, body
 
 
 def test_the_gate_normaliser_agrees_with_the_executors(tmp_path):
