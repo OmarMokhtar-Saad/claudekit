@@ -194,15 +194,16 @@ def _fold(component, case_insensitive):
 
     RESIDUAL, STATED BECAUSE IT IS THE SAME CLASS: Apple's on-disk normalisation is not strict
     Unicode NFD -- it diverges for codepoints added after Unicode 3.2 -- so for those
-    codepoints `normalize('NFC', ...)` can disagree with what the filesystem itself folds.
+    codepoints `normalize('NFD', ...)` can disagree with what the filesystem itself folds.
     That residual is confined to paths that DO NOT EXIST YET, because an existing path is
     keyed by `(st_dev, st_ino)`, which is the kernel's own answer and cannot be wrong. A
     plan naming a not-yet-created file twice, in two normalisations, using such a codepoint,
     is the one shape still unmodelled here.
 
-    NFC ALWAYS. macOS normalises the names it stores, so `café.py` written NFD is read back
-    NFC and the two spellings are one file -- and a plan carrying both escaped every earlier
-    fix. A filesystem that does not normalise makes them two files, and folding them there is
+    DECOMPOSE ALWAYS (NFD). macOS normalises the names it stores, so `café.py` written one way
+    is read back the other and the two spellings are one file -- and a plan carrying both
+    escaped every earlier fix. Decomposing rather than composing is what makes the fold below
+    order-independent; see the fixpoint paragraph. A filesystem that does not normalise makes them two files, and folding them there is
     a false refusal, which is the loud direction (see `_case_insensitive`). Probing
     normalisation the way case is probed is not possible without writing, because it needs a
     name whose own spelling is decomposable.
@@ -293,9 +294,6 @@ def _identity(path):
     there is a different gate's question and the executor's path guard answers it.
     """
     try:
-        # `realpath` ALONE -- it already absolutises. `abspath` runs `normpath` FIRST, which
-        # collapses `..` lexically before any symlink to its left is resolved, so
-        # `deep/../x.py` (deep -> a/b/c) resolved to the wrong directory and split identity.
         # `realpath` ALONE, and a test pins it: `abspath` runs `normpath` FIRST, collapsing
         # `..` lexically before any symlink to its left resolves, so `deep/../x.py` (deep ->
         # a/b/c) landed in the wrong directory and split identity from `a/b/x.py`.
