@@ -1,0 +1,38 @@
+{
+  "plan": "release-3-2-0",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "pyproject.toml",
+      "description": "Release 3.2.0: agent memory + learning loop, backup-history ordering, tier degradation as data, doctor drift check. pyproject.toml is the single version truth (hard rule 7).",
+      "edits": [
+        {
+          "find": "version = \"3.1.0\"",
+          "replace": "version = \"3.2.0\""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "src/claudekit/__init__.py",
+      "description": "Keep the fallback __version__ in step with pyproject (test_single_version_source_of_truth).",
+      "edits": [
+        {
+          "find": "    __version__ = \"3.1.0\"",
+          "replace": "    __version__ = \"3.2.0\""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "description": "Cut the Unreleased section as 3.2.0 (also restores the blank line the union merge dropped after the header) and leave an empty Unreleased above it.",
+      "edits": [
+        {
+          "find": "## [Unreleased]\n- **`restore-backup.py --list` ordered backups by plan name, not by ti",
+          "replace": "## [Unreleased]\n\n## [3.2.0] — 2026-09-07\n\n- **`restore-backup.py --list` ordered backups by plan name, not by ti"
+        }
+      ]
+    }
+  ]
+}
