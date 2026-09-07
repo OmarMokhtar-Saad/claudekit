@@ -1,0 +1,82 @@
+{
+  "plan": "agent-memory-learning-gate-fixes",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_behavior_spec.py",
+      "description": "KNOWN_KEYS lacks `memory`, a documented sub-agent frontmatter key (code.claude.com/docs/en/sub-agents); the 7 agents that now declare `memory: project` otherwise fail the structural YAML check.",
+      "edits": [
+        {
+          "find": "    KNOWN_KEYS = (\"name\", \"description\", \"model\", \"color\", \"tools\")",
+          "replace": "    # `memory` is a documented sub-agent key: code.claude.com/docs/en/sub-agents\n    KNOWN_KEYS = (\"name\", \"description\", \"model\", \"color\", \"tools\", \"memory\")"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/settings.json",
+      "description": "Drop the separate Stop entry that invoked knowledge-ledger.py directly: every settings.json-wired command must be a counted hook under .claude/hooks/ (test_every_wired_hook_is_counted). The call moves into cost-tracker.sh below.",
+      "edits": [
+        {
+          "find": "      {\n        \"matcher\": \"\",\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"bash -c 'ROOT=\\\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\\\"; [ \\\"$ECC_HOOK_PROFILE\\\" = minimal ] && exit 0; python3 \\\"$ROOT/.claude/operations/scripts/knowledge-ledger.py\\\" propose >/dev/null 2>&1 &'\"\n          }\n        ]\n      },\n",
+          "replace": ""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/cost-tracker.sh",
+      "description": "Fold the guarded, non-blocking `knowledge-ledger.py propose` call into the existing Stop hook; skipped in the minimal profile, exit 0 always.",
+      "edits": [
+        {
+          "find": "\nexit 0\n",
+          "replace": "\n# Learning loop: propose (never write) a candidate skill when open ledger findings cluster.\n# Folded in here rather than wired as its own Stop entry because `knowledge-ledger.py`\n# lives under operations/scripts/, and every command settings.json names must be a counted\n# hook (tests/test_ops_enforcement_scope.py). Not in the minimal profile; never blocks.\nif [ \"${ECC_HOOK_PROFILE:-standard}\" != \"minimal\" ]; then\n    PROJECT_ROOT=\"$(cd \"$SCRIPT_DIR/../..\" && pwd)\"\n    LEDGER=\"$PROJECT_ROOT/.claude/operations/scripts/knowledge-ledger.py\"\n    [ -f \"$LEDGER\" ] && python3 \"$LEDGER\" propose >/dev/null 2>&1 || true\nfi\n\nexit 0\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/session-memory-context.py",
+      "description": "check-silent-failure.py flagged the swallowed sys.path.remove failure; say why on stderr (a diagnostic, not state) while still degrading to silence and exit 0.",
+      "edits": [
+        {
+          "find": "        try:\n            sys.path.remove(inserted)\n        except ValueError:\n            pass\n",
+          "replace": "        try:\n            sys.path.remove(inserted)\n        except ValueError:\n            print(\"session-memory-context: src/ was already gone from sys.path\",\n                  file=sys.stderr)\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_doctor_gate.py",
+      "description": "session-start.sh now invokes a second sibling helper by path (session-memory-context.py), so a healthy full install reports 2 invoked, not 1.",
+      "edits": [
+        {
+          "find": "        assert \"Hook helper scripts resolve (1 invoked)\" in proc.stdout, proc.stdout",
+          "replace": "        # 2 = dispatch_resolve.py (dispatch.sh) + session-memory-context.py (session-start.sh)\n        assert \"Hook helper scripts resolve (2 invoked)\" in proc.stdout, proc.stdout"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "docs/LEARNING_LOOP.md",
+      "description": "The off-switch row must name where `propose` is actually wired now.",
+      "edits": [
+        {
+          "find": "| Skill proposals | Remove the `propose` entry from `Stop` in `.claude/settings.json` |",
+          "replace": "| Skill proposals | Delete the guarded `knowledge-ledger.py propose` block at the end of `.claude/hooks/cost-tracker.sh` |"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/plans/plan-agent-memory-learning.md",
+      "description": "Name the third corrective config and every path it writes (check-plan-artifacts.py).",
+      "edits": [
+        {
+          "find": "  parse; the seven documented agents must declare `memory: project`).\n",
+          "replace": "  parse; the seven documented agents must declare `memory: project`).\n- `plan-agent-memory-learning-gate-fixes.ops.json` \u2014 the full-suite gates the review did not\n  run: `tests/test_behavior_spec.py` (KNOWN_KEYS gains `memory`); the `propose` Stop entry\n  moves out of `.claude/settings.json` into a guarded block in `.claude/hooks/cost-tracker.sh`\n  (every wired command must be a counted hook); `.claude/hooks/session-memory-context.py`\n  names its one swallowed failure on stderr; `tests/test_doctor_gate.py` expects the second\n  invoked helper; `docs/LEARNING_LOOP.md` off-switch row updated.\n"
+        }
+      ]
+    }
+  ]
+}

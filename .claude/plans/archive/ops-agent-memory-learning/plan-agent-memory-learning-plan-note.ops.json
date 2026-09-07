@@ -1,0 +1,16 @@
+{
+  "plan": "agent-memory-learning-plan-note",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/plans/plan-agent-memory-learning.md",
+      "description": "check-plan-artifacts.py: the gate-fixes config writes this plan document, so the plan must name itself as an artifact.",
+      "edits": [
+        {
+          "find": "  invoked helper; `docs/LEARNING_LOOP.md` off-switch row updated.\n",
+          "replace": "  invoked helper; `docs/LEARNING_LOOP.md` off-switch row updated; and this section of\n  `.claude/plans/plan-agent-memory-learning.md` itself (so does `-plan-note.ops.json`).\n"
+        }
+      ]
+    }
+  ]
+}

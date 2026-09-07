@@ -39,6 +39,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the readiness score nor `--strict`, and a missing, ejected or unparseable recorded
   version is reported as a skip.
 
+- **Agents now learn from the project, and the learning loop finally writes something.**
+  Seven agents (`code-reviewer`, `debugger`, `explore`, `verifier`, `security-scanner`,
+  `planner`, `reviewer`) carry `memory: project`, so Claude Code auto-loads
+  `.claude/agent-memory/<agent>/MEMORY.md` into their system prompt; those files are
+  committed and reviewed like code, and `.claude/agent-memory-local/` is gitignored.
+  The issue ledger's write path is reachable at last: an accepted reflection receipt now
+  opens a finding automatically (sanitized fields only, no-op when the repo has no
+  `.claude/knowledge/issues/`), where before `record --verified` was gated on a Verifier
+  PASS that never auto-runs — measured across 15 kitted repos, the ledger held **0**
+  entries. Findings are retired by **evidence**, not by a clock: `open --evidence <path>`
+  stamps each cited file's sha256 and `prune --apply --supersede` archives an open finding
+  only when every cited file has changed or gone (`--ttl-days`, default 90, is the fallback
+  for findings citing no evidence); plain `prune` is unchanged and still never retires an
+  unfixed finding. SessionStart prints up to 5 open findings plus your **fresh**
+  `ck memory` entries, capped at ~600 tokens and withheld unless the text passes
+  `prompt-injection-scanner.sh`. Three or more findings sharing signature tokens produce a
+  **proposal** in `.claude/knowledge/proposals/` (gitignored until you promote one) — never
+  a skill, because writing one without your approval would break hard rule 5.
+  `skillListingBudgetFraction` is now `0.03`: the `description` + `when_to_use` text of all
+  80 skills and 57 commands measures **16,198 chars ≈ 4,050 tokens**, against Claude Code's
+  documented 0.01 default of 2,000 tokens — roughly double the budget, so descriptions were
+  being silently dropped. See `docs/LEARNING_LOOP.md`.
+
 - **The reflection demand states the field set and the text budget.** Filing a receipt
   against the newly self-describing demand still cost three refusal rounds -- an unknown
   field, the 240-character single-line cap, and the path/credential shape rule -- because
