@@ -4,7 +4,7 @@
 
 ClaudeKit is a **multi-agent orchestration system for Claude Code**. It turns an unstructured AI coding assistant into a governed pipeline: every change is planned, the plan is scored by a reviewer agent against a 90/100 threshold, execution happens exclusively through a validated, atomic, rollback-capable JSON operations engine, and the result is verified against an 80/100 quality threshold. Hooks — not instructions — enforce the rules.
 
-Users install it into their own project (`pip install claude-kit && ck init <project> --full`, or `./install.sh`), which copies the `.claude/` asset tree, generates a `CLAUDE.md` and `CONSTITUTION.md` from templates for their language, and wires 19 lifecycle hooks through `.claude/settings.json`.
+Users install it into their own project (`pip install claudekit-agents && ck init <project> --full`, or `./install.sh`), which copies the `.claude/` asset tree, generates a `CLAUDE.md` and `CONSTITUTION.md` from templates for their language, and wires 19 lifecycle hooks through `.claude/settings.json`.
 
 **What makes it differentiated** (per the 2026-07 external audit): no comparable Claude Code kit has a deterministic transactional execution engine (ops.json + 29 guards + backup/rollback), scored review gates, or the anti-anchoring adversarial-review designs (Santa dual review, GAN evaluator loops with fresh context per iteration).
 
@@ -44,7 +44,7 @@ Delivery shell around them: the Python CLI (`src/claudekit/cli/main.py` — init
 
 ## Key numbers (verify with `gen-docs.py`)
 
-29 agents · 42 commands · 75 skills · 19 hooks · 29 ops guards · 11 language templates · 516 tests · Python ≥3.9 · zero runtime dependencies · version 2.1.0 · PyPI name `claude-kit` · GitHub `OmarMokhtar-Saad/claudekit`.
+29 agents · 42 commands · 75 skills · 19 hooks · 29 ops guards · 11 language templates · 516 tests · Python ≥3.9 · zero runtime dependencies · version 2.1.0 · PyPI distribution `claudekit-agents` · GitHub `OmarMokhtar-Saad/claudekit`.
 
 ## Where the project stands
 

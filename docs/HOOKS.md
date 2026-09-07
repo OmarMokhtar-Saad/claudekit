@@ -78,7 +78,7 @@ A single environment variable controls how aggressively hooks enforce:
 | Profile | Behavior |
 |---------|----------|
 | `minimal` | Blocking/enforcement hooks are **off**. Advisory + telemetry hooks still run. Use this when working *on ClaudeKit itself* so your own edits aren't blocked. |
-| `standard` | **Default.** Enforcement hooks block, including the command guard. The one permissive path: if the `claude-kit` Python package isn't installed the guard can't run, so it warns that the command was **not checked** rather than denying every command. |
+| `standard` | **Default.** Enforcement hooks block, including the command guard. The one permissive path: if the `claudekit-agents` Python package isn't installed the guard can't run, so it warns that the command was **not checked** rather than denying every command. |
 | `strict` | Everything in `standard`, plus a missing validator **blocks** too (no permissive path at all), and expensive checks (`format-typecheck`) and the opt-in advisory gates (`file-guard-gate`, `injection-scan-gate`) run. |
 
 Set it in your shell or in `.claude/settings.local.json` (git-ignored):

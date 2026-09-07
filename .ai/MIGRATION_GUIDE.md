@@ -4,7 +4,7 @@
 
 v2.1 is a repair release — the biggest "breaking" change is that **enforcement now actually works**.
 
-1. **Update the install:** `pip install -U claude-kit && ck update <project>` (or re-run `install.sh`). The installer backs up first; `ck diff` shows which managed files you modified locally (re-apply after).
+1. **Update the install:** `pip install -U claudekit-agents && ck update <project>` (or re-run `install.sh`). The installer backs up first; `ck diff` shows which managed files you modified locally (re-apply after).
 2. **Hooks go live.** Old installs never had `settings.json` copied, so hooks were inert. After update: blocking hooks really block (exit 2). If workflows suddenly stop, that's enforcement working — see the profile note below.
 3. **Set your profile.** `ECC_HOOK_PROFILE`: `standard` (default; command-guard blocks), `strict` (also blocks when the validator is missing), `minimal` (off). Local override in `.claude/settings.local.json` (never overwritten by updates).
 4. **Ops filename tolerance:** both `*.ops.json` and `ops-*.json` now match everywhere. Plans live in `.claude/plans/` (old `operations/` search paths are gone).
@@ -13,7 +13,7 @@ v2.1 is a repair release — the biggest "breaking" change is that **enforcement
 7. **Manifest introduced:** `.claude/.claudekit-manifest.json` now tracks managed files (enables `ck diff/update/uninstall`). Don't edit or delete it.
 8. **Secret scanning got stricter:** single-quoted secrets are now caught; commits with staged secrets block.
 
-Pure-pip note: v2.1 wheels bundle the asset tree, so `pip install claude-kit && ck init` works without a git checkout; `CLAUDEKIT_HOME` still overrides asset resolution.
+Pure-pip note: v2.1 wheels bundle the asset tree, so `pip install claudekit-agents && ck init` works without a git checkout; `CLAUDEKIT_HOME` still overrides asset resolution.
 
 ## For maintainers: repo-layout changes in v2.1
 

@@ -6,8 +6,8 @@ requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "claude-kit"
-version = "3.2.0"
+name = "claudekit-agents"
+version = "3.2.1"
 description = "Production-grade multi-agent orchestration system for Claude Code"
 readme = "README.md"
 license = "MIT"
