@@ -1,0 +1,35 @@
+{
+  "plan": "parse-gate-oracle-plane",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/ops_precompile.py",
+      "description": "Review MINOR, and the reviewer asked for it before merge with a reason I agree with: the docstring asserted both `NFC ALWAYS` and `apply NFD` about the same six lines, and a reviewer reading the stale half reasons about the wrong composition order -- which is how two earlier rounds happened. Also removes a duplicated rationale comment that landed as an append rather than an edit in place.",
+      "edits": [
+        {
+          "find": "    codepoints `normalize('NFC', ...)` can disagree with what the filesystem itself folds.",
+          "replace": "    codepoints `normalize('NFD', ...)` can disagree with what the filesystem itself folds."
+        },
+        {
+          "find": "    NFC ALWAYS. macOS normalises the names it stores, so `café.py` written NFD is read back\n    NFC and the two spellings are one file -- and a plan carrying both escaped every earlier\n    fix.",
+          "replace": "    DECOMPOSE ALWAYS (NFD). macOS normalises the names it stores, so `café.py` written one way\n    is read back the other and the two spellings are one file -- and a plan carrying both\n    escaped every earlier fix. Decomposing rather than composing is what makes the fold below\n    order-independent; see the fixpoint paragraph."
+        },
+        {
+          "find": "        # `realpath` ALONE -- it already absolutises. `abspath` runs `normpath` FIRST, which\n        # collapses `..` lexically before any symlink to its left is resolved, so\n        # `deep/../x.py` (deep -> a/b/c) resolved to the wrong directory and split identity.\n        # `realpath` ALONE, and a test pins it:",
+          "replace": "        # `realpath` ALONE, and a test pins it:"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_ops_parse_gate.py",
+      "description": "Review MINOR: the oracle's candidate predicate was still derived from the OLD bug's signature (`casefold() != lower()`), so 98 codepoints the kernel folds above U+11000 could never reach it -- and a mutation disabling folding above U+11000 survived the suite. That is the same structural blind spot the previous round found in the twin derivation, one level up. Derive candidates from the PROPERTY the gate claims rather than from a past defect.",
+      "edits": [
+        {
+          "find": "#: This is precisely the blind spot a `lower()`-based implementation has, so it is the\n#: candidate set worth asking the kernel about. Built at import time, no I/O.\nFOLD_DIVERGENT = [c for c in range(0x20, 0x11000)\n                  if chr(c).casefold() != chr(c).lower()\n                  and chr(c) not in ('/', '\\x00') and chr(c).isprintable()]",
+          "replace": "#: DERIVED FROM THE PROPERTY, NOT FROM A PAST BUG. The first version of this list filtered on\n#: `casefold() != lower()` -- the signature of the defect being fixed at the time -- and a\n#: review then showed that 98 codepoints the kernel folds above U+11000 (Warang Citi, Adlam,\n#: Medefaidrin) could never reach the oracle at all, because they fold but their casefold and\n#: lowercase agree. A mutation disabling folding above U+11000 survived the whole suite. That\n#: is the same blind spot the round before had found in the twin derivation, one level up: a\n#: check built from the last bug cannot see the next one.\n#:\n#: So the candidate is any codepoint that varies under ANY case or normalisation operation --\n#: which is the property `_fold` claims to be invariant under -- across the whole assigned\n#: plane. Unassigned, surrogate and private-use categories are excluded because a filesystem\n#: has nothing to say about them. Built at import time, no I/O.\nFOLD_DIVERGENT = [c for c in range(0x20, 0x110000)\n                  if unicodedata.category(chr(c)) not in ('Cs', 'Cn', 'Co')\n                  and chr(c).isprintable() and chr(c) not in ('/', '\\x00', '.')\n                  and (chr(c).upper() != chr(c) or chr(c).lower() != chr(c)\n                       or chr(c).casefold() != chr(c)\n                       or unicodedata.normalize('NFD', chr(c)) != chr(c))]"
+        }
+      ]
+    }
+  ]
+}

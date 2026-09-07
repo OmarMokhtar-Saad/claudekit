@@ -972,11 +972,24 @@ FOLDS = [
 
 
 #: Codepoints where FULL Unicode case folding and the simple lowercase mapping DISAGREE.
-#: This is precisely the blind spot a `lower()`-based implementation has, so it is the
-#: candidate set worth asking the kernel about. Built at import time, no I/O.
-FOLD_DIVERGENT = [c for c in range(0x20, 0x11000)
-                  if chr(c).casefold() != chr(c).lower()
-                  and chr(c) not in ('/', '\x00') and chr(c).isprintable()]
+#: DERIVED FROM THE PROPERTY, NOT FROM A PAST BUG. The first version of this list filtered on
+#: `casefold() != lower()` -- the signature of the defect being fixed at the time -- and a
+#: review then showed that 98 codepoints the kernel folds above U+11000 (Warang Citi, Adlam,
+#: Medefaidrin) could never reach the oracle at all, because they fold but their casefold and
+#: lowercase agree. A mutation disabling folding above U+11000 survived the whole suite. That
+#: is the same blind spot the round before had found in the twin derivation, one level up: a
+#: check built from the last bug cannot see the next one.
+#:
+#: So the candidate is any codepoint that varies under ANY case or normalisation operation --
+#: which is the property `_fold` claims to be invariant under -- across the whole assigned
+#: plane. Unassigned, surrogate and private-use categories are excluded because a filesystem
+#: has nothing to say about them. Built at import time, no I/O.
+FOLD_DIVERGENT = [c for c in range(0x20, 0x110000)
+                  if unicodedata.category(chr(c)) not in ('Cs', 'Cn', 'Co')
+                  and chr(c).isprintable() and chr(c) not in ('/', '\x00', '.')
+                  and (chr(c).upper() != chr(c) or chr(c).lower() != chr(c)
+                       or chr(c).casefold() != chr(c)
+                       or unicodedata.normalize('NFD', chr(c)) != chr(c))]
 
 
 def test_the_identity_agrees_with_the_kernel_on_every_fold_it_performs(gate, tmp_path,

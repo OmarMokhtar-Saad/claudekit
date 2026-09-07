@@ -105,7 +105,7 @@ index never outranks the current files.
 | `.claude/plans/plan-ops-hardening-implementer-contract.md` | `planned` | 1 |  |
 | `.claude/plans/plan-oracle-liveness.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-parse-gate-divergence.md` | `approved` | 1 |  |
-| `.claude/plans/plan-parse-gate-fold-invariance.md` | `drifted` | 8 |  |
+| `.claude/plans/plan-parse-gate-fold-invariance.md` | `drifted` | 9 |  |
 | `.claude/plans/plan-parse-gate-ordering.md` | `drifted` | 2 |  |
 | `.claude/plans/plan-parse-gate-unresolved-paths.md` | `drifted` | 2 |  |
 | `.claude/plans/plan-preserve-dir-symlinks.md` | `not_started` | 0 |  |
