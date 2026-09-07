@@ -47,7 +47,7 @@ index never outranks the current files.
 | `.claude/plans/plan-agent-tool-grants.md` | `approved` | 1 |  |
 | `.claude/plans/plan-approval-machinery.md` | `approved` | 1 |  |
 | `.claude/plans/plan-backlog-triage-pass.md` | `executed` | 2 |  |
-| `.claude/plans/plan-backup-history.md` | `planned` | 1 |  |
+| `.claude/plans/plan-backup-history.md` | `planned` | 4 |  |
 | `.claude/plans/plan-callsite-audit-line-level.md` | `approved` | 1 |  |
 | `.claude/plans/plan-canonical-skill-wins.md` | `approved` | 1 |  |
 | `.claude/plans/plan-capability-tiers-audit.md` | `approved` | 1 |  |
