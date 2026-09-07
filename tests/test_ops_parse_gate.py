@@ -1014,7 +1014,7 @@ def test_the_identity_agrees_with_the_kernel_on_every_fold_it_performs(gate, tmp
         finally:
             try:
                 first.unlink()
-            except OSError:
+            except OSError:  # silent-ok: tidying a probe file inside tmp_path, which pytest removes anyway; a failed unlink must not fail a test about fold identity
                 pass
         if twin.st_ino:
             folded_by_kernel.append((upper, lower))
