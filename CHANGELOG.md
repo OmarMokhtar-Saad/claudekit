@@ -12,6 +12,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **The parse gate now models the plan the executor will actually run.** Two divergences
+  between `ops_precompile.py` and `execute-json-ops.py` let an ops.json pass the gate
+  (exit 0, "every Python file still parses") and leave unparseable Python on disk; both were
+  reproduced end to end against the real executor, and both were reachable past an APPROVED
+  validator run on a default zero-dependency install.
+
+  - **One path identity.** The gate keyed its accumulators on the raw `op['path']` while the
+    executor keys on `os.path.relpath`, so `x.py` and `./x.py` were two files to the gate and
+    one to the writer. The gate now uses the executor's own function. One file reached under
+    two names through a *symlink* is refused outright rather than modelled, because the
+    executor's atomic `os.replace` write replaces the link instead of following it and no
+    lexical key can represent that.
+  - **One normaliser.** `normalize_config` discards `files` whenever `operations` is present;
+    the gate applied both. The executor now hands the gate the config it has already
+    normalised, so there is one normaliser on the execution path, and the standalone CLI's
+    conversion is pinned against the executor's.
+
+  Also: the `BREAK` line names the interpreter grammar it judged with (on the 3.9 floor a
+  valid `match` statement is reported as invalid syntax, and there is no stdlib way to parse
+  a newer grammar); the `PRE` line no longer claims the edits in the plan are innocent of a
+  pre-existing break, which it cannot know; `delete` is modelled only on a literal `true`, as
+  the executor requires; a `run_command` in the config is reported as unmodelled; and the
+  executor's "fail closed on any checker fault" branch is now pinned by a test that made it
+  a crashing checker.
+
 - **The ops pipeline now gates on what an edit LEAVES, not only on what it matches.**
   Approval, identity and drift all gate on intent; none of them proved the text coming out
   the other side is text Python can still read. `ops_precompile.py` applies every edit in

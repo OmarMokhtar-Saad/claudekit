@@ -971,8 +971,15 @@ def check_approval(config_file: str, plan_name: str) -> Tuple[bool, str]:
 PRECOMPILE_SCRIPT = Path(__file__).resolve().parent / "ops_precompile.py"
 
 
-def check_parses(config_file: str) -> Tuple[bool, str]:
+def check_parses(config: dict) -> Tuple[bool, str]:
     """Does every Python file this ops.json touches still parse once it is applied?
+
+    THE CONFIG IS HANDED OVER, NOT RE-READ. `ops_precompile.check` used to open the file and
+    derive the plan a second time, and the two derivations disagreed: `normalize_config`
+    discards `files` whenever `operations` is present, the gate applied both, and a config
+    carrying both keys was checked as a plan that would never run -- a silent pass to an
+    unparseable tree in one direction and a false refusal in the other. Passing the
+    already-normalised config leaves ONE normaliser on this path.
 
     The gate this backs is about the RESULT, where approval, identity and drift are about
     intent, provenance and preconditions. See its call site in execute_json_config.
@@ -1003,7 +1010,7 @@ def check_parses(config_file: str) -> Tuple[bool, str]:
                            "  Failing closed rather than skipping the gate.")
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
-        ok, lines = module.check(config_file)
+        ok, lines = module.check(config)
     except Exception as exc:  # noqa: BLE001 - fail closed on ANY checker fault
         return False, (f"  the parse checker itself failed to run ({exc!r}).\n"
                        "  Failing closed: a gate that cannot inspect the result must not\n"
@@ -1116,7 +1123,7 @@ def execute_json_config(config_file: str, dry_run: bool = False,
               "proving the Python it leaves behind still compiles. This exists to repair a "
               "broken ops_precompile.py and for nothing else.", file=sys.stderr)
     else:
-        parses, parse_detail = check_parses(config_file)
+        parses, parse_detail = check_parses(config)
         if not parses:
             print("\nPARSE GATE: refusing — applying this ops.json would leave a Python "
                   "file that does not parse.")

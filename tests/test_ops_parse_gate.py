@@ -583,3 +583,275 @@ def test_simulate_carries_the_path_as_data_not_a_formatted_string(gate, tmp_path
     with open(cfg, encoding="utf-8") as fh:
         _files, misses, _created = gate.simulate(json.load(fh))
     assert [p for p, _r in misses] == ["c:d.py"], misses
+
+
+# ----------------------------------------- one path identity: the gate's key IS the executor's
+
+def test_a_dot_slash_alias_is_one_file_to_the_gate_as_it_is_to_the_executor(gate, tmp_path,
+                                                                            monkeypatch):
+    """The reviewer's C1 reproduction. `x.py` then `./x.py`: the second edit's anchor exists
+    only in the text the FIRST one writes, so keying on the raw path made the alias a second,
+    freshly-read file -- MISS, verdict withheld, exit 0 -- while the executor threaded both
+    edits and left `B = (` on disk.
+
+    MUTATION PROOF: drop `_canon` from `simulate` (key on `op['path']`) and this goes red:
+    `ok` becomes True and the report says `not checked` instead of BREAK.
+    """
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "x.py").write_text("A = 1\n")
+    cfg = write_ops(tmp_path, [
+        {"type": "code_edit", "path": "x.py",
+         "edits": [{"find": "A = 1", "replace": "A = 2\nB = 3"}]},
+        {"type": "code_edit", "path": "./x.py", "edits": [{"find": "B = 3", "replace": "B = ("}]}])
+    ok, lines = gate.check(cfg)
+    blob = "\n".join(lines)
+    assert ok is False, blob
+    assert "BREAK x.py" in blob, blob
+    assert "not checked" not in blob, blob
+
+
+def test_the_dot_slash_alias_refusal_also_stops_the_real_executor(tmp_path, monkeypatch):
+    """End to end, against the writer itself: the tree must be byte-identical afterwards.
+
+    MUTATION PROOF: revert `_canon` AND remove the `_aliases` loop and this goes red -- the
+    executor exits 0 and `x.py` holds unparseable text. Either mechanism alone refuses this
+    plan (with `_canon` reverted the two spellings become an ALIAS group), which is why the
+    gate-level test above asserts BREAK specifically: that one pins `_canon` on its own.
+    """
+    monkeypatch.chdir(tmp_path)
+    src = tmp_path / "x.py"
+    src.write_text("A = 1\n")
+    cfg = write_ops(tmp_path, [
+        {"type": "code_edit", "path": "x.py",
+         "edits": [{"find": "A = 1", "replace": "A = 2\nB = 3"}]},
+        {"type": "code_edit", "path": "./x.py", "edits": [{"find": "B = 3", "replace": "B = ("}]}])
+    res = _run_executor(tmp_path, cfg, "--no-approval")
+    assert res.returncode == 1, res.stdout
+    assert "PARSE GATE" in res.stdout, res.stdout
+    assert src.read_text() == "A = 1\n", "the tree was mutated despite the refusal"
+
+
+def test_the_canonical_key_is_the_executors_own_function(gate, tmp_path, monkeypatch):
+    """Parity, not similarity: the key must BE `os.path.relpath`, which is what
+    execute-json-ops.py:684 uses. A repo reached through a symlinked parent must not yield
+    `../..` garbage -- relpath is lexical, so it cannot.
+
+    MUTATION PROOF: key on `os.path.realpath` and the second assertion goes red under a
+    symlinked parent; key on `normpath` alone and `nested/../x.py` still differs.
+    """
+    real = tmp_path / "real"
+    (real / "pkg").mkdir(parents=True)
+    (tmp_path / "link").symlink_to(real)
+    monkeypatch.chdir(tmp_path / "link")
+    for spelled in ("x.py", "./x.py", "pkg/../x.py"):
+        assert gate._canon(spelled) == os.path.relpath(spelled) == "x.py", spelled
+    assert gate._canon("pkg/m.py") == "pkg/m.py"
+
+
+def test_a_miss_on_an_alias_names_the_spelling_the_author_wrote(gate, tmp_path, monkeypatch):
+    """The key groups; the spelling has to reach the human. Both, not one.
+
+    MUTATION PROOF: drop the `written in this config as` branch from `_apply._miss` and the
+    second assertion goes red; render the miss under the spelling instead of the key and the
+    first goes red.
+    """
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "x.py").write_text("A = 1\n")
+    _ok, lines = gate.check(write_ops(tmp_path, [
+        {"type": "code_edit", "path": "./x.py", "edits": [{"find": "nowhere", "replace": "z = 1"}]}]))
+    blob = "\n".join(lines)
+    assert "MISS  x.py:" in blob, blob
+    assert "./x.py" in blob, blob
+
+
+def test_a_symlink_alias_is_refused_because_neither_side_models_it(gate, tmp_path, monkeypatch):
+    """The reviewer's second C1 reproduction. One inode, two relpath keys: the gate reads the
+    link before the executor's earlier write, and the executor's `os.replace` replaces the
+    link rather than following it. Measured before this fix: gate exit 0, `sym.py`
+    unparseable. Refused, not withheld -- withholding exits 0.
+
+    MUTATION PROOF: remove the `_aliases` loop from `check` and this goes red (ok is True).
+    """
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "pkg").mkdir()
+    (tmp_path / "pkg" / "m.py").write_text("A = 1\n")
+    (tmp_path / "sym.py").symlink_to(tmp_path / "pkg" / "m.py")
+    ok, lines = gate.check(write_ops(tmp_path, [
+        {"type": "code_edit", "path": "pkg/m.py",
+         "edits": [{"find": "A = 1", "replace": "A = 2\nB = 3"}]},
+        {"type": "code_edit", "path": "sym.py", "edits": [{"find": "B = 3", "replace": "B = ("}]}])
+    )
+    blob = "\n".join(lines)
+    assert ok is False, blob
+    assert "ALIAS" in blob, blob
+    assert "pkg/m.py" in blob and "sym.py" in blob, blob
+
+
+def test_the_symlink_refusal_also_stops_the_real_executor(tmp_path, monkeypatch):
+    """MUTATION PROOF: remove the `_aliases` loop and this goes red -- the executor exits 0
+    and leaves `sym.py` as a regular file holding unparseable text."""
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "pkg").mkdir()
+    m = tmp_path / "pkg" / "m.py"
+    m.write_text("A = 1\n")
+    (tmp_path / "sym.py").symlink_to(m)
+    cfg = write_ops(tmp_path, [
+        {"type": "code_edit", "path": "pkg/m.py",
+         "edits": [{"find": "A = 1", "replace": "A = 2\nB = 3"}]},
+        {"type": "code_edit", "path": "sym.py", "edits": [{"find": "B = 3", "replace": "B = ("}]}])
+    res = _run_executor(tmp_path, cfg, "--no-approval")
+    assert res.returncode == 1, res.stdout
+    assert m.read_text() == "A = 1\n"
+    assert (tmp_path / "sym.py").is_symlink(), "the link was replaced despite the refusal"
+
+
+# ------------------------------------------- one normaliser: the schema the executor will run
+
+def test_a_config_carrying_both_schema_keys_is_simulated_as_the_executor_runs_it(
+        gate, tmp_path, monkeypatch):
+    """The reviewer's C2 reproduction. `normalize_config` discards `files` whenever
+    `operations` is present; this module used to apply both, so the modern anchor counted
+    twice, the verdict was withheld and the gate exited 0 while the executor wrote
+    unparseable text. Reachable on a default install: without `jsonschema` the validator
+    reports APPROVED on this exact config.
+
+    MUTATION PROOF: process `ops['files']` in addition to `operations` (the old behaviour)
+    and this goes red -- the anchor becomes ambiguous, `ok` returns True and BREAK is absent.
+    """
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "y.py").write_text("A = 1\nB = 1\n")
+    cfg = tmp_path / "ops.json"
+    cfg.write_text(json.dumps({
+        "plan": "both",
+        "files": [{"path": "y.py", "edits": [{"find": "B = 1", "replace": "A = 1"}]}],
+        "operations": [{"type": "code_edit", "path": "y.py",
+                        "edits": [{"find": "A = 1", "replace": "A = ("}]}]}))
+    ok, lines = gate.check(str(cfg))
+    blob = "\n".join(lines)
+    assert ok is False, blob
+    assert "BREAK y.py" in blob, blob
+    assert "ambiguous" not in blob, blob
+
+
+def test_the_both_keys_refusal_also_stops_the_real_executor(tmp_path, monkeypatch):
+    """MUTATION PROOF: restore the legacy loop in `simulate` and this goes red -- the
+    executor exits 0 and `y.py` is left as `A = (`."""
+    monkeypatch.chdir(tmp_path)
+    y = tmp_path / "y.py"
+    y.write_text("A = 1\nB = 1\n")
+    cfg = tmp_path / "ops.json"
+    cfg.write_text(json.dumps({
+        "plan": "both",
+        "files": [{"path": "y.py", "edits": [{"find": "B = 1", "replace": "A = 1"}]}],
+        "operations": [{"type": "code_edit", "path": "y.py",
+                        "edits": [{"find": "A = 1", "replace": "A = ("}]}]}))
+    res = _run_executor(tmp_path, str(cfg), "--no-approval")
+    assert res.returncode == 1, res.stdout
+    assert "PARSE GATE" in res.stdout, res.stdout
+    assert y.read_text() == "A = 1\nB = 1\n"
+
+
+def test_the_gate_normaliser_agrees_with_the_executors(tmp_path):
+    """One rule, two entry points. The CLI's `_normalize` must produce the same `operations`
+    list the executor's `normalize_config` does, or the standalone verdict describes a
+    different plan than the run.
+
+    MUTATION PROOF: flip `_normalize`'s precedence (convert `files` even when `operations`
+    is present) and the first case goes red.
+    """
+    gate = load_gate()
+    spec = importlib.util.spec_from_file_location("ck_executor", str(EXECUTOR))
+    assert spec is not None and spec.loader is not None
+    ex = importlib.util.module_from_spec(spec)
+    sys.path.insert(0, str(SCRIPTS))          # the executor imports its sibling `shared`
+    try:
+        spec.loader.exec_module(ex)
+    finally:
+        sys.path.remove(str(SCRIPTS))
+    legacy = {"plan": "p", "files": [{"path": "a.py", "edits": [{"find": "x", "replace": "y"}]}]}
+    both = dict(legacy, operations=[{"type": "code_edit", "path": "b.py", "edits": []}])
+    modern = {"plan": "p", "operations": [{"type": "code_edit", "path": "b.py", "edits": []}]}
+    for cfg in (legacy, both, modern):
+        mine = gate._normalize(cfg)["operations"]
+        theirs = (ex.normalize_config(cfg) or {}).get("operations")
+        assert mine == theirs, (cfg, mine, theirs)
+
+
+# -------------------------------------------------------------- the remaining review findings
+
+def test_a_crashing_checker_fails_the_run_closed(tmp_path, target):
+    """The vacuous branch. Inverting `check_parses`'s `except Exception ... return False` to
+    `return True` left all 54 tests green, so the fail-closed claim was unproven.
+
+    MUTATION PROOF: return True from that handler and this goes red -- the executor exits 0
+    and writes the (perfectly valid) edit.
+    """
+    engine = tmp_path / "engine.py"
+    engine.write_text(EXECUTOR.read_text(encoding="utf-8"), encoding="utf-8")
+    (tmp_path / "ops_precompile.py").write_text(
+        'raise RuntimeError("the checker itself is broken")\n', encoding="utf-8")
+    before = target.read_text()
+    cfg = edit_ops(tmp_path, [{"find": FIND, "replace": '    msg = f"hello {name}"'}])
+    env = dict(os.environ, PYTHONPATH=str(SCRIPTS))
+    res = subprocess.run([sys.executable, str(engine), cfg, "--no-approval"],
+                         cwd=str(tmp_path), capture_output=True, text=True, timeout=120, env=env)
+    assert res.returncode == 1, res.stdout
+    assert "parse checker itself failed to run" in res.stdout, res.stdout
+    assert "parse-gate" in res.stdout, res.stdout
+    assert target.read_text() == before, "the tree was mutated by a run the gate could not check"
+
+
+def test_the_break_line_names_the_grammar_it_judged_with(gate, tmp_path, target):
+    """A verdict from the interpreter's grammar must say so: on the 3.9 floor a valid `match`
+    statement is refused as invalid syntax, and the author is owed that context.
+
+    MUTATION PROOF: drop the version from the BREAK line and this goes red.
+    """
+    _ok, lines = gate.check(edit_ops(tmp_path, [{"find": FIND, "replace": BREAKS}]))
+    blob = "\n".join(lines)
+    assert "BREAK" in blob and "CPython %d.%d" % sys.version_info[:2] in blob, blob
+
+
+def test_the_pre_line_does_not_claim_the_edits_are_innocent(gate, tmp_path, monkeypatch):
+    """It cannot know that: a plan may repair the old break and add a new one, and this gate
+    parses only the final text.
+
+    MUTATION PROOF: restore "The edits here are not the cause" and this goes red.
+    """
+    (tmp_path / "pre.py").write_text(PREBROKEN)
+    monkeypatch.chdir(tmp_path)
+    _ok, lines = gate.check(edit_ops(tmp_path, [{"find": "tail = 3", "replace": "tail = 4"}],
+                                     path="pre.py"))
+    blob = "\n".join(lines)
+    assert "PRE" in blob, blob
+    assert "not the cause" not in blob, blob
+    assert "cannot be told apart" in blob, blob
+
+
+def test_delete_is_modelled_only_on_a_literal_true(gate, tmp_path, target):
+    """`execute_code_edit` requires `edit.get('delete') is True`; a truthy `"delete": "yes"`
+    is no action there, so modelling it as a deletion describes a splice that never happens.
+
+    MUTATION PROOF: go back to `edit.get('delete')` and this goes red -- the edit is modelled
+    as a deletion, no miss is recorded, and `names no action` is absent.
+    """
+    _ok, lines = gate.check(edit_ops(tmp_path, [{"find": FIND, "delete": "yes"}]))
+    assert any("names no action" in line for line in lines), lines
+    ok, _ = gate.check(edit_ops(tmp_path, [{"find": FIND, "delete": True}]))
+    assert ok is True
+
+
+def test_run_command_writes_are_declared_unmodelled(gate, tmp_path, target):
+    """A verdict that covered nothing about a command's writes must not read as if it covered
+    everything.
+
+    MUTATION PROOF: drop the note and this goes red.
+    """
+    cfg = write_ops(tmp_path, [
+        {"type": "code_edit", "path": "target.py",
+         "edits": [{"find": FIND, "replace": '    msg = f"hello {name}"'}]},
+        {"type": "run_command", "command": ["python3", "-V"], "reason": "regenerate something"}])
+    ok, lines = gate.check(cfg)
+    blob = "\n".join(lines)
+    assert ok is True, blob
+    assert "run_command" in blob and "not modelled" in blob, blob

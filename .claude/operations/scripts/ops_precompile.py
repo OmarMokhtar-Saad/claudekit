@@ -16,6 +16,15 @@ not the splice of it into three thousand lines of surrounding source.
 WHAT THIS IS NOT. Not a linter, not a test run, and not a judgement about whether the edit is
 correct. A file that parses can still be wrong; that is what the reviewer and the pins are for.
 
+WHOSE GRAMMAR. `ast.parse` uses the interpreter THIS GATE RUNS ON, not the target project's.
+On a 3.9 floor a plan that adds a valid `match` statement is therefore refused as `invalid
+syntax`, and there is no stdlib way to parse a grammar newer than the running interpreter
+(`ast.parse(feature_version=...)` only lowers it, never raises it). A heuristic that guessed
+"too new" would either fail open -- the silent pass this module exists to prevent -- or
+misclassify a genuine break, so no guess is made: the `BREAK` line names the interpreter it
+judged with, and `--no-parse-check` is the documented way past a refusal that is the gate's
+age rather than the plan's defect.
+
     python3 .claude/operations/scripts/ops_precompile.py <ops.json>      # exit 0 = every touched .py still parses
 
 The executor calls this itself, in dry-run as well as execute, and fails closed if it cannot.
@@ -38,7 +47,7 @@ import os
 import sys
 
 
-def _apply(src, edit, path, misses):
+def _apply(src, edit, path, misses, spelling=None):
     """One edit against the accumulated text, or a recorded miss.
 
     An anchor that is absent is NOT skipped quietly. If `find` is not there, the text this
@@ -54,17 +63,26 @@ def _apply(src, edit, path, misses):
     describe the wrong splice as parsing. So the count is taken here on the SAME accumulated
     text the executor counts against, and disagreement is recorded rather than resolved.
     """
+    def _miss(reason):
+        # THE KEY GROUPS, THE SPELLING INFORMS. `check` builds the withheld-verdict set from
+        # these paths, so the path must be the same `_canon` key the accumulator uses or the
+        # withholding lands on nothing. But an author who wrote `./x.py` needs to find their
+        # own line, so the spelling they used is stated in the reason when it differs.
+        if spelling is not None and spelling != path:
+            reason = 'written in this config as %s — %s' % (spelling, reason)
+        misses.append((path, reason))
+
     find = edit.get('find')
     if not find:
-        misses.append((path, 'edit has no find pattern'))
+        _miss('edit has no find pattern')
         return src
     seen = src.count(find)
     if seen == 0:
-        misses.append((path, 'anchor not found: %r' % (find[:60],)))
+        _miss('anchor not found: %r' % (find[:60],))
         return src
     if seen > 1:
-        misses.append((path, 'anchor is ambiguous — it appears %d times, and the executor '
-                             'refuses an ambiguous match: %r' % (seen, find[:60])))
+        _miss('anchor is ambiguous — it appears %d times, and the executor '
+              'refuses an ambiguous match: %r' % (seen, find[:60]))
         return src
     # ORDER IS LOAD-BEARING AND IS NOT ALPHABETICAL. It mirrors the if/elif chain in
     # `execute_code_edit` (add_after, add_before, replace, delete) because an edit may carry
@@ -80,10 +98,83 @@ def _apply(src, edit, path, misses):
         return src.replace(find, edit['add_before'] + find, 1)
     if 'replace' in edit:
         return src.replace(find, edit['replace'], 1)
-    if edit.get('delete'):
+    if edit.get('delete') is True:
         return src.replace(find, '', 1)
     misses.append((path, 'edit names no action (replace/add_after/add_before/delete)'))
     return src
+
+
+def _canon(path):
+    """The executor's OWN path identity, so the gate and the writer agree on WHICH file.
+
+    IT IS `os.path.relpath` AND NOTHING CLEVERER, deliberately. `execute_code_edit` keys its
+    sim_state and its backup set on `os.path.relpath(str(file_path))`
+    (execute-json-ops.py:684), so `x.py` and `./x.py` are ONE file there and used to be two
+    here. Measured end to end: the gate read the alias fresh from disk, missed an anchor that
+    an earlier operation would have written, withheld that file's verdict and exited 0 --
+    "OK x.py still parses" -- while the executor applied both edits and left `A = (` on disk.
+
+    A "better" canonicaliser is the wrong fix. `os.path.realpath` collapses a symlink alias
+    too, but it stops being the executor's key, and a checker that models a DIFFERENT file
+    identity than the writer is the divergence this function exists to close. Symlink
+    aliasing is refused separately, by `_aliases`.
+    """
+    if not isinstance(path, str) or not path:
+        return path
+    return os.path.relpath(path)
+
+
+def _aliases(paths):
+    """Distinct keys in one plan that name ONE file on disk: {realpath: [keys]}.
+
+    `pkg/m.py` plus a symlink `sym.py` pointing at it are two `os.path.relpath` keys and one
+    inode, and NEITHER side models it: this gate reads `sym.py` before the executor's earlier
+    write to `pkg/m.py` has happened, and the executor writes through `os.replace`, which
+    REPLACES the symlink with a regular file rather than following it. Measured: gate exit 0,
+    `sym.py` unparseable afterwards. A gate that cannot model a plan must fail closed rather
+    than withhold, so this is a refusal.
+
+    KNOWN LIMITS, stated rather than implied: hardlinks share an inode but not a realpath,
+    and a case-insensitive filesystem makes `Foo.py` and `foo.py` one file that realpath
+    still spells two ways. Neither is detected here.
+    """
+    groups: dict = {}
+    for p in paths:
+        if not isinstance(p, str) or not p:
+            continue
+        try:
+            groups.setdefault(os.path.realpath(p), []).append(p)
+        except OSError:
+            continue
+    return {rp: sorted(ks) for rp, ks in groups.items() if len(ks) > 1}
+
+
+def _normalize(ops):
+    """LEGACY `files` -> MODERN `operations`, in the EXECUTOR's precedence.
+
+    `normalize_config` (execute-json-ops.py:313) returns the config UNCHANGED whenever
+    `operations` is present, discarding `files` entirely. This module used to process both
+    keys always, so a config carrying both was simulated as a plan the executor would never
+    run. Reproduced in both directions -- a silent pass to an unparseable tree, and a refusal
+    of a config that runs cleanly -- and reachable on a default install, where without
+    `jsonschema` the validator skips the schema check and reports APPROVED on such a config.
+
+    ON THE EXECUTOR'S PATH THIS IS A NO-OP. `check_parses` hands `check` the dict
+    `normalize_config` already produced, so there is exactly ONE normaliser in production.
+    This branch serves the standalone CLI, and its agreement with the executor's is pinned
+    by tests/test_ops_parse_gate.py::test_the_gate_normaliser_agrees_with_the_executors.
+    """
+    if not isinstance(ops, dict):
+        return {'operations': []}
+    if 'operations' in ops:
+        return ops
+    converted = []
+    for f in ops.get('files') or []:
+        if not isinstance(f, dict):
+            continue
+        converted.append({'type': 'code_edit', 'path': f.get('path'),
+                          'edits': f.get('edits')})
+    return dict(ops, operations=converted)
 
 
 def simulate(ops):
@@ -105,27 +196,26 @@ def simulate(ops):
     own state, and a checker that disagreed with the executor about the resulting text would be
     worse than no checker at all.
     """
+    ops = _normalize(ops)
     files: dict = {}
     misses: list = []
     created: set = set()
     deleted: set = set()
-    # Both schemas. LEGACY is `files: [{path, edits}]`; MODERN is `operations: [...]` carrying
-    # file_create, code_edit, file_delete and run_command. A file_create of a .py file is
-    # checked too -- a new file that does not parse is the same defect one step earlier.
-    for f in ops.get('files') or []:
-        path = f.get('path')
-        src = files.get(path)
-        if src is None:
-            if not os.path.exists(path):
-                misses.append((path, 'no such file to edit'))
-                continue
-            with open(path, encoding='utf-8-sig') as fh:
-                src = fh.read()
-        for edit in f.get('edits') or []:
-            src = _apply(src, edit, path, misses)
-        files[path] = src
+    # ONE SCHEMA, ONE IDENTITY. `_normalize` above has already applied the executor's
+    # `operations`-wins precedence, so the LEGACY `files` key is no longer read here; and
+    # every accumulator below is keyed on `_canon(path)`, which is the executor's own key.
+    # Both of those were divergences, and both were reachable past a clean validator.
     for op in ops.get('operations') or []:
-        kind, path = op.get('type'), op.get('path')
+        kind, spelling = op.get('type'), op.get('path')
+        path = _canon(spelling)
+        if kind == 'run_command':
+            # No path and no modelled writes. Reported once, in `check`, so the verdict says
+            # what it does not cover instead of implying it covered everything.
+            continue
+        if not isinstance(path, str) or not path:
+            misses.append(('<no path>', 'operation of type %r names no path, and the '
+                                        'executor refuses such a config' % (kind,)))
+            continue
         if kind == 'file_create':
             # `execute_file_create` indexes operation['content'] directly, so an absent key is
             # a KeyError there, not an empty file. Modelling it as '' would green-light a plan
@@ -155,7 +245,7 @@ def simulate(ops):
                 with open(path, encoding='utf-8-sig') as fh:
                     src = fh.read()
             for edit in op.get('edits') or []:
-                src = _apply(src, edit, path, misses)
+                src = _apply(src, edit, path, misses, spelling)
             files[path] = src
     return files, misses, created
 
@@ -294,14 +384,23 @@ def _parsed_before(path, created):
     return True
 
 
-def check(config_path, quiet=False):
-    """(ok, [lines]) -- whether every touched .py parses, and what to print about it."""
+def check(config, quiet=False):
+    """(ok, [lines]) -- whether every touched .py parses, and what to print about it.
+
+    `config` is EITHER an already-normalised config dict OR a path to an ops.json. The
+    executor passes the dict `normalize_config` produced, so the gate simulates the same
+    plan the writer will run instead of re-deriving it from the file and disagreeing about
+    which schema key wins. See `_normalize`; the path form serves the standalone CLI.
+    """
     out, bad, unparsed = [], 0, 0
-    try:
-        with open(config_path, encoding='utf-8') as fh:
-            ops = json.load(fh)
-    except (OSError, ValueError) as exc:
-        return False, ['CANNOT READ %s: %s' % (config_path, exc)]
+    if isinstance(config, dict):
+        ops = config
+    else:
+        try:
+            with open(config, encoding='utf-8') as fh:
+                ops = json.load(fh)
+        except (OSError, ValueError) as exc:
+            return False, ['CANNOT READ %s: %s' % (config, exc)]
     files, misses, created = simulate(ops)
     # WHOSE REFUSAL IS THIS? A missing or ambiguous anchor is NOT this module's to refuse, and
     # the port originally made it one. `execute_code_edit` already fails closed on both --
@@ -339,6 +438,17 @@ def check(config_path, quiet=False):
     # file itself fell OUT of this set and was reported "still parses" though its anchor
     # never landed.
     unresolved = {miss_path for miss_path, _ in misses}
+    # ONE FILE UNDER TWO NAMES. See `_aliases`. REFUSED, not withheld: a withheld verdict
+    # exits 0, and the measured consequence of exiting 0 here was an unparseable file on
+    # disk. This is the one case where the gate refuses something that is not itself a
+    # SyntaxError, because it is not deferring to a better diagnosis later -- the executor
+    # has none for this, it simply writes both.
+    for _real, _keys in sorted(_aliases(files).items()):
+        bad += 1
+        out.append('ALIAS %s: this plan names one file (%s) %d ways. Neither this gate nor '
+                   'the executor models that -- the writes go through os.replace, which '
+                   'REPLACES a symlink instead of following it. Name the file once, by one '
+                   'path.' % (', '.join(_keys), _real, len(_keys)))
     for path in sorted(files):
         if path in unresolved:
             out.append('?     %s not checked — an anchor above did not land, so the text '
@@ -379,18 +489,33 @@ def check(config_path, quiet=False):
                 # exists to prevent, one category over.
                 unparsed += 1
                 out.append('PRE   %s: %s at line %s — this file ALREADY did not parse before '
-                           'the plan, so this gate does not refuse it. The edits here are not '
-                           'the cause; fix the file, or land the repair in this same plan.'
+                           'the plan, so this gate does not refuse it. Whether the edits in '
+                           'this plan also break it cannot be told apart from the '
+                           'pre-existing error, because only the final text is parsed; fix '
+                           'the file, or land the repair in this same plan.'
                            % (path, exc.msg, exc.lineno))
                 continue
             bad += 1
-            out.append('BREAK %s: %s at line %s' % (path, exc.msg, exc.lineno))
+            out.append('BREAK %s: %s at line %s (as CPython %d.%d reads it -- this gate '
+                       'parses with the interpreter it runs on, so syntax newer than that '
+                       'is reported as invalid; see WHOSE GRAMMAR above)'
+                       % (path, exc.msg, exc.lineno,
+                          sys.version_info[0], sys.version_info[1]))
             lines = files[path].splitlines()
             lo = max(0, (exc.lineno or 1) - 3)
             for n, line in enumerate(lines[lo:(exc.lineno or 1) + 1], lo + 1):
                 out.append('   %5d | %s' % (n, line))
     if not files:
         out.append('note  this ops.json writes no files — nothing to parse')
+    # WHAT THIS VERDICT DOES NOT COVER, said rather than implied. A run_command may rewrite
+    # any file in the tree after this gate has pronounced on it, and nothing here models
+    # that. The project's standing rule -- distinct claims stated distinctly -- applies to
+    # the boundaries of a claim too.
+    if any(isinstance(op, dict) and op.get('type') == 'run_command'
+           for op in (_normalize(ops).get('operations') or [])):
+        out.append('note  this ops.json also runs run_command operations, whose writes are '
+                   'not modelled here — a file this gate calls parseable can still be '
+                   'rewritten by a command afterwards')
     return bad == 0, ([] if quiet and bad == 0 and unparsed == 0 else out)
 
 
