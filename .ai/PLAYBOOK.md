@@ -8,7 +8,7 @@
 4. Verify the three version locations agree (pyproject, `src/claudekit/__init__.py` fallback, `operations/scripts/shared.py`); `pytest tests/test_packaging.py -q`.
 5. Local dry-run: `python3 -m build && pip install dist/*.whl --force-reinstall && ck doctor` in a clean venv, plus `CLAUDEKIT_HOME`-less `ck init /tmp/x --full --yes`.
 6. `git tag vX.Y.Z && git push origin vX.Y.Z` → release.yml → Trusted Publishing. **First run is unexercised** — watch the job; PyPI publisher config may need iteration.
-7. Post-publish: `pip install claude-kit==X.Y.Z` from PyPI in a clean venv → `ck init && ck doctor`; GitHub Release notes from CHANGELOG; update [STATUS.md](STATUS.md)/[SESSION_STATE.md](SESSION_STATE.md).
+7. Post-publish: `pip install claudekit-agents==X.Y.Z` from PyPI in a clean venv → `ck init && ck doctor`; GitHub Release notes from CHANGELOG; update [STATUS.md](STATUS.md)/[SESSION_STATE.md](SESSION_STATE.md).
 
 ## Fix a bug
 

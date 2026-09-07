@@ -4,7 +4,7 @@ Everything here is easy to get wrong without conversation history. Read before m
 
 ## Identity & distribution
 
-- **PyPI name is `claude-kit`** (the name `claudekit` was taken); the CLI commands remain `claudekit` and `ck`, and the import package is `claudekit`. Never "fix" this mismatch — it is deliberate (commit `a3ddc09`).
+- **PyPI distribution is `claudekit-agents`** (owner-decided 2026-09-07, DECISIONS #24): `claudekit` was taken, and PyPI then REFUSED `claude-kit` as confusable with it — PyPI ignores separators when comparing names. The CLI commands remain `claudekit` and `ck`, the import package is `claudekit`, and the repo is `claudekit`. Never "fix" this mismatch — it is deliberate.
 - **Canonical GitHub slug: `OmarMokhtar-Saad/claudekit`.** An older `omarmokhtar/claudekit` slug 404s; it was swept from docs in task 006. Don't reintroduce it.
 - License MIT. Author Omar Mokhtar. Repo language: prompts (Markdown) + Bash + Python.
 

@@ -2,7 +2,7 @@
 
 Project metadata lives in pyproject.toml. This shim exists only to attach the
 non-Python asset tree (`.claude/`, `templates/`, `install.sh`, `config.schema.json`)
-as ``data_files`` so a plain ``pip install claudekit`` is self-contained and
+as ``data_files`` so a plain ``pip install claudekit-agents`` is self-contained and
 ``ck init`` works with no source checkout. The files land under
 ``<prefix>/share/claudekit/`` and are located at runtime by
 ``claudekit.cli.main.find_claudekit_root``.

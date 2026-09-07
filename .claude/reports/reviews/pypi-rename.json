@@ -1,0 +1,19 @@
+{
+  "plan": ".claude/plans/plan-pypi-rename.md",
+  "slug": "pypi-rename",
+  "ops_path": ".claude/plans/plan-pypi-rename.ops.json",
+  "ops_sha256": "1c297067f7e4f58309d48cc321b0c5104077e4ba24ca44a68e156053baed0539",
+  "score": 95,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] .ai/DECISIONS.md row #20 is left unedited with no forward pointer to the new row #24, in tension with the file's own stated process at .ai/DECISIONS.md:32",
+    "[MINOR] CHANGELOG.md places [3.2.1] below the [Unreleased] parse-gate entries even though that work ships inside the 3.2.1 wheel; reviewer's opinion is the heading should move above them",
+    "[MINOR] Anchor-uniqueness re-verified only for the three functional files; the 15 documentation-only ops were spot-checked but not exhaustively re-grepped"
+  ],
+  "verdict_origin": "rubric",
+  "recorded_utc": "2026-09-07T17:25:49Z",
+  "operations": 24,
+  "edits": 46,
+  "rounds": [],
+  "round": 1
+}

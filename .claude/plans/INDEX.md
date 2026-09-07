@@ -22,13 +22,13 @@ index never outranks the current files.
 
 | State | Plans |
 |---|---:|
-| `drifted` | 9 |
+| `drifted` | 10 |
 | `approved` | 51 |
 | `planned` | 15 |
 | `executed` | 29 |
 | `not_started` | 24 |
 | `legacy` | 3 |
-| **total** | **131** |
+| **total** | **132** |
 
 ## Plans
 
@@ -111,6 +111,7 @@ index never outranks the current files.
 | `.claude/plans/plan-preserve-dir-symlinks.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-preserve-fault-tolerance.md` | `drifted` | 6 |  |
 | `.claude/plans/plan-protected-docs-scope.md` | `approved` | 1 |  |
+| `.claude/plans/plan-pypi-rename.md` | `drifted` | 2 |  |
 | `.claude/plans/plan-queued-ops-gate.md` | `executed` | 3 |  |
 | `.claude/plans/plan-receipts-regressions.md` | `approved` | 1 |  |
 | `.claude/plans/plan-reflection-ledger-isolation.md` | `approved` | 1 |  |

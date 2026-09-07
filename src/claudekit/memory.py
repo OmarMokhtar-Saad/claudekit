@@ -38,7 +38,7 @@ On the duplicated credential heuristic
 :func:`looks_like_credential` is a deliberate re-implementation of the function of
 the same name in `.claude/hooks/reflection.py`, with the same rules and the same
 documented blind spot. It is duplicated rather than shared because hooks must keep
-working when the `claude-kit` package is not installed (see `command-guard.sh`'s
+working when the `claudekit-agents` package is not installed (see `command-guard.sh`'s
 validator-unavailable path), so `.claude/hooks/` cannot import from `src/`, and
 moving the logic into `src/` would break that independence. `tests/test_memory.py`
 pins the two implementations against a shared corpus so the duplication cannot
