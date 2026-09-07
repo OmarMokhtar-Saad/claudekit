@@ -1,0 +1,31 @@
+{
+  "plan": "parse-gate-ordering-review-fixes",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".ai/KNOWLEDGE_BASE.md",
+      "description": "Reviewer MINOR 2: a new engine-level gate in execute-json-ops.py had no maintainer-facing note. Records the parse gate, why it is differential rather than absolute, and the ordering invariant that is now pinned by a test instead of being emergent.",
+      "edits": [
+        {
+          "find": "# Knowledge Base — Philosophies, Patterns, Lessons\n",
+          "replace": "# Knowledge Base — Philosophies, Patterns, Lessons\n\n## The ops parse gate is DIFFERENTIAL, and ambiguity outranks it\n\n`execute-json-ops.py` refuses a config whose edits would leave a `.py` file unparseable\n(`ops_precompile.check`, added 2026-09-07). Two properties are load-bearing and both were\nlearned the hard way, so do not \"simplify\" either one:\n\n1. **It judges the DIFFERENCE, not the absolute state.** `_parsed_before` reads the file from\n   disk first, and a break that was already there is reported as `PRE` and does not fail the\n   run. An absolute check looked correct and was not: it refused any config editing a file that\n   was already broken, which means **the Iron Law path could not be used to repair a syntax\n   error** — exactly when it is most wanted. It also broke\n   `test_validator_sequence_mode.py::test_projected_verdict_agrees_with_the_executor`, whose\n   fixture writes deliberately-unparseable text, and that failure was originally misdiagnosed\n   as a check-ordering bug. The shadow check (`_new_shadows`) was already differential; the\n   parse check being absolute was the inconsistency.\n2. **A precise verdict outranks a generic one.** An ambiguous anchor goes to `misses`, which\n   populates `unresolved` and is excluded from the parse loop, so `bad` is never incremented\n   and the executor's own `Pattern appears N times (ambiguous match)` is what the operator\n   sees. Before this was pinned it was an emergent property of `bad` arithmetic with no test\n   guarding it. `test_ops_parse_gate.py::test_an_ambiguous_anchor_alone_does_not_fail_the_gate`\n   now reds if ambiguity is made to refuse (proven by planting `bad += 1` in that branch: 3\n   tests fail).\n\n`--no-parse-check` is break-glass, mirroring `--no-approval`: an argparse flag reachable only\nfrom an explicit human CLI invocation, never settable from ops.json content.\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/plans/plan-parse-gate-ordering.md",
+      "description": "Reviewer MINOR 1: the file table header said 6 paths and listed 5. Corrects the count and names the two follow-up artifacts so check-plan-artifacts.py stays OK.",
+      "edits": [
+        {
+          "find": "## Files this config writes (all 6 paths)",
+          "replace": "## Files this config writes (all 5 paths)"
+        },
+        {
+          "find": "| 5 | `CHANGELOG.md` | Modify (1 edit) |",
+          "replace": "| 5 | `CHANGELOG.md` | Modify (1 edit) |\n\n### Post-review corrections (Tier 1, executed with `--no-approval` after the APPROVED 93 record)\n\n`plan-parse-gate-ordering-review-fixes.ops.json` closes the reviewer's two remaining MINORs:\nit adds the maintainer-facing note to `.ai/KNOWLEDGE_BASE.md` (a new engine-level gate that\nfuture reviewers and implementers need written down) and corrects this document's own file\ntable header, which said 6 paths while listing 5. It writes `.ai/KNOWLEDGE_BASE.md` and\n`.claude/plans/plan-parse-gate-ordering.md`."
+        }
+      ]
+    }
+  ]
+}

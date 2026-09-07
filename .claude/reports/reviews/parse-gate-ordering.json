@@ -1,0 +1,19 @@
+{
+  "plan": ".claude/plans/plan-parse-gate-ordering.md",
+  "slug": "parse-gate-ordering",
+  "ops_path": ".claude/plans/plan-parse-gate-ordering.ops.json",
+  "ops_sha256": "0141f0a64b9656d1048f04b2e3916cfc470bebc537d552a32217e09ec19b05ee",
+  "score": 93,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] plan-parse-gate-ordering.md:93 file table header says \"all 6 paths\" but lists 5, matching the 5 ops.json operations \u2014 cosmetic, nothing appears actually missing",
+    "[MINOR] No `.ai/` maintainer-doc update proposed for a new engine-level gate in `execute-json-ops.py`; CLAUDE.md's docs/ vs .ai/ audience split suggests this belongs somewhere maintainers will find it",
+    "[MINOR] The plan correctly identifies that this ops.json's own execution must bypass the gate it installs (`--no-parse-check`, self-referential bootstrap) \u2014 ensure the execution receipt records this and the s"
+  ],
+  "verdict_origin": "rubric",
+  "recorded_utc": "2026-09-07T10:42:50Z",
+  "operations": 5,
+  "edits": 6,
+  "rounds": [],
+  "round": 1
+}

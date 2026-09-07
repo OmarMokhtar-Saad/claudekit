@@ -1,0 +1,17 @@
+{
+  "plan": ".claude/plans/plan-parse-gate-unresolved-paths.md",
+  "slug": "parse-gate-unresolved-paths",
+  "ops_path": ".claude/plans/plan-parse-gate-unresolved-paths.ops.json",
+  "ops_sha256": "0de8175f7c357d6f7702cd185af8b8bd009b1d08ecd3bc9df98e3fc27b6624a3",
+  "score": 96,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] plan.md:137 cites check-plan-artifacts.py:222-226 for the pathless-op guard; the guard actually starts at line 221 (off by one, non-blocking)"
+  ],
+  "verdict_origin": "rubric",
+  "recorded_utc": "2026-09-07T12:06:59Z",
+  "operations": 3,
+  "edits": 11,
+  "rounds": [],
+  "round": 1
+}

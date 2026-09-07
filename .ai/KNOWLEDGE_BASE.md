@@ -1,5 +1,31 @@
 # Knowledge Base — Philosophies, Patterns, Lessons
 
+## The ops parse gate is DIFFERENTIAL, and ambiguity outranks it
+
+`execute-json-ops.py` refuses a config whose edits would leave a `.py` file unparseable
+(`ops_precompile.check`, added 2026-09-07). Two properties are load-bearing and both were
+learned the hard way, so do not "simplify" either one:
+
+1. **It judges the DIFFERENCE, not the absolute state.** `_parsed_before` reads the file from
+   disk first, and a break that was already there is reported as `PRE` and does not fail the
+   run. An absolute check looked correct and was not: it refused any config editing a file that
+   was already broken, which means **the Iron Law path could not be used to repair a syntax
+   error** — exactly when it is most wanted. It also broke
+   `test_validator_sequence_mode.py::test_projected_verdict_agrees_with_the_executor`, whose
+   fixture writes deliberately-unparseable text, and that failure was originally misdiagnosed
+   as a check-ordering bug. The shadow check (`_new_shadows`) was already differential; the
+   parse check being absolute was the inconsistency.
+2. **A precise verdict outranks a generic one.** An ambiguous anchor goes to `misses`, which
+   populates `unresolved` and is excluded from the parse loop, so `bad` is never incremented
+   and the executor's own `Pattern appears N times (ambiguous match)` is what the operator
+   sees. Before this was pinned it was an emergent property of `bad` arithmetic with no test
+   guarding it. `test_ops_parse_gate.py::test_an_ambiguous_anchor_alone_does_not_fail_the_gate`
+   now reds if ambiguity is made to refuse (proven by planting `bad += 1` in that branch: 3
+   tests fail).
+
+`--no-parse-check` is break-glass, mirroring `--no-approval`: an argparse flag reachable only
+from an explicit human CLI invocation, never settable from ops.json content.
+
 ## Hard rule 7 names four version sites, not three
 
 `cli/main.py`'s `_resolve_version` fallback is the fourth and went unnamed until 2026-08-29.
