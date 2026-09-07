@@ -2,7 +2,7 @@
 
 ## Runtime (user-facing)
 
-**None.** Zero Python runtime dependencies is a product feature ([DECISIONS.md](DECISIONS.md) #2). Requirements on the user's machine: Python ≥3.9, bash ≥3.2 (stock macOS OK), git. `python3` is used by hooks for JSON parsing (no jq dependency). Optional extra: `jsonschema>=4` (`pip install claude-kit[validation]`) — the ops validator uses it when present, degrades gracefully otherwise.
+**None.** Zero Python runtime dependencies is a product feature ([DECISIONS.md](DECISIONS.md) #2). Requirements on the user's machine: Python ≥3.9, bash ≥3.2 (stock macOS OK), git. `python3` is used by hooks for JSON parsing (no jq dependency). Optional extra: `jsonschema>=4` (`pip install claudekit-agents[validation]`) — the ops validator uses it when present, degrades gracefully otherwise.
 
 ## Development (`pip install -e ".[dev]"`)
 
@@ -18,7 +18,7 @@ Context7, Sequential Thinking, Playwright, Memory, Filesystem — currently refe
 
 ## External services
 
-GitHub (repo, Actions, releases) · PyPI (`claude-kit` via Trusted Publishing) · Claude Code (the runtime platform — its hook/agent/settings semantics are this project's largest external coupling; watch its changelog for breaking changes to PreToolUse exit-code contract, frontmatter fields, settings.json schema).
+GitHub (repo, Actions, releases) · PyPI (`claudekit-agents` via Trusted Publishing) · Claude Code (the runtime platform — its hook/agent/settings semantics are this project's largest external coupling; watch its changelog for breaking changes to PreToolUse exit-code contract, frontmatter fields, settings.json schema).
 
 ## Version constraints recap
 

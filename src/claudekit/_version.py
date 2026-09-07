@@ -9,7 +9,7 @@ The rule:
 
 1. **A source checkout reports its own tree.** If this file sits at
    `<root>/src/claudekit/_version.py` and `<root>/pyproject.toml` declares
-   `name = "claude-kit"`, that pyproject's version IS the version. This is the
+   `name = "claudekit-agents"`, that pyproject's version IS the version. This is the
    precedence inversion the module exists for: an EDITABLE install
    (`pip install -e .`) freezes `importlib.metadata` at install time, so with
    metadata first the CLI kept reporting the pre-bump version until somebody
@@ -30,11 +30,11 @@ Detector failure modes, stated rather than hoped for:
   Falls to metadata. Correct.
 * **A site-packages copy that happens to sit near an unrelated pyproject.toml**
   -- rejected twice over: the `src` layout check fails, and the
-  `name = "claude-kit"` check would fail too. Falls to metadata.
+  `name = "claudekit-agents"` check would fail too. Falls to metadata.
 * **A vendored copy** at `<other-project>/src/claudekit/` -- the neighbouring
   pyproject describes the HOST project, so the name check rejects it. Falls to
   metadata.
-* **A vendored copy of a claude-kit FORK** (its own pyproject, name kept) --
+* **A vendored copy of a ClaudeKit FORK** (its own pyproject, name kept) --
   reports the fork's pyproject version. That is the source `install.sh` would
   stamp from that same tree, so agreement is preserved, which is the property
   being defended.
@@ -57,8 +57,18 @@ from pathlib import Path
 from typing import Optional
 
 #: PyPI distribution name. The import package and console scripts are
-#: `claudekit`/`ck`; the distribution is `claude-kit` (`claudekit` was taken).
-DIST_NAME = "claude-kit"
+#: `claudekit`/`ck`; the distribution is `claudekit-agents`. `claudekit` was taken, and
+#: PyPI then REFUSED `claude-kit` as confusable with it -- PyPI ignores
+#: separators when comparing names, so `claude-kit` collapses onto `claudekit`.
+#:
+#: THIS CONSTANT IS USED TWICE WITH DIFFERENT MEANINGS: as the argument to
+#: `metadata.version()` below, and as the `[project] name` a neighbouring
+#: pyproject.toml must declare for this tree to count as a source checkout.
+#: `cli/main.py` repeats the string a third time, in the branch where this
+#: module cannot be imported at all. Move fewer than three and a source
+#: checkout silently stops recognising itself and reports stale installed
+#: metadata. `tests/test_version_precedence.py` pins all three together.
+DIST_NAME = "claudekit-agents"
 
 #: Fallback when neither a source tree nor installed metadata can answer.
 UNKNOWN = "unknown"
@@ -88,7 +98,7 @@ def _project_field(text: str, key: str) -> Optional[str]:
 def source_version() -> Optional[str]:
     """The version of the source checkout this module was imported from, or None.
 
-    None means "this is not a claude-kit source tree" -- never a guess.
+    None means "this is not a ClaudeKit source tree" -- never a guess.
     """
     try:
         here = Path(__file__).resolve()

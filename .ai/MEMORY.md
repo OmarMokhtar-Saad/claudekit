@@ -4,7 +4,7 @@ Short, hard facts. If your context is tight, load this file plus [SESSION_STATE.
 
 ## Identity
 - ClaudeKit = multi-agent orchestration system for Claude Code. Not a library; a copied-in asset corpus + delivery shell.
-- PyPI: `claude-kit` (name `claudekit` taken). CLI: `claudekit` / `ck`. Import: `claudekit`. GitHub: `OmarMokhtar-Saad/claudekit`. MIT.
+- PyPI distribution: `claudekit-agents` (`claudekit` taken; `claude-kit` REFUSED as confusable — PyPI ignores separators). CLI: `claudekit` / `ck`. Import: `claudekit`. GitHub: `OmarMokhtar-Saad/claudekit`. MIT.
 - Version 2.1.0, `[Unreleased]`; tag/publish is user-gated.
 
 ## Counts (regenerate via `python3 scripts/gen-docs.py`)

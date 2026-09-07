@@ -16,7 +16,7 @@ A conceptually excellent, recently-repaired system. The 2026-07-05 external audi
 
 ## What is deliberately NOT done
 
-- **No release tag / PyPI publish.** Mechanics fully wired (`release.yml`, Trusted Publishing, PyPI name `claude-kit`). Waiting on the owner. Don't publish unilaterally.
+- **No release tag / PyPI publish.** Mechanics fully wired (`release.yml`, Trusted Publishing, PyPI distribution `claudekit-agents`). The trusted publisher still has to be registered as a PENDING publisher under PyPI account settings — the project does not exist yet. Waiting on the owner. Don't publish unilaterally.
 - **No consolidation deletions** (task 008) — merging 10 agents / 13 skills changes user-visible surface; needs sign-off.
 - **The 90/100 and 80/100 gates are still prompt-enforced only.** Task 010 (eval framework + machine-parseable verdicts + hook gating) makes them mechanical. Until then, don't advertise them as hard guarantees.
 

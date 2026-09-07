@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.2.1] — 2026-09-07
+
 - **The ops parse gate identifies files the way the kernel does.** Two review rounds on the
   gate found the same defect three times, each in a different spelling: a plan naming one
   file two ways (`x.py` and `./x.py`, a symlink and its target, or `x.py` and `X.py` on a
@@ -101,6 +103,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `claudekit/__init__.py` and `claudekit/cli/main.py` are gone — `pyproject.toml` is now the
   only hand-maintained version site, closing the class that left `cli/main.py` two releases
   stale through 3.0.0.
+
+### Changed
+
+- **The PyPI distribution name is now `claudekit-agents`** (was `claude-kit`). PyPI
+  refused `claude-kit` as confusable with an existing, unrelated project named
+  `claudekit`: PyPI ignores separators when it tests names for similarity, so
+  `claude-kit` collapses onto `claudekit`. That refusal has blocked every release
+  this project has attempted.
+- **`pip install claude-kit` was never a working command.** No release was ever
+  published under that name, so nobody is installed from it and there is nothing to
+  migrate. The install line is now `pip install claudekit-agents`.
+- **Nothing else moves.** The import package stays `claudekit`, the console scripts
+  stay `claudekit` and `ck`, and the GitHub repository stays
+  `OmarMokhtar-Saad/claudekit`.
+- Version bumped to 3.2.1 because v3.2.0 is already tagged and released, and a built
+  wheel embeds its distribution name, so the rename cannot ship under that tag.
 
 ## [3.2.0] — 2026-09-07
 
