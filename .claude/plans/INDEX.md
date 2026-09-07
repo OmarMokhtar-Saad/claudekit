@@ -24,11 +24,11 @@ index never outranks the current files.
 |---|---:|
 | `drifted` | 4 |
 | `approved` | 50 |
-| `planned` | 14 |
+| `planned` | 15 |
 | `executed` | 29 |
 | `not_started` | 24 |
 | `legacy` | 3 |
-| **total** | **124** |
+| **total** | **125** |
 
 ## Plans
 
@@ -47,6 +47,7 @@ index never outranks the current files.
 | `.claude/plans/plan-agent-tool-grants.md` | `approved` | 1 |  |
 | `.claude/plans/plan-approval-machinery.md` | `approved` | 1 |  |
 | `.claude/plans/plan-backlog-triage-pass.md` | `executed` | 2 |  |
+| `.claude/plans/plan-backup-history.md` | `planned` | 4 |  |
 | `.claude/plans/plan-callsite-audit-line-level.md` | `approved` | 1 |  |
 | `.claude/plans/plan-canonical-skill-wins.md` | `approved` | 1 |  |
 | `.claude/plans/plan-capability-tiers-audit.md` | `approved` | 1 |  |
