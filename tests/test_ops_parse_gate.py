@@ -971,6 +971,110 @@ FOLDS = [
 ]
 
 
+#: Codepoints where FULL Unicode case folding and the simple lowercase mapping DISAGREE.
+#: This is precisely the blind spot a `lower()`-based implementation has, so it is the
+#: candidate set worth asking the kernel about. Built at import time, no I/O.
+FOLD_DIVERGENT = [c for c in range(0x20, 0x11000)
+                  if chr(c).casefold() != chr(c).lower()
+                  and chr(c) not in ('/', '\x00') and chr(c).isprintable()]
+
+
+def test_the_identity_agrees_with_the_kernel_on_every_fold_it_performs(gate, tmp_path,
+                                                                      monkeypatch):
+    """THE MECHANICAL CHECK, and the reason it exists: five spellings escaped five
+    hand-written fold lists. `relpath` missed `./x.py`; `realpath` missed the symlink;
+    `(st_dev, st_ino)` missed not-yet-existing paths; those never reached the alias check at
+    all; and `NFC+lower()` missed 101 codepoints the filesystem folds. Every one of those
+    lists was written by enumerating what a person could think of, which is why the next
+    spelling always walked through.
+
+    So this does not enumerate spellings. It asks the KERNEL which pairs name one file --
+    `st_ino`, the same question `_case_insensitive` asks -- and asserts `_identity` agrees on
+    every pair the kernel folded. A sixth spelling in this dimension cannot pass.
+
+    MUTATION: `_fold` back to `component.lower()` and this reds with a list of the codepoints
+    the filesystem folds and the gate does not (101 of them on APFS). On a case-sensitive
+    filesystem the kernel folds nothing, the oracle finds no pairs to check, and the test
+    skips rather than passing for the wrong reason.
+    """
+    monkeypatch.chdir(tmp_path)
+    probe = tmp_path / 'probe'
+    probe.mkdir()
+    folded_by_kernel = []
+    for code in FOLD_DIVERGENT:
+        upper, lower = chr(code), chr(code).casefold()
+        if lower == upper or len(lower) != 1:
+            continue
+        first = probe / ('n%s.py' % upper)
+        try:
+            first.write_text('A = 1\n', encoding='utf-8')
+            twin = os.stat(str(probe / ('n%s.py' % lower)))
+        except (OSError, ValueError, UnicodeError):
+            continue
+        finally:
+            try:
+                first.unlink()
+            except OSError:
+                pass
+        if twin.st_ino:
+            folded_by_kernel.append((upper, lower))
+    if not folded_by_kernel:
+        pytest.skip('this filesystem folds none of the divergent codepoints (case-sensitive)')
+    disagreed = []
+    for upper, lower in folded_by_kernel:
+        a, b = 'new%s.py' % upper, 'new%s.py' % lower
+        if gate._identity(a) != gate._identity(b):
+            disagreed.append('U+%04X' % ord(upper))
+    assert not disagreed, (
+        'the filesystem folds these codepoints and the gate does not, so one file gets two '
+        'identities: %s' % ', '.join(disagreed))
+
+
+def test_creating_one_spelling_and_editing_another_is_refused(gate, tmp_path, monkeypatch):
+    """The shape the fifth return value (`named`) exists for, pinned directly.
+
+    A review found the parametrised test could not catch it: its helper picks `file_create`
+    for any path not on disk, so when BOTH spellings are missing it emits two creates -- and
+    `created` was already in the alias union. Dropping `named` from that union therefore left
+    108 tests green while reopening the original break. The asymmetric shape is the one that
+    matters: create under one spelling, EDIT under the other.
+
+    MUTATION: remove `named` from the `_aliases(...)` union, or delete `named.add(path)`.
+    Either reds this; before it existed, both left the suite green.
+    """
+    monkeypatch.chdir(tmp_path)
+    if _fold_tree(tmp_path)['case-new-file'][2] is not None:
+        pytest.skip('this filesystem does not fold case for new files')
+    cfg = write_ops(tmp_path, [
+        {'type': 'file_create', 'path': 'fresh.py', 'content': 'A = 1\n'},
+        {'type': 'code_edit', 'path': 'FRESH.py',
+         'edits': [{'find': 'A = 1', 'replace': 'A = ('}]}])
+    ok, lines = load_gate().check(cfg)
+    body = '\n'.join(lines)
+    assert ok is False, body
+    assert 'ALIAS' in body, body
+
+
+def test_a_case_sensitive_device_keeps_the_two_spellings_apart(gate, tmp_path, monkeypatch):
+    """The other direction, which no test covered: where the device does NOT fold case, two
+    spellings really are two files and folding them would be a false refusal.
+
+    Driven by injecting the probe's answer, because a case-sensitive mount is not available
+    on the author's machine -- which is exactly why this branch had never executed.
+
+    MUTATION: make `_fold` fold case unconditionally (ignore the probe) and this reds.
+    """
+    monkeypatch.chdir(tmp_path)
+    gate_mod = load_gate()
+    monkeypatch.setattr(gate_mod, '_case_insensitive', lambda existing, st: False)
+    gate_mod._CASE_FOLD.clear()
+    try:
+        assert gate_mod._identity('newfile.py') != gate_mod._identity('NEWFILE.py'), (
+            'on a case-sensitive device these are two files and must keep two identities')
+    finally:
+        gate_mod._CASE_FOLD.clear()
+
+
 @pytest.mark.parametrize("fold", FOLDS)
 def test_the_identity_is_invariant_under_every_alias_spelling(gate, tmp_path, monkeypatch,
                                                               fold):

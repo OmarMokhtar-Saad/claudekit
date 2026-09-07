@@ -210,7 +210,19 @@ def _fold(component, case_insensitive):
     Lowercasing ONLY where the device was measured to fold case.
     """
     component = unicodedata.normalize('NFC', component)
-    return component.lower() if case_insensitive else component
+    # `casefold()`, NEVER `lower()`. A case-insensitive filesystem folds by FULL Unicode case
+    # folding (CaseFolding.txt C+F), and `lower()` is only the simple mapping. Measured on
+    # this repo's own filesystem: of 1489 case-varying codepoints, **101** are folded by the
+    # kernel and NOT by NFC+lower() -- U+00DF, U+017F, U+00B5, U+03C2, U+FB01, U+1C80..U+1C88
+    # and more. Each was a spelling that named one file and got two identities, and it was
+    # reproduced end to end: `file_create new_s.py` + `code_edit new_<long-s>.py` gave gate
+    # ok=True, executor `Errors: 0`, and `A = (` on disk. With `casefold()` the residual over
+    # the same 1489 codepoints is zero.
+    #
+    # THE TWO AXES ARE MEASURED DIFFERENTLY, deliberately: NFC is applied unconditionally
+    # while case folding is applied only where the probe says the device folds. NFC-always can
+    # only over-collapse, which is the loud direction; guessing case would risk the quiet one.
+    return component.casefold() if case_insensitive else component
 
 
 def _identity(path):
@@ -247,7 +259,10 @@ def _identity(path):
     there is a different gate's question and the executor's path guard answers it.
     """
     try:
-        cur = os.path.realpath(os.path.abspath(path))
+        # `realpath` ALONE -- it already absolutises. `abspath` runs `normpath` FIRST, which
+        # collapses `..` lexically before any symlink to its left is resolved, so
+        # `deep/../x.py` (deep -> a/b/c) resolved to the wrong directory and split identity.
+        cur = os.path.realpath(path)
     except OSError:
         cur = os.path.abspath(path)
     tail = []
@@ -375,6 +390,10 @@ def simulate(ops):
     worse than no checker at all.
     """
     ops = _normalize(ops)
+    # NOTE: an unknown `type` also lands in `named` below, so a bogus op sharing an identity
+    # with a real one can raise an ALIAS refusal. Harmless -- `execute-json-ops.py` refuses an
+    # unknown operation type and fails the run regardless -- but it is why the refusal can
+    # name an op the executor would never have performed.
     files: dict = {}
     misses: list = []
     created: set = set()
