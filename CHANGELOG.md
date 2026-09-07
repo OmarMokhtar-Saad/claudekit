@@ -32,6 +32,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     *inherits*. An absolute check would make an already-unparseable file uneditable through
     the engine unless one plan happened to fix the whole file — so the Iron Law path could
     not be used to repair a syntax error, which is exactly when it is most wanted.
+  - **A miss names its own file as data.** The set of files whose parse verdict is withheld
+    is built from the path each miss carries, not by re-splitting a rendered `path: reason`
+    line on its first colon. A colon is legal in a filename on macOS and Linux, and the
+    split recovered the wrong key from one -- withholding the verdict for a *different*
+    file of that name, which this same plan broke, and passing the run. Measured in both
+    directions.
 - **On a source checkout, `ck --version` and `ck doctor` reported a stale version.** Version
   resolution preferred `importlib.metadata`, which an editable install (`pip install -e .`)
   freezes at install time, while `install.sh` derives the SOURCE version and stamps it into
