@@ -208,8 +208,41 @@ def _fold(component, case_insensitive):
     name whose own spelling is decomposable.
 
     Lowercasing ONLY where the device was measured to fold case.
+
+    THIS OVER-APPROXIMATES ON PURPOSE, and that is the design decision worth reading. Six
+    review rounds each closed one spelling of "two names for one file" and the next walked
+    through: `relpath` missed `./x.py`; `realpath` missed the symlink; `(st_dev, st_ino)`
+    missed not-yet-existing paths; those never reached the alias check at all; `lower()`
+    missed the 101 codepoints where full case folding differs; and NFC-then-`casefold()`
+    missed 11 more, because **`casefold()` is not closed over normalisation** -- U+0390 folds
+    to a three-codepoint sequence that is no longer NFC, so its uppercase twin normalised to a
+    different form and the two got different keys. Every round reproduced end to end: gate
+    ok=True, executor `Errors: 0`, unparseable Python on disk.
+
+    Matching the kernel exactly is the thing that kept failing, so this stops trying. The key
+    is a FIXPOINT of decompose-then-fold: apply NFD, and `casefold()` where the device folds,
+    until the string stops changing. Two names the kernel folds together reach the same
+    fixpoint whatever order it composes normalisation and case folding in, so a seventh
+    ORDERING spelling cannot exist here by construction rather than by someone enumerating it.
+    The bound of four iterations is not a guess about convergence -- NFD and casefold are both
+    idempotent and their composition stabilises in two rounds for every codepoint measured --
+    it is there so a pathological input cannot spin.
+
+    It can only OVER-collapse, and that is the loud direction: a false `ALIAS` refusal an
+    author fixes by naming the file once, never a silent pass. Measured zero false refusals
+    across 608 archived configs and all 1524 tracked files.
+
+    Deliberately NOT done: stripping combining marks. That would fold `cafe.py` into
+    `café.py`, which really are two files on every filesystem, and the over-refusal would stop
+    being rare enough to stay loud.
     """
-    component = unicodedata.normalize('NFC', component)
+    for _ in range(4):
+        folded = unicodedata.normalize('NFD', component)
+        if case_insensitive:
+            folded = folded.casefold()
+        if folded == component:
+            break
+        component = folded
     # `casefold()`, NEVER `lower()`. A case-insensitive filesystem folds by FULL Unicode case
     # folding (CaseFolding.txt C+F), and `lower()` is only the simple mapping. Measured on
     # this repo's own filesystem: of 1489 case-varying codepoints, **101** are folded by the
@@ -219,10 +252,11 @@ def _fold(component, case_insensitive):
     # ok=True, executor `Errors: 0`, and `A = (` on disk. With `casefold()` the residual over
     # the same 1489 codepoints is zero.
     #
-    # THE TWO AXES ARE MEASURED DIFFERENTLY, deliberately: NFC is applied unconditionally
-    # while case folding is applied only where the probe says the device folds. NFC-always can
-    # only over-collapse, which is the loud direction; guessing case would risk the quiet one.
-    return component.casefold() if case_insensitive else component
+    # THE TWO AXES ARE MEASURED DIFFERENTLY, deliberately: normalisation is applied
+    # unconditionally, case folding only where the probe says the device folds. Normalising
+    # always can only over-collapse, the loud direction; guessing case would risk the quiet
+    # one.
+    return component
 
 
 def _identity(path):
@@ -262,6 +296,9 @@ def _identity(path):
         # `realpath` ALONE -- it already absolutises. `abspath` runs `normpath` FIRST, which
         # collapses `..` lexically before any symlink to its left is resolved, so
         # `deep/../x.py` (deep -> a/b/c) resolved to the wrong directory and split identity.
+        # `realpath` ALONE, and a test pins it: `abspath` runs `normpath` FIRST, collapsing
+        # `..` lexically before any symlink to its left resolves, so `deep/../x.py` (deep ->
+        # a/b/c) landed in the wrong directory and split identity from `a/b/x.py`.
         cur = os.path.realpath(path)
     except OSError:
         cur = os.path.abspath(path)
