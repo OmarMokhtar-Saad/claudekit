@@ -19,6 +19,7 @@ import os
 import re
 import subprocess
 import sys
+import unicodedata
 from pathlib import Path
 
 import pytest
@@ -582,7 +583,7 @@ def test_simulate_carries_the_path_as_data_not_a_formatted_string(gate, tmp_path
     cfg = write_ops(tmp_path, [{"type": "code_edit", "path": "c:d.py",
                                 "edits": [{"find": "nowhere", "replace": "y = 2"}]}])
     with open(cfg, encoding="utf-8") as fh:
-        _files, misses, _created, _deleted = gate.simulate(json.load(fh))
+        _files, misses, _created, _deleted, _named = gate.simulate(json.load(fh))
     assert [p for p, _r in misses] == ["c:d.py"], misses
 
 
@@ -752,87 +753,6 @@ def test_the_both_keys_refusal_also_stops_the_real_executor(tmp_path, monkeypatc
     assert y.read_text() == "A = 1\nB = 1\n"
 
 
-def test_one_file_named_in_two_cases_is_refused_not_half_checked(tmp_path, monkeypatch):
-    """Round-2 CRITICAL. `os.path.relpath` and `os.path.realpath` are both case-PRESERVING,
-    so on a case-insensitive filesystem `x.py` and `X.py` were two keys and one file: the
-    gate checked one spelling, withheld the other as 'not checked', and exited 0 while the
-    executor threaded both edits and left the file unparseable.
-
-    Mutation that reds this: revert `_aliases` to grouping on `os.path.realpath`.
-
-    Skipped where the filesystem is case-SENSITIVE, because there the two names really are
-    two files and refusing them would be the bug. The skip is the point, not a convenience --
-    a test that passed on both filesystems would not be testing case identity at all.
-    """
-    monkeypatch.chdir(tmp_path)
-    (tmp_path / 'x.py').write_text('A = 1\n', encoding='utf-8')
-    if not (tmp_path / 'X.py').exists():
-        pytest.skip('case-sensitive filesystem: x.py and X.py are genuinely two files')
-    cfg = write_ops(tmp_path, [
-        {'type': 'code_edit', 'path': 'x.py',
-         'edits': [{'find': 'A = 1', 'replace': 'A = 2\nB = 3'}]},
-        {'type': 'code_edit', 'path': 'X.py',
-         'edits': [{'find': 'B = 3', 'replace': 'B = ('}]}])
-    ok, lines = load_gate().check(cfg)
-    body = '\n'.join(lines)
-    assert ok is False, body
-    assert 'ALIAS' in body, body
-    # The per-spelling `not checked` line may still appear -- that anchor really did not land
-    # in the gate's model of THAT spelling -- but it must no longer be what the verdict rests
-    # on. Before the fix, `not checked` plus `OK x.py still parses` WAS the whole verdict and
-    # the run exited 0. Now the refusal decides.
-    assert 'x.py' in body and 'X.py' in body, body
-    # The message must name a path, not a bare inode number.
-    assert 'names one file (' in body, body
-    assert not re.search(r'names one file \(\d+\)', body), body
-
-
-def test_a_hardlinked_pair_is_refused_too(tmp_path, monkeypatch):
-    """Hardlinks share an inode but never a realpath, so the realpath version documented them
-    as an accepted blind spot. Keying on (st_dev, st_ino) closes them with the same mechanism.
-
-    Mutation that reds this: revert `_aliases` to grouping on `os.path.realpath`.
-    """
-    monkeypatch.chdir(tmp_path)
-    (tmp_path / 'a.py').write_text('A = 1\n', encoding='utf-8')
-    try:
-        os.link(str(tmp_path / 'a.py'), str(tmp_path / 'b.py'))
-    except (OSError, AttributeError):
-        pytest.skip('this filesystem does not support hardlinks')
-    cfg = write_ops(tmp_path, [
-        {'type': 'code_edit', 'path': 'a.py',
-         'edits': [{'find': 'A = 1', 'replace': 'A = 2'}]},
-        {'type': 'code_edit', 'path': 'b.py',
-         'edits': [{'find': 'A = 2', 'replace': 'A = ('}]}])
-    ok, lines = load_gate().check(cfg)
-    assert ok is False, '\n'.join(lines)
-    assert 'ALIAS' in '\n'.join(lines)
-
-
-def test_distinct_files_and_new_files_are_never_called_aliases(tmp_path, monkeypatch):
-    """The failure direction that would block every future change. Two genuinely distinct
-    files, and two file_creates of paths that do not exist yet (which cannot be stat'd and so
-    take the realpath fallback), must NOT be grouped.
-
-    Mutation that reds this: make the `except OSError` fallback in `_aliases` return one
-    constant key for every missing path.
-    """
-    monkeypatch.chdir(tmp_path)
-    (tmp_path / 'p.py').write_text('A = 1\n', encoding='utf-8')
-    (tmp_path / 'q.py').write_text('B = 1\n', encoding='utf-8')
-    cfg = write_ops(tmp_path, [
-        {'type': 'code_edit', 'path': 'p.py',
-         'edits': [{'find': 'A = 1', 'replace': 'A = 2'}]},
-        {'type': 'code_edit', 'path': 'q.py',
-         'edits': [{'find': 'B = 1', 'replace': 'B = 2'}]},
-        {'type': 'file_create', 'path': 'new1.py', 'content': 'C = 1\n'},
-        {'type': 'file_create', 'path': 'sub/new2.py', 'content': 'D = 1\n'}])
-    ok, lines = load_gate().check(cfg)
-    body = '\n'.join(lines)
-    assert ok is True, body
-    assert 'ALIAS' not in body, body
-
-
 def test_deleting_a_target_and_editing_its_link_is_refused(tmp_path, monkeypatch):
     """Round-2 MINOR. `_aliases` saw only `files`, so a file_delete of a symlink's target plus
     a code_edit of the link printed `OK sym.py still parses` and exited 0. The executor then
@@ -964,3 +884,336 @@ def test_run_command_writes_are_declared_unmodelled(gate, tmp_path, target):
     blob = "\n".join(lines)
     assert ok is True, blob
     assert "run_command" in blob and "not modelled" in blob, blob
+
+
+# --------------------------------------- fold invariance: ONE identity for every spelling
+#
+# THE INVARIANT IS WRITTEN BEFORE THE FIX, AND THAT ORDER IS THE POINT. Four example-shaped
+# tests already stood here -- `./x.py`, a symlink, `X.py`, a hardlink -- and each pinned one
+# SPELLING of one defect. Three consecutive review rounds then found the same class again,
+# each time through a spelling nobody had enumerated, the last of them every not-yet-existing
+# path. Examples cannot close a class. So these assert the PROPERTY: whatever spelling names
+# a file, the gate's identity for it is one value.
+#
+# A FOLD THE FILESYSTEM DOES NOT PERFORM SKIPS WITH ITS REASON, IT DOES NOT PASS. On a
+# case-sensitive filesystem `x.py` and `X.py` really are two files and collapsing them would
+# be the bug. A row that went green on every filesystem would not be testing identity at all.
+
+
+def _fold_tree(root):
+    """Every alias shape in one tree: {fold: (spelling_a, spelling_b, skip_reason_or_None)}.
+
+    The pairs cover BOTH sides of the round-3 hole: a path already on disk (an inode can be
+    read) and a path this plan would create (none can), for every fold.
+    """
+    (root / "sub").mkdir()
+    (root / "real").mkdir()
+    (root / "pkg").mkdir()
+    (root / "x.py").write_text("A = 1\n", encoding="utf-8")
+    (root / "real" / "r.py").write_text("A = 1\n", encoding="utf-8")
+    nfc = unicodedata.normalize("NFC", "café.py")
+    nfd = unicodedata.normalize("NFD", "café.py")
+    (root / nfc).write_text("A = 1\n", encoding="utf-8")
+    new_nfc = unicodedata.normalize("NFC", "crème.py")
+    new_nfd = unicodedata.normalize("NFD", "crème.py")
+
+    case_skip = None if (root / "X.py").exists() else (
+        "case-sensitive filesystem: x.py and X.py are genuinely two files")
+    norm_skip = None if (root / nfd).exists() else (
+        "this filesystem does not normalise unicode: NFC and NFD are genuinely two files")
+    link_skip = None
+    try:
+        os.symlink(str(root / "x.py"), str(root / "sym.py"))
+        os.symlink(str(root / "real"), str(root / "linkdir"))
+        os.symlink(str(root / "pkg" / "m.py"), str(root / "dangling.py"))
+    except (OSError, NotImplementedError, AttributeError):
+        link_skip = "this platform cannot create symlinks here"
+    hard_skip = None
+    try:
+        os.link(str(root / "x.py"), str(root / "hard.py"))
+    except (OSError, AttributeError):
+        hard_skip = "this filesystem does not support hardlinks"
+
+    return {
+        # case -- existing and not-yet-existing, in the leaf and in a directory component
+        "case-existing-file": ("x.py", "X.py", case_skip),
+        "case-existing-dir": ("real/r.py", "REAL/r.py", case_skip),
+        "case-new-file": ("new.py", "New.py", case_skip),
+        "case-new-dir": ("sub/n.py", "SUB/n.py", case_skip),
+        # unicode normalisation, with a real accented name
+        "nfc-nfd-existing": (nfc, nfd, norm_skip),
+        "nfc-nfd-new": (new_nfc, new_nfd, norm_skip),
+        # symlinks: a linked FILE, a linked DIRECTORY component, and a DANGLING link whose
+        # target this same plan would create
+        "symlink-file": ("x.py", "sym.py", link_skip),
+        "symlink-dir-existing": ("real/r.py", "linkdir/r.py", link_skip),
+        "symlink-dir-new": ("real/n.py", "linkdir/n.py", link_skip),
+        "dangling-link-vs-target": ("dangling.py", "pkg/m.py", link_skip),
+        "hardlink": ("x.py", "hard.py", hard_skip),
+        # the lexical folds the earlier rounds already closed -- kept so a rewrite of the
+        # identity cannot quietly drop them
+        "lexical-dot-slash": ("x.py", "./x.py", None),
+        "lexical-double-slash": ("x.py", ".//x.py", None),
+        "lexical-dotdot": ("x.py", "sub/../x.py", None),
+        "lexical-abs-vs-rel": ("x.py", str(root / "x.py"), None),
+        "lexical-trailing-slash": ("real", "real/", None),
+        "lexical-new-dot-slash": ("new.py", "./new.py", None),
+    }
+
+
+FOLDS = [
+    "case-existing-file", "case-existing-dir", "case-new-file", "case-new-dir",
+    "nfc-nfd-existing", "nfc-nfd-new",
+    "symlink-file", "symlink-dir-existing", "symlink-dir-new", "dangling-link-vs-target",
+    "hardlink",
+    "lexical-dot-slash", "lexical-double-slash", "lexical-dotdot", "lexical-abs-vs-rel",
+    "lexical-trailing-slash", "lexical-new-dot-slash",
+]
+
+
+@pytest.mark.parametrize("fold", FOLDS)
+def test_the_identity_is_invariant_under_every_alias_spelling(gate, tmp_path, monkeypatch,
+                                                              fold):
+    """One file, two spellings, ONE identity -- for every fold this filesystem performs.
+
+    HEADLINE MUTATION: replace `_identity`'s body with the lexical fallback it replaced
+    (`return ('path', os.path.realpath(p))`) and this reds for case-existing-file,
+    case-existing-dir, case-new-file, case-new-dir, nfc-nfd-existing, nfc-nfd-new and
+    hardlink -- seven rows, not one, which is the whole reason this is a property and not
+    another example. Drop only the ancestor walk (stat-or-realpath, round 3's shape) and the
+    four not-yet-existing case rows plus nfc-nfd-new red. Drop `unicodedata.normalize` and
+    both nfc-nfd rows red. Drop `os.path.realpath` from the first line and
+    symlink-dir-existing, symlink-dir-new and dangling-link-vs-target red.
+    """
+    monkeypatch.chdir(tmp_path)
+    a, b, skip = _fold_tree(tmp_path)[fold]
+    if skip:
+        pytest.skip(skip)
+    assert gate._identity(a) == gate._identity(b), (
+        "%s: %r and %r name one file and got two identities (%r vs %r)"
+        % (fold, a, b, gate._identity(a), gate._identity(b)))
+
+
+def test_the_identity_keeps_genuinely_distinct_paths_distinct(gate, tmp_path, monkeypatch):
+    """The failure direction that would block every future change. Two files that really are
+    two files -- including two that do not exist yet, which is where an over-eager fold would
+    do its damage -- must never share an identity.
+
+    MUTATION: return a constant for any path that cannot be stat'd (round 3's shape, taken
+    one step further) and the new-file rows red.
+    """
+    monkeypatch.chdir(tmp_path)
+    _fold_tree(tmp_path)
+    for a, b in [("x.py", "real/r.py"),          # two files on disk
+                 ("n1.py", "n2.py"),             # two files this plan would create
+                 ("sub/n.py", "real/n.py"),      # one new name under two real directories
+                 ("x.py", "new.py")]:            # one on disk, one not
+        assert gate._identity(a) != gate._identity(b), (a, b, gate._identity(a))
+
+
+@pytest.mark.parametrize("fold", FOLDS)
+def test_every_alias_spelling_is_refused_by_the_gate_not_half_checked(gate, tmp_path,
+                                                                      monkeypatch, fold):
+    """The invariant, carried through to the verdict the executor consumes.
+
+    An identity that collapses is worth nothing if the refusal does not follow, and before
+    this change the follow-through had its own hole: a `code_edit` of a not-yet-existing
+    spelling was recorded as a MISS and `continue`d, so that path never reached the alias
+    check at all. The set is now every path the config NAMES.
+
+    MUTATION: pass `set(files) | deleted | created` to `_aliases` instead of `named` and the
+    rows whose second spelling is a modelled-away miss red. Remove the `_aliases` loop from
+    `check` and every row reds.
+    """
+    monkeypatch.chdir(tmp_path)
+    a, b, skip = _fold_tree(tmp_path)[fold]
+    if skip:
+        pytest.skip(skip)
+    if a.endswith("/") or os.path.isdir(a):
+        pytest.skip("a directory is not an ops target; this fold is identity-level only")
+
+    def op(path):
+        # A path already on disk is edited; one that is not is created. Uniform across folds,
+        # and it is the shape of the round-3 reproduction either way.
+        if os.path.exists(path):
+            return {"type": "code_edit", "path": path,
+                    "edits": [{"find": "A = 1", "replace": "A = 2"}]}
+        return {"type": "file_create", "path": path, "content": "A = 1\n"}
+
+    ok, lines = gate.check(write_ops(tmp_path, [op(a), op(b)]))
+    body = "\n".join(lines)
+    if gate._canon(a) == gate._canon(b):
+        # THE TWO KEYS, VISIBLE IN THE VERDICT. `_canon` -- the WRITER's key -- already
+        # collapses this fold, so the plan is ONE file to the gate exactly as it is to the
+        # executor and there is nothing left to refuse. The claim for these rows is that the
+        # plan was modelled ONCE, not that it was rejected; a row that demanded a refusal
+        # here would be demanding a false positive.
+        assert "ALIAS" not in body, body
+        named = [ln for ln in lines if ln.startswith(("OK", "BREAK", "?", "skip"))]
+        assert len(named) == 1, body
+        return
+    assert ok is False, "%s: %s" % (fold, body)
+    assert "ALIAS" in body, body
+    # The message must name a path the reader can open, never a bare inode number.
+    assert "names one file (" in body, body
+    assert not re.search(r"names one file \(\d+\)", body), body
+
+
+def test_the_gate_still_passes_a_plan_of_distinct_and_new_files(gate, tmp_path, monkeypatch):
+    """Over-refusal, at the verdict. Two distinct files edited and two new files created --
+    the everyday plan -- must still pass.
+
+    This is the assertion the 601-config sweep of `.claude/plans/archive` generalises: zero
+    of them is flagged by `_aliases`, before this change or after it.
+
+    MUTATION: fold every not-yet-existing path to one key and the two file_creates become an
+    ALIAS group, turning every ordinary two-file plan into a refusal.
+    """
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "p.py").write_text("A = 1\n", encoding="utf-8")
+    (tmp_path / "q.py").write_text("B = 1\n", encoding="utf-8")
+    ok, lines = gate.check(write_ops(tmp_path, [
+        {"type": "code_edit", "path": "p.py", "edits": [{"find": "A = 1", "replace": "A = 2"}]},
+        {"type": "code_edit", "path": "q.py", "edits": [{"find": "B = 1", "replace": "B = 2"}]},
+        {"type": "file_create", "path": "new1.py", "content": "C = 1\n"},
+        {"type": "file_create", "path": "sub/new2.py", "content": "D = 1\n"}]))
+    body = "\n".join(lines)
+    assert ok is True, body
+    assert "ALIAS" not in body, body
+
+
+def test_the_case_probe_writes_nothing_into_the_tree(gate, tmp_path, monkeypatch):
+    """A read-only gate that dropped a probe file into the author's checkout would be a worse
+    defect than the one it closes -- the repo's own secret self-scan and its ops queue gate
+    both read the working tree.
+
+    MUTATION: probe with `tempfile.mkstemp(dir=...)` and this goes red if the unlink is ever
+    skipped (an exception between create and unlink), which is the failure this shape cannot
+    have.
+    """
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "x.py").write_text("A = 1\n", encoding="utf-8")
+    before = sorted(p.name for p in tmp_path.iterdir())
+    gate._CASE_FOLD.clear()
+    gate._identity("does/not/exist/yet.py")
+    gate._identity("x.py")
+    assert sorted(p.name for p in tmp_path.iterdir()) == before
+
+
+def test_the_case_probe_is_taken_once_per_device(gate, tmp_path, monkeypatch):
+    """Per-`st_dev` cache, because the answer is a property of the MOUNT and without it the
+    gate re-probes for every path in the plan. The cache key must be the device and not a
+    single global boolean: one checkout can span a case-folding and a case-sensitive mount.
+
+    MUTATION: drop the cache and the warm run costs the same as the cold one, so the
+    strict-inequality assertion reds; make the cache a single boolean and the second
+    assertion (one entry per device, keyed by st_dev) still holds but
+    test_the_identity_is_invariant_under_every_alias_spelling is what would catch the
+    cross-mount error, which is why this test claims only what it measures.
+    """
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "x.py").write_text("A = 1\n", encoding="utf-8")
+    real_stat = os.stat
+
+    def counted(path, *a, **kw):
+        counted.n += 1
+        return real_stat(path, *a, **kw)
+
+    gate._CASE_FOLD.clear()
+    counted.n = 0
+    monkeypatch.setattr(gate.os, "stat", counted)
+    gate._identity("cold.py")
+    cold = counted.n
+    counted.n = 0
+    gate._identity("warm.py")
+    warm = counted.n
+    monkeypatch.undo()
+    assert warm < cold, "the probe was re-taken: cold=%d warm=%d" % (cold, warm)
+    assert list(gate._CASE_FOLD) == [os.stat(str(tmp_path)).st_dev], gate._CASE_FOLD
+
+
+def test_the_case_probe_refuses_to_answer_from_another_device(tmp_path, monkeypatch):
+    """A probe performed on a DIFFERENT filesystem answers the wrong question.
+
+    When the deepest existing path is itself a mount point, its own name lives in the parent
+    mount, so a case-insensitive volume mounted inside a case-sensitive tree would be probed
+    against the case-sensitive parent, cached as sensitive, and its aliases would then stay
+    distinct -- the silent exit-0 hole. The guard stops the walk at a device boundary and
+    leaves the answer at True (collapse), which is the loud direction.
+
+    Driven directly rather than through a real mount: a fake stat result whose `st_dev`
+    differs from the directory's own is the precise condition, and no test can mount a
+    volume.
+
+    Mutation that reds this: delete the `if cur_st.st_dev != st.st_dev: break` guard.
+    """
+    gate_mod = load_gate()
+    monkeypatch.chdir(tmp_path)
+    probe_dir = tmp_path / 'Vol'
+    probe_dir.mkdir()
+    own = os.stat(str(probe_dir))
+    parent = str(tmp_path)
+    real_stat = os.stat
+
+    class _Foreign:
+        """A parent that reports a different device, i.e. `probe_dir` is a mount point."""
+
+        def __init__(self, src):
+            self.st_dev = src.st_dev + 1000
+            self.st_ino = src.st_ino
+
+    swapped = os.path.join(parent, 'Vol'.swapcase())
+
+    def fake_stat(path, *args, **kwargs):
+        # The swapped name must MISS, the way it would on a case-sensitive parent. Without
+        # this the probe resolves it to the same inode on APFS and answers True regardless of
+        # the guard -- which is exactly how the first version of this test came out vacuous
+        # under its own mutation.
+        if os.path.abspath(str(path)) == os.path.abspath(swapped):
+            raise OSError('probed on the parent device, which does not fold case')
+        result = real_stat(path, *args, **kwargs)
+        if os.path.abspath(str(path)) == os.path.abspath(parent):
+            return _Foreign(result)
+        return result
+
+    monkeypatch.setattr(os, 'stat', fake_stat)
+    gate_mod._CASE_FOLD.clear()
+    try:
+        answer = gate_mod._case_insensitive(str(probe_dir), own)
+    finally:
+        gate_mod._CASE_FOLD.clear()
+    assert answer is True, (
+        'a probe that can only be performed on another device must collapse, not split')
+    # Control: with the parent on the SAME device, the identical foreign lookup is trusted and
+    # the answer flips to False. Without this the test could pass because nothing was probed
+    # at all, rather than because the guard fired.
+    monkeypatch.setattr(os, 'stat', lambda p, *a, **k: (
+        (_ for _ in ()).throw(OSError('absent'))
+        if os.path.abspath(str(p)) == os.path.abspath(swapped)
+        else real_stat(p, *a, **k)))
+    gate_mod._CASE_FOLD.clear()
+    try:
+        same_device = gate_mod._case_insensitive(str(probe_dir), own)
+    finally:
+        gate_mod._CASE_FOLD.clear()
+    assert same_device is False, (
+        'with the parent on the same device the probe must be trusted, so this control '
+        'proves the True above came from the guard and not from an unprobed path')
+
+
+def test_the_two_keys_are_not_one_key(gate, tmp_path, monkeypatch):
+    """The design in one assertion: `_canon` is the WRITER's key and `_identity` is the ALIAS
+    key, and they must not be collapsed into one. `_canon` has to stay `os.path.relpath`
+    because `execute_code_edit` keys its own accumulator and backup set on exactly that
+    (execute-json-ops.py:684) -- pinned by
+    test_the_canonical_key_is_the_executors_own_function above. `_identity` has to be
+    filesystem truth, which relpath is not.
+
+    MUTATION: make `_canon` return `_identity(path)` and the executor-parity test reds; make
+    `_aliases` group on `_canon` and every fold row above reds.
+    """
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "x.py").write_text("A = 1\n", encoding="utf-8")
+    assert gate._canon("./x.py") == os.path.relpath("./x.py") == "x.py"
+    assert isinstance(gate._identity("x.py"), tuple)
+    assert gate._identity("x.py") != gate._canon("x.py")

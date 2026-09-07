@@ -25,6 +25,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   file once, by one path, is now required. A plan that deletes a file and edits a link to it
   is refused for the same reason.
 
+- **The gate's file identity now covers a file that does not exist yet.** An inode can only
+  be read for a path already on disk, so every `file_create` target fell back to a lexical
+  key -- and lexical identity is what the earlier rounds disproved. A plan creating
+  `new.py` and editing `New.py`, or creating through a symlinked directory and editing
+  through the real one, still passed the gate and still left unparseable Python on disk.
+  Identity is now the nearest EXISTING ancestor's `(st_dev, st_ino)` plus the remaining
+  components folded by that device's own measured rules (case, and unicode NFC/NFD, which
+  macOS also folds). Alias detection reads every path the config NAMES rather than only
+  the ones the gate could model. The property, not any one spelling, is what the tests now
+  pin; folds the local filesystem does not perform skip with a stated reason.
+
 - **The parse gate now models the plan the executor will actually run.** Two divergences
   between `ops_precompile.py` and `execute-json-ops.py` let an ops.json pass the gate
   (exit 0, "every Python file still parses") and leave unparseable Python on disk; both were

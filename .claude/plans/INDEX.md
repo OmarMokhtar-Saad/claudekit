@@ -22,13 +22,13 @@ index never outranks the current files.
 
 | State | Plans |
 |---|---:|
-| `drifted` | 8 |
+| `drifted` | 9 |
 | `approved` | 51 |
 | `planned` | 15 |
 | `executed` | 29 |
 | `not_started` | 24 |
 | `legacy` | 3 |
-| **total** | **130** |
+| **total** | **131** |
 
 ## Plans
 
@@ -105,6 +105,7 @@ index never outranks the current files.
 | `.claude/plans/plan-ops-hardening-implementer-contract.md` | `planned` | 1 |  |
 | `.claude/plans/plan-oracle-liveness.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-parse-gate-divergence.md` | `approved` | 1 |  |
+| `.claude/plans/plan-parse-gate-fold-invariance.md` | `drifted` | 4 |  |
 | `.claude/plans/plan-parse-gate-ordering.md` | `drifted` | 2 |  |
 | `.claude/plans/plan-parse-gate-unresolved-paths.md` | `drifted` | 2 |  |
 | `.claude/plans/plan-preserve-dir-symlinks.md` | `not_started` | 0 |  |
