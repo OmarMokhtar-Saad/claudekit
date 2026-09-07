@@ -1,0 +1,19 @@
+{
+  "plan": ".claude/plans/plan-parse-gate-fold-invariance.md",
+  "slug": "parse-gate-fold-invariance",
+  "ops_path": ".claude/plans/plan-parse-gate-fold-invariance.ops.json",
+  "ops_sha256": "6e1788bfe54df779c98b876fc3316399d01a739c8dbb73574c3d4b0e244d711f",
+  "score": 91,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] `_case_insensitive` probes the nearest ancestor's own case-folding via its parent directory; if that ancestor is itself a mount boundary (a case-insensitive volume mounted inside a case-sensitive tree",
+    "[MINOR] Unconditional `unicodedata.normalize('NFC', ...)` assumes standard Unicode NFD/NFC folding matches what HFS+/APFS actually stores; Apple's on-disk normalisation historically diverges from strict Unico",
+    "[MINOR] Case-sensitive-filesystem and non-normalising-filesystem code paths (the pytest.skip branches) have never executed on the author's machine (APFS only); honestly disclosed in the Risk Assessment rather"
+  ],
+  "verdict_origin": "rubric",
+  "recorded_utc": "2026-09-07T14:32:36Z",
+  "operations": 3,
+  "edits": 14,
+  "rounds": [],
+  "round": 1
+}

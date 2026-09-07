@@ -12,6 +12,81 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **The ops parse gate identifies files the way the kernel does.** Two review rounds on the
+  gate found the same defect three times, each in a different spelling: a plan naming one
+  file two ways (`x.py` and `./x.py`, a symlink and its target, or `x.py` and `X.py` on a
+  case-insensitive filesystem) was two files to the gate and one to the writer, so the gate
+  checked one spelling, withheld the other as "not checked", and **exited 0 reporting that
+  every file still parses while the executor left unparseable Python on disk**. The lexical
+  fixes each closed one spelling and left the next; the gate now groups by `(st_dev, st_ino)`
+  — what the operating system means by "the same file" — which closes all of them plus
+  hardlinks with one mechanism, and refuses such a plan rather than guessing, because the
+  writes go through `os.replace`, which replaces a symlink instead of following it. Naming a
+  file once, by one path, is now required. A plan that deletes a file and edits a link to it
+  is refused for the same reason.
+
+- **The gate's file identity now covers a file that does not exist yet.** An inode can only
+  be read for a path already on disk, so every `file_create` target fell back to a lexical
+  key -- and lexical identity is what the earlier rounds disproved. A plan creating
+  `new.py` and editing `New.py`, or creating through a symlinked directory and editing
+  through the real one, still passed the gate and still left unparseable Python on disk.
+  Identity is now the nearest EXISTING ancestor's `(st_dev, st_ino)` plus the remaining
+  components folded by that device's own measured rules (case, and unicode NFC/NFD, which
+  macOS also folds). Alias detection reads every path the config NAMES rather than only
+  the ones the gate could model. The property, not any one spelling, is what the tests now
+  pin; folds the local filesystem does not perform skip with a stated reason.
+
+- **The parse gate now models the plan the executor will actually run.** Two divergences
+  between `ops_precompile.py` and `execute-json-ops.py` let an ops.json pass the gate
+  (exit 0, "every Python file still parses") and leave unparseable Python on disk; both were
+  reproduced end to end against the real executor, and both were reachable past an APPROVED
+  validator run on a default zero-dependency install.
+
+  - **One path identity.** The gate keyed its accumulators on the raw `op['path']` while the
+    executor keys on `os.path.relpath`, so `x.py` and `./x.py` were two files to the gate and
+    one to the writer. The gate now uses the executor's own function. One file reached under
+    two names through a *symlink* is refused outright rather than modelled, because the
+    executor's atomic `os.replace` write replaces the link instead of following it and no
+    lexical key can represent that.
+  - **One normaliser.** `normalize_config` discards `files` whenever `operations` is present;
+    the gate applied both. The executor now hands the gate the config it has already
+    normalised, so there is one normaliser on the execution path, and the standalone CLI's
+    conversion is pinned against the executor's.
+
+  Also: the `BREAK` line names the interpreter grammar it judged with (on the 3.9 floor a
+  valid `match` statement is reported as invalid syntax, and there is no stdlib way to parse
+  a newer grammar); the `PRE` line no longer claims the edits in the plan are innocent of a
+  pre-existing break, which it cannot know; `delete` is modelled only on a literal `true`, as
+  the executor requires; a `run_command` in the config is reported as unmodelled; and the
+  executor's "fail closed on any checker fault" branch is now pinned by a test that made it
+  a crashing checker.
+
+- **The ops pipeline now gates on what an edit LEAVES, not only on what it matches.**
+  Approval, identity and drift all gate on intent; none of them proved the text coming out
+  the other side is text Python can still read. `ops_precompile.py` applies every edit in
+  memory, in the executor's own action precedence, and refuses the run if a touched `.py`
+  would no longer parse or would newly shadow a module-level import. It runs in `--dry-run`
+  as well as execute, and fails closed if the checker is missing or crashes.
+  `--no-parse-check` is the single break-glass, for repairing the checker itself.
+
+  Two ordering rules are part of the gate, not afterthoughts, and both are pinned in both
+  directions:
+
+  - **A precise verdict outranks a symptom.** A missing or ambiguous `find` anchor is
+    reported by the gate but not refused by it, because `execute_code_edit` already fails
+    closed on both and names *which* operation failed (`ambiguous-pattern`). Refusing at the
+    gate would replace `Pattern appears N times (ambiguous match)` with the generic
+    `parse-gate: result does not parse` and flatten `operations` to `[]`.
+  - **The gate is differential.** It refuses breakage a plan *causes*, not breakage it
+    *inherits*. An absolute check would make an already-unparseable file uneditable through
+    the engine unless one plan happened to fix the whole file — so the Iron Law path could
+    not be used to repair a syntax error, which is exactly when it is most wanted.
+  - **A miss names its own file as data.** The set of files whose parse verdict is withheld
+    is built from the path each miss carries, not by re-splitting a rendered `path: reason`
+    line on its first colon. A colon is legal in a filename on macOS and Linux, and the
+    split recovered the wrong key from one -- withholding the verdict for a *different*
+    file of that name, which this same plan broke, and passing the run. Measured in both
+    directions.
 - **On a source checkout, `ck --version` and `ck doctor` reported a stale version.** Version
   resolution preferred `importlib.metadata`, which an editable install (`pip install -e .`)
   freezes at install time, while `install.sh` derives the SOURCE version and stamps it into

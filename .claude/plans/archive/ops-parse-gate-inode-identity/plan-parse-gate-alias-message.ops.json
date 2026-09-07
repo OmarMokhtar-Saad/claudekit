@@ -1,0 +1,31 @@
+{
+  "plan": "parse-gate-alias-message",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/ops_precompile.py",
+      "description": "The ALIAS line printed the raw inode number as the thing being named twice, because the group key changed from a realpath string to ('ino', dev, ino). An operator needs a path, not `330439960`. Report the resolved path of the first spelling instead, and keep the identity itself out of the message.",
+      "edits": [
+        {
+          "find": "    for _ident, _keys in sorted(_aliases(set(files) | deleted | created).items()):\n        bad += 1\n        out.append('ALIAS %s: this plan names one file (%s) %d ways. Neither this gate nor '\n                   'the executor models that -- the writes go through os.replace, which '\n                   'REPLACES a symlink instead of following it. Name the file once, by one '\n                   'path.' % (', '.join(_keys), _ident[-1], len(_keys)))",
+          "replace": "    for _ident, _keys in sorted(_aliases(set(files) | deleted | created).items()):\n        bad += 1\n        # Name a PATH, never the identity. The group key is ('ino', st_dev, st_ino) for a\n        # file that exists, so printing the key put a bare inode number where the reader\n        # needs something they can open.\n        try:\n            _one = os.path.realpath(_keys[0])\n        except OSError:\n            _one = _keys[0]\n        out.append('ALIAS %s: this plan names one file (%s) %d ways. Neither this gate nor '\n                   'the executor models that -- the writes go through os.replace, which '\n                   'REPLACES a symlink instead of following it. Name the file once, by one '\n                   'path.' % (', '.join(_keys), _one, len(_keys)))"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_ops_parse_gate.py",
+      "description": "My assertion was wrong, not the code: the per-spelling MISS/not-checked line still appears, correctly, because that anchor genuinely did not land in the gate's model of that spelling. What matters is that the ALIAS refusal is what DECIDES the verdict. Assert that, and assert the message names a path rather than an inode number.",
+      "edits": [
+        {
+          "find": "    ok, lines = load_gate().check(cfg)\n    body = '\\n'.join(lines)\n    assert ok is False, body\n    assert 'ALIAS' in body, body\n    assert 'not checked' not in body, body",
+          "replace": "    ok, lines = load_gate().check(cfg)\n    body = '\\n'.join(lines)\n    assert ok is False, body\n    assert 'ALIAS' in body, body\n    # The per-spelling `not checked` line may still appear -- that anchor really did not land\n    # in the gate's model of THAT spelling -- but it must no longer be what the verdict rests\n    # on. Before the fix, `not checked` plus `OK x.py still parses` WAS the whole verdict and\n    # the run exited 0. Now the refusal decides.\n    assert 'x.py' in body and 'X.py' in body, body\n    # The message must name a path, not a bare inode number.\n    assert 'names one file (' in body, body\n    assert not re.search(r'names one file \\(\\d+\\)', body), body"
+        },
+        {
+          "find": "import importlib.util\nimport json\nimport os",
+          "replace": "import importlib.util\nimport json\nimport os\nimport re"
+        }
+      ]
+    }
+  ]
+}

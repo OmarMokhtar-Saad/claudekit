@@ -1,0 +1,19 @@
+{
+  "plan": ".claude/plans/plan-parse-gate-divergence.md",
+  "slug": "parse-gate-divergence",
+  "ops_path": ".claude/plans/plan-parse-gate-divergence.ops.json",
+  "ops_sha256": "41fee142e7a1d9d2b2548b67f4b04ffaf636995fc76f1a40b06f1c58dec7c899",
+  "score": 93,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] Dual dict-or-path `check()` signature reintroduces a second normalisation entry point (the standalone CLI's `_normalize`); mitigated by a cross-check test but is the exact duplication class this plan ",
+    "[MINOR] `_parsed_before` (used by the unmodified PRE branch) was not re-checked for canonical-path consistency in this review since it is out of scope for this plan; confirm in a follow-up that it does not re",
+    "[MINOR] Mutation-table and test-count claims were read, not executed \u2014 route to code-reviewer for an execution-based proof before merge, per this repo's Review routing."
+  ],
+  "verdict_origin": "rubric",
+  "recorded_utc": "2026-09-07T13:46:37Z",
+  "operations": 7,
+  "edits": 16,
+  "rounds": [],
+  "round": 1
+}
