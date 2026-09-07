@@ -11,8 +11,11 @@ control:
   `test_the_installer_and_the_cli_cannot_disagree` fail;
 * drop the `src`-layout guard and
   `test_a_wheel_style_layout_still_prefers_installed_metadata` fails;
-* drop the `name = "claude-kit"` guard and
-  `test_an_unrelated_neighbouring_pyproject_is_not_a_kit_source` fails.
+* drop the `name = "claudekit-agents"` guard and
+  `test_an_unrelated_neighbouring_pyproject_is_not_a_kit_source` fails;
+* move the distribution name in ONE of `pyproject.toml`, `_version.DIST_NAME` or
+  `cli/main.py`'s `metadata.version()` argument and
+  `TestTheDistributionNameIsOneString` fails.
 
 The defect being pinned, measured on this machine before the fix: source
 pyproject 3.2.0, editable-install metadata 3.1.0, so `install.sh` stamped 3.2.0
@@ -21,6 +24,7 @@ freshly installed project DRIFTED (7 failures in tests/test_doctor_gate.py that
 CI never saw, because CI installs fresh).
 """
 
+import importlib.util
 import json
 import os
 import re
@@ -40,6 +44,26 @@ INSTALL = REPO / "install.sh"
 SENTINEL = "42.0.1"
 
 ENV = dict(os.environ, ECC_HOOK_PROFILE="minimal")
+
+MAIN = PKG / "cli" / "main.py"
+
+
+def _module_from_source(name, path):
+    """Load one module FILE, without importing the `claudekit` package.
+
+    `import claudekit._version` would resolve against whatever is on sys.path --
+    including an editable install pointing at a DIFFERENT checkout -- so the
+    constant under test would not be this tree's. Loading the file cannot.
+    """
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+#: Derived, never typed: every synthetic tree and metadata lookup below uses the
+#: name the shipped module declares, so a rename cannot half-land in the tests.
+DIST_NAME = _module_from_source("_ck_version_probe", PKG / "_version.py").DIST_NAME
 
 
 def _project_field(text, key):
@@ -69,13 +93,13 @@ def _metadata_version():
     cannot influence the answer.
     """
     env = {k: v for k, v in ENV.items() if k != "PYTHONPATH"}
+    code = ("from importlib import metadata\n"
+            "try:\n"
+            "    print(metadata.version(%r))\n"
+            "except metadata.PackageNotFoundError:\n"
+            "    print('')\n" % DIST_NAME)
     proc = subprocess.run(
-        [sys.executable, "-c",
-         "from importlib import metadata\n"
-         "try:\n"
-         "    print(metadata.version('claude-kit'))\n"
-         "except metadata.PackageNotFoundError:\n"
-         "    print('')\n"],
+        [sys.executable, "-c", code],
         cwd=str(Path(sys.prefix)), capture_output=True, text=True, timeout=60, env=env)
     assert proc.returncode == 0, proc.stderr
     return proc.stdout.strip() or None
@@ -117,7 +141,7 @@ class TestSourceCheckoutWins:
     def test_a_source_checkout_reports_the_source_version(self, tmp_path):
         """The inversion itself. An editable install's metadata is frozen at install
         time; the tree is not, so the tree wins."""
-        root = _synthetic_tree(tmp_path, "src", "claude-kit", SENTINEL)
+        root = _synthetic_tree(tmp_path, "src", DIST_NAME, SENTINEL)
         installed = _metadata_version()
         assert installed != SENTINEL, (
             "the sentinel collides with real installed metadata; this test would pass "
@@ -128,7 +152,7 @@ class TestSourceCheckoutWins:
         """A `[tool.*]` table above `[project]` also has a `version` key. The
         synthetic pyproject carries `[tool.poetry] version = "0.0.9"` for exactly
         this reason: an unanchored match returns it."""
-        root = _synthetic_tree(tmp_path, "src", "claude-kit", SENTINEL)
+        root = _synthetic_tree(tmp_path, "src", DIST_NAME, SENTINEL)
         assert _reported(root) != "0.0.9"
 
     def test_the_cli_and_the_package_both_report_the_pyproject_version(self):
@@ -157,12 +181,12 @@ class TestSourceCheckoutWins:
 class TestInstalledPackageStillUsesMetadata:
     def test_a_wheel_style_layout_still_prefers_installed_metadata(self, tmp_path):
         """No source tree above the package, so metadata is the only truth -- even
-        though a `claude-kit` pyproject sits one directory up. Without the `src`-layout
+        though a matching pyproject sits one directory up. Without the `src`-layout
         guard this returns 7.7.7."""
         installed = _metadata_version()
         if installed is None:
-            pytest.skip("claude-kit is not installed in this environment")
-        root = _synthetic_tree(tmp_path, "site-packages", "claude-kit", "7.7.7")
+            pytest.skip("%s is not installed in this environment" % DIST_NAME)
+        root = _synthetic_tree(tmp_path, "site-packages", DIST_NAME, "7.7.7")
         reported = _reported(root)
         assert reported != "7.7.7"
         assert reported == installed
@@ -179,7 +203,7 @@ class TestInstalledPackageStillUsesMetadata:
     def test_a_src_layout_without_a_pyproject_falls_back_without_raising(self, tmp_path):
         """A tarball or a copied tree. The fallback must be a value, not a traceback."""
         installed = _metadata_version()
-        root = _synthetic_tree(tmp_path, "src", "claude-kit", SENTINEL,
+        root = _synthetic_tree(tmp_path, "src", DIST_NAME, SENTINEL,
                                write_pyproject=False)
         assert _reported(root) == (installed or "unknown")
 
@@ -206,3 +230,36 @@ class TestInstallerAndCliAgree:
         assert manifest["version"] == _pyproject_version(), manifest["version"]
         assert "Install version drift" not in combined, combined
         assert "Install matches kit v%s" % _pyproject_version() in combined, combined
+
+
+class TestTheDistributionNameIsOneString:
+    """The rename coupling, pinned.
+
+    `DIST_NAME` is used twice with DIFFERENT meanings -- the argument to
+    `importlib.metadata.version()`, and the `[project] name` a neighbouring
+    pyproject must declare for `source_version()` to accept the tree as a source
+    checkout -- and `cli/main.py` repeats the literal a third time in the branch
+    where `claudekit._version` is not importable and so cannot supply it. Move
+    fewer than all three and a source checkout stops recognising itself and
+    silently falls back to stale installed metadata: the PR #37 defect.
+    """
+
+    def test_pyproject_version_module_and_cli_name_one_distribution(self):
+        """Mutation: change the name in ANY ONE of the three sites -> this fails."""
+        pyproject_name = _project_field(
+            (REPO / "pyproject.toml").read_text(encoding="utf-8"), "name")
+        literals = re.findall(r'metadata\.version\(\s*"([^"]+)"\s*\)',
+                              MAIN.read_text(encoding="utf-8"))
+        assert literals, "cli/main.py names no distribution to look up any more"
+        assert pyproject_name == DIST_NAME, (pyproject_name, DIST_NAME)
+        assert set(literals) == {DIST_NAME}, (literals, DIST_NAME)
+
+    def test_the_distribution_name_is_the_one_pypi_accepted(self):
+        """Renaming all three at once is still a deliberate act that edits a test.
+
+        `claude-kit` was REFUSED by PyPI as confusable with the unrelated
+        `claudekit` project (PyPI ignores separators when comparing names), and
+        nothing was ever published under it.
+
+        Mutation: rename all three sites consistently -> this fails."""
+        assert DIST_NAME == "claudekit-agents"

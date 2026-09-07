@@ -1,0 +1,31 @@
+{
+  "plan": "pypi-rename-review-fixes",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".ai/DECISIONS.md",
+      "description": "Review MINOR: row #20 was left silent while the file's OWN stated process (line 32) says a contradicting decision should update the entry with the reversal. Adding #24 without a forward pointer leaves a reader who hits #20 first with 'do not fix' and no way to know it was superseded. Add the pointer to #20 while leaving its reasoning and its record intact — the audit trail keeps what was decided and why, and gains the fact that it later changed.",
+      "edits": [
+        {
+          "find": "| 20 | **Publish under PyPI name `claude-kit`; keep CLI `claudekit`/`ck`** (2026-07, `a3ddc09`) | `claudekit` taken on PyPI; npm collision noted in audit | Rename product; squat variations | Slight name mismatch, documented everywhere; do not \"fix\". |",
+          "replace": "| 20 | **Publish under PyPI name `claude-kit`; keep CLI `claudekit`/`ck`** (2026-07, `a3ddc09`) — **SUPERSEDED by #24 (2026-09-07): PyPI refused `claude-kit`; the distribution is now `claudekit-agents`.** The principle below still holds — do not rename the product, the CLI or the repo to chase a distribution name. | `claudekit` taken on PyPI; npm collision noted in audit | Rename product; squat variations | Slight name mismatch, documented everywhere; do not \"fix\" the CLI/import mismatch. The distribution name itself moved in #24. |"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "description": "Review MINOR, and I am taking the reviewer's substantive position: the parse-gate entries sat under [Unreleased] while shipping inside the 3.2.1 wheel, so once 3.2.1 tags that heading states something false about them. A heading's contract is that it describes what the version contains. Move [3.2.1] above them and leave [Unreleased] genuinely empty.",
+      "edits": [
+        {
+          "find": "## [Unreleased]\n\n- **The ops parse gate identifies files the way the kernel does.**",
+          "replace": "## [Unreleased]\n\n## [3.2.1] — 2026-09-07\n\n- **The ops parse gate identifies files the way the kernel does.**"
+        },
+        {
+          "find": "## [3.2.1] — 2026-09-07\n\n### Changed",
+          "replace": "### Changed"
+        }
+      ]
+    }
+  ]
+}

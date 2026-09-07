@@ -1,7 +1,7 @@
 # FAQ — Questions a New Maintainer Will Ask
 
-**Why is the PyPI name `claude-kit` but everything else `claudekit`?**
-The PyPI name was taken. CLI (`claudekit`/`ck`), import package, and repo keep `claudekit`. Deliberate; don't unify.
+**Why is the PyPI distribution `claudekit-agents` but everything else `claudekit`?**
+`claudekit` was already taken on PyPI, and PyPI then REFUSED `claude-kit` as well: it ignores separators when testing names for confusability, so `claude-kit` collapses onto `claudekit`. `claudekit-agents` is what PyPI accepts. Only the DISTRIBUTION name moved — the CLI (`claudekit`/`ck`), the import package and the repo all keep `claudekit`. Nothing was ever published under `claude-kit`, so `pip install claude-kit` was never a working command and no user has to migrate. Deliberate; don't unify.
 
 **Is there Python "application code" here, or is this all prompts?**
 Both. The product is the prompt/hook corpus; `src/claudekit/` is the delivery shell (CLI) plus the security layer. The operations scripts in `.claude/operations/scripts/` ship *into user projects* and stay dependency-free.

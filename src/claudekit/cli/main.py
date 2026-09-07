@@ -42,7 +42,10 @@ def _resolve_version() -> str:
         # Nothing above claudekit on sys.path (an oddly copied single file). Metadata
         # is then the only source; "unknown" over a fabricated number.
         try:
-            return metadata.version("claude-kit")
+            # Must equal `_version.DIST_NAME`; it cannot be imported here, because
+            # reaching this branch means that import already failed. Pinned by
+            # tests/test_version_precedence.py::TestTheDistributionNameIsOneString.
+            return metadata.version("claudekit-agents")
         except metadata.PackageNotFoundError:
             return "unknown"
     return resolve_version()
@@ -241,7 +244,7 @@ def _check_config_schema(data, check):
     The schema shipped for weeks without a single executable applying it, so the
     config drifted out of conformance unnoticed. It is wired here rather than in a
     hook so it runs wherever `ck doctor` runs. `jsonschema` is an optional extra
-    (`pip install 'claude-kit[validation]'`) because the runtime is dependency-free;
+    (`pip install 'claudekit-agents[validation]'`) because the runtime is dependency-free;
     when it is absent the check degrades to a warning instead of silently passing.
     """
     root = find_claudekit_root()
@@ -254,7 +257,7 @@ def _check_config_schema(data, check):
         import jsonschema
     except ImportError:
         check(label, "warn",
-              "jsonschema not installed - run: pip install 'claude-kit[validation]'")
+              "jsonschema not installed - run: pip install 'claudekit-agents[validation]'")
         return
     try:
         schema = json.loads(schema_path.read_text())
@@ -710,7 +713,7 @@ def cmd_doctor(args):
     # instead of a hand-kept fleet spreadsheet.
     #
     # The SEVERITY is deliberately not uniform, because the fleet's steady state is
-    # many projects sharing one global claude-kit install with staggered syncs. A
+    # many projects sharing one global ClaudeKit install with staggered syncs. A
     # warning on ANY difference would redden `ck doctor --strict` - a gate this
     # repo lists in its own Definition of Done - across every project the moment a
     # release lands, which trains people to ignore it. So:
