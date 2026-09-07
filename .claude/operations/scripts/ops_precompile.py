@@ -56,15 +56,15 @@ def _apply(src, edit, path, misses):
     """
     find = edit.get('find')
     if not find:
-        misses.append('%s: edit has no find pattern' % path)
+        misses.append((path, 'edit has no find pattern'))
         return src
     seen = src.count(find)
     if seen == 0:
-        misses.append('%s: anchor not found: %r' % (path, find[:60]))
+        misses.append((path, 'anchor not found: %r' % (find[:60],)))
         return src
     if seen > 1:
-        misses.append('%s: anchor is ambiguous — it appears %d times, and the executor '
-                      'refuses an ambiguous match: %r' % (path, seen, find[:60]))
+        misses.append((path, 'anchor is ambiguous — it appears %d times, and the executor '
+                             'refuses an ambiguous match: %r' % (seen, find[:60])))
         return src
     # ORDER IS LOAD-BEARING AND IS NOT ALPHABETICAL. It mirrors the if/elif chain in
     # `execute_code_edit` (add_after, add_before, replace, delete) because an edit may carry
@@ -82,12 +82,18 @@ def _apply(src, edit, path, misses):
         return src.replace(find, edit['replace'], 1)
     if edit.get('delete'):
         return src.replace(find, '', 1)
-    misses.append('%s: edit names no action (replace/add_after/add_before/delete)' % path)
+    misses.append((path, 'edit names no action (replace/add_after/add_before/delete)'))
     return src
 
 
 def simulate(ops):
-    """({path: final text}, [missed anchors], {paths this plan CREATES}).
+    """({path: final text}, [(path, reason) misses], {paths this plan CREATES}).
+
+    A MISS IS A PAIR, NOT A SENTENCE. The path travels as its own value because `check`
+    needs it back to decide which file's parse verdict to withhold, and recovering it from
+    a rendered line cannot be done safely: a colon is legal in a filename on macOS and on
+    Linux, so `mod.py:v1: anchor not found` splits into the WRONG key. Rendering happens
+    once, at the point of output.
 
     The third value exists so the verdict can say which claim it is making. "This file was
     edited and still parses" and "this file is new and parses" are different statements about
@@ -111,7 +117,7 @@ def simulate(ops):
         src = files.get(path)
         if src is None:
             if not os.path.exists(path):
-                misses.append('%s: no such file to edit' % path)
+                misses.append((path, 'no such file to edit'))
                 continue
             with open(path, encoding='utf-8-sig') as fh:
                 src = fh.read()
@@ -125,8 +131,8 @@ def simulate(ops):
             # a KeyError there, not an empty file. Modelling it as '' would green-light a plan
             # that cannot run.
             if 'content' not in op:
-                misses.append('%s: file_create has no content key (the executor would '
-                              'KeyError on it)' % path)
+                misses.append((path, 'file_create has no content key (the executor '
+                                     'would KeyError on it)'))
                 continue
             files[path] = op.get('content') or ''
             created.add(path)
@@ -141,10 +147,10 @@ def simulate(ops):
                 if path in deleted:
                     # The file is still on disk -- this plan has not run yet -- so a naive
                     # re-read would model an edit the executor cannot perform.
-                    misses.append('%s: edited after this same plan deletes it' % path)
+                    misses.append((path, 'edited after this same plan deletes it'))
                     continue
                 if not os.path.exists(path):
-                    misses.append('%s: no such file to edit' % path)
+                    misses.append((path, 'no such file to edit'))
                     continue
                 with open(path, encoding='utf-8-sig') as fh:
                     src = fh.read()
@@ -315,13 +321,24 @@ def check(config_path, quiet=False):
     # (below), but it does not fail this gate. Nothing is waved through by that: the executor
     # refuses the same plan a moment later, with a better message. This module refuses only
     # what it is the sole authority on -- Python that would not parse.
-    for miss in misses:
-        out.append('MISS  %s' % miss)
+    for miss_path, miss_reason in misses:
+        out.append('MISS  %s: %s' % (miss_path, miss_reason))
     # A file whose anchors did not all land is NOT reported as parsing. It would parse -- the
     # edit that was going to break it never got applied -- and printing "OK" there would be
     # the checker telling a true sentence that means the opposite of what a reader takes from
     # it. The verdict is withheld and said to be withheld.
-    unresolved = {m.split(':', 1)[0] for m in misses}
+    # THE PATH IS CARRIED, NOT RE-PARSED. This set was once rebuilt by splitting each
+    # rendered miss on its first colon -- and a colon is legal in a filename on both macOS
+    # and Linux. `mod.py:v1: anchor not found ...` then yielded the key `mod.py`, so a
+    # DIFFERENT file named `mod.py` that this same plan genuinely broke matched here and was
+    # printed as "not checked" instead of BREAK. Measured: that turned a refusal (ok=False)
+    # into a pass (ok=True) on a plan whose result does not compile -- the exact silent pass
+    # this module exists to prevent. A formatted string is a lossy channel for structured
+    # data, so `misses` carries (path, reason) and the rendering happens above, at the
+    # output. The other direction was a false claim rather than a hole: the colon-bearing
+    # file itself fell OUT of this set and was reported "still parses" though its anchor
+    # never landed.
+    unresolved = {miss_path for miss_path, _ in misses}
     for path in sorted(files):
         if path in unresolved:
             out.append('?     %s not checked — an anchor above did not land, so the text '

@@ -1,0 +1,67 @@
+{
+  "plan": "parse-gate-unresolved-paths",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/ops_precompile.py",
+      "edits": [
+        {
+          "find": "    find = edit.get('find')\n    if not find:\n        misses.append('%s: edit has no find pattern' % path)\n        return src\n    seen = src.count(find)\n    if seen == 0:\n        misses.append('%s: anchor not found: %r' % (path, find[:60]))\n        return src\n    if seen > 1:\n        misses.append('%s: anchor is ambiguous — it appears %d times, and the executor '\n                      'refuses an ambiguous match: %r' % (path, seen, find[:60]))\n        return src\n",
+          "replace": "    find = edit.get('find')\n    if not find:\n        misses.append((path, 'edit has no find pattern'))\n        return src\n    seen = src.count(find)\n    if seen == 0:\n        misses.append((path, 'anchor not found: %r' % (find[:60],)))\n        return src\n    if seen > 1:\n        misses.append((path, 'anchor is ambiguous — it appears %d times, and the executor '\n                             'refuses an ambiguous match: %r' % (seen, find[:60])))\n        return src\n"
+        },
+        {
+          "find": "    misses.append('%s: edit names no action (replace/add_after/add_before/delete)' % path)\n",
+          "replace": "    misses.append((path, 'edit names no action (replace/add_after/add_before/delete)'))\n"
+        },
+        {
+          "find": "    \"\"\"({path: final text}, [missed anchors], {paths this plan CREATES}).\n",
+          "replace": "    \"\"\"({path: final text}, [(path, reason) misses], {paths this plan CREATES}).\n\n    A MISS IS A PAIR, NOT A SENTENCE. The path travels as its own value because `check`\n    needs it back to decide which file's parse verdict to withhold, and recovering it from\n    a rendered line cannot be done safely: a colon is legal in a filename on macOS and on\n    Linux, so `mod.py:v1: anchor not found` splits into the WRONG key. Rendering happens\n    once, at the point of output.\n"
+        },
+        {
+          "find": "            if not os.path.exists(path):\n                misses.append('%s: no such file to edit' % path)\n                continue\n",
+          "replace": "            if not os.path.exists(path):\n                misses.append((path, 'no such file to edit'))\n                continue\n"
+        },
+        {
+          "find": "            if 'content' not in op:\n                misses.append('%s: file_create has no content key (the executor would '\n                              'KeyError on it)' % path)\n                continue\n",
+          "replace": "            if 'content' not in op:\n                misses.append((path, 'file_create has no content key (the executor '\n                                     'would KeyError on it)'))\n                continue\n"
+        },
+        {
+          "find": "                    misses.append('%s: edited after this same plan deletes it' % path)\n",
+          "replace": "                    misses.append((path, 'edited after this same plan deletes it'))\n"
+        },
+        {
+          "find": "                if not os.path.exists(path):\n                    misses.append('%s: no such file to edit' % path)\n                    continue\n",
+          "replace": "                if not os.path.exists(path):\n                    misses.append((path, 'no such file to edit'))\n                    continue\n"
+        },
+        {
+          "find": "    for miss in misses:\n        out.append('MISS  %s' % miss)\n",
+          "replace": "    for miss_path, miss_reason in misses:\n        out.append('MISS  %s: %s' % (miss_path, miss_reason))\n"
+        },
+        {
+          "find": "    unresolved = {m.split(':', 1)[0] for m in misses}\n",
+          "replace": "    # THE PATH IS CARRIED, NOT RE-PARSED. This set was once rebuilt by splitting each\n    # rendered miss on its first colon -- and a colon is legal in a filename on both macOS\n    # and Linux. `mod.py:v1: anchor not found ...` then yielded the key `mod.py`, so a\n    # DIFFERENT file named `mod.py` that this same plan genuinely broke matched here and was\n    # printed as \"not checked\" instead of BREAK. Measured: that turned a refusal (ok=False)\n    # into a pass (ok=True) on a plan whose result does not compile -- the exact silent pass\n    # this module exists to prevent. A formatted string is a lossy channel for structured\n    # data, so `misses` carries (path, reason) and the rendering happens above, at the\n    # output. The other direction was a false claim rather than a hole: the colon-bearing\n    # file itself fell OUT of this set and was reported \"still parses\" though its anchor\n    # never landed.\n    unresolved = {miss_path for miss_path, _ in misses}\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_ops_parse_gate.py",
+      "edits": [
+        {
+          "find": "    assert ok is False, \"\\n\".join(lines)\n    assert \"BREAK\" in \"\\n\".join(lines)\n    assert \"PRE\" not in \"\\n\".join(lines)\n",
+          "replace": "    assert ok is False, \"\\n\".join(lines)\n    assert \"BREAK\" in \"\\n\".join(lines)\n    assert \"PRE\" not in \"\\n\".join(lines)\n\n\n# -------------------------------------------- a miss names its own file, structurally\n\ndef test_a_colon_in_one_path_does_not_hide_a_break_in_another(gate, tmp_path, monkeypatch):\n    \"\"\"MUTATION PROOF: rebuild `unresolved` as `{m.split(':', 1)[0] for m in misses}` and\n    this goes green on a plan that breaks a file -- `ok` flips to True and the BREAK line\n    vanishes, replaced by a \"not checked\" line about the wrong file.\n\n    A colon is legal in a filename on macOS and on Linux. Split on its first colon,\n    `mod.py:v1: anchor not found ...` yields the key `mod.py` -- a DIFFERENT file that this\n    plan really does break.\n    \"\"\"\n    monkeypatch.chdir(tmp_path)\n    (tmp_path / \"mod.py:v1\").write_text(\"x = 1\\n\")\n    (tmp_path / \"mod.py\").write_text(\"def f():\\n    return 1\\n\")\n    ok, lines = gate.check(write_ops(tmp_path, [\n        {\"type\": \"code_edit\", \"path\": \"mod.py:v1\",\n         \"edits\": [{\"find\": \"nowhere\", \"replace\": \"y = 2\"}]},\n        {\"type\": \"code_edit\", \"path\": \"mod.py\",\n         \"edits\": [{\"find\": \"    return 1\", \"replace\": \"    return f'{'\"}]}]))\n    blob = \"\\n\".join(lines)\n    assert ok is False, blob\n    assert \"BREAK mod.py:\" in blob, blob\n    assert \"mod.py not checked\" not in blob, blob\n\n\ndef test_the_withheld_verdict_lands_on_the_path_that_missed(gate, tmp_path, monkeypatch):\n    \"\"\"The other direction. The colon-bearing file is the one withheld; its clean sibling\n    is still checked.\n\n    MUTATION PROOF: with the string-split version `a:b.py` is absent from `unresolved`\n    (the key is `a`), so it is reported \"OK ... still parses\" -- a false claim about a file\n    whose anchor never landed -- and the `not checked` assertion goes red.\n    \"\"\"\n    monkeypatch.chdir(tmp_path)\n    (tmp_path / \"a:b.py\").write_text(\"x = 1\\n\")\n    (tmp_path / \"a.py\").write_text(\"y = 1\\n\")\n    ok, lines = gate.check(write_ops(tmp_path, [\n        {\"type\": \"code_edit\", \"path\": \"a:b.py\",\n         \"edits\": [{\"find\": \"nowhere\", \"replace\": \"z = 2\"}]},\n        {\"type\": \"code_edit\", \"path\": \"a.py\",\n         \"edits\": [{\"find\": \"y = 1\", \"replace\": \"y = 2\"}]}]))\n    blob = \"\\n\".join(lines)\n    assert ok is True, blob\n    assert \"?     a:b.py not checked\" in blob, blob\n    assert \"OK    a.py still parses\" in blob, blob\n    assert \"OK    a:b.py\" not in blob, blob\n\n\ndef test_the_miss_line_text_is_unchanged_by_the_structured_record(gate, tmp_path, target):\n    \"\"\"Carrying the pair must not change one byte of what is printed. Print the tuple\n    (`'MISS  %s' % miss`), drop the ': ', or swap the two halves, and this goes red.\n    \"\"\"\n    _, lines = gate.check(edit_ops(tmp_path, [{\"find\": \"nowhere at all\", \"replace\": \"x = 1\"}]))\n    assert \"MISS  target.py: anchor not found: 'nowhere at all'\" in lines, lines\n\n\ndef test_a_reason_with_colons_of_its_own_still_names_the_right_path(gate, tmp_path,\n                                                                    monkeypatch):\n    \"\"\"The ambiguity reason carries colons of its own. Under the old split those were\n    harmless -- the FIRST colon was the path delimiter -- and that must stay true.\n\n    MUTATION PROOF: append `(reason, path)` instead of `(path, reason)` and both\n    assertions go red.\n    \"\"\"\n    monkeypatch.chdir(tmp_path)\n    (tmp_path / \"amb.py\").write_text(\"x = 1\\nx = 1\\n\")\n    _, lines = gate.check(edit_ops(tmp_path, [{\"find\": \"x = 1\", \"replace\": \"x = 2\"}],\n                                   path=\"amb.py\"))\n    blob = \"\\n\".join(lines)\n    assert \"MISS  amb.py: anchor is ambiguous\" in blob, blob\n    assert \"?     amb.py not checked\" in blob, blob\n\n\ndef test_simulate_carries_the_path_as_data_not_a_formatted_string(gate, tmp_path,\n                                                                  monkeypatch):\n    \"\"\"`simulate`'s second value is the contract the withheld-verdict set is built from, so\n    it is pinned directly: the path comes back as itself, colons and all.\n\n    MUTATION PROOF: go back to appending `'%s: reason' % path` and the unpacking below\n    raises ValueError, so this goes red on the contract as well as on the behaviour above.\n    \"\"\"\n    monkeypatch.chdir(tmp_path)\n    (tmp_path / \"c:d.py\").write_text(\"x = 1\\n\")\n    cfg = write_ops(tmp_path, [{\"type\": \"code_edit\", \"path\": \"c:d.py\",\n                                \"edits\": [{\"find\": \"nowhere\", \"replace\": \"y = 2\"}]}])\n    with open(cfg, encoding=\"utf-8\") as fh:\n        _files, misses, _created = gate.simulate(json.load(fh))\n    assert [p for p, _r in misses] == [\"c:d.py\"], misses\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "edits": [
+        {
+          "find": "    not be used to repair a syntax error, which is exactly when it is most wanted.\n",
+          "replace": "    not be used to repair a syntax error, which is exactly when it is most wanted.\n  - **A miss names its own file as data.** The set of files whose parse verdict is withheld\n    is built from the path each miss carries, not by re-splitting a rendered `path: reason`\n    line on its first colon. A colon is legal in a filename on macOS and Linux, and the\n    split recovered the wrong key from one -- withholding the verdict for a *different*\n    file of that name, which this same plan broke, and passing the run. Measured in both\n    directions.\n"
+        }
+      ]
+    }
+  ]
+}

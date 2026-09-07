@@ -493,3 +493,93 @@ def test_a_new_break_in_a_file_that_did_parse_is_still_refused(gate, tmp_path, t
     assert ok is False, "\n".join(lines)
     assert "BREAK" in "\n".join(lines)
     assert "PRE" not in "\n".join(lines)
+
+
+# -------------------------------------------- a miss names its own file, structurally
+
+def test_a_colon_in_one_path_does_not_hide_a_break_in_another(gate, tmp_path, monkeypatch):
+    """MUTATION PROOF: rebuild `unresolved` as `{m.split(':', 1)[0] for m in misses}` and
+    this goes green on a plan that breaks a file -- `ok` flips to True and the BREAK line
+    vanishes, replaced by a "not checked" line about the wrong file.
+
+    A colon is legal in a filename on macOS and on Linux. Split on its first colon,
+    `mod.py:v1: anchor not found ...` yields the key `mod.py` -- a DIFFERENT file that this
+    plan really does break.
+    """
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "mod.py:v1").write_text("x = 1\n")
+    (tmp_path / "mod.py").write_text("def f():\n    return 1\n")
+    ok, lines = gate.check(write_ops(tmp_path, [
+        {"type": "code_edit", "path": "mod.py:v1",
+         "edits": [{"find": "nowhere", "replace": "y = 2"}]},
+        {"type": "code_edit", "path": "mod.py",
+         "edits": [{"find": "    return 1", "replace": "    return f'{'"}]}]))
+    blob = "\n".join(lines)
+    assert ok is False, blob
+    assert "BREAK mod.py:" in blob, blob
+    assert "mod.py not checked" not in blob, blob
+
+
+def test_the_withheld_verdict_lands_on_the_path_that_missed(gate, tmp_path, monkeypatch):
+    """The other direction. The colon-bearing file is the one withheld; its clean sibling
+    is still checked.
+
+    MUTATION PROOF: with the string-split version `a:b.py` is absent from `unresolved`
+    (the key is `a`), so it is reported "OK ... still parses" -- a false claim about a file
+    whose anchor never landed -- and the `not checked` assertion goes red.
+    """
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "a:b.py").write_text("x = 1\n")
+    (tmp_path / "a.py").write_text("y = 1\n")
+    ok, lines = gate.check(write_ops(tmp_path, [
+        {"type": "code_edit", "path": "a:b.py",
+         "edits": [{"find": "nowhere", "replace": "z = 2"}]},
+        {"type": "code_edit", "path": "a.py",
+         "edits": [{"find": "y = 1", "replace": "y = 2"}]}]))
+    blob = "\n".join(lines)
+    assert ok is True, blob
+    assert "?     a:b.py not checked" in blob, blob
+    assert "OK    a.py still parses" in blob, blob
+    assert "OK    a:b.py" not in blob, blob
+
+
+def test_the_miss_line_text_is_unchanged_by_the_structured_record(gate, tmp_path, target):
+    """Carrying the pair must not change one byte of what is printed. Print the tuple
+    (`'MISS  %s' % miss`), drop the ': ', or swap the two halves, and this goes red.
+    """
+    _, lines = gate.check(edit_ops(tmp_path, [{"find": "nowhere at all", "replace": "x = 1"}]))
+    assert "MISS  target.py: anchor not found: 'nowhere at all'" in lines, lines
+
+
+def test_a_reason_with_colons_of_its_own_still_names_the_right_path(gate, tmp_path,
+                                                                    monkeypatch):
+    """The ambiguity reason carries colons of its own. Under the old split those were
+    harmless -- the FIRST colon was the path delimiter -- and that must stay true.
+
+    MUTATION PROOF: append `(reason, path)` instead of `(path, reason)` and both
+    assertions go red.
+    """
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "amb.py").write_text("x = 1\nx = 1\n")
+    _, lines = gate.check(edit_ops(tmp_path, [{"find": "x = 1", "replace": "x = 2"}],
+                                   path="amb.py"))
+    blob = "\n".join(lines)
+    assert "MISS  amb.py: anchor is ambiguous" in blob, blob
+    assert "?     amb.py not checked" in blob, blob
+
+
+def test_simulate_carries_the_path_as_data_not_a_formatted_string(gate, tmp_path,
+                                                                  monkeypatch):
+    """`simulate`'s second value is the contract the withheld-verdict set is built from, so
+    it is pinned directly: the path comes back as itself, colons and all.
+
+    MUTATION PROOF: go back to appending `'%s: reason' % path` and the unpacking below
+    raises ValueError, so this goes red on the contract as well as on the behaviour above.
+    """
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "c:d.py").write_text("x = 1\n")
+    cfg = write_ops(tmp_path, [{"type": "code_edit", "path": "c:d.py",
+                                "edits": [{"find": "nowhere", "replace": "y = 2"}]}])
+    with open(cfg, encoding="utf-8") as fh:
+        _files, misses, _created = gate.simulate(json.load(fh))
+    assert [p for p, _r in misses] == ["c:d.py"], misses
