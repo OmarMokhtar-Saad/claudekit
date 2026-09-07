@@ -1,0 +1,28 @@
+{
+  "plan": ".claude/plans/plan-omniroute-adoption.md",
+  "slug": "omniroute-adoption",
+  "ops_path": ".claude/plans/plan-omniroute-adoption.ops.json",
+  "ops_sha256": "150d2b3f2e554a6fdd14cae5e11b5e0c0ea0859d999bbb279884519eccd95981",
+  "score": 93,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] Plan does not mention re-running `scripts/gen-plan-index.py` or the required `Plan-Id: omniroute-adoption` commit trailer needed for `.claude/plans/INDEX.md` to correctly record this plan's state \u2014 pr"
+  ],
+  "verdict_origin": "rubric",
+  "recorded_utc": "2026-09-06T21:02:37Z",
+  "operations": 6,
+  "edits": 11,
+  "rounds": [
+    {
+      "score": 93,
+      "decision": "APPROVED",
+      "findings": [
+        "[MINOR] Plan does not mention re-running `scripts/gen-plan-index.py` or the required `Plan-Id: omniroute-adoption` commit trailer needed for `.claude/plans/INDEX.md` to correctly record this plan's state \u2014 pr"
+      ],
+      "recorded_utc": "2026-09-06T20:59:32Z",
+      "ops_sha256": "4200b313861e9cccf3bf49fb60b8437e365e9293d9f88304aa6187bdd0c09f35",
+      "verdict_origin": "rubric"
+    }
+  ],
+  "round": 2
+}

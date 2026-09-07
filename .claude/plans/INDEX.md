@@ -25,10 +25,10 @@ index never outranks the current files.
 | `drifted` | 4 |
 | `approved` | 50 |
 | `planned` | 15 |
-| `executed` | 28 |
+| `executed` | 29 |
 | `not_started` | 24 |
 | `legacy` | 3 |
-| **total** | **124** |
+| **total** | **125** |
 
 ## Plans
 
@@ -97,6 +97,7 @@ index never outranks the current files.
 | `.claude/plans/plan-mcp-probe-addendum.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-memory-store.md` | `approved` | 1 |  |
 | `.claude/plans/plan-model-routing-token-orchestration.md` | `not_started` | 0 |  |
+| `.claude/plans/plan-omniroute-adoption.md` | `executed` | 1 |  |
 | `.claude/plans/plan-open-issues.md` | `approved` | 1 |  |
 | `.claude/plans/plan-ops-approval-gate.md` | `approved` | 1 |  |
 | `.claude/plans/plan-ops-engine-file-modes.md` | `approved` | 1 |  |

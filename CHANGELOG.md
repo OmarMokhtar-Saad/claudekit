@@ -24,6 +24,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   manifests already held the execution history; nothing could read it. `--json` exists so
   the queued-ops and archive gates can consult that data instead of hand-kept README rows.
 
+- **Tier degradation is data, not folklore.** "On limits, degrade one tier, never stop"
+  lived only as prose in CLAUDE.md while escalation was already structured
+  (`escalate_to`/`escalate_when`). Each `capability_tiers` entry in
+  `.claude/model-policy.json` now carries `degrade_to` (most-capable -> balanced ->
+  fast -> null), and `scripts/gen-model-policy.py` fails closed on a target that names
+  an unknown tier or on a chain that cycles instead of terminating. Agent frontmatter
+  is untouched.
+- **`ck doctor` reports install-vs-kit version drift.** The install manifest has always
+  recorded the version a project was installed from; doctor now compares it to the
+  version of the `claudekit` package running the command. Severity is semver-aware so
+  that a gate stays meaningful: a major/minor gap warns (and so reddens `--strict`) with
+  a reinstall hint, a patch-only gap prints one informational line that affects neither
+  the readiness score nor `--strict`, and a missing, ejected or unparseable recorded
+  version is reported as a skip.
+
 - **The reflection demand states the field set and the text budget.** Filing a receipt
   against the newly self-describing demand still cost three refusal rounds -- an unknown
   field, the 240-character single-line cap, and the path/credential shape rule -- because
