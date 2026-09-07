@@ -1002,32 +1002,69 @@ def test_the_identity_agrees_with_the_kernel_on_every_fold_it_performs(gate, tmp
     probe.mkdir()
     folded_by_kernel = []
     for code in FOLD_DIVERGENT:
-        upper, lower = chr(code), chr(code).casefold()
-        if lower == upper or len(lower) != 1:
-            continue
-        first = probe / ('n%s.py' % upper)
+        base = chr(code)
+        # EVERY spelling, not just `casefold`. The previous version derived twins from
+        # `casefold()` alone and then skipped any whose fold was not one character -- which
+        # discarded U+0390 and the ten like it, U+00DF, U+FB01 and U+1E9E: the entire
+        # multi-character expansion branch, which is exactly where the bug was. The kernel
+        # folds many-to-one over PAIRS, so the pairs must be formed the way a filename varies.
+        twins = {base.upper(), base.lower(), base.casefold(), base.title(), base.swapcase(),
+                 unicodedata.normalize('NFC', base), unicodedata.normalize('NFD', base)}
+        first = probe / ('n%s.py' % base)
         try:
             first.write_text('A = 1\n', encoding='utf-8')
-            twin = os.stat(str(probe / ('n%s.py' % lower)))
+            own = os.stat(str(first))
         except (OSError, ValueError, UnicodeError):
             continue
-        finally:
+        for other in twins:
+            if not other or other == base:
+                continue
             try:
-                first.unlink()
-            except OSError:  # silent-ok: tidying a probe file inside tmp_path, which pytest removes anyway; a failed unlink must not fail a test about fold identity
-                pass
-        if twin.st_ino:
-            folded_by_kernel.append((upper, lower))
+                twin = os.stat(str(probe / ('n%s.py' % other)))
+            except (OSError, ValueError, UnicodeError):
+                continue
+            # INODE EQUALITY, not `if twin.st_ino`. Any successful stat was scored as a fold,
+            # so the assertion carrying the whole property did not assert it.
+            if (twin.st_dev, twin.st_ino) == (own.st_dev, own.st_ino):
+                folded_by_kernel.append((base, other))
+        try:
+            first.unlink()
+        except OSError:  # silent-ok: tidying a probe file inside tmp_path, which pytest removes anyway; a failed unlink must not fail a test about fold identity
+            pass
     if not folded_by_kernel:
         pytest.skip('this filesystem folds none of the divergent codepoints (case-sensitive)')
     disagreed = []
-    for upper, lower in folded_by_kernel:
-        a, b = 'new%s.py' % upper, 'new%s.py' % lower
+    for base, other in folded_by_kernel:
+        a, b = 'new%s.py' % base, 'new%s.py' % other
         if gate._identity(a) != gate._identity(b):
-            disagreed.append('U+%04X' % ord(upper))
+            disagreed.append('U+%04X vs %r' % (ord(base), other))
     assert not disagreed, (
         'the filesystem folds these codepoints and the gate does not, so one file gets two '
         'identities: %s' % ', '.join(disagreed))
+
+
+def test_dotdot_through_a_symlinked_directory_is_one_identity(gate, tmp_path, monkeypatch):
+    """`abspath` runs `normpath` FIRST, so it collapses `..` before any symlink to its left is
+    resolved: `deep/../x.py` with `deep -> a/b/c` resolved to the top level rather than to
+    `a/b/`, and split identity from `a/b/x.py`.
+
+    A review found the fix correct but UNPINNED -- reverting it left 111 tests green, the
+    fourth fix in this series with no behavioural binding.
+
+    MUTATION: restore `os.path.realpath(os.path.abspath(path))` and this reds.
+    """
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / 'a' / 'b' / 'c').mkdir(parents=True)
+    (tmp_path / 'a' / 'b' / 'x.py').write_text('A = 1\n', encoding='utf-8')
+    (tmp_path / 'x.py').write_text('DECOY = 1\n', encoding='utf-8')
+    try:
+        os.symlink(str(tmp_path / 'a' / 'b' / 'c'), str(tmp_path / 'deep'))
+    except (OSError, NotImplementedError, AttributeError):
+        pytest.skip('this platform cannot create symlinks here')
+    assert gate._identity('deep/../x.py') == gate._identity('a/b/x.py'), (
+        'deep/../x.py resolves into a/b/, so it and a/b/x.py are one file')
+    assert gate._identity('deep/../x.py') != gate._identity('x.py'), (
+        'the top-level decoy is a different file and must keep a different identity')
 
 
 def test_creating_one_spelling_and_editing_another_is_refused(gate, tmp_path, monkeypatch):
