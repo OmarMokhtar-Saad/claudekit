@@ -33,7 +33,7 @@ def _resolve_version() -> str:
         # the packaging test's forbidden-literal list happened not to include
         # "2.1.0" -- so a source checkout reported a version two releases old and
         # nothing failed. The test now derives instead of listing.
-        return "3.1.0"
+        return "3.2.0"
 
 
 __version__ = _resolve_version()
