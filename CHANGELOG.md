@@ -11,6 +11,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `open-source-forker` — never shipped and have been removed.
 
 ## [Unreleased]
+
+## [3.2.0] — 2026-09-07
+
+- **Upgrade note for kitted projects.** This release adds the `ck doctor` install-drift
+  check below, and it fires on the release itself: every project whose
+  `.claudekit-manifest.json` was written by 3.1.0 is now one minor behind the running
+  package, so `ck doctor --strict` reports `Install version drift` (readiness 98/100,
+  exit 1) until the project is refreshed with `ck update` or a re-run of `install.sh`.
+  That is the check working, not a regression; patch-level drift is deliberately
+  routed around the strict gate.
+
 - **`restore-backup.py --list` ordered backups by plan name, not by time.** `list_backups`
   sorted directory names in reverse, under a comment asserting that a lexicographic sort
   over `<plan>-<YYYYmmdd>-<HHMMSS>-<micros>` is a chronological one. It orders by plan slug
