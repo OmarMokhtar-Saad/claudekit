@@ -12,6 +12,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Tier degradation is data, not folklore.** "On limits, degrade one tier, never stop"
+  lived only as prose in CLAUDE.md while escalation was already structured
+  (`escalate_to`/`escalate_when`). Each `capability_tiers` entry in
+  `.claude/model-policy.json` now carries `degrade_to` (most-capable -> balanced ->
+  fast -> null), and `scripts/gen-model-policy.py` fails closed on a target that names
+  an unknown tier or on a chain that cycles instead of terminating. Agent frontmatter
+  is untouched.
+- **`ck doctor` reports install-vs-kit version drift.** The install manifest has always
+  recorded the version a project was installed from; doctor now compares it to the
+  version of the `claudekit` package running the command. Severity is semver-aware so
+  that a gate stays meaningful: a major/minor gap warns (and so reddens `--strict`) with
+  a reinstall hint, a patch-only gap prints one informational line that affects neither
+  the readiness score nor `--strict`, and a missing, ejected or unparseable recorded
+  version is reported as a skip.
+
 - **Agents now learn from the project, and the learning loop finally writes something.**
   Seven agents (`code-reviewer`, `debugger`, `explore`, `verifier`, `security-scanner`,
   `planner`, `reviewer`) carry `memory: project`, so Claude Code auto-loads

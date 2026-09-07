@@ -1,6 +1,47 @@
 # AI Session Changelog
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
+## 2026-09-06 — OmniRoute adoption: degrade_to as data, doctor version drift
+
+Researched the MIT-licensed `diegosouzapw/OmniRoute` AI gateway and adopted two ideas
+from it. **No code vendored** — its 352-provider routing, 19 strategy plugins, dashboard
+and LLMLingua compression stack were all rejected on the same ground: it arbitrages
+between *vendors*, while ClaudeKit routes one vendor's capability tiers and does not own
+the request path at all. A gateway would also have broken the zero-runtime-dependency rule.
+
+**What landed.** (1) `degrade_to` on every `capability_tiers` entry, with `load_policy`
+walking each chain to its terminal null — `escalate_to` was already structured data while
+"degrade one tier, never stop" lived only in CLAUDE.md prose, so escalation was checkable
+and degradation was folklore. The key is mandatory: an absent one is not a terminal chain.
+(2) `cmd_doctor` compares the manifest version `install.sh` has always stamped against the
+running `__version__`. Suite 10896 → 10915 passed; all nine gates green.
+
+**The severity was the whole design, and round 1 got it wrong.** The first plan warned on
+any difference and pinned that with a test; review REJECTED at 82. `check()` reddens
+`--strict` on any warning, and the fleet's steady state is ~15 projects sharing one global
+install with staggered syncs — every project would have gone permanently red on a condition
+nobody can act on, degrading a gate this repo names in its own DoD. *Pinning a design flaw
+with a test documents it; it does not fix it.* Round 2 ships semver-aware severity:
+major/minor warns, patch-only is an `info()` line routed **around** `check()`, unparseable
+skips. Approved 93. Verified behaviourally on a copy of a real kitted tree — patch drift
+exits `--strict` 0, major drift exits 1 — and run across all 14 kitted projects, all
+reporting `Install matches kit v3.1.0`.
+
+**Two traps worth remembering.** (a) The verdict was recorded *before*
+`validate-config-json.py --stamp-baseline`; the stamp changed the ops.json hash, so the
+approval gate refused the config it had just approved and the implementer deadlocked with
+no way out (it has no Edit/Write by design). `review-record.py diff` proved the only delta
+was the machine-added `baseline` block. **Stamp first, record second.** (b) Scope shrank
+twice on contact with the code: the "build integrity sentinel" idea turned out to be
+already built — `install.sh` has always stamped version *and* commit SHA — leaving only the
+comparison missing; and a third candidate (`changelog.d/` fragments) was dropped as an
+owner-gated release-process change rather than decided unilaterally.
+
+**Follow-up, owner-gated.** The fleet does NOT yet have this: `claude-kit` is an editable
+install resolving against the shared checkout's *working tree*, which is on
+`fix/backup-history-ordering`. It reaches all 15 projects automatically once that checkout
+sits on a branch containing `main` — no reinstall, no per-project sync.
+
 ## 2026-09-06 — agent memory, and a learning loop with a reachable write path
 
 **The diagnosis, all executed before any code moved.** `.claude/knowledge/issues/` held **0
