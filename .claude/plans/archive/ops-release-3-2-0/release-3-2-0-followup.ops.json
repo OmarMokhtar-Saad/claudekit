@@ -1,0 +1,27 @@
+{
+  "plan": "release-3-2-0-followup",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "src/claudekit/cli/main.py",
+      "description": "The fourth version site: the source-checkout fallback when the claude-kit distribution is not installed. test_single_version_source_of_truth derives it from pyproject and failed on the stale 3.1.0.",
+      "edits": [
+        {
+          "find": "        # nothing failed. The test now derives instead of listing.\n        return \"3.1.0\"",
+          "replace": "        # nothing failed. The test now derives instead of listing.\n        return \"3.2.0\""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "description": "Tell kitted projects up front why `ck doctor --strict` goes red on release day: the new install-drift check sees every 3.1.0 manifest as one minor behind the running 3.2.0 package. Measured by the session that added the check (98/100, --strict exit 1 on a one-minor gap).",
+      "edits": [
+        {
+          "find": "## [3.2.0] — 2026-09-07\n\n",
+          "replace": "## [3.2.0] — 2026-09-07\n\n- **Upgrade note for kitted projects.** This release adds the `ck doctor` install-drift\n  check below, and it fires on the release itself: every project whose\n  `.claudekit-manifest.json` was written by 3.1.0 is now one minor behind the running\n  package, so `ck doctor --strict` reports `Install version drift` (readiness 98/100,\n  exit 1) until the project is refreshed with `ck update` or a re-run of `install.sh`.\n  That is the check working, not a regression; patch-level drift is deliberately\n  routed around the strict gate.\n\n"
+        }
+      ]
+    }
+  ]
+}
