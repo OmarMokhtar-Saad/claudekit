@@ -22,18 +22,33 @@ if __package__ in (None, ""):
 
 
 def _resolve_version() -> str:
-    """Single source of truth: installed package metadata, with a source-checkout fallback."""
+    """Single source of truth, resolved in claudekit._version: source tree, then metadata.
+
+    Imported inside the function, not at module scope, because the sys.path repair
+    above must run first for the raw-script mode (`python3 src/claudekit/cli/main.py`)
+    -- a module-level import here would also trip ruff E402.
+
+    This used to prefer `metadata.version()` and fall back to a hand-bumped literal,
+    which failed in both directions: the literal sat at 2.1.0 through the 3.0.0
+    release, and on an EDITABLE install the metadata is frozen at install time, so
+    after a version bump the CLI reported the old version while `install.sh` stamped
+    the new one into every manifest -- and `ck doctor` called freshly installed
+    projects DRIFTED. See claudekit/_version.py for the precedence and its failure
+    modes.
+    """
     try:
-        # Distribution name is "claude-kit" (the "claudekit" PyPI name was taken);
-        # the import package and console scripts remain "claudekit"/"ck".
-        return metadata.version("claude-kit")
-    except metadata.PackageNotFoundError:
-        # Bumped with the other version sites. It sat at 2.1.0 through the 3.0.0
-        # release because hard rule 7 names three sites and this is a fourth, and
-        # the packaging test's forbidden-literal list happened not to include
-        # "2.1.0" -- so a source checkout reported a version two releases old and
-        # nothing failed. The test now derives instead of listing.
-        return "3.1.0"
+        from claudekit._version import resolve_version
+    except ImportError:
+        # Nothing above claudekit on sys.path (an oddly copied single file). Metadata
+        # is then the only source; "unknown" over a fabricated number.
+        try:
+            # Must equal `_version.DIST_NAME`; it cannot be imported here, because
+            # reaching this branch means that import already failed. Pinned by
+            # tests/test_version_precedence.py::TestTheDistributionNameIsOneString.
+            return metadata.version("claudekit-agents")
+        except metadata.PackageNotFoundError:
+            return "unknown"
+    return resolve_version()
 
 
 __version__ = _resolve_version()
@@ -229,7 +244,7 @@ def _check_config_schema(data, check):
     The schema shipped for weeks without a single executable applying it, so the
     config drifted out of conformance unnoticed. It is wired here rather than in a
     hook so it runs wherever `ck doctor` runs. `jsonschema` is an optional extra
-    (`pip install 'claude-kit[validation]'`) because the runtime is dependency-free;
+    (`pip install 'claudekit-agents[validation]'`) because the runtime is dependency-free;
     when it is absent the check degrades to a warning instead of silently passing.
     """
     root = find_claudekit_root()
@@ -242,7 +257,7 @@ def _check_config_schema(data, check):
         import jsonschema
     except ImportError:
         check(label, "warn",
-              "jsonschema not installed - run: pip install 'claude-kit[validation]'")
+              "jsonschema not installed - run: pip install 'claudekit-agents[validation]'")
         return
     try:
         schema = json.loads(schema_path.read_text())
@@ -324,6 +339,26 @@ def _stale_reference_summary(stale):
     shown = ", ".join(str(p) for p in sorted(stale)[:5])
     more = f" (+{len(stale) - 5} more)" if len(stale) > 5 else ""
     return f"{shown}{more}"
+
+
+def _parse_semver(text):
+    """(major, minor, patch) from a version string, or None if it is not one.
+
+    Defensive on purpose, and stdlib-only (no packaging/pkg_resources). The
+    manifest is unsigned, hand-editable JSON, so `version` can hold anything at
+    all. None means UNKNOWN - never "equal" - so an unreadable version can only
+    ever produce a skip, never a silent all-clear and never a traceback out of
+    doctor. Pre-release and build suffixes (1.2.3rc1, 1.2.3+meta) are unknown
+    rather than guessed: this kit has never shipped one, and inventing an
+    ordering for them would be a comparison nobody reviewed.
+    """
+    parts = str(text).split(".")
+    if len(parts) != 3:
+        return None
+    try:
+        return tuple(int(part) for part in parts)
+    except ValueError:
+        return None
 
 
 def cmd_doctor(args):
@@ -671,6 +706,46 @@ def cmd_doctor(args):
                 check(f"Profile declarations match hook guards "
                       f"({len(_names)} profiles, active: {_prof.select_name(profiles_root)})",
                       True)
+
+    # Install-vs-kit version drift. The manifest already records the version this
+    # project was installed from (install.sh writes it); comparing that to the
+    # running __version__ turns "how far behind is this project" into a doctor line
+    # instead of a hand-kept fleet spreadsheet.
+    #
+    # The SEVERITY is deliberately not uniform, because the fleet's steady state is
+    # many projects sharing one global ClaudeKit install with staggered syncs. A
+    # warning on ANY difference would redden `ck doctor --strict` - a gate this
+    # repo lists in its own Definition of Done - across every project the moment a
+    # release lands, which trains people to ignore it. So:
+    #   major/minor apart -> warn: the project is genuinely behind a feature or
+    #     breaking change, and --strict is right to say so;
+    #   patch apart       -> a plain informational line, routed around check() on
+    #     purpose so it can touch neither the readiness score nor --strict;
+    #   equal             -> pass;
+    #   absent/ejected/unparseable version -> skip, per the skip contract above.
+    _drift_manifest = _load_manifest(".")
+    _installed_version = (_drift_manifest or {}).get("version")
+    _recorded_semver = _parse_semver(_installed_version)
+    _running_semver = _parse_semver(__version__)
+    if _recorded_semver is None or _running_semver is None:
+        check("Install version recorded", "skip",
+              f"no comparable version in {MANIFEST_NAME} "
+              f"(recorded {_installed_version!r}) — ejected, hand-managed or "
+              "installed before provenance was stamped")
+    elif _recorded_semver == _running_semver:
+        check(f"Install matches kit v{__version__}", True)
+    elif _recorded_semver[:2] == _running_semver[:2]:
+        # Patch-level only: reported, never scored. Nobody is expected to act on it.
+        info(f"Install version differs by patch only: this project records "
+             f"v{_installed_version}, the claudekit package on this machine is "
+             f"v{__version__} — informational, no action needed")
+    else:
+        check(f"Install version drift: this project records v{_installed_version}, "
+              f"the claudekit package on this machine is v{__version__}",
+              "warn",
+              "if the project is the older one, refresh it: `ck update` (or re-run "
+              "install.sh against it); if the project is NEWER, it is this machine's "
+              "installed claudekit package that is stale, not the project")
 
     # An ejected install is self-managed by design: no manifest, every asset
     # kept. That is healthy, so it reports as a skip and cannot redden --strict.

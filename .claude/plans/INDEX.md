@@ -22,13 +22,13 @@ index never outranks the current files.
 
 | State | Plans |
 |---|---:|
-| `drifted` | 5 |
-| `approved` | 51 |
+| `drifted` | 11 |
+| `approved` | 52 |
 | `planned` | 15 |
 | `executed` | 28 |
 | `not_started` | 24 |
 | `legacy` | 3 |
-| **total** | **126** |
+| **total** | **133** |
 
 ## Plans
 
@@ -44,7 +44,7 @@ index never outranks the current files.
 | `.claude/plans/plan-008-batch1-one-tree.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-008-paper-trail.md` | `executed` | 5 |  |
 | `.claude/plans/plan-adapt-eject-interaction.md` | `not_started` | 0 |  |
-| `.claude/plans/plan-agent-memory-learning.md` | `approved` | 1 |  |
+| `.claude/plans/plan-agent-memory-learning.md` | `drifted` | 8 |  |
 | `.claude/plans/plan-agent-tool-grants.md` | `approved` | 1 |  |
 | `.claude/plans/plan-approval-machinery.md` | `approved` | 1 |  |
 | `.claude/plans/plan-backlog-triage-pass.md` | `executed` | 2 |  |
@@ -98,14 +98,20 @@ index never outranks the current files.
 | `.claude/plans/plan-mcp-probe-addendum.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-memory-store.md` | `approved` | 1 |  |
 | `.claude/plans/plan-model-routing-token-orchestration.md` | `not_started` | 0 |  |
+| `.claude/plans/plan-omniroute-adoption.md` | `approved` | 1 |  |
 | `.claude/plans/plan-open-issues.md` | `approved` | 1 |  |
 | `.claude/plans/plan-ops-approval-gate.md` | `approved` | 1 |  |
 | `.claude/plans/plan-ops-engine-file-modes.md` | `approved` | 1 |  |
 | `.claude/plans/plan-ops-hardening-implementer-contract.md` | `planned` | 1 |  |
 | `.claude/plans/plan-oracle-liveness.md` | `not_started` | 0 |  |
+| `.claude/plans/plan-parse-gate-divergence.md` | `approved` | 1 |  |
+| `.claude/plans/plan-parse-gate-fold-invariance.md` | `drifted` | 9 |  |
+| `.claude/plans/plan-parse-gate-ordering.md` | `drifted` | 2 |  |
+| `.claude/plans/plan-parse-gate-unresolved-paths.md` | `drifted` | 2 |  |
 | `.claude/plans/plan-preserve-dir-symlinks.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-preserve-fault-tolerance.md` | `drifted` | 6 |  |
 | `.claude/plans/plan-protected-docs-scope.md` | `approved` | 1 |  |
+| `.claude/plans/plan-pypi-rename.md` | `drifted` | 2 |  |
 | `.claude/plans/plan-queued-ops-gate.md` | `executed` | 3 |  |
 | `.claude/plans/plan-receipts-regressions.md` | `approved` | 1 |  |
 | `.claude/plans/plan-reflection-ledger-isolation.md` | `approved` | 1 |  |
@@ -153,6 +159,7 @@ index never outranks the current files.
 | `.claude/plans/plan-validator-comment-inert.md` | `approved` | 1 |  |
 | `.claude/plans/plan-validator-differential-gate.md` | `approved` | 1 |  |
 | `.claude/plans/plan-validator-segmentation.md` | `approved` | 1 |  |
+| `.claude/plans/plan-version-source-precedence.md` | `drifted` | 2 |  |
 | `.claude/plans/plan-work-loss-protection.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-workflow-file-templates-ops-schema.md` | `planned` | 1 |  |
 | `.claude/plans/plan-worktree-multi-agent.md` | `not_started` | 0 |  |

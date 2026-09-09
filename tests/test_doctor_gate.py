@@ -263,6 +263,131 @@ class TestMinimalInstallPassesStrict:
         proc = _doctor(project)
         assert proc.returncode == 0, proc.stdout + proc.stderr
 
+    # Install-vs-kit version drift. These ride the install tree this class already
+    # builds rather than paying for a second one: what they need is a real manifest
+    # with a real recorded version, which every install mode writes identically.
+    # Severities are asserted separately because they are the whole design: a
+    # patch-level gap must stay OUT of --strict, or a fleet on staggered syncs turns
+    # a Definition-of-Done gate permanently red and people learn to ignore it.
+    @staticmethod
+    def _recorded_version(project):
+        return json.loads((Path(project) / ".claude" / ".claudekit-manifest.json")
+                          .read_text())["version"]
+
+    def _bumped(self, project, index, by=1):
+        """The install's own version with one semver field moved.
+
+        Derived from the manifest rather than hardcoded: a literal would silently
+        stop testing the intended gap the next time the kit version changes."""
+        parts = [int(p) for p in self._recorded_version(project).split(".")]
+        parts[index] += by
+        return ".".join(str(p) for p in parts)
+
+    def test_a_freshly_installed_tree_reports_no_version_drift(self, minimal_project):
+        """Positive control: install.sh stamps the version this CLI reports, so a fresh
+        tree must pass the check rather than warn on every install."""
+        proc = _doctor(minimal_project)
+        combined = proc.stdout + proc.stderr
+        assert "Install matches kit v" in combined, combined
+        assert "Install version drift" not in combined, combined
+
+    def test_a_minor_version_behind_warns_without_failing_plain_doctor(self,
+                                                                      minimal_project,
+                                                                      tmp_path):
+        """A feature release apart is actionable: doctor names both sides and the fix,
+        but a stale install is not a broken one, so plain doctor still exits 0."""
+        project = self._copy(minimal_project, tmp_path / "minor-behind")
+        stale = self._bumped(project, 1, by=-1) if int(
+            self._recorded_version(project).split(".")[1]) > 0 else self._bumped(
+            project, 0, by=-1)
+        self._edit_manifest(project, version=stale)
+        proc = _doctor(project)
+        combined = proc.stdout + proc.stderr
+        assert proc.returncode == 0, combined
+        assert f"this project records v{stale}" in combined, combined
+        assert "ck update" in combined, combined
+        assert "Warnings:" in combined, combined
+
+    def test_a_major_version_gap_reddens_strict(self, minimal_project, tmp_path,
+                                                strict_env):
+        """The gap --strict exists to catch."""
+        project = self._copy(minimal_project, tmp_path / "major-behind")
+        self._edit_manifest(project, version="0.0.1")
+        proc = _doctor(project, "--strict", env=strict_env)
+        combined = proc.stdout + proc.stderr
+        assert proc.returncode == 1, combined
+        assert "Install version drift" in combined, combined
+
+    def test_a_patch_gap_is_informational_and_never_reddens_strict(self,
+                                                                   minimal_project,
+                                                                   tmp_path,
+                                                                   strict_env):
+        """The fleet case, and the reason severity is not uniform: 15 projects on
+        staggered syncs must not turn a DoD gate permanently red over a patch bump.
+        Both halves are asserted - the line IS printed, and it changes no verdict -
+        because dropping the report entirely would also pass a --strict-only test."""
+        project = self._copy(minimal_project, tmp_path / "patch-behind")
+        older = self._bumped(project, 2, by=-1) if int(
+            self._recorded_version(project).split(".")[2]) > 0 else self._bumped(
+            project, 2, by=1)
+        self._edit_manifest(project, version=older)
+        proc = _doctor(project, "--strict", env=strict_env)
+        combined = proc.stdout + proc.stderr
+        assert proc.returncode == 0, combined
+        assert "Install version differs by patch only" in combined, combined
+        assert "Install version drift" not in combined, combined
+        assert "Warnings: 0" in combined or "Warnings:" not in combined, combined
+
+    def test_a_patch_gap_neither_scores_nor_warns(self, minimal_project, tmp_path):
+        """Routed around check(), proven three ways rather than by absence of a warning:
+        the readiness score is identical to the same tree without the gap, no warning or
+        failure line appears, and the line carries the informational [*] prefix rather
+        than any of check()'s own ([v] pass, [!] warn, [-] skip). The applicable COUNT
+        does drop by one - a check that is not emitted is not counted - which is the
+        point: the report exists, the verdict does not."""
+        project = self._copy(minimal_project, tmp_path / "patch-arithmetic")
+        self._edit_manifest(project, version=self._bumped(project, 2, by=1))
+        drifted = _doctor(project).stdout
+        baseline = _doctor(minimal_project).stdout
+
+        def readiness(text):
+            return [line.split("(")[0].strip() for line in text.splitlines()
+                    if line.strip().startswith("Readiness:")]
+        assert readiness(drifted) == readiness(baseline), drifted
+        assert "Warnings:" not in drifted, drifted
+        assert "Failed:" not in drifted, drifted
+        reported = [line for line in drifted.splitlines()
+                    if "differs by patch only" in line]
+        assert len(reported) == 1, drifted
+        assert "[*]" in reported[0], reported
+
+    @pytest.mark.parametrize("recorded", ["unknown", "not-a-version", "3.1", "3.1.0rc1",
+                                          "", "3.1.0.4"])
+    def test_an_uncomparable_recorded_version_is_skipped(self, minimal_project,
+                                                         tmp_path, recorded):
+        """The manifest is hand-editable JSON, so `version` can hold anything. Unknown
+        provenance is not evidence of drift, and must never crash doctor either."""
+        project = self._copy(minimal_project,
+                             tmp_path / f"uncomparable-{abs(hash(recorded))}")
+        self._edit_manifest(project, version=recorded)
+        proc = _doctor(project)
+        combined = proc.stdout + proc.stderr
+        assert proc.returncode == 0, combined
+        assert "Install version recorded" in combined, combined
+        assert "Install version drift" not in combined, combined
+        assert "Traceback" not in combined, combined
+
+    def test_a_missing_manifest_skips_the_drift_check(self, minimal_project, tmp_path):
+        """A manifest-less tree already fails doctor for other reasons, so this asserts
+        the drift check's own line: it must skip, never invent a drift verdict."""
+        project = self._copy(minimal_project, tmp_path / "drift-no-manifest")
+        (project / ".claude" / ".claudekit-manifest.json").unlink()
+        proc = _doctor(project)
+        combined = proc.stdout + proc.stderr
+        assert "Install version recorded" in combined, combined
+        assert "Install version drift" not in combined, combined
+        assert "Install matches kit" not in combined, combined
+
 
 # ---------------------------------------------------------------------------
 # Defect 3: a placeholder command made pre-push report PASSED having run nothing
@@ -472,7 +597,8 @@ class TestInvokedHelpersAreCheckedNotAssumed:
         into an empty temp dir configures no project commands, so the overall --strict
         verdict is not this check's to own."""
         proc = _doctor(full_project)
-        assert "Hook helper scripts resolve (1 invoked)" in proc.stdout, proc.stdout
+        # 2 = dispatch_resolve.py (dispatch.sh) + session-memory-context.py (session-start.sh)
+        assert "Hook helper scripts resolve (2 invoked)" in proc.stdout, proc.stdout
         assert "invoke missing helpers" not in proc.stdout, proc.stdout
         assert "may have stopped matching" not in proc.stdout, proc.stdout
 

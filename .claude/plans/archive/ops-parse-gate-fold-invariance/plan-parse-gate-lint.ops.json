@@ -1,0 +1,16 @@
+{
+  "plan": "parse-gate-lint",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_ops_parse_gate.py",
+      "description": "ruff E714: `not X is None` should be `X is not None`. My own line, caught by the lint gate.",
+      "edits": [
+        {
+          "find": "    if not _fold_tree(tmp_path)['case-new-file'][2] is None:",
+          "replace": "    if _fold_tree(tmp_path)['case-new-file'][2] is not None:"
+        }
+      ]
+    }
+  ]
+}

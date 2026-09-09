@@ -1,0 +1,16 @@
+{
+  "plan": "parse-gate-silent-ok",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_ops_parse_gate.py",
+      "description": "The silent-failure lint flagged the oracle's best-effort cleanup, and it is right to demand a reason rather than a bare pass. Annotate with the lint's own `silent-ok:` form: the unlink is tidying a probe file inside pytest's tmp_path, which the fixture removes regardless, and a failure to unlink must not fail a test about identity folding.",
+      "edits": [
+        {
+          "find": "        finally:\n            try:\n                first.unlink()\n            except OSError:\n                pass",
+          "replace": "        finally:\n            try:\n                first.unlink()\n            except OSError:  # silent-ok: tidying a probe file inside tmp_path, which pytest removes anyway; a failed unlink must not fail a test about fold identity\n                pass"
+        }
+      ]
+    }
+  ]
+}

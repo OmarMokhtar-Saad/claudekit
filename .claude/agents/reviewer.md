@@ -10,6 +10,7 @@ description: |
   </example>
 model: sonnet
 color: blue
+memory: project
 tools: ["Read", "Grep", "Glob"]
 ---
 

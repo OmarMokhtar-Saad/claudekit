@@ -1,11 +1,15 @@
 name: Release
 
 # Publishing to PyPI uses Trusted Publishing (OIDC) — no API token is stored.
-# ONE-TIME SETUP on PyPI before the first release:
-#   PyPI -> project "claude-kit" -> Publishing -> add a GitHub trusted publisher:
+# ONE-TIME SETUP on PyPI before the first release. The project "claudekit-agents"
+# DOES NOT EXIST on PyPI yet -- nothing has ever been published -- so there is no
+# project page to configure. Register a PENDING publisher under ACCOUNT settings:
+#   PyPI -> Your account -> Publishing -> Add a pending publisher:
+#     PyPI project name: claudekit-agents
 #     owner: OmarMokhtar-Saad, repo: claudekit,
 #     workflow: release.yml, environment: pypi
-# (For the very first upload of a brand-new project name, use "pending publisher".)
+# The earlier name `claude-kit` was REFUSED by PyPI as confusable with the
+# unrelated `claudekit` project; PyPI ignores separators when comparing names.
 
 on:
   push:
@@ -58,7 +62,7 @@ jobs:
       - name: Publish to PyPI (Trusted Publishing)
         uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
         with:
-          # dist/ holds claude_kit-<version>.{whl,tar.gz}
+          # dist/ holds claudekit_agents-<version>.{whl,tar.gz}
           print-hash: true
 
       - name: Create GitHub Release

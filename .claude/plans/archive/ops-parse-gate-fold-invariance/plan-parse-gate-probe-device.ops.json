@@ -1,0 +1,31 @@
+{
+  "plan": "parse-gate-probe-device",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/ops_precompile.py",
+      "description": "Reviewer MINOR 1, and it lands in the UNSAFE direction so it is worth closing now rather than backlogging. The probe walks up and swaps a component's case in its PARENT directory, but caches the answer under the st_dev of the deepest existing path. When that path IS a mount point, the swapped name resolves on the PARENT filesystem: a case-insensitive volume mounted inside a case-sensitive tree is probed against the case-sensitive parent, recorded as sensitive, and two spellings of one file then stay distinct — which is the silent gate-exit-0 hole this module exists to close. Refuse to answer from a different device: if the walk crosses a device boundary, stop and collapse, which is the loud direction.",
+      "edits": [
+        {
+          "find": "    result, cur, cur_st = True, existing, st\n    while True:\n        parent, base = os.path.dirname(cur), os.path.basename(cur)",
+          "replace": "    result, cur, cur_st = True, existing, st\n    while True:\n        # NEVER ANSWER FROM ANOTHER DEVICE. The verdict is cached under `st.st_dev`, so a probe\n        # performed on a different filesystem answers the wrong question. That is not\n        # hypothetical: when `existing` IS a mount point, its own name lives in the PARENT\n        # mount, so a case-insensitive volume mounted inside a case-sensitive tree would be\n        # probed against the parent, recorded as sensitive, and its aliases would then stay\n        # distinct -- the silent exit-0 hole. Crossing the boundary stops the walk, leaving\n        # `result` True, which collapses: loud, not silent.\n        if cur_st.st_dev != st.st_dev:\n            break\n        parent, base = os.path.dirname(cur), os.path.basename(cur)"
+        },
+        {
+          "find": "    NFC ALWAYS. macOS normalises the names it stores, so `café.py` written NFD is read back\n    NFC and the two spellings are one file -- and a plan carrying both escaped every earlier\n    fix. A filesystem that does not normalise makes them two files, and folding them there is",
+          "replace": "    RESIDUAL, STATED BECAUSE IT IS THE SAME CLASS: Apple's on-disk normalisation is not strict\n    Unicode NFD -- it diverges for codepoints added after Unicode 3.2 -- so for those\n    codepoints `normalize('NFC', ...)` can disagree with what the filesystem itself folds.\n    That residual is confined to paths that DO NOT EXIST YET, because an existing path is\n    keyed by `(st_dev, st_ino)`, which is the kernel's own answer and cannot be wrong. A\n    plan naming a not-yet-created file twice, in two normalisations, using such a codepoint,\n    is the one shape still unmodelled here.\n\n    NFC ALWAYS. macOS normalises the names it stores, so `café.py` written NFD is read back\n    NFC and the two spellings are one file -- and a plan carrying both escaped every earlier\n    fix. A filesystem that does not normalise makes them two files, and folding them there is"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_ops_parse_gate.py",
+      "description": "Pin the device-boundary guard. A real mount is not available in a test, so the probe is driven directly with a stat whose st_dev differs from the cached device, which is exactly the condition the guard exists for.",
+      "edits": [
+        {
+          "find": "def test_the_two_keys_are_not_one_key",
+          "replace": "def test_the_case_probe_refuses_to_answer_from_another_device(tmp_path, monkeypatch):\n    \"\"\"A probe performed on a DIFFERENT filesystem answers the wrong question.\n\n    When the deepest existing path is itself a mount point, its own name lives in the parent\n    mount, so a case-insensitive volume mounted inside a case-sensitive tree would be probed\n    against the case-sensitive parent, cached as sensitive, and its aliases would then stay\n    distinct -- the silent exit-0 hole. The guard stops the walk at a device boundary and\n    leaves the answer at True (collapse), which is the loud direction.\n\n    Driven directly rather than through a real mount: a fake stat result whose `st_dev`\n    differs from the directory's own is the precise condition, and no test can mount a\n    volume.\n\n    Mutation that reds this: delete the `if cur_st.st_dev != st.st_dev: break` guard.\n    \"\"\"\n    gate_mod = load_gate()\n    monkeypatch.chdir(tmp_path)\n    probe_dir = tmp_path / 'Vol'\n    probe_dir.mkdir()\n    real = os.stat(str(probe_dir))\n\n    class _OtherDevice:\n        st_dev = real.st_dev + 1000\n        st_ino = real.st_ino\n\n    gate_mod._CASE_FOLD.clear()\n    try:\n        answer = gate_mod._case_insensitive(str(probe_dir), _OtherDevice())\n    finally:\n        gate_mod._CASE_FOLD.clear()\n    assert answer is True, (\n        'a probe that cannot be performed on the target device must collapse, not split')\n\n\ndef test_the_two_keys_are_not_one_key"
+        }
+      ]
+    }
+  ]
+}

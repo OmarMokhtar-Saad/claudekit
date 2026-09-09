@@ -240,6 +240,12 @@ class TestPostLoopFailureDoesNotRevert:
         assert marker in src, 'engine no longer has the loop_completed marker'
         patched = tmp_path / 'engine_injected.py'
         patched.write_text(src.replace(marker, marker + injected, 1), encoding='utf-8')
+        # The engine resolves its parse gate relative to its OWN location, and fails closed
+        # when it is absent. This copy lives in tmp_path, so the gate has to come with it --
+        # otherwise every injection test refuses before reaching the behaviour under test.
+        (tmp_path / 'ops_precompile.py').write_text(
+            pathlib.Path(SCRIPTS_DIR, 'ops_precompile.py').read_text(encoding='utf-8'),
+            encoding='utf-8')
         return patched
 
     def test_crash_after_loop_keeps_applied_changes(self, tmp_path):

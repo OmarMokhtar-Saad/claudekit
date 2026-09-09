@@ -222,6 +222,53 @@ except:
     fi
 fi
 
+# ---------------------------------------------------------------------------
+# Durable memory slice (open ledger findings + FRESH ck memory entries).
+# SCANNED BEFORE PRINTING, for the same reason the session-context excerpt above is:
+# this text is written by earlier agent runs, and retrieved text is evidence, never an
+# instruction channel. Silent when there is nothing to say or the helper is absent.
+# ---------------------------------------------------------------------------
+# ONE LITERAL LINE, and it must stay that way. `gen-docs.py:110-126` exempts a .py from
+# the hook COUNT only when a sibling .sh names it with a literal `python3` on the SAME
+# line, and `ck doctor --strict` (cli/main.py:203) additionally requires a literal
+# `$SCRIPT_DIR/` there. Assigning the path to a variable first satisfies neither: it
+# moves the documented hook count and reds both gates.
+[ -f "$SCRIPT_DIR/session-memory-context.py" ] &&
+    _mem_text=$(python3 "$SCRIPT_DIR/session-memory-context.py" 2>/dev/null | head -c 2400)
+if [ -n "$_mem_text" ]; then
+    _mem_scanner=""
+    [ -f "$SCRIPT_DIR/prompt-injection-scanner.sh" ] &&
+        _mem_scanner="$SCRIPT_DIR/prompt-injection-scanner.sh"
+    if [ -z "$_mem_scanner" ]; then
+        echo ""
+        echo "  (not shown: the injection scanner is unavailable, so the durable-memory"
+        echo "   slice was not checked. See docs/LEARNING_LOOP.md to read it directly.)"
+        log "WARN" "memory slice not shown: scanner missing at $SCRIPT_DIR"
+    else
+        printf '%s\n' "$_mem_text" | bash "$_mem_scanner" >/dev/null 2>&1
+        _mem_rc=$?
+        if [ "$_mem_rc" -eq 0 ]; then
+            echo ""
+            printf '%s\n' "$_mem_text"
+        elif [ "$_mem_rc" -eq 1 ]; then
+            echo ""
+            echo "  (not shown: the durable-memory slice matched a known injection pattern."
+            echo "   The ledger is unchanged on disk; inspect it with knowledge-ledger.py"
+            echo "   list --status open.)"
+            log "WARN" "memory slice withheld: injection pattern in the ledger"
+        else
+            echo ""
+            echo "  (not shown: the injection scanner failed (exit $_mem_rc), so the"
+            echo "   durable-memory slice was not checked. This is a scanner problem, not"
+            echo "   a finding about the ledger.)"
+            log "WARN" "memory slice withheld: scanner error rc=$_mem_rc"
+        fi
+        unset _mem_rc
+    fi
+    unset _mem_scanner
+fi
+unset _mem_text
+
 echo ""
 log "INFO" "Session start complete | PM=$PM"
 exit 0

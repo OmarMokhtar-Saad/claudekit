@@ -16,7 +16,7 @@
 #
 # ONE deliberate exception (documented, not an oversight): if the validator
 # itself is UNAVAILABLE (rc 127), standard warns instead of blocking. `.claude/`
-# is frequently installed without the `claude-kit` Python package, and blocking
+# is frequently installed without the `claudekit-agents` Python package, and blocking
 # there would deny every Bash command in those projects. `ck doctor` reports it,
 # and `strict` closes it for anyone who wants no permissive path at all.
 # =============================================================================
@@ -65,8 +65,8 @@ OUT="$(run_validator "$CMD")"; RC=$?
 # Validator missing: the ONE permissive path under standard (see header).
 if [ "$RC" -eq 127 ]; then
     [ "$PROFILE" = "strict" ] && deny "command-guard: validator unavailable (fail-closed)"
-    hlog "WARN" "validator unavailable — command NOT checked (install claude-kit, or set ECC_HOOK_PROFILE=strict to block instead)"
-    printf 'command-guard: validator unavailable, command NOT checked. Install the claude-kit package (`ck doctor` diagnoses) or set ECC_HOOK_PROFILE=strict to block instead.\n' >&2
+    hlog "WARN" "validator unavailable — command NOT checked (install claudekit-agents, or set ECC_HOOK_PROFILE=strict to block instead)"
+    printf 'command-guard: validator unavailable, command NOT checked. Install the claudekit-agents package (`ck doctor` diagnoses) or set ECC_HOOK_PROFILE=strict to block instead.\n' >&2
     exit 0
 fi
 

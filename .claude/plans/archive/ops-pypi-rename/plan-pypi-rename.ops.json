@@ -1,0 +1,357 @@
+{
+  "plan": "pypi-rename",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "pyproject.toml",
+      "description": "distribution name + version bump to 3.2.1",
+      "edits": [
+        {
+          "find": "name = \"claude-kit\"",
+          "replace": "name = \"claudekit-agents\""
+        },
+        {
+          "find": "version = \"3.2.0\"",
+          "replace": "version = \"3.2.1\""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "src/claudekit/_version.py",
+      "description": "rename the distribution in src/claudekit/_version.py",
+      "edits": [
+        {
+          "find": "   `name = \"claude-kit\"`, that pyproject's version IS the version.",
+          "replace": "   `name = \"claudekit-agents\"`, that pyproject's version IS the version."
+        },
+        {
+          "find": "  `name = \"claude-kit\"` check would fail too. Falls to metadata.",
+          "replace": "  `name = \"claudekit-agents\"` check would fail too. Falls to metadata."
+        },
+        {
+          "find": "* **A vendored copy of a claude-kit FORK**",
+          "replace": "* **A vendored copy of a ClaudeKit FORK**"
+        },
+        {
+          "find": "#: PyPI distribution name. The import package and console scripts are\n#: `claudekit`/`ck`; the distribution is `claude-kit` (`claudekit` was taken).\nDIST_NAME = \"claude-kit\"",
+          "replace": "#: PyPI distribution name. The import package and console scripts are\n#: `claudekit`/`ck`; the distribution is `claudekit-agents`. `claudekit` was taken, and\n#: PyPI then REFUSED `claude-kit` as confusable with it -- PyPI ignores\n#: separators when comparing names, so `claude-kit` collapses onto `claudekit`.\n#:\n#: THIS CONSTANT IS USED TWICE WITH DIFFERENT MEANINGS: as the argument to\n#: `metadata.version()` below, and as the `[project] name` a neighbouring\n#: pyproject.toml must declare for this tree to count as a source checkout.\n#: `cli/main.py` repeats the string a third time, in the branch where this\n#: module cannot be imported at all. Move fewer than three and a source\n#: checkout silently stops recognising itself and reports stale installed\n#: metadata. `tests/test_version_precedence.py` pins all three together.\nDIST_NAME = \"claudekit-agents\""
+        },
+        {
+          "find": "    None means \"this is not a claude-kit source tree\" -- never a guess.",
+          "replace": "    None means \"this is not a ClaudeKit source tree\" -- never a guess."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "src/claudekit/cli/main.py",
+      "description": "rename the distribution in src/claudekit/cli/main.py",
+      "edits": [
+        {
+          "find": "            return metadata.version(\"claude-kit\")",
+          "replace": "            # Must equal `_version.DIST_NAME`; it cannot be imported here, because\n            # reaching this branch means that import already failed. Pinned by\n            # tests/test_version_precedence.py::TestTheDistributionNameIsOneString.\n            return metadata.version(\"claudekit-agents\")"
+        },
+        {
+          "find": "    (`pip install 'claude-kit[validation]'`) because the runtime is dependency-free;",
+          "replace": "    (`pip install 'claudekit-agents[validation]'`) because the runtime is dependency-free;"
+        },
+        {
+          "find": "              \"jsonschema not installed - run: pip install 'claude-kit[validation]'\")",
+          "replace": "              \"jsonschema not installed - run: pip install 'claudekit-agents[validation]'\")"
+        },
+        {
+          "find": "    # many projects sharing one global claude-kit install with staggered syncs. A",
+          "replace": "    # many projects sharing one global ClaudeKit install with staggered syncs. A"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_version_precedence.py",
+      "description": "rename the distribution in tests/test_version_precedence.py",
+      "edits": [
+        {
+          "find": "* drop the `name = \"claude-kit\"` guard and\n  `test_an_unrelated_neighbouring_pyproject_is_not_a_kit_source` fails.",
+          "replace": "* drop the `name = \"claudekit-agents\"` guard and\n  `test_an_unrelated_neighbouring_pyproject_is_not_a_kit_source` fails;\n* move the distribution name in ONE of `pyproject.toml`, `_version.DIST_NAME` or\n  `cli/main.py`'s `metadata.version()` argument and\n  `TestTheDistributionNameIsOneString` fails."
+        },
+        {
+          "find": "import json\nimport os\nimport re",
+          "replace": "import importlib.util\nimport json\nimport os\nimport re"
+        },
+        {
+          "find": "ENV = dict(os.environ, ECC_HOOK_PROFILE=\"minimal\")",
+          "replace": "ENV = dict(os.environ, ECC_HOOK_PROFILE=\"minimal\")\n\nMAIN = PKG / \"cli\" / \"main.py\"\n\n\ndef _module_from_source(name, path):\n    \"\"\"Load one module FILE, without importing the `claudekit` package.\n\n    `import claudekit._version` would resolve against whatever is on sys.path --\n    including an editable install pointing at a DIFFERENT checkout -- so the\n    constant under test would not be this tree's. Loading the file cannot.\n    \"\"\"\n    spec = importlib.util.spec_from_file_location(name, path)\n    module = importlib.util.module_from_spec(spec)\n    spec.loader.exec_module(module)\n    return module\n\n\n#: Derived, never typed: every synthetic tree and metadata lookup below uses the\n#: name the shipped module declares, so a rename cannot half-land in the tests.\nDIST_NAME = _module_from_source(\"_ck_version_probe\", PKG / \"_version.py\").DIST_NAME"
+        },
+        {
+          "find": "    proc = subprocess.run(\n        [sys.executable, \"-c\",\n         \"from importlib import metadata\\n\"\n         \"try:\\n\"\n         \"    print(metadata.version('claude-kit'))\\n\"\n         \"except metadata.PackageNotFoundError:\\n\"\n         \"    print('')\\n\"],\n        cwd=str(Path(sys.prefix)), capture_output=True, text=True, timeout=60, env=env)",
+          "replace": "    code = (\"from importlib import metadata\\n\"\n            \"try:\\n\"\n            \"    print(metadata.version(%r))\\n\"\n            \"except metadata.PackageNotFoundError:\\n\"\n            \"    print('')\\n\" % DIST_NAME)\n    proc = subprocess.run(\n        [sys.executable, \"-c\", code],\n        cwd=str(Path(sys.prefix)), capture_output=True, text=True, timeout=60, env=env)"
+        },
+        {
+          "find": "        root = _synthetic_tree(tmp_path, \"src\", \"claude-kit\", SENTINEL)\n        installed = _metadata_version()",
+          "replace": "        root = _synthetic_tree(tmp_path, \"src\", DIST_NAME, SENTINEL)\n        installed = _metadata_version()"
+        },
+        {
+          "find": "        root = _synthetic_tree(tmp_path, \"src\", \"claude-kit\", SENTINEL)\n        assert _reported(root) != \"0.0.9\"",
+          "replace": "        root = _synthetic_tree(tmp_path, \"src\", DIST_NAME, SENTINEL)\n        assert _reported(root) != \"0.0.9\""
+        },
+        {
+          "find": "        though a `claude-kit` pyproject sits one directory up. Without the `src`-layout\n        guard this returns 7.7.7.\"\"\"\n        installed = _metadata_version()\n        if installed is None:\n            pytest.skip(\"claude-kit is not installed in this environment\")\n        root = _synthetic_tree(tmp_path, \"site-packages\", \"claude-kit\", \"7.7.7\")",
+          "replace": "        though a matching pyproject sits one directory up. Without the `src`-layout\n        guard this returns 7.7.7.\"\"\"\n        installed = _metadata_version()\n        if installed is None:\n            pytest.skip(\"%s is not installed in this environment\" % DIST_NAME)\n        root = _synthetic_tree(tmp_path, \"site-packages\", DIST_NAME, \"7.7.7\")"
+        },
+        {
+          "find": "        root = _synthetic_tree(tmp_path, \"src\", \"claude-kit\", SENTINEL,",
+          "replace": "        root = _synthetic_tree(tmp_path, \"src\", DIST_NAME, SENTINEL,"
+        },
+        {
+          "find": "        assert \"Install matches kit v%s\" % _pyproject_version() in combined, combined",
+          "replace": "        assert \"Install matches kit v%s\" % _pyproject_version() in combined, combined\n\n\nclass TestTheDistributionNameIsOneString:\n    \"\"\"The rename coupling, pinned.\n\n    `DIST_NAME` is used twice with DIFFERENT meanings -- the argument to\n    `importlib.metadata.version()`, and the `[project] name` a neighbouring\n    pyproject must declare for `source_version()` to accept the tree as a source\n    checkout -- and `cli/main.py` repeats the literal a third time in the branch\n    where `claudekit._version` is not importable and so cannot supply it. Move\n    fewer than all three and a source checkout stops recognising itself and\n    silently falls back to stale installed metadata: the PR #37 defect.\n    \"\"\"\n\n    def test_pyproject_version_module_and_cli_name_one_distribution(self):\n        \"\"\"Mutation: change the name in ANY ONE of the three sites -> this fails.\"\"\"\n        pyproject_name = _project_field(\n            (REPO / \"pyproject.toml\").read_text(encoding=\"utf-8\"), \"name\")\n        literals = re.findall(r'metadata\\.version\\(\\s*\"([^\"]+)\"\\s*\\)',\n                              MAIN.read_text(encoding=\"utf-8\"))\n        assert literals, \"cli/main.py names no distribution to look up any more\"\n        assert pyproject_name == DIST_NAME, (pyproject_name, DIST_NAME)\n        assert set(literals) == {DIST_NAME}, (literals, DIST_NAME)\n\n    def test_the_distribution_name_is_the_one_pypi_accepted(self):\n        \"\"\"Renaming all three at once is still a deliberate act that edits a test.\n\n        `claude-kit` was REFUSED by PyPI as confusable with the unrelated\n        `claudekit` project (PyPI ignores separators when comparing names), and\n        nothing was ever published under it.\n\n        Mutation: rename all three sites consistently -> this fails.\"\"\"\n        assert DIST_NAME == \"claudekit-agents\""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_hooks_behavioral.py",
+      "description": "rename the distribution in tests/test_hooks_behavioral.py",
+      "edits": [
+        {
+          "find": "        every Bash command in installs without the claude-kit package.\"\"\"",
+          "replace": "        every Bash command in installs without the claudekit-agents package.\"\"\""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "src/claudekit/memory.py",
+      "description": "rename the distribution in src/claudekit/memory.py",
+      "edits": [
+        {
+          "find": "working when the `claude-kit` package is not installed",
+          "replace": "working when the `claudekit-agents` package is not installed"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/command-guard.sh",
+      "description": "rename the distribution in .claude/hooks/command-guard.sh",
+      "edits": [
+        {
+          "find": "# is frequently installed without the `claude-kit` Python package, and blocking",
+          "replace": "# is frequently installed without the `claudekit-agents` Python package, and blocking"
+        },
+        {
+          "find": "    hlog \"WARN\" \"validator unavailable — command NOT checked (install claude-kit, or set ECC_HOOK_PROFILE=strict to block instead)\"",
+          "replace": "    hlog \"WARN\" \"validator unavailable — command NOT checked (install claudekit-agents, or set ECC_HOOK_PROFILE=strict to block instead)\""
+        },
+        {
+          "find": "    printf 'command-guard: validator unavailable, command NOT checked. Install the claude-kit package (`ck doctor` diagnoses) or set ECC_HOOK_PROFILE=strict to block instead.\\n' >&2",
+          "replace": "    printf 'command-guard: validator unavailable, command NOT checked. Install the claudekit-agents package (`ck doctor` diagnoses) or set ECC_HOOK_PROFILE=strict to block instead.\\n' >&2"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "README.md",
+      "description": "rename the distribution in README.md",
+      "edits": [
+        {
+          "find": "pip install claude-kit          # the `claudekit` PyPI name was taken; commands stay `claudekit`/`ck`",
+          "replace": "pip install claudekit-agents    # PyPI distribution name; the commands stay `claudekit` and `ck`"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "description": "rename the distribution in CHANGELOG.md",
+      "edits": [
+        {
+          "find": "## [3.2.0] — 2026-09-07",
+          "replace": "## [3.2.1] — 2026-09-07\n\n### Changed\n\n- **The PyPI distribution name is now `claudekit-agents`** (was `claude-kit`). PyPI\n  refused `claude-kit` as confusable with an existing, unrelated project named\n  `claudekit`: PyPI ignores separators when it tests names for similarity, so\n  `claude-kit` collapses onto `claudekit`. That refusal has blocked every release\n  this project has attempted.\n- **`pip install claude-kit` was never a working command.** No release was ever\n  published under that name, so nobody is installed from it and there is nothing to\n  migrate. The install line is now `pip install claudekit-agents`.\n- **Nothing else moves.** The import package stays `claudekit`, the console scripts\n  stay `claudekit` and `ck`, and the GitHub repository stays\n  `OmarMokhtar-Saad/claudekit`.\n- Version bumped to 3.2.1 because v3.2.0 is already tagged and released, and a built\n  wheel embeds its distribution name, so the rename cannot ship under that tag.\n\n## [3.2.0] — 2026-09-07"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "docs/HOOKS.md",
+      "description": "rename the distribution in docs/HOOKS.md",
+      "edits": [
+        {
+          "find": "if the `claude-kit` Python package isn't installed",
+          "replace": "if the `claudekit-agents` Python package isn't installed"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "CLAUDE.md",
+      "description": "rename the distribution in CLAUDE.md",
+      "edits": [
+        {
+          "find": "PyPI name `claude-kit`; CLI `claudekit`/`ck`; zero runtime dependencies.",
+          "replace": "PyPI distribution `claudekit-agents`; CLI `claudekit`/`ck`; import package `claudekit`; zero runtime dependencies."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "AGENTS.md",
+      "description": "rename the distribution in AGENTS.md",
+      "edits": [
+        {
+          "find": "PyPI name `claude-kit`; CLI `claudekit`/`ck`; zero runtime dependencies.",
+          "replace": "PyPI distribution `claudekit-agents`; CLI `claudekit`/`ck`; import package `claudekit`; zero runtime dependencies."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "setup.py",
+      "description": "rename the distribution in setup.py",
+      "edits": [
+        {
+          "find": "as ``data_files`` so a plain ``pip install claudekit`` is self-contained and",
+          "replace": "as ``data_files`` so a plain ``pip install claudekit-agents`` is self-contained and"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".github/workflows/release.yml",
+      "description": "rename the distribution in .github/workflows/release.yml",
+      "edits": [
+        {
+          "find": "# ONE-TIME SETUP on PyPI before the first release:\n#   PyPI -> project \"claude-kit\" -> Publishing -> add a GitHub trusted publisher:\n#     owner: OmarMokhtar-Saad, repo: claudekit,\n#     workflow: release.yml, environment: pypi\n# (For the very first upload of a brand-new project name, use \"pending publisher\".)",
+          "replace": "# ONE-TIME SETUP on PyPI before the first release. The project \"claudekit-agents\"\n# DOES NOT EXIST on PyPI yet -- nothing has ever been published -- so there is no\n# project page to configure. Register a PENDING publisher under ACCOUNT settings:\n#   PyPI -> Your account -> Publishing -> Add a pending publisher:\n#     PyPI project name: claudekit-agents\n#     owner: OmarMokhtar-Saad, repo: claudekit,\n#     workflow: release.yml, environment: pypi\n# The earlier name `claude-kit` was REFUSED by PyPI as confusable with the\n# unrelated `claudekit` project; PyPI ignores separators when comparing names."
+        },
+        {
+          "find": "          # dist/ holds claude_kit-<version>.{whl,tar.gz}",
+          "replace": "          # dist/ holds claudekit_agents-<version>.{whl,tar.gz}"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".ai/CONTEXT.md",
+      "description": "rename the distribution in .ai/CONTEXT.md",
+      "edits": [
+        {
+          "find": "- **PyPI name is `claude-kit`** (the name `claudekit` was taken); the CLI commands remain `claudekit` and `ck`, and the import package is `claudekit`. Never \"fix\" this mismatch — it is deliberate (commit `a3ddc09`).",
+          "replace": "- **PyPI distribution is `claudekit-agents`** (owner-decided 2026-09-07, DECISIONS #24): `claudekit` was taken, and PyPI then REFUSED `claude-kit` as confusable with it — PyPI ignores separators when comparing names. The CLI commands remain `claudekit` and `ck`, the import package is `claudekit`, and the repo is `claudekit`. Never \"fix\" this mismatch — it is deliberate."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".ai/FAQ.md",
+      "description": "rename the distribution in .ai/FAQ.md",
+      "edits": [
+        {
+          "find": "**Why is the PyPI name `claude-kit` but everything else `claudekit`?**\nThe PyPI name was taken. CLI (`claudekit`/`ck`), import package, and repo keep `claudekit`. Deliberate; don't unify.",
+          "replace": "**Why is the PyPI distribution `claudekit-agents` but everything else `claudekit`?**\n`claudekit` was already taken on PyPI, and PyPI then REFUSED `claude-kit` as well: it ignores separators when testing names for confusability, so `claude-kit` collapses onto `claudekit`. `claudekit-agents` is what PyPI accepts. Only the DISTRIBUTION name moved — the CLI (`claudekit`/`ck`), the import package and the repo all keep `claudekit`. Nothing was ever published under `claude-kit`, so `pip install claude-kit` was never a working command and no user has to migrate. Deliberate; don't unify."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".ai/MIGRATION_GUIDE.md",
+      "description": "rename the distribution in .ai/MIGRATION_GUIDE.md",
+      "edits": [
+        {
+          "find": "1. **Update the install:** `pip install -U claude-kit && ck update <project>`",
+          "replace": "1. **Update the install:** `pip install -U claudekit-agents && ck update <project>`"
+        },
+        {
+          "find": "Pure-pip note: v2.1 wheels bundle the asset tree, so `pip install claude-kit && ck init` works without a git checkout;",
+          "replace": "Pure-pip note: v2.1 wheels bundle the asset tree, so `pip install claudekit-agents && ck init` works without a git checkout;"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".ai/SYSTEM_OVERVIEW.md",
+      "description": "rename the distribution in .ai/SYSTEM_OVERVIEW.md",
+      "edits": [
+        {
+          "find": "Users install it into their own project (`pip install claude-kit && ck init <project> --full`",
+          "replace": "Users install it into their own project (`pip install claudekit-agents && ck init <project> --full`"
+        },
+        {
+          "find": "· version 2.1.0 · PyPI name `claude-kit` · GitHub `OmarMokhtar-Saad/claudekit`.",
+          "replace": "· version 2.1.0 · PyPI distribution `claudekit-agents` · GitHub `OmarMokhtar-Saad/claudekit`."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".ai/DEPENDENCIES.md",
+      "description": "rename the distribution in .ai/DEPENDENCIES.md",
+      "edits": [
+        {
+          "find": "Optional extra: `jsonschema>=4` (`pip install claude-kit[validation]`)",
+          "replace": "Optional extra: `jsonschema>=4` (`pip install claudekit-agents[validation]`)"
+        },
+        {
+          "find": "GitHub (repo, Actions, releases) · PyPI (`claude-kit` via Trusted Publishing)",
+          "replace": "GitHub (repo, Actions, releases) · PyPI (`claudekit-agents` via Trusted Publishing)"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".ai/MEMORY.md",
+      "description": "rename the distribution in .ai/MEMORY.md",
+      "edits": [
+        {
+          "find": "- PyPI: `claude-kit` (name `claudekit` taken). CLI: `claudekit` / `ck`. Import: `claudekit`. GitHub: `OmarMokhtar-Saad/claudekit`. MIT.",
+          "replace": "- PyPI distribution: `claudekit-agents` (`claudekit` taken; `claude-kit` REFUSED as confusable — PyPI ignores separators). CLI: `claudekit` / `ck`. Import: `claudekit`. GitHub: `OmarMokhtar-Saad/claudekit`. MIT."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".ai/PLAYBOOK.md",
+      "description": "rename the distribution in .ai/PLAYBOOK.md",
+      "edits": [
+        {
+          "find": "7. Post-publish: `pip install claude-kit==X.Y.Z` from PyPI",
+          "replace": "7. Post-publish: `pip install claudekit-agents==X.Y.Z` from PyPI"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".ai/TROUBLESHOOTING.md",
+      "description": "rename the distribution in .ai/TROUBLESHOOTING.md",
+      "edits": [
+        {
+          "find": "`pip install claude-kit` (bundles assets) or set `CLAUDEKIT_HOME`",
+          "replace": "`pip install claudekit-agents` (bundles assets) or set `CLAUDEKIT_HOME`"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".ai/AI_PROJECT_HANDOVER.md",
+      "description": "rename the distribution in .ai/AI_PROJECT_HANDOVER.md",
+      "edits": [
+        {
+          "find": "- **No release tag / PyPI publish.** Mechanics fully wired (`release.yml`, Trusted Publishing, PyPI name `claude-kit`). Waiting on the owner. Don't publish unilaterally.",
+          "replace": "- **No release tag / PyPI publish.** Mechanics fully wired (`release.yml`, Trusted Publishing, PyPI distribution `claudekit-agents`). The trusted publisher still has to be registered as a PENDING publisher under PyPI account settings — the project does not exist yet. Waiting on the owner. Don't publish unilaterally."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".ai/DECISIONS.md",
+      "description": "rename the distribution in .ai/DECISIONS.md",
+      "edits": [
+        {
+          "find": "|---|----------|---------|----------------------|-------------|\n",
+          "replace": "|---|----------|---------|----------------------|-------------|\n| 24 | **PyPI distribution renamed `claude-kit` -> `claudekit-agents`** (owner-decided 2026-09-07; supersedes the NAME in #20, not its principle) | PyPI REFUSED `claude-kit`: it ignores separators when testing names for confusability, so `claude-kit` collapses onto the existing unrelated `claudekit` project. That refusal blocked every release this project attempted; nothing was ever published, so `pip install claude-kit` was never a working command and there are no users to migrate. | Squatting a variation of `claudekit`; renaming the product, CLI or repo; a scoped/prefixed vanity name | Distribution is `claudekit-agents` from v3.2.1. Import package `claudekit`, console scripts `claudekit`/`ck` and GitHub `OmarMokhtar-Saad/claudekit` are UNCHANGED. `pyproject.toml` `[project] name`, `_version.DIST_NAME` and `cli/main.py`'s `metadata.version()` argument must move together or a source checkout stops recognising itself; pinned by `TestTheDistributionNameIsOneString`. |\n"
+        }
+      ]
+    }
+  ]
+}

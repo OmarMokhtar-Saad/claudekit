@@ -1,6 +1,6 @@
 ---
 name: release-integrity
-description: Use when a repo publishes versioned artifacts (a zip, wheel, image, or tag) — the four deterministic gates that keep a published release identical to the tree it claims to come from.
+description: Use when a repo publishes versioned artifacts (zip, wheel, image, tag) — four deterministic gates that keep a release identical to the tree it claims.
 ---
 
 # Release Integrity
