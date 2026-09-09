@@ -278,3 +278,29 @@ gate closes on every sibling config the moment it lands.
 - `plan-repo-hygiene-fixups.ops.json` — **spent** (executed 2026-09-09). Lint and type
   fixups on the above: unused imports and stacked semicolons left by splitting the guard
   tests out, and a mypy annotation on `repo-hygiene.py`'s worktree accumulator.
+- `plan-repo-hygiene-guard.ops.json` — **dropped**, not spent (never executed).
+  `worktree-guard.sh` would have refused a raw `git worktree add` before it
+  could bypass the cap. It accumulated SEVEN defects: four found by adversarial
+  review (`$(...)`, `~`, bare `$VAR` and `git -C <dir>` targets all classified
+  safe), one more in round 2 (a test that drove `CLAUDE_PROJECT_DIR`, which
+  `lib.sh:resolve_root` does not read, so it passed for the wrong reason), and
+  two that only executing the artifact revealed -- a `case` pattern built from
+  `$(printf '\n')` expanded to the EMPTY string and matched every target,
+  denying every `git worktree add`; and `LOG_FILE` pointing into a
+  possibly-absent `.claude/hooks/` made the `lib.sh` stderr redirect fail, which
+  failed the extraction and exited 0, a silent fail-open in exactly the repos
+  the guard protects. The last two were introduced BY the fixes to the earlier
+  ones -- the churn signal `qa-agents/CLAUDE.md` names: *stop patching and name
+  the invariant*. The invariant is that string-level parsing of shell text
+  cannot decide where a path resolves, because the shell expands what the guard
+  cannot. Prevention was abandoned in favour of detection: `repo-hygiene.py`
+  reports and reclaims sprawl after the fact, which is what the original problem
+  actually needed. Its 12 regression tests live in the config if anyone revisits.
+- `plan-repo-hygiene-ephemeral.ops.json` — **spent** (executed 2026-09-09).
+  Narrowed the reclaimable class from "any worktree outside the repo root" to
+  "outside AND under a temp directory". The first version offered ClaudeKit's
+  own deliberate sibling worktrees (`../.ck-main`) for deletion. A mutation then
+  showed the first test for this was worthless -- it drove the predicate but not
+  `cmd_clean`'s selection, so reverting the fix left the suite green; a wiring
+  assertion was added and both mutations now kill.
+

@@ -3,8 +3,10 @@
 Each case is a safety property whose absence would lose a user's work. The
 worktree-guard tests live in test_worktree_guard.py and ship with the guard.
 """
+import importlib.util
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -76,3 +78,54 @@ def test_oneline_is_silent_on_a_healthy_repo(scratch_repo):
     out = run_hygiene(scratch_repo, "report", "--oneline")
     assert out.returncode == 0
     assert out.stdout.strip() == "", f"noise on a healthy repo: {out.stdout!r}"
+
+def test_a_sibling_worktree_outside_the_root_is_never_offered():
+    """Deliberate sibling layouts (../.ck-main) are outside the root and are
+    someone's working tree; only the ephemeral temp-dir class is reclaimable.
+
+    Regression: the first version classified EVERY outside-root worktree as
+    junk, which offered ClaudeKit's own `.ck-main` for deletion.
+
+    This drives the predicate directly rather than through a fixture, and that
+    is not a shortcut: pytest's `tmp_path` is itself under the system temp root,
+    so a "sibling" built there is genuinely ephemeral and the integration-level
+    version of this test could only ever confirm the bug it is meant to catch.
+    """
+    spec = importlib.util.spec_from_file_location("hygiene_under_test", HYGIENE)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    assert not mod._under_tempdir(Path("/Users/someone/IdeaProjects/.ck-main"))
+    assert not mod._under_tempdir(Path("/Users/someone/proj-wt/feature"))
+    assert mod._under_tempdir(Path(tempfile.mkdtemp()) / "wt")
+    # A path merely SHARING a prefix with a temp root is not inside it.
+    assert not mod._under_tempdir(Path("/tmpfoo/wt"))
+
+def test_clean_selects_from_the_ephemeral_set_not_the_outside_set():
+    """Bind the WIRING, not just the predicate.
+
+    The predicate test above passes even when `ephemeral` is computed as plain
+    `outside` -- it never reaches cmd_clean's selection. A mutation proved that:
+    reverting the fix left the suite green. This asserts the selection itself,
+    which is the line the regression actually lived on.
+    """
+    src = HYGIENE.read_text(encoding="utf-8")
+    sel = src[src.index("wt_targets = "):]
+    sel = sel[:sel.index("\n\n")]
+    assert "worktrees_ephemeral" in sel, "clean no longer selects from the ephemeral set"
+    assert "worktrees_outside_root" not in sel, (
+        "clean selects every outside-root worktree again -- a deliberate sibling "
+        "worktree would be offered for deletion"
+    )
+    assert '_under_tempdir(p)' in src, "the ephemeral classification lost its temp-dir test"
+
+
+
+def test_an_ephemeral_worktree_is_offered(scratch_repo):
+    """The reclaimable class: under a temp dir, whose parent dies with its session."""
+    eph = Path(tempfile.mkdtemp()) / "wt"
+    _git(scratch_repo, "worktree", "add", "-b", "eph", str(eph))
+    out = run_hygiene(scratch_repo, "clean")
+    assert "STRANDED" in run_hygiene(scratch_repo, "report").stdout or str(eph) in out.stdout
+    assert str(eph) in out.stdout, "an ephemeral worktree was not offered for removal"
+

@@ -24,6 +24,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -31,6 +32,30 @@ WORKTREE_CAP = 5
 MERGED_BRANCH_WARN = 10
 DEFAULT_MAX_DELETIONS = 25
 PROTECTED_BRANCHES = {"main", "master", "develop", "HEAD"}
+
+
+def _tempdirs() -> List[str]:
+    """Directories whose contents are ephemeral by construction.
+
+    Both the symlinked and resolved spellings: on macOS TMPDIR is under /var,
+    which is a symlink to /private/var, and git reports the resolved path while
+    the environment hands out the unresolved one.
+    """
+    seen, out = set(), []
+    for d in (tempfile.gettempdir(), "/tmp", "/var/folders", os.environ.get("TMPDIR") or ""):
+        if not d:
+            continue
+        for form in (d, os.path.realpath(d)):
+            f = form.rstrip("/")
+            if f and f not in seen:
+                seen.add(f)
+                out.append(f)
+    return out
+
+
+def _under_tempdir(p: Path) -> bool:
+    real = os.path.realpath(str(p))
+    return any(real == t or real.startswith(t + "/") for t in _tempdirs())
 
 
 def git(root: Path, args: List[str], check: bool = False) -> subprocess.CompletedProcess:
@@ -80,7 +105,15 @@ def worktrees(root: Path) -> List[Dict[str, str]]:
         rows.append(cur)
     for row in rows:
         p = Path(row["path"])
-        row["outside_root"] = "yes" if root not in p.parents and p != root else "no"
+        outside = root not in p.parents and p != root
+        row["outside_root"] = "yes" if outside else "no"
+        # An "outside" worktree is not automatically junk. A deliberate sibling
+        # layout (../.ck-main, ../repo-wt/feature) is outside the root and is
+        # someone's working tree. What is reclaimable is the EPHEMERAL kind: a
+        # worktree under a temp directory, whose parent is deleted when the
+        # session that made it ends, leaving git metadata that `git worktree
+        # prune` can never reach. Only that class is offered for removal.
+        row["ephemeral"] = "yes" if (outside and _under_tempdir(p)) else "no"
         row["exists"] = "yes" if p.is_dir() else "no"
         row["primary"] = "yes" if p == root else "no"
         dirty = git(p, ["status", "--porcelain"]) if p.is_dir() else None
@@ -113,6 +146,7 @@ def survey(root: Path) -> Dict:
         "worktrees": wts,
         "worktree_count": len(wts),
         "worktrees_outside_root": [w for w in wts if w["outside_root"] == "yes"],
+        "worktrees_ephemeral": [w for w in wts if w["ephemeral"] == "yes"],
         "merged_branches": merged_branches(root, base),
         "branch_total": len([b for b in git(root, ["branch", "--format=%(refname:short)"]).stdout.splitlines() if b.strip()]),
         "unpushed": unpushed(root, base),
@@ -142,7 +176,8 @@ def cmd_report(args: argparse.Namespace) -> int:
         print(f"  worktrees ............ {s['worktree_count']}"
               + ("  <-- OVER CAP" if s["worktree_count"] > WORKTREE_CAP else ""))
         for w in s["worktrees_outside_root"]:
-            print(f"      outside repo root: {w['path']}"
+            kind = "STRANDED in a temp dir" if w["ephemeral"] == "yes" else "outside repo root"
+            print(f"      {kind}: {w['path']}"
                   + ("  (dirty)" if w["dirty"] == "yes" else ""))
         print(f"  branches ............. {s['branch_total']} "
               f"({len(s['merged_branches'])} merged into {s['default_branch']} and undeleted)"
@@ -162,7 +197,9 @@ def cmd_clean(args: argparse.Namespace) -> int:
     s = survey(root)
     current = git(root, ["rev-parse", "--abbrev-ref", "HEAD"]).stdout.strip()
 
-    wt_targets = [w for w in s["worktrees_outside_root"]
+    # Only the ephemeral class. A sibling worktree outside the root is
+    # deliberate infrastructure in some layouts and is never offered here.
+    wt_targets = [w for w in s["worktrees_ephemeral"]
                   if w["primary"] == "no" and w["dirty"] == "no"]
     # Merged-ness is measured against the LOCAL base tip. When that base has
     # commits origin has never seen, "merged into main" does not mean "safe to
