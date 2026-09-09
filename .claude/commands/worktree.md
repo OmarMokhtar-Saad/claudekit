@@ -64,3 +64,9 @@ git branch -D "agent/<slug>"            # only after merge or explicit abandon
 - `/worktree list` — registered worktrees + live status
 - `/worktree remove feature-auth` — safe removal (branch kept for merge)
 - `/worktree prune` — reconcile registry after crashes or manual deletions
+- `/worktree report` — sprawl report: worktrees over cap, worktrees outside the
+  repo root, merged-but-undeleted branches, unpushed commits (read-only)
+- `/worktree clean` — reclaim what `report` listed; dry-run unless `--yes`,
+  refuses dirty trees and unmerged branches, bounded by `--max-deletions`
+
+Both delegate to `.claude/operations/scripts/repo-hygiene.py`.

@@ -192,9 +192,12 @@ def cmd_create(args: argparse.Namespace) -> int:
         registry = load_registry(root)
         if any(entry["slug"] == slug for entry in registry["worktrees"]):
             return fail(f"worktree {slug!r} already registered", 2)
-        if len(registry["worktrees"]) >= MAX_WORKTREES:
+        # EXCLUDE the primary checkout: `git worktree list` includes it, and
+        # counting it would silently drop the agent budget from 5 to 4.
+        live = live_worktree_paths(root) - {os.path.realpath(root)}
+        if len(live) >= MAX_WORKTREES:
             return fail(
-                f"{MAX_WORKTREES} worktrees already registered; "
+                f"{MAX_WORKTREES} worktrees already exist ({len(live)} live per git); "
                 "merge or remove one first (returns collapse past 4-5 agents)", 2,
             )
         rel_path = f"{WORKTREES_DIR}/{slug}"
@@ -326,6 +329,26 @@ def cmd_remove(args: argparse.Namespace) -> int:
     print(f"removed {entry['path']} (branch {entry['branch']} kept for merge/cleanup)")
     return 0
 
+
+def live_worktree_paths(root: Path) -> set:
+    """Every worktree git itself knows about -- the ground truth the cap counts.
+
+    The registry only records worktrees created THROUGH this manager. A raw
+    `git worktree add` never registers, so a registry-only count could not see
+    it and the cap was silently bypassable. Measured in a real repo: 36 live
+    worktrees under MAX_WORKTREES=5, 25 of them in session scratchpad paths
+    that outlived their sessions. git is the source of truth; the registry
+    stays the metadata store.
+
+    Paths are realpath-normalized on BOTH sides before comparison. git and
+    primary_root() agree today (both resolve symlinks), but a mismatch would
+    silently fail to exclude the primary row and quietly restore the 5->4
+    off-by-one -- on macOS, where /tmp is a symlink, that is the likely shape.
+    Normalizing costs nothing and removes the class.
+    """
+    out = run_git(root, ["worktree", "list", "--porcelain"], check=False).stdout
+    return {os.path.realpath(line[len("worktree "):]) for line in out.splitlines()
+            if line.startswith("worktree ")}
 
 def cmd_prune(args: argparse.Namespace) -> int:
     root = primary_root()
