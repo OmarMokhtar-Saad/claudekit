@@ -63,6 +63,25 @@ def load_policy(path):
     for name, tier in sorted(tiers.items()):
         if not isinstance(tier, dict) or not tier.get("model"):
             raise ValueError("model-policy.json: tier %r has no model" % name)
+        if "degrade_to" not in tier:
+            raise ValueError("model-policy.json: tier %r declares no degrade_to" % name)
+        target = tier["degrade_to"]
+        if target is not None and target not in tiers:
+            raise ValueError(
+                "model-policy.json: tier %r degrades to unknown tier %r" % (name, target))
+    # "Degrade one tier, never stop" is only true if every chain ENDS. A cycle -
+    # including a tier that degrades to itself - turns the rule into a loop, and
+    # the table is the one place that defect is cheap to catch, so walk every
+    # chain to its terminal null rather than trusting the one-step check above.
+    for name in sorted(tiers):
+        seen, cursor = [], name
+        while cursor is not None:
+            if cursor in seen:
+                raise ValueError(
+                    "model-policy.json: degrade_to chain from tier %r cycles (%s)"
+                    % (name, " -> ".join(seen + [cursor])))
+            seen.append(cursor)
+            cursor = tiers[cursor]["degrade_to"]
     for name, role in sorted(roles.items()):
         if not isinstance(role, dict):
             raise ValueError("model-policy.json: role %r is not an object" % name)

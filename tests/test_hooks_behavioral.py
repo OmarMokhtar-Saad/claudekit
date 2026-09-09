@@ -238,7 +238,7 @@ class TestCommandGuard:
 
     def test_missing_validator_warns_under_standard_but_blocks_under_strict(self, tmp_path):
         """The one documented permissive path. Blocking under standard would deny
-        every Bash command in installs without the claude-kit package."""
+        every Bash command in installs without the claudekit-agents package."""
         import shutil
         hd = tmp_path / ".claude" / "hooks"
         hd.mkdir(parents=True)

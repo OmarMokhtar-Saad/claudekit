@@ -1,6 +1,6 @@
 ---
 name: continuous-learning
-description: "Use when setting up automatic pattern extraction from sessions — Stop hook that learns reusable patterns and saves them as skills"
+description: "Use when operating this project's learning loop — reflection receipts open ledger findings, and repeated findings become skill PROPOSALS a human promotes"
 disable-model-invocation: true
 ---
 

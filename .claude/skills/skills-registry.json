@@ -631,7 +631,7 @@
       "path": "skills/continuous-learning/SKILL.md",
       "mandatory": false,
       "usedBy": [],
-      "description": "Auto-extract reusable patterns from sessions and save as skills at session end"
+      "description": "Use when operating this project's learning loop — reflection receipts open ledger findings, and repeated findings become skill PROPOSALS a human promotes"
     },
     {
       "id": "context-budget",

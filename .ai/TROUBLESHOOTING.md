@@ -8,7 +8,7 @@ Symptom → cause → fix. Maintainer-focused; user-facing variants belong in do
 | Hooks never fire in a user project | Old install without settings.json (pre-v2.1 installer bug) | Re-run installer / `ck update`; verify with `ck doctor` |
 | "Blocking" hook doesn't block | exit 1 or message on stdout; or profile=minimal | exit 2 + stderr via `deny`; check profile |
 | Hook blocks everything unexpectedly | Fail-closed on payload parse failure | Check hooks.log for the parse error; payload shape changed? |
-| `ck init` "cannot find asset tree" | Running outside checkout without wheel assets or CLAUDEKIT_HOME | `pip install claude-kit` (bundles assets) or set `CLAUDEKIT_HOME` |
+| `ck init` "cannot find asset tree" | Running outside checkout without wheel assets or CLAUDEKIT_HOME | `pip install claudekit-agents` (bundles assets) or set `CLAUDEKIT_HOME` |
 | `docs-drift` CI job fails | A doc hard-codes a stale count | `python3 scripts/gen-docs.py` and update, or fix the asset change |
 | `validate-registry` fails | Renamed/moved skill still referenced in skills-registry.json | Update `path`/`usedBy`; grep for the old id |
 | `permission-gate` fails | `--dangerously-skip-permissions` reintroduced | Remove it; use scoped `--allowedTools` per INVOCATION.md |

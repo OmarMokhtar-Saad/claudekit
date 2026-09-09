@@ -77,3 +77,13 @@ backups/
 # project-local, re-derivable -- `project-graph.py stale`/`verify` keep it honest,
 # committing it would let a stale copy outrank the tree.
 .claude/project-graph.json
+# Agent memory, LOCAL tier (`memory: local`). The `project` tier under
+# .claude/agent-memory/ IS committed on purpose -- it is auto-injected into a system
+# prompt and so must be diff-reviewed. This tier is per-machine scratch.
+.claude/agent-memory-local/
+
+# Skill proposals are LOCAL until a human promotes one. A proposal is a machine's
+# opinion about a cluster of findings, not a reviewed artifact; committing every one
+# would put unreviewed prose in the tree. The README explaining that IS committed.
+.claude/knowledge/proposals/*.md
+!.claude/knowledge/proposals/README.md

@@ -1,0 +1,27 @@
+{
+  "plan": "parse-gate-probe-parent",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/ops_precompile.py",
+      "description": "My own guard was in the wrong place and the test proved it: on the first iteration `cur_st` IS `st`, so comparing them can never differ, and the probe went ahead anyway. The device that matters is the PARENT's, because swapping a component's case looks that name up in its parent directory — so a mount point's own name resolves on the parent filesystem. Stat the parent and refuse the probe when it is a different device.",
+      "edits": [
+        {
+          "find": "        # NEVER ANSWER FROM ANOTHER DEVICE. The verdict is cached under `st.st_dev`, so a probe\n        # performed on a different filesystem answers the wrong question. That is not\n        # hypothetical: when `existing` IS a mount point, its own name lives in the PARENT\n        # mount, so a case-insensitive volume mounted inside a case-sensitive tree would be\n        # probed against the parent, recorded as sensitive, and its aliases would then stay\n        # distinct -- the silent exit-0 hole. Crossing the boundary stops the walk, leaving\n        # `result` True, which collapses: loud, not silent.\n        if cur_st.st_dev != st.st_dev:\n            break\n        parent, base = os.path.dirname(cur), os.path.basename(cur)",
+          "replace": "        parent, base = os.path.dirname(cur), os.path.basename(cur)\n        # NEVER ANSWER FROM ANOTHER DEVICE. The verdict is cached under `st.st_dev`, and\n        # swapping a component's case looks that NAME up in its PARENT directory -- so the\n        # device that decides the answer is the parent's, not `cur`'s. When `existing` is\n        # itself a mount point, its name lives in the parent mount: a case-insensitive volume\n        # mounted inside a case-sensitive tree would be probed against the case-sensitive\n        # parent, cached as sensitive, and its aliases would then stay distinct -- the silent\n        # exit-0 hole this module exists to close. Refusing the probe leaves `result` True,\n        # which collapses: loud, not silent.\n        #\n        # An earlier version of this guard compared `cur_st.st_dev` with `st.st_dev`, which on\n        # the first iteration compares a value with itself and can never differ. The test\n        # caught it; reasoning about it had not.\n        try:\n            if os.stat(parent).st_dev != st.st_dev:\n                break\n        except OSError:\n            break"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_ops_parse_gate.py",
+      "description": "Drive the guard through the condition it actually protects: a parent directory on a different device. No test can mount a volume, so os.stat is wrapped to report a foreign st_dev for the parent only — which is exactly the mount-point shape.",
+      "edits": [
+        {
+          "find": "    gate_mod = load_gate()\n    monkeypatch.chdir(tmp_path)\n    probe_dir = tmp_path / 'Vol'\n    probe_dir.mkdir()\n    real = os.stat(str(probe_dir))\n\n    class _OtherDevice:\n        st_dev = real.st_dev + 1000\n        st_ino = real.st_ino\n\n    gate_mod._CASE_FOLD.clear()\n    try:\n        answer = gate_mod._case_insensitive(str(probe_dir), _OtherDevice())\n    finally:\n        gate_mod._CASE_FOLD.clear()\n    assert answer is True, (\n        'a probe that cannot be performed on the target device must collapse, not split')",
+          "replace": "    gate_mod = load_gate()\n    monkeypatch.chdir(tmp_path)\n    probe_dir = tmp_path / 'Vol'\n    probe_dir.mkdir()\n    own = os.stat(str(probe_dir))\n    parent = str(tmp_path)\n    real_stat = os.stat\n\n    class _Foreign:\n        \"\"\"A parent that reports a different device, i.e. `probe_dir` is a mount point.\"\"\"\n\n        def __init__(self, src):\n            self.st_dev = src.st_dev + 1000\n            self.st_ino = src.st_ino\n\n    def fake_stat(path, *args, **kwargs):\n        result = real_stat(path, *args, **kwargs)\n        if os.path.abspath(str(path)) == os.path.abspath(parent):\n            return _Foreign(result)\n        return result\n\n    monkeypatch.setattr(os, 'stat', fake_stat)\n    gate_mod._CASE_FOLD.clear()\n    try:\n        answer = gate_mod._case_insensitive(str(probe_dir), own)\n    finally:\n        gate_mod._CASE_FOLD.clear()\n    assert answer is True, (\n        'a probe that can only be performed on another device must collapse, not split')"
+        }
+      ]
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 # AI Session Changelog
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
+
 ## 2026-09-09 — repo-hygiene gates: shipped B/C/D, held the guard after 7 defects
 
 Started from a user report about a different repo: branches, worktrees and merges
@@ -52,6 +53,88 @@ pre-fix run; (b) pilot rollout to `qa-agents` — needs the deletion list approv
 (c) `qa-agent-pro` CI + the CRLF/manifest fix, still affecting users; (d) the
 "outside repo root" heuristic flags legitimate sibling worktrees (`.ck-main`) the
 same as dead scratchpad orphans — tighten before fleet rollout.
+
+## 2026-09-06 — OmniRoute adoption: degrade_to as data, doctor version drift
+
+Researched the MIT-licensed `diegosouzapw/OmniRoute` AI gateway and adopted two ideas
+from it. **No code vendored** — its 352-provider routing, 19 strategy plugins, dashboard
+and LLMLingua compression stack were all rejected on the same ground: it arbitrages
+between *vendors*, while ClaudeKit routes one vendor's capability tiers and does not own
+the request path at all. A gateway would also have broken the zero-runtime-dependency rule.
+
+**What landed.** (1) `degrade_to` on every `capability_tiers` entry, with `load_policy`
+walking each chain to its terminal null — `escalate_to` was already structured data while
+"degrade one tier, never stop" lived only in CLAUDE.md prose, so escalation was checkable
+and degradation was folklore. The key is mandatory: an absent one is not a terminal chain.
+(2) `cmd_doctor` compares the manifest version `install.sh` has always stamped against the
+running `__version__`. Suite 10896 → 10915 passed; all nine gates green.
+
+**The severity was the whole design, and round 1 got it wrong.** The first plan warned on
+any difference and pinned that with a test; review REJECTED at 82. `check()` reddens
+`--strict` on any warning, and the fleet's steady state is ~15 projects sharing one global
+install with staggered syncs — every project would have gone permanently red on a condition
+nobody can act on, degrading a gate this repo names in its own DoD. *Pinning a design flaw
+with a test documents it; it does not fix it.* Round 2 ships semver-aware severity:
+major/minor warns, patch-only is an `info()` line routed **around** `check()`, unparseable
+skips. Approved 93. Verified behaviourally on a copy of a real kitted tree — patch drift
+exits `--strict` 0, major drift exits 1 — and run across all 14 kitted projects, all
+reporting `Install matches kit v3.1.0`.
+
+**Two traps worth remembering.** (a) The verdict was recorded *before*
+`validate-config-json.py --stamp-baseline`; the stamp changed the ops.json hash, so the
+approval gate refused the config it had just approved and the implementer deadlocked with
+no way out (it has no Edit/Write by design). `review-record.py diff` proved the only delta
+was the machine-added `baseline` block. **Stamp first, record second.** (b) Scope shrank
+twice on contact with the code: the "build integrity sentinel" idea turned out to be
+already built — `install.sh` has always stamped version *and* commit SHA — leaving only the
+comparison missing; and a third candidate (`changelog.d/` fragments) was dropped as an
+owner-gated release-process change rather than decided unilaterally.
+
+**Follow-up, owner-gated.** The fleet does NOT yet have this: `claude-kit` is an editable
+install resolving against the shared checkout's *working tree*, which is on
+`fix/backup-history-ordering`. It reaches all 15 projects automatically once that checkout
+sits on a branch containing `main` — no reinstall, no per-project sync.
+
+## 2026-09-06 — agent memory, and a learning loop with a reachable write path
+
+**The diagnosis, all executed before any code moved.** `.claude/knowledge/issues/` held **0
+entries in all 15 kitted repos**: `knowledge-ledger.py record` fires only at a Verifier PASS
+checkpoint, and per CLAUDE.md the verifier never auto-runs — so the durable write path was
+unreachable by construction, while the ungated `open` subcommand had no caller. Reflection
+receipts existed but landed in a session-scoped temp dir (`reflection.py::ledger_dir()`) and
+evaporated with `$TMPDIR`. `continuous-learning` claimed a Stop-hook extractor that is not
+in `settings.json`'s Stop array. No agent set `memory:`.
+
+**What was designed, and what was deliberately NOT built.** No fifth memory store. The four
+that exist got owners: `ck memory` (`.claude/memory/entries.jsonl`) is authoritative for
+*assertions about the tree*; `.claude/knowledge/issues/` is authoritative for *findings*;
+`.claude/agent-memory/<agent>/MEMORY.md` is Claude Code's native per-agent tier; and the
+reflection JSONL stays **ephemeral and feeds the ledger**. `src/claudekit/memory.py` was not
+touched — the ledger borrows its *rule* (evidence hash beats a clock) and the SessionStart
+helper *imports* its `freshness()` verdict rather than re-deriving staleness.
+
+**Two constraints that shaped the design more than the requirements did.**
+1. `src/claudekit/context_floor.py:104` charges the **full file text** of `planner.md`,
+   `reviewer.md` and `implementer.md` against `pipeline agent bodies`, which sat at
+   42,930 / 43,000 — 70 chars of headroom. So those two agents got the 16-char `memory:`
+   line and **no body text**; the recording policy for them lives in
+   `.claude/agent-memory/README.md`.
+2. `cmd_open` refuses a duplicate signature, so "the same signature 3 times" — the
+   requested proposal trigger — is unreachable by construction. The reachable equivalent,
+   shared-token clustering, was built instead and the reason is recorded in the code.
+
+**Prior rejections honoured.** `.claude/knowledge/rejections/reflection-lifecycle-gates.md`
+(CONDITIONAL 88) named a blockable escape hatch and a `minimal`-profile divergence: this
+change adds no PreToolUse hook, no new refusal, and only non-blocking exit-0 steps. Its
+`gen-docs` note was re-verified and found **stale**: `gen-docs.py:77` now globs
+`("*.sh", "*.py")`, so a new `.py` hook DOES move the count unless a sibling `.sh` names it
+with a literal `python3` on the same line (`gen-docs.py:110-126`) — and `ck doctor
+--strict` (`cli/main.py:203`) additionally demands a literal `$SCRIPT_DIR/` there.
+`session-start.sh` therefore invokes the helper on one literal line, deliberately, with the
+reason in a comment beside it.
+
+**Follow-ups.** Fleet sync to the other 14 repos is owner-gated. Whether
+`record --verified` should ever fire automatically is still open — it does not.
 
 ## 2026-09-05 — concurrency-guard rounds 15–26: a loop that did not converge
 
@@ -792,6 +875,7 @@ after two adversarial review rounds and a full end-to-end simulation.
 
 **Follow-ups.** Batches 2, 4 then 3, in that order. Batch 3 still lands last and still
 has no eval-suite gate — that risk is accepted, not resolved.
+
 ## 2026-08-23 — the ops engine could not delete a markdown file, and the corpus is all markdown
 
 Task 008 (consolidation) was picked up from a handoff. Nothing of task 008 itself has
@@ -830,6 +914,7 @@ plan for batch 1.
 **Follow-ups.** Batch 1 awaits owner go-ahead. Batches 2–4 unchanged. The `.md` guard
 narrowing is a real reduction in protection for 16 downstream repos — named plainly in
 `CHANGELOG.md`, not buried.
+
 ## 2026-08-23 — PR #20 review round: four rejections, four fixes, one queued
 
 Every change this session was rejected on its first adversarial round, and every rejection
@@ -957,6 +1042,7 @@ most substantive being that the executor's legacy-record path — the real produ
 back-compat surface — is still untested. The `reviewer` Bash grant stays open and
 owner-gated. `ops-mcp-probe.json` is still stranded: the fix prevents the class going
 forward but cannot rescue a verdict recorded under a different plan's slug.
+
 ## 2026-08-21 — Claude (Opus 5) — Enforcement runtime: the lane that was written up but never built
 
 **Scope.** Agent A, Phase 0 (0.1 event log, 0.2 dispatcher + merge, 0.3 spill + pruning, 0.4

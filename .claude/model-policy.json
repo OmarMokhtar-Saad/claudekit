@@ -7,6 +7,9 @@
     "Role and capability are chosen SEPARATELY: `accountable_for` says what the role",
     "owns, `tier` says how much intelligence the assignment earns.",
     "Regenerate/verify agent frontmatter with: python3 scripts/gen-model-policy.py [--check]",
+    "`degrade_to` is the fallback chain as DATA, not prose: on a rate limit a role",
+    "drops one tier along it, and null ends the chain. gen-model-policy.py rejects a",
+    "chain that names an unknown tier or that cycles instead of terminating.",
     "`callsite_overrides` records every place a concrete model is written by hand. A",
     "site is legitimate only if it appears here with a reason; the audit test refuses",
     "any `--model` literal that is neither a role's resolved tier nor a listed override."
@@ -15,14 +18,17 @@
   "capability_tiers": {
     "most-capable": {
       "model": "opus",
+      "degrade_to": "balanced",
       "use_when": "Novel design, adversarial review, security reasoning, or root-cause work where a wrong answer is expensive and hard to detect."
     },
     "balanced": {
       "model": "sonnet",
+      "degrade_to": "fast",
       "use_when": "Bounded judgement against a written standard: scoring, specialist review, refactors, test authoring, orchestration."
     },
     "fast": {
       "model": "haiku",
+      "degrade_to": null,
       "use_when": "Mechanical or retrieval work with a checkable output: executing an approved ops.json, searching, summarising, formatting."
     }
   },

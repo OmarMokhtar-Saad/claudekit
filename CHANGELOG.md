@@ -11,6 +11,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `open-source-forker` — never shipped and have been removed.
 
 ## [Unreleased]
+- **The skill-description context budget is 9500 chars, up from 9000.** Owner
+  sign-off, taken because the floor left 30 chars of headroom: adding any 81st
+  skill breached it, and `release-integrity` was merely the one that did. The
+  overall floor is unchanged at 93912 of 99500. Three `ck skill new` tests had
+  hardcoded `9000` and its arithmetic; they now derive the threshold from
+  `context_floor.BUDGETS`, because a literal stops being "just over budget" the
+  moment the budget moves. One of them had gone vacuous under the wider budget
+  -- it passed for a description that was never charged AND for one that was --
+  and now fails against a mutant that charges an invisible skill.
 - **The worktree cap did not bind.** `worktree-manager.py` enforced
   `MAX_WORKTREES = 5` by counting rows in its own registry, which only records
   worktrees created through the manager. A raw `git worktree add` never
@@ -45,6 +54,123 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   shipped a manifest recording the wrong tree and was reverted four hours later
   in a patch release, silently withdrawing two shipped modules from users.
 
+## [3.2.1] — 2026-09-07
+
+- **The ops parse gate identifies files the way the kernel does.** Two review rounds on the
+  gate found the same defect three times, each in a different spelling: a plan naming one
+  file two ways (`x.py` and `./x.py`, a symlink and its target, or `x.py` and `X.py` on a
+  case-insensitive filesystem) was two files to the gate and one to the writer, so the gate
+  checked one spelling, withheld the other as "not checked", and **exited 0 reporting that
+  every file still parses while the executor left unparseable Python on disk**. The lexical
+  fixes each closed one spelling and left the next; the gate now groups by `(st_dev, st_ino)`
+  — what the operating system means by "the same file" — which closes all of them plus
+  hardlinks with one mechanism, and refuses such a plan rather than guessing, because the
+  writes go through `os.replace`, which replaces a symlink instead of following it. Naming a
+  file once, by one path, is now required. A plan that deletes a file and edits a link to it
+  is refused for the same reason.
+
+- **The gate's file identity now covers a file that does not exist yet.** An inode can only
+  be read for a path already on disk, so every `file_create` target fell back to a lexical
+  key -- and lexical identity is what the earlier rounds disproved. A plan creating
+  `new.py` and editing `New.py`, or creating through a symlinked directory and editing
+  through the real one, still passed the gate and still left unparseable Python on disk.
+  Identity is now the nearest EXISTING ancestor's `(st_dev, st_ino)` plus the remaining
+  components folded by that device's own measured rules (case, and unicode NFC/NFD, which
+  macOS also folds). Alias detection reads every path the config NAMES rather than only
+  the ones the gate could model. The property, not any one spelling, is what the tests now
+  pin; folds the local filesystem does not perform skip with a stated reason.
+
+- **The parse gate now models the plan the executor will actually run.** Two divergences
+  between `ops_precompile.py` and `execute-json-ops.py` let an ops.json pass the gate
+  (exit 0, "every Python file still parses") and leave unparseable Python on disk; both were
+  reproduced end to end against the real executor, and both were reachable past an APPROVED
+  validator run on a default zero-dependency install.
+
+  - **One path identity.** The gate keyed its accumulators on the raw `op['path']` while the
+    executor keys on `os.path.relpath`, so `x.py` and `./x.py` were two files to the gate and
+    one to the writer. The gate now uses the executor's own function. One file reached under
+    two names through a *symlink* is refused outright rather than modelled, because the
+    executor's atomic `os.replace` write replaces the link instead of following it and no
+    lexical key can represent that.
+  - **One normaliser.** `normalize_config` discards `files` whenever `operations` is present;
+    the gate applied both. The executor now hands the gate the config it has already
+    normalised, so there is one normaliser on the execution path, and the standalone CLI's
+    conversion is pinned against the executor's.
+
+  Also: the `BREAK` line names the interpreter grammar it judged with (on the 3.9 floor a
+  valid `match` statement is reported as invalid syntax, and there is no stdlib way to parse
+  a newer grammar); the `PRE` line no longer claims the edits in the plan are innocent of a
+  pre-existing break, which it cannot know; `delete` is modelled only on a literal `true`, as
+  the executor requires; a `run_command` in the config is reported as unmodelled; and the
+  executor's "fail closed on any checker fault" branch is now pinned by a test that made it
+  a crashing checker.
+
+- **The ops pipeline now gates on what an edit LEAVES, not only on what it matches.**
+  Approval, identity and drift all gate on intent; none of them proved the text coming out
+  the other side is text Python can still read. `ops_precompile.py` applies every edit in
+  memory, in the executor's own action precedence, and refuses the run if a touched `.py`
+  would no longer parse or would newly shadow a module-level import. It runs in `--dry-run`
+  as well as execute, and fails closed if the checker is missing or crashes.
+  `--no-parse-check` is the single break-glass, for repairing the checker itself.
+
+  Two ordering rules are part of the gate, not afterthoughts, and both are pinned in both
+  directions:
+
+  - **A precise verdict outranks a symptom.** A missing or ambiguous `find` anchor is
+    reported by the gate but not refused by it, because `execute_code_edit` already fails
+    closed on both and names *which* operation failed (`ambiguous-pattern`). Refusing at the
+    gate would replace `Pattern appears N times (ambiguous match)` with the generic
+    `parse-gate: result does not parse` and flatten `operations` to `[]`.
+  - **The gate is differential.** It refuses breakage a plan *causes*, not breakage it
+    *inherits*. An absolute check would make an already-unparseable file uneditable through
+    the engine unless one plan happened to fix the whole file — so the Iron Law path could
+    not be used to repair a syntax error, which is exactly when it is most wanted.
+  - **A miss names its own file as data.** The set of files whose parse verdict is withheld
+    is built from the path each miss carries, not by re-splitting a rendered `path: reason`
+    line on its first colon. A colon is legal in a filename on macOS and Linux, and the
+    split recovered the wrong key from one -- withholding the verdict for a *different*
+    file of that name, which this same plan broke, and passing the run. Measured in both
+    directions.
+- **On a source checkout, `ck --version` and `ck doctor` reported a stale version.** Version
+  resolution preferred `importlib.metadata`, which an editable install (`pip install -e .`)
+  freezes at install time, while `install.sh` derives the SOURCE version and stamps it into
+  each project's `.claudekit-manifest.json`. `ck doctor`'s install-drift check compares the
+  two, so after a version bump a freshly installed project was reported as DRIFTED until
+  someone re-ran pip — measured here as source 3.2.0 vs reported 3.1.0, and 7 failures in
+  `tests/test_doctor_gate.py` that CI never saw because CI installs fresh. Precedence now
+  lives in one place (`claudekit/_version.py`): a source checkout reports its own
+  `pyproject.toml`, detected by the `src/claudekit/` layout plus a `name = "claude-kit"`
+  check, so a vendored or wheel-installed copy is unaffected and installed packages take the
+  same metadata path as before. The two hand-bumped `"x.y.z"` fallback literals in
+  `claudekit/__init__.py` and `claudekit/cli/main.py` are gone — `pyproject.toml` is now the
+  only hand-maintained version site, closing the class that left `cli/main.py` two releases
+  stale through 3.0.0.
+
+### Changed
+
+- **The PyPI distribution name is now `claudekit-agents`** (was `claude-kit`). PyPI
+  refused `claude-kit` as confusable with an existing, unrelated project named
+  `claudekit`: PyPI ignores separators when it tests names for similarity, so
+  `claude-kit` collapses onto `claudekit`. That refusal has blocked every release
+  this project has attempted.
+- **`pip install claude-kit` was never a working command.** No release was ever
+  published under that name, so nobody is installed from it and there is nothing to
+  migrate. The install line is now `pip install claudekit-agents`.
+- **Nothing else moves.** The import package stays `claudekit`, the console scripts
+  stay `claudekit` and `ck`, and the GitHub repository stays
+  `OmarMokhtar-Saad/claudekit`.
+- Version bumped to 3.2.1 because v3.2.0 is already tagged and released, and a built
+  wheel embeds its distribution name, so the rename cannot ship under that tag.
+
+## [3.2.0] — 2026-09-07
+
+- **Upgrade note for kitted projects.** This release adds the `ck doctor` install-drift
+  check below, and it fires on the release itself: every project whose
+  `.claudekit-manifest.json` was written by 3.1.0 is now one minor behind the running
+  package, so `ck doctor --strict` reports `Install version drift` (readiness 98/100,
+  exit 1) until the project is refreshed with `ck update` or a re-run of `install.sh`.
+  That is the check working, not a regression; patch-level drift is deliberately
+  routed around the strict gate.
 - **`restore-backup.py --list` ordered backups by plan name, not by time.** `list_backups`
   sorted directory names in reverse, under a comment asserting that a lexicographic sort
   over `<plan>-<YYYYmmdd>-<HHMMSS>-<micros>` is a chronological one. It orders by plan slug
@@ -57,6 +183,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `post_state` was stamped -- an unstamped backup being a run that died mid-flight. The
   manifests already held the execution history; nothing could read it. `--json` exists so
   the queued-ops and archive gates can consult that data instead of hand-kept README rows.
+
+- **Tier degradation is data, not folklore.** "On limits, degrade one tier, never stop"
+  lived only as prose in CLAUDE.md while escalation was already structured
+  (`escalate_to`/`escalate_when`). Each `capability_tiers` entry in
+  `.claude/model-policy.json` now carries `degrade_to` (most-capable -> balanced ->
+  fast -> null), and `scripts/gen-model-policy.py` fails closed on a target that names
+  an unknown tier or on a chain that cycles instead of terminating. Agent frontmatter
+  is untouched.
+- **`ck doctor` reports install-vs-kit version drift.** The install manifest has always
+  recorded the version a project was installed from; doctor now compares it to the
+  version of the `claudekit` package running the command. Severity is semver-aware so
+  that a gate stays meaningful: a major/minor gap warns (and so reddens `--strict`) with
+  a reinstall hint, a patch-only gap prints one informational line that affects neither
+  the readiness score nor `--strict`, and a missing, ejected or unparseable recorded
+  version is reported as a skip.
+
+- **Agents now learn from the project, and the learning loop finally writes something.**
+  Seven agents (`code-reviewer`, `debugger`, `explore`, `verifier`, `security-scanner`,
+  `planner`, `reviewer`) carry `memory: project`, so Claude Code auto-loads
+  `.claude/agent-memory/<agent>/MEMORY.md` into their system prompt; those files are
+  committed and reviewed like code, and `.claude/agent-memory-local/` is gitignored.
+  The issue ledger's write path is reachable at last: an accepted reflection receipt now
+  opens a finding automatically (sanitized fields only, no-op when the repo has no
+  `.claude/knowledge/issues/`), where before `record --verified` was gated on a Verifier
+  PASS that never auto-runs — measured across 15 kitted repos, the ledger held **0**
+  entries. Findings are retired by **evidence**, not by a clock: `open --evidence <path>`
+  stamps each cited file's sha256 and `prune --apply --supersede` archives an open finding
+  only when every cited file has changed or gone (`--ttl-days`, default 90, is the fallback
+  for findings citing no evidence); plain `prune` is unchanged and still never retires an
+  unfixed finding. SessionStart prints up to 5 open findings plus your **fresh**
+  `ck memory` entries, capped at ~600 tokens and withheld unless the text passes
+  `prompt-injection-scanner.sh`. Three or more findings sharing signature tokens produce a
+  **proposal** in `.claude/knowledge/proposals/` (gitignored until you promote one) — never
+  a skill, because writing one without your approval would break hard rule 5.
+  `skillListingBudgetFraction` is now `0.03`: the `description` + `when_to_use` text of all
+  80 skills and 57 commands measures **16,198 chars ≈ 4,050 tokens**, against Claude Code's
+  documented 0.01 default of 2,000 tokens — roughly double the budget, so descriptions were
+  being silently dropped. See `docs/LEARNING_LOOP.md`.
 
 - **The reflection demand states the field set and the text budget.** Filing a receipt
   against the newly self-describing demand still cost three refusal rounds -- an unknown

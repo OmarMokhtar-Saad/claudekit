@@ -1,0 +1,39 @@
+{
+  "plan": "agent-memory-learning-splice-fix",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/reflection.py",
+      "description": "restore newline before def main",
+      "edits": [
+        {
+          "find": "    return Truedef main(argv",
+          "replace": "    return True\n\n\ndef main(argv"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/knowledge-ledger.py",
+      "description": "restore newlines at four spliced insertions",
+      "edits": [
+        {
+          "find": "        return -1def entry_paths(",
+          "replace": "        return -1\n\n\ndef entry_paths("
+        },
+        {
+          "find": "        head.append(\"evidence: [%s]\" % \", \".join(evidence))    if plan:",
+          "replace": "        head.append(\"evidence: [%s]\" % \", \".join(evidence))\n    if plan:"
+        },
+        {
+          "find": "    return 0def build_parser(",
+          "replace": "    return 0\n\n\ndef build_parser("
+        },
+        {
+          "find": "help=\"a fixed entry regressed: rewrite it as status: regressed\")    opening.add_argument(\"--evidence\"",
+          "replace": "help=\"a fixed entry regressed: rewrite it as status: regressed\")\n    opening.add_argument(\"--evidence\""
+        }
+      ]
+    }
+  ]
+}

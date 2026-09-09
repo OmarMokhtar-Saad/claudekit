@@ -1,0 +1,20 @@
+{
+  "plan": "parse-gate-unresolved-paths-citation",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/plans/plan-parse-gate-unresolved-paths.md",
+      "description": "Reviewer MINOR: the pathless-op guard in check-plan-artifacts.py starts at line 221, not 222. Corrects the citation and names this follow-up config's own artifact so check-plan-artifacts.py --check stays OK.",
+      "edits": [
+        {
+          "find": "`check-plan-artifacts.py:222-226` refuses one independently.",
+          "replace": "`check-plan-artifacts.py:221-226` refuses one independently."
+        },
+        {
+          "find": "## Rollback",
+          "replace": "## Post-review correction (Tier 1, `--no-approval`, after the APPROVED 96 record)\n\n`plan-parse-gate-unresolved-paths-citation.ops.json` fixes the reviewer's one MINOR — the\n`check-plan-artifacts.py` guard citation was off by one line. It writes only\n`.claude/plans/plan-parse-gate-unresolved-paths.md`.\n\n## Rollback"
+        }
+      ]
+    }
+  ]
+}

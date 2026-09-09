@@ -53,4 +53,14 @@ if [ "$TOOL_CALLS" -gt 0 ] 2>/dev/null; then
     echo ""
 fi
 
+# Learning loop: propose (never write) a candidate skill when open ledger findings cluster.
+# Folded in here rather than wired as its own Stop entry because `knowledge-ledger.py`
+# lives under operations/scripts/, and every command settings.json names must be a counted
+# hook (tests/test_ops_enforcement_scope.py). No profile guard: this hook is not in
+# profiles.GUARDED_HOOKS, so a guard here would be an undeclared one (test_profiles.py);
+# the call is read-mostly, backgrounded by settings.json, and never blocks.
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+LEDGER="$PROJECT_ROOT/.claude/operations/scripts/knowledge-ledger.py"
+[ -f "$LEDGER" ] && python3 "$LEDGER" propose >/dev/null 2>&1 || true
+
 exit 0

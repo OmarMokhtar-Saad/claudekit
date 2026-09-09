@@ -4,7 +4,7 @@ You are working **on** ClaudeKit, not *with* it in a user project. Maintainer kn
 
 ## What this repo is
 
-Prompt corpus in `.claude/` + enforcement layer (`src/claudekit/security/`, hooks) + operations engine (`.claude/operations/scripts/`) + delivery shell (`src/claudekit/cli/`, `install.sh`, CI). Component counts live in `docs/` and are generator-owned — `python3 scripts/gen-docs.py --check` (hard rule 8). PyPI name `claude-kit`; CLI `claudekit`/`ck`; zero runtime dependencies.
+Prompt corpus in `.claude/` + enforcement layer (`src/claudekit/security/`, hooks) + operations engine (`.claude/operations/scripts/`) + delivery shell (`src/claudekit/cli/`, `install.sh`, CI). Component counts live in `docs/` and are generator-owned — `python3 scripts/gen-docs.py --check` (hard rule 8). PyPI distribution `claudekit-agents`; CLI `claudekit`/`ck`; import package `claudekit`; zero runtime dependencies.
 
 ## Session setup gotcha (read first)
 
