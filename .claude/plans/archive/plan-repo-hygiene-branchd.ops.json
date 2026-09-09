@@ -1,0 +1,25 @@
+{
+  "plan": "repo-hygiene-branch-d-head",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/repo-hygiene.py",
+      "description": "do not offer branch deletions git will refuse; say why",
+      "edits": [
+        {
+          "find": "    total = len(wt_targets) + len(br_targets)",
+          "add_before": "    # `git branch -d` measures merged-ness against HEAD, not against the base we\n    # verified. Standing on a feature branch, it refuses every branch merged\n    # only into main -- measured: 12 offered, 12 refused, one error line each.\n    # Offering deletions we know git will decline is noise pretending to be work.\n    current_is_base = current == s[\"default_branch\"]\n    if br_targets and not current_is_base:\n        print(f\"repo-hygiene: on {current!r}, not {s['default_branch']!r}. \"\n              f\"`git branch -d` measures against HEAD, so it would refuse all \"\n              f\"{len(br_targets)} merged branch(es) regardless. \"\n              f\"Switch to {s['default_branch']} to reclaim them; worktrees are \"\n              f\"reclaimable from anywhere.\", file=sys.stderr)\n        br_targets = []\n\n"
+        }
+      ]
+    },
+    {
+      "type": "run_command",
+      "command": [
+        "ruff",
+        "check",
+        ".claude/operations/scripts/repo-hygiene.py"
+      ],
+      "description": "lint"
+    }
+  ]
+}

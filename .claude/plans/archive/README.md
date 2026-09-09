@@ -303,4 +303,18 @@ gate closes on every sibling config the moment it lands.
   showed the first test for this was worthless -- it drove the predicate but not
   `cmd_clean`'s selection, so reverting the fix left the suite green; a wiring
   assertion was added and both mutations now kill.
+- `plan-repo-hygiene-origin.ops.json` — **spent**. Measure merged-ness against
+  `origin/<base>`, not the local tip. Replaces the blunt "withhold all branch
+  deletion while the base has unpushed commits" with the real question. Measured
+  on qa-agents: 26 branches merged into local main, 25 into origin/main -- the
+  blunt rule blocked 25 safe deletions to protect one.
+- `plan-repo-hygiene-slashed.ops.json` — **spent**. `refs/heads/agent/foo` names
+  the branch `agent/foo`; `.rsplit("/", 1)[-1]` returned `foo`, so every slashed
+  branch fell out of the held-by-a-worktree set and 23 checked-out branches were
+  offered for deletion. Only `git branch -d` refusing them prevented the loss --
+  the `-d`-never-`-D` choice earned itself here.
+- `plan-repo-hygiene-branchd.ops.json` — **spent**. `git branch -d` measures
+  against HEAD, not the base, so from a feature branch it refuses every branch
+  merged only into main. The tool offered 12 and git declined all 12, one error
+  line each. It now explains the situation instead of producing twelve failures.
 
