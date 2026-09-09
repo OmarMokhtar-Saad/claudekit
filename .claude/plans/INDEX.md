@@ -22,13 +22,13 @@ index never outranks the current files.
 
 | State | Plans |
 |---|---:|
-| `drifted` | 4 |
-| `approved` | 50 |
+| `drifted` | 5 |
+| `approved` | 51 |
 | `planned` | 15 |
 | `executed` | 28 |
 | `not_started` | 24 |
 | `legacy` | 3 |
-| **total** | **124** |
+| **total** | **126** |
 
 ## Plans
 
@@ -44,10 +44,11 @@ index never outranks the current files.
 | `.claude/plans/plan-008-batch1-one-tree.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-008-paper-trail.md` | `executed` | 5 |  |
 | `.claude/plans/plan-adapt-eject-interaction.md` | `not_started` | 0 |  |
+| `.claude/plans/plan-agent-memory-learning.md` | `approved` | 1 |  |
 | `.claude/plans/plan-agent-tool-grants.md` | `approved` | 1 |  |
 | `.claude/plans/plan-approval-machinery.md` | `approved` | 1 |  |
 | `.claude/plans/plan-backlog-triage-pass.md` | `executed` | 2 |  |
-| `.claude/plans/plan-backup-history.md` | `planned` | 1 |  |
+| `.claude/plans/plan-backup-history.md` | `planned` | 4 |  |
 | `.claude/plans/plan-callsite-audit-line-level.md` | `approved` | 1 |  |
 | `.claude/plans/plan-canonical-skill-wins.md` | `approved` | 1 |  |
 | `.claude/plans/plan-capability-tiers-audit.md` | `approved` | 1 |  |
@@ -115,6 +116,7 @@ index never outranks the current files.
 | `.claude/plans/plan-rejection-retro-loop.md` | `planned` | 7 |  |
 | `.claude/plans/plan-remaining-fixes-2026-07-31.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-remove-codex-mirror.md` | `approved` | 1 |  |
+| `.claude/plans/plan-repo-hygiene-gates.md` | `drifted` | 1 |  |
 | `.claude/plans/plan-request-shaping.md` | `planned` | 5 |  |
 | `.claude/plans/plan-residuals.md` | `approved` | 1 |  |
 | `.claude/plans/plan-residue-cleanup.md` | `approved` | 1 |  |

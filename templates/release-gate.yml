@@ -1,0 +1,74 @@
+# Release integrity gate — see .claude/skills/release-integrity/SKILL.md
+# Deterministic. No model, no review, ~40s. Adapt the env block; keep the gates.
+name: release-gate
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+env:
+  MANIFEST: MANIFEST.sha256      # "" to skip gates 1-2
+  REMOVED_LEDGER: REMOVED_PATHS  # "" to skip gate 2
+  CHANGELOG: CHANGELOG.md        # "" to skip gate 3
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+
+      - name: Resolve tags
+        id: tags
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          PREV="$(git tag --sort=-v:refname | grep -v "^${TAG}$" | head -1)"
+          echo "tag=$TAG"   >> "$GITHUB_OUTPUT"
+          echo "prev=$PREV" >> "$GITHUB_OUTPUT"
+
+      - name: Gate 1 — manifest reproduces from the tag
+        if: env.MANIFEST != ''
+        run: |
+          rm -rf /tmp/rebuilt && mkdir -p /tmp/rebuilt
+          git archive "${{ steps.tags.outputs.tag }}" | tar -x -C /tmp/rebuilt
+          cd /tmp/rebuilt
+          [ -f "$MANIFEST" ] || { echo "::error::$MANIFEST absent at the tag"; exit 1; }
+          # Verify every listed file hashes to its recorded digest.
+          fail=0
+          while read -r sum path; do
+            [ -n "$path" ] || continue
+            [ -f "$path" ] || { echo "::error::$path listed but absent"; fail=1; continue; }
+            actual="$(shasum -a 256 "$path" | cut -d' ' -f1)"
+            [ "$actual" = "$sum" ] || { echo "::error::$path hash mismatch (line endings?)"; fail=1; }
+          done < "$MANIFEST"
+          exit $fail
+
+      - name: Gate 2 — every removal is declared
+        if: env.REMOVED_LEDGER != '' && steps.tags.outputs.prev != ''
+        run: |
+          fail=0
+          git diff --diff-filter=D --name-only \
+            "${{ steps.tags.outputs.prev }}..${{ steps.tags.outputs.tag }}" \
+          | while read -r f; do
+              git show "${{ steps.tags.outputs.prev }}:$MANIFEST" 2>/dev/null \
+                | grep -q "  $f$" || continue
+              grep -q "^$f$" "$REMOVED_LEDGER" \
+                || { echo "::error::undeclared removal of shipped file: $f"; fail=1; }
+            done
+          exit $fail
+
+      - name: Gate 3 — changelog gained a section
+        if: env.CHANGELOG != '' && steps.tags.outputs.prev != ''
+        run: |
+          now=$(git show "${{ steps.tags.outputs.tag }}:$CHANGELOG"  | grep -c '^## \[' || true)
+          was=$(git show "${{ steps.tags.outputs.prev }}:$CHANGELOG" | grep -c '^## \[' || true)
+          [ "$now" -gt "$was" ] \
+            || { echo "::error::CHANGELOG gained no new version section ($was -> $now)"; exit 1; }
+
+      - name: Gate 4 — version strictly monotonic
+        if: steps.tags.outputs.prev != ''
+        run: |
+          hi="$(printf '%s\n%s\n' "${{ steps.tags.outputs.tag }}" "${{ steps.tags.outputs.prev }}" \
+                | sed 's/^v//' | sort -V | tail -1)"
+          [ "v$hi" = "${{ steps.tags.outputs.tag }}" ] && [ "${{ steps.tags.outputs.tag }}" != "${{ steps.tags.outputs.prev }}" ] \
+            || { echo "::error::version not strictly greater than ${{ steps.tags.outputs.prev }}"; exit 1; }
