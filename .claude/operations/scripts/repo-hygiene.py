@@ -98,7 +98,11 @@ def worktrees(root: Path) -> List[Dict[str, str]]:
                 rows.append(cur)
             cur = {"path": line[len("worktree "):], "branch": "", "detached": "no"}
         elif line.startswith("branch "):
-            cur["branch"] = line[len("branch "):].rsplit("/", 1)[-1]
+            # `refs/heads/agent/foo` is the branch `agent/foo`. rsplit("/", 1)
+            # returned `foo`, so every slashed branch fell out of the
+            # held-by-a-worktree set and was offered for deletion.
+            ref = line[len("branch "):]
+            cur["branch"] = ref[len("refs/heads/"):] if ref.startswith("refs/heads/") else ref
         elif line.strip() == "detached":
             cur["detached"] = "yes"
     if cur:
@@ -122,7 +126,23 @@ def worktrees(root: Path) -> List[Dict[str, str]]:
 
 
 def merged_branches(root: Path, base: str) -> List[str]:
-    out = git(root, ["branch", "--merged", base, "--format=%(refname:short)"]).stdout
+    """Branches whose commits are already contained in the base.
+
+    Measured against origin/<base> when that ref exists, NOT the local tip.
+    A branch merged only into a local base that is itself ahead of origin is
+    not safe to delete: reset the base to origin and its commits are reachable
+    only from the reflog. Measured on a real repo, 26 branches were merged into
+    local main and 25 into origin/main -- deleting on the local reading would
+    have taken one branch whose work existed nowhere else.
+
+    With no remote-tracking ref there is nothing better to measure against, so
+    the local base is used and cmd_clean withholds deletion while the base has
+    unpushed commits.
+    """
+    ref = f"origin/{base}"
+    if git(root, ["rev-parse", "--verify", "--quiet", ref]).returncode != 0:
+        ref = base
+    out = git(root, ["branch", "--merged", ref, "--format=%(refname:short)"]).stdout
     held = {r["branch"] for r in worktrees(root) if r["branch"]}
     return [b.strip() for b in out.splitlines()
             if b.strip() and b.strip() not in PROTECTED_BRANCHES and b.strip() != base
@@ -150,6 +170,8 @@ def survey(root: Path) -> Dict:
         "merged_branches": merged_branches(root, base),
         "branch_total": len([b for b in git(root, ["branch", "--format=%(refname:short)"]).stdout.splitlines() if b.strip()]),
         "unpushed": unpushed(root, base),
+        "has_remote_base": git(root, ["rev-parse", "--verify", "--quiet",
+                                      f"origin/{base}"]).returncode == 0,
     }
 
 
@@ -206,7 +228,10 @@ def cmd_clean(args: argparse.Namespace) -> int:
     # delete": if main is later reset to origin/main (an ordinary recovery),
     # the deleted branch's commits are reachable only via reflog. Review found
     # this; the tool already computes `unpushed`, so it can refuse itself.
-    if s["unpushed"] > 0:
+    # Only when merged-ness could not be measured against the remote at all.
+    # With origin/<base> present, merged_branches already used it, so an
+    # unpushed local tip is irrelevant to whether these branches are safe.
+    if s["unpushed"] > 0 and not s["has_remote_base"]:
         print(f"repo-hygiene: {s['default_branch']} has {s['unpushed']} unpushed commit(s); "
               f"branch deletion is withheld until they are pushed "
               f"(merged-into-local is not merged-into-origin). Worktrees are still reclaimable.",
@@ -214,6 +239,19 @@ def cmd_clean(args: argparse.Namespace) -> int:
         br_targets = []
     else:
         br_targets = [b for b in s["merged_branches"] if b != current]
+    # `git branch -d` measures merged-ness against HEAD, not against the base we
+    # verified. Standing on a feature branch, it refuses every branch merged
+    # only into main -- measured: 12 offered, 12 refused, one error line each.
+    # Offering deletions we know git will decline is noise pretending to be work.
+    current_is_base = current == s["default_branch"]
+    if br_targets and not current_is_base:
+        print(f"repo-hygiene: on {current!r}, not {s['default_branch']!r}. "
+              f"`git branch -d` measures against HEAD, so it would refuse all "
+              f"{len(br_targets)} merged branch(es) regardless. "
+              f"Switch to {s['default_branch']} to reclaim them; worktrees are "
+              f"reclaimable from anywhere.", file=sys.stderr)
+        br_targets = []
+
     total = len(wt_targets) + len(br_targets)
 
     if total == 0:

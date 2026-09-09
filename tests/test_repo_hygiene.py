@@ -119,6 +119,23 @@ def test_clean_selects_from_the_ephemeral_set_not_the_outside_set():
     )
     assert '_under_tempdir(p)' in src, "the ephemeral classification lost its temp-dir test"
 
+def test_a_slashed_branch_name_survives_worktree_parsing(scratch_repo, tmp_path):
+    """`refs/heads/agent/foo` names the branch `agent/foo`, not `foo`.
+
+    The first version used `.rsplit("/", 1)[-1]`, which returned `foo`. The
+    held-by-a-worktree exclusion therefore never matched any branch with a
+    slash -- which is most agent branches -- and `clean` offered 23 branches
+    that were checked out in worktrees. Only `git branch -d` refusing them
+    prevented the loss.
+    """
+    wt = tmp_path / "held-wt"
+    _git(scratch_repo, "worktree", "add", "-b", "agent/slashed", str(wt))
+    out = run_hygiene(scratch_repo, "clean")
+    assert "agent/slashed" not in out.stdout, (
+        "a branch checked out in a worktree was offered for deletion"
+    )
+
+
 
 
 def test_an_ephemeral_worktree_is_offered(scratch_repo):
