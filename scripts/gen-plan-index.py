@@ -48,6 +48,72 @@ INDEX_PATH = PLANS_DIR / "INDEX.md"
 REVIEW_RECORD = ROOT / ".claude" / "operations" / "scripts" / "review-record.py"
 BACKUPS_DIR = ROOT / "backups"
 
+# Sentinel distinguishing "not looked up yet" from "looked up, no git here".
+_TRACKED: Optional[frozenset] = None
+_TRACKED_LOOKED_UP = False
+
+
+def tracked_paths() -> Optional[frozenset]:
+    """Absolute paths git tracks, or ``None`` where there is no git to ask.
+
+    INDEX.md is a COMMITTED artifact gated in CI, so it has to derive from what
+    the repo contains -- not from what happens to be sitting in someone's
+    working tree. Globbing the filesystem counted an untracked scratch
+    `.ops.json` another session had left behind: the generator wrote `8` ops
+    configs for a plan and CI's clean checkout derived `7`, so the committed
+    index was shaped by a file that is not in the repo. Worse, the gate that
+    should have caught it was reading the same stray, so it passed locally in
+    both directions and only CI disagreed.
+
+    `--cached` is the right question, not `ls-tree HEAD`: it is the set that
+    will be in the next commit, which is what CI checks out. Asking HEAD would
+    make the commit that ADDS a plan unable to describe it.
+
+    Fails OPEN. An installed user project is often not a git repo at all, and a
+    plan index that empties itself there would be worse than one that counts a
+    scratch file. `None` means "do not filter".
+    """
+    global _TRACKED, _TRACKED_LOOKED_UP
+    if _TRACKED_LOOKED_UP:
+        return _TRACKED
+    _TRACKED_LOOKED_UP = True
+    try:
+        out = subprocess.run(
+            ["git", "-C", str(ROOT), "ls-files", "--cached", "-z"],
+            capture_output=True, timeout=30,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return _TRACKED  # None
+    if out.returncode != 0:
+        return _TRACKED  # None -- not a repo, or git unavailable
+    names = out.stdout.decode("utf-8", "surrogateescape").split("\0")
+    _TRACKED = frozenset(str(ROOT / n) for n in names if n)
+    return _TRACKED
+
+
+def is_tracked(path: Path) -> bool:
+    """True where git tracks ``path``, or where there is no git to ask."""
+    tracked = tracked_paths()
+    return tracked is None or str(path) in tracked
+
+
+def filtering_engaged(plans: List[Path]) -> bool:
+    """Whether to drop untracked plans -- only when git tracks plans AT ALL.
+
+    Filtering unconditionally would empty the index in two legitimate places:
+    a repo whose `.claude/` is gitignored, and any fresh `git init` where
+    nothing has been added yet (every fixture in tests/test_plan_index.py).
+    Both would silently report every plan as missing, which is a far worse
+    failure than counting one scratch file.
+
+    So the filter engages only where it has evidence to work with: at least one
+    plan is tracked, meaning this repo does version its plans, and an untracked
+    one beside them is genuinely a stray rather than the norm.
+    """
+    if tracked_paths() is None:
+        return False
+    return any(is_tracked(p) for p in plans)
+
 # `review-record.py check` exit code -> lifecycle state. Anything unexpected
 # (usage/IO error, a missing interpreter) resolves to `unknown` rather than to a
 # state that reads as progress -- failing closed is the repo's hook convention.
@@ -108,7 +174,11 @@ def executed_slugs() -> set:
 def plan_files() -> List[Path]:
     plans = sorted(PLANS_DIR.glob("plan-*.md"))
     plans += sorted(ARCHIVE_DIR.glob("plan-*.md"))
-    return plans
+    # Same rule as the ops configs: an untracked draft is not part of the
+    # repo, so it does not get a row in a committed, CI-gated index.
+    if not filtering_engaged(plans):
+        return plans
+    return [p for p in plans if is_tracked(p)]
 
 
 def slug_of(plan: Path) -> str:
@@ -139,10 +209,17 @@ def ops_for(plan: Path) -> List[Path]:
         for d in sorted(base.glob(f"ops-{slug}*")):
             if d.is_dir():
                 found.extend(sorted(d.glob("*.json")))
+    # Untracked scratch files do not shape a committed artifact -- see
+    # `tracked_paths()` for the round of CI this cost. Gated on the plan
+    # itself being tracked: an untracked plan is scratch work whose ops
+    # configs are equally uncommitted, and filtering them would report it
+    # as `not_started` while its evidence sits right there.
+    drop_untracked = is_tracked(plan) and tracked_paths() is not None
     uniq: List[Path] = []
     for p in found:
-        if p not in uniq:
-            uniq.append(p)
+        if p in uniq or (drop_untracked and not is_tracked(p)):
+            continue
+        uniq.append(p)
     return uniq
 
 
