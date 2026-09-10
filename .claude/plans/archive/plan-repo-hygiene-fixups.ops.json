@@ -1,0 +1,27 @@
+{
+  "plan": "repo-hygiene-fixups",
+  "description": "Lint fixups on tests/test_repo_hygiene.py \u2014 unused imports and semicolons left by splitting the guard tests out of the combined file.",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/repo-hygiene.py",
+      "description": "mypy: annotate the accumulator (var-annotated)",
+      "edits": [
+        {
+          "find": "    rows, cur = [], {}",
+          "replace": "    rows: List[Dict[str, str]] = []\n    cur: Dict[str, str] = {}"
+        }
+      ]
+    },
+    {
+      "type": "run_command",
+      "command": [
+        "ruff",
+        "check",
+        ".claude/operations/scripts/repo-hygiene.py"
+      ],
+      "description": "lint stays green"
+    }
+  ],
+  "revision": 2
+}

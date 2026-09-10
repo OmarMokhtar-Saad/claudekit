@@ -831,6 +831,14 @@
       "mandatory": false,
       "usedBy": [],
       "description": "Use when a raw request must be normalized before routing - extracts the six dimensions the pipeline routes on"
+    },
+    {
+      "id": "release-integrity",
+      "name": "Release Integrity",
+      "path": "skills/release-integrity/SKILL.md",
+      "mandatory": false,
+      "usedBy": [],
+      "description": "Use when a repo publishes versioned artifacts (a zip, wheel, image, or tag) \u2014 the four deterministic gates that keep a published release identical to the tree it claims to come from."
     }
   ],
   "agentsWithoutSkills": [

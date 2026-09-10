@@ -1,6 +1,59 @@
 # AI Session Changelog
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
+
+## 2026-09-09 — repo-hygiene gates: shipped B/C/D, held the guard after 7 defects
+
+Started from a user report about a different repo: branches, worktrees and merges
+colliding across sessions, and releases shipping without the code. Measured in
+`~/IdeaProjects/qa-agents` (private source) and `~/IdeaProjects/qa-agent-pro`
+(public publish target) over four days: 347 commits, 81 branches of which 75 were
+already merged, 36 worktrees (25 in dead sessions' `/private/tmp` scratchpads),
+910 MB of checked-out trees against a 218 MB `.git`, twelve public releases, and no
+CI at all. The public repo's committed `MANIFEST.sha256` does not reproduce from its
+own tag (one file committed LF, hashed CRLF).
+
+**Root cause, in ClaudeKit itself.** The machinery existed and nothing made it bind:
+`worktree-manager.py` capped worktrees at 5 but counted only its own registry, so a
+raw `git worktree add` was invisible to the cap; nothing garbage-collected merged
+branches; `session-start.sh` never reported sprawl.
+
+**What landed** (8 ops + 2 fixup configs): the cap now counts `git worktree list`
+minus the primary; new `repo-hygiene.py` behind `/worktree report|clean`; a
+threshold-gated session-start line; the `release-integrity` skill and a CI template.
+
+**What was held, and why.** `worktree-guard.sh` accumulated **seven** defects across
+two adversarial reviews and two rounds of execution testing, while phases B/C/D
+produced zero findings in the same reviews. The owner chose to split rather than
+spend the last review round on it; it lives in `plan-repo-hygiene-guard.ops.json`
+marked `status: HELD`, with its 12 regression tests.
+
+**The two defects no reviewer found — both from executing, not reading.**
+1. `*"$(printf '\n')"*` as a `case` pattern: command substitution strips the
+   trailing newline, so the pattern expanded to `*""*` and matched every target.
+   The guard denied *every* `git worktree add`.
+2. `LOG_FILE` pointed into `$ROOT/.claude/hooks/`. Where that directory is absent,
+   the `lib.sh` stderr redirect fails, which fails the extraction, which hits
+   `CMD=... || exit 0` — a silent fail-open in exactly the repos the guard protects.
+
+**Method note worth keeping.** The first guard test corpus was drawn from spellings
+the author had already designed against, so it passed 9/9 and proved nothing; review
+then found four bypasses in ordinary usage (`$(...)`, `~`, `$VAR`, `git -C`). The
+second corpus made the same class of error one level up — a test that set
+`CLAUDE_PROJECT_DIR` to redirect the guard's root, which `resolve_root()` does not
+read, so it passed for the wrong reason.
+
+**Honest status.** Executed under `--no-approval` on explicit owner authorisation.
+The recorded verdict is the real one — `REVISE 88`, which does not authorise
+execution — and the plan index correctly shows `drifted`, because the ops.json
+changed after that verdict. No reviewer has reviewed the reduced batch.
+
+**Follow-ups.** (a) attribute the 16 non-generator suite failures seen in the
+pre-fix run; (b) pilot rollout to `qa-agents` — needs the deletion list approved;
+(c) `qa-agent-pro` CI + the CRLF/manifest fix, still affecting users; (d) the
+"outside repo root" heuristic flags legitimate sibling worktrees (`.ck-main`) the
+same as dead scratchpad orphans — tighten before fleet rollout.
+
 ## 2026-09-06 — OmniRoute adoption: degrade_to as data, doctor version drift
 
 Researched the MIT-licensed `diegosouzapw/OmniRoute` AI gateway and adopted two ideas
@@ -41,6 +94,7 @@ owner-gated release-process change rather than decided unilaterally.
 install resolving against the shared checkout's *working tree*, which is on
 `fix/backup-history-ordering`. It reaches all 15 projects automatically once that checkout
 sits on a branch containing `main` — no reinstall, no per-project sync.
+
 ## 2026-09-06 — agent memory, and a learning loop with a reachable write path
 
 **The diagnosis, all executed before any code moved.** `.claude/knowledge/issues/` held **0
@@ -821,6 +875,7 @@ after two adversarial review rounds and a full end-to-end simulation.
 
 **Follow-ups.** Batches 2, 4 then 3, in that order. Batch 3 still lands last and still
 has no eval-suite gate — that risk is accepted, not resolved.
+
 ## 2026-08-23 — the ops engine could not delete a markdown file, and the corpus is all markdown
 
 Task 008 (consolidation) was picked up from a handoff. Nothing of task 008 itself has
@@ -859,6 +914,7 @@ plan for batch 1.
 **Follow-ups.** Batch 1 awaits owner go-ahead. Batches 2–4 unchanged. The `.md` guard
 narrowing is a real reduction in protection for 16 downstream repos — named plainly in
 `CHANGELOG.md`, not buried.
+
 ## 2026-08-23 — PR #20 review round: four rejections, four fixes, one queued
 
 Every change this session was rejected on its first adversarial round, and every rejection
@@ -986,6 +1042,7 @@ most substantive being that the executor's legacy-record path — the real produ
 back-compat surface — is still untested. The `reviewer` Bash grant stays open and
 owner-gated. `ops-mcp-probe.json` is still stranded: the fix prevents the class going
 forward but cannot rescue a verdict recorded under a different plan's slug.
+
 ## 2026-08-21 — Claude (Opus 5) — Enforcement runtime: the lane that was written up but never built
 
 **Scope.** Agent A, Phase 0 (0.1 event log, 0.2 dispatcher + merge, 0.3 spill + pruning, 0.4

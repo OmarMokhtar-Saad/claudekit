@@ -1,0 +1,15 @@
+{
+  "plan": ".claude/plans/plan-repo-hygiene-gates.md",
+  "slug": "repo-hygiene-gates",
+  "ops_path": ".claude/plans/plan-repo-hygiene-gates.ops.json",
+  "ops_sha256": "4fa4ade745ba87852d32624d4f3616ff40d573a6b1e8eaaf059d428b395bc2ca",
+  "score": 88,
+  "decision": "REVISE",
+  "findings": [],
+  "verdict_origin": "rubric",
+  "recorded_utc": "2026-09-09T07:59:49Z",
+  "operations": 8,
+  "edits": 4,
+  "rounds": [],
+  "round": 1
+}
