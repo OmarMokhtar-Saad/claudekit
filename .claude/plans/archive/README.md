@@ -279,3 +279,52 @@ gate closes on every sibling config the moment it lands.
 | `plan-deps-python39-caps.ops.json` + `plan-deps-changelog` | Spent 2026-09-05, `--no-approval` disclosed (Tier 1: `tests/requirements.in`, CHANGELOG). **Six of the eleven open Dependabot PRs were wrong to merge.** #6/#12 (pytest 9.1.1), #15/#17 (jsonschema 4.26.0) and #18/#19 (setuptools 84.0.0) raise floors in `tests/requirements.in` to releases declaring `requires_python >= 3.10`, while pyproject declares `>=3.9` and the CI matrix runs a 3.9 leg — each merge breaks it. Verified two ways rather than assumed: resolving the file on python3.9 (`pip install --dry-run --report`) returns exactly the versions already in the lock, and PyPI's `requires_python` for all six target versions reads `>=3.10`. The hash-pinned lock was already correct; only the floors were being pushed. Caps `<9`, `<4.26`, `<84` added with a comment saying the caps ARE the 3.9 floor and to lift them in the change that drops 3.9. Lock untouched. |
 | `plan-deps-action-bumps.ops.json` | Spent 2026-09-05, `--no-approval` disclosed (Tier 2: three workflow files, no source). The five Actions PRs (#7, #9, #10, #11, #14) WERE legitimate: 27 SHA pins moved to checkout v7.0.1, setup-python v7.0.0, upload-artifact v7.0.1, pypi-publish v1.14.2, gh-release v3.0.2 — each tag resolved through `gh api`, and the two annotated tags dereferenced to their commit SHAs rather than pinned to the tag object. **Three rejected configs first, all worth recording:** `file_create` refuses to overwrite an existing file; `code_edit` refuses an anchor matching more than once (checkout appears 12 times in ci.yml); and an anchor generator expanding context upward hit `pattern-not-found`, because edits apply in sequence and an earlier edit had already rewritten a line a later anchor spanned. The generator that worked expands context only across lines carrying no other pin. The repo's own `supply-chain-pins` gate passes on the result. |
 | `plan-backlog-close-stale-entries.ops.json` + `plan-backlog-close-fleet-sync` | Spent 2026-09-05, `--no-approval` disclosed (Tier 1: `.ai/BACKLOG.md`). Four backlog items were already DONE and only the entries survived — verified in the code, not assumed: `gen-model-policy.py` sits in `iron-law-gate.py:269-270` with the `--check` requirement at :507; `count_hooks()` uses `_hook_files()` over both globs and reports 27, not the `*.sh`-only 19; `ledger_dir()` narrows the temp fallback to `<tmp>/claudekit-reflection-u<uid>/<project-key>` behind a symlink-rejecting trust audit; and the TOKEN-MODEL-POLICY v3 block is byte-identical (sha256 of the text between markers) in 12 of 12 downstream checkouts. The closure records one discrepancy rather than smoothing it: the entry claims 16 kitted projects, but only 12 checkouts here carry the marker. |
+
+- `plan-repo-hygiene-gates.ops.json` — **spent** (executed 2026-09-09). Closed the
+  worktree-cap bypass, added `repo-hygiene.py` behind `/worktree report|clean`, the
+  threshold-gated session-start line, the `release-integrity` skill and CI template.
+  Executed under `--no-approval` on explicit owner authorisation; the recorded verdict
+  is `REVISE 88` on the pre-split batch and does NOT authorise execution.
+- `plan-repo-hygiene-fixups.ops.json` — **spent** (executed 2026-09-09). Lint and type
+  fixups on the above: unused imports and stacked semicolons left by splitting the guard
+  tests out, and a mypy annotation on `repo-hygiene.py`'s worktree accumulator.
+- `plan-repo-hygiene-guard.ops.json` — **dropped**, not spent (never executed).
+  `worktree-guard.sh` would have refused a raw `git worktree add` before it
+  could bypass the cap. It accumulated SEVEN defects: four found by adversarial
+  review (`$(...)`, `~`, bare `$VAR` and `git -C <dir>` targets all classified
+  safe), one more in round 2 (a test that drove `CLAUDE_PROJECT_DIR`, which
+  `lib.sh:resolve_root` does not read, so it passed for the wrong reason), and
+  two that only executing the artifact revealed -- a `case` pattern built from
+  `$(printf '\n')` expanded to the EMPTY string and matched every target,
+  denying every `git worktree add`; and `LOG_FILE` pointing into a
+  possibly-absent `.claude/hooks/` made the `lib.sh` stderr redirect fail, which
+  failed the extraction and exited 0, a silent fail-open in exactly the repos
+  the guard protects. The last two were introduced BY the fixes to the earlier
+  ones -- the churn signal `qa-agents/CLAUDE.md` names: *stop patching and name
+  the invariant*. The invariant is that string-level parsing of shell text
+  cannot decide where a path resolves, because the shell expands what the guard
+  cannot. Prevention was abandoned in favour of detection: `repo-hygiene.py`
+  reports and reclaims sprawl after the fact, which is what the original problem
+  actually needed. Its 12 regression tests live in the config if anyone revisits.
+- `plan-repo-hygiene-ephemeral.ops.json` — **spent** (executed 2026-09-09).
+  Narrowed the reclaimable class from "any worktree outside the repo root" to
+  "outside AND under a temp directory". The first version offered ClaudeKit's
+  own deliberate sibling worktrees (`../.ck-main`) for deletion. A mutation then
+  showed the first test for this was worthless -- it drove the predicate but not
+  `cmd_clean`'s selection, so reverting the fix left the suite green; a wiring
+  assertion was added and both mutations now kill.
+- `plan-repo-hygiene-origin.ops.json` — **spent**. Measure merged-ness against
+  `origin/<base>`, not the local tip. Replaces the blunt "withhold all branch
+  deletion while the base has unpushed commits" with the real question. Measured
+  on qa-agents: 26 branches merged into local main, 25 into origin/main -- the
+  blunt rule blocked 25 safe deletions to protect one.
+- `plan-repo-hygiene-slashed.ops.json` — **spent**. `refs/heads/agent/foo` names
+  the branch `agent/foo`; `.rsplit("/", 1)[-1]` returned `foo`, so every slashed
+  branch fell out of the held-by-a-worktree set and 23 checked-out branches were
+  offered for deletion. Only `git branch -d` refusing them prevented the loss --
+  the `-d`-never-`-D` choice earned itself here.
+- `plan-repo-hygiene-branchd.ops.json` — **spent**. `git branch -d` measures
+  against HEAD, not the base, so from a feature branch it refuses every branch
+  merged only into main. The tool offered 12 and git declined all 12, one error
+  line each. It now explains the situation instead of producing twelve failures.
+

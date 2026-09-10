@@ -128,6 +128,20 @@ if command -v python3 &>/dev/null && [ -f "$GRAPH_SCRIPT" ]; then
         fi
     else
         echo "  Graph: none — agents build it incrementally as they explore"
+
+# --- repo hygiene: one line, and ONLY when a threshold is tripped -------------
+# Silent on a healthy repo, so a clean project pays no context for this. The
+# thresholds and the line itself live in the script, not here.
+HYG_SCRIPT="$CK_ROOT/.claude/operations/scripts/repo-hygiene.py"
+# `timeout` is bounded so a huge or wedged repo cannot stall session start;
+# macOS may lack timeout(1), so fall back to the bare call there.
+if [ -f "$HYG_SCRIPT" ]; then
+    if command -v timeout >/dev/null 2>&1; then
+        timeout 3 python3 "$HYG_SCRIPT" report --oneline 2>/dev/null
+    else
+        python3 "$HYG_SCRIPT" report --oneline 2>/dev/null
+    fi
+fi
     fi
 fi
 

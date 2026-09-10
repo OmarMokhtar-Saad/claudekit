@@ -1,0 +1,37 @@
+{
+  "plan": "repo-hygiene-slashed-branch",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/repo-hygiene.py",
+      "description": "a branch name may contain slashes; strip the ref prefix, do not rsplit",
+      "edits": [
+        {
+          "find": "            cur[\"branch\"] = line[len(\"branch \"):].rsplit(\"/\", 1)[-1]",
+          "replace": "            # `refs/heads/agent/foo` is the branch `agent/foo`. rsplit(\"/\", 1)\n            # returned `foo`, so every slashed branch fell out of the\n            # held-by-a-worktree set and was offered for deletion.\n            ref = line[len(\"branch \"):]\n            cur[\"branch\"] = ref[len(\"refs/heads/\"):] if ref.startswith(\"refs/heads/\") else ref"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_repo_hygiene.py",
+      "description": "pin the slashed-branch exclusion",
+      "edits": [
+        {
+          "find": "    assert '_under_tempdir(p)' in src, \"the ephemeral classification lost its temp-dir test\"",
+          "add_after": "\n\ndef test_a_slashed_branch_name_survives_worktree_parsing(scratch_repo, tmp_path):\n    \"\"\"`refs/heads/agent/foo` names the branch `agent/foo`, not `foo`.\n\n    The first version used `.rsplit(\"/\", 1)[-1]`, which returned `foo`. The\n    held-by-a-worktree exclusion therefore never matched any branch with a\n    slash -- which is most agent branches -- and `clean` offered 23 branches\n    that were checked out in worktrees. Only `git branch -d` refusing them\n    prevented the loss.\n    \"\"\"\n    wt = tmp_path / \"held-wt\"\n    _git(scratch_repo, \"worktree\", \"add\", \"-b\", \"agent/slashed\", str(wt))\n    out = run_hygiene(scratch_repo, \"clean\")\n    assert \"agent/slashed\" not in out.stdout, (\n        \"a branch checked out in a worktree was offered for deletion\"\n    )\n"
+        }
+      ]
+    },
+    {
+      "type": "run_command",
+      "command": [
+        "ruff",
+        "check",
+        ".claude/operations/scripts/repo-hygiene.py",
+        "tests/test_repo_hygiene.py"
+      ],
+      "description": "lint"
+    }
+  ]
+}

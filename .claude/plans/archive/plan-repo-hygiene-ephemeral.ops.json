@@ -1,0 +1,25 @@
+{
+  "plan": "repo-hygiene-wiring-test",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_repo_hygiene.py",
+      "description": "a test that actually fails when the fix is reverted",
+      "edits": [
+        {
+          "find": "    assert not mod._under_tempdir(Path(\"/tmpfoo/wt\"))",
+          "add_after": "\n\ndef test_clean_selects_from_the_ephemeral_set_not_the_outside_set():\n    \"\"\"Bind the WIRING, not just the predicate.\n\n    The predicate test above passes even when `ephemeral` is computed as plain\n    `outside` -- it never reaches cmd_clean's selection. A mutation proved that:\n    reverting the fix left the suite green. This asserts the selection itself,\n    which is the line the regression actually lived on.\n    \"\"\"\n    src = HYGIENE.read_text(encoding=\"utf-8\")\n    sel = src[src.index(\"wt_targets = \"):]\n    sel = sel[:sel.index(\"\\n\\n\")]\n    assert \"worktrees_ephemeral\" in sel, \"clean no longer selects from the ephemeral set\"\n    assert \"worktrees_outside_root\" not in sel, (\n        \"clean selects every outside-root worktree again -- a deliberate sibling \"\n        \"worktree would be offered for deletion\"\n    )\n    assert '_under_tempdir(p)' in src, \"the ephemeral classification lost its temp-dir test\"\n"
+        }
+      ]
+    },
+    {
+      "type": "run_command",
+      "command": [
+        "ruff",
+        "check",
+        "tests/test_repo_hygiene.py"
+      ],
+      "description": "lint"
+    }
+  ]
+}

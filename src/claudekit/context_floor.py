@@ -38,7 +38,7 @@ from typing import Dict, Optional, Tuple
 # would look like a regression in the tighter category.
 BUDGETS: Dict[str, int] = {
     "agent descriptions": 10000,
-    "skill descriptions": 9000,
+    "skill descriptions": 9500,
     "command descriptions": 6000,
     "CLAUDE.md": 31000,
     "pipeline agent bodies": 43000,

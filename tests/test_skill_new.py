@@ -21,6 +21,15 @@ FLOOR_MODULE = os.path.join(REPO_ROOT, "src", "claudekit", "context_floor.py")
 GEN_REGISTRY = os.path.join(REPO_ROOT, "scripts", "gen-registry.py")
 GEN_DOCS = os.path.join(REPO_ROOT, "scripts", "gen-docs.py")
 
+# Derived, never hardcoded: these tests need a description that lands just over
+# the skill-description budget, and a literal stopped being "just over" the
+# moment the budget moved -- which is how three of them went green-to-red on a
+# one-line budget change that broke nothing they exist to guard.
+sys.path.insert(0, os.path.join(REPO_ROOT, "src"))
+from claudekit.context_floor import BUDGETS  # noqa: E402
+
+SKILL_BUDGET = BUDGETS["skill descriptions"]
+
 
 @pytest.fixture()
 def project(tmp_path):
@@ -195,7 +204,7 @@ def test_the_floor_remedy_names_a_command_the_project_actually_has(tmp_path):
     bulky = tmp_path / ".claude" / "skills" / "bulky"
     bulky.mkdir(parents=True)
     (bulky / "SKILL.md").write_text(
-        '---\nname: bulky\ndescription: "%s"\n---\nbody\n' % ("x" * 9100))
+        '---\nname: bulky\ndescription: "%s"\n---\nbody\n' % ("x" * (SKILL_BUDGET + 100)))
     refusal, warnings = context_floor.check_new_skill(tmp_path, "Use when x")
     assert refusal and "ck doctor" in refusal
     assert "scripts/check-context-floor.py" not in refusal
@@ -204,7 +213,7 @@ def test_the_floor_remedy_names_a_command_the_project_actually_has(tmp_path):
 
 def test_description_that_would_breach_the_floor_is_refused(project):
     """PROOF 1: named cause, real numbers, and nothing written."""
-    filler = "x" * 8900
+    filler = "x" * (SKILL_BUDGET - 100)
     (project / ".claude" / "skills" / "bulky").mkdir()
     (project / ".claude" / "skills" / "bulky" / "SKILL.md").write_text(
         f'---\nname: bulky\ndescription: "{filler}"\n---\nbody\n')
@@ -213,14 +222,19 @@ def test_description_that_would_breach_the_floor_is_refused(project):
     assert result.returncode == 1, result.stdout
     assert "context floor" in result.stderr
     assert "skill descriptions" in result.stderr
-    assert "9000" in result.stderr
+    assert str(SKILL_BUDGET) in result.stderr
     assert not (project / ".claude" / "skills" / "one-too-many").exists()
     assert [s["id"] for s in registry(project)["skills"]] == []
 
 
 def test_invisible_skill_is_not_charged_to_the_floor(project):
-    """disable-model-invocation costs no always-on context, so it is admitted."""
-    filler = "x" * 8900
+    """disable-model-invocation costs no always-on context, so it is admitted.
+
+    The filler leaves less headroom than the description costs, so this passes
+    only because the description is not charged -- with more slack than that it
+    would pass for a charged description too, and prove nothing.
+    """
+    filler = "x" * (SKILL_BUDGET - 100)
     (project / ".claude" / "skills" / "bulky").mkdir()
     (project / ".claude" / "skills" / "bulky" / "SKILL.md").write_text(
         f'---\nname: bulky\ndescription: "{filler}"\n---\nbody\n')

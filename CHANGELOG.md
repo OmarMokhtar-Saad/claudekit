@@ -11,6 +11,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `open-source-forker` — never shipped and have been removed.
 
 ## [Unreleased]
+- **The skill-description context budget is 9500 chars, up from 9000.** Owner
+  sign-off, taken because the floor left 30 chars of headroom: adding any 81st
+  skill breached it, and `release-integrity` was merely the one that did. The
+  overall floor is unchanged at 93912 of 99500. Three `ck skill new` tests had
+  hardcoded `9000` and its arithmetic; they now derive the threshold from
+  `context_floor.BUDGETS`, because a literal stops being "just over budget" the
+  moment the budget moves. One of them had gone vacuous under the wider budget
+  -- it passed for a description that was never charged AND for one that was --
+  and now fails against a mutant that charges an invisible skill.
+- **The worktree cap did not bind.** `worktree-manager.py` enforced
+  `MAX_WORKTREES = 5` by counting rows in its own registry, which only records
+  worktrees created through the manager. A raw `git worktree add` never
+  registers, so the cap could not see it. Measured in a real repo: 35 live
+  worktrees under a cap of 5, 25 of them in `/private/tmp/.../scratchpad/`
+  paths belonging to sessions that had already ended -- a worktree outside the
+  repo outlives the directory that held it, so `git worktree prune` never
+  reclaims it. The cap now counts `git worktree list` (excluding the primary
+  checkout, which that command also reports), so git is the source of truth and
+  the registry stays the metadata store.
+- **New `repo-hygiene.py`, surfaced as `/worktree report` and `/worktree clean`.**
+  Reports worktrees over cap, worktrees outside the repo root,
+  merged-but-undeleted branches, and unpushed commits on the default branch.
+  `report` is read-only; `clean` is a dry run unless `--yes`, refuses dirty
+  worktrees and the current branch, deletes with `git branch -d` (never `-D`),
+  and is bounded by `--max-deletions` (default 25). It also withholds branch
+  deletion entirely while the base branch has unpushed commits: merged-into-local
+  is not merged-into-origin, and a branch merged only into an unpushed `main`
+  becomes unreachable if `main` is later reset to `origin/main`.
+- **Session start reports sprawl, but only when it is there.** One line, printed
+  only if a threshold trips (worktrees over cap, more than 10 merged-undeleted
+  branches, any unpushed commit). Silent on a healthy repo, so a clean project
+  pays no context for it. Bounded with `timeout 3` where `timeout(1)` exists --
+  it does not on stock macOS, which the fallback handles.
+- **New `release-integrity` skill and `templates/release-gate.yml`.** Four
+  deterministic release gates -- the artifact rebuilds byte-identically from its
+  own tag, every deletion of a previously-shipped file is declared in the repo's
+  removed-paths ledger, the changelog gained a new version section rather than a
+  renamed heading, and the version is strictly monotonic. Drawn from a measured
+  failure: a published project whose committed manifest did not reproduce from
+  the tag it was committed at (one file committed LF, hashed CRLF), which
+  shipped a manifest recording the wrong tree and was reverted four hours later
+  in a patch release, silently withdrawing two shipped modules from users.
 
 ## [3.2.1] — 2026-09-07
 
@@ -129,7 +171,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   exit 1) until the project is refreshed with `ck update` or a re-run of `install.sh`.
   That is the check working, not a regression; patch-level drift is deliberately
   routed around the strict gate.
-
 - **`restore-backup.py --list` ordered backups by plan name, not by time.** `list_backups`
   sorted directory names in reverse, under a comment asserting that a lexicographic sort
   over `<plan>-<YYYYmmdd>-<HHMMSS>-<micros>` is a chronological one. It orders by plan slug
