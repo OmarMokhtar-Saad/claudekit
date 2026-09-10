@@ -225,3 +225,76 @@ def test_archived_plan_with_a_trailer_is_executed_not_legacy(tree):
     git(tree, "add", "-A")
     git(tree, "commit", "-q", "-m", "chore: land it\n\nPlan-Id: old-thing\n")
     assert state_of(tree, "archive/plan-old-thing.md") == "executed"
+
+
+# --- tracked vs working tree ------------------------------------------------
+# INDEX.md is committed and gated in CI, so it must derive from what the REPO
+# holds. Globbing the filesystem counted an untracked scratch .ops.json another
+# session had left behind: the generator wrote one ops-config count and CI's
+# clean checkout derived another, and the gate that should have caught it was
+# reading the same stray, so it agreed with itself locally in both directions.
+
+def ops_count(root, plan_rel="plan-fixture-plan.md"):
+    """The ops-config count the generator reports for one plan."""
+    assert run(root).returncode == 0
+    index = (root / ".claude" / "plans" / "INDEX.md").read_text()
+    for line in index.splitlines():
+        if f"`.claude/plans/{plan_rel}`" in line:
+            return int(line.split("|")[3].strip())
+    raise AssertionError(f"{plan_rel} missing from INDEX.md:\n{index}")
+
+
+def test_untracked_ops_config_is_not_counted(tree):
+    """PROOF: the stray that cost a CI round does not reach the index."""
+    write_ops(tree)
+    git(tree, "add", "-A")
+    git(tree, "commit", "-q", "-m", "chore: track the plan and its ops config")
+    assert ops_count(tree) == 1
+
+    stray = tree / ".claude" / "plans" / "ops-fixture-plan-scratch.json"
+    stray.write_text(json.dumps(OPS, indent=2) + "\n")
+    assert ops_count(tree) == 1, (
+        "an untracked .ops.json must not change a committed, CI-gated artifact")
+
+    git(tree, "add", "-A")
+    git(tree, "commit", "-q", "-m", "chore: commit it for real")
+    assert ops_count(tree) == 2, (
+        "once tracked the same file DOES count -- the filter keys on tracking, "
+        "not on the filename")
+
+
+def test_untracked_plan_gets_no_row_once_plans_are_tracked(tree):
+    git(tree, "add", "-A")
+    git(tree, "commit", "-q", "-m", "chore: track the fixture plan")
+    (tree / ".claude" / "plans" / "plan-scratch-draft.md").write_text(PLAN_BODY)
+    assert run(tree).returncode == 0
+    index = (tree / ".claude" / "plans" / "INDEX.md").read_text()
+    assert "plan-scratch-draft.md" not in index
+    assert "plan-fixture-plan.md" in index
+
+
+def test_filter_stays_off_where_no_plan_is_tracked(tree):
+    """Fail OPEN: a gitignored .claude/, or a repo with nothing added yet.
+
+    Filtering unconditionally would empty the index in both, reporting every
+    plan as missing -- far worse than counting one scratch file.
+    """
+    write_ops(tree)
+    assert ops_count(tree) == 1, "nothing is committed; the filter must not engage"
+    assert state_of(tree) == "planned"
+
+
+def test_filter_stays_off_without_a_git_repo(tmp_path):
+    """An installed user project is often not a repo at all."""
+    root = tmp_path / "nogit"
+    (root / "scripts").mkdir(parents=True)
+    (root / ".claude" / "plans" / "archive").mkdir(parents=True)
+    (root / ".claude" / "operations" / "scripts").mkdir(parents=True)
+    (root / ".claude" / "reports" / "reviews").mkdir(parents=True)
+    shutil.copy(SCRIPT, root / "scripts" / "gen-plan-index.py")
+    shutil.copy(REVIEW_RECORD,
+                root / ".claude" / "operations" / "scripts" / "review-record.py")
+    (root / ".claude" / "plans" / "plan-fixture-plan.md").write_text(PLAN_BODY)
+    write_ops(root)
+    assert not (root / ".git").exists()
+    assert ops_count(root) == 1
