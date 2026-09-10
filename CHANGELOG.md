@@ -11,6 +11,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `open-source-forker` — never shipped and have been removed.
 
 ## [Unreleased]
+- **`gen-plan-index` derives INDEX.md from tracked files, not the working tree.**
+  It globbed the filesystem, so an untracked scratch `.ops.json` another session
+  had left behind was counted: the generator wrote `8` ops configs for a plan
+  where a clean checkout derived `7`, and the committed artifact was shaped by a
+  file that is not in the repo. The gate meant to catch that read the same stray,
+  so it agreed with itself locally in both directions and only CI disagreed --
+  which cost a full CI round to find. The filter asks `git ls-files --cached`
+  (the set that will be in the next commit, which is what CI checks out; asking
+  `HEAD` would leave the commit that ADDS a plan unable to describe it), and
+  fails OPEN: it engages only where at least one plan is already tracked, so a
+  gitignored `.claude/` and a fresh `git init` still index normally rather than
+  reporting every plan as missing.
 - **The skill-description context budget is 9500 chars, up from 9000.** Owner
   sign-off, taken because the floor left 30 chars of headroom: adding any 81st
   skill breached it, and `release-integrity` was merely the one that did. The
