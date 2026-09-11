@@ -139,14 +139,25 @@ def merged_branches(root: Path, base: str) -> List[str]:
     the local base is used and cmd_clean withholds deletion while the base has
     unpushed commits.
     """
-    ref = f"origin/{base}"
+    ref = f"refs/remotes/origin/{base}"
     if git(root, ["rev-parse", "--verify", "--quiet", ref]).returncode != 0:
-        ref = base
-    out = git(root, ["branch", "--merged", ref, "--format=%(refname:short)"]).stdout
+        ref = f"refs/heads/{base}"
+    # FULLY QUALIFIED on both sides, and the prefix stripped HERE rather than by
+    # git. `%(refname:short)` shortens only as far as stays unambiguous, so in a
+    # repo that also has a REMOTE named `main` (they exist) it prints
+    # `heads/main`, not `main`. Every guard below compares against the bare
+    # name, so `heads/main` matched neither `PROTECTED_BRANCHES` nor `base` --
+    # and the default branch was offered as reclaimable. `git branch -d
+    # heads/main` then resolves straight back to refs/heads/main and takes it,
+    # and a branch is trivially "merged" into itself, so nothing else would
+    # have stopped it. Measured in a real repo with a remote named `main`.
+    out = git(root, ["for-each-ref", "--merged", ref,
+                     "--format=%(refname)", "refs/heads/"]).stdout
     held = {r["branch"] for r in worktrees(root) if r["branch"]}
-    return [b.strip() for b in out.splitlines()
-            if b.strip() and b.strip() not in PROTECTED_BRANCHES and b.strip() != base
-            and b.strip() not in held]
+    names = [b.strip()[len("refs/heads/"):] for b in out.splitlines()
+             if b.strip().startswith("refs/heads/")]
+    return [b for b in names
+            if b and b not in PROTECTED_BRANCHES and b != base and b not in held]
 
 
 def unpushed(root: Path, base: str) -> int:
