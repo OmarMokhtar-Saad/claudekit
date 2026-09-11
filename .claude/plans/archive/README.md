@@ -334,7 +334,17 @@ gate closes on every sibling config the moment it lands.
   record. Directory configs now key by the directory name verbatim, identically in
   the recorder, the executor and `check-plan-artifacts.py`. Round 1 was rejected
   for stripping `plan-`/`ops-` from directory names, which collapsed `x` and `ops-x`
-  onto one record. Code review: 0 blocking; M1 (no executor-level test for a
-  directory config with no `plan` field) and L5 (a dropped reviewer.md sentence)
-  are open follow-ups.
+  onto one record. Code review: 0 blocking; its M1 and L5 follow-ups are closed by
+  the two entries below.
+- `ops-dir-gate-executor-test.json` — **spent** (2026-09-11, `--no-approval` disclosed:
+  Tier 1, one test file). Code-review M1: the executor gate for an
+  `operations/<dir>/ops.json` with no `plan` field was pinned only by a key-order unit
+  test. The new test runs the executor on such an unreviewed config and asserts it is
+  refused with the directory's slug and the target untouched. Measured red against the
+  pre-fix executor (139d89a), which ran the config, and green with the fix.
+- `ops-reviewer-mandatory-block.json` — **spent** (2026-09-11, `--no-approval` disclosed:
+  Tier 1, `reviewer.md`). Code-review L5: the approval-gate change had replaced
+  "Mandatory, not conditional on the caller asking for it" — the wording that fixed
+  reviewers omitting the verdict block unless asked. Restored, keeping "in the reply
+  itself"; context floor stays within budget.
 

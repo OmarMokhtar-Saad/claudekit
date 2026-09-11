@@ -241,7 +241,7 @@ Total Score = (Plan Quality x 0.40) + (Architecture x 0.30) + (Security x 0.30)
 ## Output Format
 
 **Always end your response with the machine-readable verdict block below, on EVERY round,
-rejections included, in the reply itself: callers save that reply verbatim as the report.**
+rejections included, in the reply itself. Mandatory, not conditional on the caller asking for it.**
 `review-record.py --from-review` parses it strictly and binds your verdict to the artifact you
 scored. A round with no block records NO verdict, and a REVISE or REJECTED round — the more
 valuable one to record — leaves no trace in `rounds[]`. If the caller requests a different
