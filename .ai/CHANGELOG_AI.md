@@ -2,6 +2,30 @@
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
 
+## 2026-09-11 — approval gate binds `operations/<dir>/ops.json`; code review on request only
+
+Started from an AppiumLens session where the reviewer scored a plan 92/100 and the
+executor still refused. `review-record.py resolve` returned NO OPS (exit 3) and `check`
+looked for record `ops`: the project mandates `operations/<plan>/ops.json`, which the
+resolver never searched, and three key consumers derived the key from the filename, so
+every such plan collided on one record. The saved report also lacked the anchored block.
+
+**Pipeline, Tier 3.** Planner -> reviewer REVISE 84 (the planned `plan-`/`ops-` strip on
+directory names collapsed `operations/x` and `operations/ops-x`) -> revised, APPROVED 95 ->
+implementer via the approval gate -> adversarial code review, 0 blocking. Each fix reverted
+alone turned a new test red. Commits `ce576a1` (fix, `Plan-Id` trailer added after the plan
+index gate failed without it) and `c3680e5` (M1 executor-level test, red against
+`139d89a`; L5 restored reviewer.md mandate).
+
+**Owner decisions.** Code review runs only when asked (`de38b2b`, separate branch, Tier 2,
+`--no-approval` disclosed; policy marker v3 -> v4). Push branches, no PRs. Deleted the stray
+untracked `plan-agent-memory-learning.ops.json` after confirming a byte-identical copy in
+git. Fleet: approval-gate fix synced uncommitted to 14 repos.
+
+**Traps hit.** The full suite was killed twice for low memory (Android emulator + IDE
+sandbox); a scratch copy without `.git` makes the self-scan test fail vacuously; archiving
+an ops.json before recording its code review makes the review unrecordable.
+
 ## 2026-09-09 — repo-hygiene gates: shipped B/C/D, held the guard after 7 defects
 
 Started from a user report about a different repo: branches, worktrees and merges

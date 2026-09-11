@@ -1,0 +1,17 @@
+{
+  "plan": "changelog-ai-approval-gate",
+  "operations": [
+    {
+      "id": "changelog-ai-2026-09-11",
+      "type": "code_edit",
+      "path": ".ai/CHANGELOG_AI.md",
+      "description": "Session log for the 2026-09-11 approval-gate fix and code-review-on-request policy",
+      "edits": [
+        {
+          "find": "## 2026-09-09 — repo-hygiene gates: shipped B/C/D, held the guard after 7 defects",
+          "add_before": "## 2026-09-11 — approval gate binds `operations/<dir>/ops.json`; code review on request only\n\nStarted from an AppiumLens session where the reviewer scored a plan 92/100 and the\nexecutor still refused. `review-record.py resolve` returned NO OPS (exit 3) and `check`\nlooked for record `ops`: the project mandates `operations/<plan>/ops.json`, which the\nresolver never searched, and three key consumers derived the key from the filename, so\nevery such plan collided on one record. The saved report also lacked the anchored block.\n\n**Pipeline, Tier 3.** Planner -> reviewer REVISE 84 (the planned `plan-`/`ops-` strip on\ndirectory names collapsed `operations/x` and `operations/ops-x`) -> revised, APPROVED 95 ->\nimplementer via the approval gate -> adversarial code review, 0 blocking. Each fix reverted\nalone turned a new test red. Commits `ce576a1` (fix, `Plan-Id` trailer added after the plan\nindex gate failed without it) and `c3680e5` (M1 executor-level test, red against\n`139d89a`; L5 restored reviewer.md mandate).\n\n**Owner decisions.** Code review runs only when asked (`de38b2b`, separate branch, Tier 2,\n`--no-approval` disclosed; policy marker v3 -> v4). Push branches, no PRs. Deleted the stray\nuntracked `plan-agent-memory-learning.ops.json` after confirming a byte-identical copy in\ngit. Fleet: approval-gate fix synced uncommitted to 14 repos.\n\n**Traps hit.** The full suite was killed twice for low memory (Android emulator + IDE\nsandbox); a scratch copy without `.git` makes the self-scan test fail vacuously; archiving\nan ops.json before recording its code review makes the review unrecordable.\n\n"
+        }
+      ]
+    }
+  ]
+}
