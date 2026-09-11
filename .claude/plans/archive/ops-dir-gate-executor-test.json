@@ -1,0 +1,17 @@
+{
+  "plan": "dir-gate-executor-test",
+  "operations": [
+    {
+      "id": "m1-executor-gate-test",
+      "type": "code_edit",
+      "path": "tests/test_ops_approval_gate.py",
+      "description": "Code-review M1: pin the executor gate for an operations/<dir>/ops.json with no plan field by running the executor",
+      "edits": [
+        {
+          "find": "    def test_recorder_and_executor_derive_the_same_key(self, tmp_path, monkeypatch):",
+          "add_before": "    def test_a_directory_config_with_no_plan_field_is_still_gated(self, project):\n        \"\"\"The gate must bind by the directory alone. Keyed by filename, an unreviewed\n        operations/lens/ops.json with no \"plan\" field looked up record 'ops', found none\n        applicable, and ran -- patching the target with no review at all.\"\"\"\n        (project / \".claude\" / \"plans\" / \"plan-lens.md\").write_text(\"# plan\\n\", encoding=\"utf-8\")\n        config = project / \"operations\" / \"lens\" / \"ops.json\"\n        payload = _ops_payload(plan=\"lens\")\n        del payload[\"plan\"]\n        _write_ops(config, payload)\n        proc = run_executor(project, config)\n        assert proc.returncode != 0, proc.stdout + proc.stderr\n        reason = result_json(proc.stdout)[\"reason\"]\n        assert \"no review record exists\" in reason, reason\n        assert \"slug 'lens'\" in reason, reason\n        assert target_text(project) == ORIGINAL\n\n"
+        }
+      ]
+    }
+  ]
+}
