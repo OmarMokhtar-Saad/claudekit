@@ -347,4 +347,8 @@ gate closes on every sibling config the moment it lands.
   "Mandatory, not conditional on the caller asking for it" — the wording that fixed
   reviewers omitting the verdict block unless asked. Restored, keeping "in the reply
   itself"; context floor stays within budget.
+- `ops-session-state-approval-gate.json` + `ops-changelog-ai-approval-gate.json` — **spent**
+  (2026-09-11, `--no-approval` disclosed: Tier 1, one `.ai/` file each). End-of-period
+  SESSION_STATE resume point and CHANGELOG_AI entry for the approval-gate directory-layout
+  fix, its follow-ups, the code-review-on-request policy and the fleet rollout.
 

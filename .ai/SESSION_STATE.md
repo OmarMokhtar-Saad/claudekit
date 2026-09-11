@@ -1,6 +1,25 @@
 # Session State
 
 > Update this file at the end of every significant AI working session. It is the resume point.
+**2026-09-11 · Claude (Opus 5) — `fix/approval-gate-ops-dir-layout` + `chore/code-review-on-request`.**
+Triggered by AppiumLens: a reviewer approved a plan 92/100 and the executor still refused.
+Two causes, both verified by execution. (1) Configs stored as `operations/<dir>/ops.json`
+(AppiumLens 1311, LeanApis 12, qa-agents 3) could not be resolved by `review-record.py`, and
+all keyed as `ops` in the recorder, the executor and `check-plan-artifacts.py`, so every
+plan shared one record. (2) The saved reviewer report carried no `=== REVIEW ===` block; the
+block lived only in the Task reply nobody saved. Fix `ce576a1`: resolve `operations/<slug>/`
+and `operations/<plan-stem>/` from the plan's root; key a bare `ops.json` by its directory
+name verbatim. Plan review REVISE 84 (prefix strip collapsed `x`/`ops-x`) -> APPROVED 95.
+Code review 0 blocking; its M1 (executor-level test) and L5 (reviewer.md mandate sentence)
+closed in `c3680e5`, M1 measured red against the pre-fix executor. **Owner decision:** code
+review runs only when the user asks, never automatically in any phase — `de38b2b` on its
+own branch rewrites the CLAUDE.md Review floor, gates gitOps and subagent-driven-development,
+bumps `TOKEN-MODEL-POLICY` v3 -> v4. **Fleet:** the approval-gate fix is synced uncommitted to
+all 14 repos with ops scripts (each target byte-checked against `139d89a` first); the v4
+policy sync was pending its suite. **Open:** push both branches (owner: push only, no PRs);
+AppiumLens `plan-android-sdk-split-root-fix` needs a fresh `/review` — its old 92 predates
+an ops.json edit; 5 AppiumLens plans show DRIFT and 7 AMBIGUOUS (flat + directory config).
+
 **2026-09-06 · Claude (Opus 5) — `feat/agent-memory-learning`.** Durable agent memory plus
 a learning loop that produces output. Diagnosis first, all executed: the issue ledger held
 0 entries in all 15 kitted repos because `record` is gated on a Verifier PASS that never
