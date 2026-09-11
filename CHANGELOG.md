@@ -11,6 +11,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `open-source-forker` — never shipped and have been removed.
 
 ## [Unreleased]
+- **`repo-hygiene clean` could offer to delete the default branch.** It listed
+  merged branches with `git branch --merged <base> --format=%(refname:short)`,
+  which shortens a ref only as far as stays unambiguous. In a repo that also has
+  a REMOTE named `main` -- they exist; this was measured in one -- git warns the
+  refname is ambiguous and prints `heads/main` instead of `main`. Every guard
+  compared bare names, so `heads/main` matched neither `PROTECTED_BRANCHES` nor
+  the base, and the default branch was offered as reclaimable. `git branch -d
+  heads/main` resolves straight back to `refs/heads/main`, and a branch is
+  trivially merged into itself, so the `-d` safety net would not have refused
+  it either. Enumeration is now fully qualified on both sides
+  (`for-each-ref --merged refs/remotes/origin/<base> refs/heads/`) with the
+  prefix stripped in the tool rather than by git. Regression test builds a repo
+  with a colliding remote name and asserts the branch survives `clean --yes`;
+  it fails against the previous implementation with `branches: heads/main`.
 - **`gen-plan-index` derives INDEX.md from tracked files, not the working tree.**
   It globbed the filesystem, so an untracked scratch `.ops.json` another session
   had left behind was counted: the generator wrote `8` ops configs for a plan
