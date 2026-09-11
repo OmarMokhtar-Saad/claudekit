@@ -146,3 +146,45 @@ def test_an_ephemeral_worktree_is_offered(scratch_repo):
     assert "STRANDED" in run_hygiene(scratch_repo, "report").stdout or str(eph) in out.stdout
     assert str(eph) in out.stdout, "an ephemeral worktree was not offered for removal"
 
+
+
+def test_a_remote_named_like_the_default_branch_never_offers_it(scratch_repo, tmp_path):
+    """THE DEFAULT BRANCH IS NOT RECLAIMABLE, even when `main` is ambiguous.
+
+    A repo may have a REMOTE named `main` as well as a branch (measured in a
+    real one). `git branch --merged main` then warns that the refname is
+    ambiguous and prints the disambiguated `heads/main` instead of `main`.
+
+    Every guard here compares bare names, so `heads/main` matched neither
+    PROTECTED_BRANCHES nor the base -- and the default branch was offered as
+    reclaimable. `git branch -d heads/main` resolves straight back to
+    refs/heads/main, and a branch is trivially merged into itself, so nothing
+    downstream would have refused it either.
+    """
+    other = tmp_path / "other"
+    other.mkdir()
+    _git(other, "init", "-q", "-b", "main")
+    _git(other, "config", "user.email", "t@t")
+    _git(other, "config", "user.name", "t")
+    (other / "g").write_text("1")
+    _git(other, "add", "-A")
+    _git(other, "commit", "-qm", "seed")
+
+    # A remote whose NAME collides with the branch name.
+    _git(scratch_repo, "remote", "add", "main", str(other))
+    _git(scratch_repo, "fetch", "-q", "main")
+    assert _git(scratch_repo, "rev-parse", "--verify", "refs/remotes/main/main").returncode == 0
+
+    ambiguous = _git(scratch_repo, "branch", "--merged", "main",
+                     "--format=%(refname:short)")
+    assert "heads/main" in ambiguous.stdout, (
+        "fixture no longer reproduces the ambiguity this guards: " + ambiguous.stdout)
+
+    report = run_hygiene(scratch_repo, "report")
+    assert report.returncode == 0, report.stderr
+    assert "heads/main" not in report.stdout, report.stdout
+
+    clean = run_hygiene(scratch_repo, "clean", "--yes")
+    assert clean.returncode == 0, clean.stderr
+    assert _git(scratch_repo, "rev-parse", "--verify", "refs/heads/main").returncode == 0, (
+        "clean --yes deleted the default branch")
