@@ -852,7 +852,14 @@ def _approval_slugs(config_file: str, plan_name: str) -> List[str]:
     """
     slugs: List[str] = []
     name = Path(config_file).name
-    if name.endswith(".ops.json"):
+    # operations/<dir>/ops.json keys by <dir> VERBATIM, exactly as review-record.py
+    # ops_slug() does: no prefix strip, so operations/x and operations/ops-x never share
+    # a record. The "plan" field below is still tried, stripped, as for any config.
+    directory = Path(config_file).resolve().parent.name if name == "ops.json" else ""
+    if directory:
+        slugs.append(directory)
+        base = ""
+    elif name.endswith(".ops.json"):
         base = name[:-len(".ops.json")]
     elif name.endswith(".json"):
         base = name[:-len(".json")]

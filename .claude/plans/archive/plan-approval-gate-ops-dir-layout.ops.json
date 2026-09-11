@@ -1,0 +1,148 @@
+{
+  "plan": "approval-gate-ops-dir-layout",
+  "operations": [
+    {
+      "id": "p1-review-record",
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/review-record.py",
+      "description": "Phase 1: resolve operations/<slug>/ops.json from the plan's project root; key a bare ops.json by its directory in ops_slug()",
+      "edits": [
+        {
+          "find": "def plan_slug(plan_path: str) -> str:",
+          "add_before": "# Directory layout some projects mandate for ops configs: operations/<slug>/ops.json.\n# The directory, not the filename, carries the config's identity there.\nDIR_LAYOUT_ROOT = \"operations\"\nDIR_LAYOUT_NAME = \"ops.json\"\n\n\n"
+        },
+        {
+          "find": "    exactly the filename forms resolve_ops() emits, so plan-x.ops.json, ops-x.json,\n    x.ops.json and x.json all key as \"x\".\n    \"\"\"\n    name = Path(ops_path).name\n    for suffix in (\".ops.json\", \".json\"):",
+          "replace": "    exactly the filename forms resolve_ops() emits, so plan-x.ops.json, ops-x.json,\n    x.ops.json and x.json all key as \"x\". A bare ops.json keys by its directory name\n    VERBATIM -- no prefix strip, so operations/x/ops.json and operations/ops-x/ops.json\n    stay two records. By filename every such plan shared the one record \"ops\".\n    \"\"\"\n    name = Path(ops_path).name\n    if name == DIR_LAYOUT_NAME:\n        directory = Path(ops_path).resolve().parent.name\n        if directory:\n            return directory\n    for suffix in (\".ops.json\", \".json\"):"
+        },
+        {
+          "find": "    for name in (f\"{stem}.ops.json\", f\"ops-{slug}.json\",\n                f\"{slug}.ops.json\", f\"{slug}.json\"):\n        candidate = plans_dir / name\n        if candidate.exists() and candidate not in seen:",
+          "replace": "    candidates = [plans_dir / name for name in (f\"{stem}.ops.json\", f\"ops-{slug}.json\",\n                                                f\"{slug}.ops.json\", f\"{slug}.json\")]\n    # operations/<slug>/ops.json, rooted at the PLAN's project rather than cwd. Every\n    # form is collected, so a plan owning a flat AND a directory config stays AMBIGUOUS.\n    operations_dir = _project_root(plans_dir) / DIR_LAYOUT_ROOT\n    candidates += [operations_dir / d / DIR_LAYOUT_NAME for d in (slug, stem)]\n    for candidate in candidates:\n        if candidate.exists() and candidate not in seen:"
+        },
+        {
+          "find": "              f\"{slug}.ops.json, {slug}.json\", file=sys.stderr)",
+          "replace": "              f\"{slug}.ops.json, {slug}.json, operations/{slug}/ops.json\",\n              file=sys.stderr)"
+        },
+        {
+          "find": "def _project_root() -> Path:\n    \"\"\"Nearest ancestor holding a .claude/ directory, walking up from cwd.",
+          "replace": "def _project_root(start=None) -> Path:\n    \"\"\"Nearest ancestor holding a .claude/ directory, walking up from `start` (default cwd)."
+        },
+        {
+          "find": "    cur = Path.cwd()",
+          "replace": "    cur = Path(start).resolve() if start is not None else Path.cwd()"
+        }
+      ]
+    },
+    {
+      "id": "p1-executor-slugs",
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/execute-json-ops.py",
+      "description": "Phase 1: _approval_slugs keys a bare ops.json by its directory, mirroring ops_slug()",
+      "edits": [
+        {
+          "find": "    name = Path(config_file).name\n    if name.endswith(\".ops.json\"):",
+          "replace": "    name = Path(config_file).name\n    # operations/<dir>/ops.json keys by <dir> VERBATIM, exactly as review-record.py\n    # ops_slug() does: no prefix strip, so operations/x and operations/ops-x never share\n    # a record. The \"plan\" field below is still tried, stripped, as for any config.\n    directory = Path(config_file).resolve().parent.name if name == \"ops.json\" else \"\"\n    if directory:\n        slugs.append(directory)\n        base = \"\"\n    elif name.endswith(\".ops.json\"):"
+        }
+      ]
+    },
+    {
+      "id": "p1-plan-artifacts",
+      "type": "code_edit",
+      "path": "scripts/check-plan-artifacts.py",
+      "description": "Phase 1: resolve_plan keys a bare ops.json by its directory (third key consumer)",
+      "edits": [
+        {
+          "find": "    name = ops_path.name\n    if name.endswith(\".ops.json\"):\n        slug = name[: -len(\".ops.json\")]\n    elif name.startswith(\"ops-\"):\n        slug = name[len(\"ops-\") : -len(\".json\")]\n    else:\n        slug = name[: -len(\".json\")]\n    slug = slug[len(\"plan-\") :] if slug.startswith(\"plan-\") else slug",
+          "replace": "    name = ops_path.name\n    # operations/<dir>/ops.json keys by <dir> VERBATIM, as review-record.py ops_slug()\n    # and the executor do. By the bare filename it resolved no plan: a silent pass.\n    directory = ops_path.resolve().parent.name if name == \"ops.json\" else \"\"\n    if directory:\n        slug = directory\n    elif name.endswith(\".ops.json\"):\n        slug = name[: -len(\".ops.json\")]\n    elif name.startswith(\"ops-\"):\n        slug = name[len(\"ops-\") : -len(\".json\")]\n    else:\n        slug = name[: -len(\".json\")]\n    if not directory:\n        slug = slug[len(\"plan-\") :] if slug.startswith(\"plan-\") else slug"
+        }
+      ]
+    },
+    {
+      "id": "p2-reviewer-prompt",
+      "type": "code_edit",
+      "path": ".claude/agents/reviewer.md",
+      "description": "Phase 2: the verdict block belongs in the reply the caller persists verbatim",
+      "edits": [
+        {
+          "find": "rejections included. Mandatory, not conditional on the caller asking for it.**",
+          "replace": "rejections included, in the reply itself: callers save that reply verbatim as the report.**"
+        }
+      ]
+    },
+    {
+      "id": "p2-review-command",
+      "type": "code_edit",
+      "path": ".claude/commands/review.md",
+      "description": "Phase 2: Task-tool path records from the verbatim reply, never a rewritten report",
+      "edits": [
+        {
+          "find": "   default), save its raw output to a file and record it yourself \u2014 a review whose verdict\n   was never recorded is not an approval:",
+          "replace": "   default), save its reply VERBATIM to a file and record from that file \u2014 never a rewrite\n   or summary; no `=== REVIEW ===` block records nothing (re-ask, never compose one):"
+        }
+      ]
+    },
+    {
+      "id": "p3-test-review-record",
+      "type": "code_edit",
+      "path": "tests/test_review_record.py",
+      "description": "Phase 3: resolution + keying regression tests for the directory layout",
+      "edits": [
+        {
+          "find": "        assert 'NO OPS' in res.stderr",
+          "add_after": "\n\n    def test_resolves_the_operations_directory_layout(self, tmp_path):\n        \"\"\"Regression: projects whose CLAUDE.md mandates operations/<slug>/ops.json got\n        NO OPS for every plan, so /review could never record a verdict.\"\"\"\n        plans = tmp_path / '.claude' / 'plans'\n        plans.mkdir(parents=True)\n        plan = plans / 'plan-demo.md'\n        plan.write_text('# Plan: demo\\n', encoding='utf-8')\n        for dirname in ('demo', 'plan-demo'):\n            ops = tmp_path / 'operations' / dirname / 'ops.json'\n            ops.parent.mkdir(parents=True)\n            ops.write_text('{}', encoding='utf-8')\n            res = _run(tmp_path, 'resolve', str(plan))\n            assert res.returncode == 0, f\"{dirname}: {res.stderr}\"\n            assert res.stdout.strip() == str(ops.resolve())\n            ops.unlink()\n\n    def test_directory_layout_resolves_from_the_plan_not_the_cwd(self, tmp_path):\n        root = tmp_path / 'proj'\n        plans = root / '.claude' / 'plans'\n        plans.mkdir(parents=True)\n        plan = plans / 'plan-demo.md'\n        plan.write_text('# Plan: demo\\n', encoding='utf-8')\n        ops = root / 'operations' / 'demo' / 'ops.json'\n        ops.parent.mkdir(parents=True)\n        ops.write_text('{}', encoding='utf-8')\n        elsewhere = tmp_path / 'elsewhere'\n        elsewhere.mkdir()\n        res = _run(elsewhere, 'resolve', str(plan))\n        assert res.returncode == 0, res.stderr\n        assert res.stdout.strip() == str(ops.resolve())\n\n    def test_a_flat_and_a_directory_config_are_ambiguous(self, tmp_path):\n        plan, _ = _fixture(tmp_path)\n        ops = tmp_path / 'operations' / 'demo' / 'ops.json'\n        ops.parent.mkdir(parents=True)\n        ops.write_text('{}', encoding='utf-8')\n        res = _run(tmp_path, 'resolve', str(plan))\n        assert res.returncode == 3\n        assert 'AMBIGUOUS' in res.stderr"
+        },
+        {
+          "find": "        assert 'loop_advisory' not in _written_record(tmp_path)",
+          "add_after": "\n\n\nclass TestDirectoryLayoutKeying:\n    \"\"\"operations/<slug>/ops.json keys by its DIRECTORY. Keyed by filename, every such\n    plan shared the record 'ops' and each write clobbered the last.\"\"\"\n\n    @staticmethod\n    def _dir_fixture(tmp_path, slug, marker):\n        plans = tmp_path / '.claude' / 'plans'\n        plans.mkdir(parents=True, exist_ok=True)\n        plan = plans / f'plan-{slug}.md'\n        plan.write_text(f'# Plan: {slug}\\n', encoding='utf-8')\n        ops = tmp_path / 'operations' / slug / 'ops.json'\n        ops.parent.mkdir(parents=True, exist_ok=True)\n        ops.write_text(json.dumps({'plan': slug, 'operations': [], 'marker': marker}),\n                       encoding='utf-8')\n        return plan, ops\n\n    def test_two_directory_plans_get_distinct_records(self, tmp_path):\n        plan_a, ops_a = self._dir_fixture(tmp_path, 'alpha', 1)\n        plan_b, ops_b = self._dir_fixture(tmp_path, 'beta', 2)\n        assert _approve(tmp_path, plan_a, ops_a, score=95).returncode == 0\n        assert _approve(tmp_path, plan_b, ops_b, score=96).returncode == 0\n        reviews = tmp_path / '.claude' / 'reports' / 'reviews'\n        assert (reviews / 'alpha.json').is_file()\n        assert (reviews / 'beta.json').is_file()\n        assert not (reviews / 'ops.json').exists()\n        assert _run(tmp_path, 'check', str(plan_a), str(ops_a)).returncode == 0\n        assert _run(tmp_path, 'check', str(plan_b), str(ops_b)).returncode == 0\n\n    def test_editing_a_directory_config_after_approval_is_drift(self, tmp_path):\n        plan, ops = self._dir_fixture(tmp_path, 'alpha', 1)\n        assert _approve(tmp_path, plan, ops).returncode == 0\n        ops.write_text(json.dumps({'plan': 'alpha', 'operations': [], 'marker': 9}),\n                       encoding='utf-8')\n        res = _run(tmp_path, 'check', str(plan), str(ops))\n        assert res.returncode == 2, res.stderr\n        assert 'DRIFT' in res.stderr\n\n    def test_prefixed_sibling_directories_get_distinct_records(self, tmp_path):\n        \"\"\"operations/x, operations/ops-x and operations/plan-x are three configs. A\n        prefix strip collapsed them onto 'x', so each write clobbered the last.\"\"\"\n        reviews = tmp_path / '.claude' / 'reports' / 'reviews'\n        pairs = [self._dir_fixture(tmp_path, s, i)\n                 for i, s in enumerate(('x', 'ops-x', 'plan-x'))]\n        assert _approve(tmp_path, *pairs[0]).returncode == 0\n        first = (reviews / 'x.json').read_bytes()\n        for plan, ops in pairs[1:]:\n            assert _approve(tmp_path, plan, ops).returncode == 0\n        assert (reviews / 'x.json').read_bytes() == first\n        for slug in ('ops-x', 'plan-x'):\n            assert (reviews / f'{slug}.json').is_file(), slug\n        for plan, ops in pairs:\n            res = _run(tmp_path, 'check', str(plan), str(ops))\n            assert res.returncode == 0, (ops, res.stderr)\n\n    def test_a_bare_prefix_directory_keys_verbatim(self, tmp_path):\n        \"\"\"A directory named exactly 'ops-' or 'plan-' must not strip to an empty key.\"\"\"\n        reviews = tmp_path / '.claude' / 'reports' / 'reviews'\n        for slug in ('ops-', 'plan-'):\n            plan, ops = self._dir_fixture(tmp_path, slug, slug)\n            assert _approve(tmp_path, plan, ops).returncode == 0, slug\n            assert (reviews / f'{slug}.json').is_file(), slug\n        assert not (reviews / '_.json').exists()\n\n    def test_a_dot_directory_never_authorises_its_undotted_sibling(self, tmp_path):\n        \"\"\"record_paths() strips leading dots, so '.x' and 'x' share a record FILE. The\n        sha256 binding must make that fail closed: the clobbered config is refused.\"\"\"\n        plan_x, ops_x = self._dir_fixture(tmp_path, 'x', 1)\n        plan_d, ops_d = self._dir_fixture(tmp_path, '.x', 2)\n        assert _approve(tmp_path, plan_x, ops_x).returncode == 0\n        assert _approve(tmp_path, plan_d, ops_d).returncode == 0\n        assert _run(tmp_path, 'check', str(plan_x), str(ops_x)).returncode == 2\n\n    def test_flat_names_keep_their_existing_keys(self, tmp_path):\n        \"\"\"Backward compatibility: records already on disk stay reachable.\"\"\"\n        for name in ('plan-demo.ops.json', 'ops-demo.json', 'demo.ops.json', 'demo.json'):\n            d = tmp_path / name.replace('.', '_')\n            plan, ops = _fixture(d, ops_name=name)\n            assert _approve(d, plan, ops).returncode == 0, name\n            record = d / '.claude' / 'reports' / 'reviews' / 'demo.json'\n            assert json.loads(record.read_text(encoding='utf-8'))['slug'] == 'demo', name"
+        }
+      ]
+    },
+    {
+      "id": "p3-test-approval-gate",
+      "type": "code_edit",
+      "path": "tests/test_ops_approval_gate.py",
+      "description": "Phase 3: executor gate over the directory layout, plus recorder/executor key parity",
+      "edits": [
+        {
+          "find": "        record(project, \"demo\", config, 90, \"APPROVED\")\n        proc = run_executor(project, config)\n        assert proc.returncode == 0, proc.stdout + proc.stderr\n        assert target_text(project) == PATCHED",
+          "add_after": "\n\n\nclass TestOperationsDirectoryLayout:\n    \"\"\"Configs stored as operations/<slug>/ops.json, a layout some downstream CLAUDE.md\n    files mandate. Keyed by filename, every such config shared the record 'ops'.\"\"\"\n\n    @staticmethod\n    def _dir_config(project: Path, slug: str) -> Path:\n        (project / \".claude\" / \"plans\" / f\"plan-{slug}.md\").write_text(\n            \"# plan\\n\", encoding=\"utf-8\")\n        config = project / \"operations\" / slug / \"ops.json\"\n        _write_ops(config, _ops_payload(plan=slug))\n        return config\n\n    def test_approved_directory_config_executes(self, project):\n        config = self._dir_config(project, \"lens\")\n        record(project, \"lens\", config, 95, \"APPROVED\")\n        proc = run_executor(project, config)\n        assert proc.returncode == 0, proc.stdout + proc.stderr\n        assert target_text(project) == PATCHED\n\n    def test_drifted_directory_config_refuses(self, project):\n        config = self._dir_config(project, \"lens\")\n        record(project, \"lens\", config, 95, \"APPROVED\")\n        payload = _ops_payload(plan=\"lens\")\n        payload[\"operations\"][0][\"edits\"][0][\"replace\"] = \"VALUE = 1234\"\n        _write_ops(config, payload)\n        proc = run_executor(project, config)\n        assert proc.returncode != 0, proc.stdout + proc.stderr\n        assert \"DRIFT\" in proc.stdout + proc.stderr\n        assert target_text(project) == ORIGINAL\n\n    def test_a_sibling_plans_record_is_not_this_configs_record(self, project):\n        \"\"\"Before the fix plan beta resolved plan alpha's record (both keyed 'ops') and\n        was refused as DRIFT against alpha's hash, not as unreviewed.\"\"\"\n        record(project, \"alpha\", self._dir_config(project, \"alpha\"), 95, \"APPROVED\")\n        unreviewed = self._dir_config(project, \"beta\")\n        proc = run_executor(project, unreviewed)\n        assert proc.returncode != 0, proc.stdout + proc.stderr\n        reason = result_json(proc.stdout)[\"reason\"]\n        assert \"no review record exists\" in reason, reason\n        assert \"slug 'beta'\" in reason, reason\n        assert target_text(project) == ORIGINAL\n\n    def test_approving_a_prefixed_sibling_leaves_this_approval_valid(self, project):\n        \"\"\"operations/alpha and operations/ops-alpha are two configs. Under a prefix strip\n        the second approval overwrote the first and alpha was refused as DRIFT.\"\"\"\n        alpha = self._dir_config(project, \"alpha\")\n        record(project, \"alpha\", alpha, 95, \"APPROVED\")\n        sibling = self._dir_config(project, \"ops-alpha\")\n        record(project, \"ops-alpha\", sibling, 95, \"APPROVED\")\n        proc = run_executor(project, alpha)\n        assert proc.returncode == 0, proc.stdout + proc.stderr\n        assert target_text(project) == PATCHED\n\n    def test_a_plan_field_naming_an_approved_sibling_does_not_authorise(self, project):\n        \"\"\"The executor also tries the config's stripped \"plan\" field. A sibling declaring\n        \"plan\": \"alpha\" reaches alpha's record, and the sha256 binding refuses it.\"\"\"\n        record(project, \"alpha\", self._dir_config(project, \"alpha\"), 95, \"APPROVED\")\n        sibling = project / \"operations\" / \"ops-alpha\" / \"ops.json\"\n        payload = _ops_payload(plan=\"alpha\")\n        payload[\"operations\"][0][\"edits\"][0][\"replace\"] = \"VALUE = 7\"\n        _write_ops(sibling, payload)\n        proc = run_executor(project, sibling)\n        assert proc.returncode != 0, proc.stdout + proc.stderr\n        assert \"DRIFT\" in result_json(proc.stdout)[\"reason\"]\n        assert target_text(project) == ORIGINAL\n\n    def test_recorder_and_executor_derive_the_same_key(self, tmp_path, monkeypatch):\n        \"\"\"The two sides must agree for every form; this pins it on the real modules.\"\"\"\n        import importlib.util\n\n        def load(name, path):\n            spec = importlib.util.spec_from_file_location(name, str(path))\n            module = importlib.util.module_from_spec(spec)\n            spec.loader.exec_module(module)\n            return module\n\n        monkeypatch.syspath_prepend(str(EXECUTOR.parent))  # executor imports `shared`\n        recorder = load(\"_rr_key_parity\", RECORDER)\n        executor = load(\"_ex_key_parity\", EXECUTOR)\n        cases = {\n            \".claude/plans/plan-x.ops.json\": \"x\", \".claude/plans/ops-x.json\": \"x\",\n            \".claude/plans/x.ops.json\": \"x\", \".claude/plans/x.json\": \"x\",\n            # a directory name is VERBATIM: stripping it collapsed distinct configs\n            \"operations/x/ops.json\": \"x\", \"operations/ops-x/ops.json\": \"ops-x\",\n            \"operations/plan-x/ops.json\": \"plan-x\", \"operations/ops-/ops.json\": \"ops-\",\n            \"operations/plan-/ops.json\": \"plan-\", \"operations/.x/ops.json\": \".x\",\n        }\n        for rel, expected in cases.items():\n            path = tmp_path / rel\n            assert recorder.ops_slug(path) == expected, rel\n            assert executor._approval_slugs(str(path), \"\")[0] == expected, rel\n        nested = tmp_path / \"operations\" / \"y\"\n        nested.mkdir(parents=True)\n        monkeypatch.chdir(nested)\n        assert recorder.ops_slug(\"ops.json\") == \"y\"\n        assert executor._approval_slugs(\"ops.json\", \"\")[0] == \"y\""
+        }
+      ]
+    },
+    {
+      "id": "p3-test-plan-artifacts",
+      "type": "code_edit",
+      "path": "tests/test_check_plan_artifacts.py",
+      "description": "Phase 3: check-plan-artifacts binds a directory-layout config to its plan",
+      "edits": [
+        {
+          "find": "    assert \"does not name\" in result.stderr",
+          "add_after": "\n\n\ndef test_a_directory_layout_config_resolves_to_the_plan_its_directory_names(tmp_path):\n    \"\"\"`operations/<slug>/ops.json` keys by its directory, as review-record.py and the\n    executor do. Keyed by the bare filename it resolved no plan and passed with every\n    operation unchecked.\"\"\"\n    plans = tmp_path / \".claude\" / \"plans\"\n    plans.mkdir(parents=True)\n    (plans / \"plan-lens.md\").write_text(\"names nothing\\n\", encoding=\"utf-8\")\n    # both directory names resolve_ops() tries for plan-lens.md: <slug> and <plan-stem>\n    for dirname in (\"lens\", \"plan-lens\"):\n        ops = tmp_path / \"operations\" / dirname / \"ops.json\"\n        ops.parent.mkdir(parents=True)\n        ops.write_text(\n            json.dumps({\"operations\": [{\"type\": \"file_create\", \"path\": \"src/x.py\",\n                                        \"content\": \"y\"}]}),\n            encoding=\"utf-8\",\n        )\n        result = run(str(ops), cwd=tmp_path)\n        assert result.returncode == 1, dirname + result.stdout + result.stderr\n        assert \"src/x.py\" in result.stderr, dirname"
+        }
+      ]
+    },
+    {
+      "id": "p3-changelog",
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "description": "Phase 3: [Unreleased] entry",
+      "edits": [
+        {
+          "find": "## [Unreleased]",
+          "add_after": "\n- **The approval gate could not bind `operations/<slug>/ops.json` configs.**\n  Projects whose CLAUDE.md mandates that layout never got a verdict recorded:\n  `review-record.py resolve` tried only flat names under `.claude/plans` and\n  exited `NO OPS`, and the record key came from the config FILENAME, so every\n  such plan keyed as `ops` -- one shared record, each write clobbering the last,\n  and a sibling plan's record read as this plan's. `resolve` now also finds\n  `operations/<slug>/ops.json` and `operations/<plan-stem>/ops.json`, rooted at\n  the plan's project rather than cwd (a plan owning a flat AND a directory config\n  is reported AMBIGUOUS, as before). A bare `ops.json` keys by its directory name\n  VERBATIM -- no `plan-`/`ops-` strip, so `operations/x` and `operations/ops-x`\n  stay two records -- identically in `review-record.py`, the executor's approval\n  gate and `check-plan-artifacts.py`; every flat-name key is\n  unchanged. A record already written under the key `ops` is no longer read: re-run\n  `/review` for any directory-layout plan that has one. `/review`'s Task-tool path\n  and the reviewer prompt now say the reply is saved and recorded VERBATIM: a\n  rewritten report without the `=== REVIEW ===` block records nothing."
+        }
+      ]
+    }
+  ],
+  "baseline": {
+    ".claude/agents/reviewer.md": "sha256:0dfaea6229d133633b10a2380d46db23bd48e28a97e9b98ef97530ef34ddd119",
+    ".claude/commands/review.md": "sha256:1bd8551d49f627518fa4fbc9fb537bd945ebf75679a38f15b6d805371196d09c",
+    ".claude/operations/scripts/execute-json-ops.py": "sha256:1d37ae3e8718ae5562d4b12893167818e9309bf15c312197aee09a34b68b0087",
+    ".claude/operations/scripts/review-record.py": "sha256:b3b3f33fc3fdc5a916decd96f3583988564911d35f1f82968e86a6eb40c2078c",
+    "CHANGELOG.md": "sha256:0ed84d8d88402b94668e6ebbcb261548d87db2807aae4de432a905168c66a720",
+    "scripts/check-plan-artifacts.py": "sha256:ffaa95d84e4cd6557d60fdafa8edde18762877ce892bed097b5344673b863693",
+    "tests/test_check_plan_artifacts.py": "sha256:4915b84469462942d4f5e45fa869effb58b225c3f7e20bfc7d811ebfc387395a",
+    "tests/test_ops_approval_gate.py": "sha256:33e4bdd6deea498ddfa741e1dad06924a58a21f0c06786906e194e9d38f84ccc",
+    "tests/test_review_record.py": "sha256:a81a336fd2402c6288c2a36ce5bab0a21bf971e53b8491599753f899c80464fa"
+  }
+}
