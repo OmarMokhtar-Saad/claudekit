@@ -21,9 +21,18 @@ FILES=".claude/agents/code-reviewer.md .claude/agents/debugger.md .claude/agents
 printf '%s\n' "| repo | identical to main | hooks exit 0 | settings | manifest | doctor |" \
               "|---|---|---|---|---|---|"
 
-for r in ai-agent-system AppiumLens AutomationApp Eatizaz Lean LeanApis \
-         MobileUIAutomator qa-agents qaforge-ai rest-framework SehhatyApp \
-         shsmartassistant-agent shsmartassistant-qa; do
+# DISCOVERED, not hardcoded. The literal list this replaced named 13 repos and
+# there were 15 kitted ones: ApiForge was kitted, and because it appeared in
+# neither this script nor the sync script, it was never synced AND never
+# reported as unsynced. It had drifted 22 files behind with 11 missing -- and a
+# verify table that only ever prints rows for repos it already knows cannot show
+# you the one it forgot. A hardcoded fleet list is a silent-omission machine.
+#
+# claudekit itself is skipped: it is the SOURCE, not a fleet member.
+for r in $(cd /Users/omarmokhtar/IdeaProjects && for p in */; do p=${p%/}; \
+        [ "$p" = claudekit ] && continue; \
+        [ -d "$p/.claude/hooks" ] && [ -d "$p/.claude/agents" ] && echo "$p"; \
+    done); do
   d=/Users/omarmokhtar/IdeaProjects/$r
   [ -d "$d/.claude" ] || { echo "| $r | NOT KITTED | | | | |"; continue; }
 
