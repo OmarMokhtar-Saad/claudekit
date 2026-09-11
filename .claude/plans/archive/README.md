@@ -380,6 +380,13 @@ gate closes on every sibling config the moment it lands.
   (2026-09-11, `--no-approval` disclosed: Tier 1, one `.ai/` file each). End-of-period
   SESSION_STATE resume point and CHANGELOG_AI entry for the approval-gate directory-layout
   fix, its follow-ups, the code-review-on-request policy and the fleet rollout.
+- `plan-code-review-on-request.ops.json` — **spent** (executed 2026-09-11,
+  `--no-approval` disclosed: Tier 2, prompts/docs/one test file, no architecture).
+  Owner decision: code review runs only when the user asks, never automatically in
+  any phase. The CLAUDE.md "Review floor" became an on-request rule with the same
+  round mechanics; `gitOps` foreign-branch review and the `subagent-driven-development`
+  code-quality stage now wait for the user. Plan review (`reviewer`) is unchanged.
+  `TOKEN-MODEL-POLICY` marker bumped v3 -> v4 so fleet sync does not skip it.
 
 - `ops-action-first-mode.json` + `plan-action-first-mode.md` — **spent**
   (2026-09-13, `--no-approval` disclosed: Tier 2, no architecture surface). New

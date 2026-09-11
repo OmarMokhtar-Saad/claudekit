@@ -22,6 +22,9 @@ binds. `code-reviewer` reviews **code** and **has Bash**. Any verdict that depen
 artifact (a mutation proof, "the gate binds", "that test would fail if this regressed") goes to
 `code-reviewer`; routing it to `reviewer` buys a confident opinion with no evidence under it.
 
+**Code review runs only when the user asks.** No agent, command, skill or phase launches
+`code-reviewer`, `/code-review` or `/santa` on its own (CLAUDE.md policy). When one is asked for:
+
 **A code review ends at the first round with zero Critical and zero High findings.** Medium and
 Low become follow-ups — they never justify another round, and code review emits no numeric score
 (a number invites a round over findings that do not block). Ceiling 3 rounds; reaching it with

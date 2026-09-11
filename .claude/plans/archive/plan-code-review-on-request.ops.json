@@ -1,0 +1,141 @@
+{
+  "plan": "code-review-on-request",
+  "operations": [
+    {
+      "type": "code_edit",
+      "id": "op1-claude-md-policy",
+      "path": "CLAUDE.md",
+      "description": "Replace the mandatory per-PR review floor with an on-request rule; bump TOKEN-MODEL-POLICY v3 -> v4",
+      "edits": [
+        {
+          "find": "<!-- CLAUDEKIT:TOKEN-MODEL-POLICY v3 START -->",
+          "replace": "<!-- CLAUDEKIT:TOKEN-MODEL-POLICY v4 START -->"
+        },
+        {
+          "find": "  - **Review floor (all tiers)**: every PR gets >=1 adversarial diff review before it merges — fresh `code-reviewer` instance, never the author, prompted to REFUTE not approve. Stop at the first round with zero blocking findings; ceiling 3 rounds; rounds 2+ read only the diff since the last verdict.",
+          "replace": "  - **Code review**: only on user request — never auto-run by any agent, command, skill or phase (incl. `/santa`). When asked: fresh `code-reviewer`, never the author, told to REFUTE; stop at first zero-blocking round; ceiling 3; rounds 2+ read only the diff since the last verdict."
+        },
+        {
+          "find": "<!-- CLAUDEKIT:TOKEN-MODEL-POLICY v3 END -->",
+          "replace": "<!-- CLAUDEKIT:TOKEN-MODEL-POLICY v4 END -->"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "id": "op2-test-adapt",
+      "path": "tests/test_adapt.py",
+      "description": "Rebind the real-marker fixtures to v4 and prove a v3 policy region is upgraded in place",
+      "edits": [
+        {
+          "find": "REAL_START = \"<!-- CLAUDEKIT:TOKEN-MODEL-POLICY v3 START -->\"",
+          "replace": "REAL_START = \"<!-- CLAUDEKIT:TOKEN-MODEL-POLICY v4 START -->\""
+        },
+        {
+          "find": "REAL_END = \"<!-- CLAUDEKIT:TOKEN-MODEL-POLICY v3 END -->\"",
+          "replace": "REAL_END = \"<!-- CLAUDEKIT:TOKEN-MODEL-POLICY v4 END -->\""
+        },
+        {
+          "find": "    assert region.version == 3",
+          "replace": "    assert region.version == 4"
+        },
+        {
+          "find": "region_id=\"TOKEN-MODEL-POLICY\", version=3)",
+          "replace": "region_id=\"TOKEN-MODEL-POLICY\", version=4)"
+        },
+        {
+          "find": "    assert block[-1] == REAL_END",
+          "add_after": "\n\n\ndef test_a_v3_policy_region_is_upgraded_in_place_to_v4():\n    \"\"\"A policy content change bumps the marker; an older downstream region is replaced.\"\"\"\n    v3_start = REAL_START.replace(\" v4 \", \" v3 \")\n    v3_end = REAL_END.replace(\" v4 \", \" v3 \")\n    old = \"\\n\".join([\"intro\", v3_start, \"review floor\", v3_end, \"outro\", \"\"])\n    new, action, previous = adapt.apply_region(\n        old, \"on request\", region_id=\"TOKEN-MODEL-POLICY\", version=4)\n    assert action == \"replaced\"\n    assert previous == 3, \"the v3 region was not surfaced as the previous version\"\n    assert new == \"\\n\".join([\"intro\", REAL_START, \"on request\", REAL_END, \"outro\", \"\"])\n    region, _fenced = adapt.find_region(new, \"TOKEN-MODEL-POLICY\")\n    assert region is not None and region.version == 4"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "id": "op3-review-guide",
+      "path": ".ai/REVIEW_GUIDE.md",
+      "description": "State that code review is on-request before the round mechanics",
+      "edits": [
+        {
+          "find": "**A code review ends at the first round with zero Critical and zero High findings.**",
+          "add_before": "**Code review runs only when the user asks.** No agent, command, skill or phase launches\n`code-reviewer`, `/code-review` or `/santa` on its own (CLAUDE.md policy). When one is asked for:\n\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "id": "op4-agent-memory-readme",
+      "path": ".claude/agent-memory/README.md",
+      "description": "Drop the reference to the removed review floor",
+      "edits": [
+        {
+          "find": "it gets the same adversarial review floor as any other",
+          "replace": "it gets the same review as any other"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "id": "op5-gitops",
+      "path": ".claude/agents/gitOps.md",
+      "description": "Foreign-tool branch review is requested from the user, never launched",
+      "edits": [
+        {
+          "find": "  review pass before merging; foreign-tool output is untrusted input.",
+          "replace": "  review before merging — ask the user to run it, never launch it yourself;\n  foreign-tool output is untrusted input."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "id": "op6-sdd-skill",
+      "path": ".claude/skills/subagent-driven-development/SKILL.md",
+      "description": "Gate the per-task code quality review stage on an explicit user request",
+      "edits": [
+        {
+          "find": "[CODE QUALITY REVIEW] Review: Is the code clean, tested, secure?",
+          "replace": "[CODE QUALITY REVIEW] Only if the user asked: Is the code clean, tested, secure?"
+        },
+        {
+          "find": "- **PASS**: Implementation matches specification. Proceed to code review.",
+          "replace": "- **PASS**: Implementation matches specification. Proceed to code review if the user asked for it; otherwise accept."
+        },
+        {
+          "find": "After spec review passes, review code quality:",
+          "replace": "Runs only when the user asked for code review — never on its own. After spec review passes, review code quality:"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "id": "op7-sdd-skill-mirror",
+      "path": ".agents/skills/subagent-driven-development/SKILL.md",
+      "description": "Same gate in the Codex mirror so the two copies do not diverge in behaviour",
+      "edits": [
+        {
+          "find": "[CODE QUALITY REVIEW] Review: Is the code clean, tested, secure?",
+          "replace": "[CODE QUALITY REVIEW] Only if the user asked: Is the code clean, tested, secure?"
+        },
+        {
+          "find": "- **PASS**: Implementation matches specification. Proceed to code review.",
+          "replace": "- **PASS**: Implementation matches specification. Proceed to code review if the user asked for it; otherwise accept."
+        },
+        {
+          "find": "After spec review passes, review code quality:",
+          "replace": "Runs only when the user asked for code review — never on its own. After spec review passes, review code quality:"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "id": "op8-changelog",
+      "path": "CHANGELOG.md",
+      "description": "Record the user-visible policy change under [Unreleased]",
+      "edits": [
+        {
+          "find": "## [Unreleased]",
+          "add_after": "\n- **Code review runs only when you ask.** No agent, command, skill or pipeline phase launches\n  `code-reviewer`, `/code-review` or `/santa` on its own any more. The per-PR \"review floor\"\n  in `CLAUDE.md` is now an on-request rule with the same round mechanics (fresh instance,\n  never the author, stop at the first zero-blocking round, ceiling 3). The\n  `subagent-driven-development` code-quality stage and the `gitOps` foreign-branch review now\n  wait for the user. Plan review (`reviewer`, the 90/100 gate before execution) is unchanged.\n  The `TOKEN-MODEL-POLICY` marker is bumped **v3 → v4** so fleet-synced projects receive the\n  change instead of skipping it as already present."
+        }
+      ]
+    }
+  ]
+}
