@@ -30,7 +30,7 @@ Agents carrying `memory: project` in this kit: `code-reviewer`, `debugger`, `exp
 ## The review rule
 
 A `MEMORY.md` diff is auto-injected into a system prompt, so it is reviewed **exactly like
-code**: it appears in the PR diff, it gets the same adversarial review floor as any other
+code**: it appears in the PR diff, it gets the same review as any other
 change, and an unreviewed memory is a supply-chain change, not a note.
 
 Keep each file well under 200 lines. Past that, Claude Code silently truncates and the

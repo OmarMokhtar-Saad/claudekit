@@ -24,8 +24,8 @@ from claudekit import adapt  # noqa: E402
 
 #: The real dialect on disk, quoted from CLAUDE.md. If the convention changes, these
 #: fixtures fail rather than the writer silently drifting away from it.
-REAL_START = "<!-- CLAUDEKIT:TOKEN-MODEL-POLICY v3 START -->"
-REAL_END = "<!-- CLAUDEKIT:TOKEN-MODEL-POLICY v3 END -->"
+REAL_START = "<!-- CLAUDEKIT:TOKEN-MODEL-POLICY v4 START -->"
+REAL_END = "<!-- CLAUDEKIT:TOKEN-MODEL-POLICY v4 END -->"
 
 #: The OTHER dialect, which all eleven templates/*/CLAUDE.md use and the installer
 #: renders into a target. Adapt must ignore it completely.
@@ -40,15 +40,29 @@ def test_the_real_repo_markers_are_still_the_dialect_we_parse():
     assert REAL_END in text, "CLAUDE.md no longer carries the END form we parse"
     region, fenced = adapt.find_region(text, "TOKEN-MODEL-POLICY")
     assert region is not None, "the parser cannot read the repo's own real region"
-    assert region.version == 3
+    assert region.version == 4
     assert fenced == []
 
 
 def test_the_writer_emits_the_dialect_on_disk_byte_for_byte():
     """Literal expected bytes — a shared constant cannot satisfy this."""
-    block = adapt.render_region("body", region_id="TOKEN-MODEL-POLICY", version=3)
+    block = adapt.render_region("body", region_id="TOKEN-MODEL-POLICY", version=4)
     assert block[0] == REAL_START
     assert block[-1] == REAL_END
+
+
+def test_a_v3_policy_region_is_upgraded_in_place_to_v4():
+    """A policy content change bumps the marker; an older downstream region is replaced."""
+    v3_start = REAL_START.replace(" v4 ", " v3 ")
+    v3_end = REAL_END.replace(" v4 ", " v3 ")
+    old = "\n".join(["intro", v3_start, "review floor", v3_end, "outro", ""])
+    new, action, previous = adapt.apply_region(
+        old, "on request", region_id="TOKEN-MODEL-POLICY", version=4)
+    assert action == "replaced"
+    assert previous == 3, "the v3 region was not surfaced as the previous version"
+    assert new == "\n".join(["intro", REAL_START, "on request", REAL_END, "outro", ""])
+    region, _fenced = adapt.find_region(new, "TOKEN-MODEL-POLICY")
+    assert region is not None and region.version == 4
 
 
 class TestTemplateDialectIsLeftAlone:

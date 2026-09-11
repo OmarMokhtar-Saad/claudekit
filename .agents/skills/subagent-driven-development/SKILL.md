@@ -45,7 +45,7 @@ For each task in the plan:
 [SPEC REVIEW] Review: Does implementation match the specification?
     |
     v
-[CODE QUALITY REVIEW] Review: Is the code clean, tested, secure?
+[CODE QUALITY REVIEW] Only if the user asked: Is the code clean, tested, secure?
     |
     v
 [ACCEPT or REWORK] Decide if task is complete
@@ -118,7 +118,7 @@ After the implementer completes, review against the specification:
 
 ### Spec Review Outcomes
 
-- **PASS**: Implementation matches specification. Proceed to code review.
+- **PASS**: Implementation matches specification. Proceed to code review if the user asked for it; otherwise accept.
 - **MINOR ISSUES**: Small deviations that can be noted and accepted. Proceed.
 - **REWORK NEEDED**: Significant deviation from spec. Send back to implementer.
 
@@ -126,7 +126,7 @@ After the implementer completes, review against the specification:
 
 ## Stage 3: Code Quality Review
 
-After spec review passes, review code quality:
+Runs only when the user asked for code review — never on its own. After spec review passes, review code quality:
 
 ### Code Quality Checklist
 

@@ -25,10 +25,10 @@ index never outranks the current files.
 | `drifted` | 11 |
 | `approved` | 51 |
 | `planned` | 15 |
-| `executed` | 29 |
+| `executed` | 30 |
 | `not_started` | 24 |
 | `legacy` | 3 |
-| **total** | **133** |
+| **total** | **134** |
 
 ## Plans
 
@@ -57,6 +57,7 @@ index never outranks the current files.
 | `.claude/plans/plan-ck-adapt.md` | `approved` | 1 |  |
 | `.claude/plans/plan-cli-live-findings.md` | `executed` | 4 |  |
 | `.claude/plans/plan-close2.md` | `executed` | 2 |  |
+| `.claude/plans/plan-code-review-on-request.md` | `executed` | 1 |  |
 | `.claude/plans/plan-code-review-triage.md` | `approved` | 1 |  |
 | `.claude/plans/plan-command-bash-parse-gate.md` | `executed` | 1 |  |
 | `.claude/plans/plan-command-bash-placeholders.md` | `executed` | 2 |  |

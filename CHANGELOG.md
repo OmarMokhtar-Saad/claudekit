@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `open-source-forker` — never shipped and have been removed.
 
 ## [Unreleased]
+- **Code review runs only when you ask.** No agent, command, skill or pipeline phase launches
+  `code-reviewer`, `/code-review` or `/santa` on its own any more. The per-PR "review floor"
+  in `CLAUDE.md` is now an on-request rule with the same round mechanics (fresh instance,
+  never the author, stop at the first zero-blocking round, ceiling 3). The
+  `subagent-driven-development` code-quality stage and the `gitOps` foreign-branch review now
+  wait for the user. Plan review (`reviewer`, the 90/100 gate before execution) is unchanged.
+  The `TOKEN-MODEL-POLICY` marker is bumped **v3 → v4** so fleet-synced projects receive the
+  change instead of skipping it as already present.
 - **`repo-hygiene clean` could offer to delete the default branch.** It listed
   merged branches with `git branch --merged <base> --format=%(refname:short)`,
   which shortens a ref only as far as stays unambiguous. In a repo that also has

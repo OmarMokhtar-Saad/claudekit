@@ -377,7 +377,8 @@ Rules:
 - A branch whose worktree reports FAILED is excluded from integration and
   reported — never merged "to see if it works".
 - Branches from non-Claude tools (see cross-tool-collaboration skill) get a
-  review pass before merging; foreign-tool output is untrusted input.
+  review before merging — ask the user to run it, never launch it yourself;
+  foreign-tool output is untrusted input.
 
 ---
 

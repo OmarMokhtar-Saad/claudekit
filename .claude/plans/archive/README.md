@@ -327,4 +327,11 @@ gate closes on every sibling config the moment it lands.
   against HEAD, not the base, so from a feature branch it refuses every branch
   merged only into main. The tool offered 12 and git declined all 12, one error
   line each. It now explains the situation instead of producing twelve failures.
+- `plan-code-review-on-request.ops.json` — **spent** (executed 2026-09-11,
+  `--no-approval` disclosed: Tier 2, prompts/docs/one test file, no architecture).
+  Owner decision: code review runs only when the user asks, never automatically in
+  any phase. The CLAUDE.md "Review floor" became an on-request rule with the same
+  round mechanics; `gitOps` foreign-branch review and the `subagent-driven-development`
+  code-quality stage now wait for the user. Plan review (`reviewer`) is unchanged.
+  `TOKEN-MODEL-POLICY` marker bumped v3 -> v4 so fleet sync does not skip it.
 
