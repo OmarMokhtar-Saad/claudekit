@@ -1,0 +1,30 @@
+{
+  "plan": ".claude/plans/plan-approval-gate-ops-dir-layout.md",
+  "slug": "approval-gate-ops-dir-layout",
+  "ops_path": ".claude/plans/plan-approval-gate-ops-dir-layout.ops.json",
+  "ops_sha256": "56d057e7f76b93c1def70501283fdd9316d4336670a5d821fe2ddd3a4efeed91",
+  "score": 95,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] No test for the reverse dot-collision ordering (`.x` approved before `x`); behavior is symmetric by code inspection but unpinned.",
+    "[MINOR] CHANGELOG entry omits the `.x`/`x` shared-record-file caveat that the plan itself documents as an edge case."
+  ],
+  "verdict_origin": "rubric",
+  "recorded_utc": "2026-09-11T18:09:37Z",
+  "operations": 9,
+  "edits": 15,
+  "rounds": [
+    {
+      "score": 84,
+      "decision": "REVISE",
+      "findings": [
+        "[MAJOR] `ops_slug()`/`_approval_slugs()` apply the flat-name `plan-`/`ops-` prefix-strip to directory-derived names too, so sibling directories `operations/x/ops.json` and `operations/ops-x/ops.json` (two dis",
+        "[MINOR] Mutation-proof and full-suite pass claims (7 fail-then-pass, 118 passed) are stated by the plan but were not independently executed by this review (reviewer has no Bash); route to `code-reviewer` to a"
+      ],
+      "recorded_utc": "2026-09-11T18:00:23Z",
+      "ops_sha256": "02130b62ad6d70dacc4a7c878e2db1470d053a078bfeb16f8137248d59ea98a4",
+      "verdict_origin": "rubric"
+    }
+  ],
+  "round": 2
+}

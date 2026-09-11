@@ -118,13 +118,19 @@ def resolve_plan(ops_path: Path, cfg: Optional[dict] = None) -> Optional[Path]:
     config with no plan is a Tier 1 routing fact, not drift.
     """
     name = ops_path.name
-    if name.endswith(".ops.json"):
+    # operations/<dir>/ops.json keys by <dir> VERBATIM, as review-record.py ops_slug()
+    # and the executor do. By the bare filename it resolved no plan: a silent pass.
+    directory = ops_path.resolve().parent.name if name == "ops.json" else ""
+    if directory:
+        slug = directory
+    elif name.endswith(".ops.json"):
         slug = name[: -len(".ops.json")]
     elif name.startswith("ops-"):
         slug = name[len("ops-") : -len(".json")]
     else:
         slug = name[: -len(".json")]
-    slug = slug[len("plan-") :] if slug.startswith("plan-") else slug
+    if not directory:
+        slug = slug[len("plan-") :] if slug.startswith("plan-") else slug
     # The declared value is a SLUG, never a path fragment: it is joined to
     # `ops_path.parent`, so `"../x"` escaped .claude/plans and an absolute value
     # discarded the parent entirely -- letting an author point this gate at any file

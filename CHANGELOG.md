@@ -11,6 +11,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `open-source-forker` — never shipped and have been removed.
 
 ## [Unreleased]
+- **The approval gate could not bind `operations/<slug>/ops.json` configs.**
+  Projects whose CLAUDE.md mandates that layout never got a verdict recorded:
+  `review-record.py resolve` tried only flat names under `.claude/plans` and
+  exited `NO OPS`, and the record key came from the config FILENAME, so every
+  such plan keyed as `ops` -- one shared record, each write clobbering the last,
+  and a sibling plan's record read as this plan's. `resolve` now also finds
+  `operations/<slug>/ops.json` and `operations/<plan-stem>/ops.json`, rooted at
+  the plan's project rather than cwd (a plan owning a flat AND a directory config
+  is reported AMBIGUOUS, as before). A bare `ops.json` keys by its directory name
+  VERBATIM -- no `plan-`/`ops-` strip, so `operations/x` and `operations/ops-x`
+  stay two records -- identically in `review-record.py`, the executor's approval
+  gate and `check-plan-artifacts.py`; every flat-name key is
+  unchanged. A record already written under the key `ops` is no longer read: re-run
+  `/review` for any directory-layout plan that has one. `/review`'s Task-tool path
+  and the reviewer prompt now say the reply is saved and recorded VERBATIM: a
+  rewritten report without the `=== REVIEW ===` block records nothing.
 - **`repo-hygiene clean` could offer to delete the default branch.** It listed
   merged branches with `git branch --merged <base> --format=%(refname:short)`,
   which shortens a ref only as far as stays unambiguous. In a repo that also has

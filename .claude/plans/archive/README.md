@@ -327,4 +327,14 @@ gate closes on every sibling config the moment it lands.
   against HEAD, not the base, so from a feature branch it refuses every branch
   merged only into main. The tool offered 12 and git declined all 12, one error
   line each. It now explains the situation instead of producing twelve failures.
+- `plan-approval-gate-ops-dir-layout.ops.json` — **spent** (executed 2026-09-11,
+  through the approval gate: REVISE 84 -> APPROVED 95). Projects storing configs as
+  `operations/<dir>/ops.json` could never register a verdict: `resolve_ops()` only
+  searched flat names, and every such file keyed as `ops`, so all plans shared one
+  record. Directory configs now key by the directory name verbatim, identically in
+  the recorder, the executor and `check-plan-artifacts.py`. Round 1 was rejected
+  for stripping `plan-`/`ops-` from directory names, which collapsed `x` and `ops-x`
+  onto one record. Code review: 0 blocking; M1 (no executor-level test for a
+  directory config with no `plan` field) and L5 (a dropped reviewer.md sentence)
+  are open follow-ups.
 

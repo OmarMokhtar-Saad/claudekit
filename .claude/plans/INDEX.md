@@ -25,10 +25,10 @@ index never outranks the current files.
 | `drifted` | 11 |
 | `approved` | 51 |
 | `planned` | 15 |
-| `executed` | 29 |
+| `executed` | 30 |
 | `not_started` | 24 |
 | `legacy` | 3 |
-| **total** | **133** |
+| **total** | **134** |
 
 ## Plans
 
@@ -46,6 +46,7 @@ index never outranks the current files.
 | `.claude/plans/plan-adapt-eject-interaction.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-agent-memory-learning.md` | `drifted` | 7 |  |
 | `.claude/plans/plan-agent-tool-grants.md` | `approved` | 1 |  |
+| `.claude/plans/plan-approval-gate-ops-dir-layout.md` | `executed` | 1 |  |
 | `.claude/plans/plan-approval-machinery.md` | `approved` | 1 |  |
 | `.claude/plans/plan-backlog-triage-pass.md` | `executed` | 2 |  |
 | `.claude/plans/plan-backup-history.md` | `planned` | 4 |  |
