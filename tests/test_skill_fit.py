@@ -349,12 +349,19 @@ class TestDerivedStackTags:
         assert row["status"] == "relevant"
 
     def test_vocabulary_refuses_english_collisions(self):
-        sys.path.insert(0, str(REPO_ROOT / "src"))
-        from claudekit import skill_fit
-        assert skill_fit.derive_stack_tags("react to the spring release, go home") == []
-        assert skill_fit.derive_stack_tags("JavaScript only") == []
-        assert skill_fit.derive_stack_tags("Spring Boot with Gradle and JUnit") == [
-            "gradle", "java", "spring"]
+        # Subprocess, not an in-process import: an earlier test may already have cached
+        # `claudekit` from an installed copy, and sys.path.insert cannot evict it.
+        code = (
+            "import json\n"
+            "from claudekit import skill_fit as s\n"
+            "print(json.dumps([s.derive_stack_tags(t) for t in ["
+            "'react to the spring release, go home', 'JavaScript only', "
+            "'Spring Boot with Gradle and JUnit']]))\n")
+        env = dict(os.environ, PYTHONPATH=str(REPO_ROOT / "src"))
+        proc = subprocess.run([sys.executable, "-c", code], capture_output=True,
+                              text=True, env=env, check=False)
+        assert proc.returncode == 0, proc.stderr
+        assert json.loads(proc.stdout) == [[], [], ["gradle", "java", "spring"]]
 
     def test_cards_carry_derived_tags_and_stay_sanitized(self, tmp_path):
         root = local_project(tmp_path, "mobile", {
