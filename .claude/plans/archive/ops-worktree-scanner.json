@@ -1,0 +1,17 @@
+{
+  "plan": "worktree-gitignore",
+  "operations": [
+    {
+      "id": "scanner-skips-worktrees",
+      "type": "code_edit",
+      "path": "scripts/check-silent-failure.py",
+      "description": "Exclude linked worktrees from the residue scan. A worktree is a second copy of the tree, so scanning one reddened the ratchet for every session whenever any session had one open.",
+      "edits": [
+        {
+          "find": "EXCLUDED_PARTS = {\n    \"backups\", \".git\", \"node_modules\", \".venv\", \"__pycache__\", \".pytest_cache\",\n    \".tmp-test-fixtures\",  # this repo's pytest sandbox; planted fixtures must never be scanned\n}",
+          "replace": "EXCLUDED_PARTS = {\n    \"backups\", \".git\", \"node_modules\", \".venv\", \"__pycache__\", \".pytest_cache\",\n    \".tmp-test-fixtures\",  # this repo's pytest sandbox; planted fixtures must never be scanned\n    # A linked worktree is a full SECOND COPY of the tree. Scanning one counted every\n    # duplicated hook as a brand-new violation, so the residue ratchet reddened for\n    # every session whenever ANY session had a worktree open -- a failure with no\n    # relation to the change under test. Gitignoring them is not enough: this scanner\n    # walks the filesystem, not the index. Both names are excluded because the manager\n    # has used both.\n    \"worktrees\", \".worktrees\",\n}"
+        }
+      ]
+    }
+  ]
+}
