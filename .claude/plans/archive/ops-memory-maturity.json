@@ -1,0 +1,49 @@
+{
+  "plan": "memory-maturity",
+  "operations": [
+    {
+      "id": "m1-cluster",
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/knowledge-ledger.py",
+      "description": "Phase 1: token-set Jaccard clustering with COMPLETE LINKAGE over a pre-sorted corpus. Complete linkage is what bounds chaining.",
+      "edits": [
+        {
+          "find": "def _normalize_signature(value: str) -> str:",
+          "replace": "_CLUSTER_STOP = frozenset((\n    \"assumed\", \"would\", \"could\", \"this\", \"that\", \"were\", \"which\",\n))\n_CLUSTER_TOKEN = re.compile(r\"[^a-z0-9]+\")\n\n\ndef _signature_tokens(value: str) -> frozenset:\n    \"\"\"Token SET for similarity -- a set, not a string. See the 100 refusal.\"\"\"\n    return frozenset(\n        t for t in _CLUSTER_TOKEN.split(value.lower())\n        if len(t) > 2 and t not in _CLUSTER_STOP\n    )\n\n\ndef _jaccard(a: frozenset, b: frozenset) -> float:\n    union = a | b\n    return len(a & b) / len(union) if union else 0.0\n\n\ndef cluster(items, threshold: float):\n    \"\"\"Group (key, payload) pairs by token-set Jaccard, with COMPLETE LINKAGE.\n\n    An item joins a group only if it clears the threshold against EVERY existing\n    member, never just the last-inserted one. That is what bounds chaining: under\n    single linkage, A~B and B~C above threshold would drag A and C together even\n    when A~C is below it -- silently widening a group, which is the one thing a\n    draft aimed at a system prompt must not do.\n\n    The corpus is pre-sorted, so the result does not depend on filesystem\n    enumeration order. That is ALL pre-sorting buys: which of two equally valid\n    pairings forms first is still comparison-order dependent, and this function\n    does not claim otherwise.\n    \"\"\"\n    groups = []\n    for key, payload in sorted(items, key=lambda kv: kv[0]):\n        tokens = _signature_tokens(key)\n        for members in groups:\n            if all(_jaccard(tokens, t) >= threshold for t, _, _ in members):\n                members.append((tokens, key, payload))\n                break\n        else:\n            groups.append([(tokens, key, payload)])\n    return [[(k, p) for _, k, p in g] for g in groups]\n\n\ndef _normalize_signature(value: str) -> str:"
+        }
+      ]
+    },
+    {
+      "id": "m3-stale",
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/knowledge-ledger.py",
+      "description": "Phase 3: --stale DAYS lists unfixed entries older than DAYS. Lists only, never closes.",
+      "edits": [
+        {
+          "find": "def cmd_distill(args: argparse.Namespace) -> int:",
+          "replace": "def _cmd_stale(days: int) -> int:\n    \"\"\"LIST unfixed entries older than `days`. Never closes one.\n\n    Closing on a clock is the silent-retirement failure this ledger already guards\n    against elsewhere (entry_status maps a malformed status to UNFIXED for exactly\n    that reason). Age prompts a human decision; it is never the decision.\n    \"\"\"\n    import datetime\n    cutoff = datetime.date.today() - datetime.timedelta(days=days)\n    stale = []\n    for path in entry_paths(ledger_dir()):\n        meta = parse_entry(path)\n        if entry_status(meta) not in UNFIXED:\n            continue\n        raw = meta.get(\"date\", \"\")\n        if not DATE_RE.match(raw):\n            continue\n        try:\n            when = datetime.date(*(int(x) for x in raw.split(\"-\")))\n        except ValueError:\n            continue\n        if when < cutoff:\n            stale.append((raw, path.stem))\n    if not stale:\n        print(\"distill: no unfixed entry is older than %d day(s).\" % days)\n        return 0\n    print(\"%d unfixed entr(ies) older than %d day(s) - review and close deliberately:\"\n          % (len(stale), days))\n    for when, slug in sorted(stale):\n        print(\"  %s  %s\" % (when, slug))\n    print(\"Nothing was closed. `knowledge-ledger.py close <slug> --reason ...` does that.\")\n    return 0\n\n\ndef cmd_distill(args: argparse.Namespace) -> int:"
+        }
+      ]
+    },
+    {
+      "id": "m1-wire",
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/knowledge-ledger.py",
+      "description": "Phase 1/3: refuse --similarity 100 outright rather than aliasing it, dispatch --stale, apply opt-in clustering to the draft only, and add the flags.",
+      "edits": [
+        {
+          "find": "    san = _load_sanitizers()\n",
+          "replace": "    if args.similarity and not 1 <= args.similarity <= 99:\n        # 100 is REFUSED, not aliased to the literal path. Jaccard compares token\n        # SETS; the literal path compares normalised STRINGS. Measured: \"tests mock\n        # the database\" and \"the database tests mock\" score 1.0 while being two\n        # literal groups. Aliasing would give one value of this flag a different\n        # comparison function than every other, silently.\n        print(\"distill: --similarity must be 1-99. Omit it for exact grouping; 100 \"\n              \"is not the same thing (token-set equality is not string equality: \"\n              \"reordered words score 1.0).\", file=sys.stderr)\n        return 2\n    if getattr(args, \"stale\", 0):\n        return _cmd_stale(args.stale)\n    san = _load_sanitizers()\n"
+        },
+        {
+          "find": "    groups: Dict[str, List] = {}\n    for path, meta in entries:\n        key = _normalize_signature(meta.get(\"signature\", \"\"))\n        if not key:\n            continue\n        groups.setdefault(key, []).append((path, meta))\n",
+          "replace": "    groups: Dict[str, List] = {}\n    for path, meta in entries:\n        key = _normalize_signature(meta.get(\"signature\", \"\"))\n        if not key:\n            continue\n        groups.setdefault(key, []).append((path, meta))\n    if args.similarity:\n        # OPT-IN, and it affects the DRAFT only -- distill still never writes\n        # MEMORY.md. Literal grouping stays the default, reached by omitting the\n        # flag rather than by a second code path imitating the first.\n        merged = cluster(list(groups.items()), args.similarity / 100.0)\n        groups = {}\n        for bucket in merged:\n            rows: List = []\n            for _, members in bucket:\n                rows.extend(members)\n            groups[bucket[0][0]] = rows\n"
+        },
+        {
+          "find": "    distill.add_argument(\"--list-agents\", action=\"store_true\",\n                         help=\"print the agents that declare memory, and exit\")\n",
+          "replace": "    distill.add_argument(\"--list-agents\", action=\"store_true\",\n                         help=\"print the agents that declare memory, and exit\")\n    distill.add_argument(\"--similarity\", type=int, default=0, metavar=\"PCT\",\n                         help=\"group similar signatures at this token-set Jaccard \"\n                              \"percentage (1-99). Omit for exact grouping -- 100 is \"\n                              \"REFUSED because token-set equality is not string \"\n                              \"equality (reordered words score 1.0)\")\n    distill.add_argument(\"--stale\", type=int, default=0, metavar=\"DAYS\",\n                         help=\"list unfixed entries older than DAYS and exit; never \"\n                              \"closes anything\")\n"
+        }
+      ]
+    }
+  ]
+}

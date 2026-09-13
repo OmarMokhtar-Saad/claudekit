@@ -1,0 +1,21 @@
+{
+  "plan": "memory-maturity",
+  "operations": [
+    {
+      "id": "m-types",
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/knowledge-ledger.py",
+      "description": "Tier 1: annotate cluster()'s accumulator, and rename the stale print loop variable so it stops shadowing the `date` bound above it.",
+      "edits": [
+        {
+          "find": "    groups = []\n    for key, payload in sorted(items, key=lambda kv: kv[0]):",
+          "replace": "    groups: List[List] = []\n    for key, payload in sorted(items, key=lambda kv: kv[0]):"
+        },
+        {
+          "find": "    for when, slug in sorted(stale):\n        print(\"  %s  %s\" % (when, slug))",
+          "replace": "    for stamp, slug in sorted(stale):\n        print(\"  %s  %s\" % (stamp, slug))"
+        }
+      ]
+    }
+  ]
+}

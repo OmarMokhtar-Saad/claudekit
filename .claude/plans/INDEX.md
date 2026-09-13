@@ -24,11 +24,11 @@ index never outranks the current files.
 |---|---:|
 | `drifted` | 11 |
 | `approved` | 52 |
-| `planned` | 15 |
+| `planned` | 16 |
 | `executed` | 30 |
 | `not_started` | 24 |
 | `legacy` | 3 |
-| **total** | **135** |
+| **total** | **136** |
 
 ## Plans
 
@@ -97,6 +97,7 @@ index never outranks the current files.
 | `.claude/plans/plan-issue-ledger.md` | `approved` | 1 |  |
 | `.claude/plans/plan-legacy-install-lifecycle.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-mcp-probe-addendum.md` | `not_started` | 0 |  |
+| `.claude/plans/plan-memory-maturity.md` | `planned` | 1 |  |
 | `.claude/plans/plan-memory-scaffold-fleet.md` | `approved` | 2 |  |
 | `.claude/plans/plan-memory-store.md` | `approved` | 1 |  |
 | `.claude/plans/plan-model-routing-token-orchestration.md` | `not_started` | 0 |  |
