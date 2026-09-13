@@ -52,6 +52,8 @@ backups/
 .claude/settings.local.json
 # `ck skill apply`'s record of the overrides it wrote into settings.local.json
 .claude/skills-applied.json
+# `ck skill audit --save` report and the skill-fit-refresh hook's rate-limit stamp
+.claude/reports/skills/
 
 # Per-session lock files (concurrent-session detection; runtime state)
 .claude/locks/
