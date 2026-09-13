@@ -172,6 +172,67 @@ class TestRepoProjectCommandsAreConfigured:
 # Defect 2: a by-design --minimal install hard-failed doctor
 # ---------------------------------------------------------------------------
 
+def _memory_tree(root, agents=3, populated=0, readme=True, lines=3):
+    """Build a .claude/ with `agents` declaring agents and `populated` memory files."""
+    claude = Path(root) / ".claude"
+    (claude / "agents").mkdir(parents=True, exist_ok=True)
+    names = [f"agent{i}" for i in range(agents)]
+    for n in names:
+        (claude / "agents" / f"{n}.md").write_text(
+            f"---\nname: {n}\nmemory: project\n---\nbody\n", encoding="utf-8")
+    if readme:
+        (claude / "agent-memory").mkdir(parents=True, exist_ok=True)
+        (claude / "agent-memory" / "README.md").write_text("x\n", encoding="utf-8")
+    for n in names[:populated]:
+        d = claude / "agent-memory" / n
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "MEMORY.md").write_text("# m\n" * lines, encoding="utf-8")
+    return claude
+
+
+class TestAgentMemoryCheckStates:
+    """The doctor memory check across the three adoption states.
+
+    Pins the boundary a reviewer caught after the first fix shipped: keying the skip
+    on whether .claude/agent-memory/ EXISTS was wrong, because this repo's own
+    agent-memory/ exists while holding zero MEMORY.md files, so the skip never fired
+    and --strict stayed red. Non-adoption is "zero agents served", not "no directory".
+    """
+
+    def test_no_directory_at_all_is_a_skip(self, tmp_path):
+        _memory_tree(tmp_path, populated=0, readme=False)
+        out = _doctor(tmp_path).stdout
+        assert "Agent memory" in out, out
+        assert "[!] Agent memory" not in out, out
+
+    def test_readme_only_directory_is_a_skip_not_a_warning(self, tmp_path):
+        """This repo's own shape: agent-memory/ exists, zero MEMORY.md files."""
+        _memory_tree(tmp_path, populated=0, readme=True)
+        out = _doctor(tmp_path).stdout
+        assert "[!] Agent memory" not in out, out
+
+    def test_partial_adoption_warns(self, tmp_path):
+        _memory_tree(tmp_path, agents=3, populated=1)
+        out = _doctor(tmp_path).stdout
+        assert "[!] Agent memory: 1/3" in out, out
+
+    def test_full_adoption_passes(self, tmp_path):
+        _memory_tree(tmp_path, agents=3, populated=3)
+        out = _doctor(tmp_path).stdout
+        assert "Agent memory: 3 agents" in out, out
+        assert "[!] Agent memory" not in out, out
+
+    def test_oversize_file_warns(self, tmp_path):
+        _memory_tree(tmp_path, agents=2, populated=2, lines=250)
+        out = _doctor(tmp_path).stdout
+        assert "truncation cliff" in out, out
+
+    def test_this_repo_does_not_redden_the_memory_check(self):
+        """The flagship regression: REPO has agent-memory/ with empty agent dirs."""
+        out = _doctor(REPO).stdout
+        assert "[!] Agent memory" not in out, out
+
+
 class TestMinimalInstallPassesStrict:
     @pytest.fixture(scope="class")
     def minimal_project(self, tmp_path_factory):

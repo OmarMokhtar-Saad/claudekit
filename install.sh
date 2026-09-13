@@ -268,6 +268,38 @@ if [[ "$MODE" == "full" ]]; then
     PROFILE_COUNT=$(find "$DEST/profiles" -name "profile.json" 2>/dev/null | wc -l | tr -d ' ')
     print_ok "$PROFILE_COUNT profiles installed"
 
+    # Ship the agent-memory scaffold. Seven agents declare `memory: project`, but
+    # nothing ever created the directories they read, so across 15 installed projects
+    # the total number of MEMORY.md files was 3. A missing memory file is not an
+    # error to Claude Code -- it is silence, which is why this went unnoticed.
+    #
+    # The agent list is DERIVED from the installed agent files, never hardcoded. A
+    # hardcoded list is exactly how the hook allowlist went stale (see below) and
+    # shipped a project where every Edit and Write was blocked.
+    if [[ -d "$DEST/agents" ]]; then
+        mkdir -p "$DEST/agent-memory"
+        if [[ -f "$CLAUDE_SRC/agent-memory/README.md" ]]; then
+            cp "$CLAUDE_SRC/agent-memory/README.md" "$DEST/agent-memory/"
+        fi
+        _mem_count=0
+        for _agent_file in "$DEST"/agents/*.md; do
+            [[ -f "$_agent_file" ]] || continue
+            grep -q "^memory: project" "$_agent_file" || continue
+            _agent_name="${_agent_file##*/}"
+            _agent_name="${_agent_name%.md}"
+            mkdir -p "$DEST/agent-memory/$_agent_name"
+            # NEVER overwrite an existing memory file: it is the project's
+            # accumulated knowledge and a re-run of the installer must leave it
+            # byte-identical.
+            if [[ ! -f "$DEST/agent-memory/$_agent_name/MEMORY.md" ]]; then
+                printf '# %s memory\n\nOne line per entry: `- [Title](file.md) - hook`\n' \
+                    "$_agent_name" > "$DEST/agent-memory/$_agent_name/MEMORY.md"
+            fi
+            _mem_count=$((_mem_count + 1))
+        done
+        print_ok "$_mem_count agent-memory directories installed"
+    fi
+
     # Copy the issue-ledger entry-format contract. The ledger directory and its
     # entries self-materialize on the first `record`, but the README is the
     # documented entry format, so a full install must ship it.
