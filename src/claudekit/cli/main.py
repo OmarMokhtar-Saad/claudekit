@@ -173,7 +173,31 @@ def cmd_init(args):
         cmd.append("--yes")
 
     result = subprocess.run(cmd)
+    if result.returncode == 0:
+        _reapply_skill_profile(target)
     return result.returncode
+
+
+def _reapply_skill_profile(target):
+    """Re-converge `skillOverrides` after an install, from the project-owned profile.
+
+    install.sh preserves settings.local.json, so this is normally a no-op; it matters
+    when the profile changed, or a kit update added an agent that now preloads a
+    disabled skill (the refusal then surfaces here and in `ck doctor`). Never fails the
+    install.
+    """
+    if not (Path(target) / ".claude" / "skills-profile.json").is_file():
+        return
+    from claudekit import skill_fit
+    try:
+        result = skill_fit.apply(Path(target))
+    except skill_fit.SkillFitError as exc:
+        warn(f"Skills profile not re-applied: {exc}")
+        return
+    ok(f"Skills profile re-applied: {len(result['hidden'])} skill(s) hidden via "
+       f"skillOverrides (~{result['tokens_saved']} always-on tokens saved)")
+    for name in result["kept_user_set"]:
+        warn(f"  kept your own skillOverrides entry for {name}")
 
 
 # Hook references in settings.json that must resolve to an installed file.
@@ -829,6 +853,24 @@ def cmd_doctor(args):
             check("Skills profile", "warn", "; ".join(_sp_warnings))
         else:
             check("Skills profile: every reference resolves", True)
+
+    # Skill visibility. Runs whenever a profile OR any skillOverrides exists, so a
+    # committed settings.json hiding a safety-rail skill fails even without a profile.
+    if claude_dir.is_dir():
+        from claudekit import skill_fit
+        _sv = skill_fit.enforcement_status(Path("."))
+        _sv_profile = (claude_dir / "skills-profile.json").is_file()
+        if _sv["protected_hidden"]:
+            check("Skill visibility", False,
+                  "skillOverrides hides protected skill(s): "
+                  + ", ".join(_sv["protected_hidden"]) + " -- set them to \"on\"")
+        elif _sv["diverged"]:
+            check("Skill visibility", "warn",
+                  "profile and settings diverge: " + "; ".join(_sv["diverged"])
+                  + " -- run `ck skill apply`")
+        elif _sv["hidden"] or _sv_profile:
+            check(f"Skill visibility: {len(_sv['hidden'])} skill(s) hidden via "
+                  f"skillOverrides, ~{_sv['tokens_saved']} always-on tokens saved", True)
 
     # Summary
     print(f"\n{'='*40}")
@@ -1999,6 +2041,7 @@ def cmd_update(args):
     result = subprocess.run(cmd)
     if result.returncode == 0:
         ok(f"Updated {target} to v{__version__} ({mode} mode).")
+        _reapply_skill_profile(target)
     return result.returncode
 
 
@@ -2193,11 +2236,13 @@ def cmd_skill(args):
 def _cmd_skill_fit(args):
     """`ck skill audit | profile init | card | match` -- read-only skill-fit analysis.
 
-    Writes exactly three things, each only on an explicit request: the audit report under
-    `audit --save`, `.claude/skills-profile.json` under `profile init` (which never
-    overwrites), and this project's card file in the USER-level registry under
-    `card --publish`. `match` suggests and never installs. Nothing here edits a skill or
-    injects anything into a prompt.
+    Writes only on an explicit request: the audit report under `audit --save`,
+    `.claude/skills-profile.json` under `profile init` (which never overwrites), this
+    project's card file in the USER-level registry under `card --publish`, and -- under
+    `apply` only -- the `skillOverrides` entries it manages in the gitignored
+    `.claude/settings.local.json` plus their record, `.claude/skills-applied.json`.
+    `match` suggests and never installs. Nothing here edits a skill or injects anything
+    into a prompt.
     """
     from claudekit import skill_fit
 
@@ -2224,8 +2269,26 @@ def _cmd_skill_fit(args):
             path = skill_fit.init_profile(root, report)
             disabled = [r["name"] for r in report["skills"] if r["status"] == "irrelevant"]
             ok(f"Created {path} ({len(disabled)} irrelevant skill(s) listed as disabled)")
-            info("Nothing enforces `disabled` yet: `ck skill audit` and `ck doctor` read "
-                 "it. The file is yours -- install, update and fleet sync leave it alone.")
+            info("Review it, then run `ck skill apply` to hide those skills via "
+                 "skillOverrides in .claude/settings.local.json (undo: `ck skill apply "
+                 "--restore`). The file is yours -- install, update and fleet sync leave "
+                 "it alone.")
+            return 0
+        if args.action == "apply":
+            result = skill_fit.apply(root, restore=args.restore)
+            if args.json:
+                print(json.dumps(result, indent=2))
+                return 0
+            for name in result["hidden"]:
+                ok(f"hidden: {name}")
+            for name in result["removed"]:
+                ok(f"visible again: {name}")
+            for name in result["kept_user_set"]:
+                warn(f"kept your own skillOverrides entry: {name}")
+            for item in result["skipped"]:
+                warn(f"not hidden: {item['name']} -- {item['reason']}")
+            print(f"\n  ~{result['tokens_saved']} always-on tokens saved (chars/4 estimate), "
+                  f"written to {result['settings']}.")
             return 0
         registry = Path(args.registry) if args.registry else None
         if args.action == "card":
@@ -2622,10 +2685,11 @@ def main():
     # skill
     p = sub.add_parser("skill",
                        help="Author skills and measure how they fit this project")
-    p.add_argument("action", choices=["new", "audit", "profile", "card", "match"],
+    p.add_argument("action", choices=["new", "audit", "profile", "card", "match", "apply"],
                    help="new: scaffold and register a skill; audit: stack fit and token "
                         "cost; profile init: write .claude/skills-profile.json; card: "
-                        "sanitized cards for local skills; match: suggest from cards")
+                        "sanitized cards for local skills; match: suggest from cards; "
+                        "apply: hide the profile's disabled skills via skillOverrides")
     p.add_argument("name", nargs="?",
                    help="Skill id, kebab-case (new); `init` (profile)")
     # Not argparse-required any more: only `new` needs it, and cmd_skill refuses a
@@ -2661,6 +2725,8 @@ def main():
                    help="card --publish / match: project id (default: directory name)")
     p.add_argument("--min-score", type=float, default=None,
                    help="match: Jaccard floor for a suggestion (default 0.1)")
+    p.add_argument("--restore", action="store_true",
+                   help="apply: remove every skillOverrides entry apply wrote")
 
     # mcp
     p = sub.add_parser("adapt",

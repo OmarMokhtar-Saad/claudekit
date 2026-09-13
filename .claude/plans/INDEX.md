@@ -23,12 +23,12 @@ index never outranks the current files.
 | State | Plans |
 |---|---:|
 | `drifted` | 11 |
-| `approved` | 52 |
+| `approved` | 53 |
 | `planned` | 15 |
 | `executed` | 30 |
 | `not_started` | 24 |
 | `legacy` | 3 |
-| **total** | **135** |
+| **total** | **136** |
 
 ## Plans
 
@@ -149,6 +149,7 @@ index never outranks the current files.
 | `.claude/plans/plan-session-close.md` | `executed` | 4 |  |
 | `.claude/plans/plan-shellcheck-version-drift.md` | `planned` | 1 |  |
 | `.claude/plans/plan-silent-failure-lint.md` | `approved` | 1 |  |
+| `.claude/plans/plan-skill-fit.md` | `approved` | 2 |  |
 | `.claude/plans/plan-skill-loading-contract.md` | `approved` | 1 |  |
 | `.claude/plans/plan-task-014-supply-chain-hardening.md` | `planned` | 1 |  |
 | `.claude/plans/plan-token-dash.md` | `executed` | 6 |  |

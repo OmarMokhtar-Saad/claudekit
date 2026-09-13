@@ -11,6 +11,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `open-source-forker` — never shipped and have been removed.
 
 ## [Unreleased]
+- **`ck skill apply` -- `disabled` in the skills profile now actually drops tokens.**
+  It writes Claude Code's own `skillOverrides` setting (`"off"`, or
+  `"user-invocable-only"` via the profile's `disabled_mode`) for each disabled skill
+  into the gitignored `.claude/settings.local.json`. No skill file is edited, so
+  `ck diff` is unaffected; no hook, no prompt injection. It merges: every other key
+  (including the `ECC_HOOK_PROFILE` env entry) is preserved, an override the user set is
+  never taken over, and the names it manages are recorded in
+  `.claude/skills-applied.json` so `ck skill apply --restore` removes exactly those --
+  and only while they still hold the value apply wrote. An unparseable or symlinked
+  settings file is refused, never overwritten. A profile is repository content, so it
+  cannot hide protected skills (golden-rule, security-checklist,
+  prompt-injection-defense, verification-before-completion, using-superpowers,
+  registry-mandatory skills, skills an installed agent preloads via `skills:` or loads
+  as mandatory): `apply` refuses the whole profile and `ck doctor` fails. `ck doctor`
+  also fails when any settings file already hides a protected skill, reports hidden
+  skills and estimated always-on tokens saved, and warns when profile and settings
+  diverge. `ck update` / `ck init` re-apply the profile.
 - **`ck skill match` found nothing across a real fleet; skills now get stack tags and a
   shared registry.** Matching AppiumLens against 13 projects printed `<none>`: project
   skills carried no `stack_tags`, so no card could overlap anything. A project's own
@@ -32,9 +49,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   overwritten and survives install, update and fleet sync. `ck skill card` emits
   sanitized metadata cards for a project's own skills and `ck skill match --registry`
   suggests cards from other projects by stack overlap -- suggest only, never install.
-  `ck doctor` validates the profile when present. Honest limit: nothing enforces
-  `disabled` yet; this release measures and records, it does not change what a model
-  loads.
+  `ck doctor` validates the profile when present. `disabled` is enforced by
+  `ck skill apply` (below).
 - **Agent memory was declared everywhere and worked nowhere.** Seven agents ship
   `memory: project`, but `install.sh` never created the
   `.claude/agent-memory/<agent>/` directories they read, and a missing memory file
