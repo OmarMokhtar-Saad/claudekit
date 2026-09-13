@@ -1,0 +1,17 @@
+{
+  "plan": "memory-routing",
+  "operations": [
+    {
+      "id": "test-widened-routing",
+      "type": "code_edit",
+      "path": "tests/test_agent_memory_scaffold.py",
+      "description": "Pin the widened routing: distill reaches debugger/verifier (which no origin maps to), refuses an agent that declares no memory without creating a directory, and --list-agents reports the declaring set.",
+      "edits": [
+        {
+          "find": "    def test_crossing_the_200_line_cliff_is_refused(self, tmp_path):",
+          "replace": "    def test_it_routes_to_any_declaring_agent_not_just_the_origin_table(self, tmp_path):\n        \"\"\"`origin` has three values and cannot address seven agents. debugger and\n        verifier declare memory but no origin maps to them, so --agent must reach\n        them or their memory can never be written.\"\"\"\n        root = self._root(tmp_path)\n        (root / \".claude\" / \"agents\").mkdir(parents=True, exist_ok=True)\n        for name in (\"debugger\", \"verifier\"):\n            (root / \".claude\" / \"agents\" / f\"{name}.md\").write_text(\n                f\"---\\nname: {name}\\nmemory: project\\n---\\nbody\\n\", encoding=\"utf-8\")\n        _receipt(root, \"r1\", \"a lesson for the debugger\")\n        proc = _ledger(root, \"distill\", \"--agent\", \"debugger\")\n        assert proc.returncode == 0, proc.stdout + proc.stderr\n        assert (root / \".claude\" / \"agent-memory\" / \"debugger\"\n                / \"MEMORY.md.draft\").is_file()\n\n    def test_an_agent_that_declares_no_memory_is_refused(self, tmp_path):\n        \"\"\"A typo silently created a directory nothing would ever read.\"\"\"\n        root = self._root(tmp_path)\n        (root / \".claude\" / \"agents\").mkdir(parents=True, exist_ok=True)\n        (root / \".claude\" / \"agents\" / \"planner.md\").write_text(\n            \"---\\nname: planner\\nmemory: project\\n---\\nbody\\n\", encoding=\"utf-8\")\n        _receipt(root, \"r1\", \"a lesson\")\n        proc = _ledger(root, \"distill\", \"--agent\", \"plannr\")\n        assert proc.returncode == 2, proc.stdout + proc.stderr\n        assert \"does not declare\" in proc.stderr\n        assert not (root / \".claude\" / \"agent-memory\" / \"plannr\").exists()\n\n    def test_list_agents_reports_the_declaring_set(self, tmp_path):\n        root = self._root(tmp_path)\n        (root / \".claude\" / \"agents\").mkdir(parents=True, exist_ok=True)\n        for name in (\"planner\", \"debugger\"):\n            (root / \".claude\" / \"agents\" / f\"{name}.md\").write_text(\n                f\"---\\nname: {name}\\nmemory: project\\n---\\nbody\\n\", encoding=\"utf-8\")\n        (root / \".claude\" / \"agents\" / \"nomem.md\").write_text(\n            \"---\\nname: nomem\\n---\\nbody\\n\", encoding=\"utf-8\")\n        out = _ledger(root, \"distill\", \"--list-agents\").stdout.split()\n        assert sorted(out) == [\"debugger\", \"planner\"], out\n\n    def test_crossing_the_200_line_cliff_is_refused(self, tmp_path):"
+        }
+      ]
+    }
+  ]
+}

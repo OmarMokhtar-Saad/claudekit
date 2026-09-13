@@ -648,6 +648,32 @@ ORIGIN_TO_AGENT = {"code": "code-reviewer", "workflow": "planner", "project": "p
 DEFAULT_AGENT = "planner"
 
 
+def declaring_agents() -> List[str]:
+    """Agents that declare `memory: project`, read from the tree.
+
+    DERIVED, never hardcoded, for the same reason install.sh derives it: a literal
+    list goes stale silently the first time an agent is added or renamed, and the
+    failure mode is a routing target that quietly does not exist.
+
+    `origin` has only three values and cannot address seven agents, so --agent is
+    the real routing mechanism; this is what validates it. An agent with no
+    MEMORY.md is still a legitimate target -- distill writes a draft beside it and
+    the file may simply not exist yet.
+    """
+    out: List[str] = []
+    agents_dir = project_root() / ".claude" / "agents"
+    if not agents_dir.is_dir():
+        return out
+    for path in sorted(agents_dir.glob("*.md")):
+        try:
+            head = path.read_text(encoding="utf-8").splitlines()[:40]
+        except OSError:
+            continue
+        if any(line.strip() == "memory: project" for line in head):
+            out.append(path.stem)
+    return out
+
+
 def _load_sanitizers():
     """Load reflection.py's redaction rules by path.
 
@@ -714,6 +740,14 @@ def _normalize_signature(value: str) -> str:
 
 
 def cmd_distill(args: argparse.Namespace) -> int:
+    if getattr(args, "list_agents", False):
+        names = declaring_agents()
+        if not names:
+            print("distill: no agent in this project declares `memory: project`.")
+            return 0
+        for name in names:
+            print(name)
+        return 0
     san = _load_sanitizers()
     if san is None:
         # FAIL CLOSED. An unloadable sanitizer must never mean "nothing to redact".
@@ -754,6 +788,14 @@ def cmd_distill(args: argparse.Namespace) -> int:
               % (args.origin, agent), file=sys.stderr)
     if not SLUG_RE.match(agent):
         print("distill: invalid agent name %r" % agent, file=sys.stderr)
+        return 2
+    # Route to ANY agent that declares memory, not just the three the origin table
+    # can name. Refusing an undeclared target is the point: a typo silently created
+    # a directory for an agent that does not exist, and nothing would ever read it.
+    declared = declaring_agents()
+    if declared and agent not in declared:
+        print("distill: %r does not declare `memory: project`. Declaring agents "
+              "here: %s" % (agent, ", ".join(declared)), file=sys.stderr)
         return 2
 
     root = project_root().resolve()
@@ -1026,7 +1068,11 @@ def build_parser() -> argparse.ArgumentParser:
     distill = sub.add_parser(
         "distill", help="draft an agent memory entry from unfixed receipts")
     distill.add_argument("--agent", default="",
-                         help="target agent (default: routed from --origin)")
+                         help="target agent -- any agent declaring `memory: project`, "
+                              "not only those the --origin table names "
+                              "(default: routed from --origin)")
+    distill.add_argument("--list-agents", action="store_true",
+                         help="print the agents that declare memory, and exit")
     distill.add_argument("--origin", default="", choices=("",) + ORIGINS,
                          help="only distill receipts of this origin")
     distill.set_defaults(func=cmd_distill)
