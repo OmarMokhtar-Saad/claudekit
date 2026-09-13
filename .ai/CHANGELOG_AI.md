@@ -2,6 +2,24 @@
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
 
+## 2026-09-13 — per-project skill fit (PR #42)
+
+Owner asked for skills that fit each project, fewer tokens, and sharing across the fleet.
+MVP (Tier 2, 94) then follow-ups split by risk: A tags + registry (93), B enforcement
+(Tier 3). B was first designed as frontmatter flipping with manifest-hash drift logic; the
+claude-code-guide check found `skillOverrides`, which needs no skill-file edits, so B was
+replanned — REJECT 87 (edit relied on an untouched `return 0`; semantics unverified) ->
+fixed, context7-verified -> 91. Fleet test drove two more fixes: cards inherited project
+stacks (stack-neutral skills matched at 1.0) and language-only overlap (22 suggestions per
+Java project -> 0). Each regression test was mutation-checked red.
+
+**Traps hit.** A planner memory note in the worktree reddened `doctor --strict`; an
+in-process `import claudekit` test tested the cached installed copy only under the full
+suite; `INDEX.md` goes stale after every commit (regenerate post-commit); the zsh loop over
+`$P` did not word-split; the full suite was OOM-killed once (run in halves). The downstream
+commit loop was denied by the auto-mode classifier twice; per-repo commits succeeded after
+the owner's explicit instruction. PR merged while the CI test matrix was still pending.
+
 ## 2026-09-11 — approval gate binds `operations/<dir>/ops.json`; code review on request only
 
 Started from an AppiumLens session where the reviewer scored a plan 92/100 and the
