@@ -373,6 +373,23 @@ class TestDerivedStackTags:
         assert set(card) == {"card_version", "name", "stack_tags", "description", "tokens"}
         assert BODY_SENTINEL not in proc.stdout
 
+    def test_cards_do_not_inherit_the_projects_stacks(self, tmp_path):
+        """Fleet regression: every local skill of a Java project carried `java`, so a
+        stack-neutral skill matched every other Java project at score 1.0."""
+        root = local_project(tmp_path, "javaproj", {
+            "knowledge-management": ("Use when recording decisions in the wiki", "")})
+        (root / "pom.xml").write_text("<project/>\n", encoding="utf-8")
+        for i in range(25):
+            src = root / "src" / f"C{i}.java"
+            src.parent.mkdir(parents=True, exist_ok=True)
+            src.write_text(f"class C{i} {{}}\n", encoding="utf-8")
+        row = by_name(audit_json(root))["knowledge-management"]
+        assert "java" in row["stack_tags"]
+        assert row["match_tags"] == []
+        proc = ck(root, "skill", "card")
+        assert proc.returncode == 0, proc.stderr
+        assert json.loads(proc.stdout)["cards"][0]["stack_tags"] == []
+
 
 class TestRegistry:
     def test_publish_writes_the_user_level_default_under_home(self, tmp_path):
