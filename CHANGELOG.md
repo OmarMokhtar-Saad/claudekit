@@ -11,6 +11,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `open-source-forker` — never shipped and have been removed.
 
 ## [Unreleased]
+- **`ck skill match` found nothing across a real fleet; skills now get stack tags and a
+  shared registry.** Matching AppiumLens against 13 projects printed `<none>`: project
+  skills carried no `stack_tags`, so no card could overlap anything. A project's own
+  skill without explicit `stack_tags` now gets tags derived deterministically from its
+  name, description and body (a fixed stack vocabulary: java, kotlin, python, android,
+  appium, selenium, gradle, ...) unioned with the project's detected stacks; explicit
+  frontmatter still wins and kit skills are never derived. `ck skill card --publish`
+  writes the project's sanitized cards to a user-level registry
+  (`~/.claudekit/registry/cards/<project>.json`, or `$CLAUDEKIT_REGISTRY`), atomically;
+  `ck skill match` reads it by default, skips the project's own card, and scores by
+  Jaccard tag overlap with a `--min-score` floor (default 0.1), printing score and
+  source project. `--registry` is now optional.
 - **`ck skill audit | profile init | card | match` -- measure how skills fit a project.**
   Every installed skill's description is charged to every session whether or not the
   project's stack can use it. `ck skill audit` detects the stacks, estimates each skill's
