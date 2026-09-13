@@ -1,0 +1,21 @@
+{
+  "plan": "memory-maturity",
+  "operations": [
+    {
+      "id": "m3-doctor-warning-tests",
+      "type": "code_edit",
+      "path": "tests/test_doctor_gate.py",
+      "description": "Phase 4: pin the earlier cliff warning -- comfortable passes, 170 lines warns before truncation, 250 lines reports the over-200 message and suppresses the earlier one.",
+      "edits": [
+        {
+          "find": "import os\n",
+          "replace": "import os\nimport pathlib\n"
+        },
+        {
+          "find": "class TestMinimalInstallPassesStrict",
+          "replace": "class TestAgentMemorySizeWarnings:\n    \"\"\"The cliff warning must arrive BEFORE truncation, not after it.\"\"\"\n\n    def _tree(self, tmp, lines):\n        claude = pathlib.Path(tmp) / \".claude\"\n        (claude / \"agents\").mkdir(parents=True, exist_ok=True)\n        (claude / \"agents\" / \"planner.md\").write_text(\n            \"---\\nname: planner\\nmemory: project\\n---\\nbody\\n\", encoding=\"utf-8\")\n        d = claude / \"agent-memory\" / \"planner\"\n        d.mkdir(parents=True, exist_ok=True)\n        (d / \"MEMORY.md\").write_text(\"# m\\n\" * lines, encoding=\"utf-8\")\n        return claude\n\n    def test_a_comfortable_file_passes(self, tmp_path):\n        self._tree(tmp_path, 100)\n        out = _doctor(tmp_path).stdout\n        assert \"[!] Agent memory\" not in out, out\n\n    def test_approaching_the_cliff_warns_before_truncation(self, tmp_path):\n        self._tree(tmp_path, 170)\n        out = _doctor(tmp_path).stdout\n        assert \"within 40 lines of the 200-line cliff\" in out, out\n\n    def test_past_the_cliff_takes_priority(self, tmp_path):\n        \"\"\"Already truncating beats about to.\"\"\"\n        self._tree(tmp_path, 250)\n        out = _doctor(tmp_path).stdout\n        assert \"past the 200-line\" in out, out\n        assert \"within 40 lines\" not in out, out\n\n\nclass TestMinimalInstallPassesStrict"
+        }
+      ]
+    }
+  ]
+}
