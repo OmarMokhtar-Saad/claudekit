@@ -11,6 +11,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `open-source-forker` — never shipped and have been removed.
 
 ## [Unreleased]
+- **Agent memory was declared everywhere and worked nowhere.** Seven agents ship
+  `memory: project`, but `install.sh` never created the
+  `.claude/agent-memory/<agent>/` directories they read, and a missing memory file
+  is silence rather than an error -- so across 15 installed projects the total
+  number of `MEMORY.md` files was 3. The installer now creates a directory and a
+  header-only stub for every agent that declares memory, deriving the list from the
+  installed agent files rather than a hardcoded array, and never overwriting an
+  existing memory file. `ck doctor` gained the check that would have caught this:
+  it skips installs that predate the scaffold (zero agents served), warns when some
+  agents have a memory file and others do not, and warns past the 200-line
+  truncation cliff where Claude Code silently loads half a memory. New:
+  `knowledge-ledger.py distill` drafts a memory entry from accumulated receipts --
+  draft-only, never writing the auto-injected `MEMORY.md` itself, reusing
+  `reflection.py`'s redaction rules rather than copying them, and refusing rather
+  than redacting-and-shipping when a secret survives redaction.
 - **The approval gate could not bind `operations/<slug>/ops.json` configs.**
   Projects whose CLAUDE.md mandates that layout never got a verdict recorded:
   `review-record.py resolve` tried only flat names under `.claude/plans` and

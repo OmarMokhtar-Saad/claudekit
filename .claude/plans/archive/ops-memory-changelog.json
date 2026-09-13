@@ -1,0 +1,17 @@
+{
+  "plan": "memory-scaffold-fleet",
+  "operations": [
+    {
+      "id": "changelog-agent-memory",
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "description": "Tier 1 docs: CHANGELOG [Unreleased] entry for the agent-memory scaffold, doctor check and distill.",
+      "edits": [
+        {
+          "find": "## [Unreleased]\n",
+          "replace": "## [Unreleased]\n- **Agent memory was declared everywhere and worked nowhere.** Seven agents ship\n  `memory: project`, but `install.sh` never created the\n  `.claude/agent-memory/<agent>/` directories they read, and a missing memory file\n  is silence rather than an error -- so across 15 installed projects the total\n  number of `MEMORY.md` files was 3. The installer now creates a directory and a\n  header-only stub for every agent that declares memory, deriving the list from the\n  installed agent files rather than a hardcoded array, and never overwriting an\n  existing memory file. `ck doctor` gained the check that would have caught this:\n  it skips installs that predate the scaffold (zero agents served), warns when some\n  agents have a memory file and others do not, and warns past the 200-line\n  truncation cliff where Claude Code silently loads half a memory. New:\n  `knowledge-ledger.py distill` drafts a memory entry from accumulated receipts --\n  draft-only, never writing the auto-injected `MEMORY.md` itself, reusing\n  `reflection.py`'s redaction rules rather than copying them, and refusing rather\n  than redacting-and-shipping when a secret survives redaction.\n"
+        }
+      ]
+    }
+  ]
+}

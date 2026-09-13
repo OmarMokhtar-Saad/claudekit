@@ -1,0 +1,33 @@
+{
+  "plan": "memory-scaffold-fleet",
+  "operations": [
+    {
+      "id": "p1-installer-agent-memory-scaffold",
+      "type": "code_edit",
+      "path": "install.sh",
+      "description": "Phase 1: install.sh creates .claude/agent-memory/<agent>/ with a header-only MEMORY.md stub for every agent declaring `memory: project`, derived from the installed agent files, never overwriting an existing memory file",
+      "edits": [
+        {
+          "find": "    # Copy the issue-ledger entry-format contract. The ledger directory and its\n    # entries self-materialize on the first `record`, but the README is the\n    # documented entry format, so a full install must ship it.\n",
+          "add_before": "    # Ship the agent-memory scaffold. Seven agents declare `memory: project`, but\n    # nothing ever created the directories they read, so across 15 installed projects\n    # the total number of MEMORY.md files was 3. A missing memory file is not an\n    # error to Claude Code -- it is silence, which is why this went unnoticed.\n    #\n    # The agent list is DERIVED from the installed agent files, never hardcoded. A\n    # hardcoded list is exactly how the hook allowlist went stale (see below) and\n    # shipped a project where every Edit and Write was blocked.\n    if [[ -d \"$DEST/agents\" ]]; then\n        mkdir -p \"$DEST/agent-memory\"\n        if [[ -f \"$CLAUDE_SRC/agent-memory/README.md\" ]]; then\n            cp \"$CLAUDE_SRC/agent-memory/README.md\" \"$DEST/agent-memory/\"\n        fi\n        _mem_count=0\n        for _agent_file in \"$DEST\"/agents/*.md; do\n            [[ -f \"$_agent_file\" ]] || continue\n            grep -q \"^memory: project\" \"$_agent_file\" || continue\n            _agent_name=\"${_agent_file##*/}\"\n            _agent_name=\"${_agent_name%.md}\"\n            mkdir -p \"$DEST/agent-memory/$_agent_name\"\n            # NEVER overwrite an existing memory file: it is the project's\n            # accumulated knowledge and a re-run of the installer must leave it\n            # byte-identical.\n            if [[ ! -f \"$DEST/agent-memory/$_agent_name/MEMORY.md\" ]]; then\n                printf '# %s memory\\n\\nOne line per entry: `- [Title](file.md) - hook`\\n' \\\n                    \"$_agent_name\" > \"$DEST/agent-memory/$_agent_name/MEMORY.md\"\n            fi\n            _mem_count=$((_mem_count + 1))\n        done\n        print_ok \"$_mem_count agent-memory directories installed\"\n    fi\n\n"
+        }
+      ]
+    },
+    {
+      "id": "p2-doctor-agent-memory-check",
+      "type": "code_edit",
+      "path": "src/claudekit/cli/main.py",
+      "description": "Phase 2: ck doctor checks that every agent declaring `memory: project` has a readable MEMORY.md under the 200-line truncation cliff; skip when none declare, warn when missing or oversize",
+      "edits": [
+        {
+          "find": "    # Summary\n",
+          "add_before": "    # Agent memory: an agent declaring `memory: project` reads\n    # .claude/agent-memory/<agent>/MEMORY.md. A missing file is silence, not an\n    # error, so without this check the feature can be dead fleet-wide unnoticed.\n    _mem_agents = []\n    _agents_dir = claude_dir / \"agents\"\n    if _agents_dir.is_dir():\n        for _af in sorted(_agents_dir.glob(\"*.md\")):\n            try:\n                if any(line.strip() == \"memory: project\"\n                       for line in _af.read_text(encoding=\"utf-8\").splitlines()[:40]):\n                    _mem_agents.append(_af.stem)\n            except OSError:\n                continue\n    if not _mem_agents:\n        # A minimal install declares none. Reporting absence-by-design as a skip\n        # keeps it out of the passed count AND out of --strict.\n        check(\"Agent memory (no agent declares memory: project)\", \"skip\",\n              \"not applicable to this install\")\n    else:\n        _missing = [a for a in _mem_agents\n                    if not (claude_dir / \"agent-memory\" / a / \"MEMORY.md\").is_file()]\n        _oversize = []\n        for _a in _mem_agents:\n            _mf = claude_dir / \"agent-memory\" / _a / \"MEMORY.md\"\n            if not _mf.is_file():\n                continue\n            try:\n                if len(_mf.read_text(encoding=\"utf-8\").splitlines()) > 200:\n                    _oversize.append(_a)\n            except OSError:\n                continue\n        if _missing:\n            check(f\"Agent memory: {len(_mem_agents) - len(_missing)}/{len(_mem_agents)} \"\n                  f\"agents have a memory file\", \"warn\",\n                  f\"no MEMORY.md for: {', '.join(_missing)} \u2014 these agents declare \"\n                  f\"`memory: project` but have nowhere to read from, so nothing \"\n                  f\"accumulates; re-run install.sh to create the scaffold\")\n        elif _oversize:\n            # Claude Code loads only the first 200 lines / 25 KB. Past that the\n            # agent silently reads half a memory it believes is whole.\n            check(f\"Agent memory: {len(_oversize)} file(s) past the 200-line \"\n                  f\"truncation cliff\", \"warn\",\n                  f\"prune {', '.join(_oversize)} \u2014 Claude Code loads only the first \"\n                  f\"200 lines / 25 KB and truncates the rest silently\")\n        else:\n            check(f\"Agent memory: {len(_mem_agents)} agents, all with a readable \"\n                  f\"MEMORY.md\", True)\n\n"
+        }
+      ]
+    }
+  ],
+  "baseline": {
+    "install.sh": "sha256:0640b968310a4a8a03a9d20b4087d8681a7eeaa32ba4c493b2b6d625de9bf8ea",
+    "src/claudekit/cli/main.py": "sha256:ac1a43a4964289a4d210598bb3619a2af436bd83bcf04134a3bb5aed00228a49"
+  }
+}
