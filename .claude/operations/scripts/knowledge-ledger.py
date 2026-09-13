@@ -648,6 +648,32 @@ ORIGIN_TO_AGENT = {"code": "code-reviewer", "workflow": "planner", "project": "p
 DEFAULT_AGENT = "planner"
 
 
+def declaring_agents() -> List[str]:
+    """Agents that declare `memory: project`, read from the tree.
+
+    DERIVED, never hardcoded, for the same reason install.sh derives it: a literal
+    list goes stale silently the first time an agent is added or renamed, and the
+    failure mode is a routing target that quietly does not exist.
+
+    `origin` has only three values and cannot address seven agents, so --agent is
+    the real routing mechanism; this is what validates it. An agent with no
+    MEMORY.md is still a legitimate target -- distill writes a draft beside it and
+    the file may simply not exist yet.
+    """
+    out: List[str] = []
+    agents_dir = project_root() / ".claude" / "agents"
+    if not agents_dir.is_dir():
+        return out
+    for path in sorted(agents_dir.glob("*.md")):
+        try:
+            head = path.read_text(encoding="utf-8").splitlines()[:40]
+        except OSError:
+            continue
+        if any(line.strip() == "memory: project" for line in head):
+            out.append(path.stem)
+    return out
+
+
 def _load_sanitizers():
     """Load reflection.py's redaction rules by path.
 
@@ -702,6 +728,51 @@ def _unsafe(text: str, san) -> str:
     return ""
 
 
+_CLUSTER_STOP = frozenset((
+    "assumed", "would", "could", "this", "that", "were", "which",
+))
+_CLUSTER_TOKEN = re.compile(r"[^a-z0-9]+")
+
+
+def _signature_tokens(value: str) -> frozenset:
+    """Token SET for similarity -- a set, not a string. See the 100 refusal."""
+    return frozenset(
+        t for t in _CLUSTER_TOKEN.split(value.lower())
+        if len(t) > 2 and t not in _CLUSTER_STOP
+    )
+
+
+def _jaccard(a: frozenset, b: frozenset) -> float:
+    union = a | b
+    return len(a & b) / len(union) if union else 0.0
+
+
+def cluster(items, threshold: float):
+    """Group (key, payload) pairs by token-set Jaccard, with COMPLETE LINKAGE.
+
+    An item joins a group only if it clears the threshold against EVERY existing
+    member, never just the last-inserted one. That is what bounds chaining: under
+    single linkage, A~B and B~C above threshold would drag A and C together even
+    when A~C is below it -- silently widening a group, which is the one thing a
+    draft aimed at a system prompt must not do.
+
+    The corpus is pre-sorted, so the result does not depend on filesystem
+    enumeration order. That is ALL pre-sorting buys: which of two equally valid
+    pairings forms first is still comparison-order dependent, and this function
+    does not claim otherwise.
+    """
+    groups: List[List] = []
+    for key, payload in sorted(items, key=lambda kv: kv[0]):
+        tokens = _signature_tokens(key)
+        for members in groups:
+            if all(_jaccard(tokens, t) >= threshold for t, _, _ in members):
+                members.append((tokens, key, payload))
+                break
+        else:
+            groups.append([(tokens, key, payload)])
+    return [[(k, p) for _, k, p in g] for g in groups]
+
+
 def _normalize_signature(value: str) -> str:
     """Grouping key: exact match after whitespace normalization. No fuzzy matching.
 
@@ -713,7 +784,61 @@ def _normalize_signature(value: str) -> str:
     return " ".join(value.split()).strip().lower()
 
 
+def _cmd_stale(days: int) -> int:
+    """LIST unfixed entries older than `days`. Never closes one.
+
+    Closing on a clock is the silent-retirement failure this ledger already guards
+    against elsewhere (entry_status maps a malformed status to UNFIXED for exactly
+    that reason). Age prompts a human decision; it is never the decision.
+    """
+    import datetime
+    cutoff = datetime.date.today() - datetime.timedelta(days=days)
+    stale = []
+    for path in entry_paths(ledger_dir()):
+        meta = parse_entry(path)
+        if entry_status(meta) not in UNFIXED:
+            continue
+        raw = meta.get("date", "")
+        if not DATE_RE.match(raw):
+            continue
+        try:
+            when = datetime.date(*(int(x) for x in raw.split("-")))
+        except ValueError:
+            continue
+        if when < cutoff:
+            stale.append((raw, path.stem))
+    if not stale:
+        print("distill: no unfixed entry is older than %d day(s)." % days)
+        return 0
+    print("%d unfixed entr(ies) older than %d day(s) - review and close deliberately:"
+          % (len(stale), days))
+    for stamp, slug in sorted(stale):
+        print("  %s  %s" % (stamp, slug))
+    print("Nothing was closed. `knowledge-ledger.py close <slug> --reason ...` does that.")
+    return 0
+
+
 def cmd_distill(args: argparse.Namespace) -> int:
+    if getattr(args, "list_agents", False):
+        names = declaring_agents()
+        if not names:
+            print("distill: no agent in this project declares `memory: project`.")
+            return 0
+        for name in names:
+            print(name)
+        return 0
+    if args.similarity and not 1 <= args.similarity <= 99:
+        # 100 is REFUSED, not aliased to the literal path. Jaccard compares token
+        # SETS; the literal path compares normalised STRINGS. Measured: "tests mock
+        # the database" and "the database tests mock" score 1.0 while being two
+        # literal groups. Aliasing would give one value of this flag a different
+        # comparison function than every other, silently.
+        print("distill: --similarity must be 1-99. Omit it for exact grouping; 100 "
+              "is not the same thing (token-set equality is not string equality: "
+              "reordered words score 1.0).", file=sys.stderr)
+        return 2
+    if getattr(args, "stale", 0):
+        return _cmd_stale(args.stale)
     san = _load_sanitizers()
     if san is None:
         # FAIL CLOSED. An unloadable sanitizer must never mean "nothing to redact".
@@ -744,6 +869,17 @@ def cmd_distill(args: argparse.Namespace) -> int:
         if not key:
             continue
         groups.setdefault(key, []).append((path, meta))
+    if args.similarity:
+        # OPT-IN, and it affects the DRAFT only -- distill still never writes
+        # MEMORY.md. Literal grouping stays the default, reached by omitting the
+        # flag rather than by a second code path imitating the first.
+        merged = cluster(list(groups.items()), args.similarity / 100.0)
+        groups = {}
+        for bucket in merged:
+            rows: List = []
+            for _, members in bucket:
+                rows.extend(members)
+            groups[bucket[0][0]] = rows
     if not groups:
         print("distill: nothing to do - no entry carries a signature.")
         return 0
@@ -754,6 +890,14 @@ def cmd_distill(args: argparse.Namespace) -> int:
               % (args.origin, agent), file=sys.stderr)
     if not SLUG_RE.match(agent):
         print("distill: invalid agent name %r" % agent, file=sys.stderr)
+        return 2
+    # Route to ANY agent that declares memory, not just the three the origin table
+    # can name. Refusing an undeclared target is the point: a typo silently created
+    # a directory for an agent that does not exist, and nothing would ever read it.
+    declared = declaring_agents()
+    if declared and agent not in declared:
+        print("distill: %r does not declare `memory: project`. Declaring agents "
+              "here: %s" % (agent, ", ".join(declared)), file=sys.stderr)
         return 2
 
     root = project_root().resolve()
@@ -1026,7 +1170,19 @@ def build_parser() -> argparse.ArgumentParser:
     distill = sub.add_parser(
         "distill", help="draft an agent memory entry from unfixed receipts")
     distill.add_argument("--agent", default="",
-                         help="target agent (default: routed from --origin)")
+                         help="target agent -- any agent declaring `memory: project`, "
+                              "not only those the --origin table names "
+                              "(default: routed from --origin)")
+    distill.add_argument("--list-agents", action="store_true",
+                         help="print the agents that declare memory, and exit")
+    distill.add_argument("--similarity", type=int, default=0, metavar="PCT",
+                         help="group similar signatures at this token-set Jaccard "
+                              "percentage (1-99). Omit for exact grouping -- 100 is "
+                              "REFUSED because token-set equality is not string "
+                              "equality (reordered words score 1.0)")
+    distill.add_argument("--stale", type=int, default=0, metavar="DAYS",
+                         help="list unfixed entries older than DAYS and exit; never "
+                              "closes anything")
     distill.add_argument("--origin", default="", choices=("",) + ORIGINS,
                          help="only distill receipts of this origin")
     distill.set_defaults(func=cmd_distill)

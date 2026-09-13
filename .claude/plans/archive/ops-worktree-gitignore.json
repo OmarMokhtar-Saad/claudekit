@@ -1,0 +1,29 @@
+{
+  "plan": "worktree-gitignore",
+  "operations": [
+    {
+      "id": "gitignore-worktrees",
+      "type": "code_edit",
+      "path": ".gitignore",
+      "description": "Ignore .claude/worktrees/: the worktree manager creates them there, and a linked worktree is a full second copy of the tree, so the residue scanner counted every duplicated hook as a new violation whenever any session had one open.",
+      "edits": [
+        {
+          "find": "# Worktree-per-agent runtime state: linked worktrees + the manager's registry\n# (machine-local paths; never shipped — install.sh copies .claude/ wholesale)\n.worktrees/\n.claude/state/",
+          "replace": "# Worktree-per-agent runtime state: linked worktrees + the manager's registry\n# (machine-local paths; never shipped — install.sh copies .claude/ wholesale)\n.worktrees/\n# .claude/worktrees/ is where the manager actually creates them, and it was NOT\n# covered here. A linked worktree is a full second copy of the tree, so the\n# silent-failure residue scanner walked into it and counted every duplicated hook\n# as a new violation -- reddening the gate for every session whenever ANY session\n# had a worktree open. Runtime state, never source.\n.claude/worktrees/\n.claude/state/"
+        }
+      ]
+    },
+    {
+      "id": "installer-ignores-worktrees",
+      "type": "code_edit",
+      "path": "install.sh",
+      "description": "Ship the same ignore downstream: installed projects run the same worktree manager and the same gate.",
+      "edits": [
+        {
+          "find": "    \".claude/locks/\"\n",
+          "replace": "    \".claude/locks/\"\n    \".claude/worktrees/\"\n"
+        }
+      ]
+    }
+  ]
+}

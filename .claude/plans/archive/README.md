@@ -13,6 +13,16 @@ Move a config here when it is **spent** (already executed — anchors consumed b
 | `ops-skill-fit-match-noise/ops-skill-fit-match-noise.json` | Spent — executed 2026-09-13 (Tier 2, no architecture, --no-approval). Cards and `match` use text-derived `match_tags`; local skills no longer inherit project stacks there (fleet showed stack-neutral skills matching at 1.0). Relevance bucketing unchanged. 3 operations. |
 | `ops-skill-fit-language-only/ops-skill-fit-language-only.json` | Spent — executed 2026-09-13 (Tier 2, no architecture, --no-approval). `match` drops suggestions whose overlap is only base languages (`LANGUAGE_TAGS`), counted in `language_only`; `--include-language-only` keeps them. 5 operations. |
 | `ops-skill-fit-language-only-test/ops-skill-fit-language-only-test.json` | Spent — executed 2026-09-13 (Tier 1, --no-approval, test-only). The install-nothing match test opts into `--include-language-only` because its fixture card shares only `python`. 1 operation. |
+| `ops-worktree-gitignore.json` | Spent — ignore `.claude/worktrees/` in repo and downstream, executed 2026-09-13. |
+| `ops-worktree-scanner.json` | Spent — exclude linked worktrees from the residue scan, executed 2026-09-13. |
+| `ops-memory-maturity.json` | Spent — memory maturity (clustering, staleness, doctor early warning, contract tests), executed 2026-09-13. |
+| `ops-memory-doctor.json` | Spent — memory maturity (clustering, staleness, doctor early warning, contract tests), executed 2026-09-13. |
+| `ops-memory-types.json` | Spent — memory maturity (clustering, staleness, doctor early warning, contract tests), executed 2026-09-13. |
+| `ops-memory-stub.json` | Spent — memory maturity (clustering, staleness, doctor early warning, contract tests), executed 2026-09-13. |
+| `ops-memory-tests.json` | Spent — memory maturity (clustering, staleness, doctor early warning, contract tests), executed 2026-09-13. |
+| `ops-memory-doctortests.json` | Spent — memory maturity (clustering, staleness, doctor early warning, contract tests), executed 2026-09-13. |
+| `ops-memory-routing.json` | Spent — distill routes to any agent declaring `memory: project`, executed 2026-09-13. |
+| `ops-memory-routing-tests.json` | Spent — tests pinning the widened routing, executed 2026-09-13. |
 | `ops-memory-p1fix.json` | Spent — the reinstall data-loss fix (stubs after preservation; MEMORY.md always-custom), executed 2026-09-13 (approved 94). |
 | `ops-memory-lint.json` | Spent — ruff/mypy fixes on the Phase 3/4 additions, executed 2026-09-13. |
 | `ops-memory-scaffold-distill.json` | Spent — Phase 3 `distill` + Phase 4 behavioural tests, executed 2026-09-13 (approved 94). |

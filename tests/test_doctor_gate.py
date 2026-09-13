@@ -20,6 +20,7 @@ such exemption.
 
 import json
 import os
+import pathlib
 import shutil
 import subprocess
 import sys
@@ -231,6 +232,37 @@ class TestAgentMemoryCheckStates:
         """The flagship regression: REPO has agent-memory/ with empty agent dirs."""
         out = _doctor(REPO).stdout
         assert "[!] Agent memory" not in out, out
+
+
+class TestAgentMemorySizeWarnings:
+    """The cliff warning must arrive BEFORE truncation, not after it."""
+
+    def _tree(self, tmp, lines):
+        claude = pathlib.Path(tmp) / ".claude"
+        (claude / "agents").mkdir(parents=True, exist_ok=True)
+        (claude / "agents" / "planner.md").write_text(
+            "---\nname: planner\nmemory: project\n---\nbody\n", encoding="utf-8")
+        d = claude / "agent-memory" / "planner"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "MEMORY.md").write_text("# m\n" * lines, encoding="utf-8")
+        return claude
+
+    def test_a_comfortable_file_passes(self, tmp_path):
+        self._tree(tmp_path, 100)
+        out = _doctor(tmp_path).stdout
+        assert "[!] Agent memory" not in out, out
+
+    def test_approaching_the_cliff_warns_before_truncation(self, tmp_path):
+        self._tree(tmp_path, 170)
+        out = _doctor(tmp_path).stdout
+        assert "within 40 lines of the 200-line cliff" in out, out
+
+    def test_past_the_cliff_takes_priority(self, tmp_path):
+        """Already truncating beats about to."""
+        self._tree(tmp_path, 250)
+        out = _doctor(tmp_path).stdout
+        assert "past the 200-line" in out, out
+        assert "within 40 lines" not in out, out
 
 
 class TestMinimalInstallPassesStrict:

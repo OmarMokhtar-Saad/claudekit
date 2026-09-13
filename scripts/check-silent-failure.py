@@ -89,6 +89,13 @@ from typing import Iterable, Iterator, List, NamedTuple, Optional, Sequence, Set
 EXCLUDED_PARTS = {
     "backups", ".git", "node_modules", ".venv", "__pycache__", ".pytest_cache",
     ".tmp-test-fixtures",  # this repo's pytest sandbox; planted fixtures must never be scanned
+    # A linked worktree is a full SECOND COPY of the tree. Scanning one counted every
+    # duplicated hook as a brand-new violation, so the residue ratchet reddened for
+    # every session whenever ANY session had a worktree open -- a failure with no
+    # relation to the change under test. Gitignoring them is not enough: this scanner
+    # walks the filesystem, not the index. Both names are excluded because the manager
+    # has used both.
+    "worktrees", ".worktrees",
 }
 
 # Bounds both the quote-join and the heredoc skip; see logical_lines(). It is a guard
