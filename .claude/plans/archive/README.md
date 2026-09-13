@@ -6,6 +6,8 @@ Move a config here when it is **spent** (already executed — anchors consumed b
 
 | File | Why archived |
 |---|---|
+| `ops-worktree-gitignore.json` | Spent — ignore `.claude/worktrees/` in repo and downstream, executed 2026-09-13. |
+| `ops-worktree-scanner.json` | Spent — exclude linked worktrees from the residue scan, executed 2026-09-13. |
 | `ops-memory-maturity.json` | Spent — memory maturity (clustering, staleness, doctor early warning, contract tests), executed 2026-09-13. |
 | `ops-memory-doctor.json` | Spent — memory maturity (clustering, staleness, doctor early warning, contract tests), executed 2026-09-13. |
 | `ops-memory-types.json` | Spent — memory maturity (clustering, staleness, doctor early warning, contract tests), executed 2026-09-13. |

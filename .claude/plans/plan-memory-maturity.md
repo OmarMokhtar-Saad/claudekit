@@ -89,6 +89,38 @@ human to accept or split; it does not have to be right.
 **Refusal preserved.** Every sanitiser check runs per group, unchanged. A group whose
 text still carries a secret after redaction is refused, exactly as before.
 
+### Result: clustering does not work. Measured on a real corpus.
+
+Run against qa-agents' 82 receipts after shipping, against a hand-clustering of the same
+corpus into 6 lessons covering 73 of the 82:
+
+| Threshold | Groups | Multi-receipt | Largest |
+|---|---|---|---|
+| 55% (the proposed default) | **82** | 0 | 1 |
+| 40% | 80 | 2 | 2 |
+| 25% | 75 | 6 | 3 |
+| 15% | 55 | 16 | 6 |
+| 10% | 38 | 22 | 10 |
+| **hand-clustered** | **6** | 6 | **~30** |
+
+At 55% it merges nothing — identical to the literal path. Useful grouping only appears
+near 10%, where the merges are wrong: the 10-receipt cluster joins "a bare triple-equals
+separator", "a delegated planner stalled" and "a mutant reported KILLED by a nonexistent
+test file" — three unrelated lessons sharing only filler words.
+
+**There is no threshold that is both useful and correct.** Token-set Jaccard cannot see
+that "the guard refuses heredocs" and "shell variable assignment is rejected" are one
+lesson; that needs semantics, not vocabulary overlap. Stop-word removal does not save it,
+because the shared vocabulary IS the filler.
+
+**Kept, not removed, and deliberately not advertised.** The flag stays opt-in and
+default-off, and the safety work around it is sound and tested — complete linkage bounds
+chaining, the 100 refusal is correct, the draft-only path holds. What the machinery
+guards simply does not earn its place. The code and this table stay so the next person
+does not rebuild it and hit the same wall; the negative result is worth more than the
+feature. Hand-clustering is the real workflow. A future attempt needs an LLM pass, with
+its own review of what that means for a system-prompt write path.
+
 ## Phase 2: the injection contract
 
 A true end-to-end proof — spawn an agent, confirm it behaves differently — needs a live
