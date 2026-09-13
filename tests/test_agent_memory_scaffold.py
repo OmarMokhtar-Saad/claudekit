@@ -211,6 +211,44 @@ class TestDistillRefusals:
         proc = _ledger(root, "distill", "--agent", "planner")
         assert proc.returncode == 4, proc.stdout + proc.stderr
 
+    def test_it_routes_to_any_declaring_agent_not_just_the_origin_table(self, tmp_path):
+        """`origin` has three values and cannot address seven agents. debugger and
+        verifier declare memory but no origin maps to them, so --agent must reach
+        them or their memory can never be written."""
+        root = self._root(tmp_path)
+        (root / ".claude" / "agents").mkdir(parents=True, exist_ok=True)
+        for name in ("debugger", "verifier"):
+            (root / ".claude" / "agents" / f"{name}.md").write_text(
+                f"---\nname: {name}\nmemory: project\n---\nbody\n", encoding="utf-8")
+        _receipt(root, "r1", "a lesson for the debugger")
+        proc = _ledger(root, "distill", "--agent", "debugger")
+        assert proc.returncode == 0, proc.stdout + proc.stderr
+        assert (root / ".claude" / "agent-memory" / "debugger"
+                / "MEMORY.md.draft").is_file()
+
+    def test_an_agent_that_declares_no_memory_is_refused(self, tmp_path):
+        """A typo silently created a directory nothing would ever read."""
+        root = self._root(tmp_path)
+        (root / ".claude" / "agents").mkdir(parents=True, exist_ok=True)
+        (root / ".claude" / "agents" / "planner.md").write_text(
+            "---\nname: planner\nmemory: project\n---\nbody\n", encoding="utf-8")
+        _receipt(root, "r1", "a lesson")
+        proc = _ledger(root, "distill", "--agent", "plannr")
+        assert proc.returncode == 2, proc.stdout + proc.stderr
+        assert "does not declare" in proc.stderr
+        assert not (root / ".claude" / "agent-memory" / "plannr").exists()
+
+    def test_list_agents_reports_the_declaring_set(self, tmp_path):
+        root = self._root(tmp_path)
+        (root / ".claude" / "agents").mkdir(parents=True, exist_ok=True)
+        for name in ("planner", "debugger"):
+            (root / ".claude" / "agents" / f"{name}.md").write_text(
+                f"---\nname: {name}\nmemory: project\n---\nbody\n", encoding="utf-8")
+        (root / ".claude" / "agents" / "nomem.md").write_text(
+            "---\nname: nomem\n---\nbody\n", encoding="utf-8")
+        out = _ledger(root, "distill", "--list-agents").stdout.split()
+        assert sorted(out) == ["debugger", "planner"], out
+
     def test_crossing_the_200_line_cliff_is_refused(self, tmp_path):
         root = self._root(tmp_path)
         mem = root / ".claude" / "agent-memory" / "planner"

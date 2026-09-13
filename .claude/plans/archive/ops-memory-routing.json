@@ -1,0 +1,29 @@
+{
+  "plan": "memory-routing",
+  "operations": [
+    {
+      "id": "widen-distill-routing",
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/knowledge-ledger.py",
+      "description": "Route distill to ANY agent declaring `memory: project`, derived from the tree rather than the three-value origin table (which cannot address seven agents). Refuse an undeclared target, and add --list-agents.",
+      "edits": [
+        {
+          "find": "ORIGIN_TO_AGENT = {\"code\": \"code-reviewer\", \"workflow\": \"planner\", \"project\": \"planner\"}\nDEFAULT_AGENT = \"planner\"\n",
+          "replace": "ORIGIN_TO_AGENT = {\"code\": \"code-reviewer\", \"workflow\": \"planner\", \"project\": \"planner\"}\nDEFAULT_AGENT = \"planner\"\n\n\ndef declaring_agents() -> List[str]:\n    \"\"\"Agents that declare `memory: project`, read from the tree.\n\n    DERIVED, never hardcoded, for the same reason install.sh derives it: a literal\n    list goes stale silently the first time an agent is added or renamed, and the\n    failure mode is a routing target that quietly does not exist.\n\n    `origin` has only three values and cannot address seven agents, so --agent is\n    the real routing mechanism; this is what validates it. An agent with no\n    MEMORY.md is still a legitimate target -- distill writes a draft beside it and\n    the file may simply not exist yet.\n    \"\"\"\n    out: List[str] = []\n    agents_dir = project_root() / \".claude\" / \"agents\"\n    if not agents_dir.is_dir():\n        return out\n    for path in sorted(agents_dir.glob(\"*.md\")):\n        try:\n            head = path.read_text(encoding=\"utf-8\").splitlines()[:40]\n        except OSError:\n            continue\n        if any(line.strip() == \"memory: project\" for line in head):\n            out.append(path.stem)\n    return out\n"
+        },
+        {
+          "find": "    agent = args.agent or ORIGIN_TO_AGENT.get(args.origin or \"\", DEFAULT_AGENT)\n    if not args.agent and args.origin not in ORIGIN_TO_AGENT:\n        print(\"distill: origin %r is unmapped; routing to %s\"\n              % (args.origin, agent), file=sys.stderr)\n    if not SLUG_RE.match(agent):\n        print(\"distill: invalid agent name %r\" % agent, file=sys.stderr)\n        return 2\n",
+          "replace": "    agent = args.agent or ORIGIN_TO_AGENT.get(args.origin or \"\", DEFAULT_AGENT)\n    if not args.agent and args.origin not in ORIGIN_TO_AGENT:\n        print(\"distill: origin %r is unmapped; routing to %s\"\n              % (args.origin, agent), file=sys.stderr)\n    if not SLUG_RE.match(agent):\n        print(\"distill: invalid agent name %r\" % agent, file=sys.stderr)\n        return 2\n    # Route to ANY agent that declares memory, not just the three the origin table\n    # can name. Refusing an undeclared target is the point: a typo silently created\n    # a directory for an agent that does not exist, and nothing would ever read it.\n    declared = declaring_agents()\n    if declared and agent not in declared:\n        print(\"distill: %r does not declare `memory: project`. Declaring agents \"\n              \"here: %s\" % (agent, \", \".join(declared)), file=sys.stderr)\n        return 2\n"
+        },
+        {
+          "find": "    distill.add_argument(\"--agent\", default=\"\",\n                         help=\"target agent (default: routed from --origin)\")\n",
+          "replace": "    distill.add_argument(\"--agent\", default=\"\",\n                         help=\"target agent -- any agent declaring `memory: project`, \"\n                              \"not only those the --origin table names \"\n                              \"(default: routed from --origin)\")\n    distill.add_argument(\"--list-agents\", action=\"store_true\",\n                         help=\"print the agents that declare memory, and exit\")\n"
+        },
+        {
+          "find": "def cmd_distill(args: argparse.Namespace) -> int:\n    san = _load_sanitizers()\n",
+          "replace": "def cmd_distill(args: argparse.Namespace) -> int:\n    if getattr(args, \"list_agents\", False):\n        names = declaring_agents()\n        if not names:\n            print(\"distill: no agent in this project declares `memory: project`.\")\n            return 0\n        for name in names:\n            print(name)\n        return 0\n    san = _load_sanitizers()\n"
+        }
+      ]
+    }
+  ]
+}
