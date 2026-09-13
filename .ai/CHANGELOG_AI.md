@@ -2,6 +2,18 @@
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
 
+## 2026-09-13 — action-first output across the kit and fleet
+
+Inspired by ayghri/i-have-adhd (MIT; wording original). Commits `5896e9f` (mode, tests,
+`/mode` row), `a48d750` (agent report / session / plan templates), `7ecb91a` (`ck doctor`
+verdict line), merged `7259c19` on local main (only conflict: generated plan INDEX,
+regenerated). Tier 2 for prompts (no reviewer), reviewer for the doctor phase: REVISE 83 ->
+APPROVED 93. Gates on merge: ruff, mypy, gen-docs/registry/model-policy, context floor, plan
+artifacts, corpus lint, 247 targeted tests. Traps hit: the editable install resolves to
+`.ck-main`, so run worktree CLI checks with `PYTHONPATH=src`; committing plan files flips
+their INDEX status (regen after commit); another session reverted fleet `mode.md` mid-run.
+Follow-ups: full suite on merged main, push (owner), optional code review of the merge.
+
 ## 2026-09-13 — agent memory actually accumulates; a shipped data-loss bug; a negative result
 
 Seven agents declare `memory: project`; `install.sh` never created their directories. Across
