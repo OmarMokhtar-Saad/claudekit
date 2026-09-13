@@ -740,7 +740,10 @@ if [[ -d "$FINAL_DEST/agents" ]]; then
         mkdir -p "$FINAL_DEST/agent-memory/$_agent_name"
         # NEVER overwrite: this is the project's accumulated knowledge.
         if [[ ! -f "$FINAL_DEST/agent-memory/$_agent_name/MEMORY.md" ]]; then
-            printf '# %s memory\n\nOne line per entry: `- [Title](file.md) - hook`\n' \
+            # No literal markdown link in the template: `[Title](file.md)` names a
+            # file that never exists, so every fresh install shipped a dangling
+            # pointer -- a memory the agent is told about and cannot follow.
+            printf '# %s memory\n\nOne line per entry, linking to a file beside this one.\n' \
                 "$_agent_name" > "$FINAL_DEST/agent-memory/$_agent_name/MEMORY.md"
         fi
         _mem_count=$((_mem_count + 1))

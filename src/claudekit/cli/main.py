@@ -778,13 +778,17 @@ def cmd_doctor(args):
                  if (claude_dir / "agent-memory" / a / "MEMORY.md").is_file()]
         _missing = [a for a in _mem_agents if a not in _have]
         _oversize = []
+        _near = []
         for _a in _have:
             _mf = claude_dir / "agent-memory" / _a / "MEMORY.md"
             try:
-                if len(_mf.read_text(encoding="utf-8").splitlines()) > 200:
-                    _oversize.append(_a)
+                _n = len(_mf.read_text(encoding="utf-8").splitlines())
             except OSError:
                 continue
+            if _n > 200:
+                _oversize.append(_a)
+            elif _n > 160:
+                _near.append(_a)
         if not _have:
             # NOT ADOPTED. Zero agents served, whether .claude/agent-memory/ is
             # absent, empty, or holds only the README -- all four shapes are
@@ -807,11 +811,21 @@ def cmd_doctor(args):
                   f"accumulates; re-run install.sh to create the scaffold")
         elif _oversize:
             # Claude Code loads only the first 200 lines / 25 KB. Past that the
-            # agent silently reads half a memory it believes is whole.
+            # agent silently reads half a memory it believes is whole. This takes
+            # priority over the 160-line warning below: already truncating beats
+            # about to.
             check(f"Agent memory: {len(_oversize)} file(s) past the 200-line "
                   f"truncation cliff", "warn",
                   f"prune {', '.join(_oversize)} — Claude Code loads only the first "
                   f"200 lines / 25 KB and truncates the rest silently")
+        elif _near:
+            # 80% of the cap. Warning only once a file is ALREADY truncating is a
+            # warning that arrives after the loss, so this fires while there is
+            # still room to prune deliberately.
+            check(f"Agent memory: {len(_near)} file(s) within 40 lines of the "
+                  f"200-line cliff", "warn",
+                  f"prune {', '.join(_near)} soon — past 200 lines Claude Code "
+                  f"loads only the first 200 and truncates the rest silently")
         else:
             check(f"Agent memory: {len(_mem_agents)} agents, all with a readable "
                   f"MEMORY.md", True)

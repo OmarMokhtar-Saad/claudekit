@@ -1,0 +1,17 @@
+{
+  "plan": "memory-maturity",
+  "operations": [
+    {
+      "id": "m2-stub-has-no-dangling-link",
+      "type": "code_edit",
+      "path": "install.sh",
+      "description": "The MEMORY.md stub's example was a literal markdown link to file.md, which never exists -- every fresh install shipped a dangling memory link. Caught by the injection-contract test.",
+      "edits": [
+        {
+          "find": "            printf '# %s memory\\n\\nOne line per entry: `- [Title](file.md) - hook`\\n' \\",
+          "replace": "            # No literal markdown link in the template: `[Title](file.md)` names a\n            # file that never exists, so every fresh install shipped a dangling\n            # pointer -- a memory the agent is told about and cannot follow.\n            printf '# %s memory\\n\\nOne line per entry, linking to a file beside this one.\\n' \\"
+        }
+      ]
+    }
+  ]
+}
