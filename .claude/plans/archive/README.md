@@ -6,6 +6,12 @@ Move a config here when it is **spent** (already executed — anchors consumed b
 
 | File | Why archived |
 |---|---|
+| `ops-memory-maturity.json` | Spent — memory maturity (clustering, staleness, doctor early warning, contract tests), executed 2026-09-13. |
+| `ops-memory-doctor.json` | Spent — memory maturity (clustering, staleness, doctor early warning, contract tests), executed 2026-09-13. |
+| `ops-memory-types.json` | Spent — memory maturity (clustering, staleness, doctor early warning, contract tests), executed 2026-09-13. |
+| `ops-memory-stub.json` | Spent — memory maturity (clustering, staleness, doctor early warning, contract tests), executed 2026-09-13. |
+| `ops-memory-tests.json` | Spent — memory maturity (clustering, staleness, doctor early warning, contract tests), executed 2026-09-13. |
+| `ops-memory-doctortests.json` | Spent — memory maturity (clustering, staleness, doctor early warning, contract tests), executed 2026-09-13. |
 | `ops-memory-routing.json` | Spent — distill routes to any agent declaring `memory: project`, executed 2026-09-13. |
 | `ops-memory-routing-tests.json` | Spent — tests pinning the widened routing, executed 2026-09-13. |
 | `ops-memory-p1fix.json` | Spent — the reinstall data-loss fix (stubs after preservation; MEMORY.md always-custom), executed 2026-09-13 (approved 94). |

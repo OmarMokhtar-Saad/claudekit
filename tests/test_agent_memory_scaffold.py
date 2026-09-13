@@ -249,6 +249,108 @@ class TestDistillRefusals:
         out = _ledger(root, "distill", "--list-agents").stdout.split()
         assert sorted(out) == ["debugger", "planner"], out
 
+    # --- clustering (opt-in; affects the DRAFT only) ---
+
+    A = "alpha beta gamma delta"
+    B = "beta gamma delta epsilon"
+    C = "gamma delta epsilon zeta"
+
+    def test_omitting_similarity_groups_literally(self, tmp_path):
+        root = self._root(tmp_path)
+        _receipt(root, "r1", "tests mock the database")
+        _receipt(root, "r2", "the database tests mock")
+        proc = _ledger(root, "distill", "--agent", "planner")
+        assert proc.returncode == 0, proc.stdout + proc.stderr
+        draft = (root / ".claude" / "agent-memory" / "planner"
+                 / "MEMORY.md.draft").read_text(encoding="utf-8")
+        assert draft.count("1 receipt:") == 2, draft
+
+    def test_reordered_words_are_one_group_when_fuzzing(self, tmp_path):
+        """The exact fixture that falsified the retracted claim that
+        `--similarity 100` equals literal grouping. These two strings are two
+        literal groups and score Jaccard 1.0, so they merge under ANY threshold.
+        Pinned with these literal strings on purpose: the divergence depends on the
+        tokenizer regex and stop-list, so drift there must re-break this test rather
+        than silently resurrect the equivalence."""
+        root = self._root(tmp_path)
+        _receipt(root, "r1", "tests mock the database")
+        _receipt(root, "r2", "the database tests mock")
+        proc = _ledger(root, "distill", "--agent", "planner", "--similarity", "99")
+        assert proc.returncode == 0, proc.stdout + proc.stderr
+        draft = (root / ".claude" / "agent-memory" / "planner"
+                 / "MEMORY.md.draft").read_text(encoding="utf-8")
+        assert "2 receipts:" in draft, draft
+
+    def test_similarity_100_is_refused(self, tmp_path):
+        root = self._root(tmp_path)
+        _receipt(root, "r1", "a lesson")
+        proc = _ledger(root, "distill", "--agent", "planner", "--similarity", "100")
+        assert proc.returncode == 2, proc.stdout + proc.stderr
+        assert "token-set equality is not string equality" in proc.stderr
+
+    def test_chaining_is_bounded_by_complete_linkage(self, tmp_path):
+        """A~B and B~C clear the threshold, A~C does not. Under single linkage B
+        would drag A and C together. Asserts NON-MEMBERSHIP only -- which of
+        {A,B}+{C} or {B,C}+{A} forms is comparison-order dependent and deliberately
+        not claimed. Do not tighten this."""
+        root = self._root(tmp_path)
+        _receipt(root, "r1", self.A)
+        _receipt(root, "r2", self.B)
+        _receipt(root, "r3", self.C)
+        proc = _ledger(root, "distill", "--agent", "planner", "--similarity", "55")
+        assert proc.returncode == 0, proc.stdout + proc.stderr
+        draft = (root / ".claude" / "agent-memory" / "planner"
+                 / "MEMORY.md.draft").read_text(encoding="utf-8")
+        for line in draft.splitlines():
+            assert not ("alpha" in line and "zeta" in line), (
+                "A and C were merged despite A~C below threshold:\n" + draft)
+        assert "2 receipts:" in draft, draft
+
+    def test_an_unrelated_signature_is_not_merged(self, tmp_path):
+        root = self._root(tmp_path)
+        _receipt(root, "r1", self.A)
+        _receipt(root, "r2", self.B)
+        _receipt(root, "r3", "entirely unrelated wording about printers")
+        _ledger(root, "distill", "--agent", "planner", "--similarity", "55")
+        draft = (root / ".claude" / "agent-memory" / "planner"
+                 / "MEMORY.md.draft").read_text(encoding="utf-8")
+        assert "1 receipt:" in draft, draft
+
+    def test_a_merged_group_lists_every_receipt_it_consumed(self, tmp_path):
+        """The draft must show its work: a human verifies the grouping rather than
+        trusting it, which is half of why fuzzing is acceptable here at all."""
+        root = self._root(tmp_path)
+        _receipt(root, "r1", self.A)
+        _receipt(root, "r2", self.B)
+        _ledger(root, "distill", "--agent", "planner", "--similarity", "55")
+        draft = (root / ".claude" / "agent-memory" / "planner"
+                 / "MEMORY.md.draft").read_text(encoding="utf-8")
+        assert "r1" in draft and "r2" in draft, draft
+
+    def test_the_sanitiser_still_refuses_inside_a_fuzzy_group(self, tmp_path):
+        """Clustering must not become a way around the refusal."""
+        root = self._root(tmp_path)
+        _receipt(root, "r1", self.A)
+        _receipt(root, "r2", self.B + " under /Users/someone/secret")
+        proc = _ledger(root, "distill", "--agent", "planner", "--similarity", "55")
+        assert proc.returncode == 4, proc.stdout + proc.stderr
+
+    # --- staleness (lists only) ---
+
+    def test_stale_lists_an_old_unfixed_entry_and_changes_nothing(self, tmp_path):
+        root = self._root(tmp_path)
+        d = root / ".claude" / "knowledge" / "issues"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "old.md").write_text(
+            '---\nsignature: "an old one"\ndate: 2020-01-01\nstatus: open\n'
+            'origin: workflow\nverified: false\n---\n\n# old\n', encoding="utf-8")
+        before = (d / "old.md").read_text(encoding="utf-8")
+        proc = _ledger(root, "distill", "--stale", "1")
+        assert proc.returncode == 0, proc.stdout + proc.stderr
+        assert "old" in proc.stdout, proc.stdout
+        assert "Nothing was closed" in proc.stdout
+        assert (d / "old.md").read_text(encoding="utf-8") == before
+
     def test_crossing_the_200_line_cliff_is_refused(self, tmp_path):
         root = self._root(tmp_path)
         mem = root / ".claude" / "agent-memory" / "planner"
