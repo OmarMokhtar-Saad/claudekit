@@ -383,3 +383,6 @@ gate closes on every sibling config the moment it lands.
   per-phase estimates and "Done when:" in plans, `ck doctor` final verdict line with explicit
   `fix_cmd`. A-C ran `--no-approval` (Tier 2, no architecture); D was reviewed (round 1 REVISE
   83, round 2 APPROVED 93) and ran `--no-approval` because the verdict was not recorded.
+- `ops-session-state-action-first.json` + `ops-changelog-ai-action-first.json` — **spent**
+  (2026-09-13, `--no-approval` disclosed: Tier 1, one `.ai/` file each). End-of-period
+  SESSION_STATE resume point and CHANGELOG_AI entry for the action-first rollout.
