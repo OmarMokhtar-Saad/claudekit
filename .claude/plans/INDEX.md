@@ -150,7 +150,7 @@ index never outranks the current files.
 | `.claude/plans/plan-shellcheck-version-drift.md` | `planned` | 1 |  |
 | `.claude/plans/plan-silent-failure-lint.md` | `approved` | 1 |  |
 | `.claude/plans/plan-skill-fit-2.md` | `approved` | 2 |  |
-| `.claude/plans/plan-skill-fit.md` | `drifted` | 5 |  |
+| `.claude/plans/plan-skill-fit.md` | `drifted` | 7 |  |
 | `.claude/plans/plan-skill-loading-contract.md` | `approved` | 1 |  |
 | `.claude/plans/plan-task-014-supply-chain-hardening.md` | `planned` | 1 |  |
 | `.claude/plans/plan-token-dash.md` | `executed` | 6 |  |
