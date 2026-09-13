@@ -385,7 +385,55 @@ def _parse_semver(text):
         return None
 
 
-def cmd_doctor(args):
+#: Platform-selected install command for the shellcheck warning. A hint naming both
+#: package managers is prose; a fix_cmd must be one runnable command or nothing.
+_SHELLCHECK_INSTALL = {
+    "darwin": "brew install shellcheck",
+    "linux": "apt-get install shellcheck",
+}
+
+
+def _doctor_verdict(rc: int, tally: dict) -> str:
+    """The closing line a reader can act on: state, count, and the next step.
+
+    The step is an explicit `fix_cmd` a check site declared -- never text scraped from
+    hint prose -- taken from the first failing check, else the first warning. A check
+    with no single unconditional command points at its detail line instead.
+    """
+    applicable = tally.get("applicable", 0)
+    failed, warned = tally.get("failed", 0), tally.get("warned", 0)
+
+    def step(key, marker):
+        cmd = tally.get(key)
+        return f"run `{cmd}`" if cmd else f"fix the first {marker} line above"
+
+    if failed:
+        return f"FAIL {failed}/{applicable} failed — next: {step('first_fail_cmd', '[✗]')}"
+    if tally.get("below_min_score") is not None:
+        nxt = (step("first_warn_cmd", "[!]") if warned
+               else "lower --min-score (100 is the maximum)")
+        return (f"FAIL score {tally.get('score')}/100 below --min-score "
+                f"{tally['below_min_score']} — next: {nxt}")
+    if warned:
+        state = "FAIL" if rc else "WARN"
+        return f"{state} {warned}/{applicable} warned — next: {step('first_warn_cmd', '[!]')}"
+    return f"PASS {tally.get('passed', 0)}/{applicable} passed — next: nothing"
+
+
+def cmd_doctor(args) -> int:
+    """Run health checks; the detail streams live, the verdict line closes the run.
+
+    Nothing is buffered: every existing line prints as its check runs, on the same
+    stream, and the exit code is `_doctor_checks`'s own. The verdict is the only new
+    line and it is the LAST line of stdout.
+    """
+    tally: dict = {}
+    rc = _doctor_checks(args, tally)
+    print(_doctor_verdict(rc, tally))
+    return rc
+
+
+def _doctor_checks(args, tally):
     """Run health checks on the current ClaudeKit installation."""
     print(f"\n{C.CYAN}ClaudeKit Doctor v{__version__}{C.NC}\n")
 
@@ -394,7 +442,7 @@ def cmd_doctor(args):
     checks_warned = 0
     checks_skipped = 0
 
-    def check(name, condition, fix_hint=""):
+    def check(name, condition, fix_hint="", fix_cmd=None):
         """True=pass, "skip"=not applicable to this install, "warn", else fail.
 
         "skip" is counted separately on purpose: it must not inflate the passed
@@ -411,9 +459,11 @@ def cmd_doctor(args):
         elif condition == "warn":
             warn(f"{name} — {fix_hint}")
             checks_warned += 1
+            tally.setdefault("first_warn_cmd", fix_cmd)
         else:
             err(f"{name} — {fix_hint}")
             checks_failed += 1
+            tally.setdefault("first_fail_cmd", fix_cmd)
 
     # Python version
     py_ver = sys.version_info
@@ -441,7 +491,8 @@ def cmd_doctor(args):
     check("shellcheck available", True if shellcheck_path else "warn",
           "not on PATH — install with `brew install shellcheck` (macOS) or "
           "`apt-get install shellcheck` (Linux) to run the shell-lint DoD gate "
-          "locally; CI runs it regardless")
+          "locally; CI runs it regardless",
+          fix_cmd=_SHELLCHECK_INSTALL.get(sys.platform))
 
     # Git
     try:
@@ -457,7 +508,7 @@ def cmd_doctor(args):
     # .claude directory
     claude_dir = Path(".claude")
     check(".claude/ directory exists", claude_dir.is_dir(),
-          "Run: claudekit init")
+          "Run: claudekit init", fix_cmd="ck init")
 
     if claude_dir.is_dir():
         # A `--minimal` install ships "agents, commands, and operations only", so no
@@ -613,7 +664,8 @@ def cmd_doctor(args):
                     is_exec = os.access(hook_path, os.X_OK)
                     check(f"Hook: {hook} {'(executable)' if is_exec else ''}",
                           True if is_exec else "warn",
-                          f"Not executable. Run: chmod +x {hook_path}")
+                          f"Not executable. Run: chmod +x {hook_path}",
+                          fix_cmd=f"chmod +x {hook_path}")
                 else:
                     check(f"Hook: {hook}",
                           "skip" if minimal_install else "warn",
@@ -656,7 +708,8 @@ def cmd_doctor(args):
                 check(f"Wired hooks resolve ({len(wired)} referenced)", False,
                       "settings.json references missing hooks: "
                       + ", ".join(unresolved)
-                      + " - every tool call is blocked. Run: claudekit update")
+                      + " - every tool call is blocked. Run: claudekit update",
+                      fix_cmd="ck update")
             else:
                 check(f"Wired hooks resolve ({len(wired)} referenced)", True)
 
@@ -685,7 +738,8 @@ def cmd_doctor(args):
             elif missing_helpers:
                 check(f"Hook helper scripts resolve ({len(invoked)} invoked)", False,
                       "hooks invoke missing helpers: " + ", ".join(missing_helpers)
-                      + " - every tool call is blocked. Run: claudekit update")
+                      + " - every tool call is blocked. Run: claudekit update",
+                      fix_cmd="ck update")
             else:
                 check(f"Hook helper scripts resolve ({len(invoked)} invoked)", True)
 
@@ -905,6 +959,8 @@ def cmd_doctor(args):
     # the format is stable and greppable -- a clause that appears only when something
     # was skipped is absent on the --full install whose 95 is the actual puzzle.
     _applicable = checks_passed + checks_warned + checks_failed
+    tally.update(passed=checks_passed, warned=checks_warned,
+                 failed=checks_failed, applicable=_applicable, score=score)
     print(f"  Readiness: {score}/100 "
           f"({_applicable} applicable, {checks_skipped} not)")
     print(f"{'='*40}\n")
@@ -933,6 +989,7 @@ def cmd_doctor(args):
     # install clears can never mask one.
     min_score = getattr(args, "min_score", None)
     if min_score is not None and score < min_score:
+        tally["below_min_score"] = min_score
         err(f"Readiness {score}/100 is below the required minimum of {min_score}.")
         return 1
     return 0

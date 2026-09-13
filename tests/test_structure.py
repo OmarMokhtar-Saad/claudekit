@@ -189,7 +189,7 @@ class TestOneCanonicalTree:
             f"destination, and the winner decided by copy order: {stale}")
 
     EXPECTED_MODES = {"default", "brainstorm", "token-efficient", "deep-research",
-                      "implementation", "orchestration", "review"}
+                      "implementation", "orchestration", "review", "action-first"}
 
     def test_modes_live_in_the_canonical_tree(self):
         """Named, not counted. `.claude/modes/` arrived in task 008 batch 1 and is the
