@@ -1,0 +1,27 @@
+{
+  "plan": ".claude/plans/plan-agent-skill-roles.md",
+  "slug": "agent-skill-roles",
+  "ops_path": ".claude/plans/ops-agent-skill-roles.json",
+  "ops_sha256": "7540a61738437eb7d805f4e43d855b191459256d437fc0d372f278e3deee7c50",
+  "score": 93,
+  "decision": "APPROVED",
+  "findings": [],
+  "verdict_origin": "rubric",
+  "recorded_utc": "2026-09-13T19:44:12Z",
+  "operations": 5,
+  "edits": 7,
+  "rounds": [
+    {
+      "score": 93,
+      "findings": {
+        "critical": [],
+        "major": [],
+        "minor": [
+          "resolve() re-reads and re-hashes every candidate skill file per apply() call without caching (skill_roles.py apply loop calls skill_fit.tokens after already reading in _skill_id) -- negligible cost given MAX_SKILLS_PER_AGENT=4, not blocking",
+          "doctor's 'Skill roles' check block (main.py ~line 872 insertion) reads the profile boolean twice (existence check) rather than reusing _sp_errors/_sp_result already computed above -- style only, no correctness impact"
+        ]
+      }
+    }
+  ],
+  "round": 2
+}

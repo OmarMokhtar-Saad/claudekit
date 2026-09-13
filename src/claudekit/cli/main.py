@@ -188,7 +188,19 @@ def _reapply_skill_profile(target):
     """
     if not (Path(target) / ".claude" / "skills-profile.json").is_file():
         return
-    from claudekit import skill_fit
+    from claudekit import skill_fit, skill_roles
+    # Roles first: once written, a preloaded skill is protected, so a profile that both
+    # binds and disables one is refused by the disabled pass below as well.
+    try:
+        roles = skill_roles.apply(Path(target))
+        bound = sum(len(names) for names in roles["preloads"].values())
+        if bound or roles["written"]:
+            ok(f"Skill roles re-applied: {bound} role skill preload(s) across "
+               f"{len(roles['preloads'])} agent(s)")
+        for agent in roles["not_restamped"]:
+            warn(f"  {agent}.md was edited locally; its install receipt was not re-stamped")
+    except skill_fit.SkillFitError as exc:
+        warn(f"Skill roles not re-applied: {exc}")
     try:
         result = skill_fit.apply(Path(target))
     except skill_fit.SkillFitError as exc:
@@ -867,6 +879,20 @@ def cmd_doctor(args):
             check("Skills profile", "warn", "; ".join(_sp_warnings))
         else:
             check("Skills profile: every reference resolves", True)
+
+    # Skill roles. Reported only when a binding exists or a role agent's `skills:` key
+    # drifted from the profile, so a profile without roles keeps its checks and score.
+    # Skipped when the profile itself failed above: one cause, one failure.
+    if (claude_dir.is_dir() and (claude_dir / "skills-profile.json").is_file()
+            and not _sp_errors):
+        from claudekit import skill_roles
+        _sr_errors, _sr_warnings, _sr_bound = skill_roles.findings(Path("."))
+        if _sr_errors:
+            check("Skill roles", False, "; ".join(_sr_errors))
+        elif _sr_warnings:
+            check("Skill roles", "warn", "; ".join(_sr_warnings))
+        elif _sr_bound:
+            check(f"Skill roles: {_sr_bound} bound skill preload(s) resolve", True)
 
     # Skill visibility. Runs whenever a profile OR any skillOverrides exists, so a
     # committed settings.json hiding a safety-rail skill fails even without a profile.
@@ -2288,6 +2314,8 @@ def _cmd_skill_fit(args):
                  "--restore`). The file is yours -- install, update and fleet sync leave "
                  "it alone.")
             return 0
+        if args.action == "roles":
+            return _cmd_skill_roles(args, root)
         if args.action == "apply":
             result = skill_fit.apply(root, restore=args.restore)
             if args.json:
@@ -2342,6 +2370,59 @@ def _cmd_skill_fit(args):
     for line in result["skipped"]:
         warn(f"skipped {line}")
     print("")
+    return 0
+
+
+def _cmd_skill_roles(args, root):
+    """`ck skill roles list | check | apply` -- bind role agents to this project's skills.
+
+    `apply` writes only the `skills:` frontmatter key of the agents in
+    `skill_roles.ROLE_CATALOG`, plus their install-receipt hashes. Called inside
+    `_cmd_skill_fit`'s try, so a refusal surfaces as `skill roles: <cause>`, exit 1.
+    """
+    from claudekit import skill_roles
+
+    verb = args.name or "check"
+    if verb == "list":
+        doc = skill_roles.catalog()
+        if args.json:
+            print(json.dumps(doc, indent=2))
+            return 0
+        for agent, roles in sorted(doc["agents"].items()):
+            print(f"  {agent:<16} {', '.join(roles)}")
+        print("")
+        for role, text in sorted(doc["roles"].items()):
+            print(f"  {role:<18} {text}")
+        return 0
+    if verb == "check":
+        errors, warnings, bound = skill_roles.findings(root)
+        if args.json:
+            print(json.dumps({"errors": errors, "warnings": warnings, "bound": bound},
+                             indent=2))
+        else:
+            for line in errors:
+                err(line)
+            for line in warnings:
+                warn(line)
+            if not errors and not warnings:
+                ok(f"{bound} bound skill preload(s) resolve and match the agents")
+        return 1 if errors else 0
+    if verb != "apply":
+        err("skill roles: the actions are `list`, `check` and `apply`")
+        return 1
+    result = skill_roles.apply(root)
+    if args.json:
+        print(json.dumps(result, indent=2))
+        return 0
+    for agent, names in sorted(result["preloads"].items()):
+        state = "written" if agent in result["written"] else "unchanged"
+        print(f"  {agent:<16} {state:<9} [{', '.join(names)}] "
+              f"~{result['tokens'][agent]} tokens per spawn")
+    for agent in result["not_restamped"]:
+        warn(f"{agent}.md was edited locally; its install receipt was not re-stamped, so "
+             f"`ck diff` keeps reporting it")
+    for line in result["warnings"]:
+        warn(line)
     return 0
 
 
@@ -2700,13 +2781,16 @@ def main():
     # skill
     p = sub.add_parser("skill",
                        help="Author skills and measure how they fit this project")
-    p.add_argument("action", choices=["new", "audit", "profile", "card", "match", "apply"],
+    p.add_argument("action",
+                   choices=["new", "audit", "profile", "card", "match", "apply", "roles"],
                    help="new: scaffold and register a skill; audit: stack fit and token "
                         "cost; profile init: write .claude/skills-profile.json; card: "
                         "sanitized cards for local skills; match: suggest from cards; "
-                        "apply: hide the profile's disabled skills via skillOverrides")
+                        "apply: hide the profile's disabled skills via skillOverrides; "
+                        "roles list|check|apply: preload skills bound to agent roles")
     p.add_argument("name", nargs="?",
-                   help="Skill id, kebab-case (new); `init` (profile)")
+                   help="Skill id, kebab-case (new); `init` (profile); "
+                        "`list`, `check` or `apply` (roles)")
     # Not argparse-required any more: only `new` needs it, and cmd_skill refuses a
     # `new` without it before anything is written.
     p.add_argument("--description",

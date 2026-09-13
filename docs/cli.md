@@ -313,6 +313,56 @@ reports nothing. A hidden skill is still installed.
   tokens saved (chars/4); warns when the profile and the settings diverge; and fails when
   `settings.json` or `settings.local.json` hides a protected skill, profile or not.
 
+### `claudekit skill roles list` / `check` / `apply`
+
+Give the generic kit agents this project's stack skills. An agent declares skill
+**roles**; your `.claude/skills-profile.json` binds each role to an installed skill.
+
+```bash
+claudekit skill roles list    # which agent declares which role
+claudekit skill roles check   # every binding resolves and the agents match (exit 1 if not)
+claudekit skill roles apply   # write the resolved preloads into the role agents
+```
+
+| Agent | Roles |
+|-------|-------|
+| `debugger` | `debugging-method`, `stack-debugging`, `project-gotchas` |
+| `code-reviewer` | `review-checklist`, `project-gotchas` |
+| `tester` | `test-framework`, `project-gotchas` |
+
+```json
+"roles": {
+  "stack-debugging": "pytest-debugging",
+  "project-gotchas": ".claude/skills/house-gotchas/SKILL.md"
+}
+```
+
+A binding is a skill id, the path `.claude/skills/<id>/SKILL.md`, or a list of up to two
+of them. `apply` writes the resolved ids into the documented `skills:` frontmatter key of
+each installed role agent, so Claude Code preloads those skills' full content whenever it
+starts that agent. There is no hook and nothing is injected at runtime; the result is a
+pure function of the profile and the installed skills.
+
+- **Only adds.** The agent body is never touched, so every skill its `## Skill Loading`
+  section makes mandatory still loads. Removing every binding and re-running `apply`
+  restores the kit's exact bytes.
+- **Refused whole, before anything is written:** an unknown role; an absolute path, a
+  `..`, or any path other than `.claude/skills/<id>/SKILL.md`; a skill that is not
+  installed, resolves outside `.claude/skills/` through a symlink, or sets
+  `disable-model-invocation`; a skill the same profile disables; more than 2 skills for
+  a role or 4 for one agent (a preload costs its full body on every spawn -- `apply`
+  prints the estimate).
+- **Protected afterwards.** A preloaded skill cannot then be hidden by `skill apply`.
+- **Install receipt.** The role agents are kit files, so `apply` updates their hashes in
+  `.claude/.claudekit-manifest.json` and `claudekit diff` stays clean -- but only when the
+  file matched its receipt. An agent you edited by hand keeps its old hash and still shows
+  as modified.
+- **update / init** re-apply the bindings after reinstalling. A fleet sync or a manual
+  copy of a kit agent overwrites the key: `doctor` then warns and names `apply`.
+- **doctor** checks the bindings when the profile has any: an unresolvable binding
+  fails; an agent whose `skills:` no longer matches warns.
+- Refused in the ClaudeKit source tree itself.
+
 ### `claudekit mcp add <name> --tools N -- <argv>` / `claudekit mcp list`
 
 Register an MCP server against the active profile's `mcp` budget (`max_servers`,

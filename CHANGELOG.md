@@ -11,6 +11,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `open-source-forker` — never shipped and have been removed.
 
 ## [Unreleased]
+- **`ck skill roles` -- generic agents get this project's stack skills.** The
+  `debugger`, `code-reviewer` and `tester` agents declare skill roles
+  (`stack-debugging`, `review-checklist`, `test-framework`, `project-gotchas`, ...), and
+  the `roles` map in `.claude/skills-profile.json` binds each to an installed skill.
+  `ck skill roles apply` writes the resolved ids into those agents' `skills:`
+  frontmatter, which Claude Code preloads; no hook, no runtime injection. It only adds:
+  agent bodies and their mandatory skills are untouched, and removing the bindings
+  restores the kit bytes. Paths outside `.claude/skills/<id>/SKILL.md`, uninstalled or
+  model-invisible skills, and skills the profile disables are refused before any write.
+  The install receipt is re-stamped so `ck diff` stays clean; `ck update`/`init`
+  re-apply; `ck doctor` fails an unresolvable binding and warns on drift.
 - **`ck skill match` ignores language-only overlap.** A card that shares only a base
   language with the project is no longer suggested (`--include-language-only` keeps it).
 - **`ck skill card` / `match` -- less noise.** Cards and matching now use only the
