@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `open-source-forker` — never shipped and have been removed.
 
 ## [Unreleased]
+- **Install ignores `.claude/skills-applied.json`.** The record `ck skill apply` keeps of
+  the overrides it wrote is local state, like `settings.local.json`, and is no longer
+  left untracked for someone to commit.
 - **`ck skill match` ignores language-only overlap.** A card that shares only a base
   language with the project is no longer suggested (`--include-language-only` keeps it).
 - **`ck skill card` / `match` -- less noise.** Cards and matching now use only the
