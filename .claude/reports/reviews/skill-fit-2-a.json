@@ -1,0 +1,15 @@
+{
+  "plan": ".claude/plans/plan-skill-fit-2.md",
+  "slug": "skill-fit-2-a",
+  "ops_path": ".claude/plans/ops-skill-fit-2-a.json",
+  "ops_sha256": "db1fc54d87e78931a8b2fcf925d80838ada8a7cd14e3f5e68e3682477f8f4976",
+  "score": 93,
+  "decision": "APPROVED",
+  "findings": [],
+  "verdict_origin": "rubric",
+  "recorded_utc": "2026-09-13T12:17:58Z",
+  "operations": 5,
+  "edits": 15,
+  "rounds": [],
+  "round": 1
+}
