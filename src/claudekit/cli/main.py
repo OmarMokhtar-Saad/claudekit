@@ -886,6 +886,21 @@ def cmd_doctor(args):
             check(f"Skill visibility: {len(_sv['hidden'])} skill(s) hidden via "
                   f"skillOverrides, ~{_sv['tokens_saved']} always-on tokens saved", True)
 
+    # Skill suggestions from other projects' published cards. Informational only --
+    # routed around check() on purpose, like the patch-level version note, so it can
+    # touch neither the readiness score nor --strict. Read-only, and only when the
+    # user-level registry exists; any error reading it stays silent.
+    if claude_dir.is_dir():
+        from claudekit import skill_fit
+        try:
+            _suggested = (len(skill_fit.match(Path("."))["suggestions"])
+                          if skill_fit.registry_dir().is_dir() else 0)
+        except (skill_fit.SkillFitError, OSError, ValueError):
+            _suggested = 0
+        if _suggested:
+            info(f"{_suggested} skill suggestion(s) from other projects "
+                 f"— run `ck skill match`")
+
     # Summary
     print(f"\n{'='*40}")
     total = checks_passed + checks_failed + checks_warned + checks_skipped

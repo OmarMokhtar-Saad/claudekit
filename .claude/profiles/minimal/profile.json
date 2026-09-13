@@ -15,7 +15,8 @@
     "iron-law-gate": "off",
     "ops-enforcement": "off",
     "reflection-gate": "advisory",
-    "security-reminder": "off"
+    "security-reminder": "off",
+    "skill-fit-refresh": "off"
   },
   "agents": {},
   "commands": {},

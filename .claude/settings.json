@@ -138,6 +138,15 @@
             "command": "bash -c 'ROOT=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\"; bash \"$ROOT/.claude/hooks/format-typecheck.sh\" &'"
           }
         ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'ROOT=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\"; bash \"$ROOT/.claude/hooks/skill-fit-refresh.sh\" &'"
+          }
+        ]
       }
     ],
     "SubagentStop": [

@@ -52,7 +52,7 @@ LAYERS: Tuple[str, ...] = ("base", "profile", "project-local", "override")
 HOOK_MODES: Tuple[str, ...] = ("on", "advisory", "off")
 TOGGLE_MODES: Tuple[str, ...] = ("on", "off")
 
-#: The eleven hooks that carry an ``ECC_HOOK_PROFILE`` guard, and their file names.
+#: The hooks that carry an ``ECC_HOOK_PROFILE`` guard, and their file names.
 #: A hook NOT listed here is profile-independent; tests assert that no unlisted
 #: hook grows a guard without this table being updated.
 GUARDED_HOOKS: Dict[str, str] = {
@@ -68,6 +68,7 @@ GUARDED_HOOKS: Dict[str, str] = {
     "ops-enforcement": "ops-enforcement.sh",
     "reflection-gate": "reflection-gate.py",
     "security-reminder": "security-reminder.sh",
+    "skill-fit-refresh": "skill-fit-refresh.sh",
 }
 
 #: Sections a profile document may declare, and the value domain of each.

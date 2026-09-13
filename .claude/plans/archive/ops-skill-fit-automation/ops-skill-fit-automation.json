@@ -1,0 +1,148 @@
+{
+  "plan": "skill-fit-automation",
+  "operations": [
+    {
+      "type": "file_create",
+      "path": ".claude/hooks/skill-fit-refresh.sh",
+      "content": "#!/bin/bash\n# =============================================================================\n# Skill-Fit Refresh Hook\n# Runs as a Stop hook, backgrounded by settings.json. NEVER blocks and never\n# fails a session: every path exits 0, and nothing is printed.\n#\n# At most once per interval (default 24h) it refreshes this project's skill-fit\n# state so nobody has to run the loop by hand:\n#   1. `ck skill audit --save`   -> reports/skills/audit.json in this project\n#   2. `ck skill card --publish` -> this project's cards in the USER-level\n#                                   registry (~/.claudekit/registry/cards/)\n# Each step is bounded by a timeout; a failure or timeout is logged to\n# hooks.log and otherwise ignored. `ck doctor` then reports how many\n# suggestions other projects' cards offer this one.\n#\n# Knobs (environment):\n#   CLAUDEKIT_SKILL_REFRESH=0                  opt out entirely\n#   CLAUDEKIT_SKILL_REFRESH_INTERVAL_MIN=1440  minutes between runs\n#   CLAUDEKIT_SKILL_REFRESH_TIMEOUT=60         seconds per step\n# =============================================================================\n# ECC_HOOK_PROFILE: off under minimal (the maintainer posture, where an\n# automatic publish to the user-level registry is unwanted); runs under\n# standard and strict. Declared in profiles.GUARDED_HOOKS and minimal's profile.\n[ \"${ECC_HOOK_PROFILE:-standard}\" = \"minimal\" ] && exit 0\n\nSCRIPT_DIR=\"$(cd \"$(dirname \"${BASH_SOURCE[0]}\")\" && pwd)\"\nCK_ROOT=\"$(cd \"$SCRIPT_DIR/../..\" && pwd)\"\nLOG_FILE=\"$SCRIPT_DIR/hooks.log\"\nHOOK_NAME=\"skill-fit-refresh\"\nSTAMP=\"$CK_ROOT/.claude/reports/skills/refresh.stamp\"\n\nlog() {\n    echo \"[$(date '+%Y-%m-%d %H:%M:%S')] [$HOOK_NAME] [$1] $2\" >> \"$LOG_FILE\" 2>/dev/null\n}\n\n[ \"${CLAUDEKIT_SKILL_REFRESH:-1}\" = \"0\" ] && exit 0\n# Not a ClaudeKit project with skills: nothing to audit or publish.\n[ -d \"$CK_ROOT/.claude/skills\" ] || exit 0\n\nINTERVAL_MIN=\"${CLAUDEKIT_SKILL_REFRESH_INTERVAL_MIN:-1440}\"\ncase \"$INTERVAL_MIN\" in ''|*[!0-9]*) INTERVAL_MIN=1440 ;; esac\nTIMEOUT_S=\"${CLAUDEKIT_SKILL_REFRESH_TIMEOUT:-60}\"\ncase \"$TIMEOUT_S\" in ''|*[!0-9]*) TIMEOUT_S=60 ;; esac\n[ \"$TIMEOUT_S\" -gt 0 ] 2>/dev/null || TIMEOUT_S=60\n\n# Rate limit: a stamp newer than the interval means a run already happened.\n# `find -mmin` is the portable (BSD + GNU) mtime comparison; no `stat` flags.\nif [ -f \"$STAMP\" ] && [ -n \"$(find \"$STAMP\" -mmin -\"$INTERVAL_MIN\" 2>/dev/null)\" ]; then\n    exit 0\nfi\nmkdir -p \"$(dirname \"$STAMP\")\" 2>/dev/null || exit 0\n# Claim the interval BEFORE running, so a second Stop firing meanwhile stands down.\ntouch \"$STAMP\" 2>/dev/null || exit 0\n\n# The CLI: the importable package first (matches the python3 the hooks use),\n# then a `ck` on PATH. Neither -> log and stand down.\nif python3 -c \"import importlib.util,sys; sys.exit(0 if importlib.util.find_spec('claudekit.cli.main') else 1)\" >/dev/null 2>&1; then\n    CK_MODE=\"python\"\nelif command -v ck >/dev/null 2>&1; then\n    CK_MODE=\"ck\"\nelse\n    log \"WARN\" \"claudekit CLI not found; skill-fit refresh skipped\"\n    exit 0\nfi\n\n# Run one `ck` invocation with a watchdog (macOS ships no `timeout`).\nrun_ck() {\n    if [ \"$CK_MODE\" = \"python\" ]; then\n        (cd \"$CK_ROOT\" && exec python3 -m claudekit.cli.main \"$@\") </dev/null >/dev/null 2>&1 &\n    else\n        (cd \"$CK_ROOT\" && exec ck \"$@\") </dev/null >/dev/null 2>&1 &\n    fi\n    local pid=$!\n    ( sleep \"$TIMEOUT_S\"; kill \"$pid\" 2>/dev/null ) </dev/null >/dev/null 2>&1 &\n    local watchdog=$!\n    # `wait ... 2>/dev/null`: bash reports a killed job (\"Terminated\") on stderr when it\n    # reaps it, and this hook must print nothing.\n    wait \"$pid\" 2>/dev/null\n    local rc=$?\n    kill \"$watchdog\" 2>/dev/null\n    wait \"$watchdog\" 2>/dev/null\n    return $rc\n}\n\nfor step in \"audit --save\" \"card --publish\"; do\n    # shellcheck disable=SC2086  # step is a fixed two-word literal from the list above\n    run_ck skill $step\n    rc=$?\n    if [ \"$rc\" -eq 0 ]; then\n        log \"INFO\" \"skill $step: ok\"\n    elif [ \"$rc\" -ge 128 ]; then\n        log \"WARN\" \"skill $step: timed out after ${TIMEOUT_S}s\"\n    else\n        log \"WARN\" \"skill $step: exit $rc (ignored)\"\n    fi\ndone\n\nexit 0\n",
+      "mode": "0755",
+      "description": "New backgrounded Stop hook"
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/settings.json",
+      "description": "Wire the hook on Stop, backgrounded like its siblings",
+      "edits": [
+        {
+          "find": "\"command\": \"bash -c 'ROOT=\\\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\\\"; bash \\\"$ROOT/.claude/hooks/format-typecheck.sh\\\" &'\"\n          }\n        ]\n      }\n",
+          "replace": "\"command\": \"bash -c 'ROOT=\\\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\\\"; bash \\\"$ROOT/.claude/hooks/format-typecheck.sh\\\" &'\"\n          }\n        ]\n      },\n      {\n        \"matcher\": \"\",\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"bash -c 'ROOT=\\\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\\\"; bash \\\"$ROOT/.claude/hooks/skill-fit-refresh.sh\\\" &'\"\n          }\n        ]\n      }\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/dispatch-registry.json",
+      "description": "Registry row (test_registry_covers_every_settings_registration)",
+      "edits": [
+        {
+          "find": "      {\"id\": \"format-typecheck\", \"file\": \"format-typecheck.sh\", \"runner\": \"bash\", \"tier\": \"advisory\", \"matcher\": \"\"}\n",
+          "replace": "      {\"id\": \"format-typecheck\", \"file\": \"format-typecheck.sh\", \"runner\": \"bash\", \"tier\": \"advisory\", \"matcher\": \"\"},\n      {\"id\": \"skill-fit-refresh\", \"file\": \"skill-fit-refresh.sh\", \"runner\": \"bash\", \"tier\": \"advisory\", \"matcher\": \"\"}\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "src/claudekit/profiles.py",
+      "description": "Declare the new profile guard",
+      "edits": [
+        {
+          "find": "#: The eleven hooks that carry an ``ECC_HOOK_PROFILE`` guard, and their file names.\n",
+          "replace": "#: The hooks that carry an ``ECC_HOOK_PROFILE`` guard, and their file names.\n"
+        },
+        {
+          "find": "    \"security-reminder\": \"security-reminder.sh\",\n}\n",
+          "replace": "    \"security-reminder\": \"security-reminder.sh\",\n    \"skill-fit-refresh\": \"skill-fit-refresh.sh\",\n}\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/profiles/minimal/profile.json",
+      "description": "minimal declares the hook off, matching its guard",
+      "edits": [
+        {
+          "find": "    \"security-reminder\": \"off\"\n",
+          "replace": "    \"security-reminder\": \"off\",\n    \"skill-fit-refresh\": \"off\"\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "src/claudekit/cli/main.py",
+      "description": "Doctor info line: suggestion count (never scored, never --strict)",
+      "edits": [
+        {
+          "find": "            check(f\"Skill visibility: {len(_sv['hidden'])} skill(s) hidden via \"\n                  f\"skillOverrides, ~{_sv['tokens_saved']} always-on tokens saved\", True)\n",
+          "add_after": "\n    # Skill suggestions from other projects' published cards. Informational only --\n    # routed around check() on purpose, like the patch-level version note, so it can\n    # touch neither the readiness score nor --strict. Read-only, and only when the\n    # user-level registry exists; any error reading it stays silent.\n    if claude_dir.is_dir():\n        from claudekit import skill_fit\n        try:\n            _suggested = (len(skill_fit.match(Path(\".\"))[\"suggestions\"])\n                          if skill_fit.registry_dir().is_dir() else 0)\n        except (skill_fit.SkillFitError, OSError, ValueError):\n            _suggested = 0\n        if _suggested:\n            info(f\"{_suggested} skill suggestion(s) from other projects \"\n                 f\"\u2014 run `ck skill match`\")\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".gitignore",
+      "description": "The audit report and refresh stamp are local state in this repo too",
+      "edits": [
+        {
+          "find": "# Local, per-developer Claude Code overrides (never shipped)\n.claude/settings.local.json\n",
+          "add_after": "# `ck skill audit --save` report and the skill-fit-refresh hook's rate-limit stamp\n.claude/reports/skills/\n"
+        }
+      ]
+    },
+    {
+      "type": "file_create",
+      "path": "tests/test_skill_fit_refresh.py",
+      "content": "\"\"\"The skill-fit refresh loop runs itself: the Stop hook and the doctor line.\n\nBehavioural, not structural: every test EXECUTES `.claude/hooks/skill-fit-refresh.sh`\nfrom a copy inside a tmp project (so `$CK_ROOT` is the tmp project, never this repo) or\nruns `ck doctor` there, with `ECC_HOOK_PROFILE` forced and HOME / CLAUDEKIT_REGISTRY\npointed into tmp_path, so the developer's real user-level registry is never touched.\n\"\"\"\n\nimport json\nimport os\nimport shutil\nimport subprocess\nimport sys\nimport time\nfrom pathlib import Path\n\nimport pytest\n\nREPO = Path(__file__).resolve().parents[1]\nHOOK = REPO / \".claude\" / \"hooks\" / \"skill-fit-refresh.sh\"\n\n\ndef make_project(tmp_path, name=\"refresh-proj\"):\n    root = tmp_path / name\n    skills = root / \".claude\" / \"skills\"\n    (skills / \"house-style\").mkdir(parents=True)\n    (skills / \"house-style\" / \"SKILL.md\").write_text(\n        '---\\nname: house-style\\ndescription: \"Use when naming things in this project\"\\n'\n        \"stack_tags: [gradle]\\n---\\n\\n# house-style\\n\", encoding=\"utf-8\")\n    (skills / \"skills-registry.json\").write_text(json.dumps(\n        {\"version\": \"2.0\", \"skills\": [], \"agentMapping\": {}}), encoding=\"utf-8\")\n    (root / \".claude\" / \".claudekit-manifest.json\").write_text(\n        json.dumps({\"files\": {}}), encoding=\"utf-8\")\n    (root / \"pyproject.toml\").write_text(\"[project]\\nname = 'p'\\n\", encoding=\"utf-8\")\n    hooks = root / \".claude\" / \"hooks\"\n    hooks.mkdir()\n    shutil.copy2(HOOK, hooks / HOOK.name)\n    return root\n\n\ndef env_for(tmp_path, profile, **extra):\n    env = dict(os.environ, PYTHONPATH=str(REPO / \"src\"), ECC_HOOK_PROFILE=profile,\n               HOME=str(tmp_path / \"home\"), CLAUDEKIT_REGISTRY=str(tmp_path / \"registry\"))\n    for key in (\"CLAUDEKIT_SKILL_REFRESH\", \"CLAUDEKIT_SKILL_REFRESH_INTERVAL_MIN\",\n                \"CLAUDEKIT_SKILL_REFRESH_TIMEOUT\"):\n        env.pop(key, None)\n    env.update(extra)\n    return env\n\n\ndef run_hook(root, env, timeout=120):\n    # cwd is deliberately NOT the project: the hook must resolve it from its own path.\n    return subprocess.run([\"bash\", str(root / \".claude\" / \"hooks\" / HOOK.name)],\n                          capture_output=True, text=True, cwd=str(root.parent),\n                          env=env, timeout=timeout)\n\n\ndef audit_file(root):\n    return root / \".claude\" / \"reports\" / \"skills\" / \"audit.json\"\n\n\ndef card_file(tmp_path, name=\"refresh-proj\"):\n    return tmp_path / \"registry\" / f\"{name}.json\"\n\n\ndef hook_log(root):\n    path = root / \".claude\" / \"hooks\" / \"hooks.log\"\n    return path.read_text(encoding=\"utf-8\") if path.is_file() else \"\"\n\n\n@pytest.mark.parametrize(\"profile\", [\"standard\", \"strict\"])\ndef test_refreshes_audit_and_card_silently(tmp_path, profile):\n    root = make_project(tmp_path)\n    proc = run_hook(root, env_for(tmp_path, profile))\n    assert proc.returncode == 0\n    assert proc.stdout == \"\" and proc.stderr == \"\"\n    assert json.loads(audit_file(root).read_text())[\"skills\"]\n    card = json.loads(card_file(tmp_path).read_text())\n    assert [c[\"name\"] for c in card[\"cards\"]] == [\"house-style\"]\n    assert \"[skill-fit-refresh] [INFO] skill card --publish: ok\" in hook_log(root)\n\n\ndef test_minimal_profile_does_nothing(tmp_path):\n    root = make_project(tmp_path)\n    proc = run_hook(root, env_for(tmp_path, \"minimal\"))\n    assert proc.returncode == 0 and proc.stdout == \"\"\n    assert not audit_file(root).exists()\n    assert not card_file(tmp_path).exists()\n    assert not (root / \".claude\" / \"reports\").exists()\n\n\ndef test_opt_out_env_does_nothing(tmp_path):\n    root = make_project(tmp_path)\n    proc = run_hook(root, env_for(tmp_path, \"standard\", CLAUDEKIT_SKILL_REFRESH=\"0\"))\n    assert proc.returncode == 0\n    assert not audit_file(root).exists()\n\n\ndef test_rate_limited_until_the_stamp_ages(tmp_path):\n    root = make_project(tmp_path)\n    env = env_for(tmp_path, \"standard\")\n    assert run_hook(root, env).returncode == 0\n    audit_file(root).unlink()\n    assert run_hook(root, env).returncode == 0\n    assert not audit_file(root).exists(), \"second run inside 24h must stand down\"\n    stamp = root / \".claude\" / \"reports\" / \"skills\" / \"refresh.stamp\"\n    old = time.time() - 25 * 3600\n    os.utime(stamp, (old, old))\n    assert run_hook(root, env).returncode == 0\n    assert audit_file(root).exists(), \"a stamp older than the interval must re-run\"\n\n\ndef test_a_failing_step_is_logged_not_raised(tmp_path):\n    root = make_project(tmp_path)\n    (root / \".claude\" / \".claudekit-manifest.json\").unlink()  # card refuses without it\n    proc = run_hook(root, env_for(tmp_path, \"standard\"))\n    assert proc.returncode == 0 and proc.stdout == \"\" and proc.stderr == \"\"\n    assert not card_file(tmp_path).exists()\n    assert \"[skill-fit-refresh] [WARN] skill card --publish: exit 1\" in hook_log(root)\n\n\ndef test_a_hung_cli_is_killed_by_the_timeout(tmp_path):\n    root = make_project(tmp_path)\n    fake = tmp_path / \"fakepkg\" / \"claudekit\" / \"cli\"\n    fake.mkdir(parents=True)\n    (fake.parent / \"__init__.py\").write_text(\"\", encoding=\"utf-8\")\n    (fake / \"__init__.py\").write_text(\"\", encoding=\"utf-8\")\n    (fake / \"main.py\").write_text(\n        \"import time\\nif __name__ == '__main__':\\n    time.sleep(60)\\n\", encoding=\"utf-8\")\n    env = env_for(tmp_path, \"standard\", PYTHONPATH=str(tmp_path / \"fakepkg\"),\n                  CLAUDEKIT_SKILL_REFRESH_TIMEOUT=\"1\")\n    started = time.monotonic()\n    proc = run_hook(root, env, timeout=50)\n    assert proc.returncode == 0\n    assert time.monotonic() - started < 30\n    assert \"skill audit --save: timed out after 1s\" in hook_log(root)\n\n\ndef test_not_a_skills_project_does_nothing(tmp_path):\n    root = make_project(tmp_path)\n    shutil.rmtree(root / \".claude\" / \"skills\")\n    assert run_hook(root, env_for(tmp_path, \"standard\")).returncode == 0\n    assert not (root / \".claude\" / \"reports\").exists()\n\n\n# ----------------------------------------------------------------- doctor line\n\ndef doctor(root, env, *args):\n    proc = subprocess.run([sys.executable, \"-m\", \"claudekit.cli.main\", \"doctor\", *args],\n                          capture_output=True, text=True, cwd=str(root), env=env,\n                          timeout=120)\n    return proc.returncode, proc.stdout + proc.stderr\n\n\ndef summary(out):\n    keep = (\"Passed:\", \"Skipped:\", \"Warnings:\", \"Failed:\", \"Readiness:\")\n    return [line for line in out.splitlines() if line.strip().startswith(keep)]\n\n\ndef publish_other_card(tmp_path):\n    reg = tmp_path / \"registry\"\n    reg.mkdir(exist_ok=True)\n    (reg / \"other.json\").write_text(json.dumps({\"card_version\": 1, \"project\": \"other\",\n        \"cards\": [{\"card_version\": 1, \"name\": \"gradle-build\",\n                   \"stack_tags\": [\"gradle\", \"java\"],\n                   \"description\": \"Use when building with Gradle\", \"tokens\": 7}]}),\n        encoding=\"utf-8\")\n\n\ndef test_doctor_reports_suggestions_as_info_without_touching_strict(tmp_path):\n    root = make_project(tmp_path)\n    env = env_for(tmp_path, \"minimal\")\n    code_before, out_before = doctor(root, env, \"--strict\")\n    assert \"skill suggestion\" not in out_before\n    publish_other_card(tmp_path)\n    code_after, out_after = doctor(root, env, \"--strict\")\n    assert \"1 skill suggestion(s) from other projects\" in out_after\n    assert \"ck skill match\" in out_after\n    assert code_after == code_before\n    assert summary(out_after) == summary(out_before)\n\n\ndef test_doctor_is_silent_without_a_registry(tmp_path):\n    root = make_project(tmp_path)\n    env = env_for(tmp_path, \"minimal\")\n    _, out = doctor(root, env)\n    assert \"skill suggestion\" not in out\n",
+      "description": "Behavioural tests: hook executed in tmp projects, doctor info line"
+    },
+    {
+      "type": "code_edit",
+      "path": "docs/HOOKS.md",
+      "description": "Hook catalog row + reachable count (not generator-owned)",
+      "edits": [
+        {
+          "find": "shared helper library). 24 are\nreachable:",
+          "replace": "shared helper library). 25 are\nreachable:"
+        },
+        {
+          "find": "| `format-typecheck.sh` | Stop | Runs formatter + type-checker (`strict` only; background) |\n",
+          "add_after": "| `skill-fit-refresh.sh` | Stop | Once per 24h: `ck skill audit --save` + `ck skill card --publish`, each time-bounded; silent, logs to `hooks.log` (`standard` + `strict`; background) |\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "README.md",
+      "description": "Reachable-hook count (gen-docs owns the total, not this number)",
+      "edits": [
+        {
+          "find": "; 24 are reachable \u2014 wired",
+          "replace": "; 25 are reachable \u2014 wired"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "docs/cli.md",
+      "description": "Automation + weekly fleet refresh (documentation only)",
+      "edits": [
+        {
+          "find": "or an overlay path outside the project fails; a skill name that is no longer installed\nwarns (and names its rename, if the registry has one).\n",
+          "add_after": "\n#### Keeping it fresh without running it by hand\n\n- **Per project, automatic.** The `skill-fit-refresh.sh` Stop hook runs `skill audit\n  --save` and `skill card --publish` at most once per 24 hours, in the background, each\n  step bounded by a 60-second timeout. It never blocks and prints nothing; failures go\n  to `.claude/hooks/hooks.log`. It is off under `ECC_HOOK_PROFILE=minimal`. Knobs:\n  `CLAUDEKIT_SKILL_REFRESH=0` (opt out), `CLAUDEKIT_SKILL_REFRESH_INTERVAL_MIN`\n  (default 1440), `CLAUDEKIT_SKILL_REFRESH_TIMEOUT` (seconds, default 60).\n- **Doctor.** When the user-level registry exists, `claudekit doctor` prints an\n  informational line, `N skill suggestion(s) from other projects \u2014 run ck skill match`.\n  It is not a check: it changes neither the readiness score nor `doctor --strict`.\n- **Whole fleet, weekly (your scheduler, not ours).** The hook only refreshes a project\n  someone opens. To refresh every project on a schedule, point your own scheduler at a\n  loop such as:\n\n  ```bash\n  for p in ~/code/project-a ~/code/project-b; do\n    (cd \"$p\" && claudekit skill audit --save >/dev/null && claudekit skill card --publish)\n  done\n  ```\n\n  e.g. a crontab line `0 9 * * 1 /path/to/refresh-skill-cards.sh` (Mondays 09:00), or a\n  launchd agent on macOS. ClaudeKit ships no scheduler and creates none.\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "description": "User-visible change",
+      "edits": [
+        {
+          "find": "## [Unreleased]\n",
+          "add_after": "- **The skill-fit loop runs itself.** A new background Stop hook,\n  `skill-fit-refresh.sh`, refreshes `ck skill audit --save` and `ck skill card --publish`\n  at most once a day with a per-step timeout; it never blocks, prints nothing, and is off\n  under `ECC_HOOK_PROFILE=minimal` (opt out: `CLAUDEKIT_SKILL_REFRESH=0`). `ck doctor`\n  now notes how many skills other projects' cards suggest, as information that cannot\n  fail `--strict`. `docs/cli.md` shows how to schedule a weekly fleet refresh.\n"
+        }
+      ]
+    }
+  ],
+  "baseline": {
+    ".claude/hooks/dispatch-registry.json": "sha256:f43f4ebb21badfc7a47229fcfe432aaff35b1a7408d9c92dca51b8116281bb9e",
+    ".claude/profiles/minimal/profile.json": "sha256:fe24f47fef3efd989952ad24e299064837d470e2a444496a838829eafdb1c1be",
+    ".claude/settings.json": "sha256:a7c2dc544e214b18055933814ee1818c11204396445b824831e7d36a9106b791",
+    ".gitignore": "sha256:c775931b607fb23a906417180df14a235ca4d300967d17bd01f388172298a334",
+    "CHANGELOG.md": "sha256:1c88df9f154a67af557dfbb24b4a79756be2edce502a4fe404d31277d6416d15",
+    "README.md": "sha256:c5ce153bc19f2f358a87bcaa06d262e1806aed565f4549a933c4341234ada253",
+    "docs/HOOKS.md": "sha256:3577ee0a6443998eb878cc8c2192b48f30202c0b796a7f4d6c43273713e98d0b",
+    "docs/cli.md": "sha256:6439f2dea586ef2b94397c862e30ee07e59719b35937c9320ca40df4ea93c426",
+    "src/claudekit/cli/main.py": "sha256:a6c03a4d41b21a5e63e7efaa9ba380b116e3d0e8d83e913c8927c040267c927f",
+    "src/claudekit/profiles.py": "sha256:74a041f35751246ebe786a7778060707fa90900b151d94ebd8f8819a04285cad"
+  }
+}

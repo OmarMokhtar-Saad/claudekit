@@ -279,6 +279,30 @@ claudekit skill match --registry cards/ --min-score 0.2   # another directory, s
 or an overlay path outside the project fails; a skill name that is no longer installed
 warns (and names its rename, if the registry has one).
 
+#### Keeping it fresh without running it by hand
+
+- **Per project, automatic.** The `skill-fit-refresh.sh` Stop hook runs `skill audit
+  --save` and `skill card --publish` at most once per 24 hours, in the background, each
+  step bounded by a 60-second timeout. It never blocks and prints nothing; failures go
+  to `.claude/hooks/hooks.log`. It is off under `ECC_HOOK_PROFILE=minimal`. Knobs:
+  `CLAUDEKIT_SKILL_REFRESH=0` (opt out), `CLAUDEKIT_SKILL_REFRESH_INTERVAL_MIN`
+  (default 1440), `CLAUDEKIT_SKILL_REFRESH_TIMEOUT` (seconds, default 60).
+- **Doctor.** When the user-level registry exists, `claudekit doctor` prints an
+  informational line, `N skill suggestion(s) from other projects — run ck skill match`.
+  It is not a check: it changes neither the readiness score nor `doctor --strict`.
+- **Whole fleet, weekly (your scheduler, not ours).** The hook only refreshes a project
+  someone opens. To refresh every project on a schedule, point your own scheduler at a
+  loop such as:
+
+  ```bash
+  for p in ~/code/project-a ~/code/project-b; do
+    (cd "$p" && claudekit skill audit --save >/dev/null && claudekit skill card --publish)
+  done
+  ```
+
+  e.g. a crontab line `0 9 * * 1 /path/to/refresh-skill-cards.sh` (Mondays 09:00), or a
+  launchd agent on macOS. ClaudeKit ships no scheduler and creates none.
+
 ### `claudekit skill apply` / `skill apply --restore`
 
 Enforce the profile's `disabled` list so those skills stop costing always-on context.

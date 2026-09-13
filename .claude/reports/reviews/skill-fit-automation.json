@@ -1,0 +1,28 @@
+{
+  "plan": ".claude/plans/plan-skill-fit-automation.md",
+  "slug": "skill-fit-automation",
+  "ops_path": ".claude/plans/ops-skill-fit-automation.json",
+  "ops_sha256": "7db826f9caf7f32b220b5eccf31278e7ed66e437954947b120647fa596fb2f10",
+  "score": 91,
+  "decision": "APPROVED",
+  "findings": [],
+  "verdict_origin": "rubric",
+  "recorded_utc": "2026-09-13T19:54:05Z",
+  "operations": 12,
+  "edits": 12,
+  "rounds": [
+    {
+      "decision": "APPROVED",
+      "findings": {
+        "critical": [],
+        "major": [],
+        "minor": [
+          "profiles.py comment at line 55 still says 'eleven hooks' pre-edit; op 4 correctly fixes it to the generic wording \u2014 verified the edit lands, no action needed",
+          "docs/HOOKS.md and README.md hand-edit the '24 -> 25 reachable' prose count; this is explicitly outside gen-docs.py's owned fields (component totals only), and the plan documents this distinction (Step 9, Step 11) \u2014 acceptable, but worth a follow-up to fold 'reachable' into the generator so hard rule 8's spirit fully covers it",
+          "the doctor info line silently swallows OSError/ValueError from skill_fit.match; broad-ish but scoped to a read-only advisory path and matches existing Skill-visibility block's error posture"
+        ]
+      }
+    }
+  ],
+  "round": 2
+}

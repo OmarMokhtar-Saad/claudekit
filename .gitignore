@@ -47,6 +47,8 @@ backups/
 
 # Local, per-developer Claude Code overrides (never shipped)
 .claude/settings.local.json
+# `ck skill audit --save` report and the skill-fit-refresh hook's rate-limit stamp
+.claude/reports/skills/
 
 # Per-session lock files (concurrent-session detection; runtime state)
 .claude/locks/
