@@ -61,6 +61,12 @@ backups/
 # Worktree-per-agent runtime state: linked worktrees + the manager's registry
 # (machine-local paths; never shipped — install.sh copies .claude/ wholesale)
 .worktrees/
+# .claude/worktrees/ is where the manager actually creates them, and it was NOT
+# covered here. A linked worktree is a full second copy of the tree, so the
+# silent-failure residue scanner walked into it and counted every duplicated hook
+# as a new violation -- reddening the gate for every session whenever ANY session
+# had a worktree open. Runtime state, never source.
+.claude/worktrees/
 .claude/state/
 
 .coverage
