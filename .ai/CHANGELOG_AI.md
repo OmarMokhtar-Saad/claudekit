@@ -2,6 +2,26 @@
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
 
+## 2026-09-13 — agent memory actually accumulates; a shipped data-loss bug; a negative result
+
+Seven agents declare `memory: project`; `install.sh` never created their directories. Across
+15 kitted repos there were 3 `MEMORY.md` files total. Installer now scaffolds them (derived
+list, never overwrites), `ck doctor` gates them (skip when zero agents served, warn on partial
+adoption, warn at 160 lines before truncation), and `distill` drafts entries from receipts —
+draft-only, reusing `reflection.py`'s redaction rules by path, refusing rather than
+redacting-and-shipping, failing closed when the sanitiser will not load.
+
+The first cut destroyed accumulated memory on every reinstall: the stub occupied the path
+`preserve_assets.py` restores into. Reordering alone did not fix the transition case; ownership
+of `agent-memory/<agent>/MEMORY.md` is now decided by path, not by a manifest. Both directions
+measured. Fleet 3 -> 98 files, three pre-existing files byte-identical throughout.
+
+`--similarity` clustering was built, measured against a real 82-receipt corpus, and found not
+to work at any threshold. Kept opt-in with the table that proves it, so it is not rebuilt.
+
+Follow-ups: 97 open receipts; downstream uncommitted; no behavioural proof of injection;
+spent-ops archiving is still manual.
+
 ## 2026-09-11 — approval gate binds `operations/<dir>/ops.json`; code review on request only
 
 Started from an AppiumLens session where the reviewer scored a plan 92/100 and the
