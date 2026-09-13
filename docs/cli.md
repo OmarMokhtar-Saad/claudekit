@@ -38,7 +38,7 @@ claudekit doctor --strict         # treat warnings as failures (exit 1)
 claudekit doctor --min-score 90   # exit 1 if the readiness score is below 90
 ```
 
-Checks: Python version, Bash, Git, agents, commands, skills, hooks, registry integrity, config validity.
+Checks: Python version, Bash, Git, agents, commands, skills, hooks, registry integrity, config validity, and `.claude/skills-profile.json` when present.
 
 The last line is a verdict and the next step, e.g.
 ``FAIL 1/9 failed — next: run `ck init` ``. The step is the command a failing check
@@ -229,6 +229,94 @@ claudekit skill new internal-notes --description "..." --invisible   # no always
 
 Refused, with the numbers, when the description would push the always-on context floor
 over budget — a description is charged to every session, forever.
+
+### `claudekit skill audit` / `skill profile init` / `skill card` / `skill match`
+
+Measure how the installed skills fit **this** project. All four are read-only analysis:
+none of them edits a skill, installs one, or changes what a model sees. The one verb
+that does change what a model sees is `claudekit skill apply`, below.
+
+```bash
+claudekit skill audit                   # stacks, per-skill tokens, relevant/irrelevant/broken
+claudekit skill audit --json --save     # also writes .claude/reports/skills/audit.json
+claudekit skill profile init            # writes .claude/skills-profile.json if absent
+claudekit skill card > my-project.json  # sanitized cards for this project's own skills
+claudekit skill card --publish          # write them to ~/.claudekit/registry/cards/<project>.json
+claudekit skill match                   # suggest skills other projects published, by tag overlap
+claudekit skill match --registry cards/ --min-score 0.2   # another directory, stricter floor
+```
+
+- **audit** detects the project's stacks (the same manifest detection `claudekit adapt`
+  uses, plus a count of source files: 20 or more `.java` files means `java`), estimates
+  each skill's tokens as chars/4, and buckets it: *relevant*, *irrelevant* (tagged for a
+  stack this project does not have), or *broken* (no frontmatter, no name or description,
+  or a relative link to a file that does not exist). Bodies over `--max-lines` (300) or
+  `--max-tokens` (2000) are flagged. A skill is never called irrelevant when no stack was
+  detected. Nothing is written unless you pass `--save`.
+- **profile init** writes `.claude/skills-profile.json` with the irrelevant skills listed
+  under `disabled`. It refuses if the file exists -- it is your file. Keys: `packs`,
+  `disabled`, `overlays` (skill name -> project-relative file), `roles`. Install, update
+  and fleet sync leave it untouched. `disabled` is enforced by `claudekit skill apply`;
+  `disabled_mode` (`off`, the default, or `user-invocable-only`) picks the value it
+  writes; `packs` and `roles` are validated for shape only.
+- **card** prints metadata cards -- name, `stack_tags`, description, estimated tokens --
+  for skills the install manifest does not list as kit-owned. No body and no path leaves.
+  A description that looks like a secret, credential or home-directory path is withheld
+  (named on stderr, never quoted). Without an install manifest it refuses. A project skill
+  declares its stacks in frontmatter: `stack_tags: [python, go]` (explicit always wins;
+  `stack_tags: []` opts out). Without it, tags are derived: a word-boundary scan of the
+  skill's name, description and body for stack words (java, kotlin, python, typescript,
+  android, ios, appium, selenium, intellij, spring boot, gradle, maven, pytest, react,
+  ...), unioned with the project's detected stacks. Kit skills are never derived.
+  `--publish` writes the cards to the user-level registry -- `$CLAUDEKIT_REGISTRY` (must
+  be absolute) or `~/.claudekit/registry/cards/` -- as `<project>.json`, atomically,
+  replacing that project's previous file. `--project <id>` overrides the directory name.
+- **match** reads every `*.json` card file in the registry (default: the user-level one
+  above; `--registry DIR` for another), re-validates each card, skips this project's own
+  card file, and suggests cards not already installed whose `stack_tags` overlap this
+  project's tags (detected stacks plus its own skills' tags). Score is Jaccard overlap;
+  suggestions under `--min-score` (default 0.1) are dropped. A card that shares only a
+  base language (java, kotlin, python, typescript, go, rust) is dropped too; pass
+  `--include-language-only` to keep it. Each line shows the score and the source
+  project. It never installs anything.
+
+`claudekit doctor` checks `.claude/skills-profile.json` when it exists: a malformed file
+or an overlay path outside the project fails; a skill name that is no longer installed
+warns (and names its rename, if the registry has one).
+
+### `claudekit skill apply` / `skill apply --restore`
+
+Enforce the profile's `disabled` list so those skills stop costing always-on context.
+
+```bash
+claudekit skill apply            # write skillOverrides for the profile's disabled skills
+claudekit skill apply --restore  # remove every override apply wrote
+```
+
+`apply` uses Claude Code's `skillOverrides` setting. For each installed skill in
+`disabled` it sets the override to `off` (or `user-invocable-only`, if the profile says
+`"disabled_mode": "user-invocable-only"`) in `.claude/settings.local.json` -- the
+project-local, gitignored settings file. No skill file is edited, so `claudekit diff`
+reports nothing. A hidden skill is still installed.
+
+- **Merges, never clobbers.** Every other key is preserved, including `env`
+  (`ECC_HOOK_PROFILE`) and `permissions`. An override you set yourself is never taken
+  over or removed. The file is rewritten with 2-space JSON indentation when something
+  changes. An unparseable or symlinked settings file is refused.
+- **Records what it owns.** The names apply manages live in `.claude/skills-applied.json`.
+  `--restore`, or removing a name from `disabled` and re-running `apply`, removes an
+  override only while it still holds the value apply wrote.
+- **Protected.** `golden-rule`, `security-checklist`, `prompt-injection-defense`,
+  `verification-before-completion`, `using-superpowers`, any skill the registry marks
+  mandatory, any skill an installed agent preloads through `skills:` frontmatter (a hidden
+  skill cannot be preloaded) and any skill an agent loads as mandatory. A profile naming
+  one is refused whole, before anything is written -- the profile is a file in your
+  repository, and hiding the safety rails is what a hostile change would try.
+- **update / init** re-apply the profile after reinstalling (settings.local.json itself is
+  preserved by the installer).
+- **doctor** reports how many skills `skillOverrides` hides and the estimated always-on
+  tokens saved (chars/4); warns when the profile and the settings diverge; and fails when
+  `settings.json` or `settings.local.json` hides a protected skill, profile or not.
 
 ### `claudekit mcp add <name> --tools N -- <argv>` / `claudekit mcp list`
 
