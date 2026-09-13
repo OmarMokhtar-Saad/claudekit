@@ -117,6 +117,71 @@ header-only `MEMORY.md` stub. Copy `agent-memory/README.md`.
 The stub is header-only (a title line and the one-line-per-entry index format from
 `agent-memory/README.md`). A fresh install is *unpopulated*, not *broken*.
 
+### Revision 5 (DATA LOSS, found by the Phase 4 tests)
+
+Phase 1 as shipped **destroyed accumulated memory on every reinstall.** Measured, not
+theorised: a project with a real `MEMORY.md` reinstalled, and the file came back as the
+empty stub.
+
+**Mechanism.** `install.sh` backs up and replaces `.claude/` wholesale, then
+`preserve_assets.py` carries back any backup file the new tree **lacks**. The scaffold
+block ran *before* preservation and wrote a stub at exactly that path, so preservation
+saw the path occupied and skipped the real file. Before this plan, no file existed there
+and preservation worked. My change created the hole.
+
+**Why the idempotence proof missed it.** My manual probe re-ran `install.sh` without
+`--yes`; the second run exited non-zero and never installed, so the file survived for a
+reason that had nothing to do with the code. A green check measuring nothing. The Phase 4
+test caught it only because it passed `--yes` and actually reinstalled.
+
+**The fix.** Move the scaffold block to run *after* `preserve_assets.py`. Preservation
+restores the real file first; the stub block then finds it present and leaves it alone.
+Fresh installs are unaffected — nothing to preserve, so the stub is written as before.
+
+Measured after the fix: reinstall leaves the real file byte-identical (sha256 unchanged),
+and a fresh install still creates all 7 directories with stubs.
+
+**This blocked the fleet rollout.** Phase 5 run against the 15 projects before this fix
+would have destroyed AppiumLens's one real memory file and qa-agents' two — the only
+three in the fleet.
+
+### Revision 6 (reviewer REJECTED revision 5 at 65/100 — the reorder was not enough)
+
+**The finding.** Moving the block after preservation only protects a fixed→fixed
+reinstall. `preserve_assets.py` decides kit-vs-project ownership from the OLD manifest,
+and the buggy build wrote its stub *before* manifest generation — so that manifest lists
+`agent-memory/<agent>/MEMORY.md` as kit-owned. On the next reinstall preservation then
+declines to restore the real file, and the relocated stub block fills the gap. Same loss,
+one phase removed.
+
+**Correction to the review, with evidence.** It named AppiumLens and qa-agents as the
+exposed projects. They are not: both manifests carry 240 keys and **zero** `agent-memory`
+entries, because they were installed with the original installer, which had no scaffold
+at all. The exposed population is any project installed with the Phase 1 build — measured
+at **8** agent-memory keys in its manifest. The mechanism was real; the named victims
+were not.
+
+**The fix, and the controls that prove it.** `preserve_assets.py` now treats
+`agent-memory/<agent>/MEMORY.md` as **always custom**, keyed on the path rather than on
+any manifest, so no manifest state can mark a project's memory as kit-owned:
+
+| Configuration | Stale manifest (8 keys) | Result |
+|---|---|---|
+| Reorder alone | present | **LOST** — stub overwrote the real file |
+| Reorder + always-custom | present | **PRESERVED**, byte-identical |
+
+The negative control isolates the always-custom rule as the thing that saves the file —
+the reorder alone demonstrably does not.
+
+**Manifest ownership, now deliberate rather than accidental** (the review's MAJOR):
+
+- `agent-memory/README.md` is copied in the asset phase and **stays manifest-managed**.
+  It is the shipped entry-format contract: kit-owned, and it should track `ck update`
+  and `ck uninstall` like any other kit asset.
+- Per-agent directories and `MEMORY.md` stubs are created after preservation and are
+  **deliberately absent from the manifest**. Accumulated memory is project data:
+  `ck uninstall` must not delete it and `ck diff` must not report it as drift.
+
 ## Phase 2: `ck doctor` check
 
 One new check in `cmd_doctor` (src/claudekit/cli/main.py:364), using the existing
@@ -250,6 +315,11 @@ pure defense-in-depth against a future change reintroducing derived names — it
 guarding a live hole today, and the plan does not claim it is.
 
 ## Phase 4: Tests
+
+Artifact: `tests/test_agent_memory_scaffold.py` (new file — the installer, reinstall
+data-loss and distill-refusal coverage below all live here).
+Also written by this plan: `CHANGELOG.md` (`[Unreleased]` entry).
+
 
 Behavioral, per CLAUDE.md — run the installer and the CLI, assert outcomes.
 

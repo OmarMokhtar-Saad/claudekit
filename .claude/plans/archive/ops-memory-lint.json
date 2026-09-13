@@ -1,0 +1,33 @@
+{
+  "plan": "memory-scaffold-fleet",
+  "operations": [
+    {
+      "id": "lint-test-file",
+      "type": "code_edit",
+      "path": "tests/test_agent_memory_scaffold.py",
+      "description": "Tier 1: drop the unused pytest import (F401) and rename the ambiguous loop variable (E741).",
+      "edits": [
+        {
+          "find": "from pathlib import Path\n\nimport pytest\n\nREPO",
+          "replace": "from pathlib import Path\n\nREPO"
+        },
+        {
+          "find": "        if any(l.strip() == \"memory: project\"\n               for l in f.read_text(encoding=\"utf-8\").splitlines()[:40]):",
+          "replace": "        if any(line.strip() == \"memory: project\"\n               for line in f.read_text(encoding=\"utf-8\").splitlines()[:40]):"
+        }
+      ]
+    },
+    {
+      "id": "type-groups",
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/knowledge-ledger.py",
+      "description": "Tier 1: annotate `groups` for mypy (py3.9 target).",
+      "edits": [
+        {
+          "find": "    groups = {}\n",
+          "replace": "    groups: Dict[str, List] = {}\n"
+        }
+      ]
+    }
+  ]
+}

@@ -6,6 +6,11 @@ Move a config here when it is **spent** (already executed — anchors consumed b
 
 | File | Why archived |
 |---|---|
+| `ops-memory-p1fix.json` | Spent — the reinstall data-loss fix (stubs after preservation; MEMORY.md always-custom), executed 2026-09-13 (approved 94). |
+| `ops-memory-lint.json` | Spent — ruff/mypy fixes on the Phase 3/4 additions, executed 2026-09-13. |
+| `ops-memory-scaffold-distill.json` | Spent — Phase 3 `distill` + Phase 4 behavioural tests, executed 2026-09-13 (approved 94). |
+| `ops-memory-p4fix.json` | Spent — Phase 4 test-fixture fix (installer `--yes`, and a fixture whose wording tripped `_SECRET`), executed 2026-09-13. |
+| `ops-memory-p4trans.json` | Spent — pinned the reinstall data-loss regression, including the stale-manifest transition case, executed 2026-09-13. |
 | `ops-memory-changelog.json` | Spent — CHANGELOG [Unreleased] entry for the agent-memory scaffold, executed 2026-09-13. |
 | `ops-memory-scaffold-fleet.json` | Spent — Phases 1+2 executed 2026-09-13 (installer agent-memory scaffold + `ck doctor` memory check). |
 | `ops-memory-scaffold-fleet-fix1.json` | Spent — Phase 2 revision 3 executed 2026-09-13: non-adoption is "zero agents served", not "directory absent". Fixed 5 tests the first cut broke. |
