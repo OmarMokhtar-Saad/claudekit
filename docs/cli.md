@@ -235,7 +235,9 @@ claudekit skill audit                   # stacks, per-skill tokens, relevant/irr
 claudekit skill audit --json --save     # also writes .claude/reports/skills/audit.json
 claudekit skill profile init            # writes .claude/skills-profile.json if absent
 claudekit skill card > my-project.json  # sanitized cards for this project's own skills
-claudekit skill match --registry cards/ # suggest skills other projects proved, by stack
+claudekit skill card --publish          # write them to ~/.claudekit/registry/cards/<project>.json
+claudekit skill match                   # suggest skills other projects published, by tag overlap
+claudekit skill match --registry cards/ --min-score 0.2   # another directory, stricter floor
 ```
 
 - **audit** detects the project's stacks (the same manifest detection `claudekit adapt`
@@ -255,10 +257,20 @@ claudekit skill match --registry cards/ # suggest skills other projects proved, 
   for skills the install manifest does not list as kit-owned. No body and no path leaves.
   A description that looks like a secret, credential or home-directory path is withheld
   (named on stderr, never quoted). Without an install manifest it refuses. A project skill
-  declares its stacks in frontmatter: `stack_tags: [python, go]`.
-- **match** reads every `*.json` card file in `--registry`, re-validates each card, and
-  suggests the ones whose `stack_tags` overlap this project's stacks and are not already
-  installed, scored by overlap. It never installs anything.
+  declares its stacks in frontmatter: `stack_tags: [python, go]` (explicit always wins;
+  `stack_tags: []` opts out). Without it, tags are derived: a word-boundary scan of the
+  skill's name, description and body for stack words (java, kotlin, python, typescript,
+  android, ios, appium, selenium, intellij, spring boot, gradle, maven, pytest, react,
+  ...), unioned with the project's detected stacks. Kit skills are never derived.
+  `--publish` writes the cards to the user-level registry -- `$CLAUDEKIT_REGISTRY` (must
+  be absolute) or `~/.claudekit/registry/cards/` -- as `<project>.json`, atomically,
+  replacing that project's previous file. `--project <id>` overrides the directory name.
+- **match** reads every `*.json` card file in the registry (default: the user-level one
+  above; `--registry DIR` for another), re-validates each card, skips this project's own
+  card file, and suggests cards not already installed whose `stack_tags` overlap this
+  project's tags (detected stacks plus its own skills' tags). Score is Jaccard overlap;
+  suggestions under `--min-score` (default 0.1) are dropped. Each line shows the score and
+  the source project. It never installs anything.
 
 `claudekit doctor` checks `.claude/skills-profile.json` when it exists: a malformed file
 or an overlay path outside the project fails; a skill name that is no longer installed

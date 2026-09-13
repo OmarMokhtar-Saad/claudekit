@@ -16,6 +16,20 @@ and `ck doctor` read; no hook enforces it in this release (deferred, see
 plan-skill-fit.md "Phase 2"). Saying otherwise would overstate the product
 (CLAUDE.md hard rule 6).
 
+Stack tags and the shared registry
+----------------------------------
+A card is only as findable as its tags. Explicit `stack_tags` frontmatter always wins;
+a kit skill otherwise uses `KIT_STACK_TAGS`; a project's OWN skill otherwise gets tags
+DERIVED deterministically -- a word-boundary scan of its name, description and body
+against `STACK_VOCAB`, unioned with the project's detected stacks. Kit skills are never
+derived: their bodies cite every language as examples, and a derived tag there would
+make `profile init` disable stack-neutral capability.
+
+Cards are shared through a USER-level directory, never a repository:
+`~/.claudekit/registry/cards/<project>.json`, or `$CLAUDEKIT_REGISTRY` (absolute).
+`card --publish` writes there atomically; `match` reads it by default, skips the
+current project's own card, and scores by Jaccard overlap of tags.
+
 Estimates, not measurements
 ---------------------------
 Tokens are chars/4, rounded up. That is the same order-of-magnitude rule the context
@@ -24,6 +38,7 @@ floor uses; it is good for ranking and budgeting, not for billing.
 from __future__ import annotations
 
 import json
+import os
 import re
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Set, Tuple
@@ -68,6 +83,36 @@ KIT_STACK_TAGS: Dict[str, Tuple[str, ...]] = {
     "java-review-checklist": ("java",),
     "kotlin-review-checklist": ("kotlin",),
 }
+
+#: Stack vocabulary for DERIVED tags (project-owned skills only). Each tag is claimed
+#: by a case-insensitive word-boundary pattern; ordered by tag so output is stable.
+#: Deliberately narrow where English collides: `spring` needs "spring boot"/framework,
+#: `react` refuses "react to", `go` needs "golang"/"go.mod".
+STACK_VOCAB: Tuple[Tuple[str, str], ...] = (
+    ("android", r"\bandroid\b"),
+    ("appium", r"\bappium\b"),
+    ("go", r"\bgolang\b|\bgo\.mod\b"),
+    ("gradle", r"\bgradle\b"),
+    ("intellij-plugin", r"\bintellij\b"),
+    ("ios", r"\bios\b|\bxcuitest\b|\bswiftui\b"),
+    ("java", r"\bjava\b|\.java\b|\bjunit\b"),
+    ("kotlin", r"\bkotlin\b|\.kts?\b"),
+    ("maven", r"\bmaven\b|\bpom\.xml\b"),
+    ("pytest", r"\bpytest\b"),
+    ("python", r"\bpython3?\b|\.py\b|\bpytest\b"),
+    ("react", r"\breact\b(?!\s+to\b)|\.jsx\b"),
+    ("rust", r"\brust\b|\bcargo\.toml\b"),
+    ("selenium", r"\bselenium\b|\bwebdriver\b"),
+    ("spring", r"\bspring[ -]?boot\b|\bspring framework\b|\bspringframework\b"),
+    ("typescript", r"\btypescript\b|\.tsx?\b"),
+)
+_VOCAB = tuple((tag, re.compile(pattern, re.IGNORECASE)) for tag, pattern in STACK_VOCAB)
+
+REGISTRY_ENV = "CLAUDEKIT_REGISTRY"
+#: Jaccard floor for a suggestion. Low on purpose: a project with many tags divides
+#: every narrow card's score, and a floor tuned on two-tag projects would hide them.
+DEFAULT_MIN_SCORE = 0.1
+_PROJECT_ID = re.compile(r"[a-z0-9][a-z0-9._-]{0,63}")
 
 RELEVANT, IRRELEVANT, BROKEN = "relevant", "irrelevant", "broken"
 
@@ -154,15 +199,26 @@ def manifest_files(root: Path) -> Optional[Set[str]]:
 # --------------------------------------------------------------------------- audit
 
 def parse_stack_tags(fm: str) -> List[str]:
+    return explicit_stack_tags(fm) or []
+
+
+def explicit_stack_tags(fm: str) -> Optional[List[str]]:
+    """Frontmatter `stack_tags`, or None when the key is absent. `stack_tags: []` is an
+    explicit empty list -- an opt-out from derivation, not a request for it."""
     m = _STACK_TAGS.search(fm)
     if not m:
-        return []
-    out = []
+        return None
+    out: List[str] = []
     for raw in m.group(1).split(","):
         tag = raw.strip().strip("\"'").lower()
         if _TAG.fullmatch(tag) and tag not in out:
             out.append(tag)
     return out
+
+
+def derive_stack_tags(text: str) -> List[str]:
+    """Stack tags a text names, by `STACK_VOCAB`. Deterministic; executes nothing."""
+    return [tag for tag, pattern in _VOCAB if pattern.search(text)]
 
 
 def missing_references(skill_dir: Path, text: str) -> List[str]:
@@ -195,7 +251,7 @@ def inspect_skill(skill_dir: Path, stacks: List[str],
         "owner": ("unknown" if owned is None
                   else "kit" if f"skills/{name}/SKILL.md" in owned else "local"),
         "disabled": name in disabled,
-        "stack_tags": [], "description": "",
+        "stack_tags": [], "stack_tags_source": "none", "description": "",
         "description_tokens": 0, "always_on_tokens": 0,
         "body_lines": 0, "body_tokens": 0, "over_budget": False,
         "problems": [],
@@ -223,11 +279,23 @@ def inspect_skill(skill_dir: Path, stacks: List[str],
     for target in missing_references(skill_dir, text):
         record["problems"].append(f"missing referenced file: {target}")
 
-    tags = parse_stack_tags(fm) or list(KIT_STACK_TAGS.get(name, ()))
+    explicit = explicit_stack_tags(fm)
+    if explicit is not None:
+        tags, source = explicit, "frontmatter"
+    elif name in KIT_STACK_TAGS:
+        tags, source = list(KIT_STACK_TAGS[name]), "kit-table"
+    elif record["owner"] == "local":
+        # Union with the project's stacks, so a local skill always overlaps the stacks
+        # it was written for and can never be bucketed irrelevant by its own derivation.
+        tags = sorted(set(derive_stack_tags(f"{name}\n{description}\n{body}")) | set(stacks))
+        source = "derived" if tags else "none"
+    else:
+        tags, source = [], "none"
     body_lines = body.count("\n")
     body_tokens = tokens(body)
     record.update({
         "stack_tags": tags,
+        "stack_tags_source": source,
         "description": description,
         "description_tokens": tokens(description),
         "always_on_tokens": 0 if context_floor.model_invisible(fm) else tokens(description),
@@ -496,29 +564,100 @@ def _invalid_card(item: Any) -> Optional[str]:
     return f"card refused: {why}" if why else None
 
 
-def match(root: Path, registry: Path) -> Dict[str, Any]:
-    """Suggest cards whose stack tags overlap this project's stacks. Installs nothing."""
+def registry_dir() -> Path:
+    """The user-level card registry: `$CLAUDEKIT_REGISTRY`, else ~/.claudekit/registry/cards.
+
+    Never inside a repository. A relative override is refused: it would resolve
+    against whatever directory `ck` runs in, which is a repository.
+    """
+    override = os.environ.get(REGISTRY_ENV, "").strip()
+    if override:
+        path = Path(override).expanduser()
+        if not path.is_absolute():
+            raise SkillFitError(f"{REGISTRY_ENV} must be an absolute path, got {override!r}")
+        return path
+    return Path.home() / ".claudekit" / "registry" / "cards"
+
+
+def project_id(root: Path, explicit: Optional[str] = None) -> str:
+    """The card file stem for a project: `--project`, else the directory name, lowercased."""
+    raw = explicit if explicit is not None else Path(root).resolve().name
+    ident = raw.strip().lower()
+    if not _PROJECT_ID.fullmatch(ident):
+        raise SkillFitError(f"project id {raw!r} is not [a-z0-9][a-z0-9._-]*; "
+                            f"pass --project <id>")
+    return ident
+
+
+def publish_cards(root: Path, *, project: Optional[str] = None,
+                  registry: Optional[Path] = None
+                  ) -> Tuple[Path, List[Dict[str, Any]], List[Tuple[str, str]]]:
+    """Write this project's sanitized cards to the registry, atomically. Replaces the
+    project's previous card file whole, so a removed skill stops being suggested."""
+    found, withheld = cards(root)
+    ident = project_id(root, project)
+    directory = Path(registry) if registry is not None else registry_dir()
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / f"{ident}.json"
+    doc = {"card_version": CARD_VERSION, "project": ident, "cards": found}
+    adapt.write_atomic(path, json.dumps(doc, indent=2, sort_keys=True) + "\n")
+    return path, found, withheld
+
+
+def match(root: Path, registry: Optional[Path] = None, *, project: Optional[str] = None,
+          min_score: float = DEFAULT_MIN_SCORE) -> Dict[str, Any]:
+    """Suggest cards whose tags overlap this project's tags. Installs nothing.
+
+    The project's tags are its detected stacks plus the tags of its own skills, so two
+    Appium projects whose source counts fall under the stack threshold still meet on
+    the `appium`/`android` their skills name. Score is Jaccard: |card & project| /
+    |card | project|. The project's own card file is skipped.
+    """
     root = Path(root)
-    stacks, _ = detect_stacks(root)
-    directory = skills.skills_dir(root)
-    installed = ({d.name for d in directory.iterdir() if d.is_dir()}
-                 if directory.is_dir() else set())
-    loaded, skipped = load_cards(registry)
+    default = registry is None
+    directory = registry_dir() if registry is None else Path(registry)
+    if not directory.is_dir():
+        hint = (" -- publish one with `ck skill card --publish` in another project, or set "
+                f"{REGISTRY_ENV} / pass --registry") if default else ""
+        raise SkillFitError(f"no card registry at {directory}{hint}")
+    try:
+        report: Optional[Dict[str, Any]] = audit(root)
+    except SkillFitError:
+        report = None
+    if report is not None:
+        stacks = report["stacks"]
+        installed = {r["name"] for r in report["skills"]}
+        own_tags = {t for r in report["skills"] if r["owner"] == "local"
+                    for t in r["stack_tags"]}
+    else:
+        stacks, _ = detect_stacks(root)
+        installed, own_tags = set(), set()
+    project_tags = set(stacks) | own_tags
+    try:
+        own = project_id(root, project)
+    except SkillFitError:
+        own = None
+    loaded, skipped = load_cards(directory)
     suggestions: List[Dict[str, Any]] = []
     for card in loaded:
-        if card["name"] in installed:
+        if card["source"] == own or card["name"] in installed:
             continue
         tags = set(card["stack_tags"])
-        overlap = sorted(tags & set(stacks))
+        overlap = sorted(tags & project_tags)
         if not overlap:
+            continue
+        score = round(len(overlap) / len(tags | project_tags), 3)
+        if score < min_score:
             continue
         suggestions.append({
             "name": card["name"],
             "source": card["source"],
-            "score": round(len(overlap) / len(tags), 3),
+            "score": score,
             "matched_tags": overlap,
             "tokens": card["tokens"],
             "description": card["description"],
         })
     suggestions.sort(key=lambda s: (-s["score"], s["tokens"], s["name"], s["source"]))
-    return {"stacks": stacks, "suggestions": suggestions, "skipped": skipped}
+    return {"stacks": stacks, "project_tags": sorted(project_tags),
+            "registry": str(directory), "project": own, "min_score": min_score,
+            "suggestions": suggestions, "skipped": skipped}

@@ -19,10 +19,20 @@ ENV = dict(os.environ, PYTHONPATH=str(REPO_ROOT / "src"), ECC_HOOK_PROFILE="mini
 BODY_SENTINEL = "BODY-SENTINEL-never-leaves-the-project"
 
 
-def ck(root, *args):
+def ck(root, *args, env=None):
     return subprocess.run([sys.executable, "-m", "claudekit.cli.main", *args],
-                          capture_output=True, text=True, cwd=str(root), env=ENV,
-                          timeout=120)
+                          capture_output=True, text=True, cwd=str(root),
+                          env=env if env is not None else ENV, timeout=120)
+
+
+def isolated_env(tmp_path, registry=True):
+    """HOME (and, unless told otherwise, CLAUDEKIT_REGISTRY) forced into tmp_path: a
+    test must never read or write the developer's real user-level registry."""
+    env = dict(ENV, HOME=str(tmp_path / "home"))
+    env.pop("CLAUDEKIT_REGISTRY", None)
+    if registry:
+        env["CLAUDEKIT_REGISTRY"] = str(tmp_path / "registry")
+    return env
 
 
 def write_skill(root, name, description, *, extra_fm="", body=None):
@@ -280,9 +290,182 @@ class TestMatch:
         assert any("sanitizer" in s for s in doc["skipped"])
         assert tree_digest(project) == before
 
-    def test_registry_is_required(self, project):
-        proc = ck(project, "skill", "match")
+    def test_a_missing_default_registry_names_it_and_the_remedy(self, project, tmp_path):
+        env = isolated_env(tmp_path)
+        proc = ck(project, "skill", "match", env=env)
         assert proc.returncode == 1
+        assert str(tmp_path / "registry") in proc.stderr
+        assert "--publish" in proc.stderr
+
+
+def local_project(tmp_path, name, skills_by_name, *, manifest=True):
+    """A project whose skills are all project-owned (an empty receipt)."""
+    root = tmp_path / name
+    (root / ".claude" / "skills").mkdir(parents=True)
+    for skill, (description, extra_fm) in skills_by_name.items():
+        write_skill(root, skill, description, extra_fm=extra_fm)
+    if manifest:
+        (root / ".claude" / ".claudekit-manifest.json").write_text(
+            json.dumps({"files": {}}), encoding="utf-8")
+    return root
+
+
+class TestDerivedStackTags:
+    def test_a_local_skill_gets_tags_from_its_text(self, tmp_path):
+        root = local_project(tmp_path, "mobile", {
+            "session-setup": ("Use when starting an Appium session on an Android emulator",
+                              "")})
+        row = by_name(audit_json(root))["session-setup"]
+        assert row["stack_tags"] == ["android", "appium"]
+        assert row["stack_tags_source"] == "derived"
+        assert row["status"] == "relevant"
+
+    def test_derived_tags_union_the_projects_detected_stacks(self, tmp_path):
+        root = local_project(tmp_path, "pyproj", {
+            "release-notes": ("Use when writing release notes", "")})
+        (root / "pyproject.toml").write_text("[project]\nname = 'p'\n", encoding="utf-8")
+        row = by_name(audit_json(root))["release-notes"]
+        assert row["stack_tags"] == ["python"]
+
+    def test_explicit_frontmatter_wins_even_when_empty(self, tmp_path):
+        root = local_project(tmp_path, "mobile", {
+            "pinned": ("Use when driving Appium on Android", "stack_tags: [kotlin]\n"),
+            "opted-out": ("Use when driving Appium on Android", "stack_tags: []\n")})
+        rows = by_name(audit_json(root))
+        assert rows["pinned"]["stack_tags"] == ["kotlin"]
+        assert rows["pinned"]["stack_tags_source"] == "frontmatter"
+        assert rows["opted-out"]["stack_tags"] == []
+
+    def test_kit_skills_are_never_derived(self, project):
+        """A stack-neutral kit skill whose body cites Java must not become java-tagged:
+        `profile init` would then disable it in every non-Java project."""
+        write_skill(project, "neutral-kit", "Use when reviewing Java or Kotlin diffs")
+        manifest = project / ".claude" / ".claudekit-manifest.json"
+        doc = json.loads(manifest.read_text(encoding="utf-8"))
+        doc["files"]["skills/neutral-kit/SKILL.md"] = "0" * 64
+        manifest.write_text(json.dumps(doc), encoding="utf-8")
+        row = by_name(audit_json(project))["neutral-kit"]
+        assert row["stack_tags"] == []
+        assert row["status"] == "relevant"
+
+    def test_vocabulary_refuses_english_collisions(self):
+        sys.path.insert(0, str(REPO_ROOT / "src"))
+        from claudekit import skill_fit
+        assert skill_fit.derive_stack_tags("react to the spring release, go home") == []
+        assert skill_fit.derive_stack_tags("JavaScript only") == []
+        assert skill_fit.derive_stack_tags("Spring Boot with Gradle and JUnit") == [
+            "gradle", "java", "spring"]
+
+    def test_cards_carry_derived_tags_and_stay_sanitized(self, tmp_path):
+        root = local_project(tmp_path, "mobile", {
+            "session-setup": ("Use when starting an Appium session on Android", "")})
+        proc = ck(root, "skill", "card")
+        assert proc.returncode == 0, proc.stderr
+        card = json.loads(proc.stdout)["cards"][0]
+        assert card["stack_tags"] == ["android", "appium"]
+        assert set(card) == {"card_version", "name", "stack_tags", "description", "tokens"}
+        assert BODY_SENTINEL not in proc.stdout
+
+
+class TestRegistry:
+    def test_publish_writes_the_user_level_default_under_home(self, tmp_path):
+        root = local_project(tmp_path, "mobile", {
+            "session-setup": ("Use when starting an Appium session on Android", "")})
+        env = isolated_env(tmp_path, registry=False)
+        proc = ck(root, "skill", "card", "--publish", env=env)
+        assert proc.returncode == 0, proc.stdout + proc.stderr
+        path = tmp_path / "home" / ".claudekit" / "registry" / "cards" / "mobile.json"
+        doc = json.loads(path.read_text(encoding="utf-8"))
+        assert doc["project"] == "mobile"
+        assert [c["name"] for c in doc["cards"]] == ["session-setup"]
+        assert not list((root / ".claude").rglob("*registry*"))
+
+    def test_republish_replaces_atomically_without_residue(self, tmp_path):
+        root = local_project(tmp_path, "mobile", {
+            "session-setup": ("Use when starting an Appium session on Android", "")})
+        env = isolated_env(tmp_path)
+        assert ck(root, "skill", "card", "--publish", env=env).returncode == 0
+        (root / ".claude" / "skills" / "session-setup" / "SKILL.md").unlink()
+        (root / ".claude" / "skills" / "session-setup").rmdir()
+        write_skill(root, "locators", "Use when writing Appium locators")
+        assert ck(root, "skill", "card", "--publish", env=env).returncode == 0
+        reg = tmp_path / "registry"
+        assert sorted(p.name for p in reg.iterdir()) == ["mobile.json"]
+        doc = json.loads((reg / "mobile.json").read_text(encoding="utf-8"))
+        assert [c["name"] for c in doc["cards"]] == ["locators"]
+
+    def test_a_relative_registry_override_is_refused(self, tmp_path):
+        root = local_project(tmp_path, "mobile", {"x-skill": ("Use when testing", "")})
+        env = dict(isolated_env(tmp_path), CLAUDEKIT_REGISTRY="cards")
+        proc = ck(root, "skill", "card", "--publish", env=env)
+        assert proc.returncode == 1
+        assert "absolute" in proc.stderr
+        assert not (root / "cards").exists()
+
+    def test_a_withheld_card_is_not_published(self, tmp_path):
+        root = local_project(tmp_path, "mobile", {
+            "leaky": ("Use with password: hunter2hunter2", "")})
+        env = isolated_env(tmp_path)
+        proc = ck(root, "skill", "card", "--publish", env=env)
+        assert proc.returncode == 0, proc.stderr
+        text = (tmp_path / "registry" / "mobile.json").read_text(encoding="utf-8")
+        assert "hunter2" not in text
+        assert "leaky" in proc.stderr
+
+    def test_match_skips_its_own_card_and_prints_score_and_source(self, tmp_path):
+        root = local_project(tmp_path, "mobile", {
+            "session-setup": ("Use when starting an Appium session on Android", "")})
+        reg = tmp_path / "registry"
+        reg.mkdir()
+        card = {"card_version": 1, "stack_tags": ["android", "appium"],
+                "description": "Use when stabilising Appium waits", "tokens": 40}
+        (reg / "mobile.json").write_text(json.dumps(
+            {"cards": [dict(card, name="own-only")]}), encoding="utf-8")
+        (reg / "other.json").write_text(json.dumps(
+            {"cards": [dict(card, name="appium-waits")]}), encoding="utf-8")
+        env = isolated_env(tmp_path)
+        doc = json.loads(ck(root, "skill", "match", "--json", env=env).stdout)
+        assert [s["name"] for s in doc["suggestions"]] == ["appium-waits"]
+        human = ck(root, "skill", "match", env=env)
+        assert "score 1.0" in human.stdout and "from other" in human.stdout
+
+    def test_jaccard_floor_hides_weak_overlap_until_lowered(self, tmp_path):
+        root = local_project(tmp_path, "mobile", {
+            "session-setup": ("Use when starting an Appium session", "")})
+        reg = tmp_path / "registry"
+        reg.mkdir()
+        tags = ["appium"] + [f"t{i}" for i in range(10)]
+        (reg / "wide.json").write_text(json.dumps({"cards": [
+            {"card_version": 1, "name": "wide", "stack_tags": tags,
+             "description": "Use when doing many things", "tokens": 5}]}), encoding="utf-8")
+        env = isolated_env(tmp_path)
+        doc = json.loads(ck(root, "skill", "match", "--json", env=env).stdout)
+        assert doc["suggestions"] == []
+        low = ck(root, "skill", "match", "--json", "--min-score", "0.05", env=env)
+        assert [s["score"] for s in json.loads(low.stdout)["suggestions"]] == [0.091]
+        assert ck(root, "skill", "match", "--min-score", "2", env=env).returncode == 1
+
+
+class TestFleetMissRegression:
+    def test_two_appium_projects_with_untagged_local_skills_match(self, tmp_path):
+        """2026-09 fleet run: `ck skill match` printed <none> for AppiumLens against 13
+        projects, because local skills carried no stack_tags and neither project cleared
+        the 20-source-file stack threshold. Neither skill here declares stack_tags."""
+        lens = local_project(tmp_path, "appiumlens", {
+            "appium-session-setup": (
+                "Use when starting an Appium session on an Android emulator", "")})
+        suite = local_project(tmp_path, "mobile-suite", {
+            "android-locator-strategy": (
+                "Use when writing Appium locators for Android screens", "")})
+        env = isolated_env(tmp_path)
+        for root in (lens, suite):
+            proc = ck(root, "skill", "card", "--publish", env=env)
+            assert proc.returncode == 0, proc.stdout + proc.stderr
+        from_suite = json.loads(ck(suite, "skill", "match", "--json", env=env).stdout)
+        assert [(s["name"], s["source"], s["score"]) for s in from_suite["suggestions"]] == [
+            ("appium-session-setup", "appiumlens", 1.0)]
+        from_lens = json.loads(ck(lens, "skill", "match", "--json", env=env).stdout)
+        assert [s["name"] for s in from_lens["suggestions"]] == ["android-locator-strategy"]
 
 
 class TestSkillNewStillGuarded:

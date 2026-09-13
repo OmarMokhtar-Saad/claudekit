@@ -2193,9 +2193,10 @@ def cmd_skill(args):
 def _cmd_skill_fit(args):
     """`ck skill audit | profile init | card | match` -- read-only skill-fit analysis.
 
-    Writes exactly two things, each only on an explicit request: the audit report under
-    `audit --save`, and `.claude/skills-profile.json` under `profile init` (which never
-    overwrites). `match` suggests and never installs. Nothing here edits a skill or
+    Writes exactly three things, each only on an explicit request: the audit report under
+    `audit --save`, `.claude/skills-profile.json` under `profile init` (which never
+    overwrites), and this project's card file in the USER-level registry under
+    `card --publish`. `match` suggests and never installs. Nothing here edits a skill or
     injects anything into a prompt.
     """
     from claudekit import skill_fit
@@ -2226,28 +2227,34 @@ def _cmd_skill_fit(args):
             info("Nothing enforces `disabled` yet: `ck skill audit` and `ck doctor` read "
                  "it. The file is yours -- install, update and fleet sync leave it alone.")
             return 0
+        registry = Path(args.registry) if args.registry else None
         if args.action == "card":
-            found, withheld = skill_fit.cards(root)
-            print(json.dumps({"card_version": skill_fit.CARD_VERSION, "cards": found},
-                             indent=2))
+            if args.publish:
+                path, found, withheld = skill_fit.publish_cards(
+                    root, project=args.project, registry=registry)
+                ok(f"Published {len(found)} card(s) to {path}")
+            else:
+                found, withheld = skill_fit.cards(root)
+                print(json.dumps({"card_version": skill_fit.CARD_VERSION, "cards": found},
+                                 indent=2))
             for name, why in withheld:
                 err(f"withheld card '{name}': {why}")
             return 0
         # match
-        if not args.registry:
-            err("skill match: --registry <dir> is required (a directory of card JSON "
-                "files from `ck skill card`)")
+        min_score = skill_fit.DEFAULT_MIN_SCORE if args.min_score is None else args.min_score
+        if not 0.0 <= min_score <= 1.0:
+            err("skill match: --min-score must be between 0 and 1")
             return 1
-        result = skill_fit.match(root, Path(args.registry))
+        result = skill_fit.match(root, registry, project=args.project, min_score=min_score)
     except skill_fit.SkillFitError as exc:
         err(f"skill {args.action}: {exc}")
         return 1
     if args.json:
         print(json.dumps(result, indent=2))
         return 0
-    stacks = ", ".join(result["stacks"]) or "undetected"
-    print(f"\n{C.CYAN}Skill suggestions{C.NC}   stacks: {stacks}   (suggest only -- "
-          f"nothing is installed)\n")
+    tags = ", ".join(result["project_tags"]) or "none"
+    print(f"\n{C.CYAN}Skill suggestions{C.NC}   tags: {tags}   min score "
+          f"{result['min_score']}   (suggest only -- nothing is installed)\n")
     for s in result["suggestions"]:
         print(f"  {s['name']:<32} score {s['score']:<5} {s['tokens']:>6} tok  "
               f"from {s['source']}  [{', '.join(s['matched_tags'])}]")
@@ -2646,7 +2653,14 @@ def main():
     p.add_argument("--max-tokens", type=int, default=2000,
                    help="audit: flag skill bodies estimated above this (default 2000)")
     p.add_argument("--registry", metavar="DIR",
-                   help="match: directory of card JSON files from other projects")
+                   help="card --publish / match: card directory (default: $CLAUDEKIT_REGISTRY "
+                        "or ~/.claudekit/registry/cards)")
+    p.add_argument("--publish", action="store_true",
+                   help="card: write this project's cards to the registry")
+    p.add_argument("--project", metavar="ID",
+                   help="card --publish / match: project id (default: directory name)")
+    p.add_argument("--min-score", type=float, default=None,
+                   help="match: Jaccard floor for a suggestion (default 0.1)")
 
     # mcp
     p = sub.add_parser("adapt",
