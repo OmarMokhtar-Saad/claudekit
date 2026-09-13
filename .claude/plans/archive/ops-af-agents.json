@@ -1,0 +1,57 @@
+{
+  "plan": "action-first-rollout",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/planner.md",
+      "description": "Lead the coordinator report with a Next action line; merge two checklist lines to stay inside the pipeline-body budget",
+      "edits": [
+        {
+          "find": "PLANNER COMPLETE\n================\nPlan: <path to plan.md>",
+          "add_before": "Next action: <the single thing the caller should do now>\n"
+        },
+        {
+          "find": "- [ ] Validation commands are documented in plan.md (not ops.json)\n- [ ] Rollback descriptions are documented in plan.md (not ops.json)",
+          "replace": "- [ ] Validation commands and rollback notes are in plan.md (not ops.json)"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/verifier.md",
+      "description": "Lead the verification report with Next action + capped top findings (full ISSUES list unchanged)",
+      "edits": [
+        {
+          "find": "VERIFICATION REPORT\n===================",
+          "add_before": "Next action: <the single thing the caller should do now>\nTop findings: <at most 5, most severe first>; \"N more\" below\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/code-reviewer.md",
+      "description": "Lead the code review report with Next action + capped top findings; cap the highest-risk file list",
+      "edits": [
+        {
+          "find": "CODE REVIEW REPORT\n==================",
+          "add_before": "Next action: <the single thing the caller should do now>\nTop findings: <at most 5, most severe first>; \"N more\" below\n"
+        },
+        {
+          "find": "2. <file> — N issues\n...",
+          "replace": "2. <file> — N issues\n(at most 5 files; write \"N more\" for the rest)"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/debugger.md",
+      "description": "Lead the diagnosis report with a Next action line",
+      "edits": [
+        {
+          "find": "BUG DIAGNOSIS REPORT\n====================",
+          "add_before": "Next action: <hand off to planner with Approach N | supply the missing context named below>\n"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,76 @@
+{
+  "plan": "action-first-mode",
+  "operations": [
+    {
+      "id": "step-1",
+      "description": "Create the action-first behavioral mode",
+      "type": "file_create",
+      "path": ".claude/modes/action-first.md",
+      "content": "---\nname: action-first\ndescription: \"Lead with the answer or the next action; short numbered steps, capped lists, no preamble\"\n---\n\n# Action-First Mode\n\n## Purpose\n\nPut the thing the user needs where they see it first. Every response is shaped so a\nreader who stops after one line still knows the answer or what to do next. Useful for\nanyone who scans rather than reads, switches context often, or finds long replies hard\nto act on.\n\nInspired by [ayghri/i-have-adhd](https://github.com/ayghri/i-have-adhd) (MIT).\n\n---\n\n## Rules\n\n1. **Answer first.** The first line is the answer, or the next action the user must take.\n2. **One action per step.** Multi-step work is a numbered list; each step does one thing.\n3. **No tangents.** Stay on the question. Extras get one line at most: \"Also possible: X.\"\n4. **State line.** When resuming, or after long work, open with `Done: ... / Now: ... / Next: ...`.\n5. **Time estimates.** For steps the user performs, add a rough estimate: `(~2 min)`.\n6. **Name the wins.** Call out what finished in one line: `Finished: tests green.`\n7. **Lists capped at 5.** Show at most 5 items; put the rest behind `N more` and offer them.\n8. **No preamble, no recap, no closers.** Skip \"Great question\", \"To summarize\", \"Hope this helps\".\n9. **Bold the one thing not to miss.** Exactly one bolded item per response, if any.\n10. **Never trim safety.** Never drop error output, security warnings, or destructive-action\n    confirmations for brevity. These are shown in full, even if the reply gets longer.\n\n---\n\n## Do this / Not this\n\n**Not this:**\n\n```\nGreat question! There are a few things to consider here. First, some background on\nhow virtual environments work... (four paragraphs later) ...so you should run\n`python3 -m venv .venv`. Let me know if you have any other questions!\n```\n\n**Do this:**\n\n```\nRun `python3 -m venv .venv && source .venv/bin/activate` (~1 min).\nThen `pip install -e .` -- **activate the venv first or the install goes global.**\n```\n\n---\n\n## Response Patterns\n\n### Question\n\n```\n<answer in one line>\n<optional: one supporting line or code block>\n```\n\n### Task done\n\n```\nFinished: <what now works>.\nNext: <the one thing the user should do, or \"nothing\">.\n```\n\n### Blocked\n\n```\nBlocked: <what failed>.\n<full error output, untrimmed>\nDo this: <the action that unblocks it> (~N min).\n```\n\n### Multi-step instructions\n\n```\n1. <action> (~N min)\n2. <action> (~N min)\n3. <action> (~N min)\n**<the step people get wrong>**\n```\n\n---\n\n## Session Behavior\n\nWhile action-first mode is active:\n\n- Re-check the first line of every reply: is it the answer or an action? If not, move it up.\n- After a long tool run or a resumed session, lead with the Done / Now / Next state line.\n- When a list exceeds 5 items, show the top 5 by importance and write `N more`.\n- Errors are reported plainly and completely; no softening, no truncation.\n- Asking for confirmation before a destructive action is never skipped to save a line.\n"
+    },
+    {
+      "id": "step-2",
+      "description": "Register action-first in the /mode command table and examples",
+      "type": "code_edit",
+      "path": ".claude/commands/mode.md",
+      "edits": [
+        {
+          "find": "| `token-efficient` | Compressed concise output, 40-70% token savings | Large tasks, slow connections, cost-sensitive usage |",
+          "add_after": "\n| `action-first` | Answer or next action first, numbered steps, lists capped at 5, no preamble | Scanning replies, frequent context switches, getting unstuck fast |"
+        },
+        {
+          "find": "- `/mode token-efficient` -- Switch to compressed output mode",
+          "add_after": "\n- `/mode action-first` -- Switch to answer-first, action-oriented output"
+        }
+      ]
+    },
+    {
+      "id": "step-3",
+      "description": "Add action-first to mode tests and a behavioral rule-presence test",
+      "type": "code_edit",
+      "path": "tests/test_modes.py",
+      "edits": [
+        {
+          "find": "    \"orchestration\",\n]",
+          "replace": "    \"orchestration\",\n    \"action-first\",\n]"
+        },
+        {
+          "find": "\"\"\"Verify all 7 behavioral mode files exist.\"\"\"",
+          "replace": "\"\"\"Verify all 8 behavioral mode files exist.\"\"\""
+        },
+        {
+          "find": "assert len(modes) >= 7, f\"Expected at least 7 modes, found {len(modes)}\"",
+          "replace": "assert len(modes) >= 8, f\"Expected at least 8 modes, found {len(modes)}\""
+        },
+        {
+          "find": "        assert \"argument-hint:\" in content",
+          "add_after": "\n\n\nclass TestActionFirstRules:\n    \"\"\"Behavioral: each action-first rule is present, so deleting one fails a test.\"\"\"\n\n    PATH = os.path.join(MODES_DIR, \"action-first.md\")\n\n    @pytest.mark.parametrize(\"phrase\", [\n        \"name: action-first\",\n        \"The first line is the answer, or the next action the user must take\",\n        \"One action per step\",\n        \"No tangents\",\n        \"Done: ... / Now: ... / Next: ...\",\n        \"Time estimates\",\n        \"Name the wins\",\n        \"Lists capped at 5\",\n        \"N more\",\n        \"No preamble, no recap, no closers\",\n        \"Bold the one thing not to miss\",\n        \"Never drop error output, security warnings, or destructive-action\",\n        \"Do this / Not this\",\n        \"### Question\",\n        \"### Task done\",\n        \"### Blocked\",\n        \"### Multi-step instructions\",\n    ])\n    def test_rule_present(self, phrase):\n        with open(self.PATH) as f:\n            content = f.read()\n        assert phrase in content, f\"action-first.md lost rule text: {phrase!r}\"\n\n    def test_mode_command_lists_action_first(self):\n        with open(os.path.join(COMMANDS_DIR, \"mode.md\")) as f:\n            content = f.read()\n        assert \"| `action-first` |\" in content\n        assert \"/mode action-first\" in content"
+        }
+      ]
+    },
+    {
+      "id": "step-4",
+      "description": "Add action-first to the canonical-tree mode name set",
+      "type": "code_edit",
+      "path": "tests/test_structure.py",
+      "edits": [
+        {
+          "find": "                      \"implementation\", \"orchestration\", \"review\"}",
+          "replace": "                      \"implementation\", \"orchestration\", \"review\", \"action-first\"}"
+        }
+      ]
+    },
+    {
+      "id": "step-5",
+      "description": "CHANGELOG entry for the action-first mode",
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "edits": [
+        {
+          "find": "## [Unreleased]\n",
+          "add_after": "- **New `action-first` behavioral mode.** `/mode action-first` leads every reply with\n  the answer or the next action, uses one-action numbered steps with rough time\n  estimates, caps lists at 5, and drops preamble and closers -- but never trims error\n  output, security warnings, or destructive-action confirmations. Inspired by the\n  MIT-licensed ayghri/i-have-adhd skill.\n"
+        }
+      ]
+    }
+  ]
+}

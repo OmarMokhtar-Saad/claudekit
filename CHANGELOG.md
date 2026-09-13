@@ -11,6 +11,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `open-source-forker` — never shipped and have been removed.
 
 ## [Unreleased]
+- **Action-first output across the kit.** `ck doctor` now ends with a one-line verdict
+  and the next step (e.g. ``FAIL 1/9 failed — next: run `ck init` ``); the detail still
+  streams live and exit codes are unchanged. The planner, verifier, code-reviewer and
+  debugger reports open with a `Next action:` line (code-reviewer and verifier also cap
+  top findings at 5); session context and resume briefings lead with `Done / Now / Next`;
+  plans give every phase a rough time estimate and a `Done when:` line.
+- **New `action-first` behavioral mode.** `/mode action-first` leads every reply with
+  the answer or the next action, uses one-action numbered steps with rough time
+  estimates, caps lists at 5, and drops preamble and closers -- but never trims error
+  output, security warnings, or destructive-action confirmations. Inspired by the
+  MIT-licensed ayghri/i-have-adhd skill.
 - **Agent memory was declared everywhere and worked nowhere.** Seven agents ship
   `memory: project`, but `install.sh` never created the
   `.claude/agent-memory/<agent>/` directories they read, and a missing memory file

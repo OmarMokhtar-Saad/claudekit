@@ -43,11 +43,11 @@ Write `.claude/session-context.md` with ALL required fields:
 ```markdown
 # Session Context
 **Saved:** <current ISO timestamp>
-**Project:** <project name>
+**Project:** <project name> · **Status:** <IN_PROGRESS|COMPLETE|BLOCKED>
 **Task:** <one-sentence description of active task>
-
-## Current Status
-<IN_PROGRESS|COMPLETE|BLOCKED>
+Done: <what finished, one line>
+Now: <what is in flight, one line>
+Next: <the single next action>
 
 ## What Was Done
 - <specific completed work with file paths>

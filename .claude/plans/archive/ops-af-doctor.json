@@ -1,0 +1,84 @@
+{
+  "plan": "action-first-rollout",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "src/claudekit/cli/main.py",
+      "description": "Doctor appends a verdict line from explicit fix_cmd declarations; output still streams",
+      "edits": [
+        {
+          "find": "def cmd_doctor(args):\n    \"\"\"Run health checks on the current ClaudeKit installation.\"\"\"",
+          "replace": "#: Platform-selected install command for the shellcheck warning. A hint naming both\n#: package managers is prose; a fix_cmd must be one runnable command or nothing.\n_SHELLCHECK_INSTALL = {\n    \"darwin\": \"brew install shellcheck\",\n    \"linux\": \"apt-get install shellcheck\",\n}\n\n\ndef _doctor_verdict(rc: int, tally: dict) -> str:\n    \"\"\"The closing line a reader can act on: state, count, and the next step.\n\n    The step is an explicit `fix_cmd` a check site declared -- never text scraped from\n    hint prose -- taken from the first failing check, else the first warning. A check\n    with no single unconditional command points at its detail line instead.\n    \"\"\"\n    applicable = tally.get(\"applicable\", 0)\n    failed, warned = tally.get(\"failed\", 0), tally.get(\"warned\", 0)\n\n    def step(key, marker):\n        cmd = tally.get(key)\n        return f\"run `{cmd}`\" if cmd else f\"fix the first {marker} line above\"\n\n    if failed:\n        return f\"FAIL {failed}/{applicable} failed — next: {step('first_fail_cmd', '[✗]')}\"\n    if tally.get(\"below_min_score\") is not None:\n        nxt = (step(\"first_warn_cmd\", \"[!]\") if warned\n               else \"lower --min-score (100 is the maximum)\")\n        return (f\"FAIL score {tally.get('score')}/100 below --min-score \"\n                f\"{tally['below_min_score']} — next: {nxt}\")\n    if warned:\n        state = \"FAIL\" if rc else \"WARN\"\n        return f\"{state} {warned}/{applicable} warned — next: {step('first_warn_cmd', '[!]')}\"\n    return f\"PASS {tally.get('passed', 0)}/{applicable} passed — next: nothing\"\n\n\ndef cmd_doctor(args) -> int:\n    \"\"\"Run health checks; the detail streams live, the verdict line closes the run.\n\n    Nothing is buffered: every existing line prints as its check runs, on the same\n    stream, and the exit code is `_doctor_checks`'s own. The verdict is the only new\n    line and it is the LAST line of stdout.\n    \"\"\"\n    tally: dict = {}\n    rc = _doctor_checks(args, tally)\n    print(_doctor_verdict(rc, tally))\n    return rc\n\n\ndef _doctor_checks(args, tally):\n    \"\"\"Run health checks on the current ClaudeKit installation.\"\"\""
+        },
+        {
+          "find": "    def check(name, condition, fix_hint=\"\"):",
+          "replace": "    def check(name, condition, fix_hint=\"\", fix_cmd=None):"
+        },
+        {
+          "find": "            warn(f\"{name} — {fix_hint}\")\n            checks_warned += 1\n",
+          "add_after": "            tally.setdefault(\"first_warn_cmd\", fix_cmd)\n"
+        },
+        {
+          "find": "            err(f\"{name} — {fix_hint}\")\n            checks_failed += 1\n",
+          "add_after": "            tally.setdefault(\"first_fail_cmd\", fix_cmd)\n"
+        },
+        {
+          "find": "\"locally; CI runs it regardless\")",
+          "replace": "\"locally; CI runs it regardless\",\n          fix_cmd=_SHELLCHECK_INSTALL.get(sys.platform))"
+        },
+        {
+          "find": "\"Run: claudekit init\")",
+          "replace": "\"Run: claudekit init\", fix_cmd=\"ck init\")"
+        },
+        {
+          "find": "f\"Not executable. Run: chmod +x {hook_path}\")",
+          "replace": "f\"Not executable. Run: chmod +x {hook_path}\",\n                          fix_cmd=f\"chmod +x {hook_path}\")"
+        },
+        {
+          "find": "\", \".join(unresolved)\n                      + \" - every tool call is blocked. Run: claudekit update\")",
+          "replace": "\", \".join(unresolved)\n                      + \" - every tool call is blocked. Run: claudekit update\",\n                      fix_cmd=\"ck update\")"
+        },
+        {
+          "find": "\", \".join(missing_helpers)\n                      + \" - every tool call is blocked. Run: claudekit update\")",
+          "replace": "\", \".join(missing_helpers)\n                      + \" - every tool call is blocked. Run: claudekit update\",\n                      fix_cmd=\"ck update\")"
+        },
+        {
+          "find": "    _applicable = checks_passed + checks_warned + checks_failed\n",
+          "add_after": "    tally.update(passed=checks_passed, warned=checks_warned,\n                 failed=checks_failed, applicable=_applicable, score=score)\n"
+        },
+        {
+          "find": "        err(f\"Readiness {score}/100 is below the required minimum of {min_score}.\")",
+          "add_before": "        tally[\"below_min_score\"] = min_score\n"
+        }
+      ]
+    },
+    {
+      "type": "file_create",
+      "path": "tests/test_doctor_verdict.py",
+      "content": "\"\"\"`ck doctor` closes with a one-line verdict and the next step to take.\n\nThe detail still streams live and unchanged (same lines, streams, exit codes); the\nverdict is appended as the last stdout line. The next step comes only from an explicit\n`fix_cmd=` at a check site, never from hint prose -- the regression test below parses\nmain.py so a prose fix_cmd cannot be added unnoticed.\n\"\"\"\nimport ast\nimport os\nimport re\nimport subprocess\nimport sys\nfrom pathlib import Path\n\nROOT = Path(__file__).resolve().parent.parent\nMAIN = ROOT / \"src\" / \"claudekit\" / \"cli\" / \"main.py\"\nsys.path.insert(0, str(ROOT / \"src\"))\n\nfrom claudekit.cli.main import _SHELLCHECK_INSTALL, _doctor_verdict  # noqa: E402\n\nVERDICT = re.compile(r\"^(PASS|WARN|FAIL) .+ — next: .+$\")\nRUNNABLE = (\"ck \", \"bash \", \"brew \", \"apt-get \", \"python3 \", \"pip \", \"chmod \", \"git \")\n\n\ndef ck(*args, cwd):\n    env = dict(os.environ, PYTHONPATH=str(ROOT / \"src\"), ECC_HOOK_PROFILE=\"minimal\")\n    return subprocess.run([sys.executable, \"-m\", \"claudekit.cli.main\", *args],\n                          capture_output=True, text=True, cwd=str(cwd), env=env,\n                          timeout=300)\n\n\ndef test_an_uninstalled_project_ends_with_a_fail_verdict_naming_ck_init(tmp_path):\n    result = ck(\"doctor\", cwd=tmp_path)\n    lines = result.stdout.splitlines()\n    assert result.returncode == 1, result.stdout + result.stderr\n    # Streaming is unchanged: the header still opens the output.\n    assert \"ClaudeKit Doctor v\" in next(ln for ln in lines if ln.strip()), result.stdout\n    assert VERDICT.match(lines[-1]), result.stdout\n    assert lines[-1].startswith(\"FAIL \"), lines[-1]\n    assert lines[-1].endswith(\"next: run `ck init`\"), lines[-1]\n\n\ndef test_a_floor_above_100_ends_with_fail_and_keeps_the_error_on_stderr(tmp_path):\n    result = ck(\"doctor\", \"--min-score\", \"101\", cwd=tmp_path)\n    assert result.returncode == 1\n    assert result.stdout.splitlines()[-1].startswith(\"FAIL \")\n    assert \"Some checks failed\" in result.stderr\n    assert \"Some checks failed\" not in result.stdout\n\n\ndef _fix_cmd_values():\n    tree = ast.parse(MAIN.read_text(encoding=\"utf-8\"))\n    for node in ast.walk(tree):\n        if isinstance(node, ast.Call) and getattr(node.func, \"id\", None) == \"check\":\n            for kw in node.keywords:\n                if kw.arg == \"fix_cmd\":\n                    yield node, kw.value\n\n\ndef test_every_fix_cmd_is_a_runnable_command_not_prose():\n    found = list(_fix_cmd_values())\n    assert len(found) >= 5, \"fix_cmd sites disappeared -- wrong parse?\"\n    for _, value in found:\n        if isinstance(value, ast.Constant):\n            literal = value.value\n        elif isinstance(value, ast.JoinedStr):\n            literal = value.values[0].value\n        elif (isinstance(value, ast.Call)\n              and ast.unparse(value.func) == \"_SHELLCHECK_INSTALL.get\"):\n            continue  # its values are checked below\n        else:\n            raise AssertionError(f\"unrecognised fix_cmd form: {ast.dump(value)}\")\n        assert isinstance(literal, str) and literal.startswith(RUNNABLE), literal\n    for cmd in _SHELLCHECK_INSTALL.values():\n        assert cmd.startswith(RUNNABLE), cmd\n\n\ndef test_conditional_and_non_command_hints_declare_no_fix_cmd():\n    names = {\"Install version drift\", \"Agent memory\"}\n    for node in ast.walk(ast.parse(MAIN.read_text(encoding=\"utf-8\"))):\n        if isinstance(node, ast.Call) and getattr(node.func, \"id\", None) == \"check\":\n            label = ast.unparse(node.args[0]) if node.args else \"\"\n            if any(n in label for n in names):\n                assert all(kw.arg != \"fix_cmd\" for kw in node.keywords), label\n\n\ndef test_the_verdict_uses_the_first_failure_command_else_points_at_the_line():\n    fail = {\"applicable\": 28, \"failed\": 2, \"warned\": 1, \"passed\": 25,\n            \"first_fail_cmd\": \"ck update\", \"first_warn_cmd\": \"brew install shellcheck\"}\n    assert _doctor_verdict(1, fail) == \"FAIL 2/28 failed — next: run `ck update`\"\n    fail[\"first_fail_cmd\"] = None\n    assert _doctor_verdict(1, fail) == \"FAIL 2/28 failed — next: fix the first [✗] line above\"\n    warn = {\"applicable\": 10, \"failed\": 0, \"warned\": 1, \"passed\": 9, \"first_warn_cmd\": None}\n    assert _doctor_verdict(0, warn) == \"WARN 1/10 warned — next: fix the first [!] line above\"\n    assert _doctor_verdict(1, warn).startswith(\"FAIL 1/10 warned\")\n    clean = {\"applicable\": 5, \"failed\": 0, \"warned\": 0, \"passed\": 5}\n    assert _doctor_verdict(0, clean) == \"PASS 5/5 passed — next: nothing\"\n",
+      "description": "Behavioral last-line tests in a tmp project + ast regression that fix_cmd is never prose"
+    },
+    {
+      "type": "code_edit",
+      "path": "docs/cli.md",
+      "description": "Document the closing verdict line",
+      "edits": [
+        {
+          "find": "Checks: Python version, Bash, Git, agents, commands, skills, hooks, registry integrity, config validity.\n",
+          "add_after": "\nThe last line is a verdict and the next step, e.g.\n``FAIL 1/9 failed — next: run `ck init` ``. The step is the command a failing check\ndeclares (`ck init`, `ck update`, `chmod +x ...`); a check with no single unconditional\ncommand points at its line instead. The streamed detail above it is unchanged.\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "description": "CHANGELOG [Unreleased] bullet",
+      "edits": [
+        {
+          "find": "## [Unreleased]\n",
+          "add_after": "- **Action-first output across the kit.** `ck doctor` now ends with a one-line verdict\n  and the next step (e.g. ``FAIL 1/9 failed — next: run `ck init` ``); the detail still\n  streams live and exit codes are unchanged. The planner, verifier, code-reviewer and\n  debugger reports open with a `Next action:` line (code-reviewer and verifier also cap\n  top findings at 5); session context and resume briefings lead with `Done / Now / Next`;\n  plans give every phase a rough time estimate and a `Done when:` line.\n"
+        }
+      ]
+    }
+  ]
+}
