@@ -1,0 +1,26 @@
+{
+  "plan": "ai-docs-skill-fit",
+  "description": "Tier 1 docs-only: record the skill-fit session in SESSION_STATE and CHANGELOG_AI.",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".ai/SESSION_STATE.md",
+      "edits": [
+        {
+          "find": "> Update this file at the end of every significant AI working session. It is the resume point.\n",
+          "replace": "> Update this file at the end of every significant AI working session. It is the resume point.\n**2026-09-13 · Claude (Opus 5) — `feat/skill-profiles`, merged as PR #42 (`c040ab5`).**\nPer-project skill fit. `ck skill audit` (stack detection, token cost, relevant /\nirrelevant / broken), `profile init` (project-owned `.claude/skills-profile.json`,\npreserved by install/update/fleet sync), `card [--publish]` to a user-level registry\n(`~/.claudekit/registry/cards/`), `match` (Jaccard; text-derived tags only; language-only\noverlap dropped unless `--include-language-only`), `apply [--restore]` (enforces `disabled`\nvia Claude Code `skillOverrides` in `settings.local.json`, docs verified via context7;\nprotected skills refuse the whole profile), doctor checks. Reviews: 94; 2-A 93; 2-B REJECT\n87 -> 91. Fleet: all 14 ops-script repos audited, cards published, `apply` hides 1-3\nchecklists (~54-154 always-on tokens each), profile committed (one commit per repo).\n**Open:** fleet runs the feature only via editable install of main (`.ck-main` holds an\nunpushed local merge from another session); `.claude/skills-applied.json` is not\ngitignored; ~22 skills per project exceed the body budget (the real token cost).\n\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".ai/CHANGELOG_AI.md",
+      "edits": [
+        {
+          "find": "## 2026-09-11 — approval gate binds `operations/<dir>/ops.json`; code review on request only\n",
+          "replace": "## 2026-09-13 — per-project skill fit (PR #42)\n\nOwner asked for skills that fit each project, fewer tokens, and sharing across the fleet.\nMVP (Tier 2, 94) then follow-ups split by risk: A tags + registry (93), B enforcement\n(Tier 3). B was first designed as frontmatter flipping with manifest-hash drift logic; the\nclaude-code-guide check found `skillOverrides`, which needs no skill-file edits, so B was\nreplanned — REJECT 87 (edit relied on an untouched `return 0`; semantics unverified) ->\nfixed, context7-verified -> 91. Fleet test drove two more fixes: cards inherited project\nstacks (stack-neutral skills matched at 1.0) and language-only overlap (22 suggestions per\nJava project -> 0). Each regression test was mutation-checked red.\n\n**Traps hit.** A planner memory note in the worktree reddened `doctor --strict`; an\nin-process `import claudekit` test tested the cached installed copy only under the full\nsuite; `INDEX.md` goes stale after every commit (regenerate post-commit); the zsh loop over\n`$P` did not word-split; the full suite was OOM-killed once (run in halves). The downstream\ncommit loop was denied by the auto-mode classifier twice; per-repo commits succeeded after\nthe owner's explicit instruction. PR merged while the CI test matrix was still pending.\n\n## 2026-09-11 — approval gate binds `operations/<dir>/ops.json`; code review on request only\n"
+        }
+      ]
+    }
+  ]
+}
