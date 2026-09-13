@@ -1,0 +1,15 @@
+{
+  "plan": ".claude/plans/plan-memory-scaffold-fleet.md",
+  "slug": "memory-scaffold-fleet-fix1",
+  "ops_path": ".claude/plans/plan-memory-scaffold-fleet-fix1.ops.json",
+  "ops_sha256": "8e5cd75336b3bf320037b6d8de988701ae76032682ae636bb0c05b66e1c4cc90",
+  "score": 93,
+  "decision": "APPROVED",
+  "findings": [],
+  "verdict_origin": "rubric",
+  "recorded_utc": "2026-09-13T07:26:38Z",
+  "operations": 2,
+  "edits": 2,
+  "rounds": [],
+  "round": 1
+}

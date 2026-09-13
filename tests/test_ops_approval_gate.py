@@ -320,3 +320,117 @@ class TestApprovalThresholdBoundary:
         proc = run_executor(project, config)
         assert proc.returncode == 0, proc.stdout + proc.stderr
         assert target_text(project) == PATCHED
+
+
+class TestOperationsDirectoryLayout:
+    """Configs stored as operations/<slug>/ops.json, a layout some downstream CLAUDE.md
+    files mandate. Keyed by filename, every such config shared the record 'ops'."""
+
+    @staticmethod
+    def _dir_config(project: Path, slug: str) -> Path:
+        (project / ".claude" / "plans" / f"plan-{slug}.md").write_text(
+            "# plan\n", encoding="utf-8")
+        config = project / "operations" / slug / "ops.json"
+        _write_ops(config, _ops_payload(plan=slug))
+        return config
+
+    def test_approved_directory_config_executes(self, project):
+        config = self._dir_config(project, "lens")
+        record(project, "lens", config, 95, "APPROVED")
+        proc = run_executor(project, config)
+        assert proc.returncode == 0, proc.stdout + proc.stderr
+        assert target_text(project) == PATCHED
+
+    def test_drifted_directory_config_refuses(self, project):
+        config = self._dir_config(project, "lens")
+        record(project, "lens", config, 95, "APPROVED")
+        payload = _ops_payload(plan="lens")
+        payload["operations"][0]["edits"][0]["replace"] = "VALUE = 1234"
+        _write_ops(config, payload)
+        proc = run_executor(project, config)
+        assert proc.returncode != 0, proc.stdout + proc.stderr
+        assert "DRIFT" in proc.stdout + proc.stderr
+        assert target_text(project) == ORIGINAL
+
+    def test_a_sibling_plans_record_is_not_this_configs_record(self, project):
+        """Before the fix plan beta resolved plan alpha's record (both keyed 'ops') and
+        was refused as DRIFT against alpha's hash, not as unreviewed."""
+        record(project, "alpha", self._dir_config(project, "alpha"), 95, "APPROVED")
+        unreviewed = self._dir_config(project, "beta")
+        proc = run_executor(project, unreviewed)
+        assert proc.returncode != 0, proc.stdout + proc.stderr
+        reason = result_json(proc.stdout)["reason"]
+        assert "no review record exists" in reason, reason
+        assert "slug 'beta'" in reason, reason
+        assert target_text(project) == ORIGINAL
+
+    def test_approving_a_prefixed_sibling_leaves_this_approval_valid(self, project):
+        """operations/alpha and operations/ops-alpha are two configs. Under a prefix strip
+        the second approval overwrote the first and alpha was refused as DRIFT."""
+        alpha = self._dir_config(project, "alpha")
+        record(project, "alpha", alpha, 95, "APPROVED")
+        sibling = self._dir_config(project, "ops-alpha")
+        record(project, "ops-alpha", sibling, 95, "APPROVED")
+        proc = run_executor(project, alpha)
+        assert proc.returncode == 0, proc.stdout + proc.stderr
+        assert target_text(project) == PATCHED
+
+    def test_a_plan_field_naming_an_approved_sibling_does_not_authorise(self, project):
+        """The executor also tries the config's stripped "plan" field. A sibling declaring
+        "plan": "alpha" reaches alpha's record, and the sha256 binding refuses it."""
+        record(project, "alpha", self._dir_config(project, "alpha"), 95, "APPROVED")
+        sibling = project / "operations" / "ops-alpha" / "ops.json"
+        payload = _ops_payload(plan="alpha")
+        payload["operations"][0]["edits"][0]["replace"] = "VALUE = 7"
+        _write_ops(sibling, payload)
+        proc = run_executor(project, sibling)
+        assert proc.returncode != 0, proc.stdout + proc.stderr
+        assert "DRIFT" in result_json(proc.stdout)["reason"]
+        assert target_text(project) == ORIGINAL
+
+    def test_a_directory_config_with_no_plan_field_is_still_gated(self, project):
+        """The gate must bind by the directory alone. Keyed by filename, an unreviewed
+        operations/lens/ops.json with no "plan" field looked up record 'ops', found none
+        applicable, and ran -- patching the target with no review at all."""
+        (project / ".claude" / "plans" / "plan-lens.md").write_text("# plan\n", encoding="utf-8")
+        config = project / "operations" / "lens" / "ops.json"
+        payload = _ops_payload(plan="lens")
+        del payload["plan"]
+        _write_ops(config, payload)
+        proc = run_executor(project, config)
+        assert proc.returncode != 0, proc.stdout + proc.stderr
+        reason = result_json(proc.stdout)["reason"]
+        assert "no review record exists" in reason, reason
+        assert "slug 'lens'" in reason, reason
+        assert target_text(project) == ORIGINAL
+
+    def test_recorder_and_executor_derive_the_same_key(self, tmp_path, monkeypatch):
+        """The two sides must agree for every form; this pins it on the real modules."""
+        import importlib.util
+
+        def load(name, path):
+            spec = importlib.util.spec_from_file_location(name, str(path))
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            return module
+
+        monkeypatch.syspath_prepend(str(EXECUTOR.parent))  # executor imports `shared`
+        recorder = load("_rr_key_parity", RECORDER)
+        executor = load("_ex_key_parity", EXECUTOR)
+        cases = {
+            ".claude/plans/plan-x.ops.json": "x", ".claude/plans/ops-x.json": "x",
+            ".claude/plans/x.ops.json": "x", ".claude/plans/x.json": "x",
+            # a directory name is VERBATIM: stripping it collapsed distinct configs
+            "operations/x/ops.json": "x", "operations/ops-x/ops.json": "ops-x",
+            "operations/plan-x/ops.json": "plan-x", "operations/ops-/ops.json": "ops-",
+            "operations/plan-/ops.json": "plan-", "operations/.x/ops.json": ".x",
+        }
+        for rel, expected in cases.items():
+            path = tmp_path / rel
+            assert recorder.ops_slug(path) == expected, rel
+            assert executor._approval_slugs(str(path), "")[0] == expected, rel
+        nested = tmp_path / "operations" / "y"
+        nested.mkdir(parents=True)
+        monkeypatch.chdir(nested)
+        assert recorder.ops_slug("ops.json") == "y"
+        assert executor._approval_slugs("ops.json", "")[0] == "y"

@@ -635,6 +635,187 @@ def cmd_list(args: argparse.Namespace) -> int:
     return 0
 
 
+
+# ----------------------------------------------------------------- distill ---
+# Distilling turns accumulated receipts into an agent's durable memory. The write
+# target is auto-injected into that agent's system prompt, so every rule below is
+# load-bearing, not ceremony.
+MEMORY_NAME = "MEMORY.md"
+DRAFT_SUFFIX = ".draft"
+MEMORY_LINE_CAP = 200  # Claude Code loads the first 200 lines / 25 KB, then truncates
+# Declared routing, never guessed. An unmapped origin lands on the default and says so.
+ORIGIN_TO_AGENT = {"code": "code-reviewer", "workflow": "planner", "project": "planner"}
+DEFAULT_AGENT = "planner"
+
+
+def _load_sanitizers():
+    """Load reflection.py's redaction rules by path.
+
+    REUSED, never re-implemented: a second copy of these regexes drifts from the
+    originals the first time either changes, and the copy that silently stops
+    matching is indistinguishable from one that never had to. Follows
+    review-record.py:380's loader exactly, including its BaseException guard --
+    exec_module runs another file's module-level code, and a future top-level
+    sys.exit() there raises SystemExit, which is not an Exception subclass.
+    """
+    import importlib.util
+    here = Path(__file__).resolve()
+    # ORDER MATTERS, and differs from review-record.py's on purpose. distill only ever
+    # operates on the project it is pointed at, so the TARGET PROJECT's reflection.py
+    # is the authority; resolving the script's own tree first made the installed copy
+    # shadow it, which silently disarmed every test that mutates the target's rules to
+    # prove they are live. The own-tree path stays as a fallback for an install whose
+    # hooks/ was not shipped, never as an override.
+    candidates = [project_root() / ".claude" / "hooks" / "reflection.py"]
+    if len(here.parents) >= 3:
+        candidates.append(here.parents[2] / "hooks" / "reflection.py")
+    path = next((c for c in candidates if c.is_file()), None)
+    if path is None:
+        return None
+    spec = importlib.util.spec_from_file_location("_ck_reflection_distill", path)
+    if spec is None or spec.loader is None:
+        return None
+    module = importlib.util.module_from_spec(spec)
+    try:
+        spec.loader.exec_module(module)
+    except BaseException:
+        return None
+    return module
+
+
+def _unsafe(text: str, san) -> str:
+    """Name what is still unsafe after redaction, or "" if the text is clean.
+
+    REFUSE, never redact-and-ship. A draft that quietly swallowed a secret is worse
+    than one that refused: the human reviewing it cannot see what was removed, so
+    they approve text they never read.
+    """
+    for attr, label in (("_ABSOLUTE_PATH", "an absolute path"),
+                        ("_SECRET", "a secret-shaped string"),
+                        ("_VENDOR_SECRET", "a vendor token")):
+        rx = getattr(san, attr, None)
+        if rx is not None and rx.search(text):
+            return label
+    checker = getattr(san, "looks_like_credential", None)
+    if callable(checker) and checker(text):
+        return "a credential-shaped string"
+    return ""
+
+
+def _normalize_signature(value: str) -> str:
+    """Grouping key: exact match after whitespace normalization. No fuzzy matching.
+
+    v1 is deliberately literal. A similarity threshold inside a system-prompt write
+    path is an unreviewed judgement call; two receipts that should have grouped and
+    did not are a pruning problem, which is cheap, while two that grouped and should
+    not have silently merge unrelated lessons, which is not.
+    """
+    return " ".join(value.split()).strip().lower()
+
+
+def cmd_distill(args: argparse.Namespace) -> int:
+    san = _load_sanitizers()
+    if san is None:
+        # FAIL CLOSED. An unloadable sanitizer must never mean "nothing to redact".
+        print("distill: REFUSED - could not load reflection.py's redaction rules; "
+              "refusing to draft unsanitized text into a system-prompt file.",
+              file=sys.stderr)
+        return 3
+
+    entries = []
+    for path in entry_paths(ledger_dir()):
+        meta = parse_entry(path)
+        # entry_status(), not a raw meta.get(): it maps an unrecognized status to
+        # MALFORMED_STATUS, which counts as UNFIXED. Reading a typo literally would
+        # drop a live finding out of distillation silently -- the same
+        # silent-retirement failure this file already learned from in prune.
+        if entry_status(meta) not in UNFIXED:
+            continue
+        if args.origin and meta.get("origin", DEFAULT_ORIGIN) != args.origin:
+            continue
+        entries.append((path, meta))
+    if not entries:
+        print("distill: nothing to do - no unfixed entries match.")
+        return 0
+
+    groups: Dict[str, List] = {}
+    for path, meta in entries:
+        key = _normalize_signature(meta.get("signature", ""))
+        if not key:
+            continue
+        groups.setdefault(key, []).append((path, meta))
+    if not groups:
+        print("distill: nothing to do - no entry carries a signature.")
+        return 0
+
+    agent = args.agent or ORIGIN_TO_AGENT.get(args.origin or "", DEFAULT_AGENT)
+    if not args.agent and args.origin not in ORIGIN_TO_AGENT:
+        print("distill: origin %r is unmapped; routing to %s"
+              % (args.origin, agent), file=sys.stderr)
+    if not SLUG_RE.match(agent):
+        print("distill: invalid agent name %r" % agent, file=sys.stderr)
+        return 2
+
+    root = project_root().resolve()
+    mem_root = (root / ".claude" / "agent-memory").resolve()
+    target = (mem_root / agent / MEMORY_NAME).resolve()
+    # Defence in depth. v1 derives no path component from receipt data -- the agent
+    # name comes from the closed routing table or an explicit flag, and the filename
+    # is fixed -- so this guards a future change reintroducing derived names, not a
+    # live hole today.
+    if mem_root not in target.parents:
+        print("distill: REFUSED - %s escapes %s" % (target, mem_root), file=sys.stderr)
+        return 2
+
+    existing = ""
+    if target.is_file():
+        try:
+            existing = target.read_text(encoding="utf-8")
+        except OSError:
+            existing = ""
+
+    blocks, consumed = [], []
+    for key in sorted(groups):
+        members = groups[key]
+        signature = members[0][1].get("signature", "").strip()
+        slugs = sorted(p.stem for p, _ in members)
+        body = "- **%s** (%d receipt%s: %s)" % (
+            signature, len(members), "" if len(members) == 1 else "s", ", ".join(slugs))
+        rendered = san.redact_secrets(body)
+        unsafe = _unsafe(rendered, san)
+        if unsafe:
+            print("distill: REFUSED - receipt %s still carries %s after redaction."
+                  % (slugs[0], unsafe), file=sys.stderr)
+            return 4
+        blocks.append(rendered)
+        consumed.extend(slugs)
+
+    draft_body = existing.rstrip("\n") + "\n" if existing.strip() else ""
+    draft_body += "\n".join(blocks) + "\n"
+    if len(draft_body.splitlines()) > MEMORY_LINE_CAP:
+        print("distill: REFUSED - the result would be %d lines, past the %d-line "
+              "truncation cliff. Prune %s first; past the cap Claude Code loads half "
+              "a memory the agent believes is whole."
+              % (len(draft_body.splitlines()), MEMORY_LINE_CAP, target),
+              file=sys.stderr)
+        return 5
+
+    draft = Path(str(target) + DRAFT_SUFFIX)
+    draft.parent.mkdir(parents=True, exist_ok=True)
+    draft.write_text(draft_body, encoding="utf-8")
+    print("DRAFT %s (%d group(s), %d receipt(s))" % (draft, len(blocks), len(consumed)))
+    print("--- draft ---")
+    print(draft_body, end="")
+    print("--- end ---")
+    print("%s is NOT modified. Review the draft, then move it yourself." % target.name)
+    # Deliberately NOT closed here. The draft is a proposal; closing its receipts now
+    # would destroy the source material for any draft the human discards or rewrites.
+    print("After accepting, close the receipts it consumed:")
+    for slug in consumed:
+        print("  knowledge-ledger.py close %s --reason 'distilled into %s memory'"
+              % (slug, agent))
+    return 0
+
 def cmd_prune(args: argparse.Namespace) -> int:
     root = project_root()
     directory = ledger_dir()
@@ -841,6 +1022,14 @@ def build_parser() -> argparse.ArgumentParser:
     propose.add_argument("--min-cluster", dest="min_cluster", type=int,
                          default=PROPOSAL_MIN_CLUSTER)
     propose.set_defaults(func=cmd_propose)
+
+    distill = sub.add_parser(
+        "distill", help="draft an agent memory entry from unfixed receipts")
+    distill.add_argument("--agent", default="",
+                         help="target agent (default: routed from --origin)")
+    distill.add_argument("--origin", default="", choices=("",) + ORIGINS,
+                         help="only distill receipts of this origin")
+    distill.set_defaults(func=cmd_distill)
 
     prune = sub.add_parser("prune", help="archive entries whose files no longer exist")
     prune.add_argument("--apply", action="store_true")

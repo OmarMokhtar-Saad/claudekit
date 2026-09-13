@@ -755,6 +755,67 @@ def cmd_doctor(args):
               f"ejected from v{_ej.get('ejected_from_version', '?')} "
               f"on {_ej.get('ejected_utc', '?')} — `ck update` re-adopts it")
 
+    # Agent memory: an agent declaring `memory: project` reads
+    # .claude/agent-memory/<agent>/MEMORY.md. A missing file is silence, not an
+    # error, so without this check the feature can be dead fleet-wide unnoticed.
+    _mem_agents = []
+    _agents_dir = claude_dir / "agents"
+    if _agents_dir.is_dir():
+        for _af in sorted(_agents_dir.glob("*.md")):
+            try:
+                if any(line.strip() == "memory: project"
+                       for line in _af.read_text(encoding="utf-8").splitlines()[:40]):
+                    _mem_agents.append(_af.stem)
+            except OSError:
+                continue
+    if not _mem_agents:
+        # A minimal install declares none. Reporting absence-by-design as a skip
+        # keeps it out of the passed count AND out of --strict.
+        check("Agent memory (no agent declares memory: project)", "skip",
+              "not applicable to this install")
+    else:
+        _have = [a for a in _mem_agents
+                 if (claude_dir / "agent-memory" / a / "MEMORY.md").is_file()]
+        _missing = [a for a in _mem_agents if a not in _have]
+        _oversize = []
+        for _a in _have:
+            _mf = claude_dir / "agent-memory" / _a / "MEMORY.md"
+            try:
+                if len(_mf.read_text(encoding="utf-8").splitlines()) > 200:
+                    _oversize.append(_a)
+            except OSError:
+                continue
+        if not _have:
+            # NOT ADOPTED. Zero agents served, whether .claude/agent-memory/ is
+            # absent, empty, or holds only the README -- all four shapes are
+            # functionally identical and none is a defect in an install that
+            # predates the scaffold. Reported exactly as a missing
+            # .claude/profiles/ is. Warning here reddened --strict on every
+            # pre-existing install INCLUDING this repo, whose agent-memory/ holds
+            # empty agent directories and no MEMORY.md at all -- so keying the
+            # skip on the directory's existence (revision 2) did not work.
+            check("Agent memory", "skip",
+                  f"no memory files yet for {len(_mem_agents)} declaring agent(s) — "
+                  f"this install predates the memory scaffold; re-run install.sh")
+        elif _missing:
+            # PARTIALLY ADOPTED: some agents are served and some are not. This is
+            # the genuine defect -- the scaffold was created, then drifted.
+            check(f"Agent memory: {len(_have)}/{len(_mem_agents)} "
+                  f"agents have a memory file", "warn",
+                  f"no MEMORY.md for: {', '.join(_missing)} — these agents declare "
+                  f"`memory: project` but have nowhere to read from, so nothing "
+                  f"accumulates; re-run install.sh to create the scaffold")
+        elif _oversize:
+            # Claude Code loads only the first 200 lines / 25 KB. Past that the
+            # agent silently reads half a memory it believes is whole.
+            check(f"Agent memory: {len(_oversize)} file(s) past the 200-line "
+                  f"truncation cliff", "warn",
+                  f"prune {', '.join(_oversize)} — Claude Code loads only the first "
+                  f"200 lines / 25 KB and truncates the rest silently")
+        else:
+            check(f"Agent memory: {len(_mem_agents)} agents, all with a readable "
+                  f"MEMORY.md", True)
+
     # Summary
     print(f"\n{'='*40}")
     total = checks_passed + checks_failed + checks_warned + checks_skipped

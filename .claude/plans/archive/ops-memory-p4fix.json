@@ -1,0 +1,21 @@
+{
+  "plan": "memory-scaffold-distill",
+  "operations": [
+    {
+      "id": "p4fix-test-fixtures",
+      "type": "code_edit",
+      "path": "tests/test_agent_memory_scaffold.py",
+      "description": "Tier 1 test-only fix: pass --yes so the reinstall tests can install twice, and stop using the word 'tokens' in a fixture signature (reflection.py's _SECRET matches it literally, so distill refused the receipt -- correct behaviour, bad test data).",
+      "edits": [
+        {
+          "find": "def _install(dest, mode=\"--full\"):\n    subprocess.run([\"git\", \"init\", \"-q\", \".\"], cwd=str(dest), check=True)\n    proc = subprocess.run([\"bash\", str(INSTALL), mode, \".\"], cwd=str(dest),\n                          capture_output=True, text=True, timeout=300, env=ENV)",
+          "replace": "def _install(dest, mode=\"--full\"):\n    \"\"\"Install into `dest`. `--yes` because install.sh refuses to overwrite an\n    existing .claude/ without it, and the idempotence test installs twice.\"\"\"\n    subprocess.run([\"git\", \"init\", \"-q\", \".\"], cwd=str(dest), check=True)\n    proc = subprocess.run([\"bash\", str(INSTALL), mode, \"--yes\", \".\"], cwd=str(dest),\n                          capture_output=True, text=True, timeout=300, env=ENV)"
+        },
+        {
+          "find": "        _receipt(root, \"r3\", \"assumed the shell splits tokens\")",
+          "replace": "        # NB: not \"tokens\" -- reflection.py's _SECRET matches that word literally,\n        # so the receipt would be refused (correctly) and this test would not be\n        # measuring grouping at all.\n        _receipt(root, \"r3\", \"assumed the shell splits arguments\")"
+        }
+      ]
+    }
+  ]
+}

@@ -428,3 +428,24 @@ def test_a_pattern_does_not_license_a_path_it_does_not_cover(tmp_path, label, to
     assert result.returncode == 1, f"{label}: {token} named {path}\n" + result.stdout
     assert "does not name" in result.stderr
 
+
+def test_a_directory_layout_config_resolves_to_the_plan_its_directory_names(tmp_path):
+    """`operations/<slug>/ops.json` keys by its directory, as review-record.py and the
+    executor do. Keyed by the bare filename it resolved no plan and passed with every
+    operation unchecked."""
+    plans = tmp_path / ".claude" / "plans"
+    plans.mkdir(parents=True)
+    (plans / "plan-lens.md").write_text("names nothing\n", encoding="utf-8")
+    # both directory names resolve_ops() tries for plan-lens.md: <slug> and <plan-stem>
+    for dirname in ("lens", "plan-lens"):
+        ops = tmp_path / "operations" / dirname / "ops.json"
+        ops.parent.mkdir(parents=True)
+        ops.write_text(
+            json.dumps({"operations": [{"type": "file_create", "path": "src/x.py",
+                                        "content": "y"}]}),
+            encoding="utf-8",
+        )
+        result = run(str(ops), cwd=tmp_path)
+        assert result.returncode == 1, dirname + result.stdout + result.stderr
+        assert "src/x.py" in result.stderr, dirname
+
