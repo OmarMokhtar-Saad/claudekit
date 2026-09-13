@@ -1,0 +1,15 @@
+{
+  "plan": ".claude/plans/plan-skill-slim-wave1.md",
+  "slug": "skill-slim-wave1-2-context-keeper",
+  "ops_path": ".claude/plans/ops-skill-slim-wave1-2-context-keeper.json",
+  "ops_sha256": "fb1e6d7f05d92bb1949052b136cddd9efc3ba9d40a646d151a1be4eb86c37ab8",
+  "score": 93,
+  "decision": "APPROVED",
+  "findings": [],
+  "verdict_origin": "rubric",
+  "recorded_utc": "2026-09-13T20:36:47Z",
+  "operations": 4,
+  "edits": 11,
+  "rounds": [],
+  "round": 1
+}

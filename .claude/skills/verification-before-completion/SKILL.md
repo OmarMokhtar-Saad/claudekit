@@ -16,23 +16,9 @@ This is non-negotiable. No exceptions. No shortcuts.
 
 ## The Gate Function
 
-Every completion claim must pass through this gate:
-
-```
-[IDENTIFY] What needs to be verified?
-    |
-    v
-[RUN] Execute verification commands
-    |
-    v
-[READ] Read the FULL output (not just exit code)
-    |
-    v
-[VERIFY] Confirm the output matches expectations
-    |
-    v
-[CLAIM] Only now may you claim success
-```
+Every completion claim must pass through this gate, in order:
+IDENTIFY -> RUN -> READ -> VERIFY -> REFUTE -> CLAIM.
+Read [references/gate-and-traps.md](references/gate-and-traps.md) when you want the gate diagram, the rationalization traps in full, or the single-claim report template.
 
 ### Step 1: IDENTIFY
 
@@ -122,57 +108,11 @@ If you catch yourself thinking any of these, STOP:
 | "I'll run the tests after I finish everything" | Run them now, after each meaningful change |
 | "The user can run the tests" | Verification is YOUR responsibility |
 
----
 
-## Rationalization Prevention
-
-### The "Obviously Works" Trap
-
-You see simple code and think: "This clearly works, no need to test."
-
-**Reality:** The most confident claims of correctness are the most likely to be wrong. Confidence is not evidence.
-
-### The "Same as Before" Trap
-
-You think: "I made the same kind of change earlier and it worked."
-
-**Reality:** Context matters. The same pattern in a different file may have different dependencies, edge cases, or interactions.
-
-### The "Tests Are Slow" Trap
-
-You think: "Running the full suite takes too long, I'll skip it."
-
-**Reality:** Run at minimum the targeted tests. A partial verification is better than none. But note in your report that you ran a subset.
-
-### The "I Checked the Diff" Trap
-
-You think: "The diff looks correct, so it works."
-
-**Reality:** Diffs show what changed, not whether the change is correct. Only execution reveals runtime behavior.
-
----
-
-## Verification Report Format
-
-When reporting verification results:
-
-```
-## Verification Results
-
-### Command Run
-[exact command]
-
-### Output Summary
-- Tests: [X passed, Y failed, Z skipped]
-- Build: [SUCCESS / FAILED]
-- Warnings: [count]
-
-### Full Output
-[include relevant output, not just summary]
-
-### Verdict
-[PASS / FAIL with explanation]
-```
+**Rationalization traps** ("Obviously Works", "Same as Before", "Tests Are Slow",
+"I Checked the Diff"): confidence is not evidence, and diffs show what changed, not
+whether it works. If the full suite is too slow, run at minimum the targeted tests and
+note in your report that you ran a subset.
 
 ---
 
@@ -194,268 +134,18 @@ In these cases:
 
 # The Runbook (merged from `verification-loop`)
 
-Everything above is the discipline: no completion claim without executed evidence.
-This half is the executable form of it -- a six-phase gate with the actual commands
-per ecosystem. Neither half stands alone: the discipline without the commands is
-unactionable, and the commands without the discipline are skippable. Merged from the
-`verification-loop` skill, which is gone; the name resolves here through the registry
-`renamed` alias map.
-
-**Run this skill:** in full, after completing a feature or significant change,
-before creating a PR, after a refactoring session, or on the 15-minute cadence in
-Continuous Mode below. Each phase must pass before the next begins; a failure halts
-and reports rather than continuing.
-
-## The Six Phases
-
-```
-[Phase 1] BUILD VERIFICATION
-    |
-    v
-[Phase 2] TYPE CHECKING
-    |
-    v
-[Phase 3] LINTING
-    |
-    v
-[Phase 4] TEST SUITE + COVERAGE
-    |
-    v
-[Phase 5] SECURITY SCAN
-    |
-    v
-[Phase 6] DIFF REVIEW
-```
-
-Each phase must pass before the next begins. A failure in any phase halts and reports the issue.
-
----
-
-## Phase 1: Build Verification
-
-Ensure the project compiles successfully:
-
-```bash
-# Detect build system and run
-if [ -f "package.json" ]; then
-    npm run build 2>&1 | tail -20
-elif [ -f "pyproject.toml" ] || [ -f "setup.py" ]; then
-    python3 -m py_compile $(find src/ -name "*.py" | head -20) && echo "Syntax OK"
-elif [ -f "Cargo.toml" ]; then
-    cargo build 2>&1 | tail -20
-elif [ -f "go.mod" ]; then
-    go build ./... 2>&1 | tail -20
-elif [ -f "pom.xml" ]; then
-    mvn compile -q 2>&1 | tail -20
-fi
-```
-
-**Pass criteria:** Exit code 0, no compilation errors.
-**On failure:** Report exact error, stop. Do not proceed to Phase 2.
-
----
-
-## Phase 2: Type Checking
-
-Validate type safety:
-
-```bash
-# TypeScript
-if [ -f "tsconfig.json" ]; then
-    npx tsc --noEmit 2>&1 | head -30
-fi
-
-# Python (mypy)
-if [ -f "mypy.ini" ] || grep -q "mypy" pyproject.toml 2>/dev/null; then
-    python3 -m mypy src/ --ignore-missing-imports 2>&1 | tail -20
-fi
-
-# Go (built into compiler)
-# Rust (built into cargo)
-```
-
-**Pass criteria:** Zero type errors.
-**Warnings:** Flag but don't fail the loop.
-
----
-
-## Phase 3: Linting
-
-Check code style compliance:
-
-```bash
-# JavaScript/TypeScript
-if [ -f ".eslintrc*" ] || [ -f "eslint.config*" ]; then
-    npx eslint src/ --max-warnings 0 2>&1 | tail -30
-fi
-
-# Python
-if command -v flake8 &>/dev/null; then
-    python3 -m flake8 src/ --count --statistics 2>&1 | tail -20
-elif command -v ruff &>/dev/null; then
-    ruff check src/ 2>&1 | tail -20
-fi
-
-# Go
-if [ -f "go.mod" ]; then
-    gofmt -l . | head -10
-fi
-```
-
-**Pass criteria:** Zero errors. Warnings flagged but non-blocking.
-
----
-
-## Phase 4: Test Suite + Coverage
-
-Run tests and measure coverage:
-
-```bash
-# Node.js/TypeScript
-if grep -q '"test"' package.json 2>/dev/null; then
-    npm test -- --coverage 2>&1 | tail -30
-fi
-
-# Python
-if [ -f "pytest.ini" ] || grep -q "pytest" pyproject.toml 2>/dev/null; then
-    python3 -m pytest --tb=short --cov=src --cov-report=term-missing -q 2>&1 | tail -30
-fi
-
-# Go
-if [ -f "go.mod" ]; then
-    go test ./... -cover 2>&1 | tail -20
-fi
-
-# Rust
-if [ -f "Cargo.toml" ]; then
-    cargo test 2>&1 | tail -20
-fi
-```
-
-**Pass criteria:**
-- All tests pass (0 failures)
-- Coverage >= 70% (warn if below 80%)
-- No new test files removed or skipped
-
----
-
-## Phase 5: Security Scan
-
-Detect common security issues:
-
-```bash
-# Check for hardcoded secrets (fast, no tools needed)
-echo "=== Scanning for potential secrets ==="
-git diff HEAD --unified=0 | grep "^+" | grep -iE \
-    '(api[_-]?key|secret|password|token|credential)["\s]*[:=]["\s]*[A-Za-z0-9+/]{10,}' \
-    | grep -v "example\|placeholder\|test\|fake\|dummy\|REDACTED" | head -10
-
-# Check for debug statements left in code
-echo "=== Debug statements ==="
-git diff HEAD --name-only | xargs grep -ln "console\.log\|debugger\|import pdb\|breakpoint()" 2>/dev/null | head -10
-
-# Python security scan
-if command -v bandit &>/dev/null; then
-    bandit -r src/ -ll -q 2>&1 | tail -20
-fi
-
-# Node.js: check for known vulnerable packages
-if [ -f "package-lock.json" ]; then
-    npm audit --audit-level=high 2>&1 | tail -15
-fi
-```
-
-**Pass criteria:**
-- No hardcoded secrets detected
-- No debug statements in non-test code
-- No high/critical npm audit findings
-- No high-severity bandit findings
-
----
-
-## Phase 6: Diff Review
-
-Examine the actual changes for intent vs. reality mismatches:
-
-```bash
-# Show a summary of all changed files
-echo "=== Changed Files ==="
-git diff HEAD --stat
-
-echo "=== Unintended Changes? ==="
-git diff HEAD --name-only | while read file; do
-    echo "  $file: $(git diff HEAD -- "$file" | grep "^+" | wc -l) additions, $(git diff HEAD -- "$file" | grep "^-" | wc -l) deletions"
-done
-```
-
-**Manual review checklist:**
-- [ ] All changed files were intentionally modified
-- [ ] No unrelated files accidentally modified
-- [ ] No large binary files added unexpectedly
-- [ ] No `.env` or credential files staged
-- [ ] No commented-out code blocks left behind
-- [ ] No TODO/FIXME introduced that should be resolved before merge
-
----
-
-## Verification Report
-
-After all phases, produce:
-
-```
-## Verification Loop Report
-
-### Status: PASS / WARN / FAIL
-
-Phase 1 — Build:        [PASS | FAIL: <error>]
-Phase 2 — Types:        [PASS | N errors]
-Phase 3 — Lint:         [PASS | N errors, N warnings]
-Phase 4 — Tests:        [PASS | N failed — Coverage: XX%]
-Phase 5 — Security:     [PASS | N issues]
-Phase 6 — Diff Review:  [PASS | Issues: <list>]
-
-### Issues Requiring Action
-[Only listed if status is WARN or FAIL]
-1. [CRITICAL/MAJOR/MINOR] Description — File:Line
-
-### PR Readiness
-[READY TO MERGE / FIX REQUIRED / NEEDS DISCUSSION]
-```
-
----
-
-## Continuous Mode
-
-For extended development sessions, run the verification loop automatically every 15 minutes:
-
-```bash
-# Run in background, output to .claude/hooks/hooks.log
-while true; do
-    sleep 900
-    bash .claude/verify-loop.sh >> .claude/hooks/hooks.log 2>&1
-    echo "[$(date '+%H:%M')] Verification checkpoint complete"
-done &
-```
-
-This catches regressions early while you work, rather than discovering them at PR time.
-
----
-
-## Integration with PostToolUse Hook
-
-The verification loop can be triggered automatically after significant edits:
-
-```json
-{
-  "PostToolUse": [{
-    "matcher": "Edit|Write",
-    "hooks": [{
-      "type": "command",
-      "command": "bash -c 'bash .claude/hooks/quick-verify.sh &'"
-    }]
-  }]
-}
-```
-
-A "quick-verify" runs only Phase 1 (build) and Phase 2 (types) — the fastest signal that something is broken.
-
+The executable form of the discipline above: a six-phase gate. Run it in full after
+a feature or significant change, before creating a PR, and after a refactoring
+session. Each phase must pass before the next begins; a failure halts and reports
+rather than continuing.
+
+| Phase | Pass criteria |
+|---|---|
+| 1. Build | Exit code 0, no compilation errors; on failure stop |
+| 2. Types | Zero type errors (warnings flagged, not failing) |
+| 3. Lint | Zero errors (warnings flagged, non-blocking) |
+| 4. Tests + coverage | 0 failures; coverage >= 70% (warn below 80%); no tests removed or skipped |
+| 5. Security | No hardcoded secrets, no debug statements in non-test code, no high/critical audit findings |
+| 6. Diff review | Every changed file intentional; no `.env`/credentials, stray binaries, commented-out code, or new TODO/FIXME |
+
+Read [references/runbook.md](references/runbook.md) when you execute the runbook -- it carries the per-ecosystem commands for every phase, the Verification Loop Report template, Continuous Mode, and the PostToolUse quick-verify hook.
