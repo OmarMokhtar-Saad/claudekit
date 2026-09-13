@@ -6,6 +6,8 @@ Move a config here when it is **spent** (already executed — anchors consumed b
 
 | File | Why archived |
 |---|---|
+| `ops-memory-routing.json` | Spent — distill routes to any agent declaring `memory: project`, executed 2026-09-13. |
+| `ops-memory-routing-tests.json` | Spent — tests pinning the widened routing, executed 2026-09-13. |
 | `ops-memory-p1fix.json` | Spent — the reinstall data-loss fix (stubs after preservation; MEMORY.md always-custom), executed 2026-09-13 (approved 94). |
 | `ops-memory-lint.json` | Spent — ruff/mypy fixes on the Phase 3/4 additions, executed 2026-09-13. |
 | `ops-memory-scaffold-distill.json` | Spent — Phase 3 `distill` + Phase 4 behavioural tests, executed 2026-09-13 (approved 94). |
