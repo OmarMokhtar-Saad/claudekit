@@ -1,0 +1,17 @@
+{
+  "plan": "mode-md-trim",
+  "operations": [
+    {
+      "id": "step-1",
+      "description": "Merge the Task section's two paragraphs into one",
+      "type": "code_edit",
+      "path": ".claude/commands/mode.md",
+      "edits": [
+        {
+          "find": "Activate **$ARGUMENTS** mode.\n\nLoad and apply",
+          "replace": "Activate **$ARGUMENTS** mode: load and apply"
+        }
+      ]
+    }
+  ]
+}
