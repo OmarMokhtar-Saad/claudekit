@@ -335,12 +335,17 @@ def _stale_alias_references(claude_dir, old_name, own_path):
     anything.
     """
     stale = []
+    # A skill is its directory: SKILL.md plus the on-demand `references/*.md` it links.
+    # The seam prose ("merged from X") moves into references/ with its section, so the
+    # replacement's own references/ is the same asset -- and still nothing wider.
+    own_refs = (own_path.parent / "references"
+                if own_path is not None and own_path.name == "SKILL.md" else None)
     for sub in ("agents", "commands", "skills"):
         base = claude_dir / sub
         if not base.is_dir():
             continue
         for path in base.rglob("*.md"):
-            if path == own_path:
+            if path == own_path or (own_refs is not None and path.parent == own_refs):
                 continue
             # A COMMAND may legitimately keep the name of a merged-away AGENT: task 008
             # batch 3 cluster 4 merged the `doc-updater` agent away while `/doc-updater`

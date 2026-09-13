@@ -15,6 +15,9 @@ import pytest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SKILL = ".claude/skills/context-budget/SKILL.md"
+#: The skill-slim wave moved the harness workflow into references/ that SKILL.md links;
+#: the union must survive in what the skill ships, so both are read.
+REFERENCES = ".claude/skills/context-budget/references"
 
 UNION = [
     '- ALWAYS maintain cross-platform compatibility (macOS/Linux/WSL)',
@@ -68,7 +71,9 @@ class TestTheFinalFold:
 
     @pytest.mark.parametrize("fragment", UNION)
     def test_the_union_survived(self, fragment):
-        assert fragment in _read(SKILL), fragment
+        refs = sorted(os.listdir(os.path.join(ROOT, REFERENCES)))
+        text = "\n".join([_read(SKILL)] + [_read(REFERENCES + "/" + n) for n in refs])
+        assert fragment in text, fragment
 
     def test_the_command_still_reaches_the_workflow(self):
         """/context-budget loads this skill; if it did not, the audit workflow would

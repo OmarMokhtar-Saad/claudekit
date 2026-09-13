@@ -232,6 +232,14 @@ if [[ "$MODE" == "full" ]]; then
             skill_name=$(basename "$skill_dir")
             mkdir -p "$DEST/skills/$skill_name"
             cp "$skill_dir"*.md "$DEST/skills/$skill_name/" 2>/dev/null || true
+            # Progressive disclosure: SKILL.md links references/*.md it loads on
+            # demand. The *.md glob above is one level deep, so without this the
+            # directory was dropped and every "Read references/X.md" pointed at nothing.
+            if [[ -d "${skill_dir}references" ]]; then
+                mkdir -p "$DEST/skills/$skill_name/references"
+                cp "${skill_dir}references/"*.md "$DEST/skills/$skill_name/references/" \
+                    2>/dev/null || true
+            fi
         fi
     done
 

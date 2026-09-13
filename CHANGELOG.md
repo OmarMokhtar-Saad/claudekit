@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `open-source-forker` — never shipped and have been removed.
 
 ## [Unreleased]
+- **Six oversized skills slimmed (wave 1): 18.9K -> 6.5K SKILL.md body tokens.**
+  `context-keeper`, `incident-response`, `autonomous-loop`, `context-budget`,
+  `verification-before-completion` and `supply-chain-audit` now keep their rules, hard
+  gates and decision tables in SKILL.md and move templates, runbook commands and long
+  checklists verbatim into `references/*.md`, which SKILL.md tells the model when to
+  read. No rule was removed. `install.sh` now copies a skill's `references/`
+  directory; before, it copied only top-level `*.md` files.
 - **`ck skill match` ignores language-only overlap.** A card that shares only a base
   language with the project is no longer suggested (`--include-language-only` keeps it).
 - **`ck skill card` / `match` -- less noise.** Cards and matching now use only the

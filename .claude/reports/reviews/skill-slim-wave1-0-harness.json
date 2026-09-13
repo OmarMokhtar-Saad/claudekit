@@ -1,0 +1,15 @@
+{
+  "plan": ".claude/plans/plan-skill-slim-wave1.md",
+  "slug": "skill-slim-wave1-0-harness",
+  "ops_path": ".claude/plans/ops-skill-slim-wave1-0-harness.json",
+  "ops_sha256": "ae3115ecedc06ca27d38c47de96646b3d6ab9373e659dc8471aa0c3ba6ae826f",
+  "score": 93,
+  "decision": "APPROVED",
+  "findings": [],
+  "verdict_origin": "rubric",
+  "recorded_utc": "2026-09-13T20:36:46Z",
+  "operations": 4,
+  "edits": 11,
+  "rounds": [],
+  "round": 1
+}
