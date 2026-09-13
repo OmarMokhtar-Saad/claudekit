@@ -1,0 +1,17 @@
+{
+  "plan": "changelog-ai-action-first",
+  "operations": [
+    {
+      "id": "step-1",
+      "description": "AI session log entry for the action-first session",
+      "type": "code_edit",
+      "path": ".ai/CHANGELOG_AI.md",
+      "edits": [
+        {
+          "find": "Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` \u2014 this file tracks the *work sessions* themselves.)\n",
+          "add_after": "\n## 2026-09-13 \u2014 action-first output across the kit and fleet\n\nInspired by ayghri/i-have-adhd (MIT; wording original). Commits `5896e9f` (mode, tests,\n`/mode` row), `a48d750` (agent report / session / plan templates), `7ecb91a` (`ck doctor`\nverdict line), merged `7259c19` on local main (only conflict: generated plan INDEX,\nregenerated). Tier 2 for prompts (no reviewer), reviewer for the doctor phase: REVISE 83 ->\nAPPROVED 93. Gates on merge: ruff, mypy, gen-docs/registry/model-policy, context floor, plan\nartifacts, corpus lint, 247 targeted tests. Traps hit: the editable install resolves to\n`.ck-main`, so run worktree CLI checks with `PYTHONPATH=src`; committing plan files flips\ntheir INDEX status (regen after commit); another session reverted fleet `mode.md` mid-run.\nFollow-ups: full suite on merged main, push (owner), optional code review of the merge.\n"
+        }
+      ]
+    }
+  ]
+}

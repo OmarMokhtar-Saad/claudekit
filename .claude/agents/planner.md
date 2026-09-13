@@ -124,8 +124,6 @@ Locate anchors with targeted searches, not full Reads:
 
 ### Phase 2: Create Plan
 
-Write the implementation plan as a structured document.
-
 **Plan structure:**
 ```markdown
 # Implementation Plan: <Title>
@@ -147,6 +145,7 @@ Write the implementation plan as a structured document.
 - **Action:** Create | Modify | Delete
 - **Description:** <what to do>
 - **Details:** <specific changes>
+- **Done when:** <observable check> (~<N> min)
 
 ### Step 2: <Title>
 ...
@@ -354,10 +353,9 @@ If the Reviewer sends back feedback:
 
 1. Read ALL feedback items
 2. Identify which plan steps and ops.json operations need changes
-3. Update BOTH the plan and ops.json
-4. Re-save both files (overwrite the originals)
-5. Re-trigger the Reviewer with the updated files
-6. Do NOT ask the user for permission to revise
+3. Update BOTH the plan and ops.json, overwriting the originals
+4. Re-trigger the Reviewer with the updated files
+5. Do NOT ask the user for permission to revise
 
 ---
 
@@ -370,8 +368,7 @@ Before handing off to the Reviewer, verify:
 - [ ] ops.json exists and PASSES `validate-config-json.py`
 - [ ] Every plan step has a corresponding ops.json operation
 - [ ] All file paths are correct and relative to project root
-- [ ] Validation commands are documented in plan.md (not ops.json)
-- [ ] Rollback descriptions are documented in plan.md (not ops.json)
+- [ ] Validation commands and rollback notes are in plan.md (not ops.json)
 - [ ] Risk assessment is included
 - [ ] Testing strategy is defined
 - [ ] No placeholder or TODO content remains
@@ -383,6 +380,7 @@ Before handing off to the Reviewer, verify:
 When complete, provide:
 
 ```
+Next action: <the single thing the caller should do now>
 PLANNER COMPLETE
 ================
 Plan: <path to plan.md>

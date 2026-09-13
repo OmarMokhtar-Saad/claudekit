@@ -15,6 +15,56 @@ checklists (~54-154 always-on tokens each), profile committed (one commit per re
 unpushed local merge from another session); `.claude/skills-applied.json` is not
 gitignored; ~22 skills per project exceed the body budget (the real token cost).
 
+**2026-09-13 · Claude (Opus 5) — `feat/action-first-mode`, merged to local main `7259c19`.**
+Owner asked to adopt ideas from ayghri/i-have-adhd (MIT) across the kit and fleet. Shipped
+original-wording `action-first` mode (`/mode action-first`), `Next action:` lines in
+planner/verifier/code-reviewer/debugger reports (summaries capped at 5, parsed blocks
+untouched), Done/Now/Next session context, per-phase estimates + "Done when:" in plans, and a
+final `ck doctor` verdict line with explicit per-check `fix_cmd`. Doctor plan: REVISE 83
+(backtick scraping printed `memory: project` as a command; buffering hid output on a hang)
+-> APPROVED 93 (streaming kept, AST test pins fix_cmd). A-C and D ran `--no-approval`
+(verdict unrecorded) — disclosed in archive README. `mode.md` trimmed to stay in its
+47-line command-budget ratchet (baseline raise was classifier-denied). Branch suite:
+11193 passed; plan-index drift after commit regenerated. **Fleet:** 10 files committed in all
+14 ops-script repos (1 file in the four that gitignore `.claude/` parts). **Open:** full
+suite on merged main not run (classifier: merge without review); push main + fleet commits
+owner-gated; hook stderr messages intentionally left out of the action-first pass.
+
+
+**2026-09-13 · Claude (Opus 5) — `feat/memory-scaffold-fleet`, merged and pushed (`27ceff5`).**
+Agent memory was declared everywhere and worked nowhere: 7 agents ship `memory: project`,
+`install.sh` never created the directories they read, and a missing memory file is silence
+rather than an error — across 15 kitted repos the total number of `MEMORY.md` files was **3**.
+Fixed the installer (list DERIVED from installed agent files), added the `ck doctor` check
+that would have caught it, and added `knowledge-ledger.py distill`. Fleet: **3 -> 98** memory
+files; AppiumLens and qa-agents now carry curated content (15 and 82 receipts hand-clustered
+into 3 and 6 lessons). claudekit got its own memory, which the installer never creates because
+it only scaffolds *targets*.
+
+**Two bugs I shipped and the suite caught, both worth remembering.** (1) The scaffold ran
+*before* `preserve_assets.py`, so its stub occupied the path preservation restores into and a
+reinstall replaced real memory with an empty stub. Reordering was necessary but NOT sufficient
+— a manifest written by the buggy build listed `MEMORY.md` as kit-owned, so ownership is now
+decided by PATH (`preserve_assets.ALWAYS_CUSTOM_*`), never by a manifest a previous build got
+wrong. Controls measured both ways. (2) My idempotence proof re-ran `install.sh` without
+`--yes`; the second run exited non-zero and never installed, so the check measured nothing.
+Same class as two mutation tests that loaded the wrong `reflection.py`. Recorded in
+`.claude/agent-memory/planner/a-green-check-can-measure-nothing.md`.
+
+**Negative result, recorded not buried:** `--similarity` (Jaccard + complete linkage) does not
+work. On qa-agents' 82 receipts it merges nothing at 55% and merges unrelated lessons at 10%,
+against a hand-clustering of 6 covering 73. No threshold is both useful and correct. Kept
+opt-in/default-off with its safety machinery and the measurement table; hand-clustering is the
+real workflow. `plan-memory-maturity.md` carries the table.
+
+Also: `.claude/worktrees/` now ignored AND excluded from the residue scanner (gitignore alone
+is insufficient — the scanner walks the filesystem), after a concurrent session's worktrees
+reddened the gate on a branch that touched no scanned file.
+
+**Open:** 97 receipts still `open` (15 AppiumLens, 82 qa-agents) — distilled, closing is the
+owner's; downstream changes uncommitted in 14 repos; no proof an agent *behaves* differently
+with memory (the contract test pins structure only, named accordingly); archiving a spent
+ops.json is still a manual step that failed the queued-ops gate three times this session.
 **2026-09-11 · Claude (Opus 5) — `fix/approval-gate-ops-dir-layout` + `chore/code-review-on-request`.**
 Triggered by AppiumLens: a reviewer approved a plan 92/100 and the executor still refused.
 Two causes, both verified by execution. (1) Configs stored as `operations/<dir>/ops.json`

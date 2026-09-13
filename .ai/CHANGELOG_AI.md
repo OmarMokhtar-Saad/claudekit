@@ -20,6 +20,38 @@ suite; `INDEX.md` goes stale after every commit (regenerate post-commit); the zs
 commit loop was denied by the auto-mode classifier twice; per-repo commits succeeded after
 the owner's explicit instruction. PR merged while the CI test matrix was still pending.
 
+## 2026-09-13 — action-first output across the kit and fleet
+
+Inspired by ayghri/i-have-adhd (MIT; wording original). Commits `5896e9f` (mode, tests,
+`/mode` row), `a48d750` (agent report / session / plan templates), `7ecb91a` (`ck doctor`
+verdict line), merged `7259c19` on local main (only conflict: generated plan INDEX,
+regenerated). Tier 2 for prompts (no reviewer), reviewer for the doctor phase: REVISE 83 ->
+APPROVED 93. Gates on merge: ruff, mypy, gen-docs/registry/model-policy, context floor, plan
+artifacts, corpus lint, 247 targeted tests. Traps hit: the editable install resolves to
+`.ck-main`, so run worktree CLI checks with `PYTHONPATH=src`; committing plan files flips
+their INDEX status (regen after commit); another session reverted fleet `mode.md` mid-run.
+Follow-ups: full suite on merged main, push (owner), optional code review of the merge.
+
+## 2026-09-13 — agent memory actually accumulates; a shipped data-loss bug; a negative result
+
+Seven agents declare `memory: project`; `install.sh` never created their directories. Across
+15 kitted repos there were 3 `MEMORY.md` files total. Installer now scaffolds them (derived
+list, never overwrites), `ck doctor` gates them (skip when zero agents served, warn on partial
+adoption, warn at 160 lines before truncation), and `distill` drafts entries from receipts —
+draft-only, reusing `reflection.py`'s redaction rules by path, refusing rather than
+redacting-and-shipping, failing closed when the sanitiser will not load.
+
+The first cut destroyed accumulated memory on every reinstall: the stub occupied the path
+`preserve_assets.py` restores into. Reordering alone did not fix the transition case; ownership
+of `agent-memory/<agent>/MEMORY.md` is now decided by path, not by a manifest. Both directions
+measured. Fleet 3 -> 98 files, three pre-existing files byte-identical throughout.
+
+`--similarity` clustering was built, measured against a real 82-receipt corpus, and found not
+to work at any threshold. Kept opt-in with the table that proves it, so it is not rebuilt.
+
+Follow-ups: 97 open receipts; downstream uncommitted; no behavioural proof of injection;
+spent-ops archiving is still manual.
+
 ## 2026-09-11 — approval gate binds `operations/<dir>/ops.json`; code review on request only
 
 Started from an AppiumLens session where the reviewer scored a plan 92/100 and the

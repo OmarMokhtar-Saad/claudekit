@@ -1,0 +1,42 @@
+{
+  "plan": "action-first-rollout",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/context-keeper/SKILL.md",
+      "description": "Session-context template and resume summary lead with Done / Now / Next",
+      "edits": [
+        {
+          "find": "**Task:** <one-sentence description of what you were working on>\n",
+          "add_after": "Done: <what finished, one line>\nNow: <what is in flight, one line>\nNext: <the single next action>\n"
+        },
+        {
+          "find": "CONTEXT RESUMED\n===============\nTask: <task description>",
+          "add_before": "Done: <last finished> / Now: <task, status> / Next: <next step 1>\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/commands/save-session.md",
+      "description": "session-context.md template leads with Done / Now / Next; line count unchanged (command-budget ratchet 108)",
+      "edits": [
+        {
+          "find": "**Project:** <project name>\n**Task:** <one-sentence description of active task>\n\n## Current Status\n<IN_PROGRESS|COMPLETE|BLOCKED>\n",
+          "replace": "**Project:** <project name> · **Status:** <IN_PROGRESS|COMPLETE|BLOCKED>\n**Task:** <one-sentence description of active task>\nDone: <what finished, one line>\nNow: <what is in flight, one line>\nNext: <the single next action>\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/commands/resume-session.md",
+      "description": "Resume briefing opens with the Done / Now / Next state line; line count unchanged (ratchet 108)",
+      "edits": [
+        {
+          "find": "CONTEXT RESUMED\n===============\nTask: <task from context>",
+          "replace": "Done: <last finished> / Now: <task, status> / Next: <next step 1>\nCONTEXT RESUMED\nTask: <task from context>"
+        }
+      ]
+    }
+  ]
+}

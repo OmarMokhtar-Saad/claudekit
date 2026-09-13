@@ -40,6 +40,11 @@ claudekit doctor --min-score 90   # exit 1 if the readiness score is below 90
 
 Checks: Python version, Bash, Git, agents, commands, skills, hooks, registry integrity, config validity, and `.claude/skills-profile.json` when present.
 
+The last line is a verdict and the next step, e.g.
+``FAIL 1/9 failed — next: run `ck init` ``. The step is the command a failing check
+declares (`ck init`, `ck update`, `chmod +x ...`); a check with no single unconditional
+command points at its line instead. The streamed detail above it is unchanged.
+
 Every run ends with a **readiness score** out of 100, so two healthy installs
 no longer read identically green. The line names its denominator, because the
 denominator is what makes two scores comparable or not:

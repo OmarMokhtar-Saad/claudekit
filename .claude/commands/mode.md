@@ -20,6 +20,7 @@ Switch the active behavioral mode. The selected mode persists for the entire ses
 | `default` | Balanced standard behavior | General development tasks |
 | `brainstorm` | Creative exploration, one question at a time, 2-4 approaches with trade-offs | Design decisions, architecture choices |
 | `token-efficient` | Compressed concise output, 40-70% token savings | Large tasks, slow connections, cost-sensitive usage |
+| `action-first` | Answer or next action first, numbered steps, lists capped at 5, no preamble | Scanning replies, frequent context switches, getting unstuck fast |
 | `deep-research` | Thorough analysis with citations and confidence indicators | Codebase investigation, audits, complex debugging |
 | `implementation` | Code-first, minimal prose, write-test-fix loop | Feature building, refactoring, bug fixes |
 | `review` | Critical analysis with severity ratings and scoring | Code review, PR review, quality assessment |
@@ -35,13 +36,12 @@ Switch the active behavioral mode. The selected mode persists for the entire ses
 
 ## Task
 
-Activate **$ARGUMENTS** mode.
-
-Load and apply the behavioral guidelines from `.claude/modes/$ARGUMENTS.md`. Confirm the mode switch with a one-line acknowledgment stating which mode is now active.
+Activate **$ARGUMENTS** mode: load and apply the behavioral guidelines from `.claude/modes/$ARGUMENTS.md`. Confirm the mode switch with a one-line acknowledgment stating which mode is now active.
 
 ## Examples
 
 - `/mode brainstorm` -- Switch to creative exploration mode
 - `/mode token-efficient` -- Switch to compressed output mode
+- `/mode action-first` -- Switch to answer-first, action-oriented output
 - `/mode implementation` -- Switch to code-first execution mode
 - `/mode default` -- Reset to standard behavior
