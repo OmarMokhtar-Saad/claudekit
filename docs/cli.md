@@ -270,8 +270,10 @@ claudekit skill match --registry cards/ --min-score 0.2   # another directory, s
   above; `--registry DIR` for another), re-validates each card, skips this project's own
   card file, and suggests cards not already installed whose `stack_tags` overlap this
   project's tags (detected stacks plus its own skills' tags). Score is Jaccard overlap;
-  suggestions under `--min-score` (default 0.1) are dropped. Each line shows the score and
-  the source project. It never installs anything.
+  suggestions under `--min-score` (default 0.1) are dropped. A card that shares only a
+  base language (java, kotlin, python, typescript, go, rust) is dropped too; pass
+  `--include-language-only` to keep it. Each line shows the score and the source
+  project. It never installs anything.
 
 `claudekit doctor` checks `.claude/skills-profile.json` when it exists: a malformed file
 or an overlay path outside the project fails; a skill name that is no longer installed

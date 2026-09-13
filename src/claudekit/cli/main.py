@@ -2308,7 +2308,8 @@ def _cmd_skill_fit(args):
         if not 0.0 <= min_score <= 1.0:
             err("skill match: --min-score must be between 0 and 1")
             return 1
-        result = skill_fit.match(root, registry, project=args.project, min_score=min_score)
+        result = skill_fit.match(root, registry, project=args.project, min_score=min_score,
+                                 include_language_only=args.include_language_only)
     except skill_fit.SkillFitError as exc:
         err(f"skill {args.action}: {exc}")
         return 1
@@ -2725,6 +2726,8 @@ def main():
                    help="card --publish / match: project id (default: directory name)")
     p.add_argument("--min-score", type=float, default=None,
                    help="match: Jaccard floor for a suggestion (default 0.1)")
+    p.add_argument("--include-language-only", action="store_true",
+                   help="match: keep suggestions that share only a base language tag")
     p.add_argument("--restore", action="store_true",
                    help="apply: remove every skillOverrides entry apply wrote")
 
