@@ -208,6 +208,22 @@ def _body(skill):
         return fh.read()
 
 
+def _skill_text(skill):
+    """SKILL.md plus its on-demand `references/*.md`.
+
+    The union has to survive in what the skill SHIPS, not in one file: the skill-slim
+    waves moved templates and runbooks into references/ that SKILL.md links. Tests that
+    need a rule in the always-loaded body keep using `_body`."""
+    parts = [_body(skill)]
+    ref_dir = os.path.join(SKILLS_DIR, skill, "references")
+    if os.path.isdir(ref_dir):
+        for name in sorted(os.listdir(ref_dir)):
+            if name.endswith(".md"):
+                with open(os.path.join(ref_dir, name), encoding="utf-8") as fh:
+                    parts.append(fh.read())
+    return "\n".join(parts)
+
+
 class TestTheMergedNamesAreGone:
     @pytest.mark.parametrize("old,survivor", REMOVED)
     def test_removed_from_the_canonical_tree(self, old, survivor):
@@ -247,25 +263,25 @@ class TestTheUnionSurvived:
     @pytest.mark.parametrize("fragment", AUTONOMOUS_LOOP_UNION)
     def test_autonomous_loop_kept_the_union(self, fragment):
         """`autonomous-loops` merged into `autonomous-loop`."""
-        assert fragment in _body("autonomous-loop"), (
+        assert fragment in _skill_text("autonomous-loop"), (
             "autonomous-loops lost from autonomous-loop: " + fragment)
 
     @pytest.mark.parametrize("fragment", VERIFICATION_BEFORE_COMPLETION_UNION)
     def test_verification_before_completion_kept_the_union(self, fragment):
         """`verification-loop` merged into `verification-before-completion`."""
-        assert fragment in _body("verification-before-completion"), (
+        assert fragment in _skill_text("verification-before-completion"), (
             "verification-loop lost from verification-before-completion: " + fragment)
 
     @pytest.mark.parametrize("fragment", SUPPLY_CHAIN_AUDIT_UNION)
     def test_supply_chain_audit_kept_the_union(self, fragment):
         """`dependency-audit` merged into `supply-chain-audit`."""
-        assert fragment in _body("supply-chain-audit"), (
+        assert fragment in _skill_text("supply-chain-audit"), (
             "dependency-audit lost from supply-chain-audit: " + fragment)
 
     @pytest.mark.parametrize("fragment", CONTEXT_KEEPER_UNION)
     def test_context_keeper_kept_the_union(self, fragment):
         """`session-continuity` + `context-priming` merged into `context-keeper`."""
-        assert fragment in _body("context-keeper"), (
+        assert fragment in _skill_text("context-keeper"), (
             "session-continuity + context-priming lost from context-keeper: " + fragment)
 
 
@@ -404,6 +420,12 @@ class TestNoConsumerPointsAtADeletedSkill:
     def test_no_bare_reference_in_a_live_document(self, old, survivor):
         allowed = {os.path.abspath(
             os.path.join(SKILLS_DIR, self.OWN_SEAM[old], "SKILL.md"))}
+        # The seam prose moved with its section into the survivor's own references/;
+        # it is still the survivor naming its source, not a consumer of the old id.
+        ref_dir = os.path.join(SKILLS_DIR, self.OWN_SEAM[old], "references")
+        if os.path.isdir(ref_dir):
+            allowed |= {os.path.abspath(os.path.join(ref_dir, n))
+                        for n in os.listdir(ref_dir)}
         allowed |= {os.path.abspath(os.path.join(ROOT, rel))
                     for rel in self.RENAME_MAP_FILES}
         hits = []
