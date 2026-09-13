@@ -120,16 +120,18 @@ def resolve_plan(ops_path: Path, cfg: Optional[dict] = None) -> Optional[Path]:
     name = ops_path.name
     # operations/<dir>/ops.json keys by <dir> VERBATIM, as review-record.py ops_slug()
     # and the executor do. By the bare filename it resolved no plan: a silent pass.
+    # .resolve() is required: for a relative "ops.json" a bare .parent.name is "".
     directory = ops_path.resolve().parent.name if name == "ops.json" else ""
     if directory:
+        # Verbatim, in one branch: a directory-derived slug is never prefix-stripped.
         slug = directory
-    elif name.endswith(".ops.json"):
-        slug = name[: -len(".ops.json")]
-    elif name.startswith("ops-"):
-        slug = name[len("ops-") : -len(".json")]
     else:
-        slug = name[: -len(".json")]
-    if not directory:
+        if name.endswith(".ops.json"):
+            slug = name[: -len(".ops.json")]
+        elif name.startswith("ops-"):
+            slug = name[len("ops-") : -len(".json")]
+        else:
+            slug = name[: -len(".json")]
         slug = slug[len("plan-") :] if slug.startswith("plan-") else slug
     # The declared value is a SLUG, never a path fragment: it is joined to
     # `ops_path.parent`, so `"../x"` escaped .claude/plans and an absolute value
