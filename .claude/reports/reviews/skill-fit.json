@@ -1,0 +1,27 @@
+{
+  "plan": ".claude/plans/plan-skill-fit.md",
+  "slug": "skill-fit",
+  "ops_path": ".claude/plans/ops-skill-fit.json",
+  "ops_sha256": "4434b340fa6387e700c02119f3a4829d16670c050f460ded6f309d2f4c55c2be",
+  "score": 94,
+  "decision": "APPROVED",
+  "findings": [],
+  "verdict_origin": "rubric",
+  "recorded_utc": "2026-09-13T10:10:42Z",
+  "operations": 7,
+  "edits": 10,
+  "rounds": [
+    {
+      "decision": "APPROVED",
+      "findings": {
+        "critical": [],
+        "major": [],
+        "minor": [
+          "skill_fit.py's `_invalid_card` calls `_card_refusal(name, description)` before validating that `name` matches NAME_RE via a redundant double-check path (NAME_RE.fullmatch already called once) -- harmless, just a minor duplication, not a defect.",
+          "Doctor check's malformed-profile error message surfaces the profile validation exception text directly (e.g. \"'disabled' must be a list of strings\"), which is fine (shape-only, no content), but confirm no future profile key is free-text that could round-trip into this error path."
+        ]
+      }
+    }
+  ],
+  "round": 2
+}

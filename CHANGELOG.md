@@ -11,6 +11,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `open-source-forker` — never shipped and have been removed.
 
 ## [Unreleased]
+- **`ck skill match` ignores language-only overlap.** A card that shares only a base
+  language with the project is no longer suggested (`--include-language-only` keeps it).
+- **`ck skill card` / `match` -- less noise.** Cards and matching now use only the
+  stack tags found in a skill's own text. A project's own skills no longer inherit its
+  detected stacks there, so a stack-neutral skill is no longer suggested to every
+  project that shares a language. Audit relevance is unchanged.
+- **`ck skill apply` -- `disabled` in the skills profile now actually drops tokens.**
+  It writes Claude Code's own `skillOverrides` setting (`"off"`, or
+  `"user-invocable-only"` via the profile's `disabled_mode`) for each disabled skill
+  into the gitignored `.claude/settings.local.json`. No skill file is edited, so
+  `ck diff` is unaffected; no hook, no prompt injection. It merges: every other key
+  (including the `ECC_HOOK_PROFILE` env entry) is preserved, an override the user set is
+  never taken over, and the names it manages are recorded in
+  `.claude/skills-applied.json` so `ck skill apply --restore` removes exactly those --
+  and only while they still hold the value apply wrote. An unparseable or symlinked
+  settings file is refused, never overwritten. A profile is repository content, so it
+  cannot hide protected skills (golden-rule, security-checklist,
+  prompt-injection-defense, verification-before-completion, using-superpowers,
+  registry-mandatory skills, skills an installed agent preloads via `skills:` or loads
+  as mandatory): `apply` refuses the whole profile and `ck doctor` fails. `ck doctor`
+  also fails when any settings file already hides a protected skill, reports hidden
+  skills and estimated always-on tokens saved, and warns when profile and settings
+  diverge. `ck update` / `ck init` re-apply the profile.
+- **`ck skill match` found nothing across a real fleet; skills now get stack tags and a
+  shared registry.** Matching AppiumLens against 13 projects printed `<none>`: project
+  skills carried no `stack_tags`, so no card could overlap anything. A project's own
+  skill without explicit `stack_tags` now gets tags derived deterministically from its
+  name, description and body (a fixed stack vocabulary: java, kotlin, python, android,
+  appium, selenium, gradle, ...) unioned with the project's detected stacks; explicit
+  frontmatter still wins and kit skills are never derived. `ck skill card --publish`
+  writes the project's sanitized cards to a user-level registry
+  (`~/.claudekit/registry/cards/<project>.json`, or `$CLAUDEKIT_REGISTRY`), atomically;
+  `ck skill match` reads it by default, skips the project's own card, and scores by
+  Jaccard tag overlap with a `--min-score` floor (default 0.1), printing score and
+  source project. `--registry` is now optional.
+- **`ck skill audit | profile init | card | match` -- measure how skills fit a project.**
+  Every installed skill's description is charged to every session whether or not the
+  project's stack can use it. `ck skill audit` detects the stacks, estimates each skill's
+  tokens (chars/4) and buckets it relevant / irrelevant / broken, flagging bodies over
+  300 lines or 2000 tokens; it writes nothing unless `--save`. `ck skill profile init`
+  records the decisions in a project-owned `.claude/skills-profile.json` that is never
+  overwritten and survives install, update and fleet sync. `ck skill card` emits
+  sanitized metadata cards for a project's own skills and `ck skill match --registry`
+  suggests cards from other projects by stack overlap -- suggest only, never install.
+  `ck doctor` validates the profile when present. `disabled` is enforced by
+  `ck skill apply` (below).
 - **Action-first output across the kit.** `ck doctor` now ends with a one-line verdict
   and the next step (e.g. ``FAIL 1/9 failed — next: run `ck init` ``); the detail still
   streams live and exit codes are unchanged. The planner, verifier, code-reviewer and
