@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `open-source-forker` — never shipped and have been removed.
 
 ## [Unreleased]
+- **`ck skill card` / `match` -- less noise.** Cards and matching now use only the
+  stack tags found in a skill's own text. A project's own skills no longer inherit its
+  detected stacks there, so a stack-neutral skill is no longer suggested to every
+  project that shares a language. Audit relevance is unchanged.
 - **`ck skill apply` -- `disabled` in the skills profile now actually drops tokens.**
   It writes Claude Code's own `skillOverrides` setting (`"off"`, or
   `"user-invocable-only"` via the profile's `disabled_mode`) for each disabled skill

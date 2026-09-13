@@ -296,20 +296,27 @@ def inspect_skill(skill_dir: Path, stacks: List[str],
     explicit = explicit_stack_tags(fm)
     if explicit is not None:
         tags, source = explicit, "frontmatter"
+        match_tags = tags
     elif name in KIT_STACK_TAGS:
         tags, source = list(KIT_STACK_TAGS[name]), "kit-table"
+        match_tags = tags
     elif record["owner"] == "local":
         # Union with the project's stacks, so a local skill always overlaps the stacks
         # it was written for and can never be bucketed irrelevant by its own derivation.
-        tags = sorted(set(derive_stack_tags(f"{name}\n{description}\n{body}")) | set(stacks))
+        # Cards and match use ONLY the text-derived part: the union would tag every
+        # local skill of a Java project `java` and match stack-neutral skills at 1.0.
+        match_tags = derive_stack_tags(f"{name}\n{description}\n{body}")
+        tags = sorted(set(match_tags) | set(stacks))
         source = "derived" if tags else "none"
     else:
         tags, source = [], "none"
+        match_tags = tags
     body_lines = body.count("\n")
     body_tokens = tokens(body)
     record.update({
         "stack_tags": tags,
         "stack_tags_source": source,
+        "match_tags": sorted(match_tags),
         "description": description,
         "description_tokens": tokens(description),
         "always_on_tokens": 0 if context_floor.model_invisible(fm) else tokens(description),
@@ -533,7 +540,7 @@ def cards(root: Path) -> Tuple[List[Dict[str, Any]], List[Tuple[str, str]]]:
         out.append({
             "card_version": CARD_VERSION,
             "name": record["name"],
-            "stack_tags": record["stack_tags"],
+            "stack_tags": record["match_tags"],
             "description": record["description"],
             "tokens": record["description_tokens"] + record["body_tokens"],
         })
@@ -650,7 +657,7 @@ def match(root: Path, registry: Optional[Path] = None, *, project: Optional[str]
         stacks = report["stacks"]
         installed = {r["name"] for r in report["skills"]}
         own_tags = {t for r in report["skills"] if r["owner"] == "local"
-                    for t in r["stack_tags"]}
+                    for t in r["match_tags"]}
     else:
         stacks, _ = detect_stacks(root)
         installed, own_tags = set(), set()
