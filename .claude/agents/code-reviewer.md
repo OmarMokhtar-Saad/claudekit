@@ -267,6 +267,8 @@ consumed as a real verdict.
 ## Output Format
 
 ```
+Next action: <the single thing the caller should do now>
+Top findings: <at most 5, most severe first>; "N more" below
 CODE REVIEW REPORT
 ==================
 Target: <files / PR number>
@@ -588,7 +590,7 @@ At the end, produce:
 ### Highest-Risk Files
 1. <file> — N issues (N critical)
 2. <file> — N issues
-...
+(at most 5 files; write "N more" for the rest)
 
 ### Immediate Actions Required
 [List only CRITICAL and HIGH items in priority order]
