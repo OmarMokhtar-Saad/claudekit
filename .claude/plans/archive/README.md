@@ -15,6 +15,7 @@ Move a config here when it is **spent** (already executed — anchors consumed b
 | `ops-skill-fit-language-only-test/ops-skill-fit-language-only-test.json` | Spent — executed 2026-09-13 (Tier 1, --no-approval, test-only). The install-nothing match test opts into `--include-language-only` because its fixture card shares only `python`. 1 operation. |
 | `ops-ai-docs-skill-fit/ops-ai-docs-skill-fit.json` | Spent — executed 2026-09-13 (Tier 1 docs-only, --no-approval). Skill-fit session recorded in `.ai/SESSION_STATE.md` and `.ai/CHANGELOG_AI.md`. 2 operations. |
 | `ops-gitignore-skills-applied/ops-gitignore-skills-applied.json` | Spent — executed 2026-09-13 (Tier 2, no architecture, --no-approval). Installer and repo `.gitignore` ignore `.claude/skills-applied.json`; install test asserts the entry. 4 operations. |
+| `ops-skill-fit-stack-scan/ops-skill-fit-stack-scan.json` | Spent — executed 2026-09-13 (Tier 2, no architecture, --no-approval). Stack walk skips root-level `backups/` and `operations/` and `out/` anywhere; AppiumLens had been reported kotlin+python. 3 operations. |
 | `ops-worktree-gitignore.json` | Spent — ignore `.claude/worktrees/` in repo and downstream, executed 2026-09-13. |
 | `ops-worktree-scanner.json` | Spent — exclude linked worktrees from the residue scan, executed 2026-09-13. |
 | `ops-memory-maturity.json` | Spent — memory maturity (clustering, staleness, doctor early warning, contract tests), executed 2026-09-13. |
