@@ -369,3 +369,9 @@ gate closes on every sibling config the moment it lands.
 - `ops-mode-md-trim.json` — **spent** (2026-09-13, `--no-approval` disclosed: Tier 1, one
   file). Merged the `/mode` Task paragraphs so the new `action-first` row keeps
   `commands/mode.md` inside its 47-line command-budget ratchet.
+- `ops-af-agents.json`, `ops-af-handoff.json`, `ops-af-plans.json`, `ops-af-doctor.json` +
+  `plan-action-first-rollout.md` — **spent** (2026-09-13). Action-first rollout: `Next action:`
+  lines in planner/verifier/code-reviewer/debugger reports, Done/Now/Next session context,
+  per-phase estimates and "Done when:" in plans, `ck doctor` final verdict line with explicit
+  `fix_cmd`. A-C ran `--no-approval` (Tier 2, no architecture); D was reviewed (round 1 REVISE
+  83, round 2 APPROVED 93) and ran `--no-approval` because the verdict was not recorded.
