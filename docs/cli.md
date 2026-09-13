@@ -228,7 +228,8 @@ over budget — a description is charged to every session, forever.
 ### `claudekit skill audit` / `skill profile init` / `skill card` / `skill match`
 
 Measure how the installed skills fit **this** project. All four are read-only analysis:
-none of them edits a skill, installs one, or changes what a model sees.
+none of them edits a skill, installs one, or changes what a model sees. The one verb
+that does change what a model sees is `claudekit skill apply`, below.
 
 ```bash
 claudekit skill audit                   # stacks, per-skill tokens, relevant/irrelevant/broken
@@ -250,9 +251,9 @@ claudekit skill match --registry cards/ --min-score 0.2   # another directory, s
 - **profile init** writes `.claude/skills-profile.json` with the irrelevant skills listed
   under `disabled`. It refuses if the file exists -- it is your file. Keys: `packs`,
   `disabled`, `overlays` (skill name -> project-relative file), `roles`. Install, update
-  and fleet sync leave it untouched. **In this release nothing enforces `disabled`**:
-  `audit` shows it and `doctor` validates it; `packs` and `roles` are validated for shape
-  only.
+  and fleet sync leave it untouched. `disabled` is enforced by `claudekit skill apply`;
+  `disabled_mode` (`off`, the default, or `user-invocable-only`) picks the value it
+  writes; `packs` and `roles` are validated for shape only.
 - **card** prints metadata cards -- name, `stack_tags`, description, estimated tokens --
   for skills the install manifest does not list as kit-owned. No body and no path leaves.
   A description that looks like a secret, credential or home-directory path is withheld
@@ -275,6 +276,40 @@ claudekit skill match --registry cards/ --min-score 0.2   # another directory, s
 `claudekit doctor` checks `.claude/skills-profile.json` when it exists: a malformed file
 or an overlay path outside the project fails; a skill name that is no longer installed
 warns (and names its rename, if the registry has one).
+
+### `claudekit skill apply` / `skill apply --restore`
+
+Enforce the profile's `disabled` list so those skills stop costing always-on context.
+
+```bash
+claudekit skill apply            # write skillOverrides for the profile's disabled skills
+claudekit skill apply --restore  # remove every override apply wrote
+```
+
+`apply` uses Claude Code's `skillOverrides` setting. For each installed skill in
+`disabled` it sets the override to `off` (or `user-invocable-only`, if the profile says
+`"disabled_mode": "user-invocable-only"`) in `.claude/settings.local.json` -- the
+project-local, gitignored settings file. No skill file is edited, so `claudekit diff`
+reports nothing. A hidden skill is still installed.
+
+- **Merges, never clobbers.** Every other key is preserved, including `env`
+  (`ECC_HOOK_PROFILE`) and `permissions`. An override you set yourself is never taken
+  over or removed. The file is rewritten with 2-space JSON indentation when something
+  changes. An unparseable or symlinked settings file is refused.
+- **Records what it owns.** The names apply manages live in `.claude/skills-applied.json`.
+  `--restore`, or removing a name from `disabled` and re-running `apply`, removes an
+  override only while it still holds the value apply wrote.
+- **Protected.** `golden-rule`, `security-checklist`, `prompt-injection-defense`,
+  `verification-before-completion`, `using-superpowers`, any skill the registry marks
+  mandatory, any skill an installed agent preloads through `skills:` frontmatter (a hidden
+  skill cannot be preloaded) and any skill an agent loads as mandatory. A profile naming
+  one is refused whole, before anything is written -- the profile is a file in your
+  repository, and hiding the safety rails is what a hostile change would try.
+- **update / init** re-apply the profile after reinstalling (settings.local.json itself is
+  preserved by the installer).
+- **doctor** reports how many skills `skillOverrides` hides and the estimated always-on
+  tokens saved (chars/4); warns when the profile and the settings diverge; and fails when
+  `settings.json` or `settings.local.json` hides a protected skill, profile or not.
 
 ### `claudekit mcp add <name> --tools N -- <argv>` / `claudekit mcp list`
 

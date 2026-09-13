@@ -1,0 +1,52 @@
+{
+  "plan": ".claude/plans/plan-skill-fit-2.md",
+  "reviewed_at": "2026-09-13",
+  "reviewer": "reviewer-agent",
+  "parts": {
+    "a": {
+      "ops": ".claude/plans/ops-skill-fit-2-a.json",
+      "tier": 2,
+      "score": 93,
+      "decision": "APPROVED",
+      "findings": {
+        "critical": [],
+        "major": [],
+        "minor": [
+          "skill_fit.py had no pre-existing `import os`; A's insertion is correct but relies on ordering with B's later edit of the same import block -- verified B's anchor text matches A's post-state exactly (src/claudekit/skill_fit.py import block).",
+          "`registry_dir()` trims whitespace on $CLAUDEKIT_REGISTRY but not on a leading `~` combined with a relative remainder edge case (e.g. `~/../x`); Path.expanduser() + is_absolute() check still correctly rejects any non-absolute result, so this is cosmetic only."
+        ]
+      },
+      "verification": [
+        "registry_dir(): CLAUDEKIT_REGISTRY absolute-only enforced (SkillFitError otherwise), default ~/.claudekit/registry/cards -- user-level, never a repo path. Confirmed no path derives from CWD/repo root.",
+        "project_id(): _PROJECT_ID = re.compile(r'[a-z0-9][a-z0-9._-]{0,63}') fullmatch -- blocks path separators/traversal in both derived and --project id before it's used as a filename stem.",
+        "publish_cards(): writes via adapt.write_atomic (verified src/claudekit/adapt.py:286-310, same-dir temp + os.replace, preserves mode) -- atomic, no partial-write window.",
+        "Card sanitization path (`cards()`/`_card_refusal`) is unchanged by this ops file -- confirmed the diff only adds `stack_tags`/`stack_tags_source` fields to the record, not touching the sanitizer.",
+        "All 5 find/replace anchors in src/claudekit/skill_fit.py and 3 in src/claudekit/cli/main.py matched current file content by inspection (not just trusted from plan prose)."
+      ]
+    },
+    "b": {
+      "ops": ".claude/plans/ops-skill-fit-2-b.json",
+      "tier": 3,
+      "score": 91,
+      "decision": "APPROVED",
+      "findings": {
+        "critical": [],
+        "major": [
+          "protected_skills() derives its dynamic (non-static) protected set from repository-controlled files (skills-registry.json `mandatory:true`, agent `## Mandatory Skill Loading` sections) -- plan's own Threat notes/Residual section states this openly (plan-skill-fit-2.md:201-204): a PR touching both the profile and the registry/agent file in the same change could shrink the dynamic protected set. The static five (golden-rule, prompt-injection-defense, security-checklist, using-superpowers, verification-before-completion) are hardcoded in skill_fit.py and cannot be removed by a profile-only edit, which is the primary threat (hostile skills-profile.json) this plan defends against. Accepted as a stated, non-hidden residual risk per hard rule 6, not a blocking defect for THIS plan's scope (profile-only attacker model) -- but the reviewer flags it as a MAJOR for the record since a two-file PR is a realistic attack surface for a repo that accepts external contributions."
+        ],
+        "minor": [
+          "hide()/hidden_original() fail closed on any frontmatter shape other than 'no key' or 'exactly one exact `disable-model-invocation: false` line' -- confirmed by reading golden-rule/SKILL.md (no such key present, so it takes the append branch) and the plan's own gan-harness/opensource-pipeline note (exact `false` line replaced). Good; no gap found, noting only that malformed/duplicate-key frontmatter silently no-ops the skill (skipped, not applied) rather than surfacing loudly -- acceptable since result[\"skipped\"] reports it."
+        ]
+      },
+      "verification": [
+        "Can a malicious skills-profile.json hide protected security skills? NO for the static PROTECTED_SKILLS set (frozenset literal in skill_fit.py, not read from any file) -- apply() validates `disabled` against protected_skills(root) and refuses the WHOLE profile before any write (fail-closed) if any protected name appears. Confirmed golden-rule, prompt-injection-defense, security-checklist, using-superpowers, verification-before-completion all exist as real skill ids under .claude/skills/. See MAJOR above for the dynamic (registry/agent) portion of the set.",
+        "Is the 'flipped line removed == manifest hash' drift check sound? YES for its stated guarantee: hidden_original() only recognizes two exact reconstructions (append of the exact INVISIBLE_LINE suffix, or single exact VISIBLE_LINE->INVISIBLE_LINE substitution) and requires sha256(reconstruction) == receipt hash. Any additional byte edit changes the reconstructed hash and fails the proof (test_a_flip_plus_any_other_edit_is_still_drift), and no other file content can be 'smuggled' as unchanged because the reconstruction space is exactly two candidates, not an open-ended undo.",
+        "Does apply() only touch kit-owned, unmodified files? YES -- kit = _kit_skill_hashes(manifest_hashes(root)) restricts to receipt-listed skills/*/SKILL.md; per-file it additionally requires sha(data)==expected (byte-identical) before flipping, else 'locally modified' skip; project-owned skills (absent from kit) are skipped with reason. Symlinks explicitly rejected via path.is_symlink() check before any read/write.",
+        "Does --restore fully reverse? YES for files apply() flipped: tree_digest byte-comparison test (test_restore_is_byte_identical...) is a real assertion the ops file's own test suite makes; restore iterates the same kit-hash set and writes back hidden_original() when present, via write_atomic. Restore does not filter by protected_skills (verified by reading apply()'s restore branch), which is correct/intentional: it also restores a hand-hidden protected skill, matching the stated converge behavior and test_a_hand_hidden_protected_skill_is_drift_and_apply_restores_it.",
+        "Path traversal from profile names? NO -- skills.NAME_RE = r'[a-z0-9][a-z0-9-]*' (fullmatch) rejects any entry with '.', '/', or other traversal characters before any per-name logic runs (validated for the WHOLE profile before any write, in the `if not restore` bad-name check).",
+        "Fail-closed on refusal? YES -- manifest missing, malformed profile, non-skill-id disabled entry, and any protected name in disabled all raise SkillFitError before the per-skill loop begins; tree_digest-equality tests confirm zero writes occur on each refusal path.",
+        "All B ops.json find/replace anchors were checked against A's POST-STATE text (not current pre-A HEAD) as instructed -- e.g. the `\"suggestions\": suggestions, \"skipped\": skipped}\\n` anchor exists verbatim in A's own replace payload, and B's import-block anchor matches A's post-edit import block exactly."
+      ]
+    }
+  }
+}

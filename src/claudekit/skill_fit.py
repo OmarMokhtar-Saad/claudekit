@@ -10,11 +10,25 @@ also lets a project record its decisions in one file it owns,
 `.claude/skills-profile.json`, and lets projects share sanitized metadata cards so a
 skill proven in one repo can be suggested to another.
 
-It is READ-ONLY analysis. Nothing here edits a skill, installs a skill, or injects
-anything into a prompt. `disabled` in the profile is a recorded decision that `audit`
-and `ck doctor` read; no hook enforces it in this release (deferred, see
-plan-skill-fit.md "Phase 2"). Saying otherwise would overstate the product
-(CLAUDE.md hard rule 6).
+Everything except `apply` is READ-ONLY analysis. Nothing here edits a skill, installs a
+skill, or injects anything into a prompt.
+
+`apply` enforces the profile's `disabled` list through Claude Code's own setting,
+`skillOverrides` (skill -> "on" | "name-only" | "user-invocable-only" | "off"), written
+into the project-LOCAL `.claude/settings.local.json` -- never into a skill file, so no
+kit file changes and `ck diff` is unaffected. It merges: every other key (the
+`ECC_HOOK_PROFILE` env entry, permissions) is preserved, and only overrides it wrote are
+ever changed or removed. Those names are recorded in `.claude/skills-applied.json`,
+because settings.json has no comment syntax and an unknown top-level key risks Claude
+Code's settings validation. `--restore` removes a recorded override only while its value
+is still the one apply wrote; anything the user set is left alone.
+
+A profile is repository content, so a pull request can edit it. `PROTECTED_SKILLS`,
+registry-mandatory skills, skills an installed agent preloads via `skills:` frontmatter
+(a hidden skill cannot be preloaded) and skills an agent's Skill Loading section marks
+mandatory can never be hidden: naming one refuses the whole profile before any write.
+Honest limit (hard rule 6): this is a visibility setting, not removal -- an `off` skill
+is still on disk, and the settings file is the user's to edit.
 
 Stack tags and the shared registry
 ----------------------------------
@@ -41,7 +55,7 @@ import json
 import os
 import re
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional, Set, Tuple
+from typing import Any, Dict, FrozenSet, Iterator, List, Optional, Set, Tuple
 
 from . import adapt, context_floor, memory, skills
 
@@ -49,7 +63,7 @@ SCHEMA_VERSION = 1
 CARD_VERSION = 1
 
 PROFILE_NAME = "skills-profile.json"
-PROFILE_KEYS = ("schema", "packs", "disabled", "overlays", "roles")
+PROFILE_KEYS = ("schema", "packs", "disabled", "disabled_mode", "overlays", "roles")
 REPORT_REL = (".claude", "reports", "skills", "audit.json")
 
 #: Body budget. Measured 2026-09-13 on the kit's own 81 skills: a 150-line limit
@@ -393,6 +407,9 @@ def load_profile(root: Path) -> Optional[Dict[str, Any]]:
         raise SkillFitError(f"{path}: 'overlays' must map skill name -> file path")
     if not isinstance(doc.get("roles", {}), dict):
         raise SkillFitError(f"{path}: 'roles' must be an object")
+    if doc.get("disabled_mode", DEFAULT_DISABLED_MODE) not in DISABLED_MODES:
+        raise SkillFitError(f"{path}: 'disabled_mode' must be one of "
+                            f"{', '.join(DISABLED_MODES)}")
     return doc
 
 
@@ -424,7 +441,12 @@ def profile_findings(root: Path) -> Tuple[List[str], List[str]]:
         hint = f" (renamed to '{aliases[name]}')" if name in aliases else ""
         warnings.append(f"{kind} names skill '{name}', which is not installed{hint}")
 
+    protected = protected_skills(root)
     for name in doc.get("disabled", []):
+        if name in protected:
+            errors.append(f"disabled names protected skill '{name}' ({protected[name]}); "
+                          f"`ck skill apply` refuses the whole profile")
+            continue
         dangling("disabled", name)
     real_root = root.resolve()
     for name, rel in sorted(doc.get("overlays", {}).items()):
@@ -661,3 +683,275 @@ def match(root: Path, registry: Optional[Path] = None, *, project: Optional[str]
     return {"stacks": stacks, "project_tags": sorted(project_tags),
             "registry": str(directory), "project": own, "min_score": min_score,
             "suggestions": suggestions, "skipped": skipped}
+
+
+# --------------------------------------------------------------------- enforcement
+
+#: Never hidden, whatever a profile says: the kit's safety rails. Registry-mandatory
+#: skills and agents' preloaded / mandatory skills are added at runtime.
+PROTECTED_SKILLS: FrozenSet[str] = frozenset({
+    "golden-rule",
+    "prompt-injection-defense",
+    "security-checklist",
+    "using-superpowers",
+    "verification-before-completion",
+})
+
+#: Claude Code `skillOverrides` values. A profile may choose only the two that take the
+#: description out of always-on context; "name-only" still lists the skill.
+OVERRIDE_VALUES = ("on", "name-only", "user-invocable-only", "off")
+DISABLED_MODES = ("off", "user-invocable-only")
+DEFAULT_DISABLED_MODE = "off"
+_HIDING = frozenset(DISABLED_MODES)
+SETTINGS_LOCAL = "settings.local.json"
+APPLIED_NAME = "skills-applied.json"
+
+_AGENT_FRONTMATTER = re.compile(r"(?s)\A---\n(.*?)\n---\n")
+_AGENT_SKILLS_KEY = re.compile(r"^skills:[ \t]*(.*?)[ \t]*$")
+_AGENT_SECTION = re.compile(r"## (?:Skill Loading|Mandatory Skill Loading)\n(.*?)(?=\n## |\n---)",
+                            re.S)
+_AGENT_HEADER = re.compile(r"^\*\*(.+?)\*\*\s*$", re.M)
+_AGENT_SKILL = re.compile(r"\*\*([a-z0-9][a-z0-9-]*)\*\*")
+
+
+def agent_preloaded_skills(text: str) -> List[str]:
+    """Skill ids in an agent's `skills:` frontmatter: inline list or block sequence."""
+    fm = _AGENT_FRONTMATTER.match(text)
+    if not fm:
+        return []
+    lines = fm.group(1).split("\n")
+    out: List[str] = []
+    for index, line in enumerate(lines):
+        m = _AGENT_SKILLS_KEY.match(line)
+        if not m:
+            continue
+        raw = m.group(1)
+        items = raw.strip("[]").split(",") if raw else []
+        if not raw:
+            for follow in lines[index + 1:]:
+                entry = re.match(r"^[ \t]+-[ \t]*(.+?)[ \t]*$", follow)
+                if not entry:
+                    break
+                items.append(entry.group(1))
+        for raw_item in items:
+            name = raw_item.strip().strip("\"'")
+            if skills.NAME_RE.fullmatch(name) and name not in out:
+                out.append(name)
+    return out
+
+
+def protected_skills(root: Path) -> Dict[str, str]:
+    """skill -> why it cannot be hidden. Always includes `PROTECTED_SKILLS`.
+
+    Unreadable registry or agent files add nothing and remove nothing: the static set
+    never depends on a file the repository controls.
+    """
+    root = Path(root)
+    out = {name: "kit safety rail" for name in PROTECTED_SKILLS}
+    try:
+        for entry in skills.load_registry(root).get("skills", []):
+            if (isinstance(entry, dict) and entry.get("mandatory") is True
+                    and isinstance(entry.get("id"), str)):
+                out.setdefault(entry["id"], "registry mandatory")
+    except skills.SkillError:
+        pass
+    agents = root / ".claude" / "agents"
+    for agent in sorted(agents.glob("*.md")) if agents.is_dir() else []:
+        try:
+            text = agent.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        for name in agent_preloaded_skills(text):
+            out.setdefault(name, f"preloaded by agent {agent.stem} (skills: frontmatter)")
+        section = _AGENT_SECTION.search(text)
+        mandatory = False
+        for line in section.group(1).splitlines() if section else []:
+            header = _AGENT_HEADER.match(line)
+            if header:
+                mandatory = header.group(1).lower().startswith("mandatory")
+            elif mandatory:
+                for name in _AGENT_SKILL.findall(line):
+                    out.setdefault(name, f"mandatory load for agent {agent.stem}")
+    return out
+
+
+def settings_local_path(root: Path) -> Path:
+    return Path(root) / ".claude" / SETTINGS_LOCAL
+
+
+def applied_path(root: Path) -> Path:
+    return Path(root) / ".claude" / APPLIED_NAME
+
+
+def _read_json_object(path: Path, what: str) -> Dict[str, Any]:
+    """{} when absent; SkillFitError when unreadable, not an object, or a symlink --
+    a file apply cannot parse is a file apply must not overwrite."""
+    if path.is_symlink():
+        raise SkillFitError(f"{path} is a symlink; refusing to write {what} through it")
+    if not path.exists():
+        return {}
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError, UnicodeDecodeError) as exc:
+        raise SkillFitError(f"unreadable {path}: {exc}; nothing was changed") from exc
+    if not isinstance(doc, dict):
+        raise SkillFitError(f"{path}: expected a JSON object; nothing was changed")
+    return doc
+
+
+def _overrides_of(doc: Dict[str, Any], path: Path) -> Dict[str, Any]:
+    overrides = doc.get("skillOverrides", {})
+    if not isinstance(overrides, dict):
+        raise SkillFitError(f"{path}: 'skillOverrides' is not an object; nothing was changed")
+    return overrides
+
+
+def _load_applied(root: Path) -> Dict[str, str]:
+    doc = _read_json_object(applied_path(root), "the apply record")
+    managed = doc.get("managed", {})
+    if not isinstance(managed, dict):
+        return {}
+    return {k: v for k, v in managed.items()
+            if isinstance(k, str) and skills.NAME_RE.fullmatch(k) and v in _HIDING}
+
+
+def _write_json(path: Path, doc: Dict[str, Any]) -> None:
+    adapt.write_atomic(path, json.dumps(doc, indent=2) + "\n")
+
+
+def apply(root: Path, *, restore: bool = False) -> Dict[str, Any]:
+    """Converge `skillOverrides` in settings.local.json to the profile's `disabled` list.
+
+    Fails closed BEFORE any write when: the profile is missing (unless restoring) or
+    malformed; `disabled` holds a non-id or a protected skill; settings.local.json or
+    the apply record is unreadable, not an object, or a symlink. Never touches an
+    override it did not write, and never changes any other settings key.
+    """
+    root = Path(root)
+    claude = root / ".claude"
+    if not claude.is_dir():
+        raise SkillFitError(f"no {claude} directory; install ClaudeKit first")
+    profile = load_profile(root)
+    wanted: Dict[str, str] = {}
+    if not restore:
+        if profile is None:
+            raise SkillFitError(f"no {profile_path(root)}; create one with "
+                                f"`ck skill profile init`")
+        mode = profile.get("disabled_mode", DEFAULT_DISABLED_MODE)
+        names = profile.get("disabled", [])
+        bad = sorted(n for n in names if not skills.NAME_RE.fullmatch(n))
+        if bad:
+            raise SkillFitError(f"disabled holds non-skill id(s) {', '.join(bad)}; "
+                                f"nothing was changed")
+        protected = protected_skills(root)
+        blocked = sorted(n for n in names if n in protected)
+        if blocked:
+            reasons = "; ".join(f"{n} ({protected[n]})" for n in blocked)
+            raise SkillFitError(f"profile disables protected skill(s): {reasons}; "
+                                f"nothing was changed")
+        wanted = {n: mode for n in names}
+    settings_path = settings_local_path(root)
+    settings = _read_json_object(settings_path, "settings")
+    overrides = dict(_overrides_of(settings, settings_path))
+    managed = _load_applied(root)
+    directory = skills.skills_dir(root)
+    result: Dict[str, Any] = {"hidden": [], "removed": [], "kept_user_set": [],
+                              "skipped": [], "tokens_saved": 0,
+                              "settings": str(settings_path)}
+    new_managed: Dict[str, str] = {}
+    for name, value in sorted(managed.items()):
+        if name in wanted:
+            continue
+        if overrides.get(name) == value:
+            del overrides[name]
+            result["removed"].append(name)
+        elif name in overrides:
+            result["kept_user_set"].append(name)
+    for name, mode in sorted(wanted.items()):
+        if not (directory / name / "SKILL.md").is_file():
+            result["skipped"].append({"name": name, "reason": "not installed"})
+            continue
+        current = overrides.get(name)
+        if current is not None and managed.get(name) != current:
+            result["kept_user_set"].append(name)
+            continue
+        overrides[name] = mode
+        new_managed[name] = mode
+        result["hidden"].append(name)
+        result["tokens_saved"] += _skill_description_tokens(directory / name / "SKILL.md")
+    if overrides:
+        settings["skillOverrides"] = overrides
+    else:
+        settings.pop("skillOverrides", None)
+    record = applied_path(root)
+    # Record first, as the UNION: a crash between the two writes then leaves a record
+    # naming at most an override that is absent, which the next run drops harmlessly --
+    # never an override apply wrote but forgot, which restore could not remove.
+    if new_managed or managed:
+        _write_json(record, {"schema": 1, "managed": dict(managed, **new_managed)})
+    before = _read_json_object(settings_path, "settings")
+    if settings != before:
+        _write_json(settings_path, settings)
+    if new_managed:
+        _write_json(record, {"schema": 1, "managed": new_managed})
+    elif record.exists():
+        record.unlink()
+    return result
+
+
+def _skill_description_tokens(skill_md: Path) -> int:
+    try:
+        text = skill_md.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return 0
+    fm = context_floor.frontmatter(text)
+    if not fm or context_floor.model_invisible(fm):
+        return 0
+    return tokens(context_floor.description_span(fm).strip())
+
+
+def effective_overrides(root: Path) -> Dict[str, Any]:
+    """settings.json then settings.local.json `skillOverrides`, local winning. Unreadable
+    files contribute nothing here: doctor reports, it does not refuse."""
+    out: Dict[str, Any] = {}
+    for name in ("settings.json", SETTINGS_LOCAL):
+        try:
+            doc = _read_json_object(Path(root) / ".claude" / name, "settings")
+            out.update(_overrides_of(doc, Path(name)))
+        except SkillFitError:
+            continue
+    return out
+
+
+def enforcement_status(root: Path) -> Dict[str, Any]:
+    """Hidden skills, tokens saved, protected skills hidden, and profile divergence."""
+    root = Path(root)
+    overrides = effective_overrides(root)
+    protected = protected_skills(root)
+    directory = skills.skills_dir(root)
+    status: Dict[str, Any] = {"hidden": [], "tokens_saved": 0, "protected_hidden": [],
+                              "diverged": []}
+    for name, value in sorted(overrides.items()):
+        if name in protected and value != "on":
+            status["protected_hidden"].append(name)
+        elif value in _HIDING and (directory / name / "SKILL.md").is_file():
+            status["hidden"].append(name)
+            status["tokens_saved"] += _skill_description_tokens(directory / name / "SKILL.md")
+    try:
+        profile = load_profile(root)
+    except SkillFitError:
+        profile = None
+    if profile is not None:
+        mode = profile.get("disabled_mode", DEFAULT_DISABLED_MODE)
+        for name in profile.get("disabled", []):
+            if (name not in protected and (directory / name / "SKILL.md").is_file()
+                    and overrides.get(name) != mode):
+                status["diverged"].append(f"{name} is disabled but not set to {mode}")
+        try:
+            managed = _load_applied(root)
+        except SkillFitError:
+            managed = {}
+        for name in sorted(set(managed) - set(profile.get("disabled", []))):
+            if overrides.get(name) == managed[name]:
+                status["diverged"].append(f"{name} is still hidden but no longer disabled")
+    return status
