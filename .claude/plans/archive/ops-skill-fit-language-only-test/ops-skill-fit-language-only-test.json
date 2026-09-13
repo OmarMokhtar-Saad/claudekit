@@ -1,0 +1,16 @@
+{
+  "plan": "skill-fit-language-only-test",
+  "description": "Tier 1: the install-nothing match test uses a python-only fixture card, which language-only filtering now drops; opt in so the test keeps checking what it was written for.",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_skill_fit.py",
+      "edits": [
+        {
+          "find": "        proc = ck(project, \"skill\", \"match\", \"--registry\", str(reg), \"--json\")\n        assert proc.returncode == 0, proc.stderr\n        doc = json.loads(proc.stdout)\n        assert [s[\"name\"] for s in doc[\"suggestions\"]] == [\"fixture-helper\"]\n",
+          "replace": "        # The fixture card shares only `python`; opt in, since this test is about\n        # suggesting without installing, not about language-only filtering.\n        proc = ck(project, \"skill\", \"match\", \"--registry\", str(reg), \"--json\",\n                  \"--include-language-only\")\n        assert proc.returncode == 0, proc.stderr\n        doc = json.loads(proc.stdout)\n        assert [s[\"name\"] for s in doc[\"suggestions\"]] == [\"fixture-helper\"]\n"
+        }
+      ]
+    }
+  ]
+}
