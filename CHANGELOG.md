@@ -11,6 +11,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `open-source-forker` — never shipped and have been removed.
 
 ## [Unreleased]
+- **`ck skill audit | profile init | card | match` -- measure how skills fit a project.**
+  Every installed skill's description is charged to every session whether or not the
+  project's stack can use it. `ck skill audit` detects the stacks, estimates each skill's
+  tokens (chars/4) and buckets it relevant / irrelevant / broken, flagging bodies over
+  300 lines or 2000 tokens; it writes nothing unless `--save`. `ck skill profile init`
+  records the decisions in a project-owned `.claude/skills-profile.json` that is never
+  overwritten and survives install, update and fleet sync. `ck skill card` emits
+  sanitized metadata cards for a project's own skills and `ck skill match --registry`
+  suggests cards from other projects by stack overlap -- suggest only, never install.
+  `ck doctor` validates the profile when present. Honest limit: nothing enforces
+  `disabled` yet; this release measures and records, it does not change what a model
+  loads.
 - **Agent memory was declared everywhere and worked nowhere.** Seven agents ship
   `memory: project`, but `install.sh` never created the
   `.claude/agent-memory/<agent>/` directories they read, and a missing memory file

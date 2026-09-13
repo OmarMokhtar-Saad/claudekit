@@ -6,6 +6,7 @@ Move a config here when it is **spent** (already executed — anchors consumed b
 
 | File | Why archived |
 |---|---|
+| `ops-skill-fit/ops-skill-fit.json` | Spent — executed 2026-09-13 (approved 94). Adds `ck skill audit | profile init | card | match`, read-only analysis to measure how installed skills fit a project; skill-fit contexts scored by relevance/irrelevance/broken; profile writes `.claude/skills-profile.json` (never overwritten, survives fleet sync); doctor validates the profile; card and match are suggestion-only, never install. 7 operations, 10 edits: main.py routing + implementation, preserve_assets.py (skills-profile.json as always-custom), test_skill_fit.py + test_skills_profile_preserved.py, docs/cli.md, CHANGELOG.md. Build/lint/tests/docs/registry all pass. |
 | `ops-memory-p1fix.json` | Spent — the reinstall data-loss fix (stubs after preservation; MEMORY.md always-custom), executed 2026-09-13 (approved 94). |
 | `ops-memory-lint.json` | Spent — ruff/mypy fixes on the Phase 3/4 additions, executed 2026-09-13. |
 | `ops-memory-scaffold-distill.json` | Spent — Phase 3 `distill` + Phase 4 behavioural tests, executed 2026-09-13 (approved 94). |
