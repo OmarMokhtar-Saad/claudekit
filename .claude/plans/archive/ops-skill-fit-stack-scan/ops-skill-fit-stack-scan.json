@@ -1,0 +1,40 @@
+{
+  "plan": "skill-fit-stack-scan",
+  "description": "Tier 2 (no architecture): AppiumLens audit reported kotlin+python for a 1432-Java-file project. The source walk counted ClaudeKit's own root-level backups/ (61 .kts, 5 .py) and operations/ (23 .py, 6 .kts). Skip those two at the project root only (a src/operations package still counts), and skip IntelliJ's out/ everywhere.",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "src/claudekit/skill_fit.py",
+      "edits": [
+        {
+          "find": "_SCAN_SKIP_DIRS = {\"node_modules\", \"build\", \"dist\", \"target\", \"venv\", \"__pycache__\"}\n",
+          "replace": "_SCAN_SKIP_DIRS = {\"node_modules\", \"build\", \"dist\", \"out\", \"target\", \"venv\", \"__pycache__\"}\n#: ClaudeKit's own trees at a project root: executor backups and ops configs. They hold\n#: copies of kit scripts and old build files, not the project's source. Skipped only at\n#: the root, so a real `src/operations/` package still counts.\n_ROOT_SKIP_DIRS = {\"backups\", \"operations\"}\n"
+        },
+        {
+          "find": "                if entry.name.startswith(\".\") or entry.name in _SCAN_SKIP_DIRS:\n                    continue\n                stack.append(entry)\n",
+          "replace": "                if entry.name.startswith(\".\") or entry.name in _SCAN_SKIP_DIRS:\n                    continue\n                if current == root and entry.name in _ROOT_SKIP_DIRS:\n                    continue\n                stack.append(entry)\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_skill_fit.py",
+      "edits": [
+        {
+          "find": "    def test_an_undetected_stack_never_makes_a_skill_irrelevant(self, tmp_path):\n",
+          "replace": "    def test_kit_backups_and_operations_at_the_root_are_not_source(self, tmp_path):\n        \"\"\"AppiumLens fleet run: 61 .kts under backups/ and 23 .py under operations/\n        made a Java project report kotlin and python.\"\"\"\n        root = tmp_path / \"proj\"\n        write_skill(root, \"java-review-checklist\", \"Use when the diff has .java files\")\n        for rel, ext in ((\"backups/b1\", \"kts\"), (\"operations/scripts\", \"py\"),\n                         (\"out/production\", \"kt\")):\n            d = root / rel\n            d.mkdir(parents=True)\n            for i in range(25):\n                (d / f\"f{i}.{ext}\").write_text(\"x\\n\", encoding=\"utf-8\")\n        assert audit_json(root)[\"stacks\"] == []\n        pkg = root / \"src\" / \"operations\"\n        pkg.mkdir(parents=True)\n        for i in range(20):\n            (pkg / f\"m{i}.py\").write_text(\"x = 1\\n\", encoding=\"utf-8\")\n        assert audit_json(root)[\"stacks\"] == [\"python\"]\n\n    def test_an_undetected_stack_never_makes_a_skill_irrelevant(self, tmp_path):\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "edits": [
+        {
+          "find": "## [Unreleased]\n",
+          "replace": "## [Unreleased]\n- **`ck skill audit` stack detection ignores ClaudeKit's own trees.** Root-level\n  `backups/` and `operations/`, and `out/` anywhere, no longer count as source, so a Java\n  project is no longer reported as Kotlin and Python because of backed-up build scripts\n  and ops tooling.\n"
+        }
+      ]
+    }
+  ]
+}
