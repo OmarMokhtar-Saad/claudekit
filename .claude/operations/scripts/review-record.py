@@ -153,6 +153,12 @@ _FINDING_RE = re.compile(r"^-\s*\[(CRITICAL|MAJOR|MINOR)\]\s*(.+)$", re.M)
 NON_RECORDABLE_DECISIONS = ("APPROVED",)
 
 
+# Directory layout some projects mandate for ops configs: operations/<slug>/ops.json.
+# The directory, not the filename, carries the config's identity there.
+DIR_LAYOUT_ROOT = "operations"
+DIR_LAYOUT_NAME = "ops.json"
+
+
 def plan_slug(plan_path: str) -> str:
     stem = Path(plan_path).stem
     return stem[5:] if stem.startswith("plan-") else stem
@@ -171,9 +177,16 @@ def ops_slug(ops_path) -> str:
 
     Keying by ops identity makes the two sides agree by construction. This inverts
     exactly the filename forms resolve_ops() emits, so plan-x.ops.json, ops-x.json,
-    x.ops.json and x.json all key as "x".
+    x.ops.json and x.json all key as "x". A bare ops.json keys by its directory name
+    VERBATIM -- no prefix strip, so operations/x/ops.json and operations/ops-x/ops.json
+    stay two records. By filename every such plan shared the one record "ops".
     """
     name = Path(ops_path).name
+    if name == DIR_LAYOUT_NAME:
+        # .resolve() is required: for a relative "ops.json" a bare .parent.name is "".
+        directory = Path(ops_path).resolve().parent.name
+        if directory:
+            return directory
     for suffix in (".ops.json", ".json"):
         if name.endswith(suffix):
             name = name[:-len(suffix)]
@@ -197,9 +210,17 @@ def resolve_ops(plan_path: str):
     slug = plan_slug(plan_path)
     plans_dir = Path(plan_path).parent
     seen = []
-    for name in (f"{stem}.ops.json", f"ops-{slug}.json",
-                f"{slug}.ops.json", f"{slug}.json"):
-        candidate = plans_dir / name
+    # Two rooting rules, kept apart on purpose: a new flat form appended to the
+    # directory list (or the reverse) would silently resolve against the wrong root.
+    # Flat forms sit beside the plan itself.
+    flat = [plans_dir / name for name in (f"{stem}.ops.json", f"ops-{slug}.json",
+                                          f"{slug}.ops.json", f"{slug}.json")]
+    # Directory forms are rooted at the PLAN's project rather than cwd.
+    operations_dir = _project_root(plans_dir) / DIR_LAYOUT_ROOT
+    directory = [operations_dir / d / DIR_LAYOUT_NAME for d in (slug, stem)]
+    # Every form is collected, so a plan owning a flat AND a directory config
+    # stays AMBIGUOUS.
+    for candidate in flat + directory:
         if candidate.exists() and candidate not in seen:
             seen.append(candidate)
     if len(seen) > 1:
@@ -262,14 +283,14 @@ def load_ops_summary(ops_path: Path) -> dict:
         return {"operations": None, "edits": None}
 
 
-def _project_root() -> Path:
-    """Nearest ancestor holding a .claude/ directory, walking up from cwd.
+def _project_root(start=None) -> Path:
+    """Nearest ancestor holding a .claude/ directory, walking up from `start` (default cwd).
 
     Extracted so the record store and the brief store resolve the root through ONE
     function. Two copies of an ancestor walk drift the first time either changes, and a
     brief written into a different tree than its record is worse than no brief.
     """
-    cur = Path.cwd()
+    cur = Path(start).resolve() if start is not None else Path.cwd()
     for candidate in (cur, *cur.parents):
         if (candidate / ".claude").is_dir():
             return candidate
@@ -667,7 +688,8 @@ def cmd_resolve(args) -> int:
         print(f"NO OPS: could not resolve an unambiguous ops.json for '{slug}'",
               file=sys.stderr)
         print(f"        tried {stem}.ops.json, ops-{slug}.json, "
-              f"{slug}.ops.json, {slug}.json", file=sys.stderr)
+              f"{slug}.ops.json, {slug}.json, operations/{slug}/ops.json",
+              file=sys.stderr)
         print("        (see any AMBIGUOUS listing above if more than one exists)",
               file=sys.stderr)
         return 3

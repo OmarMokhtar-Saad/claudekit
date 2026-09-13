@@ -1,0 +1,21 @@
+{
+  "plan": "memory-scaffold-fleet",
+  "operations": [
+    {
+      "id": "p4-pin-the-reinstall-data-loss",
+      "type": "code_edit",
+      "path": "tests/test_agent_memory_scaffold.py",
+      "description": "Pin the reinstall data-loss regression in both shapes: a plain reinstall, and the transition case where a manifest written by the buggy build calls MEMORY.md kit-owned. Also assert the kit-owned README still installs.",
+      "edits": [
+        {
+          "find": "class TestDistillRefusals:",
+          "replace": "class TestMemorySurvivesReinstall:\n    \"\"\"The data-loss regression, pinned in both shapes it appeared in.\n\n    Phase 1 originally wrote its stub BEFORE preserve_assets.py ran, so the stub\n    occupied the path preservation restores into and a project's real MEMORY.md was\n    replaced by an empty one. Moving the block after preservation fixed the plain\n    case but NOT the transition case: a manifest written by the buggy build lists\n    MEMORY.md as kit-owned, so preservation declined to restore it. Both are pinned\n    here because a hand-run proof is what failed to catch this twice.\n    \"\"\"\n\n    REAL = \"# planner memory\\n\\n- [Irreplaceable](x.md) - months of knowledge\\n\"\n\n    def _seed(self, claude):\n        agent = _declaring(claude)[0]\n        memory = claude / \"agent-memory\" / agent / \"MEMORY.md\"\n        memory.write_text(self.REAL, encoding=\"utf-8\")\n        return memory\n\n    def test_a_reinstall_does_not_replace_real_memory_with_a_stub(self, tmp_path):\n        claude = _install(tmp_path)\n        memory = self._seed(claude)\n        _install(tmp_path)\n        assert memory.read_text(encoding=\"utf-8\") == self.REAL, memory.read_text()\n\n    def test_memory_survives_even_when_the_manifest_calls_it_kit_owned(self, tmp_path):\n        \"\"\"The transition case: simulate a manifest written by the buggy build, which\n        recorded the stub as a kit asset. Preservation must still restore the real\n        file -- ownership of accumulated memory is decided by path, never by a\n        manifest that a previous build got wrong.\"\"\"\n        claude = _install(tmp_path)\n        memory = self._seed(claude)\n        rel = str(memory.relative_to(claude))\n        manifest = claude / \".claudekit-manifest.json\"\n        data = json.loads(manifest.read_text(encoding=\"utf-8\"))\n        files = data[\"files\"] if isinstance(data, dict) and \"files\" in data else data\n        if isinstance(files, dict):\n            files[rel] = files.get(rel, \"\")\n        else:\n            files.append(rel)\n        manifest.write_text(json.dumps(data), encoding=\"utf-8\")\n        _install(tmp_path)\n        assert memory.read_text(encoding=\"utf-8\") == self.REAL, memory.read_text()\n\n    def test_the_kit_owned_readme_is_still_installed(self, tmp_path):\n        claude = _install(tmp_path)\n        assert (claude / \"agent-memory\" / \"README.md\").is_file()\n\n\nclass TestDistillRefusals:"
+        },
+        {
+          "find": "import hashlib\nimport os",
+          "replace": "import hashlib\nimport json\nimport os"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "plan": "reviewer-mandatory-block",
+  "operations": [
+    {
+      "id": "l5-reviewer-mandatory",
+      "type": "code_edit",
+      "path": ".claude/agents/reviewer.md",
+      "description": "Code-review L5: restore the explicit rule that the verdict block is mandatory whether or not the caller asks",
+      "edits": [
+        {
+          "find": "rejections included, in the reply itself: callers save that reply verbatim as the report.**",
+          "replace": "rejections included, in the reply itself. Mandatory, not conditional on the caller asking for it.**"
+        }
+      ]
+    }
+  ]
+}

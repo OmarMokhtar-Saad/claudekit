@@ -280,6 +280,46 @@ class TestOpsResolution:
         assert res.returncode == 3
         assert 'NO OPS' in res.stderr
 
+    def test_resolves_the_operations_directory_layout(self, tmp_path):
+        """Regression: projects whose CLAUDE.md mandates operations/<slug>/ops.json got
+        NO OPS for every plan, so /review could never record a verdict."""
+        plans = tmp_path / '.claude' / 'plans'
+        plans.mkdir(parents=True)
+        plan = plans / 'plan-demo.md'
+        plan.write_text('# Plan: demo\n', encoding='utf-8')
+        for dirname in ('demo', 'plan-demo'):
+            ops = tmp_path / 'operations' / dirname / 'ops.json'
+            ops.parent.mkdir(parents=True)
+            ops.write_text('{}', encoding='utf-8')
+            res = _run(tmp_path, 'resolve', str(plan))
+            assert res.returncode == 0, f"{dirname}: {res.stderr}"
+            assert res.stdout.strip() == str(ops.resolve())
+            ops.unlink()
+
+    def test_directory_layout_resolves_from_the_plan_not_the_cwd(self, tmp_path):
+        root = tmp_path / 'proj'
+        plans = root / '.claude' / 'plans'
+        plans.mkdir(parents=True)
+        plan = plans / 'plan-demo.md'
+        plan.write_text('# Plan: demo\n', encoding='utf-8')
+        ops = root / 'operations' / 'demo' / 'ops.json'
+        ops.parent.mkdir(parents=True)
+        ops.write_text('{}', encoding='utf-8')
+        elsewhere = tmp_path / 'elsewhere'
+        elsewhere.mkdir()
+        res = _run(elsewhere, 'resolve', str(plan))
+        assert res.returncode == 0, res.stderr
+        assert res.stdout.strip() == str(ops.resolve())
+
+    def test_a_flat_and_a_directory_config_are_ambiguous(self, tmp_path):
+        plan, _ = _fixture(tmp_path)
+        ops = tmp_path / 'operations' / 'demo' / 'ops.json'
+        ops.parent.mkdir(parents=True)
+        ops.write_text('{}', encoding='utf-8')
+        res = _run(tmp_path, 'resolve', str(plan))
+        assert res.returncode == 3
+        assert 'AMBIGUOUS' in res.stderr
+
 
 class TestApprovalBinding:
     def test_check_without_record_reports_no_record(self, tmp_path):
@@ -601,4 +641,86 @@ class TestTheLoopTripwire:
         _record_round(tmp_path, 78, 'REVISE')
         _record_round(tmp_path, 95, 'APPROVED')
         assert 'loop_advisory' not in _written_record(tmp_path)
+
+
+class TestDirectoryLayoutKeying:
+    """operations/<slug>/ops.json keys by its DIRECTORY. Keyed by filename, every such
+    plan shared the record 'ops' and each write clobbered the last."""
+
+    @staticmethod
+    def _dir_fixture(tmp_path, slug, marker):
+        plans = tmp_path / '.claude' / 'plans'
+        plans.mkdir(parents=True, exist_ok=True)
+        plan = plans / f'plan-{slug}.md'
+        plan.write_text(f'# Plan: {slug}\n', encoding='utf-8')
+        ops = tmp_path / 'operations' / slug / 'ops.json'
+        ops.parent.mkdir(parents=True, exist_ok=True)
+        ops.write_text(json.dumps({'plan': slug, 'operations': [], 'marker': marker}),
+                       encoding='utf-8')
+        return plan, ops
+
+    def test_two_directory_plans_get_distinct_records(self, tmp_path):
+        plan_a, ops_a = self._dir_fixture(tmp_path, 'alpha', 1)
+        plan_b, ops_b = self._dir_fixture(tmp_path, 'beta', 2)
+        assert _approve(tmp_path, plan_a, ops_a, score=95).returncode == 0
+        assert _approve(tmp_path, plan_b, ops_b, score=96).returncode == 0
+        reviews = tmp_path / '.claude' / 'reports' / 'reviews'
+        assert (reviews / 'alpha.json').is_file()
+        assert (reviews / 'beta.json').is_file()
+        assert not (reviews / 'ops.json').exists()
+        assert _run(tmp_path, 'check', str(plan_a), str(ops_a)).returncode == 0
+        assert _run(tmp_path, 'check', str(plan_b), str(ops_b)).returncode == 0
+
+    def test_editing_a_directory_config_after_approval_is_drift(self, tmp_path):
+        plan, ops = self._dir_fixture(tmp_path, 'alpha', 1)
+        assert _approve(tmp_path, plan, ops).returncode == 0
+        ops.write_text(json.dumps({'plan': 'alpha', 'operations': [], 'marker': 9}),
+                       encoding='utf-8')
+        res = _run(tmp_path, 'check', str(plan), str(ops))
+        assert res.returncode == 2, res.stderr
+        assert 'DRIFT' in res.stderr
+
+    def test_prefixed_sibling_directories_get_distinct_records(self, tmp_path):
+        """operations/x, operations/ops-x and operations/plan-x are three configs. A
+        prefix strip collapsed them onto 'x', so each write clobbered the last."""
+        reviews = tmp_path / '.claude' / 'reports' / 'reviews'
+        pairs = [self._dir_fixture(tmp_path, s, i)
+                 for i, s in enumerate(('x', 'ops-x', 'plan-x'))]
+        assert _approve(tmp_path, *pairs[0]).returncode == 0
+        first = (reviews / 'x.json').read_bytes()
+        for plan, ops in pairs[1:]:
+            assert _approve(tmp_path, plan, ops).returncode == 0
+        assert (reviews / 'x.json').read_bytes() == first
+        for slug in ('ops-x', 'plan-x'):
+            assert (reviews / f'{slug}.json').is_file(), slug
+        for plan, ops in pairs:
+            res = _run(tmp_path, 'check', str(plan), str(ops))
+            assert res.returncode == 0, (ops, res.stderr)
+
+    def test_a_bare_prefix_directory_keys_verbatim(self, tmp_path):
+        """A directory named exactly 'ops-' or 'plan-' must not strip to an empty key."""
+        reviews = tmp_path / '.claude' / 'reports' / 'reviews'
+        for slug in ('ops-', 'plan-'):
+            plan, ops = self._dir_fixture(tmp_path, slug, slug)
+            assert _approve(tmp_path, plan, ops).returncode == 0, slug
+            assert (reviews / f'{slug}.json').is_file(), slug
+        assert not (reviews / '_.json').exists()
+
+    def test_a_dot_directory_never_authorises_its_undotted_sibling(self, tmp_path):
+        """record_paths() strips leading dots, so '.x' and 'x' share a record FILE. The
+        sha256 binding must make that fail closed: the clobbered config is refused."""
+        plan_x, ops_x = self._dir_fixture(tmp_path, 'x', 1)
+        plan_d, ops_d = self._dir_fixture(tmp_path, '.x', 2)
+        assert _approve(tmp_path, plan_x, ops_x).returncode == 0
+        assert _approve(tmp_path, plan_d, ops_d).returncode == 0
+        assert _run(tmp_path, 'check', str(plan_x), str(ops_x)).returncode == 2
+
+    def test_flat_names_keep_their_existing_keys(self, tmp_path):
+        """Backward compatibility: records already on disk stay reachable."""
+        for name in ('plan-demo.ops.json', 'ops-demo.json', 'demo.ops.json', 'demo.json'):
+            d = tmp_path / name.replace('.', '_')
+            plan, ops = _fixture(d, ops_name=name)
+            assert _approve(d, plan, ops).returncode == 0, name
+            record = d / '.claude' / 'reports' / 'reviews' / 'demo.json'
+            assert json.loads(record.read_text(encoding='utf-8'))['slug'] == 'demo', name
 

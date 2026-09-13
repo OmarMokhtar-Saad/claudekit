@@ -1,0 +1,45 @@
+{
+  "plan": "memory-scaffold-fleet",
+  "operations": [
+    {
+      "id": "p1fix2-readme-only-in-asset-phase",
+      "type": "code_edit",
+      "path": "install.sh",
+      "description": "Asset phase keeps only the kit-owned agent-memory README (stays manifest-managed); the per-agent dirs and MEMORY.md stubs move out.",
+      "edits": [
+        {
+          "find": "    # Ship the agent-memory scaffold. Seven agents declare `memory: project`, but\n    # nothing ever created the directories they read, so across 15 installed projects\n    # the total number of MEMORY.md files was 3. A missing memory file is not an\n    # error to Claude Code -- it is silence, which is why this went unnoticed.\n    #\n    # The agent list is DERIVED from the installed agent files, never hardcoded. A\n    # hardcoded list is exactly how the hook allowlist went stale (see below) and\n    # shipped a project where every Edit and Write was blocked.\n    if [[ -d \"$DEST/agents\" ]]; then\n        mkdir -p \"$DEST/agent-memory\"\n        if [[ -f \"$CLAUDE_SRC/agent-memory/README.md\" ]]; then\n            cp \"$CLAUDE_SRC/agent-memory/README.md\" \"$DEST/agent-memory/\"\n        fi\n        _mem_count=0\n        for _agent_file in \"$DEST\"/agents/*.md; do\n            [[ -f \"$_agent_file\" ]] || continue\n            grep -q \"^memory: project\" \"$_agent_file\" || continue\n            _agent_name=\"${_agent_file##*/}\"\n            _agent_name=\"${_agent_name%.md}\"\n            mkdir -p \"$DEST/agent-memory/$_agent_name\"\n            # NEVER overwrite an existing memory file: it is the project's\n            # accumulated knowledge and a re-run of the installer must leave it\n            # byte-identical.\n            if [[ ! -f \"$DEST/agent-memory/$_agent_name/MEMORY.md\" ]]; then\n                printf '# %s memory\\n\\nOne line per entry: `- [Title](file.md) - hook`\\n' \\\n                    \"$_agent_name\" > \"$DEST/agent-memory/$_agent_name/MEMORY.md\"\n            fi\n            _mem_count=$((_mem_count + 1))\n        done\n        print_ok \"$_mem_count agent-memory directories installed\"\n    fi\n\n    # Copy the issue-ledger entry-format contract. The ledger directory and its\n    # entries self-materialize on the first `record`, but the README is the\n    # documented entry format, so a full install must ship it.\n    if [[ -f \"$CLAUDE_SRC/knowledge/issues/README.md\" ]]; then\n        mkdir -p \"$DEST/knowledge/issues\"\n        cp \"$CLAUDE_SRC/knowledge/issues/README.md\" \"$DEST/knowledge/issues/\"\n        print_ok \"Issue-ledger entry contract installed\"\n    fi\n\n",
+          "replace": "    # The agent-memory README is the shipped entry-format contract: kit-owned, so it\n    # is copied here, during the asset phase, and lands in the manifest like any other\n    # kit asset. The per-agent directories and MEMORY.md stubs are deliberately NOT\n    # created here -- see the block after preserve_assets.py for why.\n    if [[ -f \"$CLAUDE_SRC/agent-memory/README.md\" ]]; then\n        mkdir -p \"$DEST/agent-memory\"\n        cp \"$CLAUDE_SRC/agent-memory/README.md\" \"$DEST/agent-memory/\"\n    fi\n\n"
+        }
+      ]
+    },
+    {
+      "id": "p1fix2-stubs-after-preservation",
+      "type": "code_edit",
+      "path": "install.sh",
+      "description": "Create per-agent dirs and MEMORY.md stubs AFTER preserve_assets.py, outside the BACKUP conditional so fresh installs still get them. Deliberately after manifest generation: accumulated memory is project data and must not be manifest-managed.",
+      "edits": [
+        {
+          "find": "    python3 \"$CLAUDE_SRC/operations/scripts/preserve_assets.py\" \"$BACKUP\" \"$FINAL_DEST\" \\\n        || print_warn \"Custom-asset preservation failed (files remain in the backup)\"\nfi\n",
+          "add_after": "\n# ---- Agent-memory stubs (AFTER preservation, deliberately) ----\n# install.sh backs up and replaces .claude/ wholesale; preserve_assets.py carries back\n# a backup file only if the new tree LACKS it. Writing the stub earlier occupied that\n# path, so a project's REAL MEMORY.md was skipped by preservation and replaced by an\n# empty stub -- measured: a reinstall destroyed it. Running after preservation, the\n# real file is restored first and the loop below finds it and leaves it alone.\n#\n# These files are intentionally absent from .claudekit-manifest.json (generated\n# earlier): a project's accumulated memory is project data, not a kit asset, and must\n# not be removed by `ck uninstall` or reported as drift by `ck diff`.\nif [[ -d \"$FINAL_DEST/agents\" ]]; then\n    _mem_count=0\n    for _agent_file in \"$FINAL_DEST\"/agents/*.md; do\n        [[ -f \"$_agent_file\" ]] || continue\n        grep -q \"^memory: project\" \"$_agent_file\" || continue\n        _agent_name=\"${_agent_file##*/}\"\n        _agent_name=\"${_agent_name%.md}\"\n        mkdir -p \"$FINAL_DEST/agent-memory/$_agent_name\"\n        # NEVER overwrite: this is the project's accumulated knowledge.\n        if [[ ! -f \"$FINAL_DEST/agent-memory/$_agent_name/MEMORY.md\" ]]; then\n            printf '# %s memory\\n\\nOne line per entry: `- [Title](file.md) - hook`\\n' \\\n                \"$_agent_name\" > \"$FINAL_DEST/agent-memory/$_agent_name/MEMORY.md\"\n        fi\n        _mem_count=$((_mem_count + 1))\n    done\n    print_ok \"$_mem_count agent-memory directories installed\"\nfi\n"
+        }
+      ]
+    },
+    {
+      "id": "p1fix2-memory-is-always-custom",
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/preserve_assets.py",
+      "description": "preserve_assets.py treats agent-memory/<agent>/MEMORY.md as always-custom, so no stale manifest written by an early build can mark a project's real memory as kit-owned and let it be skipped. The README beside it stays kit-owned.",
+      "edits": [
+        {
+          "find": "def _is_custom(rel: str, old_manifest: Optional[Set[str]]) -> bool:\n    \"\"\"Is this backup entry the PROJECT's rather than the old kit's?\"\"\"\n    if old_manifest is not None:",
+          "replace": "# A project's accumulated agent memory is PROJECT data, never kit data, whatever a\n# manifest happens to say. An early build of the memory scaffold wrote its stub before\n# the manifest was generated, so that manifest lists MEMORY.md as kit-owned -- and a\n# manifest-driven decision would then decline to restore the real file and let an empty\n# stub replace months of accumulated knowledge. Keyed on the basename inside\n# agent-memory/ so no manifest state can override it. The README beside it stays\n# kit-owned: it is the shipped entry-format contract, not project data.\nALWAYS_CUSTOM_DIR = \"agent-memory\"\nALWAYS_CUSTOM_NAME = \"MEMORY.md\"\n\n\ndef _is_custom(rel: str, old_manifest: Optional[Set[str]]) -> bool:\n    \"\"\"Is this backup entry the PROJECT's rather than the old kit's?\"\"\"\n    parts = rel.split(os.sep)\n    if parts[0] == ALWAYS_CUSTOM_DIR and parts[-1] == ALWAYS_CUSTOM_NAME:\n        return True\n    if old_manifest is not None:"
+        }
+      ]
+    }
+  ],
+  "baseline": {
+    ".claude/operations/scripts/preserve_assets.py": "sha256:96078cdcf97b8165de282dd37418ee4b88f7f086eec90c1bce2fc952666fe4d3",
+    "install.sh": "sha256:274d706435bc50f4dc47ad77c430133d30a2d39ac614e96b97540972f726255a"
+  }
+}

@@ -106,8 +106,8 @@ printf '%s' "$review_output" | \
 
 2. **Record the verdict (Task-tool path).** The bash block above only runs on the
    scripted `claude -p` path. When the reviewer ran via the Task tool (the interactive
-   default), save its raw output to a file and record it yourself — a review whose verdict
-   was never recorded is not an approval:
+   default), save its reply VERBATIM to a file and record from that file — never a rewrite
+   or summary; no `=== REVIEW ===` block records nothing (re-ask, never compose one):
    ```bash
    python3 .claude/operations/scripts/review-record.py resolve "$PLAN_FILE"
    ```
