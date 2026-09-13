@@ -123,8 +123,22 @@ def preserve_entry(path: str, rel: str, dest: str, project_root: str,
     return True
 
 
+# A project's accumulated agent memory is PROJECT data, never kit data, whatever a
+# manifest happens to say. An early build of the memory scaffold wrote its stub before
+# the manifest was generated, so that manifest lists MEMORY.md as kit-owned -- and a
+# manifest-driven decision would then decline to restore the real file and let an empty
+# stub replace months of accumulated knowledge. Keyed on the basename inside
+# agent-memory/ so no manifest state can override it. The README beside it stays
+# kit-owned: it is the shipped entry-format contract, not project data.
+ALWAYS_CUSTOM_DIR = "agent-memory"
+ALWAYS_CUSTOM_NAME = "MEMORY.md"
+
+
 def _is_custom(rel: str, old_manifest: Optional[Set[str]]) -> bool:
     """Is this backup entry the PROJECT's rather than the old kit's?"""
+    parts = rel.split(os.sep)
+    if parts[0] == ALWAYS_CUSTOM_DIR and parts[-1] == ALWAYS_CUSTOM_NAME:
+        return True
     if old_manifest is not None:
         # Precise: old-kit files (removed/renamed since) are NOT resurrected.
         return rel not in old_manifest

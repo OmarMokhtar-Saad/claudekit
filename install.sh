@@ -268,45 +268,13 @@ if [[ "$MODE" == "full" ]]; then
     PROFILE_COUNT=$(find "$DEST/profiles" -name "profile.json" 2>/dev/null | wc -l | tr -d ' ')
     print_ok "$PROFILE_COUNT profiles installed"
 
-    # Ship the agent-memory scaffold. Seven agents declare `memory: project`, but
-    # nothing ever created the directories they read, so across 15 installed projects
-    # the total number of MEMORY.md files was 3. A missing memory file is not an
-    # error to Claude Code -- it is silence, which is why this went unnoticed.
-    #
-    # The agent list is DERIVED from the installed agent files, never hardcoded. A
-    # hardcoded list is exactly how the hook allowlist went stale (see below) and
-    # shipped a project where every Edit and Write was blocked.
-    if [[ -d "$DEST/agents" ]]; then
+    # The agent-memory README is the shipped entry-format contract: kit-owned, so it
+    # is copied here, during the asset phase, and lands in the manifest like any other
+    # kit asset. The per-agent directories and MEMORY.md stubs are deliberately NOT
+    # created here -- see the block after preserve_assets.py for why.
+    if [[ -f "$CLAUDE_SRC/agent-memory/README.md" ]]; then
         mkdir -p "$DEST/agent-memory"
-        if [[ -f "$CLAUDE_SRC/agent-memory/README.md" ]]; then
-            cp "$CLAUDE_SRC/agent-memory/README.md" "$DEST/agent-memory/"
-        fi
-        _mem_count=0
-        for _agent_file in "$DEST"/agents/*.md; do
-            [[ -f "$_agent_file" ]] || continue
-            grep -q "^memory: project" "$_agent_file" || continue
-            _agent_name="${_agent_file##*/}"
-            _agent_name="${_agent_name%.md}"
-            mkdir -p "$DEST/agent-memory/$_agent_name"
-            # NEVER overwrite an existing memory file: it is the project's
-            # accumulated knowledge and a re-run of the installer must leave it
-            # byte-identical.
-            if [[ ! -f "$DEST/agent-memory/$_agent_name/MEMORY.md" ]]; then
-                printf '# %s memory\n\nOne line per entry: `- [Title](file.md) - hook`\n' \
-                    "$_agent_name" > "$DEST/agent-memory/$_agent_name/MEMORY.md"
-            fi
-            _mem_count=$((_mem_count + 1))
-        done
-        print_ok "$_mem_count agent-memory directories installed"
-    fi
-
-    # Copy the issue-ledger entry-format contract. The ledger directory and its
-    # entries self-materialize on the first `record`, but the README is the
-    # documented entry format, so a full install must ship it.
-    if [[ -f "$CLAUDE_SRC/knowledge/issues/README.md" ]]; then
-        mkdir -p "$DEST/knowledge/issues"
-        cp "$CLAUDE_SRC/knowledge/issues/README.md" "$DEST/knowledge/issues/"
-        print_ok "Issue-ledger entry contract installed"
+        cp "$CLAUDE_SRC/agent-memory/README.md" "$DEST/agent-memory/"
     fi
 
     print_step "Installing hooks..."
@@ -750,6 +718,34 @@ if [[ -n "${BACKUP:-}" && -d "${BACKUP:-}" ]]; then
     # direct tests: tests/test_preserve_assets.py.
     python3 "$CLAUDE_SRC/operations/scripts/preserve_assets.py" "$BACKUP" "$FINAL_DEST" \
         || print_warn "Custom-asset preservation failed (files remain in the backup)"
+fi
+
+# ---- Agent-memory stubs (AFTER preservation, deliberately) ----
+# install.sh backs up and replaces .claude/ wholesale; preserve_assets.py carries back
+# a backup file only if the new tree LACKS it. Writing the stub earlier occupied that
+# path, so a project's REAL MEMORY.md was skipped by preservation and replaced by an
+# empty stub -- measured: a reinstall destroyed it. Running after preservation, the
+# real file is restored first and the loop below finds it and leaves it alone.
+#
+# These files are intentionally absent from .claudekit-manifest.json (generated
+# earlier): a project's accumulated memory is project data, not a kit asset, and must
+# not be removed by `ck uninstall` or reported as drift by `ck diff`.
+if [[ -d "$FINAL_DEST/agents" ]]; then
+    _mem_count=0
+    for _agent_file in "$FINAL_DEST"/agents/*.md; do
+        [[ -f "$_agent_file" ]] || continue
+        grep -q "^memory: project" "$_agent_file" || continue
+        _agent_name="${_agent_file##*/}"
+        _agent_name="${_agent_name%.md}"
+        mkdir -p "$FINAL_DEST/agent-memory/$_agent_name"
+        # NEVER overwrite: this is the project's accumulated knowledge.
+        if [[ ! -f "$FINAL_DEST/agent-memory/$_agent_name/MEMORY.md" ]]; then
+            printf '# %s memory\n\nOne line per entry: `- [Title](file.md) - hook`\n' \
+                "$_agent_name" > "$FINAL_DEST/agent-memory/$_agent_name/MEMORY.md"
+        fi
+        _mem_count=$((_mem_count + 1))
+    done
+    print_ok "$_mem_count agent-memory directories installed"
 fi
 
 # Update .gitignore

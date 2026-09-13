@@ -1,0 +1,17 @@
+{
+  "plan": ".claude/plans/plan-memory-scaffold-fleet.md",
+  "slug": "memory-p1fix",
+  "ops_path": ".claude/plans/plan-memory-p1fix.ops.json",
+  "ops_sha256": "d90c47619d291e7e764d5eb4f6af6d1279e65de6762d897c46761448320a699e",
+  "score": 94,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] ops.json itself still carries no explicit rollback field; reversibility is documented in plan.md and in preserve_assets.py's comments instead of restated per-operation."
+  ],
+  "verdict_origin": "rubric",
+  "recorded_utc": "2026-09-13T08:27:19Z",
+  "operations": 3,
+  "edits": 3,
+  "rounds": [],
+  "round": 1
+}
