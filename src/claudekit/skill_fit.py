@@ -122,6 +122,11 @@ STACK_VOCAB: Tuple[Tuple[str, str], ...] = (
 )
 _VOCAB = tuple((tag, re.compile(pattern, re.IGNORECASE)) for tag, pattern in STACK_VOCAB)
 
+#: Base languages. Sharing only these says almost nothing (every Java project "matches"
+#: every card that mentions Java), so `match` drops such suggestions by default.
+LANGUAGE_TAGS: FrozenSet[str] = frozenset({"go", "java", "kotlin", "python", "rust",
+                                           "typescript"})
+
 REGISTRY_ENV = "CLAUDEKIT_REGISTRY"
 #: Jaccard floor for a suggestion. Low on purpose: a project with many tags divides
 #: every narrow card's score, and a floor tuned on two-tag projects would hide them.
@@ -634,8 +639,12 @@ def publish_cards(root: Path, *, project: Optional[str] = None,
 
 
 def match(root: Path, registry: Optional[Path] = None, *, project: Optional[str] = None,
-          min_score: float = DEFAULT_MIN_SCORE) -> Dict[str, Any]:
+          min_score: float = DEFAULT_MIN_SCORE,
+          include_language_only: bool = False) -> Dict[str, Any]:
     """Suggest cards whose tags overlap this project's tags. Installs nothing.
+
+    A card whose overlap is only base languages (`LANGUAGE_TAGS`) is dropped and
+    counted in `language_only`, unless `include_language_only`.
 
     The project's tags are its detected stacks plus the tags of its own skills, so two
     Appium projects whose source counts fall under the stack threshold still meet on
@@ -668,12 +677,16 @@ def match(root: Path, registry: Optional[Path] = None, *, project: Optional[str]
         own = None
     loaded, skipped = load_cards(directory)
     suggestions: List[Dict[str, Any]] = []
+    language_only = 0
     for card in loaded:
         if card["source"] == own or card["name"] in installed:
             continue
         tags = set(card["stack_tags"])
         overlap = sorted(tags & project_tags)
         if not overlap:
+            continue
+        if not include_language_only and set(overlap) <= LANGUAGE_TAGS:
+            language_only += 1
             continue
         score = round(len(overlap) / len(tags | project_tags), 3)
         if score < min_score:
@@ -689,7 +702,8 @@ def match(root: Path, registry: Optional[Path] = None, *, project: Optional[str]
     suggestions.sort(key=lambda s: (-s["score"], s["tokens"], s["name"], s["source"]))
     return {"stacks": stacks, "project_tags": sorted(project_tags),
             "registry": str(directory), "project": own, "min_score": min_score,
-            "suggestions": suggestions, "skipped": skipped}
+            "suggestions": suggestions, "skipped": skipped,
+            "language_only": language_only}
 
 
 # --------------------------------------------------------------------- enforcement

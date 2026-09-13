@@ -280,7 +280,10 @@ class TestMatch:
     def test_suggests_by_stack_overlap_and_installs_nothing(self, project, tmp_path):
         reg = self._registry(tmp_path)
         before = tree_digest(project)
-        proc = ck(project, "skill", "match", "--registry", str(reg), "--json")
+        # The fixture card shares only `python`; opt in, since this test is about
+        # suggesting without installing, not about language-only filtering.
+        proc = ck(project, "skill", "match", "--registry", str(reg), "--json",
+                  "--include-language-only")
         assert proc.returncode == 0, proc.stderr
         doc = json.loads(proc.stdout)
         assert [s["name"] for s in doc["suggestions"]] == ["fixture-helper"]
@@ -468,6 +471,29 @@ class TestRegistry:
         low = ck(root, "skill", "match", "--json", "--min-score", "0.05", env=env)
         assert [s["score"] for s in json.loads(low.stdout)["suggestions"]] == [0.091]
         assert ck(root, "skill", "match", "--min-score", "2", env=env).returncode == 1
+
+
+class TestLanguageOnlyMatches:
+    def test_language_only_overlap_is_dropped_unless_asked(self, tmp_path):
+        """Fleet run: 7 plain-Java projects got 22 suggestions each at 1.0 because the
+        cards merely mentioned Java."""
+        root = local_project(tmp_path, "javaproj", {
+            "spring-wiring": ("Use when wiring Java services with Gradle", "")})
+        reg = tmp_path / "registry"
+        reg.mkdir()
+        (reg / "other.json").write_text(json.dumps({"cards": [
+            {"card_version": 1, "name": "java-only", "stack_tags": ["java"],
+             "description": "Use when touching Java", "tokens": 5},
+            {"card_version": 1, "name": "gradle-build", "stack_tags": ["gradle", "java"],
+             "description": "Use when building with Gradle", "tokens": 5}]}),
+            encoding="utf-8")
+        env = isolated_env(tmp_path)
+        doc = json.loads(ck(root, "skill", "match", "--json", env=env).stdout)
+        assert [s["name"] for s in doc["suggestions"]] == ["gradle-build"]
+        assert doc["language_only"] == 1
+        wide = json.loads(ck(root, "skill", "match", "--json", "--include-language-only",
+                             env=env).stdout)
+        assert sorted(s["name"] for s in wide["suggestions"]) == ["gradle-build", "java-only"]
 
 
 class TestFleetMissRegression:
