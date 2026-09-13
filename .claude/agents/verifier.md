@@ -253,6 +253,8 @@ Quality is significantly below threshold.
 ## Output Format
 
 ```
+Next action: <the single thing the caller should do now>
+Top findings: <at most 5, most severe first>; "N more" below
 VERIFICATION REPORT
 ===================
 Date: <date>

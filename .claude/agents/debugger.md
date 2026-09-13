@@ -380,6 +380,7 @@ Theories:
 ## Diagnosis Report Format
 
 ```
+Next action: <hand off to planner with Approach N | supply the missing context named below>
 BUG DIAGNOSIS REPORT
 ====================
 Bug: <title/description>
