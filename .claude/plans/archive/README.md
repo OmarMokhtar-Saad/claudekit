@@ -362,3 +362,10 @@ gate closes on every sibling config the moment it lands.
   SESSION_STATE resume point and CHANGELOG_AI entry for the approval-gate directory-layout
   fix, its follow-ups, the code-review-on-request policy and the fleet rollout.
 
+- `ops-action-first-mode.json` + `plan-action-first-mode.md` — **spent**
+  (2026-09-13, `--no-approval` disclosed: Tier 2, no architecture surface). New
+  `action-first` behavioral mode (inspired by ayghri/i-have-adhd, MIT), `/mode` table row,
+  mode tests, CHANGELOG entry.
+- `ops-mode-md-trim.json` — **spent** (2026-09-13, `--no-approval` disclosed: Tier 1, one
+  file). Merged the `/mode` Task paragraphs so the new `action-first` row keeps
+  `commands/mode.md` inside its 47-line command-budget ratchet.
