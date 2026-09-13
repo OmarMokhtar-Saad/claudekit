@@ -19,6 +19,9 @@ When `/save-session` is invoked, serialize this state:
 **Saved:** <ISO timestamp>
 **Project:** <project name from package.json/pyproject.toml/directory name>
 **Task:** <one-sentence description of what you were working on>
+Done: <what finished, one line>
+Now: <what is in flight, one line>
+Next: <the single next action>
 
 ## Current Status
 <COMPLETE | IN_PROGRESS | BLOCKED>
@@ -117,6 +120,7 @@ For BLOCKED status:
 
 ### Step 4: Present Summary
 ```
+Done: <last finished> / Now: <task, status> / Next: <next step 1>
 CONTEXT RESUMED
 ===============
 Task: <task description>
