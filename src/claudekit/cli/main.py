@@ -816,6 +816,20 @@ def cmd_doctor(args):
             check(f"Agent memory: {len(_mem_agents)} agents, all with a readable "
                   f"MEMORY.md", True)
 
+    # Skills profile. Checked ONLY when the project has one, so an install without a
+    # profile keeps exactly the checks -- and the readiness score -- it had before.
+    # Malformed or escaping = failure; a stale skill name = warning, because a kit
+    # update that removes a skill must not turn every downstream doctor red.
+    if claude_dir.is_dir() and (claude_dir / "skills-profile.json").is_file():
+        from claudekit import skill_fit
+        _sp_errors, _sp_warnings = skill_fit.profile_findings(Path("."))
+        if _sp_errors:
+            check("Skills profile", False, "; ".join(_sp_errors))
+        elif _sp_warnings:
+            check("Skills profile", "warn", "; ".join(_sp_warnings))
+        else:
+            check("Skills profile: every reference resolves", True)
+
     # Summary
     print(f"\n{'='*40}")
     total = checks_passed + checks_failed + checks_warned + checks_skipped
@@ -2136,6 +2150,12 @@ def cmd_skill(args):
     skill is the exact drift this verb exists to end, so there is no flag that
     writes the directory without the registry entry.
     """
+    if args.action != "new":
+        return _cmd_skill_fit(args)
+    if not args.name or not args.description:
+        err("skill new: a skill id and --description are required")
+        return 1
+
     from claudekit import context_floor, skills
 
     root = Path(".")
@@ -2168,6 +2188,99 @@ def cmd_skill(args):
     else:
         info("Next: fill in the scaffold, then `ck doctor`")
     return 0
+
+
+def _cmd_skill_fit(args):
+    """`ck skill audit | profile init | card | match` -- read-only skill-fit analysis.
+
+    Writes exactly two things, each only on an explicit request: the audit report under
+    `audit --save`, and `.claude/skills-profile.json` under `profile init` (which never
+    overwrites). `match` suggests and never installs. Nothing here edits a skill or
+    injects anything into a prompt.
+    """
+    from claudekit import skill_fit
+
+    root = Path(".")
+    try:
+        if args.action == "audit":
+            report = skill_fit.audit(root, max_lines=args.max_lines,
+                                     max_tokens=args.max_tokens)
+            saved = skill_fit.save_audit(root, report) if args.save else None
+            if args.json:
+                print(json.dumps(report, indent=2, sort_keys=True))
+            else:
+                _print_skill_audit(report)
+                if saved is not None:
+                    ok(f"Saved {saved}")
+            return 0
+        if args.action == "profile":
+            if args.name != "init":
+                err("skill profile: the only action is `init` "
+                    "(`ck skill profile init`)")
+                return 1
+            report = skill_fit.audit(root, max_lines=args.max_lines,
+                                     max_tokens=args.max_tokens)
+            path = skill_fit.init_profile(root, report)
+            disabled = [r["name"] for r in report["skills"] if r["status"] == "irrelevant"]
+            ok(f"Created {path} ({len(disabled)} irrelevant skill(s) listed as disabled)")
+            info("Nothing enforces `disabled` yet: `ck skill audit` and `ck doctor` read "
+                 "it. The file is yours -- install, update and fleet sync leave it alone.")
+            return 0
+        if args.action == "card":
+            found, withheld = skill_fit.cards(root)
+            print(json.dumps({"card_version": skill_fit.CARD_VERSION, "cards": found},
+                             indent=2))
+            for name, why in withheld:
+                err(f"withheld card '{name}': {why}")
+            return 0
+        # match
+        if not args.registry:
+            err("skill match: --registry <dir> is required (a directory of card JSON "
+                "files from `ck skill card`)")
+            return 1
+        result = skill_fit.match(root, Path(args.registry))
+    except skill_fit.SkillFitError as exc:
+        err(f"skill {args.action}: {exc}")
+        return 1
+    if args.json:
+        print(json.dumps(result, indent=2))
+        return 0
+    stacks = ", ".join(result["stacks"]) or "undetected"
+    print(f"\n{C.CYAN}Skill suggestions{C.NC}   stacks: {stacks}   (suggest only -- "
+          f"nothing is installed)\n")
+    for s in result["suggestions"]:
+        print(f"  {s['name']:<32} score {s['score']:<5} {s['tokens']:>6} tok  "
+              f"from {s['source']}  [{', '.join(s['matched_tags'])}]")
+        print(f"      {s['description']}")
+    if not result["suggestions"]:
+        print("  <none>")
+    for line in result["skipped"]:
+        warn(f"skipped {line}")
+    print("")
+    return 0
+
+
+def _print_skill_audit(report):
+    totals, budget = report["totals"], report["budget"]
+    stacks = ", ".join(report["stacks"]) or "undetected"
+    print(f"\n{C.CYAN}Skill audit{C.NC}   stacks: {stacks}   ({report['estimate']})\n")
+    for status in ("broken", "irrelevant", "relevant"):
+        rows = [r for r in report["skills"] if r["status"] == status]
+        if not rows:
+            continue
+        print(f"  {status} ({len(rows)})")
+        for r in rows:
+            flags = " ".join(flag for flag, on in (("OVER-BUDGET", r["over_budget"]),
+                                                   ("disabled", r["disabled"])) if on)
+            print(f"    {r['name']:<34} desc {r['description_tokens']:>4} tok  "
+                  f"body {r['body_tokens']:>5} tok / {r['body_lines']:>4} lines  {flags}")
+            for problem in r["problems"]:
+                print(f"        - {problem}")
+        print("")
+    print(f"  always-on: {totals['always_on_tokens']} tok, of which "
+          f"{totals['always_on_tokens_irrelevant']} irrelevant to this stack   "
+          f"over budget (>{budget['max_lines']} lines or >{budget['max_tokens']} tok): "
+          f"{totals['over_budget']}\n")
 
 
 def cmd_mcp(args):
@@ -2501,10 +2614,16 @@ def main():
 
     # skill
     p = sub.add_parser("skill",
-                       help="Author skills (creation and registration are one act)")
-    p.add_argument("action", choices=["new"], help="new: scaffold and register a skill")
-    p.add_argument("name", help="Skill id, kebab-case")
-    p.add_argument("--description", required=True,
+                       help="Author skills and measure how they fit this project")
+    p.add_argument("action", choices=["new", "audit", "profile", "card", "match"],
+                   help="new: scaffold and register a skill; audit: stack fit and token "
+                        "cost; profile init: write .claude/skills-profile.json; card: "
+                        "sanitized cards for local skills; match: suggest from cards")
+    p.add_argument("name", nargs="?",
+                   help="Skill id, kebab-case (new); `init` (profile)")
+    # Not argparse-required any more: only `new` needs it, and cmd_skill refuses a
+    # `new` without it before anything is written.
+    p.add_argument("--description",
                    help="The trigger line a model reads when deciding to load the skill")
     p.add_argument("--summary",
                    help="Shorter text for the registry entry (default: --description)")
@@ -2518,6 +2637,16 @@ def main():
     # the value). Add the skill to the agent's `## Skill Loading` section instead.
     p.add_argument("--allowed-tools", default="Read, Grep, Glob",
                    help="allowed-tools frontmatter value")
+    p.add_argument("--json", action="store_true",
+                   help="Machine-readable output (audit, match)")
+    p.add_argument("--save", action="store_true",
+                   help="audit: also write .claude/reports/skills/audit.json")
+    p.add_argument("--max-lines", type=int, default=300,
+                   help="audit: flag skill bodies longer than this (default 300)")
+    p.add_argument("--max-tokens", type=int, default=2000,
+                   help="audit: flag skill bodies estimated above this (default 2000)")
+    p.add_argument("--registry", metavar="DIR",
+                   help="match: directory of card JSON files from other projects")
 
     # mcp
     p = sub.add_parser("adapt",

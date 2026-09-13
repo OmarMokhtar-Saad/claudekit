@@ -38,7 +38,7 @@ claudekit doctor --strict         # treat warnings as failures (exit 1)
 claudekit doctor --min-score 90   # exit 1 if the readiness score is below 90
 ```
 
-Checks: Python version, Bash, Git, agents, commands, skills, hooks, registry integrity, config validity.
+Checks: Python version, Bash, Git, agents, commands, skills, hooks, registry integrity, config validity, and `.claude/skills-profile.json` when present.
 
 Every run ends with a **readiness score** out of 100, so two healthy installs
 no longer read identically green. The line names its denominator, because the
@@ -224,6 +224,45 @@ claudekit skill new internal-notes --description "..." --invisible   # no always
 
 Refused, with the numbers, when the description would push the always-on context floor
 over budget — a description is charged to every session, forever.
+
+### `claudekit skill audit` / `skill profile init` / `skill card` / `skill match`
+
+Measure how the installed skills fit **this** project. All four are read-only analysis:
+none of them edits a skill, installs one, or changes what a model sees.
+
+```bash
+claudekit skill audit                   # stacks, per-skill tokens, relevant/irrelevant/broken
+claudekit skill audit --json --save     # also writes .claude/reports/skills/audit.json
+claudekit skill profile init            # writes .claude/skills-profile.json if absent
+claudekit skill card > my-project.json  # sanitized cards for this project's own skills
+claudekit skill match --registry cards/ # suggest skills other projects proved, by stack
+```
+
+- **audit** detects the project's stacks (the same manifest detection `claudekit adapt`
+  uses, plus a count of source files: 20 or more `.java` files means `java`), estimates
+  each skill's tokens as chars/4, and buckets it: *relevant*, *irrelevant* (tagged for a
+  stack this project does not have), or *broken* (no frontmatter, no name or description,
+  or a relative link to a file that does not exist). Bodies over `--max-lines` (300) or
+  `--max-tokens` (2000) are flagged. A skill is never called irrelevant when no stack was
+  detected. Nothing is written unless you pass `--save`.
+- **profile init** writes `.claude/skills-profile.json` with the irrelevant skills listed
+  under `disabled`. It refuses if the file exists -- it is your file. Keys: `packs`,
+  `disabled`, `overlays` (skill name -> project-relative file), `roles`. Install, update
+  and fleet sync leave it untouched. **In this release nothing enforces `disabled`**:
+  `audit` shows it and `doctor` validates it; `packs` and `roles` are validated for shape
+  only.
+- **card** prints metadata cards -- name, `stack_tags`, description, estimated tokens --
+  for skills the install manifest does not list as kit-owned. No body and no path leaves.
+  A description that looks like a secret, credential or home-directory path is withheld
+  (named on stderr, never quoted). Without an install manifest it refuses. A project skill
+  declares its stacks in frontmatter: `stack_tags: [python, go]`.
+- **match** reads every `*.json` card file in `--registry`, re-validates each card, and
+  suggests the ones whose `stack_tags` overlap this project's stacks and are not already
+  installed, scored by overlap. It never installs anything.
+
+`claudekit doctor` checks `.claude/skills-profile.json` when it exists: a malformed file
+or an overlay path outside the project fails; a skill name that is no longer installed
+warns (and names its rename, if the registry has one).
 
 ### `claudekit mcp add <name> --tools N -- <argv>` / `claudekit mcp list`
 
