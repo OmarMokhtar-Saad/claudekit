@@ -183,6 +183,7 @@ def ops_slug(ops_path) -> str:
     """
     name = Path(ops_path).name
     if name == DIR_LAYOUT_NAME:
+        # .resolve() is required: for a relative "ops.json" a bare .parent.name is "".
         directory = Path(ops_path).resolve().parent.name
         if directory:
             return directory
@@ -209,13 +210,17 @@ def resolve_ops(plan_path: str):
     slug = plan_slug(plan_path)
     plans_dir = Path(plan_path).parent
     seen = []
-    candidates = [plans_dir / name for name in (f"{stem}.ops.json", f"ops-{slug}.json",
-                                                f"{slug}.ops.json", f"{slug}.json")]
-    # operations/<slug>/ops.json, rooted at the PLAN's project rather than cwd. Every
-    # form is collected, so a plan owning a flat AND a directory config stays AMBIGUOUS.
+    # Two rooting rules, kept apart on purpose: a new flat form appended to the
+    # directory list (or the reverse) would silently resolve against the wrong root.
+    # Flat forms sit beside the plan itself.
+    flat = [plans_dir / name for name in (f"{stem}.ops.json", f"ops-{slug}.json",
+                                          f"{slug}.ops.json", f"{slug}.json")]
+    # Directory forms are rooted at the PLAN's project rather than cwd.
     operations_dir = _project_root(plans_dir) / DIR_LAYOUT_ROOT
-    candidates += [operations_dir / d / DIR_LAYOUT_NAME for d in (slug, stem)]
-    for candidate in candidates:
+    directory = [operations_dir / d / DIR_LAYOUT_NAME for d in (slug, stem)]
+    # Every form is collected, so a plan owning a flat AND a directory config
+    # stays AMBIGUOUS.
+    for candidate in flat + directory:
         if candidate.exists() and candidate not in seen:
             seen.append(candidate)
     if len(seen) > 1:
