@@ -1,7 +1,7 @@
 # Hooks
 
-ClaudeKit ships 39 hook scripts (plus `lib.sh`, a shared helper library).
-36 are reachable: wired into Claude Code through `.claude/settings.json`, or resolved
+ClaudeKit ships 40 hook scripts (plus `lib.sh`, a shared helper library).
+37 are reachable: wired into Claude Code through `.claude/settings.json`, or resolved
 by a gate wrapper. They enforce guardrails, capture telemetry, and automate housekeeping
 around the agent workflow.
 
@@ -165,6 +165,7 @@ also set `"lossy": true` to use it).
 | `cost-tracker.sh` | Stop | Accumulates token/cost telemetry (background) |
 | `desktop-notify.sh` | Stop | Desktop notification when a turn ends (background) |
 | `format-typecheck.sh` | Stop | Runs formatter + type-checker (`strict` only; background) |
+| `skill-fit-refresh.sh` | Stop | Once per 24h: `ck skill audit --save` + `ck skill card --publish`, each time-bounded; silent, logs to `hooks.log` (`standard` + `strict`; background) |
 
 `post-implement.sh` ships but is **not currently wired** in `settings.json`; it
 is available for teams that want a post-implementation build/test gate.
