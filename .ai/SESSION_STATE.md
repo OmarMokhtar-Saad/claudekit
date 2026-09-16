@@ -1,6 +1,19 @@
 # Session State
 
 > Update this file at the end of every significant AI working session. It is the resume point.
+**2026-09-13 · Claude (Opus 5) — `feat/skill-profiles`, merged as PR #42 (`c040ab5`).**
+Per-project skill fit. `ck skill audit` (stack detection, token cost, relevant /
+irrelevant / broken), `profile init` (project-owned `.claude/skills-profile.json`,
+preserved by install/update/fleet sync), `card [--publish]` to a user-level registry
+(`~/.claudekit/registry/cards/`), `match` (Jaccard; text-derived tags only; language-only
+overlap dropped unless `--include-language-only`), `apply [--restore]` (enforces `disabled`
+via Claude Code `skillOverrides` in `settings.local.json`, docs verified via context7;
+protected skills refuse the whole profile), doctor checks. Reviews: 94; 2-A 93; 2-B REJECT
+87 -> 91. Fleet: all 14 ops-script repos audited, cards published, `apply` hides 1-3
+checklists (~54-154 always-on tokens each), profile committed (one commit per repo).
+**Open:** fleet runs the feature only via editable install of main (`.ck-main` holds an
+unpushed local merge from another session); `.claude/skills-applied.json` is not
+gitignored; ~22 skills per project exceed the body budget (the real token cost).
 
 **2026-09-16 · Claude (Opus 5) — `feat/memory-scaffold-fleet`, 5 commits, NOT merged.**
 External survey of six repos; four adopted, one measured and killed, one rejected. Commits:
@@ -25,6 +38,37 @@ DoD list needs ~100 chars cut from CLAUDE.md (30,940 of 31,000, weighted x4) —
 the owner's call. (3) Merging these 5 commits to main.
 
 **2026-09-16 · Claude (Fable 5.1) — `feat/memory-scaffold-fleet`, UNCOMMITTED.**
+
+**2026-09-13 · Claude (Opus 5) — `feat/action-first-mode`, merged to local main `7259c19`.**
+Owner asked to adopt ideas from ayghri/i-have-adhd (MIT) across the kit and fleet. Shipped
+original-wording `action-first` mode (`/mode action-first`), `Next action:` lines in
+planner/verifier/code-reviewer/debugger reports (summaries capped at 5, parsed blocks
+untouched), Done/Now/Next session context, per-phase estimates + "Done when:" in plans, and a
+final `ck doctor` verdict line with explicit per-check `fix_cmd`. Doctor plan: REVISE 83
+(backtick scraping printed `memory: project` as a command; buffering hid output on a hang)
+-> APPROVED 93 (streaming kept, AST test pins fix_cmd). A-C and D ran `--no-approval`
+(verdict unrecorded) — disclosed in archive README. `mode.md` trimmed to stay in its
+47-line command-budget ratchet (baseline raise was classifier-denied). Branch suite:
+11193 passed; plan-index drift after commit regenerated. **Fleet:** 10 files committed in all
+14 ops-script repos (1 file in the four that gitignore `.claude/` parts). **Open:** full
+suite on merged main not run (classifier: merge without review); push main + fleet commits
+owner-gated; hook stderr messages intentionally left out of the action-first pass.
+
+
+**2026-09-16 (latest) · Claude (Fable 5.1) — `main` = 2f80443, PUSHED; fleet updated + verified.**
+ck fleet shipped and used: 14 repos re-installed from main, verify clean, downstream kit
+paths committed (not pushed). ops payload references shipped (Tier 3, reviewed). Next:
+after ~1 week run `knowledge-ledger.py inbox` / `/learn --list` across the fleet and count
+accepted candidates and promoted proposals — the only measurement that says the learning
+loop works. Editable `ck` resolves to `.ck-main` (main worktree), not the claudekit tree.
+
+**2026-09-16 (later) · Claude (Fable 5.1) — `main` = 029c79a (superseded above).**
+Learning loop v2 shipped and fast-forwarded onto main (see CHANGELOG_AI). Fleet sync of the
+9 changed files is pending the owner running the scratch script. Next candidates: ops.json
+`content` by file path (Tier 3, owner-gated); candidate index lines currently repeat the
+signature as both title and hook (cosmetic, `_candidate_index_line`).
+
+**2026-09-16 · Claude (Fable 5.1) — `feat/memory-scaffold-fleet`, now merged to main as ba4a21f.**
 Planner/refine cost pass: bounded planner discovery + revision mode, `/refine` ceiling 3 with
 stagnation exit, reviewer refutation budget; ops archived under `archive/ops-planner-token-budget/`.
 Planner model tier change was applied and reverted at owner request — stays most-capable.

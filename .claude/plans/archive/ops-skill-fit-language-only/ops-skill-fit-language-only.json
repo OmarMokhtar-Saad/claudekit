@@ -1,0 +1,76 @@
+{
+  "plan": "skill-fit-language-only",
+  "description": "Tier 2 (no architecture): fleet run showed 7 plain-Java projects each getting 22 suggestions at score 1.0 because a card merely mentioned Java. match now drops suggestions whose only shared tags are base languages; --include-language-only restores them.",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "src/claudekit/skill_fit.py",
+      "edits": [
+        {
+          "find": "_VOCAB = tuple((tag, re.compile(pattern, re.IGNORECASE)) for tag, pattern in STACK_VOCAB)\n",
+          "replace": "_VOCAB = tuple((tag, re.compile(pattern, re.IGNORECASE)) for tag, pattern in STACK_VOCAB)\n\n#: Base languages. Sharing only these says almost nothing (every Java project \"matches\"\n#: every card that mentions Java), so `match` drops such suggestions by default.\nLANGUAGE_TAGS: FrozenSet[str] = frozenset({\"go\", \"java\", \"kotlin\", \"python\", \"rust\",\n                                           \"typescript\"})\n"
+        },
+        {
+          "find": "          min_score: float = DEFAULT_MIN_SCORE) -> Dict[str, Any]:\n    \"\"\"Suggest cards whose tags overlap this project's tags. Installs nothing.\n",
+          "replace": "          min_score: float = DEFAULT_MIN_SCORE,\n          include_language_only: bool = False) -> Dict[str, Any]:\n    \"\"\"Suggest cards whose tags overlap this project's tags. Installs nothing.\n\n    A card whose overlap is only base languages (`LANGUAGE_TAGS`) is dropped and\n    counted in `language_only`, unless `include_language_only`.\n"
+        },
+        {
+          "find": "    suggestions: List[Dict[str, Any]] = []\n    for card in loaded:\n",
+          "replace": "    suggestions: List[Dict[str, Any]] = []\n    language_only = 0\n    for card in loaded:\n"
+        },
+        {
+          "find": "        overlap = sorted(tags & project_tags)\n        if not overlap:\n            continue\n",
+          "replace": "        overlap = sorted(tags & project_tags)\n        if not overlap:\n            continue\n        if not include_language_only and set(overlap) <= LANGUAGE_TAGS:\n            language_only += 1\n            continue\n"
+        },
+        {
+          "find": "            \"suggestions\": suggestions, \"skipped\": skipped}\n\n\n# --------------------------------------------------------------------- enforcement\n",
+          "replace": "            \"suggestions\": suggestions, \"skipped\": skipped,\n            \"language_only\": language_only}\n\n\n# --------------------------------------------------------------------- enforcement\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "src/claudekit/cli/main.py",
+      "edits": [
+        {
+          "find": "        result = skill_fit.match(root, registry, project=args.project, min_score=min_score)\n",
+          "replace": "        result = skill_fit.match(root, registry, project=args.project, min_score=min_score,\n                                 include_language_only=args.include_language_only)\n"
+        },
+        {
+          "find": "                   help=\"match: Jaccard floor for a suggestion (default 0.1)\")\n",
+          "replace": "                   help=\"match: Jaccard floor for a suggestion (default 0.1)\")\n    p.add_argument(\"--include-language-only\", action=\"store_true\",\n                   help=\"match: keep suggestions that share only a base language tag\")\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_skill_fit.py",
+      "edits": [
+        {
+          "find": "class TestFleetMissRegression:\n",
+          "replace": "class TestLanguageOnlyMatches:\n    def test_language_only_overlap_is_dropped_unless_asked(self, tmp_path):\n        \"\"\"Fleet run: 7 plain-Java projects got 22 suggestions each at 1.0 because the\n        cards merely mentioned Java.\"\"\"\n        root = local_project(tmp_path, \"javaproj\", {\n            \"spring-wiring\": (\"Use when wiring Java services with Gradle\", \"\")})\n        reg = tmp_path / \"registry\"\n        reg.mkdir()\n        (reg / \"other.json\").write_text(json.dumps({\"cards\": [\n            {\"card_version\": 1, \"name\": \"java-only\", \"stack_tags\": [\"java\"],\n             \"description\": \"Use when touching Java\", \"tokens\": 5},\n            {\"card_version\": 1, \"name\": \"gradle-build\", \"stack_tags\": [\"gradle\", \"java\"],\n             \"description\": \"Use when building with Gradle\", \"tokens\": 5}]}),\n            encoding=\"utf-8\")\n        env = isolated_env(tmp_path)\n        doc = json.loads(ck(root, \"skill\", \"match\", \"--json\", env=env).stdout)\n        assert [s[\"name\"] for s in doc[\"suggestions\"]] == [\"gradle-build\"]\n        assert doc[\"language_only\"] == 1\n        wide = json.loads(ck(root, \"skill\", \"match\", \"--json\", \"--include-language-only\",\n                             env=env).stdout)\n        assert sorted(s[\"name\"] for s in wide[\"suggestions\"]) == [\"gradle-build\", \"java-only\"]\n\n\nclass TestFleetMissRegression:\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "docs/cli.md",
+      "edits": [
+        {
+          "find": "  suggestions under `--min-score` (default 0.1) are dropped. Each line shows the score and\n  the source project. It never installs anything.\n",
+          "replace": "  suggestions under `--min-score` (default 0.1) are dropped. A card that shares only a\n  base language (java, kotlin, python, typescript, go, rust) is dropped too; pass\n  `--include-language-only` to keep it. Each line shows the score and the source\n  project. It never installs anything.\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "edits": [
+        {
+          "find": "## [Unreleased]\n",
+          "replace": "## [Unreleased]\n- **`ck skill match` ignores language-only overlap.** A card that shares only a base\n  language with the project is no longer suggested (`--include-language-only` keeps it).\n"
+        }
+      ]
+    }
+  ]
+}

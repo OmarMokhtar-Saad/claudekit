@@ -134,11 +134,17 @@ def preserve_entry(path: str, rel: str, dest: str, project_root: str,
 ALWAYS_CUSTOM_DIR = "agent-memory"
 ALWAYS_CUSTOM_NAME = "MEMORY.md"
 
+# `.claude/skills-profile.json` (`ck skill profile init`) is the same class: written by
+# the project, never shipped by the kit, so no manifest may claim it. Top-level name.
+ALWAYS_CUSTOM_FILES = frozenset({"skills-profile.json"})
+
 
 def _is_custom(rel: str, old_manifest: Optional[Set[str]]) -> bool:
     """Is this backup entry the PROJECT's rather than the old kit's?"""
     parts = rel.split(os.sep)
     if parts[0] == ALWAYS_CUSTOM_DIR and parts[-1] == ALWAYS_CUSTOM_NAME:
+        return True
+    if rel in ALWAYS_CUSTOM_FILES:
         return True
     if old_manifest is not None:
         # Precise: old-kit files (removed/renamed since) are NOT resurrected.

@@ -1,0 +1,16 @@
+{
+  "plan": "skill-fit-test-isolation",
+  "description": "Tier 1: test_vocabulary_refuses_english_collisions imported claudekit in-process; in the full suite an earlier import had cached the installed copy, so it tested stale code. Run it in a subprocess pinned to this tree's src.",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_skill_fit.py",
+      "edits": [
+        {
+          "find": "        sys.path.insert(0, str(REPO_ROOT / \"src\"))\n        from claudekit import skill_fit\n        assert skill_fit.derive_stack_tags(\"react to the spring release, go home\") == []\n        assert skill_fit.derive_stack_tags(\"JavaScript only\") == []\n        assert skill_fit.derive_stack_tags(\"Spring Boot with Gradle and JUnit\") == [\n            \"gradle\", \"java\", \"spring\"]\n",
+          "replace": "        # Subprocess, not an in-process import: an earlier test may already have cached\n        # `claudekit` from an installed copy, and sys.path.insert cannot evict it.\n        code = (\n            \"import json\\n\"\n            \"from claudekit import skill_fit as s\\n\"\n            \"print(json.dumps([s.derive_stack_tags(t) for t in [\"\n            \"'react to the spring release, go home', 'JavaScript only', \"\n            \"'Spring Boot with Gradle and JUnit']]))\\n\")\n        env = dict(os.environ, PYTHONPATH=str(REPO_ROOT / \"src\"))\n        proc = subprocess.run([sys.executable, \"-c\", code], capture_output=True,\n                              text=True, env=env, check=False)\n        assert proc.returncode == 0, proc.stderr\n        assert json.loads(proc.stdout) == [[], [], [\"gradle\", \"java\", \"spring\"]]\n"
+        }
+      ]
+    }
+  ]
+}

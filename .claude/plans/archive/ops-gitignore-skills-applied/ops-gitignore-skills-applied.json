@@ -1,0 +1,46 @@
+{
+  "plan": "gitignore-skills-applied",
+  "description": "Tier 2 (no architecture): `ck skill apply` records the overrides it owns in .claude/skills-applied.json, local state paired with the gitignored settings.local.json. The installer did not ignore it (seen untracked in all 14 fleet repos). Add it to the installer's .gitignore entries and the repo's own .gitignore.",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "install.sh",
+      "edits": [
+        {
+          "find": "    \".claude/worktrees/\"\n    \".claude-core.lock\"\n",
+          "replace": "    \".claude/worktrees/\"\n    \".claude/skills-applied.json\"\n    \".claude-core.lock\"\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".gitignore",
+      "edits": [
+        {
+          "find": "# Local, per-developer Claude Code overrides (never shipped)\n.claude/settings.local.json\n",
+          "replace": "# Local, per-developer Claude Code overrides (never shipped)\n.claude/settings.local.json\n# `ck skill apply`'s record of the overrides it wrote into settings.local.json\n.claude/skills-applied.json\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_install.py",
+      "edits": [
+        {
+          "find": "            assert 'ClaudeKit' in content\n            assert 'backups/' in content\n",
+          "replace": "            assert 'ClaudeKit' in content\n            assert 'backups/' in content\n            # Local state paired with the gitignored settings.local.json.\n            assert '.claude/skills-applied.json' in content.splitlines()\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "edits": [
+        {
+          "find": "## [Unreleased]\n",
+          "replace": "## [Unreleased]\n- **Install ignores `.claude/skills-applied.json`.** The record `ck skill apply` keeps of\n  the overrides it wrote is local state, like `settings.local.json`, and is no longer\n  left untracked for someone to commit.\n"
+        }
+      ]
+    }
+  ]
+}

@@ -125,6 +125,8 @@ class TestInstallScript:
                 content = f.read()
             assert 'ClaudeKit' in content
             assert 'backups/' in content
+            # Local state paired with the gitignored settings.local.json.
+            assert '.claude/skills-applied.json' in content.splitlines()
 
     def test_nonexistent_dir_fails(self):
         result = subprocess.run(

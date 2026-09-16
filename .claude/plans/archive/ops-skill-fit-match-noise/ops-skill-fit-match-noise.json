@@ -1,0 +1,48 @@
+{
+  "plan": "skill-fit-match-noise",
+  "description": "Tier 2 (no architecture): cards and match used local skills' tags unioned with the project's stacks, so every local skill in a Java project was java-tagged and generic skills (knowledge-management) matched other Java projects at 1.0. Keep the union for relevance bucketing; cards and match use only text-derived tags (match_tags).",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "src/claudekit/skill_fit.py",
+      "edits": [
+        {
+          "find": "    explicit = explicit_stack_tags(fm)\n    if explicit is not None:\n        tags, source = explicit, \"frontmatter\"\n    elif name in KIT_STACK_TAGS:\n        tags, source = list(KIT_STACK_TAGS[name]), \"kit-table\"\n    elif record[\"owner\"] == \"local\":\n        # Union with the project's stacks, so a local skill always overlaps the stacks\n        # it was written for and can never be bucketed irrelevant by its own derivation.\n        tags = sorted(set(derive_stack_tags(f\"{name}\\n{description}\\n{body}\")) | set(stacks))\n        source = \"derived\" if tags else \"none\"\n    else:\n        tags, source = [], \"none\"\n",
+          "replace": "    explicit = explicit_stack_tags(fm)\n    if explicit is not None:\n        tags, source = explicit, \"frontmatter\"\n        match_tags = tags\n    elif name in KIT_STACK_TAGS:\n        tags, source = list(KIT_STACK_TAGS[name]), \"kit-table\"\n        match_tags = tags\n    elif record[\"owner\"] == \"local\":\n        # Union with the project's stacks, so a local skill always overlaps the stacks\n        # it was written for and can never be bucketed irrelevant by its own derivation.\n        # Cards and match use ONLY the text-derived part: the union would tag every\n        # local skill of a Java project `java` and match stack-neutral skills at 1.0.\n        match_tags = derive_stack_tags(f\"{name}\\n{description}\\n{body}\")\n        tags = sorted(set(match_tags) | set(stacks))\n        source = \"derived\" if tags else \"none\"\n    else:\n        tags, source = [], \"none\"\n        match_tags = tags\n"
+        },
+        {
+          "find": "        \"stack_tags_source\": source,\n        \"description\": description,\n",
+          "replace": "        \"stack_tags_source\": source,\n        \"match_tags\": sorted(match_tags),\n        \"description\": description,\n"
+        },
+        {
+          "find": "            \"name\": record[\"name\"],\n            \"stack_tags\": record[\"stack_tags\"],\n            \"description\": record[\"description\"],\n",
+          "replace": "            \"name\": record[\"name\"],\n            \"stack_tags\": record[\"match_tags\"],\n            \"description\": record[\"description\"],\n"
+        },
+        {
+          "find": "        own_tags = {t for r in report[\"skills\"] if r[\"owner\"] == \"local\"\n                    for t in r[\"stack_tags\"]}\n",
+          "replace": "        own_tags = {t for r in report[\"skills\"] if r[\"owner\"] == \"local\"\n                    for t in r[\"match_tags\"]}\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_skill_fit.py",
+      "edits": [
+        {
+          "find": "        assert set(card) == {\"card_version\", \"name\", \"stack_tags\", \"description\", \"tokens\"}\n        assert BODY_SENTINEL not in proc.stdout\n",
+          "replace": "        assert set(card) == {\"card_version\", \"name\", \"stack_tags\", \"description\", \"tokens\"}\n        assert BODY_SENTINEL not in proc.stdout\n\n    def test_cards_do_not_inherit_the_projects_stacks(self, tmp_path):\n        \"\"\"Fleet regression: every local skill of a Java project carried `java`, so a\n        stack-neutral skill matched every other Java project at score 1.0.\"\"\"\n        root = local_project(tmp_path, \"javaproj\", {\n            \"knowledge-management\": (\"Use when recording decisions in the wiki\", \"\")})\n        (root / \"pom.xml\").write_text(\"<project/>\\n\", encoding=\"utf-8\")\n        for i in range(25):\n            src = root / \"src\" / f\"C{i}.java\"\n            src.parent.mkdir(parents=True, exist_ok=True)\n            src.write_text(f\"class C{i} {{}}\\n\", encoding=\"utf-8\")\n        row = by_name(audit_json(root))[\"knowledge-management\"]\n        assert \"java\" in row[\"stack_tags\"]\n        assert row[\"match_tags\"] == []\n        proc = ck(root, \"skill\", \"card\")\n        assert proc.returncode == 0, proc.stderr\n        assert json.loads(proc.stdout)[\"cards\"][0][\"stack_tags\"] == []\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "edits": [
+        {
+          "find": "## [Unreleased]\n",
+          "replace": "## [Unreleased]\n- **`ck skill card` / `match` -- less noise.** Cards and matching now use only the\n  stack tags found in a skill's own text. A project's own skills no longer inherit its\n  detected stacks there, so a stack-neutral skill is no longer suggested to every\n  project that shares a language. Audit relevance is unchanged.\n"
+        }
+      ]
+    }
+  ]
+}

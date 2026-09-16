@@ -1,0 +1,59 @@
+{
+  "plan": "action-first-rollout",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/skills/writing-plans/SKILL.md",
+      "description": "Phases carry a rough time estimate and an explicit Done when: marker",
+      "edits": [
+        {
+          "find": "3. **Task List** - Numbered, bite-sized tasks with clear completion criteria",
+          "replace": "3. **Task List** - Numbered, bite-sized tasks grouped into phases; every phase has a rough time estimate `(~N min)` and a `Done when:` line"
+        },
+        {
+          "find": "| **Time-Bounded** | Completable in under 15 minutes |\n",
+          "add_after": "| **Done-When Marker** | Its phase ends with `Done when: <observable check>` and a rough estimate |\n"
+        },
+        {
+          "find": "- Verification: File exists with all three method signatures",
+          "replace": "- Done when: file exists with all three method signatures (~5 min)"
+        },
+        {
+          "find": "5. Check for similar bugs in related code\n",
+          "add_after": "\nDone when: the new test fails without the fix and passes with it (~30 min)\n"
+        },
+        {
+          "find": "6. Verify end-to-end behavior\n",
+          "add_after": "\nDone when: the feature works end-to-end and every test passes (~2 h)\n"
+        },
+        {
+          "find": "8. Final verification of all tests\n",
+          "add_after": "\nDone when: behavior is unchanged and every test passes (~1 h)\n"
+        },
+        {
+          "find": "- [ ] Verification steps exist for each phase\n",
+          "add_after": "- [ ] Every phase has a rough time estimate and a `Done when:` line\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/planner.md",
+      "description": "Plan template steps get a Done when + estimate line; two trims keep the pipeline-body budget net negative",
+      "edits": [
+        {
+          "find": "- **Details:** <specific changes>\n",
+          "add_after": "- **Done when:** <observable check> (~<N> min)\n"
+        },
+        {
+          "find": "Write the implementation plan as a structured document.\n\n",
+          "delete": true
+        },
+        {
+          "find": "3. Update BOTH the plan and ops.json\n4. Re-save both files (overwrite the originals)\n5. Re-trigger the Reviewer with the updated files\n6. Do NOT ask",
+          "replace": "3. Update BOTH the plan and ops.json, overwriting the originals\n4. Re-trigger the Reviewer with the updated files\n5. Do NOT ask"
+        }
+      ]
+    }
+  ]
+}

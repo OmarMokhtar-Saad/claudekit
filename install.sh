@@ -762,6 +762,7 @@ ENTRIES=(
     ".claude/profiles/local.json"
     ".claude/locks/"
     ".claude/worktrees/"
+    ".claude/skills-applied.json"
     ".claude-core.lock"
     "backups/"
     "operations/**/state.json"

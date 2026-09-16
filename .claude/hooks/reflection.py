@@ -1089,7 +1089,25 @@ def record_receipt(
 # --------------------------------------------------------------------------- duties
 
 
-def duty_summary(session_id: str) -> Tuple[List[str], Dict[str, Any]]:
+def memory_inbox_pending() -> List[str]:
+    """Memory candidates awaiting an accept/reject decision.
+
+    Tree-derived on every call: the files under `.claude/agent-memory/<agent>/_inbox/`
+    ARE the state, so there is nothing to keep in sync and nothing that can go stale.
+    Any OSError means "cannot prove a duty", which is not the same as "no duty" -- but a
+    Stop gate that blocks on an unreadable directory would strand the turn, so this
+    reports none and the read error surfaces where it can be fixed.
+    """
+    root = project_root() / ".claude" / "agent-memory"
+    if not root.is_dir():
+        return []
+    try:
+        return sorted(path.stem for path in root.glob("*/_inbox/*.md"))
+    except OSError:
+        return []
+
+
+def duty_summary(session_id: str, include_inbox: bool = True) -> Tuple[List[str], Dict[str, Any]]:
     """Human-readable unmet duties plus the machine state behind them."""
     checkpoint = pending_checkpoint(session_id)
     duties: List[str] = []
@@ -1104,7 +1122,19 @@ def duty_summary(session_id: str) -> Tuple[List[str], Dict[str, Any]]:
     if learning_loop_pending(session_id):
         duties.append(
             "LEARNING LOOP: this session mutated or delivered and routed no learning. "
-            "'nothing-durable' is a valid answer - record it in a receipt."
+            "'nothing-durable' is a valid answer - record it in a receipt. To draft "
+            "candidates first: knowledge-ledger.py distill --agent <agent> --inbox."
+        )
+    # Only the main session owns the inbox duty: a subagent (SubagentStop) may have no
+    # Bash and no memory dir, so it could never resolve it -- the gate passes
+    # include_inbox=not subagent.
+    pending = memory_inbox_pending() if include_inbox else []
+    if pending:
+        duties.append(
+            "MEMORY INBOX: %d candidate(s) await a decision (%s). For each, run "
+            "knowledge-ledger.py inbox --accept <name> (moves it into agent memory and "
+            "appends its MEMORY.md index line) or inbox --reject <name> (deletes it)."
+            % (len(pending), ", ".join(pending[:5]))
         )
     return duties, {"checkpoint": checkpoint}
 

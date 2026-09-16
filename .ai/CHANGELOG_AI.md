@@ -77,6 +77,82 @@ headroom against a 76-char line; refreshing the obsolete "session setup gotcha" 
 The rest must come out of existing instruction text, which is the owner's call. CLAUDE.md
 restored to HEAD. Fleet rollout of A3/B2 also still pending.
 
+## 2026-09-13 — per-project skill fit (PR #42)
+
+Owner asked for skills that fit each project, fewer tokens, and sharing across the fleet.
+MVP (Tier 2, 94) then follow-ups split by risk: A tags + registry (93), B enforcement
+(Tier 3). B was first designed as frontmatter flipping with manifest-hash drift logic; the
+claude-code-guide check found `skillOverrides`, which needs no skill-file edits, so B was
+replanned — REJECT 87 (edit relied on an untouched `return 0`; semantics unverified) ->
+fixed, context7-verified -> 91. Fleet test drove two more fixes: cards inherited project
+stacks (stack-neutral skills matched at 1.0) and language-only overlap (22 suggestions per
+Java project -> 0). Each regression test was mutation-checked red.
+
+**Traps hit.** A planner memory note in the worktree reddened `doctor --strict`; an
+in-process `import claudekit` test tested the cached installed copy only under the full
+suite; `INDEX.md` goes stale after every commit (regenerate post-commit); the zsh loop over
+`$P` did not word-split; the full suite was OOM-killed once (run in halves). The downstream
+commit loop was denied by the auto-mode classifier twice; per-repo commits succeeded after
+the owner's explicit instruction. PR merged while the CI test matrix was still pending.
+
+## 2026-09-13 — action-first output across the kit and fleet
+
+Inspired by ayghri/i-have-adhd (MIT; wording original). Commits `5896e9f` (mode, tests,
+`/mode` row), `a48d750` (agent report / session / plan templates), `7ecb91a` (`ck doctor`
+verdict line), merged `7259c19` on local main (only conflict: generated plan INDEX,
+regenerated). Tier 2 for prompts (no reviewer), reviewer for the doctor phase: REVISE 83 ->
+APPROVED 93. Gates on merge: ruff, mypy, gen-docs/registry/model-policy, context floor, plan
+artifacts, corpus lint, 247 targeted tests. Traps hit: the editable install resolves to
+`.ck-main`, so run worktree CLI checks with `PYTHONPATH=src`; committing plan files flips
+their INDEX status (regen after commit); another session reverted fleet `mode.md` mid-run.
+Follow-ups: full suite on merged main, push (owner), optional code review of the merge.
+## 2026-09-16 — ck fleet, ops payload references, and the fleet actually on main
+
+Owner: "do them all". Shipped to main and pushed (2f80443):
+- `ck fleet list|diff|update|verify` (a64c0bd, reviewer 93/100). Discovery = manifest
+  presence under --root, never a repo list. `update` reuses cmd_update in-process; `verify`
+  exits 1 on untouched-but-stale files. First real run found 6 stale kit files in 14/14 repos
+  from earlier main changes — that was the point. Then a false positive: hooks/config.json is
+  re-rendered per project by install.sh, so it matches the manifest and never the source;
+  `INSTALLER_RENDERED` exempts it (2f80443, test pins it). Plan slug `fleet-sync` collided
+  with a historical config -> renamed `ck-fleet` (check-plan-artifacts caught it).
+- ops payload references (ae6444c, Tier 3): `content_path`/`<action>_path` + MANDATORY
+  `<key>_sha256`, resolver in shared.py, realpath-inside-root, 2 MiB cap, strict UTF-8,
+  digest re-checked at execute time incl. dry-run. Reviewer 85 REVISE: the `--after`
+  projection swallowed resolver errors — fixed in the config before execution; five
+  reviewer-named negative tests added (oversized, symlinked parent, FIFO, dry-run tamper,
+  --after reporting). No path-escape or approval-hash bypass found. Full suite 11360 green.
+- Fleet: `ck fleet update --yes` re-installed 14 repos from main (backup + preservation),
+  `ck fleet verify` clean, kit paths committed downstream on their current branches (not
+  pushed). The earlier hand-written sync scripts are obsolete.
+- Small: candidate index hook = receipt tally (9f974b5); stale untracked config on the
+  feature branch was byte-identical to its archive and deleted.
+Negative result: `fleet update --dry-run` counts "would overwrite" from manifest-modified
+files; preservation only carries CUSTOM files (preserve_assets.py), so manifest-owned local
+edits ARE overwritten on update — the dry-run wording is accurate, the semantics are worth
+knowing before running it on a repo with hand-edited kit files.
+Open: measure the learning loop after a week (accepted candidates / promoted proposals).
+
+## 2026-09-16 — learning loop v2: the trigger gap closed, Hermes-style with write-approval always on
+
+Owner asked whether our memory/learning matches hermes-agent. Store layer was fine; the
+trigger layer was dead: 14 kitted repos, ledger issues in 2, proposals in 0, real memory in 3.
+Causes: trigger A = Verifier PASS (never auto-runs), trigger B described a Stop extractor that
+never existed, `/learn` pointed at a directory that does not exist. Shipped 029c79a via
+`archive/ops-learning-loop-v2/` (11 ops, planner + reviewer 92/100; the one MAJOR — the inbox
+duty was agent-unscoped and would interrupt subagents with no Bash — was fixed in the config
+BEFORE execution and pinned by `test_a_subagent_stop_never_carries_the_inbox_duty`).
+Mechanics: `distill --inbox` -> `_inbox/*.md` candidates -> main-session Stop duty
+(interrupt-once, minimal profile suppresses) -> `inbox --accept|--reject`; `consolidate`
+lists merge groups and never rewrites MEMORY.md; `propose --patch` -> proposals; `/learn`
+is the promotion UI and only ever reaches `.claude/skills/` through `ck skill new` after an
+in-chat yes. Deliberate divergence from Hermes: no unattended skill writes (hard rule 5 +
+context floor). Smoke-tested live in a scratch project, every step. Codex mirror of
+continuous-learning regenerated by substitution (it is hand-adapted, not generated — the
+`test_both_skill_copies_document_the_open_trigger` pin caught the drift). Research cached at
+`.claude/reports/research/hermes-agent-learning-mechanics.md`. Fleet: 9 files pending the
+owner's sync script (bulk cp across repos is denied by the auto-mode classifier).
+
 ## 2026-09-16 — planner/refine cost: bounded discovery, not a cheaper model
 
 Owner asked why `/plan` takes up to an hour and 100k+ tokens. Measured drivers: unbounded,

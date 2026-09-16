@@ -141,9 +141,23 @@ def render(findings, memories) -> str:
         for kind, title in memories:
             lines.append("    - %s: %s" % (kind, title))
     text = "\n".join(lines)
-    if len(text) > MAX_CHARS:
-        text = text[:MAX_CHARS] + "\n    ... (truncated at the 600-token cap)"
-    return text
+    if len(text) <= MAX_CHARS:
+        return text
+    # OVER BUDGET IS A FACT, NOT A FORMATTING PROBLEM. Slicing at MAX_CHARS used to cut
+    # a memory in half mid-sentence and say nothing an operator could act on: the reader
+    # believed it had a whole entry. Now whole lines only, and the overflow is named
+    # along with the one command that fixes it.
+    kept = []
+    used = 0
+    for line in lines:
+        cost = len(line) + 1
+        if used + cost > MAX_CHARS:
+            break
+        kept.append(line)
+        used += cost
+    kept.append("MEMORY OVER BUDGET (%d of %d chars shown): run "
+                "knowledge-ledger.py consolidate --agent <agent>" % (used, len(text)))
+    return "\n".join(kept)
 
 
 def main() -> int:
