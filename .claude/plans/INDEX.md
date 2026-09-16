@@ -24,11 +24,11 @@ index never outranks the current files.
 |---|---:|
 | `drifted` | 11 |
 | `approved` | 53 |
-| `planned` | 16 |
+| `planned` | 18 |
 | `executed` | 30 |
 | `not_started` | 24 |
 | `legacy` | 3 |
-| **total** | **137** |
+| **total** | **139** |
 
 ## Plans
 
@@ -111,6 +111,7 @@ index never outranks the current files.
 | `.claude/plans/plan-parse-gate-fold-invariance.md` | `drifted` | 9 |  |
 | `.claude/plans/plan-parse-gate-ordering.md` | `drifted` | 2 |  |
 | `.claude/plans/plan-parse-gate-unresolved-paths.md` | `drifted` | 2 |  |
+| `.claude/plans/plan-planner-token-budget.md` | `planned` | 1 |  |
 | `.claude/plans/plan-preserve-dir-symlinks.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-preserve-fault-tolerance.md` | `drifted` | 6 |  |
 | `.claude/plans/plan-protected-docs-scope.md` | `approved` | 1 |  |
@@ -134,6 +135,7 @@ index never outranks the current files.
 | `.claude/plans/plan-review-d945278.md` | `executed` | 9 |  |
 | `.claude/plans/plan-review-discipline.md` | `approved` | 1 |  |
 | `.claude/plans/plan-review-floor-and-iron-law-scope.md` | `approved` | 1 |  |
+| `.claude/plans/plan-review-identity-fix.md` | `planned` | 1 |  |
 | `.claude/plans/plan-review-loop-2.md` | `planned` | 1 |  |
 | `.claude/plans/plan-review-loop-3.md` | `planned` | 1 |  |
 | `.claude/plans/plan-review-loop-tripwire.md` | `approved` | 1 |  |
