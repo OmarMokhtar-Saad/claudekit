@@ -138,10 +138,9 @@ call that produced it: write it to `$PLAN_FILE` immediately (`printf '%s\n' > fi
   plan to `<PLAN_FILE>` and the ops config to `<OPS_FILE>` yourself (Write tool); do not
   print their contents in your response. Return only the paths and a ≤10-line summary."
 - Iteration 2+: "REVISION MODE — skip discovery. Revise the plan at `<PLAN_FILE>` (ops config
-  at `<OPS_FILE>`) for: `<TASK>`. Iteration `<N>`/`<MAX_ITER>`. The reviewer scored the previous version `<last_score>`/100
-  and found: `<reviewer_feedback>`. Read both files yourself, address EVERY issue, and EDIT
-  them in place (Write tool) — do not print the revised contents. Return only a ≤10-line
-  change summary."
+  at `<OPS_FILE>`) for: `<TASK>`. Iteration `<N>`/`<MAX_ITER>`. The reviewer scored it
+  `<last_score>`/100 and found: `<reviewer_feedback>`. Read both files, address EVERY issue,
+  EDIT them in place (Write tool), print nothing but a ≤10-line change summary."
 
 **Scripted (inside the single loop script):**
 ```bash
@@ -325,18 +324,15 @@ IF iteration >= MAX_ITER:
 IF decision == "REJECTED" AND iteration >= 3:
     → EXIT LOOP with status = ESCALATED (repeated fundamental rejection)
 
-# Exit condition 4: stagnation — another planner round cannot buy a higher score
-IF iteration >= 2 AND last_score <= iteration_history[-2].score:
+IF iteration >= 2 AND last_score <= iteration_history[-2].score:   # stagnation
     → EXIT LOOP with status = ESCALATED (score did not improve; findings need a human)
-
 # Fall-through: all non-exit paths reach here and increment unconditionally
 iteration += 1
 → continue to Cycle A (planner revision with reviewer_feedback)
 ```
 
-Note: `CONDITIONAL` and `REVISE` are both revision signals — they fall through to the
-increment and loop back. They do NOT trigger early exit. Which one applies is decided by
-the findings, not by the score alone; see the canonical taxonomy in
+Note: `CONDITIONAL` and `REVISE` are both revision signals — they fall through and loop
+back, never exit early. The findings, not the score, decide which applies; taxonomy in
 `.claude/agents/HANDOFF_PROTOCOL.md#reviewer-decision-taxonomy`.
 
 Print per-cycle summary:
