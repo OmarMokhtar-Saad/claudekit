@@ -109,13 +109,19 @@
                 "description": "CREATE - Create new file with content",
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["type", "path", "content"],
+                "required": ["type", "path"],
+                "oneOf": [
+                  {"required": ["content"], "not": {"anyOf": [{"required": ["content_path"]}, {"required": ["content_sha256"]}]}},
+                  {"required": ["content_path", "content_sha256"], "not": {"required": ["content"]}}
+                ],
                 "properties": {
                   "id": {"type": "string", "description": "Optional operation identifier"},
                   "description": {"type": "string", "description": "Optional human-readable description"},
                   "type": {"const": "file_create"},
                   "path": {"type": "string", "minLength": 1},
                   "content": {"type": "string", "minLength": 1},
+                  "content_path": {"type": "string", "minLength": 1, "description": "Relative path to a UTF-8 payload file inside the project root; mutually exclusive with content and requires content_sha256"},
+                  "content_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$", "description": "sha256 of the payload file bytes; keeps the payload under the approval hash stamped over ops.json"},
                   "mode": {
                     "type": "string",
                     "description": "Optional POSIX permission bits as an octal string. Only 0644 and 0755 are accepted \u2014 a create op has no business setting setuid, setgid, sticky, or a world-writable file. Omit for the default (0666 masked by umask).",
@@ -182,13 +188,22 @@
                         "add_after": {"type": "string"},
                         "add_before": {"type": "string"},
                         "replace": {"type": "string"},
-                        "delete": {"type": "boolean", "const": true}
+                        "delete": {"type": "boolean", "const": true},
+                        "replace_path": {"type": "string", "minLength": 1},
+                        "replace_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                        "add_after_path": {"type": "string", "minLength": 1},
+                        "add_after_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                        "add_before_path": {"type": "string", "minLength": 1},
+                        "add_before_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
                       },
                       "oneOf": [
                         {"required": ["add_after"]},
                         {"required": ["add_before"]},
                         {"required": ["replace"]},
-                        {"required": ["delete"]}
+                        {"required": ["delete"]},
+                        {"required": ["replace_path", "replace_sha256"]},
+                        {"required": ["add_after_path", "add_after_sha256"]},
+                        {"required": ["add_before_path", "add_before_sha256"]}
                       ]
                     }
                   }

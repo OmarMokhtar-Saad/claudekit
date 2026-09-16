@@ -178,3 +178,6 @@ every config without a `*_path` key takes the identical code path it takes today
   budget for this task); `shared.py` is imported by both ops scripts and is a de facto hub —
   the blast radius of a defect there is the whole engine, which is why resolution is a pure
   function with no side effects beyond the passed-in dict.
+
+## Review round 1 (2026-09-16)
+reviewer: 85/100 REVISE, 1 MAJOR — the `--after` projection in `project_configs` discarded `resolve_payload_refs` errors, breaking its "reported, never fatal, never silent" contract. Fixed in the config before execution (errors now extend `problems`), pinned by `test_after_projection_reports_a_payload_error_instead_of_swallowing_it`. Reviewer follow-ups (oversized file, symlinked parent dir, FIFO, dry-run with tampered digest) each got an explicit test in `TestReviewerNamedGaps`. No path-escape or approval-hash bypass was found.

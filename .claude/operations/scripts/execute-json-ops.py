@@ -38,7 +38,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-from shared import __version__, allowed_run_commands, is_protected_file
+from shared import __version__, allowed_run_commands, is_protected_file, resolve_payload_refs
 
 # run_command execution bounds (validator enforces the same schema limits)
 RUN_COMMAND_DEFAULT_TIMEOUT = 120
@@ -581,6 +581,9 @@ def execute_file_create(operation: dict, backup_dir: Path, dry_run: bool,
     if dry_run:
         print(f"  [DRY RUN] Would create: {file_path}")
         print(f"            Size: {byte_size} bytes, Lines: {content.count(chr(10)) + 1}")
+        if 'content_path' in operation:
+            payload_src = operation['content_path']
+            print(f"            Payload: {payload_src} ({byte_size} bytes from disk)")
         if 'mode' in operation:
             print(f"            Mode: {operation['mode']}")
         if sim_state is not None:
@@ -1050,6 +1053,16 @@ def execute_json_config(config_file: str, dry_run: bool = False,
     except Exception as e:
         print(f"Error loading config: {e}")
         _emit_result('unknown', dry_run, 'failed', [], reason=f"config-load-error: {e}")
+        return False
+
+    # Materialise <key>_path payload references before anything reads 'content'.
+    # Fail closed: an unresolved reference must never reach a write.
+    payload_errors = resolve_payload_refs(raw_config)
+    if payload_errors:
+        print("Error: payload reference(s) could not be resolved:")
+        for problem in payload_errors:
+            print(f"  - {problem}")
+        _emit_result('unknown', dry_run, 'failed', [], reason="payload-ref-error")
         return False
 
     config = normalize_config(raw_config)
