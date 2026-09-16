@@ -1005,6 +1005,25 @@ Safety Guards (29 total):
                 print("\n-> REJECTED (baseline stamping failed)\n")
                 sys.exit(1)
             print(f"  Baseline stamped: {stamped} file(s) hashed into 'baseline'")
+            # Stamping is the last thing the AUTHOR does to this config before
+            # review, and the moment its hash settles -- so it is where authorship
+            # is captured. The record is a sidecar beside the review record;
+            # nothing is written into the ops.json, so the verdict binding
+            # (sha256 over raw bytes) cannot be invalidated by it.
+            #
+            # FAIL-SOFT by construction, the same contract review-record.py's
+            # emit_brief documents: a bookkeeping feature must never be able to
+            # reject a config that validated.
+            try:
+                import importlib.util as _ilu
+                _rr = Path(__file__).resolve().parent / 'review-record.py'
+                _spec = _ilu.spec_from_file_location('review_record', str(_rr))
+                if _spec is not None and _spec.loader is not None:
+                    _mod = _ilu.module_from_spec(_spec)
+                    _spec.loader.exec_module(_mod)
+                    _mod.record_author(args.config)
+            except Exception as _exc:
+                print(f'  NOTE: authorship not recorded ({_exc}); the config IS valid.')
         print("\n-> APPROVED\n")
         sys.exit(0)
     else:

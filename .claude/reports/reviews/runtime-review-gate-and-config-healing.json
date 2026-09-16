@@ -1,0 +1,17 @@
+{
+  "plan": ".claude/plans/plan-runtime-review-gate-and-config-healing.md",
+  "slug": "runtime-review-gate-and-config-healing",
+  "ops_path": ".claude/plans/plan-runtime-review-gate-and-config-healing.ops.json",
+  "ops_sha256": "eaa845b03f602fbcc42313c62f4ee915e486b4affbd1ecae54e79629df942182",
+  "score": 93,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] The name-only repo gate (B2) remains a real, if now fully disclosed, hardening gap - track as a follow-up (secondary check on git remote or canonical path) rather than leaving test_same_name_fork_is_h"
+  ],
+  "verdict_origin": "rubric",
+  "recorded_utc": "2026-09-16T08:23:51Z",
+  "operations": 9,
+  "edits": 12,
+  "rounds": [],
+  "round": 1
+}

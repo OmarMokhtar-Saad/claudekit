@@ -11,6 +11,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `open-source-forker` — never shipped and have been removed.
 
 ## [Unreleased]
+- **An "author != reviewer" mechanism exists now, and in this repo's sessions it
+  does not bind.** Both halves of that sentence are load-bearing. The mechanism:
+  `review-record.py author` records the session that authored an ops.json (captured
+  automatically by `--stamp-baseline`), `write` records the session that reviewed
+  it, and `check` refuses execution with a new exit 6 when the two are the same;
+  `tests/test_author_not_reviewer.py` proves the refusal blocks a real execution and
+  that an independent reviewer still authorises one. The part that does not work
+  yet: the comparison needs two RESOLVABLE session ids, and nothing in this repo
+  exports `CLAUDE_SESSION_ID` or `CLAUDEKIT_SESSION_ID`, so in practice both sides
+  record "unknown" and the gate stays open. CLAUDE.md's review floor is therefore
+  still prompt-enforced in real sessions -- this shipped the enforcement point, not
+  the enforcement. `check` now prints which identities it had and says outright
+  when the gate did not bind, so the difference is visible at the moment of use
+  rather than assumed from a green check. Authorship lives in a sidecar beside the
+  review record, never inside the ops.json, so the verdict's sha256 binding cannot
+  be invalidated by recording it.
+- **A missing `.claude/settings.local.json` no longer costs a session.** The
+  gitignored local override that carries `ECC_HOOK_PROFILE=minimal` is regenerated
+  at session start when it is absent, and repaired (original moved aside) when it is
+  malformed. It is never overwritten: an existing profile value of any kind is kept,
+  and a valid file missing only that key gains that key and nothing else. Healing is
+  gated to this repository (`pyproject.toml` naming `claudekit-agents`) so no fleet
+  project can have its enforcement silently switched off.
 - **Agent memory was declared everywhere and worked nowhere.** Seven agents ship
   `memory: project`, but `install.sh` never created the
   `.claude/agent-memory/<agent>/` directories they read, and a missing memory file

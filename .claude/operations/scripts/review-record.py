@@ -13,6 +13,7 @@ Usage:
   review-record.py write   ... [--session-id UUID]   (records a rejection brief)
   review-record.py write   ... --only-non-approving   (records rejections only)
   review-record.py check   <plan.md> <ops.json>
+  review-record.py author  <ops.json> [--session-id UUID]
   review-record.py diff    <plan.md> <ops.json>
   review-record.py rejections search "<keywords>"
 
@@ -23,6 +24,8 @@ Exit codes:
   3  no approval record / could not resolve (rejections search: no match)
   4  record exists and matches, but the verdict does not authorise execution
   5  write refused: --only-non-approving given and the parsed verdict is an approval
+  6  SELF-REVIEW - the verdict was recorded by the session that authored
+     this ops.json; a review by its own author does not authorise execution
 
 Verdict parsing lives here rather than in shell so it can be validated and tested:
 strict anchored patterns mean an echoed format template ('SCORE: <integer 0-100>')
@@ -52,6 +55,13 @@ from pathlib import Path
 
 RECORDS_DIR = Path(".claude/reports/reviews")
 APPROVAL_THRESHOLD = 90
+# Authorship sidecar. Codes 0-4 keep their documented meanings and 5 is taken by
+# `write`, so the self-review refusal is additive: nothing that already reads an
+# exit code changes behaviour. 2 would report a self-review as a hash mismatch (a
+# lie about the file) and 4 would collapse two different remedies into one cause
+# string, which is precisely what the executor's cause map exists to prevent.
+AUTHOR_SUFFIX = ".author.json"
+SELF_REVIEW_EXIT = 6
 VALID_DECISIONS = ("APPROVED", "CONDITIONAL", "REVISE", "REJECTED")
 
 # A re-review used to overwrite the verdict it replaced, so a record could only
@@ -781,6 +791,10 @@ def write_verdict(plan, ops, from_review=None, score=None, decision=None,
         # blocking-finding count (code-reviewer's mapping table), where the integer is a
         # recording device and carries no quality judgement at all.
         "verdict_origin": verdict_origin or "rubric",
+        # WHO reviewed. Written into the RECORD, never into the ops.json:
+        # the binding below is over the config's raw bytes, and a key added
+        # to the config after a verdict reads as DRIFT.
+        "reviewer_session": _session_id(session_id),
         "recorded_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
     record.update(load_ops_summary(ops_path))
@@ -904,6 +918,91 @@ def _record_covers(rec_path: Path, ops_path: Path) -> bool:
         return str(recorded) == str(ops_path)
 
 
+def author_path(slug: str) -> Path:
+    """Sidecar naming who AUTHORED the ops.json this record key belongs to.
+
+    A SIDECAR, never a key inside the ops.json. cmd_check binds the verdict to
+    sha256(ops.json) over raw bytes, so anything written into the config after a
+    verdict was recorded reads as DRIFT and deadlocks the gate -- the exact trap
+    cmd_check's own error text warns about. Authorship lives beside the record, where
+    it can be written at any point in the sequence without moving a hash.
+
+    Sanitisation is record_paths' rule, applied to the same ops_slug, so the sidecar
+    always resolves next to the record it describes.
+    """
+    safe = re.sub(r"[^A-Za-z0-9._-]", "_", slug).lstrip(".") or "_"
+    return _records_dir() / f"{safe}{AUTHOR_SUFFIX}"
+
+
+def load_author(slug: str) -> str:
+    """The recorded author session for `slug`, or "unknown".
+
+    Unreadable, absent and unresolved all collapse to "unknown", and "unknown" never
+    blocks: a gate that refuses on missing data would brick every record written
+    before this feature existed.
+    """
+    path = author_path(slug)
+    if not path.exists():
+        return "unknown"
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        session = data.get("session") if isinstance(data, dict) else None
+    except Exception as e:
+        print(f"NOTE: author record for '{slug}' is unreadable ({e}); "
+              "treated as unknown.", file=sys.stderr)
+        return "unknown"
+    return session if isinstance(session, str) and session else "unknown"
+
+
+def record_author(ops, session_id=None) -> int:
+    """Record the identity that authored/stamped this ops.json. Never fails a caller.
+
+    FIRST KNOWN AUTHOR WINS. A re-stamp is the same author re-running the same step, so
+    overwriting on every call would let whoever stamps last claim authorship -- and an
+    author who could overwrite this could launder their own review. The one exception is
+    an upgrade from "unknown": recording a real id where there was none adds information
+    and takes none away.
+    """
+    ops_path = Path(ops)
+    if not ops_path.exists():
+        print(f"Error: ops.json not found: {ops_path}", file=sys.stderr)
+        return 1
+    slug = ops_slug(ops_path)
+    path = author_path(slug)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    session = _session_id(session_id)
+    existing = load_author(slug)
+    if existing != "unknown":
+        if existing != session:
+            print(f"NOTE: '{slug}' is already recorded as authored by "
+                  f"{existing[:8]}...; keeping it.", file=sys.stderr)
+        return 0
+
+    record = {
+        "slug": slug,
+        "ops_path": os.path.relpath(str(ops_path)),
+        "session": session,
+        "prompt_version": _prompt_version(),
+        "recorded_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    }
+    if not _safe_write(path, json.dumps(record, indent=2) + "\n"):
+        return 1
+    if session == "unknown":
+        # Announced, never silent: an unresolved author means the author != reviewer
+        # gate cannot bind for this config, and that is a fact the operator should
+        # learn now rather than infer from a check that quietly passes.
+        print(f"NOTE: authorship recorded for '{slug}' with session UNKNOWN; the "
+              "author != reviewer gate will not bind for this config.", file=sys.stderr)
+    else:
+        print(f"Authorship recorded for {slug}: session {session[:8]}...")
+    return 0
+
+
+def cmd_author(args) -> int:
+    return record_author(args.ops, getattr(args, "session_id", None))
+
+
 def cmd_check(args) -> int:
     ops_path = Path(args.ops)
     slug = ops_slug(ops_path)
@@ -960,6 +1059,33 @@ def cmd_check(args) -> int:
               file=sys.stderr)
         print("              Address the findings and re-run /review.", file=sys.stderr)
         return 4
+
+    # Author != reviewer, enforced here rather than by prompt. CLAUDE.md's review floor
+    # ("fresh code-reviewer instance, never the author") was prompt-only, and the quality
+    # gates section conceded it. This is the mechanical half.
+    #
+    # It binds ONLY on a proven match: two resolvable identities that are equal. Two
+    # "unknown"s are not a match -- nothing exports the session env vars today, so
+    # treating unknown as equal would refuse nearly every execution in this repo,
+    # including this repo's own pipeline. Ordering matters too: this sits AFTER the drift
+    # and threshold checks so a drifted or rejecting verdict still reports its own cause,
+    # which is what keeps the executor's remedies distinct.
+    author = load_author(slug)
+    reviewer = record.get("reviewer_session")
+    if not isinstance(reviewer, str) or not reviewer:
+        reviewer = "unknown"
+    if author != "unknown" and reviewer != "unknown" and author == reviewer:
+        print("SELF-REVIEW: the recorded verdict came from the session that authored "
+              "this ops.json.", file=sys.stderr)
+        print(f"             session: {author}", file=sys.stderr)
+        print("             A review by its own author is not a review. Have a fresh "
+              "code-reviewer", file=sys.stderr)
+        print("             instance score this config and record that verdict, then "
+              "retry.", file=sys.stderr)
+        return SELF_REVIEW_EXIT
+    if author == "unknown" or reviewer == "unknown":
+        print(f"NOTE: author={author[:8]} reviewer={reviewer[:8]} -- the author != "
+              "reviewer gate did not bind for this config.", file=sys.stderr)
 
     print(f"OK: ops.json matches the reviewed artifact ({decision} {score}).")
     return 0
@@ -1591,6 +1717,15 @@ def main() -> int:
     c.add_argument("plan")
     c.add_argument("ops")
     c.set_defaults(func=cmd_check)
+
+    a = sub.add_parser("author",
+                       help="Record who authored/stamped an ops.json "
+                            "(first known author wins)")
+    a.add_argument("ops")
+    a.add_argument("--session-id", dest="session_id", default=None,
+                   help="Session UUID of the author (default: "
+                        "$CLAUDE_SESSION_ID, else the SessionStart pointer)")
+    a.set_defaults(func=cmd_author)
 
 
     rej = sub.add_parser("rejections", help="Query the rejection-brief store")

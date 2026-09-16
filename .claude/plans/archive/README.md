@@ -370,3 +370,4 @@ gate closes on every sibling config the moment it lands.
   SESSION_STATE resume point and CHANGELOG_AI entry for the approval-gate directory-layout
   fix, its follow-ups, the code-review-on-request policy and the fleet rollout.
 
+| `ops-runtime-review-gate-and-config-healing/plan-runtime-review-gate-and-config-healing.ops.json` | Spent — author != reviewer gate enforcement point + auto-healing for missing/malformed `.claude/settings.local.json`, executed 2026-09-16 (approved 93). |
