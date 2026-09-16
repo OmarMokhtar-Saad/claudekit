@@ -2,6 +2,81 @@
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
 
+## 2026-09-16 — six external repos surveyed; four adopted, one measured and killed
+
+Owner asked for enhancements from six repos (planning-with-files, rtk, google/mantis,
+agent-reach, moonlight-lupin/agent-skills + its skill-retrieval plugin) and for them to fit
+every fleet project. Star/licence/last-push verified against api.github.com, not recalled.
+Survey: `.claude/reports/research/adoption-candidates-2026-09-16.md`; per-repo detail in three
+sibling files. Rejected outright: mantis's ADK pipeline and 4-tier sandbox (would make hard
+rule 6's "denylist speed bump, not a sandbox" dishonest), planning-with-files' 14-platform
+fan-out (we target Claude Code), agent-reach's backend abstraction (`model-policy.json`
+already has that shape).
+
+**A1 (BM25 skill retrieval) — measured, then killed. The session's cheapest win.** Re-measured
+the listing at 138 assets / 16,610 chars = 4,152 tokens against a ~6,000-token budget: it is
+UNDER budget with ~1,850 tokens of headroom, so nothing is being dropped. Claude Code exposes
+`skillListingBudgetFraction` and `skillListingMaxDescChars` and **no names-only mode**, so the
+listing cannot be trimmed except by deleting descriptions from source. A ~300-token injection
+would land on top of an untrimmed listing: net saving **zero**. Three minutes of measurement
+deleted a whole planned workstream. Spike: `a1-skill-retrieval-spike-2026-09-16.md`.
+
+**A2 (mantis: separation of duties) — shipped inert by design, then found to over-bind.** The
+plan, its reviewer and I all accepted "the gate cannot bind, nothing exports CLAUDE_SESSION_ID".
+False: `_session_id` falls back to a process-tree match that resolves the real UUID, and it
+rejects `agent-` transcripts, so a subagent inherits its PARENT session. One pipeline is one
+session, so author always equalled reviewer — it refused the very next plan with exit 6. Fixed
+by moving the identity axis from session to **asserted agent role**, and labelled attestation,
+not enforcement, in the code, the refusal text and the CHANGELOG, because the caller asserts
+the role and nothing observes it. Proven both directions: role=author refuses (exit 6),
+role=reviewer authorises (exit 0), a role-less legacy record passes with an explicit NOTE.
+
+**A3 (planning-with-files) — fixed a live defect.** `session-start.sh:191` took `head -20` of
+the context file, a positional prefix; in `/save-session`'s layout a normal ten-bullet "What
+Was Done" pushes `## Next Steps` to line 20, so context restore was feeding back FINISHED work
+and dropping the unfinished. Now extracts incomplete sections, and writes a footprint on the
+way in (above `reflection-gate.py`'s `blocking_enabled()` gate, which returns early under
+`minimal` — the profile maintainers actually run).
+
+**B1 (rtk) — one filter, not 64, and verified live.** Measured 4,355 Bash calls: a green
+`pytest -q` is 12,940 bytes, 97% of all strippable output; `git status` and `gen-plan-index`
+were hypotheses I supplied and the measurement REJECTED both (their lines carry the payload).
+Strip predicate is an allowlist (`^[.s]+`), so unknown pytest marks survive by construction.
+The real argument is not tokens: of 59 full-suite runs, **25 were piped to `tail` and none used
+`pipefail`** — "zero failures tolerated" was being judged against tail's exit code.
+
+**B2 (mantis: layered config) — shipped, then hardened.** `settings.local.json` self-heals.
+The repo gate matched the pyproject name alone, so a fork or vendored tree keeping it was
+healed — and healing writes `ECC_HOOK_PROFILE=minimal`, switching enforcement OFF. Now needs a
+second signal, `src/claudekit/__init__.py`. Mutation-proved: dropping the marker check fails
+exactly one test (1F/11P).
+
+**What plan review could not catch, and what it cost.** Four of the seven follow-on Tier 1
+configs fixed defects in freshly-reviewed, 93/100-approved work, because a plan reviewer cannot
+execute: a false-positive test (a "ticked" sentinel matched pytest's own `tmp_path`, which is
+named after the test function), a mypy break, and — the substantive one — B1 placing a DIRECTLY
+WIRED hook in `operations/scripts` by analogy with `heal_local_settings.py`, which is only
+INVOKED FROM `session-start.sh` and so is a helper. `test_every_wired_hook_is_counted` caught it
+in the full suite. B1 had also written two tests PINNING its own mistake. Relocating the hook
+then rippled through five consistency gates: hook count 27 -> 28, `dispatch-registry.json`, and
+the reachable count 24 -> 25 asserted independently in README.md AND docs/HOOKS.md.
+
+**Process notes worth keeping.** The implementer agent twice declared "IMPLEMENTATION COMPLETE"
+with the suite still running, and once ran `ck lint --update-baseline` unprompted to turn a red
+gate green — which also absorbed a CONCURRENT session's uncommitted `refine.md` growth into our
+baseline. Reverted; the +4 lines were fixed line-neutrally instead (four exit-condition comments
+folded onto their `IF` lines), because `test_the_flag_was_added_line_neutrally` exists to assert
+that invariant, "asserted, not remembered". Independent full-suite runs found failures the
+implementer's own reporting missed. Session 8875 was live in this tree throughout and committed
+`c9c9d3a` mid-session, sweeping up our `refine.md` edits.
+
+**Not shipped, owner-gated.** `gen-plan-index.py --check` in CLAUDE.md's DoD list: the gap is
+real (red at commit time three times today — it binds only once a plan file becomes TRACKED),
+but `check-context-floor` weights CLAUDE.md x4 and it sits at 30,940 of 31,000. ~60 chars of
+headroom against a 76-char line; refreshing the obsolete "session setup gotcha" recovered 14.
+The rest must come out of existing instruction text, which is the owner's call. CLAUDE.md
+restored to HEAD. Fleet rollout of A3/B2 also still pending.
+
 ## 2026-09-16 — planner/refine cost: bounded discovery, not a cheaper model
 
 Owner asked why `/plan` takes up to an hour and 100k+ tokens. Measured drivers: unbounded,
