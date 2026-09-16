@@ -17,7 +17,13 @@ suite on merged main not run (classifier: merge without review); push main + fle
 owner-gated; hook stderr messages intentionally left out of the action-first pass.
 
 
-**2026-09-16 · Claude (Fable 5.1) — `feat/memory-scaffold-fleet`, UNCOMMITTED.**
+**2026-09-16 (later) · Claude (Fable 5.1) — `main` = 029c79a, not pushed.**
+Learning loop v2 shipped and fast-forwarded onto main (see CHANGELOG_AI). Fleet sync of the
+9 changed files is pending the owner running the scratch script. Next candidates: ops.json
+`content` by file path (Tier 3, owner-gated); candidate index lines currently repeat the
+signature as both title and hook (cosmetic, `_candidate_index_line`).
+
+**2026-09-16 · Claude (Fable 5.1) — `feat/memory-scaffold-fleet`, now merged to main as ba4a21f.**
 Planner/refine cost pass: bounded planner discovery + revision mode, `/refine` ceiling 3 with
 stagnation exit, reviewer refutation budget; ops archived under `archive/ops-planner-token-budget/`.
 Planner model tier change was applied and reverted at owner request — stays most-capable.
