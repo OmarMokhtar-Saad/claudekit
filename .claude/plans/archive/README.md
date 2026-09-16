@@ -430,3 +430,11 @@ gate closes on every sibling config the moment it lands.
   recovered only 14. Adding the line therefore costs ~100 characters of existing instruction
   text, which is an owner decision about what to cut, not a mechanical fix — so CLAUDE.md was
   restored to HEAD and the gate is green. Recorded here so the gap is not rediscovered cold.
+
+- `plan-dod-plan-index-fitted.ops.json` — **spent** (2026-09-16, `--no-approval` disclosed:
+  Tier 1, one file). Succeeds the reverted pair above: `gen-plan-index.py --check` IS now in
+  CLAUDE.md's DoD list, paid for by compressing the session-setup gotcha, whose manual-restore
+  instruction `heal_local_settings.py` made obsolete. Net +14 file chars / +56 weighted against
+  60 of headroom; CLAUDE.md lands at 30,996 of 31,000. Fitted deliberately rather than raising
+  the floor cap — the cap exists to stop CLAUDE.md sprawl, and exempting our own addition from
+  it would be the same move as re-anchoring a lint baseline to absorb a change.
