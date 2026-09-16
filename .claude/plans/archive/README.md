@@ -375,3 +375,12 @@ gate closes on every sibling config the moment it lands.
 | `plan-review-identity-fix.ops.json` | Spent — fixed the session-based author != reviewer gate (exit 6 was unsatisfiable; author and reviewer always collided in one pipeline). Now compares asserted agent roles: `--stamp-baseline` records `role: author` in a sidecar, `review-record.py write --reviewer-role reviewer` records the verdict role, and `check` refuses when the verdict is attested to a non-reviewing role or the author's own role. This is attestation, not enforcement (the caller claims the role). Records written before this change carry no role and still execute. Executed 2026-09-16 with `--no-approval` (the gate being fixed refused any normal run), reviewed 96/100 APPROVED by a `reviewer` agent. No verdict was self-issued; the `--no-approval` bypass is disclosed here. |
 
 | `ops-planner-token-budget/plan-planner-token-budget.ops.json` | Spent — bounded planner discovery (revision mode, index-first, call cap), refine ceiling 3 + stagnation exit, reviewer refutation budget. Executed 2026-09-16 with `--no-approval` (owner said "do"; Tier 2 prompt/docs change, no code). Model-tier ops were executed then reverted by hand the same session at owner request (planner stays most-capable); the archived config is the reconciled 5-op version. |
+
+- `plan-refine-line-neutrality.ops.json` — **spent** (2026-09-16, `--no-approval` disclosed:
+  Tier 1, one prompt file, no ops/security surface). `c9c9d3a` grew `refine.md` to 470 lines
+  without updating either the ck-lint baseline or the 466 hard-coded in
+  `tests/test_rejection_briefs.py:1363`, reddening two gates. Folded four exit-condition
+  comments onto their `IF` lines: -4 lines, every semantic preserved, back to 466. The
+  baseline was deliberately NOT re-anchored — `test_the_flag_was_added_line_neutrally`
+  exists to assert that invariant ("asserted, not remembered"), so moving the budget would
+  have silenced the gate instead of satisfying it. Both tests green, baseline byte-identical.

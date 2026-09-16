@@ -1021,7 +1021,13 @@ Safety Guards (29 total):
                 if _spec is not None and _spec.loader is not None:
                     _mod = _ilu.module_from_spec(_spec)
                     _spec.loader.exec_module(_mod)
-                    _mod.record_author(args.config)
+                    # --stamp-baseline is run by the implementer/main agent, never
+                    # by a reviewer, so "author" is the truthful assertion and it
+                    # is outside REVIEWER_ROLES -- this is what lets the author !=
+                    # reviewer gate bind at all. The constant, not a literal:
+                    # the author-side role string gets one definition, next to
+                    # the REVIEWER_ROLES it must stay outside of.
+                    _mod.record_author(args.config, role=_mod.AUTHOR_ROLE_DEFAULT)
             except Exception as _exc:
                 print(f'  NOTE: authorship not recorded ({_exc}); the config IS valid.')
         print("\n-> APPROVED\n")

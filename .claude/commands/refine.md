@@ -313,20 +313,16 @@ Use a fall-through exit-condition pattern (check exits first; non-exit paths fal
 IF last_score == -1:
     → ABORT — reviewer did not return a score. Log error. Do NOT declare convergence.
 
-# Exit condition 1: approved
-IF decision == "APPROVED" AND last_score >= 90 AND critical_major_count == 0:
+IF decision == "APPROVED" AND last_score >= 90 AND critical_major_count == 0:  # exit 1: approved
     → EXIT LOOP with status = APPROVED
 
-# Exit condition 2: iteration cap reached
-IF iteration >= MAX_ITER:
+IF iteration >= MAX_ITER:  # exit 2: iteration cap reached
     → EXIT LOOP with status = ESCALATED (max iterations reached)
 
-# Exit condition 3: fundamental rejection (not fixable by iteration)
-IF decision == "REJECTED" AND iteration >= 3:
+IF decision == "REJECTED" AND iteration >= 3:  # exit 3: fundamental rejection, not fixable by iteration
     → EXIT LOOP with status = ESCALATED (repeated fundamental rejection)
 
-# Exit condition 4: stagnation — another planner round cannot buy a higher score
-IF iteration >= 2 AND last_score <= iteration_history[-2].score:
+IF iteration >= 2 AND last_score <= iteration_history[-2].score:  # exit 4: stagnation, another round cannot buy a higher score
     → EXIT LOOP with status = ESCALATED (score did not improve; findings need a human)
 
 # Fall-through: all non-exit paths reach here and increment unconditionally
