@@ -17,6 +17,15 @@ suite on merged main not run (classifier: merge without review); push main + fle
 owner-gated; hook stderr messages intentionally left out of the action-first pass.
 
 
+**2026-09-16 · Claude (Fable 5.1) — `feat/memory-scaffold-fleet`, UNCOMMITTED.**
+Planner/refine cost pass: bounded planner discovery + revision mode, `/refine` ceiling 3 with
+stagnation exit, reviewer refutation budget; ops archived under `archive/ops-planner-token-budget/`.
+Planner model tier change was applied and reverted at owner request — stays most-capable.
+All gates green except the queued-ops test, red on two untracked configs from another session
+(`plan-agent-memory-learning.ops.json`, `plan-review-identity-fix.ops.json`). Owner decides:
+commit these edits; whether to archive those two configs; whether to plan the Tier 3
+"ops.json content by path" change.
+
 **2026-09-13 · Claude (Opus 5) — `feat/memory-scaffold-fleet`, merged and pushed (`27ceff5`).**
 Agent memory was declared everywhere and worked nowhere: 7 agents ship `memory: project`,
 `install.sh` never created the directories they read, and a missing memory file is silence
