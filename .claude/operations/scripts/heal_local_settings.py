@@ -13,12 +13,12 @@ switch enforcement off across every kitted repo. Healing therefore acts only whe
 project root's pyproject.toml declares `name = "claudekit-agents"` -- this kit's own
 repository, where the maintainer is the maintainer and not a constrained agent.
 
-KNOWN LIMITATION, stated rather than hidden: that gate is a NAME match and nothing more.
-A fork or a vendored copy that keeps the same project name is healed too, and would have
-its enforcement profile flipped to `minimal`. A secondary check (git remote or canonical
-path) is the hardening, and it is deliberately not done here; the current behaviour is
-pinned by `test_same_name_fork_is_healed_known_limitation` so it lives in the suite and
-not only in this paragraph.
+The gate takes TWO independent signals, both required: the pyproject name AND the kit's
+own source package at `src/claudekit/__init__.py`. The name alone was not enough -- it is
+forgeable by copying, so a fork or a vendored `.claude/` tree that kept the name was
+healed too and had its enforcement profile flipped to `minimal`. A vendored copy brings
+the prompts, never the source package. `test_a_vendored_copy_keeping_the_name_is_refused`
+pins this; drop the marker check and it goes red on its own.
 
 Never destructive:
   missing                      -> write the known-good default
@@ -53,10 +53,22 @@ DEFAULT_SETTINGS = {"env": {PROFILE_KEY: "minimal"}}
 # The one project this may ever heal. Matched on the [project] name line rather than
 # parsed: tomllib is 3.11+ and this file must import on 3.9.
 _NAME_RE = re.compile(r"""^\s*name\s*=\s*["']claudekit-agents["']""", re.M)
+# Second, independent signal, because the name alone is forgeable by copying. Healing
+# writes ECC_HOOK_PROFILE=minimal, which turns enforcement OFF: a false positive in a
+# downstream project is the worst thing this script can do, so BOTH must hold. A
+# vendored .claude/ tree brings the prompts, never the kit's own source package.
+_MARKER_REL = os.path.join("src", "claudekit", "__init__.py")
 
 
 def is_claudekit_repo(root: str) -> bool:
-    """True only for this kit's own repository."""
+    """True only for this kit's own repository.
+
+    Two signals, both required: the pyproject name AND the kit's own source package.
+    Either alone is copyable; together they are not present in a project that merely
+    vendored the prompts.
+    """
+    if not os.path.isfile(os.path.join(root, _MARKER_REL)):
+        return False
     try:
         with open(os.path.join(root, "pyproject.toml"), "r", encoding="utf-8") as handle:
             return bool(_NAME_RE.search(handle.read()))

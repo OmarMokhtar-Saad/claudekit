@@ -1,0 +1,16 @@
+{
+  "plan": "dod-plan-index",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "CLAUDE.md",
+      "description": "Add the plan-index gate to the DoD command list. It went red at commit time three times in one session because it only binds once a plan file becomes tracked -- and it was the one gate not named here, so it was missed each time.",
+      "edits": [
+        {
+          "find": "python3 scripts/check-plan-artifacts.py --check # plan names its ops' paths",
+          "replace": "python3 scripts/check-plan-artifacts.py --check # plan names its ops' paths\npython3 scripts/gen-plan-index.py --check # plan-index drift (binds only once a plan is TRACKED, so run it AFTER committing)"
+        }
+      ]
+    }
+  ]
+}

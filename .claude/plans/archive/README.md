@@ -407,3 +407,26 @@ gate closes on every sibling config the moment it lands.
   registered the hook in `dispatch-registry.json` (advisory tier, `Bash` matcher: a rewriter
   must never be able to block) and moved the reachable count 24 -> 25 in both README.md and
   docs/HOOKS.md, which assert it independently against a derived value.
+
+- `plan-heal-gate-hardening.ops.json` + `plan-heal-docstring.ops.json` — **spent**
+  (2026-09-16, `--no-approval` disclosed: Tier 1). Closes the B2 MINOR the reviewer left
+  open. `is_claudekit_repo` matched the pyproject name and nothing else, so a fork or a
+  vendored `.claude/` tree that kept `name = "claudekit-agents"` was healed — and healing
+  writes `ECC_HOOK_PROFILE=minimal`, which switches enforcement OFF. That is the worst
+  thing this script can do, so the gate now requires a SECOND independent signal:
+  `src/claudekit/__init__.py`, the kit's own source package, which a vendored prompt tree
+  never carries. `test_same_name_fork_is_healed_known_limitation` was a characterisation
+  test whose own docstring named the narrowing of this gate as the moment to retire it;
+  it is replaced by `test_a_vendored_copy_keeping_the_name_is_refused`. Measured, not
+  assumed: deleting the marker check fails that one test and only that one (1F/11P).
+
+- `plan-dod-plan-index.ops.json` + `plan-claude-md-gotcha-refresh.ops.json` — **applied then
+  REVERTED** (2026-09-16). Both aimed to add `gen-plan-index.py --check` to the DoD command
+  list — a real gap: it went red at commit time three times in this session, because it binds
+  only once a plan file becomes TRACKED, so it passes before a commit and fails after.
+  Owner-approved in principle, but it does not fit: `check-context-floor.py` weights CLAUDE.md
+  x4 and the file sits at 30,940 of 31,000 — about 60 characters of headroom against a 76-char
+  line. Refreshing the now-obsolete "session setup gotcha" (superseded by heal_local_settings.py)
+  recovered only 14. Adding the line therefore costs ~100 characters of existing instruction
+  text, which is an owner decision about what to cut, not a mechanical fix — so CLAUDE.md was
+  restored to HEAD and the gate is green. Recorded here so the gap is not rediscovered cold.
