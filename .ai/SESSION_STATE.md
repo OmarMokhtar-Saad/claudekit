@@ -2,6 +2,28 @@
 
 > Update this file at the end of every significant AI working session. It is the resume point.
 
+**2026-09-16 · Claude (Opus 5) — `feat/memory-scaffold-fleet`, 5 commits, NOT merged.**
+External survey of six repos; four adopted, one measured and killed, one rejected. Commits:
+`31d320f` (review identity), `a226558` (A3 context recovery + B1 output filter), `e335617`
+(B2 heal-gate hardening), plus two plan-index regenerations. Full detail in CHANGELOG_AI.
+
+**The one thing to carry forward:** a gate can be wrong in BOTH directions and a confident
+review will not catch either. A2 shipped documented as inert and was actually over-binding —
+it blocked the next plan on its first real use. A1 was the mirror: a mechanism everyone
+believed in that measurement showed saved nothing. Executing beats reasoning about it; four
+of seven follow-on fixes were defects inside 93/100-approved plans, because a plan reviewer
+has no Bash.
+
+**B1 is verified live**, which unit tests could not do: a real PostToolUse call printed
+`[ck output-filter: pytest-progress] 1 all-passing progress line(s) removed`, and
+`CK_RAW_OUTPUT=1` suppressed it. The host honours `updatedToolOutput`.
+
+**Owner decides next:** (1) fleet rollout — A3 and B2 are fleet-wide, B1 is Python-only and
+must ship as base filters + project-local override, A2 is repo-local and must NOT go
+downstream; nothing has shipped to the 14 repos yet. (2) `gen-plan-index.py --check` in the
+DoD list needs ~100 chars cut from CLAUDE.md (30,940 of 31,000, weighted x4) — which ~100 is
+the owner's call. (3) Merging these 5 commits to main.
+
 **2026-09-16 · Claude (Fable 5.1) — `feat/memory-scaffold-fleet`, UNCOMMITTED.**
 Planner/refine cost pass: bounded planner discovery + revision mode, `/refine` ceiling 3 with
 stagnation exit, reviewer refutation budget; ops archived under `archive/ops-planner-token-budget/`.
