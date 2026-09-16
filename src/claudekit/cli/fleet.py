@@ -236,6 +236,14 @@ def _fleet_update(repos: List[Path], dry_run: bool, assume_yes: bool) -> int:
     return 0
 
 
+# Files install.sh rewrites per project (hooks/config.json gets the project's build/test/
+# lint commands and is re-serialised). They are recorded in the manifest AFTER rendering,
+# so they match the manifest and never match the kit source -- byte-comparing them would
+# flag every healthy repo. Measured: 14/14 repos "stale" on exactly this one file
+# (2026-09-16). Reported as rendered, never counted as drift.
+INSTALLER_RENDERED = frozenset({"hooks/config.json"})
+
+
 def _fleet_verify(repos: List[Path], kit: Optional[Path]) -> int:
     if kit is None:
         _m.err("Cannot find ClaudeKit source. Set CLAUDEKIT_HOME or run from the repo.")
@@ -247,6 +255,7 @@ def _fleet_verify(repos: List[Path], kit: Optional[Path]) -> int:
         stale: List[str] = []
         gone: List[str] = []
         local = 0
+        rendered = 0
         for rel, expected in sorted(manifest.get("files", {}).items()):
             kit_path = kit / rel
             if not kit_path.exists():
@@ -258,12 +267,14 @@ def _fleet_verify(repos: List[Path], kit: Optional[Path]) -> int:
             actual = _m._sha256(path)
             if actual != expected:
                 local += 1        # locally modified: allowed, the manifest says so
+            elif rel in INSTALLER_RENDERED:
+                rendered += 1     # the installer rewrote it on purpose; not drift
             elif actual != _m._sha256(kit_path):
                 stale.append(rel)  # untouched downstream, but not the current kit
         if stale or gone:
             drifted += 1
             _m.err(f"  {repo.name}: {len(stale)} stale, {len(gone)} missing "
-                   f"({local} locally modified, allowed)")
+                   f"({local} locally modified, {rendered} installer-rendered, allowed)")
             for rel in stale[:15]:
                 print(f"      stale:   {rel}")
             for rel in gone[:15]:
