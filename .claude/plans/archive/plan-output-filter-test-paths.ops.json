@@ -1,0 +1,20 @@
+{
+  "plan": "output-filter-test-paths",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_output_filter.py",
+      "description": "Point the tests at the hook's new home in .claude/hooks/ after the placement fix",
+      "edits": [
+        {
+          "find": "\"\"\"Behavioural tests for the PostToolUse output filter (.claude/operations/scripts).",
+          "replace": "\"\"\"Behavioural tests for the PostToolUse output filter (.claude/hooks)."
+        },
+        {
+          "find": "SCRIPTS = REPO / \".claude\" / \"operations\" / \"scripts\"",
+          "replace": "SCRIPTS = REPO / \".claude\" / \"hooks\""
+        }
+      ]
+    }
+  ]
+}

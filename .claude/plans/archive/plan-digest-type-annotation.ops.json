@@ -1,0 +1,20 @@
+{
+  "plan": "digest-type-annotation",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/session_digest.py",
+      "description": "Annotate the section accumulators so mypy (py3.9 target) can infer them",
+      "edits": [
+        {
+          "find": "from typing import List, Optional",
+          "replace": "from typing import List, Optional, Tuple"
+        },
+        {
+          "find": "    sections = []  # list of (title, [lines])\n    current = None",
+          "replace": "    sections: List[Tuple[str, List[str]]] = []\n    current: Optional[Tuple[str, List[str]]] = None"
+        }
+      ]
+    }
+  ]
+}

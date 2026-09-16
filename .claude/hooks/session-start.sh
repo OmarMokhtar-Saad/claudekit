@@ -188,7 +188,22 @@ except:
         # only protects the profile nobody sets is decoration.
         # `head -c` as well as `head -20`: a 2 MB single-line context file passed the
         # line bound and was printed in full (measured: 2,000,154 characters).
-        _ctx_excerpt=$(head -20 "$CONTEXT_FILE" | head -c 4000)
+        # Extract-INCOMPLETE-ONLY (adoption A3). The old bound was POSITIONAL --
+        # `head -20` -- and in the format /save-session actually writes the first
+        # twenty lines are the header, the status and "What Was Done", so the excerpt
+        # showed the FINISHED work and truncated "Next Steps". Measured on a ten-bullet
+        # "What Was Done": line 20 of the file is the `## Next Steps` heading itself.
+        # The digest parses the sections and injects only the unfinished ones.
+        # Exit 3 (or an empty result) means "no recognised structure" -- a fleet project
+        # with its own format -- and THAT is when the positional excerpt is still right.
+        # Computed BEFORE the scanner call below on purpose: the digest must not become
+        # a way around the injection scan.
+        _ctx_excerpt=""
+        _ctx_digest="$CK_ROOT/.claude/operations/scripts/session_digest.py"
+        if command -v python3 >/dev/null 2>&1 && [ -f "$_ctx_digest" ]; then
+            _ctx_excerpt=$(python3 "$_ctx_digest" excerpt "$CONTEXT_FILE" 2>/dev/null | head -c 4000)
+        fi
+        [ -n "$_ctx_excerpt" ] || _ctx_excerpt=$(head -20 "$CONTEXT_FILE" | head -c 4000)
         # ONE candidate, resolved from this script's own directory. The cwd-relative
         # second candidate is gone: a hostile cwd could supply its own scanner that
         # exits 0 and the payload printed.
@@ -226,13 +241,50 @@ except:
             fi
             unset _ctx_rc
         fi
-        unset _ctx_excerpt _ctx_scanner _cand
+        unset _ctx_excerpt _ctx_scanner _cand _ctx_digest
         echo ""
         echo "  Run /resume-session to restore full context."
     else
         log "INFO" "Session context found but is ${CONTEXT_AGE_HOURS}h old — skipping auto-load"
     fi
 fi
+
+# ---------------------------------------------------------------------------
+# 4b. Recovery footprint (adoption A3, "write on the way IN, not on the way out")
+# `/save-session` is user-invoked and end-of-session, so a session that ends
+# ungracefully leaves nothing behind. `reflection-gate.py` now writes
+# `.claude/session-footprint.md` at every Stop and PreCompact, from git facts only.
+#
+# It is a SEPARATE file by design: a project's own `.claude/session-context.md` is
+# never read, written or overwritten by the footprint, and the footprint is shown only
+# when it is NEWER than that file -- a human-written save is the better record and
+# repeating git state underneath it would just cost context.
+#
+# Scanned before printing for the same reason everything else on this path is: a path
+# in a shared repo is still attacker-influenceable. Never blocks; silent when there is
+# nothing to say.
+# ---------------------------------------------------------------------------
+_fp_digest="$CK_ROOT/.claude/operations/scripts/session_digest.py"
+_fp_text=""
+if command -v python3 >/dev/null 2>&1 && [ -f "$_fp_digest" ]; then
+    _fp_text=$(python3 "$_fp_digest" footprint-show --root "$CK_ROOT" 2>/dev/null | head -c 2000)
+fi
+if [ -n "$_fp_text" ]; then
+    _fp_scanner=""
+    [ -f "$SCRIPT_DIR/prompt-injection-scanner.sh" ] &&
+        _fp_scanner="$SCRIPT_DIR/prompt-injection-scanner.sh"
+    if [ -n "$_fp_scanner" ] && printf '%s\n' "$_fp_text" | bash "$_fp_scanner" >/dev/null 2>&1; then
+        echo ""
+        printf '%s\n' "$_fp_text"
+    else
+        echo ""
+        echo "  (not shown: the recovery footprint was not scanned, or matched a known"
+        echo "   pattern. Read .claude/session-footprint.md directly.)"
+        log "WARN" "recovery footprint withheld"
+    fi
+    unset _fp_scanner
+fi
+unset _fp_text _fp_digest
 
 # ---------------------------------------------------------------------------
 # Durable memory slice (open ledger findings + FRESH ck memory entries).

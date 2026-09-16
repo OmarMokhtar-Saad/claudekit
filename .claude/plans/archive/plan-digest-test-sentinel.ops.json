@@ -1,0 +1,20 @@
+{
+  "plan": "digest-test-sentinel",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_session_digest.py",
+      "description": "Use a distinctive sentinel for the ticked question: 'ticked' collides with pytest's tmp_path, which is named after the test function itself",
+      "edits": [
+        {
+          "find": "- [x] %s ticked\\n- [ ] OPEN_MARKER ttl?\\n\" % DONE",
+          "replace": "- [x] %s TICKED_MARKER\\n- [ ] OPEN_MARKER ttl?\\n\" % DONE"
+        },
+        {
+          "find": "    assert \"OPEN_MARKER\" in out, \"an unresolved question must survive\"\n    assert \"ticked\" not in out",
+          "replace": "    assert \"OPEN_MARKER\" in out, \"an unresolved question must survive\"\n    # Sentinel, not the word \"ticked\": pytest names tmp_path after the test function,\n    # so a generic substring matches the path echoed in the hook's own output.\n    assert \"TICKED_MARKER\" not in out"
+        }
+      ]
+    }
+  ]
+}

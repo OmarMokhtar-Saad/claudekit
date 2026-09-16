@@ -384,3 +384,26 @@ gate closes on every sibling config the moment it lands.
   baseline was deliberately NOT re-anchored — `test_the_flag_was_added_line_neutrally`
   exists to assert that invariant ("asserted, not remembered"), so moving the budget would
   have silenced the gate instead of satisfying it. Both tests green, baseline byte-identical.
+
+- `ops-context-recovery-refinement/` + `ops-output-filters/` — **spent** (2026-09-16,
+  approved 93 each by a `reviewer`, verdicts recorded and gates verified before execution).
+  A3 (context recovery: selective injection of unfinished work, session footprint written
+  on the way in) and B1 (PostToolUse output filter, one pytest-progress filter rather than
+  rtk's 64). Adopted from othmanadi/planning-with-files and rtk-ai/rtk respectively; survey
+  in `.claude/reports/research/adoption-candidates-2026-09-16.md`.
+- Seven follow-on Tier 1 configs, all `--no-approval` disclosed, each fixing a defect the
+  plan reviewers could not catch because a plan reviewer cannot execute:
+  `plan-digest-test-sentinel.ops.json` — `assert "ticked" not in out` matched pytest's own
+  `tmp_path`, which is named after the test function; sentinel is now `TICKED_MARKER`.
+  `plan-digest-type-annotation.ops.json` — `session_digest.py` broke `mypy`; annotated and
+  imported `Tuple`.
+  `plan-output-filter-hook-placement.ops.json` + `-test-paths` + `-wiring-tests` — B1 put a
+  DIRECTLY WIRED hook in `operations/scripts` by analogy with `heal_local_settings.py`,
+  which is only INVOKED FROM `session-start.sh` and so is a helper. `test_every_wired_hook_is_counted`
+  refuses a wired-but-uncounted hook. Moved to `.claude/hooks/` with its filter data; hook
+  count 27 -> 28 regenerated, never hand-edited; B1's two tests that pinned the wrong
+  placement were rewritten to assert the real invariants.
+  `plan-output-filter-registry-and-readme.ops.json` + `plan-hooks-doc-reachable.ops.json` —
+  registered the hook in `dispatch-registry.json` (advisory tier, `Bash` matcher: a rewriter
+  must never be able to block) and moved the reachable count 24 -> 25 in both README.md and
+  docs/HOOKS.md, which assert it independently against a derived value.
