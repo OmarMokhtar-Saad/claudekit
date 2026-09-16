@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `open-source-forker` — never shipped and have been removed.
 
 ## [Unreleased]
+- **`ck fleet` syncs the whole fleet with one command.** `ck fleet list|diff|update|verify`
+  discovers every kitted project directly under a root by its install manifest (never a
+  hardcoded list), reuses `ck update` per project so backups and local-edit preservation are
+  unchanged, and `ck fleet verify` exits non-zero when a project has drifted from the kit
+  source. It never runs git: it prints the `git -C <repo> add -A ...` line for you.
 - **The learning loop now has a trigger that fires.** A session that mutated or delivered
   is asked at Stop to draft memory candidates
   (`knowledge-ledger.py distill --agent <a> --inbox`), and Stop keeps asking until each

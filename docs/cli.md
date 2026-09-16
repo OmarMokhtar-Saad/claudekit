@@ -108,6 +108,39 @@ claudekit update            # prompts if local edits would be overwritten
 claudekit update --yes      # non-interactive
 ```
 
+### `claudekit fleet <list|diff|update|verify>`
+
+Survey and update every kitted project under one root, so syncing a kit change into
+the fleet is one permitted command instead of a hand-written script per change.
+
+A project is a fleet member when it is an **immediate child** of `--root` (default: the
+parent of the current project) and carries `.claude/.claudekit-manifest.json`. Membership
+is never a hardcoded list: a list cannot distinguish "up to date" from "forgotten". The
+walk does not recurse, and it skips backup directories (`*.bak-*`), the kit source itself
+and any git worktree of it. `--include`/`--exclude` take glob patterns on the directory
+name (repeatable).
+
+```bash
+ck fleet list                      # repo, branch, manifest version/mode, dirty count
+ck fleet diff                      # per project: untouched / locally-modified / missing
+ck fleet update --dry-run          # a real plan: what would be overwritten and preserved
+ck fleet update --yes              # run `ck update` per project (each backs up first)
+ck fleet verify                    # exit 1 if any project drifted from the kit source
+```
+
+`update` reuses `ck update` per project, so backups and the preservation of local edits are
+exactly as documented above, and it exits non-zero if any project failed. `verify` treats a
+file as drift when it is byte-different from the kit source *while still matching its
+manifest hash* (untouched downstream, but stale); a file the manifest already records as
+locally modified is allowed.
+
+`fleet` never runs git. Committing downstream is yours to do — after an update it prints the
+suggested line per project:
+
+```
+git -C <repo> add -A .claude .agents .gitignore
+```
+
 ### `claudekit uninstall [target]`
 
 Remove ClaudeKit-managed files (per the manifest), moving them to a timestamped

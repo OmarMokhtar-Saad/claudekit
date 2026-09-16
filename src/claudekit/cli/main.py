@@ -2116,6 +2116,16 @@ def cmd_update(args):
     return result.returncode
 
 
+def cmd_fleet(args):
+    """Survey or update every kitted project under a root.
+
+    The implementation lives in ``claudekit.cli.fleet`` and is imported lazily: no
+    other verb pays for it, and main.py stays free of an import cycle.
+    """
+    from claudekit.cli.fleet import cmd_fleet as _run_fleet
+    return _run_fleet(args)
+
+
 def cmd_eval(args):
     """Run the behavioral eval harness (task 010). Requires the kit source tree."""
     root = find_claudekit_root()
@@ -2718,6 +2728,23 @@ def main():
                         "ClaudeKit no longer solely owns them (backed up first)")
     p.add_argument("--stamp", help=argparse.SUPPRESS)  # deterministic backup name (tests)
 
+    # fleet
+    p = sub.add_parser("fleet",
+                       help="Survey and update every kitted project under a root")
+    p.add_argument("action", choices=["list", "diff", "update", "verify"],
+                   help="list: a row per project; diff: local edits; update: re-install "
+                        "each (backs up first); verify: non-zero exit on drift")
+    p.add_argument("--root", help="Directory whose immediate children are scanned "
+                                  "(default: the parent of the current project)")
+    p.add_argument("--include", action="append", metavar="GLOB",
+                   help="Only projects whose directory name matches (repeatable)")
+    p.add_argument("--exclude", action="append", metavar="GLOB",
+                   help="Skip projects whose directory name matches (repeatable)")
+    p.add_argument("--yes", "--non-interactive", dest="yes", action="store_true",
+                   help="Assume yes to prompts (update)")
+    p.add_argument("--dry-run", action="store_true",
+                   help="update: print the plan per project without installing")
+
     # eval
     p = sub.add_parser("eval", help="Run behavioral evals against the prompt corpus "
                                     "(costs real API calls; --dry-run is free)")
@@ -2854,6 +2881,7 @@ def main():
         "agents": cmd_agents,
         "diff": cmd_diff,
         "update": cmd_update,
+        "fleet": cmd_fleet,
         "uninstall": cmd_uninstall,
         "adapt": cmd_adapt,
         "eject": cmd_eject,
