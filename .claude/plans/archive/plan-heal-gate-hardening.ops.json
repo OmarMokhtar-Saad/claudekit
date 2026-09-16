@@ -1,0 +1,35 @@
+{
+  "plan": "heal-gate-hardening",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/heal_local_settings.py",
+      "description": "Narrow the heal gate with a second, independent signal. The name match alone healed any fork or vendored copy that kept the pyproject name -- and healing writes ECC_HOOK_PROFILE=minimal, which switches enforcement OFF, so a false positive in a downstream project is the worst outcome this script has. src/claudekit/__init__.py is the kit's own source package: a vendored .claude/ tree carries the name string but never the package.",
+      "edits": [
+        {
+          "find": "# The one project this may ever heal. Matched on the [project] name line rather than\n# parsed: tomllib is 3.11+ and this file must import on 3.9.\n_NAME_RE = re.compile(r\"\"\"^\\s*name\\s*=\\s*[\"']claudekit-agents[\"']\"\"\", re.M)",
+          "replace": "# The one project this may ever heal. Matched on the [project] name line rather than\n# parsed: tomllib is 3.11+ and this file must import on 3.9.\n_NAME_RE = re.compile(r\"\"\"^\\s*name\\s*=\\s*[\"']claudekit-agents[\"']\"\"\", re.M)\n# Second, independent signal, because the name alone is forgeable by copying. Healing\n# writes ECC_HOOK_PROFILE=minimal, which turns enforcement OFF: a false positive in a\n# downstream project is the worst thing this script can do, so BOTH must hold. A\n# vendored .claude/ tree brings the prompts, never the kit's own source package.\n_MARKER_REL = os.path.join(\"src\", \"claudekit\", \"__init__.py\")"
+        },
+        {
+          "find": "    \"\"\"True only for this kit's own repository.\"\"\"\n    try:\n        with open(os.path.join(root, \"pyproject.toml\"), \"r\", encoding=\"utf-8\") as handle:\n            return bool(_NAME_RE.search(handle.read()))\n    except (OSError, ValueError):\n        return False",
+          "replace": "    \"\"\"True only for this kit's own repository.\n\n    Two signals, both required: the pyproject name AND the kit's own source package.\n    Either alone is copyable; together they are not present in a project that merely\n    vendored the prompts.\n    \"\"\"\n    if not os.path.isfile(os.path.join(root, _MARKER_REL)):\n        return False\n    try:\n        with open(os.path.join(root, \"pyproject.toml\"), \"r\", encoding=\"utf-8\") as handle:\n            return bool(_NAME_RE.search(handle.read()))\n    except (OSError, ValueError):\n        return False"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_local_settings_healing.py",
+      "description": "The fixture now builds the source-package marker, and the characterisation test that pinned the old limitation is inverted -- its own docstring named this as the moment to replace it.",
+      "edits": [
+        {
+          "find": "        os.makedirs(os.path.join(self.root, '.claude'), exist_ok=True)\n        with open(os.path.join(self.root, 'pyproject.toml'), 'w', encoding='utf-8') as fh:\n            fh.write(self.pyproject)",
+          "replace": "        os.makedirs(os.path.join(self.root, '.claude'), exist_ok=True)\n        pkg = os.path.join(self.root, 'src', 'claudekit')\n        os.makedirs(pkg, exist_ok=True)\n        open(os.path.join(pkg, '__init__.py'), 'w').close()\n        with open(os.path.join(self.root, 'pyproject.toml'), 'w', encoding='utf-8') as fh:\n            fh.write(self.pyproject)"
+        },
+        {
+          "find": "    def test_same_name_fork_is_healed_known_limitation(self):",
+          "replace": "    def test_a_vendored_copy_keeping_the_name_is_refused(self):\n        \"\"\"Replaces test_same_name_fork_is_healed_known_limitation, whose docstring named\n        the narrowing of this gate as the moment to delete it. A project that vendored\n        the prompts keeps `name = \\\"claudekit-agents\\\"` but has no src/claudekit, and\n        healing it would write ECC_HOOK_PROFILE=minimal -- switching enforcement off in\n        someone else's repo. Mutation: drop the _MARKER_REL check in is_claudekit_repo\n        and this goes red while every other test stays green.\"\"\"\n        vendored = tempfile.mkdtemp(prefix='ck-heal-vendored-')\n        self.addCleanup(shutil.rmtree, vendored, ignore_errors=True)\n        os.makedirs(os.path.join(vendored, '.claude'), exist_ok=True)\n        with open(os.path.join(vendored, 'pyproject.toml'), 'w', encoding='utf-8') as fh:\n            fh.write(CLAUDEKIT_PYPROJECT)\n        proc = run_healer(vendored)\n        self.assertEqual(proc.stdout.strip(), 'not-claudekit', proc.stdout + proc.stderr)\n        self.assertFalse(\n            os.path.exists(os.path.join(vendored, '.claude', 'settings.local.json')),\n            'a vendored copy was healed: enforcement would be off in a foreign repo')\n\n    def _retired_test_same_name_fork_is_healed_known_limitation(self):"
+        }
+      ]
+    }
+  ]
+}

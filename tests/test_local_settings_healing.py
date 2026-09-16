@@ -45,6 +45,9 @@ class _TempRepo(unittest.TestCase):
         self.root = tempfile.mkdtemp(prefix='ck-heal-')
         self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
         os.makedirs(os.path.join(self.root, '.claude'), exist_ok=True)
+        pkg = os.path.join(self.root, 'src', 'claudekit')
+        os.makedirs(pkg, exist_ok=True)
+        open(os.path.join(pkg, '__init__.py'), 'w').close()
         with open(os.path.join(self.root, 'pyproject.toml'), 'w', encoding='utf-8') as fh:
             fh.write(self.pyproject)
 
@@ -136,7 +139,25 @@ class TestFleetSafety(_TempRepo):
         self.assertFalse(os.path.exists(self.settings),
                          'a downstream project had its enforcement profile rewritten')
 
-    def test_same_name_fork_is_healed_known_limitation(self):
+    def test_a_vendored_copy_keeping_the_name_is_refused(self):
+        """Replaces test_same_name_fork_is_healed_known_limitation, whose docstring named
+        the narrowing of this gate as the moment to delete it. A project that vendored
+        the prompts keeps `name = \"claudekit-agents\"` but has no src/claudekit, and
+        healing it would write ECC_HOOK_PROFILE=minimal -- switching enforcement off in
+        someone else's repo. Mutation: drop the _MARKER_REL check in is_claudekit_repo
+        and this goes red while every other test stays green."""
+        vendored = tempfile.mkdtemp(prefix='ck-heal-vendored-')
+        self.addCleanup(shutil.rmtree, vendored, ignore_errors=True)
+        os.makedirs(os.path.join(vendored, '.claude'), exist_ok=True)
+        with open(os.path.join(vendored, 'pyproject.toml'), 'w', encoding='utf-8') as fh:
+            fh.write(CLAUDEKIT_PYPROJECT)
+        proc = run_healer(vendored)
+        self.assertEqual(proc.stdout.strip(), 'not-claudekit', proc.stdout + proc.stderr)
+        self.assertFalse(
+            os.path.exists(os.path.join(vendored, '.claude', 'settings.local.json')),
+            'a vendored copy was healed: enforcement would be off in a foreign repo')
+
+    def _retired_test_same_name_fork_is_healed_known_limitation(self):
         """CHARACTERISATION, not an endorsement: the gate matches the pyproject name
         and nothing else, so a fork or vendored copy that keeps
         `name = "claudekit-agents"` IS healed. A secondary check (git remote or

@@ -1,0 +1,16 @@
+{
+  "plan": "heal-docstring",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/heal_local_settings.py",
+      "description": "The KNOWN LIMITATION paragraph documents the gate as name-only and cites a test that no longer exists. Both are now false.",
+      "edits": [
+        {
+          "find": "KNOWN LIMITATION, stated rather than hidden: that gate is a NAME match and nothing more.\nA fork or a vendored copy that keeps the same project name is healed too, and would have\nits enforcement profile flipped to `minimal`. A secondary check (git remote or canonical\npath) is the hardening, and it is deliberately not done here; the current behaviour is\npinned by `test_same_name_fork_is_healed_known_limitation` so it lives in the suite and\nnot only in this paragraph.",
+          "replace": "The gate takes TWO independent signals, both required: the pyproject name AND the kit's\nown source package at `src/claudekit/__init__.py`. The name alone was not enough -- it is\nforgeable by copying, so a fork or a vendored `.claude/` tree that kept the name was\nhealed too and had its enforcement profile flipped to `minimal`. A vendored copy brings\nthe prompts, never the source package. `test_a_vendored_copy_keeping_the_name_is_refused`\npins this; drop the marker check and it goes red on its own."
+        }
+      ]
+    }
+  ]
+}
