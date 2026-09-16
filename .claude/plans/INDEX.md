@@ -23,12 +23,12 @@ index never outranks the current files.
 | State | Plans |
 |---|---:|
 | `drifted` | 11 |
-| `approved` | 52 |
+| `approved` | 53 |
 | `planned` | 16 |
 | `executed` | 30 |
 | `not_started` | 24 |
 | `legacy` | 3 |
-| **total** | **136** |
+| **total** | **137** |
 
 ## Plans
 
@@ -145,6 +145,7 @@ index never outranks the current files.
 | `.claude/plans/plan-round-4-derived-corpus.md` | `executed` | 0 |  |
 | `.claude/plans/plan-round-5-sixth-axis.md` | `executed` | 12 |  |
 | `.claude/plans/plan-run-command-op.md` | `not_started` | 0 |  |
+| `.claude/plans/plan-runtime-review-gate-and-config-healing.md` | `approved` | 1 |  |
 | `.claude/plans/plan-scanner-coverage.md` | `executed` | 8 |  |
 | `.claude/plans/plan-session-close-fix.md` | `executed` | 2 |  |
 | `.claude/plans/plan-session-close.md` | `executed` | 4 |  |
