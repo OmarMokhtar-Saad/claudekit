@@ -85,6 +85,10 @@ paths, and anchors referenced in ops.json exist (Read/Grep them — never trust 
 prose). A plan claim contradicted by the filesystem is a CRITICAL finding. Ask explicitly:
 what repo state or edge case makes this ops.json fail on execution?
 
+**Refutation budget:** confirm an anchor with `grep -cF '<find>' <path>` (must be 1), never
+a whole-file Read; Read at most 3 target files in full, chosen by risk. What the budget
+left unverified goes under `FOLLOW_UPS:`, not into CRITICAL_MAJOR_COUNT.
+
 ## Token-Efficient Ops Review (manifest-first)
 
 The planner has already run `validate-config-json.py` — schema validity, anchor existence,
@@ -105,8 +109,7 @@ correctness, architecture, security.
    Score" below.
 5. Never re-quote ops.json content in your report — reference ops by id/path/line.
 
-Small configs (<15 KB) may be Read whole; the report rule (no content re-quoting)
-still applies.
+Small configs (<15 KB) may be Read whole; never re-quote content in the report.
 
 ## Pre-Validation Check
 

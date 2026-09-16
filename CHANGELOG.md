@@ -11,22 +11,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `open-source-forker` — never shipped and have been removed.
 
 ## [Unreleased]
-- **An "author != reviewer" mechanism exists now, and in this repo's sessions it
-  does not bind.** Both halves of that sentence are load-bearing. The mechanism:
-  `review-record.py author` records the session that authored an ops.json (captured
-  automatically by `--stamp-baseline`), `write` records the session that reviewed
-  it, and `check` refuses execution with a new exit 6 when the two are the same;
-  `tests/test_author_not_reviewer.py` proves the refusal blocks a real execution and
-  that an independent reviewer still authorises one. The part that does not work
-  yet: the comparison needs two RESOLVABLE session ids, and nothing in this repo
-  exports `CLAUDE_SESSION_ID` or `CLAUDEKIT_SESSION_ID`, so in practice both sides
-  record "unknown" and the gate stays open. CLAUDE.md's review floor is therefore
-  still prompt-enforced in real sessions -- this shipped the enforcement point, not
-  the enforcement. `check` now prints which identities it had and says outright
-  when the gate did not bind, so the difference is visible at the moment of use
-  rather than assumed from a green check. Authorship lives in a sidecar beside the
-  review record, never inside the ops.json, so the verdict's sha256 binding cannot
-  be invalidated by recording it.
+- **Planner and refine loops are bounded.** The planner stays on the most-capable tier
+  (owner decision: a weaker planner costs more rounds than it saves). Its discovery phase
+  reuses `.claude/project-index.md` when present, reads tests only when the plan touches
+  tests, stops after a tool-call cap and records the rest as `UNVERIFIED:` risks, and skips
+  discovery entirely on a revision. `/refine` defaults to 3 rounds instead of 5, tells the
+  planner it is in revision mode, and exits when a round fails to raise the score. The
+  reviewer refutes anchors with grep counts instead of whole-file reads.
+- **The "author != reviewer" gate compares the attested agent role, and it is
+  attestation rather than enforcement.** Both halves of that sentence are
+  load-bearing, and the first shipped version got the first half wrong: it compared
+  SESSION ids, and it was documented as inert because "nothing exports
+  `CLAUDE_SESSION_ID`". That was false. `_session_id` falls back to a proven
+  process-tree match, and it refuses `agent-` transcripts, so every subagent resolves
+  to its PARENT session -- one ClaudeKit pipeline (main agent stamps the baseline, a
+  reviewer subagent scores, an implementer subagent executes) is one session, author
+  and reviewer always collided, and the gate refused every legitimate run with exit 6.
+  It did not fail to bind; it over-bound. The identity axis is now the agent ROLE:
+  `--stamp-baseline` records `role: author` in the sidecar, `review-record.py write`
+  records `--reviewer-role`, and `check` refuses with exit 6 when the verdict is
+  attested to a role that does not review or to the author's own role. Session ids are
+  still recorded, as provenance only; no gate compares them. **This is attestation, not
+  enforcement**: the recording commands are run by the caller, not by the reviewer
+  subagent that produced the verdict text, so the role is claimed and never observed --
+  a caller that wants to bypass the gate asserts a reviewer role for its own plan and
+  nothing can tell. What it does buy: the accidental self-review is closed, a
+  deliberate one leaves a greppable false claim in a committed JSON file, and every
+  record carries who claims the verdict. Records written before this change carry no
+  role, resolve to "unknown", and still execute -- nothing legitimately reviewed needs
+  re-reviewing -- and `check` prints, at the moment of use, whether the gate bound.
+  `tests/test_review_identity_roles.py` proves the refusal blocks a real (non-dry-run)
+  execution, that an independently attested verdict still executes, and that one
+  session on both sides no longer refuses. Identity lives in a sidecar beside the
+  review record, never inside the ops.json, so the verdict's sha256 binding cannot be
+  invalidated by recording it.
 - **A missing `.claude/settings.local.json` no longer costs a session.** The
   gitignored local override that carries `ECC_HOOK_PROFILE=minimal` is regenerated
   at session start when it is absent, and repaired (original moved aside) when it is

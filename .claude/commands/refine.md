@@ -55,7 +55,7 @@ Refine plan for: $ARGUMENTS
 
 ```
 ARGS="$ARGUMENTS"
-MAX_ITER=5
+MAX_ITER=3    # CLAUDE.md review ceiling; raise only with --max-iter
 
 if ARGS contains "--max-iter N":
     MAX_ITER = N
@@ -137,8 +137,8 @@ call that produced it: write it to `$PLAN_FILE` immediately (`printf '%s\n' > fi
   parallel Read/Grep/Glob (one message). IRON LAW: must include a valid ops.json. Write the
   plan to `<PLAN_FILE>` and the ops config to `<OPS_FILE>` yourself (Write tool); do not
   print their contents in your response. Return only the paths and a ≤10-line summary."
-- Iteration 2+: "Revise the plan at `<PLAN_FILE>` (ops config at `<OPS_FILE>`) for: `<TASK>`.
-  Iteration `<N>`/`<MAX_ITER>`. The reviewer scored the previous version `<last_score>`/100
+- Iteration 2+: "REVISION MODE — skip discovery. Revise the plan at `<PLAN_FILE>` (ops config
+  at `<OPS_FILE>`) for: `<TASK>`. Iteration `<N>`/`<MAX_ITER>`. The reviewer scored the previous version `<last_score>`/100
   and found: `<reviewer_feedback>`. Read both files yourself, address EVERY issue, and EDIT
   them in place (Write tool) — do not print the revised contents. Return only a ≤10-line
   change summary."
@@ -168,7 +168,7 @@ PLANNER_MSG="Revise the implementation plan for the following task.
 
 Task: <TASK>
 
-REVISION REQUEST — Iteration <N>/<MAX_ITER>
+REVISION REQUEST (REVISION MODE — skip discovery) — Iteration <N>/<MAX_ITER>
 The reviewer scored the previous plan <last_score>/100 and found these issues:
 <reviewer_feedback as numbered list>
 
@@ -200,7 +200,7 @@ them yourself. Respond in EXACTLY this format: [format block below]."
 
 Immediately after parsing iteration 1's verdict, RECORD it so later iterations can delta:
 ```bash
-python3 .claude/operations/scripts/review-record.py write "$PLAN_FILE" "$OPS_FILE" --from-review "<saved-output-file>"
+python3 .claude/operations/scripts/review-record.py write "$PLAN_FILE" "$OPS_FILE" --from-review "<saved-output-file>" --reviewer-role reviewer
 ```
 
 **Iterations 2+ — DELTA review (this is the token fix; a full re-review of a large plan
@@ -281,7 +281,7 @@ echo "$review_output"
 # Record/refresh the verdict so the NEXT iteration diffs against this scored version.
 # UNCONDITIONAL: a REVISE/REJECTED round is recorded exactly like an APPROVED one, since
 # `rounds[]` is a verdict's only durable history. Recording one authorises nothing (exit 4).
-printf '%s' "$review_output" | python3 .claude/operations/scripts/review-record.py write "$PLAN_FILE" "$OPS_FILE" --from-review - --session-id "${CLAUDE_SESSION_ID:-}" || true
+printf '%s' "$review_output" | python3 .claude/operations/scripts/review-record.py write "$PLAN_FILE" "$OPS_FILE" --from-review - --session-id "${CLAUDE_SESSION_ID:-}" --reviewer-role reviewer || true
 ```
 
 `review_output` is the scoreboard block itself — small by design (a dozen lines), so
@@ -324,6 +324,10 @@ IF iteration >= MAX_ITER:
 # Exit condition 3: fundamental rejection (not fixable by iteration)
 IF decision == "REJECTED" AND iteration >= 3:
     → EXIT LOOP with status = ESCALATED (repeated fundamental rejection)
+
+# Exit condition 4: stagnation — another planner round cannot buy a higher score
+IF iteration >= 2 AND last_score <= iteration_history[-2].score:
+    → EXIT LOOP with status = ESCALATED (score did not improve; findings need a human)
 
 # Fall-through: all non-exit paths reach here and increment unconditionally
 iteration += 1
