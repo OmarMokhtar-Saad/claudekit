@@ -31,7 +31,14 @@ suite on merged main not run (classifier: merge without review); push main + fle
 owner-gated; hook stderr messages intentionally left out of the action-first pass.
 
 
-**2026-09-16 (later) · Claude (Fable 5.1) — `main` = 029c79a, not pushed.**
+**2026-09-16 (latest) · Claude (Fable 5.1) — `main` = 2f80443, PUSHED; fleet updated + verified.**
+ck fleet shipped and used: 14 repos re-installed from main, verify clean, downstream kit
+paths committed (not pushed). ops payload references shipped (Tier 3, reviewed). Next:
+after ~1 week run `knowledge-ledger.py inbox` / `/learn --list` across the fleet and count
+accepted candidates and promoted proposals — the only measurement that says the learning
+loop works. Editable `ck` resolves to `.ck-main` (main worktree), not the claudekit tree.
+
+**2026-09-16 (later) · Claude (Fable 5.1) — `main` = 029c79a (superseded above).**
 Learning loop v2 shipped and fast-forwarded onto main (see CHANGELOG_AI). Fleet sync of the
 9 changed files is pending the owner running the scratch script. Next candidates: ops.json
 `content` by file path (Tier 3, owner-gated); candidate index lines currently repeat the
