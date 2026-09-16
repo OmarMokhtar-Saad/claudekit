@@ -24,11 +24,11 @@ index never outranks the current files.
 |---|---:|
 | `drifted` | 12 |
 | `approved` | 54 |
-| `planned` | 18 |
+| `planned` | 20 |
 | `executed` | 30 |
 | `not_started` | 24 |
 | `legacy` | 5 |
-| **total** | **143** |
+| **total** | **145** |
 
 ## Plans
 
@@ -56,6 +56,7 @@ index never outranks the current files.
 | `.claude/plans/plan-capability-tiers-followup.md` | `approved` | 1 |  |
 | `.claude/plans/plan-capability-tiers.md` | `drifted` | 1 |  |
 | `.claude/plans/plan-ck-adapt.md` | `approved` | 1 |  |
+| `.claude/plans/plan-ck-fleet.md` | `planned` | 1 |  |
 | `.claude/plans/plan-cli-live-findings.md` | `executed` | 4 |  |
 | `.claude/plans/plan-close2.md` | `executed` | 2 |  |
 | `.claude/plans/plan-code-review-triage.md` | `approved` | 1 |  |
@@ -105,6 +106,7 @@ index never outranks the current files.
 | `.claude/plans/plan-omniroute-adoption.md` | `executed` | 1 |  |
 | `.claude/plans/plan-open-issues.md` | `approved` | 1 |  |
 | `.claude/plans/plan-ops-approval-gate.md` | `approved` | 1 |  |
+| `.claude/plans/plan-ops-content-by-path.md` | `planned` | 1 |  |
 | `.claude/plans/plan-ops-engine-file-modes.md` | `approved` | 1 |  |
 | `.claude/plans/plan-ops-hardening-implementer-contract.md` | `planned` | 1 |  |
 | `.claude/plans/plan-oracle-liveness.md` | `not_started` | 0 |  |
