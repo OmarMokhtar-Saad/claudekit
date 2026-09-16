@@ -972,6 +972,8 @@ def check_approval(config_file: str, plan_name: str) -> Tuple[bool, str]:
                "authorise execution of this file (DRIFT)",
             3: "no review record exists for this plan",
             4: "a review record exists but its verdict does not authorise execution",
+            6: "the recorded verdict was written by the session that authored "
+               "this ops.json (self-review); a fresh reviewer must score it",
         }.get(code, f"review-record check failed (exit {code})")
         return False, (f"approval-gate: {cause} "
                        f"[review-record exit {code}; slug '{slug}'; {why}]")

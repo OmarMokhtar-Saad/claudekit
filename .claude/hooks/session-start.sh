@@ -88,6 +88,18 @@ echo "  Project: $(basename "$(pwd)")"
 # PROJECT state from here down -- these must name the repo being worked in, not the
 # hooks directory, so they resolve through $CK_ROOT.
 CK_ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+
+# --- local hook-profile override: heal a missing/malformed settings.local.json --
+# CLAUDE.md's "session setup gotcha": without this file ops-enforcement blocks every
+# Edit/Write and the remedy is a manual copy out of CONTRIBUTING.md. The healer is
+# REPO-GATED (it no-ops unless this project's pyproject names claudekit-agents), so a
+# fleet project can never have its enforcement profile rewritten. It lives under
+# operations/scripts/, not .claude/hooks/, because gen-docs.py counts *.py there as
+# hooks. Advisory: output discarded on failure, never blocks.
+HEAL_SCRIPT="$CK_ROOT/.claude/operations/scripts/heal_local_settings.py"
+if command -v python3 >/dev/null 2>&1 && [ -f "$HEAL_SCRIPT" ]; then
+    python3 "$HEAL_SCRIPT" --root "$CK_ROOT" 2>/dev/null
+fi
 LOCKS_DIR="$CK_ROOT/.claude/locks"
 mkdir -p "$LOCKS_DIR" 2>/dev/null
 OTHER_SESSIONS=0
