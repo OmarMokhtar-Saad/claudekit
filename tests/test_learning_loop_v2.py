@@ -158,6 +158,11 @@ class TestDistillInbox:
         text = files[0].read_text(encoding="utf-8")
         assert text.startswith("---\n")
         assert "index: - [" in text
+        # the hook is the receipt tally, not the title repeated
+        row = [ln for ln in text.splitlines() if ln.startswith("index:")][0]
+        title = row.split("](")[0].split("[", 1)[1]
+        hook = row.rsplit(" - ", 1)[1]
+        assert hook != title and "receipt" in hook, row
         assert "the stop gate never demanded a distill" in text
 
     def test_distill_without_inbox_still_writes_only_a_draft(self, project, env):
