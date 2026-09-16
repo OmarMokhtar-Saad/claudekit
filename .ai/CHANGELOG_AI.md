@@ -31,6 +31,33 @@ artifacts, corpus lint, 247 targeted tests. Traps hit: the editable install reso
 `.ck-main`, so run worktree CLI checks with `PYTHONPATH=src`; committing plan files flips
 their INDEX status (regen after commit); another session reverted fleet `mode.md` mid-run.
 Follow-ups: full suite on merged main, push (owner), optional code review of the merge.
+## 2026-09-16 — ck fleet, ops payload references, and the fleet actually on main
+
+Owner: "do them all". Shipped to main and pushed (2f80443):
+- `ck fleet list|diff|update|verify` (a64c0bd, reviewer 93/100). Discovery = manifest
+  presence under --root, never a repo list. `update` reuses cmd_update in-process; `verify`
+  exits 1 on untouched-but-stale files. First real run found 6 stale kit files in 14/14 repos
+  from earlier main changes — that was the point. Then a false positive: hooks/config.json is
+  re-rendered per project by install.sh, so it matches the manifest and never the source;
+  `INSTALLER_RENDERED` exempts it (2f80443, test pins it). Plan slug `fleet-sync` collided
+  with a historical config -> renamed `ck-fleet` (check-plan-artifacts caught it).
+- ops payload references (ae6444c, Tier 3): `content_path`/`<action>_path` + MANDATORY
+  `<key>_sha256`, resolver in shared.py, realpath-inside-root, 2 MiB cap, strict UTF-8,
+  digest re-checked at execute time incl. dry-run. Reviewer 85 REVISE: the `--after`
+  projection swallowed resolver errors — fixed in the config before execution; five
+  reviewer-named negative tests added (oversized, symlinked parent, FIFO, dry-run tamper,
+  --after reporting). No path-escape or approval-hash bypass found. Full suite 11360 green.
+- Fleet: `ck fleet update --yes` re-installed 14 repos from main (backup + preservation),
+  `ck fleet verify` clean, kit paths committed downstream on their current branches (not
+  pushed). The earlier hand-written sync scripts are obsolete.
+- Small: candidate index hook = receipt tally (9f974b5); stale untracked config on the
+  feature branch was byte-identical to its archive and deleted.
+Negative result: `fleet update --dry-run` counts "would overwrite" from manifest-modified
+files; preservation only carries CUSTOM files (preserve_assets.py), so manifest-owned local
+edits ARE overwritten on update — the dry-run wording is accurate, the semantics are worth
+knowing before running it on a repo with hand-edited kit files.
+Open: measure the learning loop after a week (accepted candidates / promoted proposals).
+
 ## 2026-09-16 — learning loop v2: the trigger gap closed, Hermes-style with write-approval always on
 
 Owner asked whether our memory/learning matches hermes-agent. Store layer was fine; the
