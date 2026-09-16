@@ -20,6 +20,15 @@ hard rule 5, so the proposer cannot do it.
 Delete a proposal you have judged and rejected; it will not be rewritten while the file
 exists.
 
+## Patch proposals
+
+`propose --patch <skill> --section Pitfalls|Verification --text "..."` writes
+`patch-<skill>-<hash>.md` here: a proposed addition to a skill that already exists, rather
+than a whole new one. Same gate, same reason. `/learn --promote patch-<skill>-<hash>`
+applies it by building an ops.json that appends the text to the named section and running
+the operations engine — after the user confirms in chat. Nothing edits a SKILL.md directly,
+and the proposer cannot apply its own proposal.
+
 ## Proposals are local until promoted
 
 `.gitignore` ignores `*.md` in this directory (this README excepted). A proposal is a

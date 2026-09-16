@@ -87,6 +87,11 @@ backups/
 # .claude/agent-memory/ IS committed on purpose -- it is auto-injected into a system
 # prompt and so must be diff-reviewed. This tier is per-machine scratch.
 .claude/agent-memory-local/
+# Memory CANDIDATES (`distill --inbox`). Same rule as skill proposals: a candidate is
+# a machine's draft of text that would be auto-injected into a system prompt, so it stays
+# on the machine that generated it until a human runs `inbox --accept`, which moves it out
+# of _inbox/ and into the committed tier.
+.claude/agent-memory/*/_inbox/
 
 # Skill proposals are LOCAL until a human promotes one. A proposal is a machine's
 # opinion about a cluster of findings, not a reviewed artifact; committing every one
