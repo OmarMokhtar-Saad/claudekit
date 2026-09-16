@@ -1,0 +1,16 @@
+{
+  "plan": "hooks-doc-reachable",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "docs/HOOKS.md",
+      "description": "Reachable count rises 24 -> 25 now that the output filter is wired. The sentence hard-wraps, so the number and the word 'reachable' sit on different lines.",
+      "edits": [
+        {
+          "find": "ClaudeKit ships 28 hook scripts (plus `lib.sh`, a shared helper library). 24 are\nreachable:",
+          "replace": "ClaudeKit ships 28 hook scripts (plus `lib.sh`, a shared helper library). 25 are\nreachable:"
+        }
+      ]
+    }
+  ]
+}

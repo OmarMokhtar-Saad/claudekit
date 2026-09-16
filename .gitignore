@@ -51,6 +51,13 @@ backups/
 # Per-session lock files (concurrent-session detection; runtime state)
 .claude/locks/
 
+# Machine-written session recovery footprint: git branch, HEAD and changed paths,
+# rewritten by reflection-gate.py at every Stop and PreCompact so task state survives an
+# ungraceful end. Runtime state, never a source artifact -- re-derive, never cite. The
+# human-written counterpart, .claude/session-context.md, IS tracked and is a different
+# file; nothing writes that one automatically.
+.claude/session-footprint.md
+
 # Reflection ledger: sanitized failure fingerprints, session HMAC tokens and
 # post-compaction carry-over notes, plus the project-local receipt inbox
 # (inbox-<session>.json). The ledger itself is written OUTSIDE the repo (OS temp dir)

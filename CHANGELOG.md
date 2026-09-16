@@ -11,6 +11,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `open-source-forker` — never shipped and have been removed.
 
 ## [Unreleased]
+- **Context recovery now injects the unfinished half, and writes state before it is
+  needed.** Two defects, both measured. First, the session-context excerpt at
+  `session-start.sh` was bounded POSITIONALLY (`head -20`), and in the layout
+  `/save-session` writes the first twenty lines are the header, the status and "What Was
+  Done" -- so the injected excerpt showed the FINISHED work and truncated "Next Steps".
+  A new `.claude/operations/scripts/session_digest.py` parses the sections instead and
+  injects only the unfinished ones (status, next steps, UNCHECKED open questions, active
+  plan). Second, nothing persisted task state during a session: the registered PreCompact
+  hook persists reflection DUTIES only, and `/save-session` is user-invoked and
+  end-of-session, so an ungraceful end lost the task. `reflection-gate.py` now writes
+  `.claude/session-footprint.md` -- git facts only, never model prose -- at every Stop and
+  PreCompact, deliberately above the `blocking_enabled()` gate so it still runs under the
+  `minimal` profile this repo uses. Nothing here blocks, and no new agent, command, skill
+  or hook was added (the helper lives under `operations/scripts/`, outside the counted
+  hook glob). Fleet-safe by construction: a project's own `session-context.md` is never
+  written, an unrecognised format falls back to exactly today's excerpt, and the footprint
+  stays silent when a newer human-written save exists. `.claude/session-footprint.md` is
+  generated state and should be gitignored downstream.
 - **Planner and refine loops are bounded.** The planner stays on the most-capable tier
   (owner decision: a weaker planner costs more rounds than it saves). Its discovery phase
   reuses `.claude/project-index.md` when present, reads tests only when the plan touches

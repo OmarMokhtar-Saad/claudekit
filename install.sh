@@ -666,7 +666,8 @@ import hashlib, json, os, sys, datetime
 # `ck uninstall` delete a log - which is exactly what happened before, and cost a
 # hand-preservation pass across 17 projects during the 2026-07-31 rollout.
 # Must stay in step with SKIP_NAMES in the preserve block below.
-NEVER_MANAGED = {"hooks.log", "settings.local.json", ".claudekit-manifest.json"}
+NEVER_MANAGED = {"hooks.log", "settings.local.json", ".claudekit-manifest.json",
+                 "session-footprint.md"}
 
 dest, mode, lang = sys.argv[1], sys.argv[2], sys.argv[3]
 files = {}

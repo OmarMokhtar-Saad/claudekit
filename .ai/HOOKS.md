@@ -58,6 +58,16 @@ sequenceDiagram
 |------|---------|
 | `post-tool-use.sh` | Reads stdin JSON; records modifications to `edited-files.log`, revalidates touched ops files, feeds cost tracking. |
 | `command-log-audit.sh` | Appends executed Bash commands to the audit log (async). |
+| `operations/scripts/output_filter.py` | The one PostToolUse hook that **rewrites** rather than observes: returns `hookSpecificOutput.updatedToolOutput` with a filtered `stdout`. Lives outside `.claude/hooks/` on purpose — `gen-docs.py:75` `HOOK_GLOBS` counts `*.py` there. |
+
+**Single-rewriter invariant (load-bearing).** The host runs PostToolUse hooks in parallel
+against the ORIGINAL tool output and resolves competing `updatedToolOutput` values
+last-write-wins, so a second rewriter — or an *identity* rewrite returned "just to pair an
+assertion" — can silently clobber a real one. `output_filter.py` must stay the only hook in
+this repo that returns that field, and it returns nothing at all when it has no change to
+make. `tests/test_output_filter.py::TestWiring::test_it_is_the_only_hook_that_can_rewrite_output`
+pins this; it is prose plus one test, not a gate, and is stated that way rather than
+overclaimed.
 
 ## SessionStart / Stop
 

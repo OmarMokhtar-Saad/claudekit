@@ -1,0 +1,16 @@
+{
+  "plan": "output-filter-hook-placement",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/settings.json",
+      "description": "Point the PostToolUse command at the hook's new home in .claude/hooks/. B1 placed output_filter.py in operations/scripts by analogy with heal_local_settings.py, but that file is INVOKED FROM session-start.sh (a helper), whereas this one is wired directly in settings.json -- and tests/test_ops_enforcement_scope.py::test_every_wired_hook_is_counted refuses a wired-but-uncounted hook. The file and its filter data now live in .claude/hooks/, where gen-docs counts the hook and install.sh's _copy_hook_assets ships both.",
+      "edits": [
+        {
+          "find": "$ROOT/.claude/operations/scripts/output_filter.py",
+          "replace": "$ROOT/.claude/hooks/output_filter.py"
+        }
+      ]
+    }
+  ]
+}

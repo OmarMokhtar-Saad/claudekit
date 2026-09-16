@@ -62,7 +62,8 @@
       {"id": "reflection-gate", "file": "reflection-gate.py", "runner": "python3", "tier": "advisory", "matcher": "", "args": ["--event", "PostToolUse"]},
       {"id": "post-tool-use", "file": "post-tool-use.sh", "runner": "bash", "tier": "advisory", "matcher": "Edit|Write|Bash"},
       {"id": "command-log-audit", "file": "command-log-audit.sh", "runner": "bash", "tier": "advisory", "matcher": "Bash"},
-      {"id": "suggest-compact", "file": "suggest-compact.sh", "runner": "bash", "tier": "advisory", "matcher": ""}
+      {"id": "suggest-compact", "file": "suggest-compact.sh", "runner": "bash", "tier": "advisory", "matcher": ""},
+      {"id": "output-filter", "file": "output_filter.py", "runner": "python3", "tier": "advisory", "matcher": "Bash"}
     ],
     "UserPromptSubmit": [
       {"id": "pre-plan", "file": "pre-plan.sh", "runner": "bash", "tier": "advisory", "matcher": ""},

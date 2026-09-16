@@ -1,0 +1,27 @@
+{
+  "plan": "output-filter-registry-and-readme",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/dispatch-registry.json",
+      "description": "Register the output filter on PostToolUse. Advisory tier: it rewrites output, it must never be able to block, and the host already fails soft on a malformed rewrite. Matcher is Bash because only Bash output is filtered.",
+      "edits": [
+        {
+          "find": "{\"id\": \"suggest-compact\", \"file\": \"suggest-compact.sh\", \"runner\": \"bash\", \"tier\": \"advisory\", \"matcher\": \"\"}",
+          "replace": "{\"id\": \"suggest-compact\", \"file\": \"suggest-compact.sh\", \"runner\": \"bash\", \"tier\": \"advisory\", \"matcher\": \"\"},\n      {\"id\": \"output-filter\", \"file\": \"output_filter.py\", \"runner\": \"python3\", \"tier\": \"advisory\", \"matcher\": \"Bash\"}"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "README.md",
+      "description": "The output filter is wired, so the reachable count rises 24 -> 25. The unwired three are unchanged.",
+      "edits": [
+        {
+          "find": "28 hooks ship in `.claude/hooks/`; 24 are reachable",
+          "replace": "28 hooks ship in `.claude/hooks/`; 25 are reachable"
+        }
+      ]
+    }
+  ]
+}

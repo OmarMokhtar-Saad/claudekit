@@ -1,6 +1,6 @@
 # Hooks
 
-ClaudeKit ships 27 hook scripts (plus `lib.sh`, a shared helper library). 24 are
+ClaudeKit ships 28 hook scripts (plus `lib.sh`, a shared helper library). 25 are
 reachable: wired into Claude Code through `.claude/settings.json`, or resolved by a
 gate wrapper. They enforce guardrails, capture telemetry, and automate housekeeping
 around the agent workflow.
@@ -120,6 +120,44 @@ Unset defaults to `standard`.
 |------|-------|---------|
 | `post-tool-use.sh` | PostToolUse (Edit/Write/Bash) | Records file modifications; re-validates ops.json if changed |
 | `command-log-audit.sh` | PostToolUse (Bash) | Appends an audit log of executed commands (background) |
+| `operations/scripts/output_filter.py` | PostToolUse (Bash) | Rewrites noisy command **stdout** before Claude sees it (see below) |
+
+### Output filtering (`output_filter.py`)
+
+Some commands spend most of their output saying nothing. A full `pytest tests/ -q` run here
+emits ~12,940 bytes of all-passing progress dots before the one line anybody reads. The
+filter replaces those lines with a one-line summary, using declarative JSON filters.
+
+It is deliberately conservative:
+
+- **It cannot touch a failed command.** Claude Code does not run `PostToolUse` for a Bash
+  call that exits non-zero, and the `PostToolUseFailure` event has no output-rewriting
+  field at all.
+- **It never touches `stderr`,** and never touches the exit status. Only `stdout` is
+  rewritten; every other field of the tool response is passed through unchanged.
+- **It fails soft.** Any error and the original output stands, untruncated.
+- **Gate-bearing commands are on a denylist** the project-local filter file cannot override:
+  the `--check` generators, `validate-config-json.py`, `review-record.py`,
+  `execute-json-ops.py`, `ck doctor`, `ruff`, `mypy`, `shellcheck`.
+
+**Escape hatch — raw output on demand.** Prefix the command with `CK_RAW_OUTPUT=1`:
+
+```bash
+CK_RAW_OUTPUT=1 python3 -m pytest tests/ -q     # unfiltered
+```
+
+Every summary line the filter emits names that hatch, so it is discoverable from the
+filtered output itself. To turn the filter off for a whole session, set
+`"CK_OUTPUT_FILTER": "off"` in the `env` block of `.claude/settings.local.json`.
+
+**Customising it per project.** `.claude/operations/scripts/output-filters.json` ships with
+the kit and holds one filter (`pytest-progress`). Do not edit it. Create
+`.claude/operations/scripts/output-filters.local.json` with the same shape instead: entries
+there override the base ones by `id`, and because that file never ships it is never listed
+in `.claudekit-manifest.json`, which is what makes an upgrade preserve it. Available
+operations are `strip_lines_matching` (a per-line regex) and `tail_lines` (an integer, and
+because dropping the head of an output can drop the start of a traceback the filter must
+also set `"lossy": true` to use it).
 | `session-start.sh` | SessionStart | Loads project context at session start |
 | `cost-tracker.sh` | Stop | Accumulates token/cost telemetry (background) |
 | `desktop-notify.sh` | Stop | Desktop notification when a turn ends (background) |

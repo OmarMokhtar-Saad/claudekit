@@ -52,6 +52,7 @@ Python 3.9, stdlib only.
 """
 
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -527,6 +528,37 @@ def declared_event() -> str:
     return ""
 
 
+def record_footprint() -> None:
+    """Write on the way IN: persist a cheap, git-derived recovery footprint.
+
+    `/save-session` is user-invoked and end-of-session, so task state survives an
+    ungraceful end only if it was already on disk. The reflection carry-over cannot do
+    this job: it is keyed by session id (`reflection.carryover_path`) and replayed only
+    into the SAME session, so a crash followed by a fresh session never sees it.
+
+    Writes `.claude/session-footprint.md` and nothing else -- never the human-owned
+    `.claude/session-context.md`, which in a fleet project holds content this kit did
+    not write and must not touch.
+
+    Best-effort by contract. This is a recovery convenience on a BLOCKING hook's path,
+    so it must never change whether a turn is blocked and must never let an exception
+    escape `main()` (an escaping exception emits rc 1, which hard rule 2 forbids).
+    """
+    try:
+        root = project_root()
+        script = root / ".claude" / "operations" / "scripts" / "session_digest.py"
+        if not script.is_file():
+            return
+        spec = importlib.util.spec_from_file_location("_ck_session_digest", script)
+        if spec is None or spec.loader is None:
+            return
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        module.write_footprint(root)
+    except Exception:
+        hlog("WARN", "could not write the recovery footprint")
+
+
 def main() -> int:
     declared = declared_event()
     event, raw = read_event()
@@ -549,6 +581,13 @@ def main() -> int:
         hlog("WARN", "event %s without a session id - no reflection state applied" % name)
         return 0
 
+    # ABOVE the `blocking_enabled()` gate on purpose. The PROFILE CONVENTION in this
+    # file's header is that `minimal` suppresses BLOCKING, not RECORDING -- and this
+    # repo runs `minimal`. Placed below that gate (or inside `handle_stop`) the
+    # footprint would never be written here at all, and the feature would be a green
+    # check that measures nothing. `tests/test_session_digest.py` pins this placement.
+    if name in {"Stop", "SubagentStop", "PreCompact"}:
+        record_footprint()
     if name == "SessionStart":
         return handle_session_start(event, session_id)
     if name == "PostToolUseFailure":

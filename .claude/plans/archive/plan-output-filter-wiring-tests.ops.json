@@ -1,0 +1,20 @@
+{
+  "plan": "output-filter-wiring-tests",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_output_filter.py",
+      "description": "Correct the two wiring tests, which pinned B1's mistaken placement. A hook wired directly in settings.json must live in .claude/hooks/ and be counted; the single-rewriter invariant must name our rewriter rather than assert there are none.",
+      "edits": [
+        {
+          "find": "        assert rewriters == [], f\"a second rewriter appeared: {rewriters}\"",
+          "replace": "        assert rewriters == [hooks_dir / \"output_filter.py\"], \\\n            f\"expected exactly one rewriter, found: {rewriters}\""
+        },
+        {
+          "find": "    def test_the_script_is_not_in_the_hooks_directory(self):\n        \"\"\"gen-docs.py counts *.py in .claude/hooks/; a file there moves the component\n        count and reddens the docs-drift gate.\"\"\"\n        assert not (REPO / \".claude\" / \"hooks\" / \"output_filter.py\").exists()",
+          "replace": "    def test_the_script_lives_in_the_hooks_directory(self):\n        \"\"\"It is wired DIRECTLY in settings.json, so it is a hook and must be counted --\n        test_ops_enforcement_scope.py::test_every_wired_hook_is_counted refuses a\n        wired-but-uncounted hook. The original placement copied heal_local_settings.py,\n        but that one is INVOKED FROM session-start.sh, which makes it a helper. Moving\n        the component count is correct here; gen-docs owns the number and regenerates it.\"\"\"\n        assert (REPO / \".claude\" / \"hooks\" / \"output_filter.py\").exists()"
+        }
+      ]
+    }
+  ]
+}
