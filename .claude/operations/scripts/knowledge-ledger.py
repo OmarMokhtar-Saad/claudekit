@@ -1021,12 +1021,15 @@ def _write_candidates(agent: str, cards: List[Tuple[str, str, str]]) -> int:
             print("INBOX %s already pending" % target.name)
             continue
         title = signature[:72] or slug
+        # Hook = the receipt tally the card was distilled from, never the title again:
+        # an index row that says the same thing twice tells the reader nothing.
+        hook = body.split("(", 1)[1].rstrip(")") if "(" in body else slug
         target.write_text("\n".join([
             "---",
             "name: %s" % slug,
             "candidate: memory",
             "---",
-            "%s - [%s](%s.md) - %s" % (INDEX_KEY, title, slug, title),
+            "%s - [%s](%s.md) - %s" % (INDEX_KEY, title, slug, hook),
             "",
             body,
             "",
