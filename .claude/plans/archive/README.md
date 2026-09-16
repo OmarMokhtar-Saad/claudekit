@@ -404,4 +404,4 @@ gate closes on every sibling config the moment it lands.
 
 | `ops-learning-loop-v2/plan-learning-loop-v2.ops.json` | Spent — learning loop v2: Stop-time memory inbox (main session only), `distill --inbox`, `inbox --accept/--reject`, `consolidate`, `propose --patch`, `/learn` rewritten as the human-gated promotion UI, planner Phase 0 searches the issues ledger. Executed 2026-09-16 with `--no-approval` after reviewer 92/100 APPROVED (1 MAJOR fixed in the config before execution). |
 
-| `ops-fleet-sync/plan-fleet-sync.ops.json` | Spent — `ck fleet list|diff|update|verify`: discovery by manifest presence under --root, in-process reuse of cmd_update, real --dry-run, verify that can fail. Executed 2026-09-16 with `--no-approval` after reviewer 93/100 APPROVED (0 CRITICAL/MAJOR). |
+| `ops-ck-fleet/plan-ck-fleet.ops.json` | Spent — `ck fleet list|diff|update|verify`: discovery by manifest presence under --root, in-process reuse of cmd_update, real --dry-run, verify that can fail. Executed 2026-09-16 with `--no-approval` after reviewer 93/100 APPROVED (0 CRITICAL/MAJOR). |
