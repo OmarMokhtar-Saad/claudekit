@@ -23,12 +23,12 @@ index never outranks the current files.
 | State | Plans |
 |---|---:|
 | `drifted` | 11 |
-| `approved` | 53 |
+| `approved` | 55 |
 | `planned` | 18 |
 | `executed` | 30 |
 | `not_started` | 24 |
 | `legacy` | 3 |
-| **total** | **139** |
+| **total** | **141** |
 
 ## Plans
 
@@ -63,6 +63,7 @@ index never outranks the current files.
 | `.claude/plans/plan-command-bash-placeholders.md` | `executed` | 2 |  |
 | `.claude/plans/plan-context-budget-lazy-skills.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-context-economy-rules.md` | `approved` | 1 |  |
+| `.claude/plans/plan-context-recovery-refinement.md` | `approved` | 1 |  |
 | `.claude/plans/plan-day-one-blockers.md` | `approved` | 1 |  |
 | `.claude/plans/plan-dispatcher-payload.md` | `drifted` | 2 |  |
 | `.claude/plans/plan-doctor-gate.md` | `approved` | 1 |  |
@@ -107,6 +108,7 @@ index never outranks the current files.
 | `.claude/plans/plan-ops-engine-file-modes.md` | `approved` | 1 |  |
 | `.claude/plans/plan-ops-hardening-implementer-contract.md` | `planned` | 1 |  |
 | `.claude/plans/plan-oracle-liveness.md` | `not_started` | 0 |  |
+| `.claude/plans/plan-output-filters.md` | `approved` | 1 |  |
 | `.claude/plans/plan-parse-gate-divergence.md` | `approved` | 1 |  |
 | `.claude/plans/plan-parse-gate-fold-invariance.md` | `drifted` | 9 |  |
 | `.claude/plans/plan-parse-gate-ordering.md` | `drifted` | 2 |  |
