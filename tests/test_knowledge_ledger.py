@@ -465,7 +465,7 @@ class TestLifecycleDocs:
         codex = (REPO / ".agents" / "skills" / "continuous-learning" / "SKILL.md").read_text(
             encoding="utf-8")
         for text in (claude, codex):
-            assert "THREE triggers" in text
+            assert "FOUR triggers" in text
             assert "knowledge-ledger.py open" in text
             assert "gates `fixed`, never `open`" in text
 

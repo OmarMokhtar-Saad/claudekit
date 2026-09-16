@@ -6,6 +6,16 @@ Move a config here when it is **spent** (already executed — anchors consumed b
 
 | File | Why archived |
 |---|---|
+| `ops-skill-fit/ops-skill-fit.json` | Spent — executed 2026-09-13 (approved 94). Adds `ck skill audit | profile init | card | match`, read-only analysis to measure how installed skills fit a project; skill-fit contexts scored by relevance/irrelevance/broken; profile writes `.claude/skills-profile.json` (never overwritten, survives fleet sync); doctor validates the profile; card and match are suggestion-only, never install. 7 operations, 10 edits: main.py routing + implementation, preserve_assets.py (skills-profile.json as always-custom), test_skill_fit.py + test_skills_profile_preserved.py, docs/cli.md, CHANGELOG.md. Build/lint/tests/docs/registry all pass. |
+| `ops-skill-fit-2-a/ops-skill-fit-2-a.json` | Spent — executed 2026-09-13 (approved 93). Derived stack tags for skills; `ck skill card --publish` to a user-level registry (`~/.claudekit/registry/cards/`, or absolute `$CLAUDEKIT_REGISTRY`); `match` reads it by default, skips the project's own card, Jaccard score. 5 operations. |
+| `ops-skill-fit-2-b/ops-skill-fit-2-b.json` | Spent — executed 2026-09-13 (approved 91, round 2). `ck skill apply [--restore]` enforces the profile's `disabled` list through Claude Code `skillOverrides` in `.claude/settings.local.json` (docs verified); protected skills refuse the whole profile; doctor reports hidden skills and tokens saved; update/init re-apply. 5 operations. |
+| `ops-skill-fit-test-isolation/ops-skill-fit-test-isolation.json` | Spent — executed 2026-09-13 (Tier 1, --no-approval, test-only). `test_vocabulary_refuses_english_collisions` imported claudekit in-process and in the full suite tested a cached installed copy; now runs in a subprocess pinned to this tree's src. 1 operation. |
+| `ops-skill-fit-match-noise/ops-skill-fit-match-noise.json` | Spent — executed 2026-09-13 (Tier 2, no architecture, --no-approval). Cards and `match` use text-derived `match_tags`; local skills no longer inherit project stacks there (fleet showed stack-neutral skills matching at 1.0). Relevance bucketing unchanged. 3 operations. |
+| `ops-skill-fit-language-only/ops-skill-fit-language-only.json` | Spent — executed 2026-09-13 (Tier 2, no architecture, --no-approval). `match` drops suggestions whose overlap is only base languages (`LANGUAGE_TAGS`), counted in `language_only`; `--include-language-only` keeps them. 5 operations. |
+| `ops-skill-fit-language-only-test/ops-skill-fit-language-only-test.json` | Spent — executed 2026-09-13 (Tier 1, --no-approval, test-only). The install-nothing match test opts into `--include-language-only` because its fixture card shares only `python`. 1 operation. |
+| `ops-ai-docs-skill-fit/ops-ai-docs-skill-fit.json` | Spent — executed 2026-09-13 (Tier 1 docs-only, --no-approval). Skill-fit session recorded in `.ai/SESSION_STATE.md` and `.ai/CHANGELOG_AI.md`. 2 operations. |
+| `ops-gitignore-skills-applied/ops-gitignore-skills-applied.json` | Spent — executed 2026-09-13 (Tier 2, no architecture, --no-approval). Installer and repo `.gitignore` ignore `.claude/skills-applied.json`; install test asserts the entry. 4 operations. |
+| `ops-skill-fit-stack-scan/ops-skill-fit-stack-scan.json` | Spent — executed 2026-09-13 (Tier 2, no architecture, --no-approval). Stack walk skips root-level `backups/` and `operations/` and `out/` anywhere; AppiumLens had been reported kotlin+python. 3 operations. |
 | `ops-worktree-gitignore.json` | Spent — ignore `.claude/worktrees/` in repo and downstream, executed 2026-09-13. |
 | `ops-worktree-scanner.json` | Spent — exclude linked worktrees from the residue scan, executed 2026-09-13. |
 | `ops-memory-maturity.json` | Spent — memory maturity (clustering, staleness, doctor early warning, contract tests), executed 2026-09-13. |
@@ -370,6 +380,22 @@ gate closes on every sibling config the moment it lands.
   SESSION_STATE resume point and CHANGELOG_AI entry for the approval-gate directory-layout
   fix, its follow-ups, the code-review-on-request policy and the fleet rollout.
 
+- `ops-action-first-mode.json` + `plan-action-first-mode.md` — **spent**
+  (2026-09-13, `--no-approval` disclosed: Tier 2, no architecture surface). New
+  `action-first` behavioral mode (inspired by ayghri/i-have-adhd, MIT), `/mode` table row,
+  mode tests, CHANGELOG entry.
+- `ops-mode-md-trim.json` — **spent** (2026-09-13, `--no-approval` disclosed: Tier 1, one
+  file). Merged the `/mode` Task paragraphs so the new `action-first` row keeps
+  `commands/mode.md` inside its 47-line command-budget ratchet.
+- `ops-af-agents.json`, `ops-af-handoff.json`, `ops-af-plans.json`, `ops-af-doctor.json` +
+  `plan-action-first-rollout.md` — **spent** (2026-09-13). Action-first rollout: `Next action:`
+  lines in planner/verifier/code-reviewer/debugger reports, Done/Now/Next session context,
+  per-phase estimates and "Done when:" in plans, `ck doctor` final verdict line with explicit
+  `fix_cmd`. A-C ran `--no-approval` (Tier 2, no architecture); D was reviewed (round 1 REVISE
+  83, round 2 APPROVED 93) and ran `--no-approval` because the verdict was not recorded.
+- `ops-session-state-action-first.json` + `ops-changelog-ai-action-first.json` — **spent**
+  (2026-09-13, `--no-approval` disclosed: Tier 1, one `.ai/` file each). End-of-period
+  SESSION_STATE resume point and CHANGELOG_AI entry for the action-first rollout.
 | `ops-runtime-review-gate-and-config-healing/plan-runtime-review-gate-and-config-healing.ops.json` | Spent — author != reviewer gate enforcement point + auto-healing for missing/malformed `.claude/settings.local.json`, executed 2026-09-16 (approved 93). |
 
 | `plan-review-identity-fix.ops.json` | Spent — fixed the session-based author != reviewer gate (exit 6 was unsatisfiable; author and reviewer always collided in one pipeline). Now compares asserted agent roles: `--stamp-baseline` records `role: author` in a sidecar, `review-record.py write --reviewer-role reviewer` records the verdict role, and `check` refuses when the verdict is attested to a non-reviewing role or the author's own role. This is attestation, not enforcement (the caller claims the role). Records written before this change carry no role and still execute. Executed 2026-09-16 with `--no-approval` (the gate being fixed refused any normal run), reviewed 96/100 APPROVED by a `reviewer` agent. No verdict was self-issued; the `--no-approval` bypass is disclosed here. |
@@ -438,3 +464,9 @@ gate closes on every sibling config the moment it lands.
   60 of headroom; CLAUDE.md lands at 30,996 of 31,000. Fitted deliberately rather than raising
   the floor cap — the cap exists to stop CLAUDE.md sprawl, and exempting our own addition from
   it would be the same move as re-anchoring a lint baseline to absorb a change.
+
+| `ops-learning-loop-v2/plan-learning-loop-v2.ops.json` | Spent — learning loop v2: Stop-time memory inbox (main session only), `distill --inbox`, `inbox --accept/--reject`, `consolidate`, `propose --patch`, `/learn` rewritten as the human-gated promotion UI, planner Phase 0 searches the issues ledger. Executed 2026-09-16 with `--no-approval` after reviewer 92/100 APPROVED (1 MAJOR fixed in the config before execution). |
+
+| `ops-ck-fleet/plan-ck-fleet.ops.json` | Spent — `ck fleet list|diff|update|verify`: discovery by manifest presence under --root, in-process reuse of cmd_update, real --dry-run, verify that can fail. Executed 2026-09-16 with `--no-approval` after reviewer 93/100 APPROVED (0 CRITICAL/MAJOR). |
+
+| `ops-ops-content-by-path/plan-ops-content-by-path.ops.json` | Spent — `content_path`/`<action>_path` + mandatory `<key>_sha256` payload references for ops.json; resolver in shared.py, realpath-inside-root, 2 MiB cap, strict UTF-8, digest re-checked at execute time. Executed 2026-09-16 with `--no-approval` after reviewer 85/100 REVISE -> 1 MAJOR fixed in the config (the `--after` projection swallowed resolver errors) plus five reviewer-named negative tests added; no bypass found. Post-execution: two import-order autofixes and one test assertion wording corrected. |

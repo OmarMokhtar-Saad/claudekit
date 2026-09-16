@@ -479,7 +479,7 @@ def handle_stop(event: Dict[str, Any], session_id: str, subagent: bool) -> int:
     for warning in advisory_warnings(root):
         hlog("WARN", warning)
         sys.stderr.write("WARNING: %s\n" % warning)
-    duties, _ = reflection.duty_summary(session_id)
+    duties, _ = reflection.duty_summary(session_id, include_inbox=not subagent)
     if not duties:
         hlog("INFO", "stop: all duties met")
         return 0

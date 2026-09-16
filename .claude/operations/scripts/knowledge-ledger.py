@@ -918,7 +918,7 @@ def cmd_distill(args: argparse.Namespace) -> int:
         except OSError:
             existing = ""
 
-    blocks, consumed = [], []
+    blocks, consumed, cards = [], [], []
     for key in sorted(groups):
         members = groups[key]
         signature = members[0][1].get("signature", "").strip()
@@ -932,7 +932,17 @@ def cmd_distill(args: argparse.Namespace) -> int:
                   % (slugs[0], unsafe), file=sys.stderr)
             return 4
         blocks.append(rendered)
+        cards.append((slugs[0], signature, rendered))
         consumed.extend(slugs)
+
+    if getattr(args, "inbox", False):
+        # One candidate per group, awaiting a human accept/reject. The Stop gate counts
+        # these files, so writing them is what makes the duty appear.
+        written = _write_candidates(agent, cards)
+        print("%d candidate(s) pending in %s"
+              % (written, memory_root() / agent / INBOX_NAME))
+        print("Decide each one: knowledge-ledger.py inbox --accept|--reject <name>")
+        return 0
 
     draft_body = existing.rstrip("\n") + "\n" if existing.strip() else ""
     draft_body += "\n".join(blocks) + "\n"
@@ -959,6 +969,239 @@ def cmd_distill(args: argparse.Namespace) -> int:
         print("  knowledge-ledger.py close %s --reason 'distilled into %s memory'"
               % (slug, agent))
     return 0
+
+
+# --------------------------------------------------------------------------- inbox
+# A candidate is a PROPOSAL, exactly like a skill proposal: distill --inbox writes one
+# file per group here and nothing else. Accepting is the only act that puts text into a
+# file Claude Code auto-injects, and it is always a human-initiated command.
+INBOX_NAME = "_inbox"
+INDEX_KEY = "index:"
+
+
+def memory_root() -> Path:
+    return project_root() / ".claude" / "agent-memory"
+
+
+def inbox_paths(agent: str = "") -> List[Path]:
+    """Every pending candidate, tree-derived. No cache: the files ARE the state."""
+    root = memory_root()
+    if not root.is_dir():
+        return []
+    pattern = "%s/%s/*.md" % (agent or "*", INBOX_NAME)
+    try:
+        return sorted(root.glob(pattern))
+    except OSError:
+        return []
+
+
+def _candidate_index_line(path: Path) -> str:
+    """The MEMORY.md index line the candidate carries, or "" when it carries none."""
+    try:
+        for line in path.read_text(encoding="utf-8").splitlines()[:20]:
+            if line.startswith(INDEX_KEY):
+                return line[len(INDEX_KEY):].strip()
+    except OSError:
+        return ""
+    return ""
+
+
+def _write_candidates(agent: str, cards: List[Tuple[str, str, str]]) -> int:
+    """One file per distilled group under .claude/agent-memory/<agent>/_inbox/."""
+    out = memory_root() / agent / INBOX_NAME
+    out.mkdir(parents=True, exist_ok=True)
+    written = 0
+    for slug, signature, body in cards:
+        if not SLUG_RE.match(slug):
+            print("distill: skipping candidate with an unusable slug %r" % slug,
+                  file=sys.stderr)
+            continue
+        target = out / ("%s.md" % slug)
+        if target.exists():
+            print("INBOX %s already pending" % target.name)
+            continue
+        title = signature[:72] or slug
+        # Hook = the receipt tally the card was distilled from, never the title again:
+        # an index row that says the same thing twice tells the reader nothing.
+        hook = body.split("(", 1)[1].rstrip(")") if "(" in body else slug
+        target.write_text("\n".join([
+            "---",
+            "name: %s" % slug,
+            "candidate: memory",
+            "---",
+            "%s - [%s](%s.md) - %s" % (INDEX_KEY, title, slug, hook),
+            "",
+            body,
+            "",
+            "Accept:  knowledge-ledger.py inbox --accept %s" % slug,
+            "Reject:  knowledge-ledger.py inbox --reject %s" % slug,
+            "",
+        ]), encoding="utf-8")
+        print("INBOX %s" % target)
+        written += 1
+    return written
+
+
+def cmd_inbox(args: argparse.Namespace) -> int:
+    """List / accept / reject memory candidates. Accept is the ONLY writer of memory."""
+    if args.accept or args.reject:
+        name = (args.accept or args.reject).strip()
+        if not SLUG_RE.match(name):
+            print("inbox: %r is not a candidate name" % name, file=sys.stderr)
+            return 2
+        matches = [p for p in inbox_paths(args.agent) if p.stem == name]
+        if not matches:
+            print("inbox: no pending candidate named %r" % name, file=sys.stderr)
+            return 3
+        if len(matches) > 1:
+            # Two agents can hold the same slug. Guessing would move the wrong file into
+            # a system prompt, so name the ambiguity instead of resolving it.
+            print("inbox: %r is pending for %s; pass --agent"
+                  % (name, ", ".join(sorted(p.parent.parent.name for p in matches))),
+                  file=sys.stderr)
+            return 2
+        path = matches[0]
+        if args.reject:
+            path.unlink()
+            print("REJECTED %s" % path)
+            return 0
+        agent_dir = path.parent.parent
+        target = agent_dir / path.name
+        if target.exists():
+            print("inbox: %s already exists; rename the candidate first" % target,
+                  file=sys.stderr)
+            return 2
+        index_line = _candidate_index_line(path)
+        if not index_line:
+            print("inbox: %s carries no `index:` line; refusing a memory file no "
+                  "MEMORY.md points at" % path.name, file=sys.stderr)
+            return 4
+        memory = agent_dir / MEMORY_NAME
+        existing = memory.read_text(encoding="utf-8") if memory.is_file() else ""
+        merged = (existing.rstrip("\n") + "\n" if existing.strip() else "") + index_line + "\n"
+        if len(merged.splitlines()) > MEMORY_LINE_CAP:
+            print("inbox: REFUSED - %s would reach %d lines, past the %d-line "
+                  "truncation cliff. Run `consolidate --agent %s` first."
+                  % (memory, len(merged.splitlines()), MEMORY_LINE_CAP, agent_dir.name),
+                  file=sys.stderr)
+            return 5
+        path.rename(target)
+        memory.write_text(merged, encoding="utf-8")
+        print("ACCEPTED %s" % target)
+        print("INDEXED %s" % index_line)
+        return 0
+
+    candidates = inbox_paths(args.agent)
+    proposals = sorted((project_root() / ".claude" / "knowledge" / "proposals").glob("*.md")) \
+        if (project_root() / ".claude" / "knowledge" / "proposals").is_dir() else []
+    proposals = [p for p in proposals if p.name != "README.md"]
+    if not candidates and not proposals:
+        print("inbox: nothing pending.")
+        return 0
+    for path in candidates:
+        print("candidate  %s  (%s)" % (path.stem, path.parent.parent.name))
+    for path in proposals:
+        print("proposal   %s" % path.stem)
+    return 0
+
+
+def cmd_consolidate(args: argparse.Namespace) -> int:
+    """Report which MEMORY.md index lines should be merged. NEVER rewrites the file.
+
+    Merging two memories is a judgement about what is still true; a script that did it
+    automatically would silently pick one wording and destroy the other. So this lists
+    and instructs, which is the honest version of the feature.
+    """
+    memory = memory_root() / args.agent / MEMORY_NAME
+    if not memory.is_file():
+        print("consolidate: %s does not exist." % memory, file=sys.stderr)
+        return 3
+    rows = []
+    for line in memory.read_text(encoding="utf-8").splitlines():
+        if line.startswith("- ["):
+            tokens = {t for t in tokenize(line) if t not in _STOPWORDS}
+            rows.append((line, tokens))
+    print("consolidate: %s carries %d index line(s) (cap %d)."
+          % (memory, len(rows), MEMORY_LINE_CAP))
+    groups, used = [], set()
+    for index, (line, tokens) in enumerate(rows):
+        if index in used:
+            continue
+        members = [line]
+        for other_index, (other, other_tokens) in enumerate(rows[index + 1:], index + 1):
+            if other_index in used:
+                continue
+            if len(tokens & other_tokens) >= 2:
+                members.append(other)
+                used.add(other_index)
+        if len(members) > 1:
+            used.add(index)
+            groups.append(members)
+    if not groups:
+        print("consolidate: no two lines share 2+ signature tokens; nothing to merge.")
+        return 0
+    for number, members in enumerate(groups, 1):
+        print("group %d - merge these into one entry, then delete the others:" % number)
+        for line in members:
+            print("   %s" % line)
+    print("Merging is yours to do: edit the entry files, rewrite one index line, and "
+          "delete the rest. Nothing was modified.")
+    return 0
+
+
+PATCH_SECTIONS = ("Pitfalls", "Verification")
+
+
+def _propose_patch(skill: str, section: str, text: str) -> int:
+    """Write a SKILL.md patch proposal. Never touches .claude/skills/ (hard rule 5)."""
+    if not SLUG_RE.match(skill):
+        print("propose: %r is not a skill id" % skill, file=sys.stderr)
+        return 2
+    if section not in PATCH_SECTIONS:
+        print("propose: --section must be one of %s" % ", ".join(PATCH_SECTIONS),
+              file=sys.stderr)
+        return 2
+    target_skill = project_root() / ".claude" / "skills" / skill / "SKILL.md"
+    if not target_skill.is_file():
+        print("propose: %s does not exist" % target_skill, file=sys.stderr)
+        return 3
+    san = _load_sanitizers()
+    if san is None:
+        print("propose: REFUSED - could not load the redaction rules", file=sys.stderr)
+        return 3
+    body = san.redact_secrets(text.strip())
+    unsafe = _unsafe(body, san)
+    if unsafe:
+        print("propose: REFUSED - the patch text carries %s" % unsafe, file=sys.stderr)
+        return 4
+    out = project_root() / ".claude" / "knowledge" / "proposals"
+    out.mkdir(parents=True, exist_ok=True)
+    digest = hashlib.sha256(("%s\x00%s\x00%s" % (skill, section, body)).encode("utf-8")).hexdigest()[:8]
+    path = out / ("patch-%s-%s.md" % (skill, digest))
+    if path.exists():
+        print("PROPOSE: %s already proposed" % path.name)
+        return 0
+    path.write_text("\n".join([
+        "# Skill patch proposal: %s" % skill,
+        "",
+        "- skill: `.claude/skills/%s/SKILL.md`" % skill,
+        "- section: `## %s`" % section,
+        "- status: proposal - nothing was written into `.claude/skills/`",
+        "",
+        "## Proposed text",
+        "",
+        body,
+        "",
+        "## Next step (human)",
+        "",
+        "`/learn --promote patch-%s-%s` builds an ops.json that appends the text above to"
+        % (skill, digest),
+        "the named section, and runs it only after you confirm. Delete this file to reject.",
+        "",
+    ]), encoding="utf-8")
+    print("PROPOSED %s" % path)
+    return 0
+
 
 def cmd_prune(args: argparse.Namespace) -> int:
     root = project_root()
@@ -1042,6 +1285,8 @@ def cmd_propose(args: argparse.Namespace) -> int:
     runs a generator: promotion is a human step (hard rule 5).
     """
     directory = ledger_dir()
+    if getattr(args, "patch", ""):
+        return _propose_patch(args.patch, args.section, args.text)
     live: List[Tuple[Path, Set[str]]] = []
     for path in entry_paths(directory):
         meta = parse_entry(path)
@@ -1165,7 +1410,29 @@ def build_parser() -> argparse.ArgumentParser:
         "propose", help="propose a candidate skill for a repeated finding")
     propose.add_argument("--min-cluster", dest="min_cluster", type=int,
                          default=PROPOSAL_MIN_CLUSTER)
+    propose.add_argument("--patch", default="", metavar="SKILL",
+                         help="propose a patch to an existing skill instead of a new "
+                              "one; requires --section and --text")
+    propose.add_argument("--section", default="",
+                         help="SKILL.md section the patch appends to (%s)"
+                              % ", ".join(PATCH_SECTIONS))
+    propose.add_argument("--text", default="", help="the proposed patch text")
     propose.set_defaults(func=cmd_propose)
+
+    inbox = sub.add_parser(
+        "inbox", help="list / accept / reject pending memory candidates")
+    inbox.add_argument("--agent", default="", help="restrict to one agent")
+    inbox.add_argument("--accept", default="", metavar="NAME",
+                       help="move the candidate into agent memory and append its "
+                            "MEMORY.md index line")
+    inbox.add_argument("--reject", default="", metavar="NAME",
+                       help="delete the candidate")
+    inbox.set_defaults(func=cmd_inbox)
+
+    consolidate = sub.add_parser(
+        "consolidate", help="report which MEMORY.md index lines should be merged")
+    consolidate.add_argument("--agent", required=True)
+    consolidate.set_defaults(func=cmd_consolidate)
 
     distill = sub.add_parser(
         "distill", help="draft an agent memory entry from unfixed receipts")
@@ -1185,6 +1452,10 @@ def build_parser() -> argparse.ArgumentParser:
                               "closes anything")
     distill.add_argument("--origin", default="", choices=("",) + ORIGINS,
                          help="only distill receipts of this origin")
+    distill.add_argument("--inbox", action="store_true",
+                         help="write one candidate per group to "
+                              ".claude/agent-memory/<agent>/_inbox/ instead of a "
+                              "single .draft; the Stop gate then demands a decision")
     distill.set_defaults(func=cmd_distill)
 
     prune = sub.add_parser("prune", help="archive entries whose files no longer exist")

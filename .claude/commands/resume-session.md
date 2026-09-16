@@ -69,8 +69,8 @@ Cross-reference the "Files Touched" list from context against current git state.
 ### Step 4: Present Reconstruction
 
 ```
+Done: <last finished> / Now: <task, status> / Next: <next step 1>
 CONTEXT RESUMED
-===============
 Task: <task from context>
 Status: <IN_PROGRESS|COMPLETE|BLOCKED>
 Saved: <N hours ago>

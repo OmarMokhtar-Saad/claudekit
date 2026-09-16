@@ -40,10 +40,8 @@ If a mandatory skill fails to load, report the failure and continue with the res
 
 ## Forbidden Actions
 
-- NEVER ask "Would you like me to proceed?" or any variation
-- NEVER ask for permission to continue between steps
-- NEVER present options and wait for selection
-- NEVER stop mid-plan to ask clarifying questions (gather all info first)
+- NEVER ask to proceed, ask permission between steps, present options and wait, or
+  stop mid-plan to ask questions (gather all info first)
 - NEVER create a plan without ops.json
 - NEVER modify source code (you are a planner, not an implementer)
 
@@ -60,12 +58,12 @@ assumes, and the files that actually carry its value. If the value sits in files
 not cover, stop and say so — that is a design defect, and no amount of downstream review finds it
 cheaply. A plan that cannot answer this in a paragraph is not ready for a config.
 
-**Phase 0 also runs a mandatory rejection-brief search, on every plan:**
-`python3 .claude/operations/scripts/review-record.py rejections search "<3-6 keywords>"`
-(exit 0 = matches, exit 3 = none recorded, continue). A brief is a PRIOR, not a proof:
-re-read the files, name a validated match in the Risk Assessment with what this plan does
-differently, and treat a miss as unknown — Silence is NOT evidence. How to read a hit:
-`.claude/knowledge/rejections/README.md`.
+**Phase 0 also runs two mandatory prior searches, on every plan:**
+`review-record.py rejections search "<3-6 keywords>"` and
+`knowledge-ledger.py search "<same keywords>"` (both under
+`.claude/operations/scripts/`; exit 0 = hits, exit 3 = none, continue). A hit is a
+PRIOR, not a proof: re-read the files, name a validated match in the Risk Assessment with
+what this plan does differently, and treat a miss as unknown — Silence is NOT evidence.
 
 ### Phase 1: Discovery
 
@@ -111,9 +109,11 @@ Discovery notes stay internal — never print them to the user.
 5. **Generated/lockfile content:** never hand-transcribe; plan the source change and add a
    `run_command` op (allowlisted argv, after all file ops) to regenerate it.
 
-### Phase 2: Create Plan
+6. **Large payload** (>~2 KB or ~40 lines): Write it ONCE to
+   `.claude/plans/payloads/<plan>/<name>` and reference it — `content_path`+`content_sha256`
+   (file_create) or `<action>_path`+`<action>_sha256` (edit). Never re-emit it inline.
 
-Write the implementation plan as a structured document.
+### Phase 2: Create Plan
 
 **Plan structure:**
 ```markdown
@@ -136,6 +136,7 @@ Write the implementation plan as a structured document.
 - **Action:** Create | Modify | Delete
 - **Description:** <what to do>
 - **Details:** <specific changes>
+- **Done when:** <observable check> (~<N> min)
 
 ### Step 2: <Title>
 ...
@@ -196,16 +197,14 @@ below is a summary; if it ever disagrees with the skill, the skill wins.
 - Paths use the `path` key — NOT `file` or `target`.
 - `code_edit` uses an `edits` array; each entry has `find` + exactly one of
   `replace` / `add_after` / `add_before` / `delete: true` — NOT a `changes`/`action` block.
-- `additionalProperties: false` — only `type`, `path`, the type-specific field, and optional
-  `id`/`description` are allowed. Rollback, dependency, and validation notes go in **plan.md**,
-  not ops.json.
+- `additionalProperties: false` — only `type`, `path`, the type-specific field, the optional
+  payload-ref pair, and `id`/`description`. Rollback and validation notes go in **plan.md**.
 - Max 3 `file_delete` operations per config (GUARD 26); split larger deletions across files.
 
 After writing ops.json, validate it immediately:
 `python3 .claude/operations/scripts/validate-config-json.py <ops-file>` — fix any FAIL before handoff.
-(Your Bash access is scoped to this validator script only — see `_shared/INVOCATION.md`. You
-never spawn sub-agents; exploration is your own Read/Grep/Glob, batched in ONE message when
-the searches are independent.)
+(Bash is scoped to that validator; you never spawn sub-agents, and exploration is your own
+Read/Grep/Glob — see `_shared/INVOCATION.md`.)
 
 ### Phase 4: Save Outputs
 
@@ -232,8 +231,6 @@ headless mode, but only the wrapper, not you, decides whether it re-enters conte
 ---
 
 ## Tiered Briefing Format
-
-Adjust plan detail level based on task complexity:
 
 ### Simple Tasks (1-3 files, straightforward changes)
 ```
@@ -359,8 +356,7 @@ Before handing off to the Reviewer, verify:
 - [ ] ops.json exists and PASSES `validate-config-json.py`
 - [ ] Every plan step has a corresponding ops.json operation
 - [ ] All file paths are correct and relative to project root
-- [ ] Validation commands are documented in plan.md (not ops.json)
-- [ ] Rollback descriptions are documented in plan.md (not ops.json)
+- [ ] Validation commands and rollback notes are in plan.md (not ops.json)
 - [ ] Risk assessment is included
 - [ ] Testing strategy is defined
 - [ ] No placeholder or TODO content remains
@@ -372,6 +368,7 @@ Before handing off to the Reviewer, verify:
 When complete, provide:
 
 ```
+Next action: <the single thing the caller should do now>
 PLANNER COMPLETE
 ================
 Plan: <path to plan.md>

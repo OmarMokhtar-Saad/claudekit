@@ -22,13 +22,13 @@ index never outranks the current files.
 
 | State | Plans |
 |---|---:|
-| `drifted` | 10 |
-| `approved` | 55 |
-| `planned` | 18 |
+| `drifted` | 11 |
+| `approved` | 56 |
+| `planned` | 21 |
 | `executed` | 30 |
 | `not_started` | 24 |
-| `legacy` | 3 |
-| **total** | **140** |
+| `legacy` | 5 |
+| **total** | **147** |
 
 ## Plans
 
@@ -55,6 +55,7 @@ index never outranks the current files.
 | `.claude/plans/plan-capability-tiers-followup.md` | `approved` | 1 |  |
 | `.claude/plans/plan-capability-tiers.md` | `drifted` | 1 |  |
 | `.claude/plans/plan-ck-adapt.md` | `approved` | 1 |  |
+| `.claude/plans/plan-ck-fleet.md` | `planned` | 1 |  |
 | `.claude/plans/plan-cli-live-findings.md` | `executed` | 4 |  |
 | `.claude/plans/plan-close2.md` | `executed` | 2 |  |
 | `.claude/plans/plan-code-review-triage.md` | `approved` | 1 |  |
@@ -95,6 +96,7 @@ index never outranks the current files.
 | `.claude/plans/plan-iron-law-enforcement-hook.md` | `approved` | 1 |  |
 | `.claude/plans/plan-iron-law-scope-and-hook-count.md` | `approved` | 1 |  |
 | `.claude/plans/plan-issue-ledger.md` | `approved` | 1 |  |
+| `.claude/plans/plan-learning-loop-v2.md` | `planned` | 1 |  |
 | `.claude/plans/plan-legacy-install-lifecycle.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-mcp-probe-addendum.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-memory-maturity.md` | `planned` | 1 |  |
@@ -104,6 +106,7 @@ index never outranks the current files.
 | `.claude/plans/plan-omniroute-adoption.md` | `executed` | 1 |  |
 | `.claude/plans/plan-open-issues.md` | `approved` | 1 |  |
 | `.claude/plans/plan-ops-approval-gate.md` | `approved` | 1 |  |
+| `.claude/plans/plan-ops-content-by-path.md` | `planned` | 1 |  |
 | `.claude/plans/plan-ops-engine-file-modes.md` | `approved` | 1 |  |
 | `.claude/plans/plan-ops-hardening-implementer-contract.md` | `planned` | 1 |  |
 | `.claude/plans/plan-oracle-liveness.md` | `not_started` | 0 |  |
@@ -154,6 +157,8 @@ index never outranks the current files.
 | `.claude/plans/plan-session-close.md` | `executed` | 4 |  |
 | `.claude/plans/plan-shellcheck-version-drift.md` | `planned` | 1 |  |
 | `.claude/plans/plan-silent-failure-lint.md` | `approved` | 1 |  |
+| `.claude/plans/plan-skill-fit-2.md` | `approved` | 2 |  |
+| `.claude/plans/plan-skill-fit.md` | `drifted` | 8 |  |
 | `.claude/plans/plan-skill-loading-contract.md` | `approved` | 1 |  |
 | `.claude/plans/plan-task-014-supply-chain-hardening.md` | `planned` | 1 |  |
 | `.claude/plans/plan-token-dash.md` | `executed` | 6 |  |
@@ -174,3 +179,5 @@ index never outranks the current files.
 | `.claude/plans/archive/plan-008-batch2-skill-merges.md` | `legacy` | 0 |  |
 | `.claude/plans/archive/plan-008-batch3-agent-merges.md` | `legacy` | 0 |  |
 | `.claude/plans/archive/plan-008-batch4-command-diet-and-lint.md` | `legacy` | 0 |  |
+| `.claude/plans/archive/plan-action-first-mode.md` | `legacy` | 1 | record says `planned` |
+| `.claude/plans/archive/plan-action-first-rollout.md` | `legacy` | 0 |  |

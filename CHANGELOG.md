@@ -29,6 +29,101 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   written, an unrecognised format falls back to exactly today's excerpt, and the footprint
   stays silent when a newer human-written save exists. `.claude/session-footprint.md` is
   generated state and should be gitignored downstream.
+
+- **An ops payload can live in its own file.** `file_create` accepts `content_path`, and an
+  edit accepts `replace_path` / `add_after_path` / `add_before_path`, each with a MANDATORY
+  `<key>_sha256`, so a planner writes a large body once instead of re-emitting it inside
+  ops.json. The digest is required because review approval is stamped over the hash of
+  ops.json alone — carrying it inside the config keeps a payload that lives outside the
+  config under the same gate. References resolve inside the project root only (symlinks
+  followed), must be regular UTF-8 files under 2 MiB, and are mutually exclusive with the
+  inline key; everything downstream (guards, backups, rollback) is byte-identical to inline.
+- **`ck fleet` syncs the whole fleet with one command.** `ck fleet list|diff|update|verify`
+  discovers every kitted project directly under a root by its install manifest (never a
+  hardcoded list), reuses `ck update` per project so backups and local-edit preservation are
+  unchanged, and `ck fleet verify` exits non-zero when a project has drifted from the kit
+  source. It never runs git: it prints the `git -C <repo> add -A ...` line for you.
+- **The learning loop now has a trigger that fires.** A session that mutated or delivered
+  is asked at Stop to draft memory candidates
+  (`knowledge-ledger.py distill --agent <a> --inbox`), and Stop keeps asking until each
+  candidate under `.claude/agent-memory/<agent>/_inbox/` is accepted (`inbox --accept`,
+  which moves it into agent memory and appends its `MEMORY.md` index line) or rejected.
+  Candidates are gitignored; only what a human accepts is committed.
+- **`/learn` is now the promotion UI.** `--list`, `--show`, `--promote`, `--reject` over
+  memory candidates and skill proposals. Every reference to the nonexistent
+  `~/.claude/skills/learned/` directory is gone.
+- **Skill patch proposals.** `knowledge-ledger.py propose --patch <skill> --section
+  Pitfalls|Verification --text "..."` proposes an addition to an existing skill;
+  `/learn --promote` applies it through an ops.json after the user confirms. Nothing
+  writes into `.claude/skills/` on its own.
+- **SessionStart memory no longer truncates mid-entry.** Over budget, it prints whole
+  entries plus one `MEMORY OVER BUDGET` line naming
+  `knowledge-ledger.py consolidate --agent <agent>`, which reports which index lines to
+  merge and never rewrites the file itself.
+- **`ck skill audit` stack detection ignores ClaudeKit's own trees.** Root-level
+  `backups/` and `operations/`, and `out/` anywhere, no longer count as source, so a Java
+  project is no longer reported as Kotlin and Python because of backed-up build scripts
+  and ops tooling.
+- **Install ignores `.claude/skills-applied.json`.** The record `ck skill apply` keeps of
+  the overrides it wrote is local state, like `settings.local.json`, and is no longer
+  left untracked for someone to commit.
+- **`ck skill match` ignores language-only overlap.** A card that shares only a base
+  language with the project is no longer suggested (`--include-language-only` keeps it).
+- **`ck skill card` / `match` -- less noise.** Cards and matching now use only the
+  stack tags found in a skill's own text. A project's own skills no longer inherit its
+  detected stacks there, so a stack-neutral skill is no longer suggested to every
+  project that shares a language. Audit relevance is unchanged.
+- **`ck skill apply` -- `disabled` in the skills profile now actually drops tokens.**
+  It writes Claude Code's own `skillOverrides` setting (`"off"`, or
+  `"user-invocable-only"` via the profile's `disabled_mode`) for each disabled skill
+  into the gitignored `.claude/settings.local.json`. No skill file is edited, so
+  `ck diff` is unaffected; no hook, no prompt injection. It merges: every other key
+  (including the `ECC_HOOK_PROFILE` env entry) is preserved, an override the user set is
+  never taken over, and the names it manages are recorded in
+  `.claude/skills-applied.json` so `ck skill apply --restore` removes exactly those --
+  and only while they still hold the value apply wrote. An unparseable or symlinked
+  settings file is refused, never overwritten. A profile is repository content, so it
+  cannot hide protected skills (golden-rule, security-checklist,
+  prompt-injection-defense, verification-before-completion, using-superpowers,
+  registry-mandatory skills, skills an installed agent preloads via `skills:` or loads
+  as mandatory): `apply` refuses the whole profile and `ck doctor` fails. `ck doctor`
+  also fails when any settings file already hides a protected skill, reports hidden
+  skills and estimated always-on tokens saved, and warns when profile and settings
+  diverge. `ck update` / `ck init` re-apply the profile.
+- **`ck skill match` found nothing across a real fleet; skills now get stack tags and a
+  shared registry.** Matching AppiumLens against 13 projects printed `<none>`: project
+  skills carried no `stack_tags`, so no card could overlap anything. A project's own
+  skill without explicit `stack_tags` now gets tags derived deterministically from its
+  name, description and body (a fixed stack vocabulary: java, kotlin, python, android,
+  appium, selenium, gradle, ...) unioned with the project's detected stacks; explicit
+  frontmatter still wins and kit skills are never derived. `ck skill card --publish`
+  writes the project's sanitized cards to a user-level registry
+  (`~/.claudekit/registry/cards/<project>.json`, or `$CLAUDEKIT_REGISTRY`), atomically;
+  `ck skill match` reads it by default, skips the project's own card, and scores by
+  Jaccard tag overlap with a `--min-score` floor (default 0.1), printing score and
+  source project. `--registry` is now optional.
+- **`ck skill audit | profile init | card | match` -- measure how skills fit a project.**
+  Every installed skill's description is charged to every session whether or not the
+  project's stack can use it. `ck skill audit` detects the stacks, estimates each skill's
+  tokens (chars/4) and buckets it relevant / irrelevant / broken, flagging bodies over
+  300 lines or 2000 tokens; it writes nothing unless `--save`. `ck skill profile init`
+  records the decisions in a project-owned `.claude/skills-profile.json` that is never
+  overwritten and survives install, update and fleet sync. `ck skill card` emits
+  sanitized metadata cards for a project's own skills and `ck skill match --registry`
+  suggests cards from other projects by stack overlap -- suggest only, never install.
+  `ck doctor` validates the profile when present. `disabled` is enforced by
+  `ck skill apply` (below).
+- **Action-first output across the kit.** `ck doctor` now ends with a one-line verdict
+  and the next step (e.g. ``FAIL 1/9 failed — next: run `ck init` ``); the detail still
+  streams live and exit codes are unchanged. The planner, verifier, code-reviewer and
+  debugger reports open with a `Next action:` line (code-reviewer and verifier also cap
+  top findings at 5); session context and resume briefings lead with `Done / Now / Next`;
+  plans give every phase a rough time estimate and a `Done when:` line.
+- **New `action-first` behavioral mode.** `/mode action-first` leads every reply with
+  the answer or the next action, uses one-action numbered steps with rough time
+  estimates, caps lists at 5, and drops preamble and closers -- but never trims error
+  output, security warnings, or destructive-action confirmations. Inspired by the
+  MIT-licensed ayghri/i-have-adhd skill.
 - **Planner and refine loops are bounded.** The planner stays on the most-capable tier
   (owner decision: a weaker planner costs more rounds than it saves). Its discovery phase
   reuses `.claude/project-index.md` when present, reads tests only when the plan touches

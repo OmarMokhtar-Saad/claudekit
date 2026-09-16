@@ -173,7 +173,31 @@ def cmd_init(args):
         cmd.append("--yes")
 
     result = subprocess.run(cmd)
+    if result.returncode == 0:
+        _reapply_skill_profile(target)
     return result.returncode
+
+
+def _reapply_skill_profile(target):
+    """Re-converge `skillOverrides` after an install, from the project-owned profile.
+
+    install.sh preserves settings.local.json, so this is normally a no-op; it matters
+    when the profile changed, or a kit update added an agent that now preloads a
+    disabled skill (the refusal then surfaces here and in `ck doctor`). Never fails the
+    install.
+    """
+    if not (Path(target) / ".claude" / "skills-profile.json").is_file():
+        return
+    from claudekit import skill_fit
+    try:
+        result = skill_fit.apply(Path(target))
+    except skill_fit.SkillFitError as exc:
+        warn(f"Skills profile not re-applied: {exc}")
+        return
+    ok(f"Skills profile re-applied: {len(result['hidden'])} skill(s) hidden via "
+       f"skillOverrides (~{result['tokens_saved']} always-on tokens saved)")
+    for name in result["kept_user_set"]:
+        warn(f"  kept your own skillOverrides entry for {name}")
 
 
 # Hook references in settings.json that must resolve to an installed file.
@@ -361,7 +385,55 @@ def _parse_semver(text):
         return None
 
 
-def cmd_doctor(args):
+#: Platform-selected install command for the shellcheck warning. A hint naming both
+#: package managers is prose; a fix_cmd must be one runnable command or nothing.
+_SHELLCHECK_INSTALL = {
+    "darwin": "brew install shellcheck",
+    "linux": "apt-get install shellcheck",
+}
+
+
+def _doctor_verdict(rc: int, tally: dict) -> str:
+    """The closing line a reader can act on: state, count, and the next step.
+
+    The step is an explicit `fix_cmd` a check site declared -- never text scraped from
+    hint prose -- taken from the first failing check, else the first warning. A check
+    with no single unconditional command points at its detail line instead.
+    """
+    applicable = tally.get("applicable", 0)
+    failed, warned = tally.get("failed", 0), tally.get("warned", 0)
+
+    def step(key, marker):
+        cmd = tally.get(key)
+        return f"run `{cmd}`" if cmd else f"fix the first {marker} line above"
+
+    if failed:
+        return f"FAIL {failed}/{applicable} failed — next: {step('first_fail_cmd', '[✗]')}"
+    if tally.get("below_min_score") is not None:
+        nxt = (step("first_warn_cmd", "[!]") if warned
+               else "lower --min-score (100 is the maximum)")
+        return (f"FAIL score {tally.get('score')}/100 below --min-score "
+                f"{tally['below_min_score']} — next: {nxt}")
+    if warned:
+        state = "FAIL" if rc else "WARN"
+        return f"{state} {warned}/{applicable} warned — next: {step('first_warn_cmd', '[!]')}"
+    return f"PASS {tally.get('passed', 0)}/{applicable} passed — next: nothing"
+
+
+def cmd_doctor(args) -> int:
+    """Run health checks; the detail streams live, the verdict line closes the run.
+
+    Nothing is buffered: every existing line prints as its check runs, on the same
+    stream, and the exit code is `_doctor_checks`'s own. The verdict is the only new
+    line and it is the LAST line of stdout.
+    """
+    tally: dict = {}
+    rc = _doctor_checks(args, tally)
+    print(_doctor_verdict(rc, tally))
+    return rc
+
+
+def _doctor_checks(args, tally):
     """Run health checks on the current ClaudeKit installation."""
     print(f"\n{C.CYAN}ClaudeKit Doctor v{__version__}{C.NC}\n")
 
@@ -370,7 +442,7 @@ def cmd_doctor(args):
     checks_warned = 0
     checks_skipped = 0
 
-    def check(name, condition, fix_hint=""):
+    def check(name, condition, fix_hint="", fix_cmd=None):
         """True=pass, "skip"=not applicable to this install, "warn", else fail.
 
         "skip" is counted separately on purpose: it must not inflate the passed
@@ -387,9 +459,11 @@ def cmd_doctor(args):
         elif condition == "warn":
             warn(f"{name} — {fix_hint}")
             checks_warned += 1
+            tally.setdefault("first_warn_cmd", fix_cmd)
         else:
             err(f"{name} — {fix_hint}")
             checks_failed += 1
+            tally.setdefault("first_fail_cmd", fix_cmd)
 
     # Python version
     py_ver = sys.version_info
@@ -417,7 +491,8 @@ def cmd_doctor(args):
     check("shellcheck available", True if shellcheck_path else "warn",
           "not on PATH — install with `brew install shellcheck` (macOS) or "
           "`apt-get install shellcheck` (Linux) to run the shell-lint DoD gate "
-          "locally; CI runs it regardless")
+          "locally; CI runs it regardless",
+          fix_cmd=_SHELLCHECK_INSTALL.get(sys.platform))
 
     # Git
     try:
@@ -433,7 +508,7 @@ def cmd_doctor(args):
     # .claude directory
     claude_dir = Path(".claude")
     check(".claude/ directory exists", claude_dir.is_dir(),
-          "Run: claudekit init")
+          "Run: claudekit init", fix_cmd="ck init")
 
     if claude_dir.is_dir():
         # A `--minimal` install ships "agents, commands, and operations only", so no
@@ -589,7 +664,8 @@ def cmd_doctor(args):
                     is_exec = os.access(hook_path, os.X_OK)
                     check(f"Hook: {hook} {'(executable)' if is_exec else ''}",
                           True if is_exec else "warn",
-                          f"Not executable. Run: chmod +x {hook_path}")
+                          f"Not executable. Run: chmod +x {hook_path}",
+                          fix_cmd=f"chmod +x {hook_path}")
                 else:
                     check(f"Hook: {hook}",
                           "skip" if minimal_install else "warn",
@@ -632,7 +708,8 @@ def cmd_doctor(args):
                 check(f"Wired hooks resolve ({len(wired)} referenced)", False,
                       "settings.json references missing hooks: "
                       + ", ".join(unresolved)
-                      + " - every tool call is blocked. Run: claudekit update")
+                      + " - every tool call is blocked. Run: claudekit update",
+                      fix_cmd="ck update")
             else:
                 check(f"Wired hooks resolve ({len(wired)} referenced)", True)
 
@@ -661,7 +738,8 @@ def cmd_doctor(args):
             elif missing_helpers:
                 check(f"Hook helper scripts resolve ({len(invoked)} invoked)", False,
                       "hooks invoke missing helpers: " + ", ".join(missing_helpers)
-                      + " - every tool call is blocked. Run: claudekit update")
+                      + " - every tool call is blocked. Run: claudekit update",
+                      fix_cmd="ck update")
             else:
                 check(f"Hook helper scripts resolve ({len(invoked)} invoked)", True)
 
@@ -830,6 +908,38 @@ def cmd_doctor(args):
             check(f"Agent memory: {len(_mem_agents)} agents, all with a readable "
                   f"MEMORY.md", True)
 
+    # Skills profile. Checked ONLY when the project has one, so an install without a
+    # profile keeps exactly the checks -- and the readiness score -- it had before.
+    # Malformed or escaping = failure; a stale skill name = warning, because a kit
+    # update that removes a skill must not turn every downstream doctor red.
+    if claude_dir.is_dir() and (claude_dir / "skills-profile.json").is_file():
+        from claudekit import skill_fit
+        _sp_errors, _sp_warnings = skill_fit.profile_findings(Path("."))
+        if _sp_errors:
+            check("Skills profile", False, "; ".join(_sp_errors))
+        elif _sp_warnings:
+            check("Skills profile", "warn", "; ".join(_sp_warnings))
+        else:
+            check("Skills profile: every reference resolves", True)
+
+    # Skill visibility. Runs whenever a profile OR any skillOverrides exists, so a
+    # committed settings.json hiding a safety-rail skill fails even without a profile.
+    if claude_dir.is_dir():
+        from claudekit import skill_fit
+        _sv = skill_fit.enforcement_status(Path("."))
+        _sv_profile = (claude_dir / "skills-profile.json").is_file()
+        if _sv["protected_hidden"]:
+            check("Skill visibility", False,
+                  "skillOverrides hides protected skill(s): "
+                  + ", ".join(_sv["protected_hidden"]) + " -- set them to \"on\"")
+        elif _sv["diverged"]:
+            check("Skill visibility", "warn",
+                  "profile and settings diverge: " + "; ".join(_sv["diverged"])
+                  + " -- run `ck skill apply`")
+        elif _sv["hidden"] or _sv_profile:
+            check(f"Skill visibility: {len(_sv['hidden'])} skill(s) hidden via "
+                  f"skillOverrides, ~{_sv['tokens_saved']} always-on tokens saved", True)
+
     # Summary
     print(f"\n{'='*40}")
     total = checks_passed + checks_failed + checks_warned + checks_skipped
@@ -849,6 +959,8 @@ def cmd_doctor(args):
     # the format is stable and greppable -- a clause that appears only when something
     # was skipped is absent on the --full install whose 95 is the actual puzzle.
     _applicable = checks_passed + checks_warned + checks_failed
+    tally.update(passed=checks_passed, warned=checks_warned,
+                 failed=checks_failed, applicable=_applicable, score=score)
     print(f"  Readiness: {score}/100 "
           f"({_applicable} applicable, {checks_skipped} not)")
     print(f"{'='*40}\n")
@@ -877,6 +989,7 @@ def cmd_doctor(args):
     # install clears can never mask one.
     min_score = getattr(args, "min_score", None)
     if min_score is not None and score < min_score:
+        tally["below_min_score"] = min_score
         err(f"Readiness {score}/100 is below the required minimum of {min_score}.")
         return 1
     return 0
@@ -1999,7 +2112,18 @@ def cmd_update(args):
     result = subprocess.run(cmd)
     if result.returncode == 0:
         ok(f"Updated {target} to v{__version__} ({mode} mode).")
+        _reapply_skill_profile(target)
     return result.returncode
+
+
+def cmd_fleet(args):
+    """Survey or update every kitted project under a root.
+
+    The implementation lives in ``claudekit.cli.fleet`` and is imported lazily: no
+    other verb pays for it, and main.py stays free of an import cycle.
+    """
+    from claudekit.cli.fleet import cmd_fleet as _run_fleet
+    return _run_fleet(args)
 
 
 def cmd_eval(args):
@@ -2150,6 +2274,12 @@ def cmd_skill(args):
     skill is the exact drift this verb exists to end, so there is no flag that
     writes the directory without the registry entry.
     """
+    if args.action != "new":
+        return _cmd_skill_fit(args)
+    if not args.name or not args.description:
+        err("skill new: a skill id and --description are required")
+        return 1
+
     from claudekit import context_floor, skills
 
     root = Path(".")
@@ -2182,6 +2312,127 @@ def cmd_skill(args):
     else:
         info("Next: fill in the scaffold, then `ck doctor`")
     return 0
+
+
+def _cmd_skill_fit(args):
+    """`ck skill audit | profile init | card | match` -- read-only skill-fit analysis.
+
+    Writes only on an explicit request: the audit report under `audit --save`,
+    `.claude/skills-profile.json` under `profile init` (which never overwrites), this
+    project's card file in the USER-level registry under `card --publish`, and -- under
+    `apply` only -- the `skillOverrides` entries it manages in the gitignored
+    `.claude/settings.local.json` plus their record, `.claude/skills-applied.json`.
+    `match` suggests and never installs. Nothing here edits a skill or injects anything
+    into a prompt.
+    """
+    from claudekit import skill_fit
+
+    root = Path(".")
+    try:
+        if args.action == "audit":
+            report = skill_fit.audit(root, max_lines=args.max_lines,
+                                     max_tokens=args.max_tokens)
+            saved = skill_fit.save_audit(root, report) if args.save else None
+            if args.json:
+                print(json.dumps(report, indent=2, sort_keys=True))
+            else:
+                _print_skill_audit(report)
+                if saved is not None:
+                    ok(f"Saved {saved}")
+            return 0
+        if args.action == "profile":
+            if args.name != "init":
+                err("skill profile: the only action is `init` "
+                    "(`ck skill profile init`)")
+                return 1
+            report = skill_fit.audit(root, max_lines=args.max_lines,
+                                     max_tokens=args.max_tokens)
+            path = skill_fit.init_profile(root, report)
+            disabled = [r["name"] for r in report["skills"] if r["status"] == "irrelevant"]
+            ok(f"Created {path} ({len(disabled)} irrelevant skill(s) listed as disabled)")
+            info("Review it, then run `ck skill apply` to hide those skills via "
+                 "skillOverrides in .claude/settings.local.json (undo: `ck skill apply "
+                 "--restore`). The file is yours -- install, update and fleet sync leave "
+                 "it alone.")
+            return 0
+        if args.action == "apply":
+            result = skill_fit.apply(root, restore=args.restore)
+            if args.json:
+                print(json.dumps(result, indent=2))
+                return 0
+            for name in result["hidden"]:
+                ok(f"hidden: {name}")
+            for name in result["removed"]:
+                ok(f"visible again: {name}")
+            for name in result["kept_user_set"]:
+                warn(f"kept your own skillOverrides entry: {name}")
+            for item in result["skipped"]:
+                warn(f"not hidden: {item['name']} -- {item['reason']}")
+            print(f"\n  ~{result['tokens_saved']} always-on tokens saved (chars/4 estimate), "
+                  f"written to {result['settings']}.")
+            return 0
+        registry = Path(args.registry) if args.registry else None
+        if args.action == "card":
+            if args.publish:
+                path, found, withheld = skill_fit.publish_cards(
+                    root, project=args.project, registry=registry)
+                ok(f"Published {len(found)} card(s) to {path}")
+            else:
+                found, withheld = skill_fit.cards(root)
+                print(json.dumps({"card_version": skill_fit.CARD_VERSION, "cards": found},
+                                 indent=2))
+            for name, why in withheld:
+                err(f"withheld card '{name}': {why}")
+            return 0
+        # match
+        min_score = skill_fit.DEFAULT_MIN_SCORE if args.min_score is None else args.min_score
+        if not 0.0 <= min_score <= 1.0:
+            err("skill match: --min-score must be between 0 and 1")
+            return 1
+        result = skill_fit.match(root, registry, project=args.project, min_score=min_score,
+                                 include_language_only=args.include_language_only)
+    except skill_fit.SkillFitError as exc:
+        err(f"skill {args.action}: {exc}")
+        return 1
+    if args.json:
+        print(json.dumps(result, indent=2))
+        return 0
+    tags = ", ".join(result["project_tags"]) or "none"
+    print(f"\n{C.CYAN}Skill suggestions{C.NC}   tags: {tags}   min score "
+          f"{result['min_score']}   (suggest only -- nothing is installed)\n")
+    for s in result["suggestions"]:
+        print(f"  {s['name']:<32} score {s['score']:<5} {s['tokens']:>6} tok  "
+              f"from {s['source']}  [{', '.join(s['matched_tags'])}]")
+        print(f"      {s['description']}")
+    if not result["suggestions"]:
+        print("  <none>")
+    for line in result["skipped"]:
+        warn(f"skipped {line}")
+    print("")
+    return 0
+
+
+def _print_skill_audit(report):
+    totals, budget = report["totals"], report["budget"]
+    stacks = ", ".join(report["stacks"]) or "undetected"
+    print(f"\n{C.CYAN}Skill audit{C.NC}   stacks: {stacks}   ({report['estimate']})\n")
+    for status in ("broken", "irrelevant", "relevant"):
+        rows = [r for r in report["skills"] if r["status"] == status]
+        if not rows:
+            continue
+        print(f"  {status} ({len(rows)})")
+        for r in rows:
+            flags = " ".join(flag for flag, on in (("OVER-BUDGET", r["over_budget"]),
+                                                   ("disabled", r["disabled"])) if on)
+            print(f"    {r['name']:<34} desc {r['description_tokens']:>4} tok  "
+                  f"body {r['body_tokens']:>5} tok / {r['body_lines']:>4} lines  {flags}")
+            for problem in r["problems"]:
+                print(f"        - {problem}")
+        print("")
+    print(f"  always-on: {totals['always_on_tokens']} tok, of which "
+          f"{totals['always_on_tokens_irrelevant']} irrelevant to this stack   "
+          f"over budget (>{budget['max_lines']} lines or >{budget['max_tokens']} tok): "
+          f"{totals['over_budget']}\n")
 
 
 def cmd_mcp(args):
@@ -2477,6 +2728,23 @@ def main():
                         "ClaudeKit no longer solely owns them (backed up first)")
     p.add_argument("--stamp", help=argparse.SUPPRESS)  # deterministic backup name (tests)
 
+    # fleet
+    p = sub.add_parser("fleet",
+                       help="Survey and update every kitted project under a root")
+    p.add_argument("action", choices=["list", "diff", "update", "verify"],
+                   help="list: a row per project; diff: local edits; update: re-install "
+                        "each (backs up first); verify: non-zero exit on drift")
+    p.add_argument("--root", help="Directory whose immediate children are scanned "
+                                  "(default: the parent of the current project)")
+    p.add_argument("--include", action="append", metavar="GLOB",
+                   help="Only projects whose directory name matches (repeatable)")
+    p.add_argument("--exclude", action="append", metavar="GLOB",
+                   help="Skip projects whose directory name matches (repeatable)")
+    p.add_argument("--yes", "--non-interactive", dest="yes", action="store_true",
+                   help="Assume yes to prompts (update)")
+    p.add_argument("--dry-run", action="store_true",
+                   help="update: print the plan per project without installing")
+
     # eval
     p = sub.add_parser("eval", help="Run behavioral evals against the prompt corpus "
                                     "(costs real API calls; --dry-run is free)")
@@ -2515,10 +2783,17 @@ def main():
 
     # skill
     p = sub.add_parser("skill",
-                       help="Author skills (creation and registration are one act)")
-    p.add_argument("action", choices=["new"], help="new: scaffold and register a skill")
-    p.add_argument("name", help="Skill id, kebab-case")
-    p.add_argument("--description", required=True,
+                       help="Author skills and measure how they fit this project")
+    p.add_argument("action", choices=["new", "audit", "profile", "card", "match", "apply"],
+                   help="new: scaffold and register a skill; audit: stack fit and token "
+                        "cost; profile init: write .claude/skills-profile.json; card: "
+                        "sanitized cards for local skills; match: suggest from cards; "
+                        "apply: hide the profile's disabled skills via skillOverrides")
+    p.add_argument("name", nargs="?",
+                   help="Skill id, kebab-case (new); `init` (profile)")
+    # Not argparse-required any more: only `new` needs it, and cmd_skill refuses a
+    # `new` without it before anything is written.
+    p.add_argument("--description",
                    help="The trigger line a model reads when deciding to load the skill")
     p.add_argument("--summary",
                    help="Shorter text for the registry entry (default: --description)")
@@ -2532,6 +2807,27 @@ def main():
     # the value). Add the skill to the agent's `## Skill Loading` section instead.
     p.add_argument("--allowed-tools", default="Read, Grep, Glob",
                    help="allowed-tools frontmatter value")
+    p.add_argument("--json", action="store_true",
+                   help="Machine-readable output (audit, match)")
+    p.add_argument("--save", action="store_true",
+                   help="audit: also write .claude/reports/skills/audit.json")
+    p.add_argument("--max-lines", type=int, default=300,
+                   help="audit: flag skill bodies longer than this (default 300)")
+    p.add_argument("--max-tokens", type=int, default=2000,
+                   help="audit: flag skill bodies estimated above this (default 2000)")
+    p.add_argument("--registry", metavar="DIR",
+                   help="card --publish / match: card directory (default: $CLAUDEKIT_REGISTRY "
+                        "or ~/.claudekit/registry/cards)")
+    p.add_argument("--publish", action="store_true",
+                   help="card: write this project's cards to the registry")
+    p.add_argument("--project", metavar="ID",
+                   help="card --publish / match: project id (default: directory name)")
+    p.add_argument("--min-score", type=float, default=None,
+                   help="match: Jaccard floor for a suggestion (default 0.1)")
+    p.add_argument("--include-language-only", action="store_true",
+                   help="match: keep suggestions that share only a base language tag")
+    p.add_argument("--restore", action="store_true",
+                   help="apply: remove every skillOverrides entry apply wrote")
 
     # mcp
     p = sub.add_parser("adapt",
@@ -2585,6 +2881,7 @@ def main():
         "agents": cmd_agents,
         "diff": cmd_diff,
         "update": cmd_update,
+        "fleet": cmd_fleet,
         "uninstall": cmd_uninstall,
         "adapt": cmd_adapt,
         "eject": cmd_eject,

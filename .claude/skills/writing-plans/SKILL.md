@@ -18,7 +18,7 @@ Every plan MUST contain:
 
 1. **Goal Statement** - One sentence describing what the plan achieves
 2. **Context Summary** - What you explored and learned (from context-first-workflow)
-3. **Task List** - Numbered, bite-sized tasks with clear completion criteria
+3. **Task List** - Numbered, bite-sized tasks grouped into phases; every phase has a rough time estimate `(~N min)` and a `Done when:` line
 4. **Operations Config** - ops.json for structured execution (see generate-operations-config)
 5. **Verification Strategy** - How to confirm the plan succeeded
 6. **Risk Notes** - What could go wrong and how to mitigate
@@ -36,6 +36,7 @@ Each task MUST satisfy ALL of these criteria:
 | **Clear Output** | What files/state does this task produce? |
 | **Independently Verifiable** | Can you confirm this task succeeded without running the whole plan? |
 | **Time-Bounded** | Completable in under 15 minutes |
+| **Done-When Marker** | Its phase ends with `Done when: <observable check>` and a rough estimate |
 | **No Ambiguity** | Another agent could execute this task without asking questions |
 
 ### Good Task Examples
@@ -46,7 +47,7 @@ Task 3: Create UserRepository interface
 - Define: find_by_id(id: str) -> User | None
 - Define: save(user: User) -> User
 - Define: delete(id: str) -> bool
-- Verification: File exists with all three method signatures
+- Done when: file exists with all three method signatures (~5 min)
 ```
 
 ### Bad Task Examples
@@ -93,6 +94,8 @@ Fix [bug description] in [component]
 4. Verify new test passes
 5. Check for similar bugs in related code
 
+Done when: the new test fails without the fix and passes with it (~30 min)
+
 ## Verification
 - [ ] New test fails without fix, passes with fix
 - [ ] All existing tests pass
@@ -120,6 +123,8 @@ Add [feature description] to [component]
 4. Integrate with existing system at [integration point]
 5. Update configuration if needed
 6. Verify end-to-end behavior
+
+Done when: the feature works end-to-end and every test passes (~2 h)
 
 ## Verification
 - [ ] All new tests pass
@@ -152,6 +157,8 @@ Refactor [component] to [improvement description]
 7. Clean up any temporary scaffolding
 8. Final verification of all tests
 
+Done when: behavior is unchanged and every test passes (~1 h)
+
 ## Verification
 - [ ] Behavior is unchanged (all tests pass)
 - [ ] Code quality metrics improved
@@ -180,6 +187,7 @@ Before presenting a plan to the user:
 - [ ] Every task is bite-sized (satisfies all criteria above)
 - [ ] Tasks are ordered correctly (dependencies respected)
 - [ ] Verification steps exist for each phase
+- [ ] Every phase has a rough time estimate and a `Done when:` line
 - [ ] Risks are identified with mitigations
 - [ ] The plan references or includes ops.json
 - [ ] Total plan scope matches the original request (no scope creep)
