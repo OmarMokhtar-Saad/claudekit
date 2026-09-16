@@ -18,30 +18,33 @@ disable-model-invocation: true# KEPT, deliberately (2026-09-06). Two measured re
 
 **Every session is a learning opportunity.** When you solve a problem in a novel way, debug an unusual issue, or discover a project-specific pattern — that knowledge should persist beyond the current conversation.
 
-This skill governs how Claude extracts reusable patterns at session end and saves them as skills for future sessions.
+This skill governs how Claude turns a session into ledger entries, memory candidates and skill proposals — and where each one stops until a human promotes it.
 
 ---
 
 ## When Pattern Extraction Triggers
 
-Extraction has THREE triggers:
+Extraction has FOUR triggers, and all four exist in the tree:
 
 **A. Per-issue, at the Verifier PASS checkpoint (project-local ledger).** When a diagnosed bug
 is fixed and the Verifier returns PASS, score that one issue with the rubric below and — if it
 clears — write it to `.claude/knowledge/issues/` (see *Per-Issue Knowledge Ledger*). Immediate
 and per-issue; it does not wait for session end.
 
-**B. Per-session, at the Stop hook (learned skills).** The Stop hook evaluates the session
-when:
+**B. Per-session, at the Stop gate (memory candidates).** When a session recorded
+mutation-or-delivery activity, `reflection-gate.py` blocks the first Stop with a LEARNING
+LOOP duty. Draft candidates from the open ledger entries:
 
-1. The session had **10 or more meaningful exchanges** (not just clarifications)
-2. At least one of these occurred:
-   - A non-trivial bug was diagnosed and fixed
-   - A project-specific pattern was discovered
-   - An effective workflow was used that could generalize
-   - An error recovery strategy succeeded
+```bash
+python3 .claude/operations/scripts/knowledge-ledger.py distill --agent <agent> --inbox
+```
 
-If the session was primarily reading/exploring with no novel problem-solving, skip extraction.
+Each group becomes one file in `.claude/agent-memory/<agent>/_inbox/`. Those files are a
+second duty: Stop keeps demanding a decision until every one is accepted
+(`inbox --accept <name>`, which moves it into agent memory and appends its `MEMORY.md`
+index line) or rejected (`inbox --reject <name>`). `/learn` is the same thing with a
+human reading each one first. There is no auto-writer, and no Stop-hook skill extractor -
+a skill only ever comes from trigger D plus a human.
 
 **C. At discovery, when a finding is NOT yet fixed (open a ledger entry).** A review finding, a
 workflow defect (bad agent routing, a hook misfire) or a known bug you are deferring is
@@ -66,11 +69,17 @@ subcommand precisely so trigger A's write gate has no bypass.
 
 | Pattern Type | Example | Store As |
 |-------------|---------|----------|
-| Project-specific idiom | "This codebase uses X pattern for Y" | `~/.claude/skills/learned/<project>/patterns.md` |
-| Effective debugging technique | "When Foo fails, check Bar first" | `~/.claude/skills/learned/debugging/<topic>.md` |
-| Error resolution recipe | "Error X is caused by Y, fix with Z" | `~/.claude/skills/learned/errors/<error-code>.md` |
-| Build/tool configuration | "This project needs FLAG=1 to build" | `~/.claude/skills/learned/<project>/setup.md` |
-| Workflow that worked well | "For this repo, always X before Y" | `~/.claude/skills/learned/<project>/workflow.md` |
+| Project-specific idiom | "This codebase uses X pattern for Y" | agent memory entry (`inbox --accept`) |
+| Effective debugging technique | "When Foo fails, check Bar first" | agent memory entry for `debugger` |
+| Error resolution recipe | "Error X is caused by Y, fix with Z" | `.claude/knowledge/issues/<slug>.md` |
+| Repeated class of finding | three open findings share tokens | skill proposal, promoted by a human |
+| A gap in an existing skill | "this skill never says to check Z" | `propose --patch <skill> --section Pitfalls` |
+
+**D. When a cluster repeats (skill proposals).** `propose` writes a candidate *skill* to
+`.claude/knowledge/proposals/`; `propose --patch <skill> --section Pitfalls|Verification
+--text "..."` writes a candidate *patch* to an existing skill. Both are proposals only.
+`/learn --promote` applies a patch through an ops.json after the user confirms in chat -
+nothing ever writes into `.claude/skills/` on a machine's own initiative (hard rule 5).
 
 ### NOT Extractable
 
@@ -85,7 +94,7 @@ subcommand precisely so trigger A's write gate has no bypass.
 
 ### Step 1: Session Review
 
-At session end (Stop hook), review the transcript:
+At the Stop gate, before deciding each `_inbox/` candidate, review the transcript:
 
 ```
 Questions to ask:
@@ -119,7 +128,7 @@ Combined score < 10: Skip
 
 ### Step 3: Write the Learned Skill
 
-Create a new file in `~/.claude/skills/learned/`:
+Write the candidate body that `distill --inbox` will hold (or hand-write one there):
 
 ```markdown
 ---
@@ -151,7 +160,7 @@ confidence: [high|medium|low]
 
 ### Step 4: Register in Skill Registry
 
-Add to `~/.claude/skills/learned/INDEX.md`:
+`inbox --accept` appends the candidate's `index:` line to the agent's `MEMORY.md`:
 
 ```markdown
 - [Pattern Name](./path/to/skill.md) — one-line description — project: <name>
@@ -165,13 +174,13 @@ Session-end extraction is too coarse for bugs: by the time Stop fires, the exact
 signature and the verified root cause are buried in the transcript. So each *issue* is recorded
 at the moment it is proven fixed.
 
-| | Learned skills (Stop hook) | Issue ledger (Verifier PASS) |
+| | Memory candidates (Stop gate) | Issue ledger (Verifier PASS) |
 |---|---|---|
-| Trigger | session end | Verifier DECISION = PASS on a bug fix |
+| Trigger | Stop, after mutation activity | Verifier DECISION = PASS on a bug fix |
 | Unit | pattern / workflow | one issue |
-| Storage | `~/.claude/skills/learned/` | `.claude/knowledge/issues/<slug>.md` |
-| Scope | cross-project | this project only |
-| Retrieval | skill loading | debugger Phase 0 keyword grep |
+| Storage | `.claude/agent-memory/<agent>/` | `.claude/knowledge/issues/<slug>.md` |
+| Scope | one agent's prompt | this project only |
+| Retrieval | auto-injected into that agent | debugger Phase 0 keyword grep |
 
 **Same gate — there is no second rubric.** Reuse the Step 2 Pattern Assessment scores
 unchanged: combined `reusability + novelty >= 10` extracts, `< 10` skips. The ledger script
@@ -206,8 +215,8 @@ Rules:
   cost the ledger exists to avoid.
 - Storage is plain markdown searched by keyword. No index, no vector store, no new runtime
   dependency.
-- Scope is **project-local**. Promoting an entry to the cross-project
-  `~/.claude/skills/learned/` tier is a deliberate future phase — never ad hoc.
+- Scope is **project-local**. Promoting an entry into agent memory or a skill is a
+  human step (`/learn --promote`) — never ad hoc, and never automatic.
 - Stale entries (every referenced file gone) are archived by `prune`, never hand-deleted.
 
 ## Learning Categories
@@ -276,7 +285,7 @@ Control extraction sensitivity in `.claude/hooks/config.json`:
     "enabled": true,
     "min_session_messages": 10,
     "auto_approve": false,
-    "storage_path": "~/.claude/skills/learned/",
+    "storage_path": ".claude/agent-memory/",
     "categories": ["error-resolution", "project-patterns", "debugging", "workflow"],
     "issue_ledger": {
       "enabled": true,

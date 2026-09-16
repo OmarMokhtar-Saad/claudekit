@@ -11,6 +11,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `open-source-forker` — never shipped and have been removed.
 
 ## [Unreleased]
+- **The learning loop now has a trigger that fires.** A session that mutated or delivered
+  is asked at Stop to draft memory candidates
+  (`knowledge-ledger.py distill --agent <a> --inbox`), and Stop keeps asking until each
+  candidate under `.claude/agent-memory/<agent>/_inbox/` is accepted (`inbox --accept`,
+  which moves it into agent memory and appends its `MEMORY.md` index line) or rejected.
+  Candidates are gitignored; only what a human accepts is committed.
+- **`/learn` is now the promotion UI.** `--list`, `--show`, `--promote`, `--reject` over
+  memory candidates and skill proposals. Every reference to the nonexistent
+  `~/.claude/skills/learned/` directory is gone.
+- **Skill patch proposals.** `knowledge-ledger.py propose --patch <skill> --section
+  Pitfalls|Verification --text "..."` proposes an addition to an existing skill;
+  `/learn --promote` applies it through an ops.json after the user confirms. Nothing
+  writes into `.claude/skills/` on its own.
+- **SessionStart memory no longer truncates mid-entry.** Over budget, it prints whole
+  entries plus one `MEMORY OVER BUDGET` line naming
+  `knowledge-ledger.py consolidate --agent <agent>`, which reports which index lines to
+  merge and never rewrites the file itself.
 - **`ck skill match` ignores language-only overlap.** A card that shares only a base
   language with the project is no longer suggested (`--include-language-only` keeps it).
 - **`ck skill card` / `match` -- less noise.** Cards and matching now use only the
