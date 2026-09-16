@@ -13,7 +13,8 @@ Usage:
   review-record.py write   ... [--session-id UUID]   (records a rejection brief)
   review-record.py write   ... --only-non-approving   (records rejections only)
   review-record.py check   <plan.md> <ops.json>
-  review-record.py author  <ops.json> [--session-id UUID]
+  review-record.py author  <ops.json> [--session-id UUID] [--author-role ROLE]
+  review-record.py write   ... [--reviewer-role ROLE]  (attested identity)
   review-record.py diff    <plan.md> <ops.json>
   review-record.py rejections search "<keywords>"
 
@@ -24,8 +25,10 @@ Exit codes:
   3  no approval record / could not resolve (rejections search: no match)
   4  record exists and matches, but the verdict does not authorise execution
   5  write refused: --only-non-approving given and the parsed verdict is an approval
-  6  SELF-REVIEW - the verdict was recorded by the session that authored
-     this ops.json; a review by its own author does not authorise execution
+  6  SELF-REVIEW - the verdict is ATTESTED to a role that does not review, or
+     to the same role that authored this ops.json; it does not authorise
+     execution. Identity here is asserted by the caller, never observed:
+     see the note above REVIEWER_ROLES.
 
 Verdict parsing lives here rather than in shell so it can be validated and tested:
 strict anchored patterns mean an echoed format template ('SCORE: <integer 0-100>')
@@ -62,6 +65,20 @@ APPROVAL_THRESHOLD = 90
 # string, which is precisely what the executor's cause map exists to prevent.
 AUTHOR_SUFFIX = ".author.json"
 SELF_REVIEW_EXIT = 6
+# WHICH ROLE, not which session. The first version of this gate compared session ids
+# and could never pass: _session_id refuses `agent-` transcripts, so a subagent resolves
+# to its PARENT session, and one pipeline (main agent stamps, reviewer subagent scores,
+# implementer subagent executes) is one session. Author and reviewer always collided.
+#
+# ATTESTATION, NOT ENFORCEMENT -- say it here because it must never be overstated
+# elsewhere. The recording commands are run by the caller, not by the reviewer subagent
+# that produced the verdict text, so the role below is CLAIMED, not observed. A caller
+# who wants to bypass this asserts `--reviewer-role reviewer` for its own plan and
+# nothing can tell. What it buys: the accidental self-review is closed, and a deliberate
+# one leaves a greppable false claim in a committed JSON file.
+REVIEWER_ROLES = ("reviewer", "code-reviewer", "security-scanner", "verifier")
+AUTHOR_ROLE_DEFAULT = "author"
+_ROLE_RE = re.compile(r"^[a-z][a-z0-9-]{1,31}$")
 VALID_DECISIONS = ("APPROVED", "CONDITIONAL", "REVISE", "REJECTED")
 
 # A re-review used to overwrite the verdict it replaced, so a record could only
@@ -721,12 +738,13 @@ def cmd_write(args) -> int:
         score=args.score, decision=args.decision,
         session_id=getattr(args, "session_id", None),
         verdict_origin=getattr(args, "verdict_origin", None) or "rubric",
+        reviewer_role=getattr(args, "reviewer_role", None),
         only_non_approving=getattr(args, "only_non_approving", False))
 
 
 def write_verdict(plan, ops, from_review=None, score=None, decision=None,
                   session_id=None, verdict_origin="rubric",
-                  only_non_approving=False) -> int:
+                  reviewer_role=None, only_non_approving=False) -> int:
     """Record one verdict against one ops.json. The write half of the approval gate.
 
     Behaviour is unchanged from the argparse-driven version; the proof is that
@@ -794,7 +812,13 @@ def write_verdict(plan, ops, from_review=None, score=None, decision=None,
         # WHO reviewed. Written into the RECORD, never into the ops.json:
         # the binding below is over the config's raw bytes, and a key added
         # to the config after a verdict reads as DRIFT.
+        #
+        # reviewer_session is PROVENANCE ONLY and no longer feeds any gate: every
+        # agent in one pipeline resolves to the same session, so it cannot tell an
+        # author from a reviewer. reviewer_role is the identity cmd_check reads,
+        # and it is ASSERTED by the caller (see REVIEWER_ROLES).
         "reviewer_session": _session_id(session_id),
+        "reviewer_role": _role(reviewer_role),
         "recorded_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
     record.update(load_ops_summary(ops_path))
@@ -954,7 +978,41 @@ def load_author(slug: str) -> str:
     return session if isinstance(session, str) and session else "unknown"
 
 
-def record_author(ops, session_id=None) -> int:
+def _role(explicit=None) -> str:
+    """The agent role the CALLER asserts, normalised. Never invented.
+
+    Explicit flag, then $CLAUDEKIT_AGENT_ROLE, then "unknown". "unknown" is a correct
+    answer and never refuses anything: a gate that blocked on missing data would brick
+    every record written before roles existed.
+    """
+    raw = (explicit or os.environ.get("CLAUDEKIT_AGENT_ROLE") or "").strip().lower()
+    if not raw:
+        return "unknown"
+    if not _ROLE_RE.match(raw):
+        print("NOTE: ignoring a role that is not a plain slug (%r); recorded as "
+              "unknown." % raw[:24], file=sys.stderr)
+        return "unknown"
+    return raw
+
+
+def load_author_role(slug: str) -> str:
+    """The recorded author ROLE for `slug`, or "unknown".
+
+    Absent, unreadable and unrecorded all collapse to "unknown", exactly as in
+    load_author, and "unknown" never blocks.
+    """
+    path = author_path(slug)
+    if not path.exists():
+        return "unknown"
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        role = data.get("role") if isinstance(data, dict) else None
+    except Exception:
+        return "unknown"
+    return role if isinstance(role, str) and role else "unknown"
+
+
+def record_author(ops, session_id=None, role=None) -> int:
     """Record the identity that authored/stamped this ops.json. Never fails a caller.
 
     FIRST KNOWN AUTHOR WINS. A re-stamp is the same author re-running the same step, so
@@ -972,6 +1030,7 @@ def record_author(ops, session_id=None) -> int:
     path.parent.mkdir(parents=True, exist_ok=True)
 
     session = _session_id(session_id)
+    asserted_role = _role(role)
     existing = load_author(slug)
     if existing != "unknown":
         if existing != session:
@@ -982,25 +1041,31 @@ def record_author(ops, session_id=None) -> int:
     record = {
         "slug": slug,
         "ops_path": os.path.relpath(str(ops_path)),
+        # PROVENANCE ONLY. No gate compares sessions any more: one pipeline is
+        # one session, so this can never distinguish an author from a reviewer.
         "session": session,
+        # The identity the gate reads. Asserted by the caller, never observed.
+        "role": asserted_role,
         "prompt_version": _prompt_version(),
         "recorded_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
     if not _safe_write(path, json.dumps(record, indent=2) + "\n"):
         return 1
-    if session == "unknown":
-        # Announced, never silent: an unresolved author means the author != reviewer
-        # gate cannot bind for this config, and that is a fact the operator should
-        # learn now rather than infer from a check that quietly passes.
-        print(f"NOTE: authorship recorded for '{slug}' with session UNKNOWN; the "
+    if asserted_role == "unknown":
+        # Announced, never silent: an unasserted author role means the author !=
+        # reviewer gate cannot bind for this config, and that is a fact the operator
+        # should learn now rather than infer from a check that quietly passes.
+        print(f"NOTE: authorship recorded for '{slug}' with role UNKNOWN; the "
               "author != reviewer gate will not bind for this config.", file=sys.stderr)
     else:
-        print(f"Authorship recorded for {slug}: session {session[:8]}...")
+        print(f"Authorship recorded for {slug}: role {asserted_role} "
+              f"(session {session[:8]}...)")
     return 0
 
 
 def cmd_author(args) -> int:
-    return record_author(args.ops, getattr(args, "session_id", None))
+    return record_author(args.ops, getattr(args, "session_id", None),
+                         getattr(args, "author_role", None))
 
 
 def cmd_check(args) -> int:
@@ -1060,32 +1125,38 @@ def cmd_check(args) -> int:
         print("              Address the findings and re-run /review.", file=sys.stderr)
         return 4
 
-    # Author != reviewer, enforced here rather than by prompt. CLAUDE.md's review floor
-    # ("fresh code-reviewer instance, never the author") was prompt-only, and the quality
-    # gates section conceded it. This is the mechanical half.
+    # Author != reviewer, over the ATTESTED role. CLAUDE.md's review floor ("fresh
+    # code-reviewer instance, never the author") is a claim about roles, and the role
+    # is what the caller can state. It is NOT enforcement: nothing observes which
+    # agent produced the verdict text, so a caller may assert a role it does not
+    # have. It closes the accidental self-review and records provenance; it does not
+    # stop a deliberate one. Do not describe it as enforcement anywhere.
     #
-    # It binds ONLY on a proven match: two resolvable identities that are equal. Two
-    # "unknown"s are not a match -- nothing exports the session env vars today, so
-    # treating unknown as equal would refuse nearly every execution in this repo,
-    # including this repo's own pipeline. Ordering matters too: this sits AFTER the drift
-    # and threshold checks so a drifted or rejecting verdict still reports its own cause,
-    # which is what keeps the executor's remedies distinct.
-    author = load_author(slug)
-    reviewer = record.get("reviewer_session")
-    if not isinstance(reviewer, str) or not reviewer:
-        reviewer = "unknown"
-    if author != "unknown" and reviewer != "unknown" and author == reviewer:
-        print("SELF-REVIEW: the recorded verdict came from the session that authored "
-              "this ops.json.", file=sys.stderr)
-        print(f"             session: {author}", file=sys.stderr)
-        print("             A review by its own author is not a review. Have a fresh "
-              "code-reviewer", file=sys.stderr)
-        print("             instance score this config and record that verdict, then "
-              "retry.", file=sys.stderr)
+    # It refuses only on a POSITIVE assertion. An unasserted role is "unknown" and
+    # passes -- every record written before roles existed reads that way, and
+    # refusing them would brick already-approved work for no new information.
+    # Ordering matters too: this sits AFTER the drift and threshold checks so a
+    # drifted or rejecting verdict still reports its own cause, which is what keeps
+    # the executor's remedies distinct.
+    author_role = load_author_role(slug)
+    reviewer_role = record.get("reviewer_role")
+    if not isinstance(reviewer_role, str) or not reviewer_role:
+        reviewer_role = "unknown"
+    if reviewer_role == "unknown":
+        print(f"NOTE: author role={author_role} reviewer role=unknown -- the author "
+              "!= reviewer gate did not bind for this config.", file=sys.stderr)
+    elif reviewer_role not in REVIEWER_ROLES or reviewer_role == author_role:
+        print("SELF-REVIEW: the recorded verdict is attested to a role that does "
+              "not authorise execution.", file=sys.stderr)
+        print(f"             author role: {author_role}   reviewer role: "
+              f"{reviewer_role}", file=sys.stderr)
+        print("             A verdict authorises only when it is attested to one "
+              "of: " + ", ".join(REVIEWER_ROLES) + ",", file=sys.stderr)
+        print("             and to a different role than the author's. Have a "
+              "fresh reviewer/code-reviewer", file=sys.stderr)
+        print("             instance score this config, record that verdict with "
+              "--reviewer-role, then retry.", file=sys.stderr)
         return SELF_REVIEW_EXIT
-    if author == "unknown" or reviewer == "unknown":
-        print(f"NOTE: author={author[:8]} reviewer={reviewer[:8]} -- the author != "
-              "reviewer gate did not bind for this config.", file=sys.stderr)
 
     print(f"OK: ops.json matches the reviewed artifact ({decision} {score}).")
     return 0
@@ -1693,6 +1764,10 @@ def main() -> int:
     w.add_argument("--decision", choices=VALID_DECISIONS)
     w.add_argument("--session-id", dest="session_id", default=None,
                    help="Session UUID for the rejection brief (default: $CLAUDE_SESSION_ID)")
+    w.add_argument("--reviewer-role", dest="reviewer_role", default=None,
+                   help="Agent role this verdict is attested to (e.g. reviewer, "
+                        "code-reviewer). ASSERTED by the caller, never observed; "
+                        "omitted means the author != reviewer gate does not bind")
     w.add_argument("--verdict-origin", dest="verdict_origin",
                    choices=("rubric", "gate-token"), default="rubric",
                    help="How the score was arrived at: judged against the rubric, or "
@@ -1723,8 +1798,11 @@ def main() -> int:
                             "(first known author wins)")
     a.add_argument("ops")
     a.add_argument("--session-id", dest="session_id", default=None,
-                   help="Session UUID of the author (default: "
+                   help="Session UUID of the author (provenance only; default: "
                         "$CLAUDE_SESSION_ID, else the SessionStart pointer)")
+    a.add_argument("--author-role", dest="author_role", default=None,
+                   help="Agent role that authored/stamped this ops.json "
+                        "(default: $CLAUDEKIT_AGENT_ROLE, else unknown)")
     a.set_defaults(func=cmd_author)
 
 

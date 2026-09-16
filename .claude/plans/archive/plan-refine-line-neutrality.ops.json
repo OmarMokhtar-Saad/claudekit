@@ -1,0 +1,28 @@
+{
+  "plan": "refine-line-neutrality",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/commands/refine.md",
+      "description": "Fold four exit-condition comments onto their IF lines, restoring refine.md to its 466-line budget without moving the baseline",
+      "edits": [
+        {
+          "find": "# Exit condition 1: approved\nIF decision == \"APPROVED\" AND last_score >= 90 AND critical_major_count == 0:",
+          "replace": "IF decision == \"APPROVED\" AND last_score >= 90 AND critical_major_count == 0:  # exit 1: approved"
+        },
+        {
+          "find": "# Exit condition 2: iteration cap reached\nIF iteration >= MAX_ITER:",
+          "replace": "IF iteration >= MAX_ITER:  # exit 2: iteration cap reached"
+        },
+        {
+          "find": "# Exit condition 3: fundamental rejection (not fixable by iteration)\nIF decision == \"REJECTED\" AND iteration >= 3:",
+          "replace": "IF decision == \"REJECTED\" AND iteration >= 3:  # exit 3: fundamental rejection, not fixable by iteration"
+        },
+        {
+          "find": "# Exit condition 4: stagnation — another planner round cannot buy a higher score\nIF iteration >= 2 AND last_score <= iteration_history[-2].score:",
+          "replace": "IF iteration >= 2 AND last_score <= iteration_history[-2].score:  # exit 4: stagnation, another round cannot buy a higher score"
+        }
+      ]
+    }
+  ]
+}
