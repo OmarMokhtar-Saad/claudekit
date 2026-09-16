@@ -24,11 +24,11 @@ index never outranks the current files.
 |---|---:|
 | `drifted` | 12 |
 | `approved` | 54 |
-| `planned` | 17 |
+| `planned` | 18 |
 | `executed` | 30 |
 | `not_started` | 24 |
 | `legacy` | 5 |
-| **total** | **142** |
+| **total** | **143** |
 
 ## Plans
 
@@ -95,6 +95,7 @@ index never outranks the current files.
 | `.claude/plans/plan-iron-law-enforcement-hook.md` | `approved` | 1 |  |
 | `.claude/plans/plan-iron-law-scope-and-hook-count.md` | `approved` | 1 |  |
 | `.claude/plans/plan-issue-ledger.md` | `approved` | 1 |  |
+| `.claude/plans/plan-learning-loop-v2.md` | `planned` | 1 |  |
 | `.claude/plans/plan-legacy-install-lifecycle.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-mcp-probe-addendum.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-memory-maturity.md` | `planned` | 1 |  |
@@ -153,7 +154,7 @@ index never outranks the current files.
 | `.claude/plans/plan-shellcheck-version-drift.md` | `planned` | 1 |  |
 | `.claude/plans/plan-silent-failure-lint.md` | `approved` | 1 |  |
 | `.claude/plans/plan-skill-fit-2.md` | `approved` | 2 |  |
-| `.claude/plans/plan-skill-fit.md` | `drifted` | 7 |  |
+| `.claude/plans/plan-skill-fit.md` | `drifted` | 8 |  |
 | `.claude/plans/plan-skill-loading-contract.md` | `approved` | 1 |  |
 | `.claude/plans/plan-task-014-supply-chain-hardening.md` | `planned` | 1 |  |
 | `.claude/plans/plan-token-dash.md` | `executed` | 6 |  |

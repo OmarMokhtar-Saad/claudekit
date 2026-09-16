@@ -151,6 +151,24 @@ class TestAudit:
         assert report["stacks"] == ["java"]
         assert by_name(report)["java-review-checklist"]["status"] == "relevant"
 
+    def test_kit_backups_and_operations_at_the_root_are_not_source(self, tmp_path):
+        """AppiumLens fleet run: 61 .kts under backups/ and 23 .py under operations/
+        made a Java project report kotlin and python."""
+        root = tmp_path / "proj"
+        write_skill(root, "java-review-checklist", "Use when the diff has .java files")
+        for rel, ext in (("backups/b1", "kts"), ("operations/scripts", "py"),
+                         ("out/production", "kt")):
+            d = root / rel
+            d.mkdir(parents=True)
+            for i in range(25):
+                (d / f"f{i}.{ext}").write_text("x\n", encoding="utf-8")
+        assert audit_json(root)["stacks"] == []
+        pkg = root / "src" / "operations"
+        pkg.mkdir(parents=True)
+        for i in range(20):
+            (pkg / f"m{i}.py").write_text("x = 1\n", encoding="utf-8")
+        assert audit_json(root)["stacks"] == ["python"]
+
     def test_an_undetected_stack_never_makes_a_skill_irrelevant(self, tmp_path):
         root = tmp_path / "bare"
         write_skill(root, "java-review-checklist", "Use when the diff has .java files")
