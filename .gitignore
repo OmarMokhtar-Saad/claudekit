@@ -47,6 +47,8 @@ backups/
 
 # Local, per-developer Claude Code overrides (never shipped)
 .claude/settings.local.json
+# `ck skill apply`'s record of the overrides it wrote into settings.local.json
+.claude/skills-applied.json
 
 # Per-session lock files (concurrent-session detection; runtime state)
 .claude/locks/

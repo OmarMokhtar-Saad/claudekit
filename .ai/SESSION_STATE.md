@@ -1,6 +1,20 @@
 # Session State
 
 > Update this file at the end of every significant AI working session. It is the resume point.
+**2026-09-13 · Claude (Opus 5) — `feat/skill-profiles`, merged as PR #42 (`c040ab5`).**
+Per-project skill fit. `ck skill audit` (stack detection, token cost, relevant /
+irrelevant / broken), `profile init` (project-owned `.claude/skills-profile.json`,
+preserved by install/update/fleet sync), `card [--publish]` to a user-level registry
+(`~/.claudekit/registry/cards/`), `match` (Jaccard; text-derived tags only; language-only
+overlap dropped unless `--include-language-only`), `apply [--restore]` (enforces `disabled`
+via Claude Code `skillOverrides` in `settings.local.json`, docs verified via context7;
+protected skills refuse the whole profile), doctor checks. Reviews: 94; 2-A 93; 2-B REJECT
+87 -> 91. Fleet: all 14 ops-script repos audited, cards published, `apply` hides 1-3
+checklists (~54-154 always-on tokens each), profile committed (one commit per repo).
+**Open:** fleet runs the feature only via editable install of main (`.ck-main` holds an
+unpushed local merge from another session); `.claude/skills-applied.json` is not
+gitignored; ~22 skills per project exceed the body budget (the real token cost).
+
 **2026-09-13 · Claude (Opus 5) — `feat/action-first-mode`, merged to local main `7259c19`.**
 Owner asked to adopt ideas from ayghri/i-have-adhd (MIT) across the kit and fleet. Shipped
 original-wording `action-first` mode (`/mode action-first`), `Next action:` lines in

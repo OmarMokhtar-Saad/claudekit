@@ -86,7 +86,11 @@ _EXT_STACK = {
     ".rs": "rust",
     ".go": "go",
 }
-_SCAN_SKIP_DIRS = {"node_modules", "build", "dist", "target", "venv", "__pycache__"}
+_SCAN_SKIP_DIRS = {"node_modules", "build", "dist", "out", "target", "venv", "__pycache__"}
+#: ClaudeKit's own trees at a project root: executor backups and ops configs. They hold
+#: copies of kit scripts and old build files, not the project's source. Skipped only at
+#: the root, so a real `src/operations/` package still counts.
+_ROOT_SKIP_DIRS = {"backups", "operations"}
 
 #: Kit skills that only earn their cost on one stack. Everything else in the kit is
 #: stack-neutral. A project's own skill declares its stacks in frontmatter
@@ -194,6 +198,8 @@ def _walk_sources(root: Path) -> Iterator[Path]:
                 continue
             if entry.is_dir():
                 if entry.name.startswith(".") or entry.name in _SCAN_SKIP_DIRS:
+                    continue
+                if current == root and entry.name in _ROOT_SKIP_DIRS:
                     continue
                 stack.append(entry)
             elif entry.is_file():

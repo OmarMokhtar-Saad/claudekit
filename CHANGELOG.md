@@ -28,6 +28,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   entries plus one `MEMORY OVER BUDGET` line naming
   `knowledge-ledger.py consolidate --agent <agent>`, which reports which index lines to
   merge and never rewrites the file itself.
+- **`ck skill audit` stack detection ignores ClaudeKit's own trees.** Root-level
+  `backups/` and `operations/`, and `out/` anywhere, no longer count as source, so a Java
+  project is no longer reported as Kotlin and Python because of backed-up build scripts
+  and ops tooling.
+- **Install ignores `.claude/skills-applied.json`.** The record `ck skill apply` keeps of
+  the overrides it wrote is local state, like `settings.local.json`, and is no longer
+  left untracked for someone to commit.
 - **`ck skill match` ignores language-only overlap.** A card that shares only a base
   language with the project is no longer suggested (`--include-language-only` keeps it).
 - **`ck skill card` / `match` -- less noise.** Cards and matching now use only the
