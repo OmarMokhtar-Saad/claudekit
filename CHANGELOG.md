@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `open-source-forker` — never shipped and have been removed.
 
 ## [Unreleased]
+- **An ops payload can live in its own file.** `file_create` accepts `content_path`, and an
+  edit accepts `replace_path` / `add_after_path` / `add_before_path`, each with a MANDATORY
+  `<key>_sha256`, so a planner writes a large body once instead of re-emitting it inside
+  ops.json. The digest is required because review approval is stamped over the hash of
+  ops.json alone — carrying it inside the config keeps a payload that lives outside the
+  config under the same gate. References resolve inside the project root only (symlinks
+  followed), must be regular UTF-8 files under 2 MiB, and are mutually exclusive with the
+  inline key; everything downstream (guards, backups, rollback) is byte-identical to inline.
 - **`ck fleet` syncs the whole fleet with one command.** `ck fleet list|diff|update|verify`
   discovers every kitted project directly under a root by its install manifest (never a
   hardcoded list), reuses `ck update` per project so backups and local-edit preservation are

@@ -94,7 +94,7 @@ Write ops.json using ONLY the canonical types below. Any other type will be reje
 
 | Type | Required fields | Optional fields |
 |---|---|---|
-| `file_create` | `path`, `content` | `id`, `description` |
+| `file_create` | `path`, `content` *(or `content_path` + `content_sha256`)* | `id`, `description` |
 | `file_delete` | `path`, `reason` (min 10 chars) | `id`, `description` |
 | `code_edit` | `path`, `edits` (array) | `id`, `description` |
 
@@ -113,6 +113,38 @@ Each entry in `edits` requires `find` plus exactly one of:
 | `replace` | Replace the found pattern with new content |
 | `delete: true` | Remove the found pattern |
 
+#### Payload by reference — write a large body ONCE
+
+A payload over ~2 KB or ~40 lines does not belong inline in ops.json. Write it once with
+the Write tool to `.Codex/plans/payloads/<plan>/<name>` and reference it:
+
+| Inline key | Reference keys (both required) |
+|---|---|
+| `content` (file_create) | `content_path` + `content_sha256` |
+| `replace` | `replace_path` + `replace_sha256` |
+| `add_after` | `add_after_path` + `add_after_sha256` |
+| `add_before` | `add_before_path` + `add_before_sha256` |
+
+Rules (all fail closed, in the validator AND the executor):
+
+- The inline key and its `_path` form are **mutually exclusive** — exactly one.
+- `<key>_sha256` is **mandatory** (`shasum -a 256 <file>`): review approval hashes ops.json
+  only, so the digest is what keeps a payload living outside it under the approval gate.
+- The path is relative and must resolve INSIDE the project root after symlinks (max 2 MiB,
+  regular file, valid UTF-8, no null bytes).
+- Modern `operations` format only; payload files stay tracked in git — the executor reads
+  them and never deletes them.
+
+```jsonc
+// fragment -- one operation inside the usual {"plan": ..., "operations": [...]} wrapper
+{
+  "type": "file_create",
+  "path": "src/generated/big_module.py",
+  "content_path": ".Codex/plans/payloads/my-plan/big_module.py",
+  "content_sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+}
+```
+
 #### Hard limits enforced by the executor
 
 - `path` must be relative and inside the project directory
@@ -126,6 +158,7 @@ After creating ops.json, verify:
 - [ ] All operation types are exactly `file_create`, `file_delete`, or `code_edit`
 - [ ] All paths use `path` key — NOT `target`
 - [ ] Every `file_create` has a non-empty `content` field with full file text
+- [ ] Any payload over ~2 KB or ~40 lines is referenced by `<key>_path` + `<key>_sha256`, never inlined twice
 - [ ] Every `file_delete` has a `reason` field of at least 10 characters
 - [ ] Every `code_edit` has an `edits` array where each item has `find` + one action key
 - [ ] `find` strings are copied verbatim from the Read tool output (exact whitespace)

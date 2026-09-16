@@ -25,7 +25,13 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from shared import __version__, allowed_run_commands, is_protected_file, protected_patterns
+from shared import (
+    __version__,
+    allowed_run_commands,
+    is_protected_file,
+    protected_patterns,
+    resolve_payload_refs,
+)
 
 try:
     from jsonschema import SchemaError, ValidationError, validate
@@ -321,6 +327,11 @@ def project_configs(config_paths: List[str]) -> Tuple[Dict[str, str], List[str]]
         except (OSError, ValueError) as exc:
             problems.append(f"--after {config_path}: cannot read ({exc})")
             continue
+        # Same contract as every other failure in this loop: reported, never fatal,
+        # never silent -- a swallowed payload error would make an --after diff
+        # look wrong with no clue why.
+        problems.extend(f"--after {config_path}: {err}"
+                        for err in resolve_payload_refs(cfg))
         operations = cfg.get('operations') or cfg.get('files') or []
         for op in operations:
             if not isinstance(op, dict):
@@ -535,6 +546,14 @@ def validate_json_config(config_file: str) -> Tuple[bool, List[str]]:
             if not schema_valid:
                 errors.extend(schema_errors)
                 return False, errors
+
+        # Payload references (<key>_path) are materialised into their inline key
+        # BEFORE any other guard runs, so every downstream check measures exactly
+        # what the executor will write. Fail closed: a reference that cannot be
+        # resolved ends validation here.
+        payload_errors = resolve_payload_refs(config)
+        if payload_errors:
+            return False, payload_errors
 
         config_format = detect_config_format(config)
 

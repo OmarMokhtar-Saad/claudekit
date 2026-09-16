@@ -24,9 +24,9 @@ index never outranks the current files.
 |---|---:|
 | `drifted` | 12 |
 | `approved` | 54 |
-| `planned` | 20 |
+| `planned` | 19 |
 | `executed` | 30 |
-| `not_started` | 24 |
+| `not_started` | 25 |
 | `legacy` | 5 |
 | **total** | **145** |
 
@@ -106,7 +106,7 @@ index never outranks the current files.
 | `.claude/plans/plan-omniroute-adoption.md` | `executed` | 1 |  |
 | `.claude/plans/plan-open-issues.md` | `approved` | 1 |  |
 | `.claude/plans/plan-ops-approval-gate.md` | `approved` | 1 |  |
-| `.claude/plans/plan-ops-content-by-path.md` | `planned` | 1 |  |
+| `.claude/plans/plan-ops-content-by-path.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-ops-engine-file-modes.md` | `approved` | 1 |  |
 | `.claude/plans/plan-ops-hardening-implementer-contract.md` | `planned` | 1 |  |
 | `.claude/plans/plan-oracle-liveness.md` | `not_started` | 0 |  |
