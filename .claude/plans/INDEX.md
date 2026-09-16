@@ -23,12 +23,12 @@ index never outranks the current files.
 | State | Plans |
 |---|---:|
 | `drifted` | 12 |
-| `approved` | 53 |
-| `planned` | 16 |
+| `approved` | 54 |
+| `planned` | 17 |
 | `executed` | 30 |
 | `not_started` | 24 |
 | `legacy` | 5 |
-| **total** | **140** |
+| **total** | **142** |
 
 ## Plans
 
@@ -111,6 +111,7 @@ index never outranks the current files.
 | `.claude/plans/plan-parse-gate-fold-invariance.md` | `drifted` | 9 |  |
 | `.claude/plans/plan-parse-gate-ordering.md` | `drifted` | 2 |  |
 | `.claude/plans/plan-parse-gate-unresolved-paths.md` | `drifted` | 2 |  |
+| `.claude/plans/plan-planner-token-budget.md` | `planned` | 1 |  |
 | `.claude/plans/plan-preserve-dir-symlinks.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-preserve-fault-tolerance.md` | `drifted` | 6 |  |
 | `.claude/plans/plan-protected-docs-scope.md` | `approved` | 1 |  |
@@ -145,6 +146,7 @@ index never outranks the current files.
 | `.claude/plans/plan-round-4-derived-corpus.md` | `executed` | 0 |  |
 | `.claude/plans/plan-round-5-sixth-axis.md` | `executed` | 12 |  |
 | `.claude/plans/plan-run-command-op.md` | `not_started` | 0 |  |
+| `.claude/plans/plan-runtime-review-gate-and-config-healing.md` | `approved` | 1 |  |
 | `.claude/plans/plan-scanner-coverage.md` | `executed` | 8 |  |
 | `.claude/plans/plan-session-close-fix.md` | `executed` | 2 |  |
 | `.claude/plans/plan-session-close.md` | `executed` | 4 |  |

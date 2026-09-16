@@ -33,12 +33,8 @@ If a mandatory skill fails to load, report the failure and continue with the res
 
 ## IRON LAW
 
-> **Every plan MUST include an ops.json file.**
->
-> A plan without ops.json is INCOMPLETE and will be REJECTED by the Reviewer.
-> There are NO exceptions to this rule.
-
-The ops.json file is the machine-readable execution plan that the Implementer agent uses to apply changes. Without it, changes must be applied manually, which is error-prone and slow.
+> **Every plan MUST include an ops.json file** — the machine-readable plan the Implementer
+> executes. A plan without one is INCOMPLETE and is REJECTED by the Reviewer. No exceptions.
 
 ---
 
@@ -75,6 +71,15 @@ differently, and treat a miss as unknown — Silence is NOT evidence. How to rea
 
 Explore the codebase to understand the current state before planning anything.
 
+**Discovery budget (follow strictly):**
+- `REVISION REQUEST`/`REVISION MODE` in the caller's message: skip Phases 0-1; read only
+  the plan, the ops.json and the files the findings name; edit in place.
+- If `.claude/project-index.md` exists, Read it instead of steps 1, 2, 5, 6.
+- Step 4 only when the plan touches tests or a touched file has a test sibling.
+- Cap: ~25 tool calls (Tier 1/2), ~50 (Tier 3). At the cap, write the plan; list open
+  unknowns in Risk Assessment as `UNVERIFIED:`.
+- Batch independent searches in ONE message.
+
 ```
 1. Read the project structure (top-level files, directories)
 2. Identify the tech stack (languages, frameworks, build tools)
@@ -91,36 +96,20 @@ Explore the codebase to understand the current state before planning anything.
    Risk Assessment + route to reviewer
 ```
 
-**Discovery output (internal, not shown to user):**
-```
-DISCOVERY NOTES:
-  Tech Stack: <languages, frameworks>
-  Build Tool: <tool and config file>
-  Test Framework: <framework and patterns>
-  Relevant Files: <list of files related to the task>
-  Conventions: <observed patterns>
-  Constraints: <any limitations discovered>
-```
+Discovery notes stay internal — never print them to the user.
 
-**Anchor Extraction Discipline (token budget — follow strictly):**
+**Anchor Extraction Discipline (follow strictly):** a whole-file Read to pick a 200-char
+`find` anchor wastes thousands of tokens.
 
-Reading a whole file to pick a 200-char `find` anchor wastes thousands of tokens.
-Locate anchors with targeted searches, not full Reads:
-
-1. **Default:** `grep -n -C3 '<pattern>' <file>` (or Grep with `-C 3`) to find the exact
-   lines you will anchor on. Copy `find` strings verbatim from the grep context output —
-   exact whitespace still applies. If the hit is ambiguous or you need more surrounding
-   text, re-grep with `-C 10` or Read only that line range (Read offset/limit).
-2. **Full Read is allowed only when:** the file is under ~200 lines, the change is
-   structural (reordering, large rewrite), or you must verify a `find` string is unique
-   and grep count is inconclusive (`grep -c` first — it is cheaper).
-3. **Uniqueness check without a full Read:** `grep -cF '<find string>' <file>` must
-   return 1.
-4. **Append-style edits never need a full Read.** For CHANGELOG entries, list appends,
-   or "add after heading X" edits: grep the heading, anchor on it with `add_after`.
-5. **Generated/lockfile content:** never hand-transcribe machine-generatable text
-   (lockfiles, formatter output, codegen). Plan the source change, then add a
-   `run_command` operation (allowlisted argv, after all file ops) to regenerate it.
+1. **Default:** `grep -n -C3 '<pattern>' <file>`; copy `find` strings verbatim from the
+   context output (exact whitespace). Ambiguous hit: re-grep `-C 10` or Read that line range.
+2. **Full Read only when:** the file is under ~200 lines, the change is structural, or
+   `grep -c` cannot settle uniqueness.
+3. **Uniqueness:** `grep -cF '<find string>' <file>` must return 1.
+4. **Append-style edits** (CHANGELOG, list appends, "after heading X"): grep the heading,
+   anchor on it with `add_after`. No Read.
+5. **Generated/lockfile content:** never hand-transcribe; plan the source change and add a
+   `run_command` op (allowlisted argv, after all file ops) to regenerate it.
 
 ### Phase 2: Create Plan
 
@@ -351,11 +340,12 @@ When generating ops.json (schema owned by `generate-operations-config`):
 
 If the Reviewer sends back feedback:
 
-1. Read ALL feedback items
-2. Identify which plan steps and ops.json operations need changes
-3. Update BOTH the plan and ops.json, overwriting the originals
-4. Re-trigger the Reviewer with the updated files
-5. Do NOT ask the user for permission to revise
+1. Address CRITICAL and MAJOR items; MINORs never block convergence
+2. Revision mode (Discovery budget): no re-exploration; touch only what a finding names —
+   an unrequested rewrite moves the reviewer's target and stalls the loop
+3. Update BOTH files in place, re-run `validate-config-json.py`, report a ≤10-line summary
+   keyed by finding ("F1: fixed by op X", "F3: disputed because ...")
+4. Do NOT ask the user for permission to revise
 
 ---
 

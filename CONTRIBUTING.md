@@ -46,6 +46,13 @@ adds the opt-in guards). The setting takes effect at the next session start. The
 behavioral tests (`tests/test_hooks_behavioral.py`) set the profile per-subprocess, so they
 verify blocking regardless of your session profile.
 
+Since the auto-healing change, this file repairs itself: session start recreates it
+when it is missing and moves a malformed one aside before restoring the default.
+It never overwrites a file that already sets `ECC_HOOK_PROFILE`, so a deliberate
+`standard`/`strict` choice survives, and healing is gated to this repository -- it
+does nothing in a project installed from the kit. The block above remains the
+manual fallback.
+
 ### Adding a New Skill
 
 1. Create a directory under `.claude/skills/your-skill-name/`

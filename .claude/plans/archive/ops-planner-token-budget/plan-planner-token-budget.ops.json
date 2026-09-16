@@ -1,0 +1,77 @@
+{
+  "plan": "planner-token-budget",
+  "operations": [
+    {
+      "type": "code_edit",
+      "id": "planner-discovery-budget",
+      "description": "Bound Phase 1: reuse the project index when present, read tests only when the plan touches tests, cap discovery tool calls, and skip discovery entirely on a revision.",
+      "path": ".claude/agents/planner.md",
+      "edits": [
+        {
+          "find": "Explore the codebase to understand the current state before planning anything.\n",
+          "replace": "Explore the codebase to understand the current state before planning anything.\n\n**Discovery budget (token cost lives here — follow strictly):**\n\n- **Revision mode:** if the caller's message contains `REVISION REQUEST` or `REVISION MODE`,\n  skip Phase 0 and Phase 1 entirely. Read only the plan, the ops.json, and the exact files\n  the findings name; edit both files in place. A revision that re-explores the repo is a\n  defect, not diligence.\n- **Index first:** if `.claude/project-index.md` exists, Read it in place of steps 1, 2, 5\n  and 6 below — it already records structure, stack, tooling and conventions. Re-derive\n  only what the index does not cover for the files you will touch.\n- **Tests on demand:** run step 4 only when the plan adds or changes tests, or when a\n  touched file has a test sibling you must not break.\n- **Call cap:** Tier 1/2 discovery ends after ~25 tool calls; Tier 3 after ~50. When the cap\n  hits, write the plan with what you have and list every open unknown under Risk\n  Assessment as `UNVERIFIED:` — the reviewer refutes those first. Do not keep exploring.\n- **Batch:** fire independent Read/Grep/Glob calls in ONE message, never serially.\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "id": "planner-revision-mode",
+      "description": "Revision feedback is handled as a bounded delta, not a second full planning pass.",
+      "path": ".claude/agents/planner.md",
+      "edits": [
+        {
+          "find": "1. Read ALL feedback items\n2. Identify which plan steps and ops.json operations need changes\n3. Update BOTH the plan and ops.json\n4. Re-save both files (overwrite the originals)\n5. Re-trigger the Reviewer with the updated files\n6. Do NOT ask the user for permission to revise",
+          "replace": "1. Read ALL feedback items — CRITICAL and MAJOR only; MINORs never block convergence\n2. Skip Phase 0 and Phase 1 (see \"Discovery budget\": revision mode). Read only the plan,\n   the ops.json, and the files each finding names\n3. Identify which plan steps and ops.json operations need changes; touch nothing else —\n   an unrequested rewrite moves the reviewer's target and stalls the refine loop\n4. Update BOTH files in place, re-run `validate-config-json.py`, and report a ≤10-line\n   change summary keyed by finding (\"F1: fixed by op X\", \"F3: disputed because ...\")\n5. Re-trigger the Reviewer with the updated files\n6. Do NOT ask the user for permission to revise"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "id": "refine-cmd",
+      "description": "Refine: default ceiling 3 rounds (CLAUDE.md review floor), revision prompts declare REVISION MODE, and a stagnating score exits instead of burning rounds. Model literals unchanged (owner keeps opus).",
+      "path": ".claude/commands/refine.md",
+      "edits": [
+        {
+          "find": "MAX_ITER=5\n",
+          "replace": "MAX_ITER=3    # CLAUDE.md review ceiling; raise only with --max-iter\n"
+        },
+        {
+          "find": "- Iteration 2+: \"Revise the plan at `<PLAN_FILE>` (ops config at `<OPS_FILE>`) for: `<TASK>`.\n  Iteration `<N>`/`<MAX_ITER>`.",
+          "replace": "- Iteration 2+: \"REVISION MODE — skip discovery. Revise the plan at `<PLAN_FILE>` (ops config\n  at `<OPS_FILE>`) for: `<TASK>`. Iteration `<N>`/`<MAX_ITER>`."
+        },
+        {
+          "find": "REVISION REQUEST — Iteration <N>/<MAX_ITER>\nThe reviewer scored",
+          "replace": "REVISION REQUEST (REVISION MODE — skip discovery) — Iteration <N>/<MAX_ITER>\nThe reviewer scored"
+        },
+        {
+          "find": "# Exit condition 3: fundamental rejection (not fixable by iteration)\nIF decision == \"REJECTED\" AND iteration >= 3:\n    → EXIT LOOP with status = ESCALATED (repeated fundamental rejection)\n",
+          "replace": "# Exit condition 3: fundamental rejection (not fixable by iteration)\nIF decision == \"REJECTED\" AND iteration >= 3:\n    → EXIT LOOP with status = ESCALATED (repeated fundamental rejection)\n\n# Exit condition 4: stagnation — another planner round cannot buy a higher score\nIF iteration >= 2 AND last_score <= iteration_history[-2].score:\n    → EXIT LOOP with status = ESCALATED (score did not improve; findings need a human)\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "id": "reviewer-budget",
+      "description": "Reviewer refutes anchors with grep counts instead of whole-file Reads and caps its own exploration so the review costs less than the plan.",
+      "path": ".claude/agents/reviewer.md",
+      "edits": [
+        {
+          "find": "prose). A plan claim contradicted by the filesystem is a CRITICAL finding. Ask explicitly:\nwhat repo state or edge case makes this ops.json fail on execution?\n",
+          "replace": "prose). A plan claim contradicted by the filesystem is a CRITICAL finding. Ask explicitly:\nwhat repo state or edge case makes this ops.json fail on execution?\n\n**Refutation budget:** check an anchor with `grep -cF '<find>' <path>` (must be 1) or a\n`-C 5` Grep around it — never Read a whole target file to confirm one anchor. Read at\nmost 3 target files in full, chosen by risk (security surface, deletions, the largest\nop). Findings the budget did not let you verify go under `FOLLOW_UPS:`, never into\nCRITICAL_MAJOR_COUNT. A review that costs more tokens than the plan it scores has\nbecome a second planning pass.\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "id": "changelog",
+      "description": "User-visible: planner cost drop.",
+      "path": "CHANGELOG.md",
+      "edits": [
+        {
+          "find": "## [Unreleased]\n",
+          "add_after": "- **Planner and refine loops are bounded.** The planner stays on the most-capable tier\n  (owner decision: a weaker planner costs more rounds than it saves). Its discovery phase\n  reuses `.claude/project-index.md` when present, reads tests only when the plan touches\n  tests, stops after a tool-call cap and records the rest as `UNVERIFIED:` risks, and skips\n  discovery entirely on a revision. `/refine` defaults to 3 rounds instead of 5, tells the\n  planner it is in revision mode, and exits when a round fails to raise the score. The\n  reviewer refutes anchors with grep counts instead of whole-file reads.\n"
+        }
+      ]
+    }
+  ]
+}

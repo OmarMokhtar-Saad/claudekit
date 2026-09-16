@@ -13,6 +13,24 @@ artifacts, corpus lint, 247 targeted tests. Traps hit: the editable install reso
 `.ck-main`, so run worktree CLI checks with `PYTHONPATH=src`; committing plan files flips
 their INDEX status (regen after commit); another session reverted fleet `mode.md` mid-run.
 Follow-ups: full suite on merged main, push (owner), optional code review of the merge.
+## 2026-09-16 — planner/refine cost: bounded discovery, not a cheaper model
+
+Owner asked why `/plan` takes up to an hour and 100k+ tokens. Measured drivers: unbounded,
+uncached Phase 1 discovery repeated on every run including revisions; `/refine` default of 5
+rounds with no stagnation exit; reviewer refuting anchors by whole-file Read; planner on the
+most-capable tier. Shipped via `archive/ops-planner-token-budget/` (5 ops, `--no-approval`,
+owner said "do"): planner Discovery budget (REVISION MODE skips Phases 0-1, index-first,
+tests on demand, ~25/~50 call cap with `UNVERIFIED:` risks), revision handling as a bounded
+delta, `/refine` MAX_ITER 3 + exit when the score does not rise + REVISION MODE in both
+prompts, reviewer refutation budget. **Tried and reverted the same session:** planner tier
+most-capable -> balanced. Owner's call: a weaker planner costs more rounds than it saves per
+token; `test_planner_earns_the_most_capable_tier` pins it. Context floor was 17 bytes under
+the pipeline cap before this; fitted by compressing existing planner prose, not by raising
+the cap. Negative finding: the 144 `reflection-gate` parse-failure BLOCKs in hooks.log are
+`tests/test_dispatch_merge.py` feeding `not json` into the shared log, not a runtime bug.
+Not shipped (Tier 3, owner-gated): ops.json `content` by file path for large `file_create`.
+Suite: 1 pre-existing red (`test_queued_ops_configs_validate_against_head`) from two
+untracked configs another session left in `.claude/plans/`; not mine, not moved.
 
 ## 2026-09-13 — agent memory actually accumulates; a shipped data-loss bug; a negative result
 
