@@ -8,7 +8,7 @@ Prompt corpus in `.claude/` + enforcement layer (`src/claudekit/security/`, hook
 
 ## Session setup gotcha (read first)
 
-This repo runs its own enforcement hooks on itself. If Edit/Write is blocked by `ops-enforcement`, the gitignored `.claude/settings.local.json` with `ECC_HOOK_PROFILE=minimal` is missing — restore it (CONTRIBUTING.md). Never bypass hooks another way.
+This repo runs its hooks on itself. If `ops-enforcement` blocks Edit/Write, the gitignored `.claude/settings.local.json` (`ECC_HOOK_PROFILE=minimal`) is missing; session start rebuilds it. Never bypass hooks.
 
 ## Commands
 
@@ -21,6 +21,7 @@ python3 scripts/gen-registry.py --check # registry-drift gate
 python3 scripts/gen-model-policy.py --check # model-policy gate
 python3 scripts/check-context-floor.py --check # context budget (CLAUDE.md counts x4)
 python3 scripts/check-plan-artifacts.py --check # plan names its ops' paths
+python3 scripts/gen-plan-index.py --check # post-commit
 shellcheck install.sh .claude/hooks/*.sh # shell lint
 ck doctor --strict # installed-tree health
 ```

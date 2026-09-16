@@ -1,0 +1,20 @@
+{
+  "plan": "dod-plan-index-fitted",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "CLAUDE.md",
+      "description": "Add gen-plan-index.py --check to the DoD list, paid for by compressing the session-setup gotcha. Its manual-restore instruction is obsolete: heal_local_settings.py rebuilds the file at session start. Net +14 file chars, +56 weighted against 60 of headroom -- fitted rather than raising the floor cap.",
+      "edits": [
+        {
+          "find": "This repo runs its own enforcement hooks on itself. If Edit/Write is blocked by `ops-enforcement`, the gitignored `.claude/settings.local.json` with `ECC_HOOK_PROFILE=minimal` is missing — restore it (CONTRIBUTING.md). Never bypass hooks another way.",
+          "replace": "This repo runs its hooks on itself. If `ops-enforcement` blocks Edit/Write, the gitignored `.claude/settings.local.json` (`ECC_HOOK_PROFILE=minimal`) is missing; session start rebuilds it. Never bypass hooks."
+        },
+        {
+          "find": "python3 scripts/check-plan-artifacts.py --check # plan names its ops' paths",
+          "replace": "python3 scripts/check-plan-artifacts.py --check # plan names its ops' paths\npython3 scripts/gen-plan-index.py --check # post-commit"
+        }
+      ]
+    }
+  ]
+}
