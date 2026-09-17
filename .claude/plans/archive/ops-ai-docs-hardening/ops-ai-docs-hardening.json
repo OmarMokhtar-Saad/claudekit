@@ -1,0 +1,27 @@
+{
+ "plan": "ai-docs-hardening",
+ "operations": [
+  {
+   "type": "code_edit",
+   "path": ".ai/SESSION_STATE.md",
+   "description": "Record the qa-agents hardening session",
+   "edits": [
+    {
+     "find": "> Update this file at the end of every significant AI working session. It is the resume point.",
+     "add_after": "\n**2026-09-17 (later) \u00b7 Claude (Opus 5) \u2014 `fix/qa-agents-hardening`, merged to main `224b46d`, PUSHED.**\nUpstreamed three files qa-agents had hardened in place, ending the fleet exclusion that had\ncost that project three overwritten copies (the fleet preserves *custom* files but overwrites\nkit-owned paths a project edited, so hardening a kit path is invisible to it). `command-guard.sh`\ngains a crash-vs-verdict discriminator and a stdout/stderr split; `execute-json-ops.py` resolves\npaths against the ops.json's git toplevel, audits rollback, and carries a NARROW preflight;\n`worktree-manager.py` refuses to remove a worktree or branch holding commits unmerged into its\nbase; the validator gains `preflight_verdict()`. Suite 11449 -> 11479, zero failures.\n**The session's lesson, and the reason today's review routing changed:** the EXECUTING reviewer\n(`code-reviewer`, which has Bash) rejected round 1 at 60/100 by applying the ops in a scratch\ncopy and measuring the suite on two identical revisions \u2014 the full-config preflight shadowed 29\ntests across 8 files that prove five downstream gates fire through the CLI. A plan reviewer with\nno Bash could not have seen it, and `--skip-validation` on the failures would have restored green\nwhile deleting the coverage. It also caught a mutation control that passed on its own mutant: the\nclaimed mechanism was the rc-2 exclusion, the real one the stdout/stderr split. That is the third\nrecorded instance of a proof naming a mechanism it does not test.\n**Open:** qa-agents must take the kit's `review-record.py`, `shared.py`, `validate-config-json.py`\non a branch and rerun its gate-check harnesses \u2014 owned by that project's own session, not this one;\n`vendorparity` will not apply (the kit ships no vendor dir). The executor's bypass flags still\nannounce on stderr with no audit log (`audit_bypass`, deliberately out of scope).\n"
+    }
+   ]
+  },
+  {
+   "type": "code_edit",
+   "path": ".ai/CHANGELOG_AI.md",
+   "description": "Record the qa-agents hardening session",
+   "edits": [
+    {
+     "find": "Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` \u2014 this file tracks the *work sessions* themselves.)",
+     "add_after": "\n## 2026-09-17 (later) \u2014 qa-agents hardening upstreamed; an executing review earned its keep\n\nOwner approved option 1 from the qa-agents coordinator session: upstream rather than protect.\nThree files merged into the kit, one entry point ported, eight downstream harnesses converted to\npytest. Main `224b46d`, pushed; 13 fleet projects synced, committed and (where a remote works)\npushed.\n\n**What a Bash-less reviewer cannot do.** This morning's `pipeline-session-hygiene` change routed\nTier 3 plans to an execution-capable review. The very next Tier 3 plan proved why. The executing\nreviewer copied the repo twice at the same revision, applied the ops to one, and ran the suite on\nboth: 14 failed before, 43 after. The new executor preflight refused invalid configs so early that\n29 tests proving the parse gate, create-mode refusal, payload-digest check, ambiguous-anchor abort\nand run_command allowlist could no longer reach them. An early refusal is indistinguishable from a\nlate one at the exit code. The fix was to narrow the preflight to schema + backup compatibility \u2014\nwhat nothing downstream repeats \u2014 and a hand-run mutant that widens it again reddens 12 downstream\nproofs, so the narrowing is now pinned rather than remembered.\n\n**A mutation control that passed on its own mutant.** The plan claimed the rc-2 exclusion closed\nthe `ImportError` bypass. The reviewer showed the refusal echoes to stdout while the discriminator\ngreps stderr, so the stdout/stderr split is what closes it. Both conditions are load-bearing in\ndifferent scenarios and each now has a control that dies on its own mutant. Third instance of this\nclass (`e2e-lane-a`, this session's `hook-stdin` round 1, and this) \u2014 the standing fix is to RUN\nevery new test file before issuing a verdict.\n\n**Two gates that bit us twice each today.** `check-plan-artifacts` (a plan must name the paths its\nops write \u2014 a round-2 rewrite dropped two docs paths) and `test_queued_ops_configs_validate_against_head`\n(a spent ops.json must be archived with a README row before the suite is green).\n"
+    }
+   ]
+  }
+ ]
+}
