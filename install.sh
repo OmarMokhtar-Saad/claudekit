@@ -642,6 +642,29 @@ mv "$STAGING" "$FINAL_DEST"
 DEST="$FINAL_DEST"
 trap - ERR   # past the destructive phase; nothing left to clean up
 
+# ---- Backup retention: every install/update leaves a .claude.bak-<ts>; keep the newest N ----
+# Measured 2026-09-17: fleet projects carried 11-27 untracked backup dirs each (2.8 MB+ per
+# repo), none gitignored. Default keeps 3; CLAUDEKIT_KEEP_BACKUPS=all disables pruning.
+KEEP_BACKUPS="${CLAUDEKIT_KEEP_BACKUPS:-3}"
+if [[ "$KEEP_BACKUPS" != "all" && "$KEEP_BACKUPS" =~ ^[0-9]+$ ]]; then
+    PRUNED=0
+    # Timestamped names sort chronologically, newest last. bash 3.2 / BSD-safe: no mapfile,
+    # no `head -n -N`; compute the surplus count and drop the oldest that many.
+    # `|| true`: under `set -o pipefail` an `ls` with no match exits 1 and would abort the
+    # whole install on a first-time target (caught by tests/test_install.py, 15 red).
+    BAK_TOTAL=$( (ls -1d "$TARGET_DIR"/.claude.bak-* 2>/dev/null || true) | wc -l | tr -d ' ')
+    SURPLUS=$((BAK_TOTAL - KEEP_BACKUPS))
+    if [[ $SURPLUS -gt 0 ]]; then
+        while IFS= read -r OLD; do
+            [[ -d "$OLD" ]] || continue
+            rm -rf "$OLD" && PRUNED=$((PRUNED + 1))
+        done < <( (ls -1d "$TARGET_DIR"/.claude.bak-* 2>/dev/null || true) | sort | head -n "$SURPLUS")
+    fi
+    if [[ $PRUNED -gt 0 ]]; then
+        print_ok "Pruned $PRUNED old .claude.bak-* backup(s); kept newest $KEEP_BACKUPS"
+    fi
+fi
+
 # ---- Install manifest (the receipt: what the kit owns, and which commit it came from) ----
 # The manifest is an ownership RECEIPT, not an inventory. `ck uninstall` removes
 # only files whose sha256 still matches, so anything recorded here is something
@@ -763,6 +786,7 @@ ENTRIES=(
     ".claude/locks/"
     ".claude/worktrees/"
     ".claude/skills-applied.json"
+    ".claude.bak-*/"
     ".claude-core.lock"
     "backups/"
     "operations/**/state.json"

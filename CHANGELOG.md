@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `open-source-forker` — never shipped and have been removed.
 
 ## [Unreleased]
+- **Install backups no longer pile up.** Every install and `ck fleet update` moved the previous
+  `.claude` aside as `.claude.bak-<timestamp>` and never cleaned up; fleet projects carried 11-27
+  untracked backup directories each. The installer now keeps the newest 3 (set
+  `CLAUDEKIT_KEEP_BACKUPS=all` to keep every one, or a number) and gitignores `.claude.bak-*/`.
+
 - **Hooks now actually receive their payload, and the learning loop runs under
   `minimal`.** Two measured defects. The PostToolUse audit hook was backgrounded inside
   `bash -c`, and a backgrounded command in a non-interactive shell gets stdin from
