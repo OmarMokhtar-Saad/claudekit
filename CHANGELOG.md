@@ -11,6 +11,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `open-source-forker` — never shipped and have been removed.
 
 ## [Unreleased]
+- **Hooks now actually receive their payload, and the learning loop runs under
+  `minimal`.** Two measured defects. The PostToolUse audit hook was backgrounded inside
+  `bash -c`, and a backgrounded command in a non-interactive shell gets stdin from
+  `/dev/null` (POSIX) - so it fail-closed on an empty payload on every Bash call and
+  `bash-commands.log` had never been written. The wiring now reads the payload before
+  backgrounding the consumer. Separately, the reflection Stop duty prompt sat below the
+  blocking gate, so under `ECC_HOOK_PROFILE=minimal` a session was never told what it
+  owed; the duties are now surfaced as a non-blocking advisory. Both are pinned by
+  behavioral tests with mutation controls.
+- **Pipeline session hygiene: stage handoffs, an executing Tier 3 review, and an implementer
+  that cannot repair a red gate.** Three measured failures from 2026-09-16. (1) The main session
+  ran 317 turns from 51k to 301k tokens with zero compactions while `suggest-compact` fired and
+  was ignored -- `/plan`, `/review`, `/refine` and `/implement` now state a stage-handoff rule:
+  implementation starts from a compacted or fresh context whose only input is the plan path.
+  (2) Four of seven follow-on fixes were defects inside 93/100-approved plans, because the
+  `reviewer` agent has no Bash; `/review` and `.ai/REVIEW_GUIDE.md` now mark such a verdict
+  STATIC-ONLY and require an execution-capable `/code-review` before a Tier 3 plan is executed.
+  (3) The implementer reported COMPLETE while the suite was still running and once ran
+  `ck lint --update-baseline` to turn a red gate green; `implementer.md` now forbids both -- a
+  red gate is reported, never repaired. Every command edit is line-neutral against the `ck lint`
+  ratchet and the implementer edit pays for itself against the context floor.
+- **Planner and reviewer now cost less per run.** Both prompts gained a hard tool-call
+  ceiling (30 / 20), a no-re-read rule and a one-Write output discipline (compose in memory,
+  no scratchpad files or Bash heredoc drafts), and their reference-grade prose — templates,
+  scoring tables, checklists, handoff blocks — moved to on-demand
+  `.claude/agents/_shared/planner-reference.md` and `reviewer-reference.md`. Every rule is
+  preserved; `tests/test_agent_prompt_size.py` ratchets the injected prompt sizes and pins
+  that the moved rules survive.
 - **Context recovery now injects the unfinished half, and writes state before it is
   needed.** Two defects, both measured. First, the session-context excerpt at
   `session-start.sh` was bounded POSITIONALLY (`head -20`), and in the layout
