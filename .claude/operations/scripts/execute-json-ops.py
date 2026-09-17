@@ -253,8 +253,36 @@ class OperationTransaction:
     def record_created(self, file_path: str):
         self._created_files.append(file_path)
 
+    def _audit(self, action: str, path: str, detail: str = "") -> None:
+        """Append one rollback action to a DURABLE log beside the backup.
+
+        Rollback used to report only on stdout. Inside a subagent that stdout
+        dies with the agent's transcript, so a file this run CREATED could be
+        os.unlink()ed with no record surviving the session.
+
+        Never raises: rollback is already the error path, and losing the audit
+        line must not turn a recoverable failure into a crash.
+        """
+        try:
+            self.backup_dir.mkdir(parents=True, exist_ok=True)
+            line = json.dumps({
+                "ts": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+                "action": action,
+                "path": os.path.abspath(path),
+                "tree": os.path.realpath(os.getcwd()),
+                "pid": os.getpid(),
+                "detail": detail,
+            }, sort_keys=True)
+            with open(self.backup_dir / "rollback.log", "a", encoding="utf-8") as fh:
+                fh.write(line + "\n")
+        except Exception:  # noqa: BLE001 - an audit failure must not break rollback
+            pass
+
     def rollback(self):
         print("\n  ROLLBACK: Restoring files from backup...")
+        self._audit("rollback_start", str(self.backup_dir),
+                    f"{len(self._modified_files)} modified, "
+                    f"{len(self._created_files)} created")
         for fp in self._modified_files:
             rel = Path(os.path.relpath(fp))
             bp = self.backup_dir / rel
@@ -262,16 +290,23 @@ class OperationTransaction:
                 try:
                     shutil.copy2(str(bp), fp)
                     print(f"  Restored: {fp}")
+                    self._audit("restored", fp)
                 except Exception as e:
                     print(f"  Warning: Failed to restore {fp}: {e}")
+                    self._audit("restore_failed", fp, str(e))
         for fp in self._created_files:
             if os.path.exists(fp):
                 try:
                     os.unlink(fp)
                     print(f"  Removed: {fp}")
+                    self._audit("removed", fp)
                 except Exception as e:
                     print(f"  Warning: Failed to remove {fp}: {e}")
+                    self._audit("remove_failed", fp, str(e))
         print("  ROLLBACK COMPLETE")
+        print(f"  Rollback audit: {self.backup_dir / 'rollback.log'}")
+        self._audit("rollback_complete", str(self.backup_dir))
+
 
     @property
     def modified_files(self) -> List[str]:
@@ -1357,6 +1392,120 @@ def _execute_operations(config: dict, operations: list, plan_name: str,
         # 'crashed' one — the exact double-report this flag exists to prevent.
 
 
+def _git_toplevel(start: str) -> Optional[str]:
+    """Real path of the git worktree root containing `start`, else None.
+
+    Inside a linked worktree this returns THAT worktree's root, which is exactly
+    the distinction this is here to make.
+    """
+    if not os.path.isdir(start):
+        return None
+    try:
+        proc = subprocess.run(
+            ['git', 'rev-parse', '--show-toplevel'],
+            cwd=start, capture_output=True, text=True, timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if proc.returncode != 0:
+        return None
+    top = proc.stdout.strip()
+    return os.path.realpath(top) if top else None
+
+
+def _resolve_root(config_path: str, explicit_root: Optional[str]) -> Tuple[Optional[str], List[str]]:
+    """Decide which tree this run is allowed to edit.
+
+    Every path in this executor resolves against ``os.getcwd()`` -- including
+    ``validate_path``'s containment check. That made worktree isolation a
+    convention rather than a fact: an agent given a worktree, whose shell cwd
+    resets to the main checkout between calls (and `cd` is blocked by
+    command-guard.sh), silently validated and edited the MAIN tree while
+    believing it was isolated.
+
+    So: if the config file lives in a DIFFERENT git worktree than the cwd, that
+    is the bug's fingerprint and we refuse. `--root` states the intent
+    explicitly for the legitimate cases (a config kept outside any repo, or a
+    deliberate cross-tree run).
+
+    Returns (root_to_chdir_into_or_None, errors).
+    """
+    if explicit_root:
+        root = os.path.realpath(os.path.expanduser(explicit_root))
+        if not os.path.isdir(root):
+            return None, [f"--root is not a directory: {root}"]
+        return root, []
+
+    cfg_dir = os.path.dirname(os.path.abspath(config_path)) or os.getcwd()
+    cfg_root = _git_toplevel(cfg_dir)
+    cwd_root = _git_toplevel(os.getcwd())
+
+    # A config outside any git tree cannot disagree with us about which tree to
+    # edit, so it keeps today's behaviour.
+    if cfg_root is None or cwd_root is None or cfg_root == cwd_root:
+        return None, []
+
+    return None, [
+        "the ops config and the working directory are in DIFFERENT git worktrees",
+        f"  config lives in : {cfg_root}",
+        f"  cwd resolves to : {cwd_root}",
+        "Paths in this config would resolve against the cwd tree, not the config's.",
+        "This is how a worktree-isolated run silently edits the main checkout.",
+        f"If you meant the config's tree:  --root {cfg_root}",
+        f"If you really meant the cwd tree: --root {cwd_root}",
+    ]
+
+
+def _preflight_validate(config_path: str) -> Tuple[bool, List[str]]:
+    """Run validate-config-json.py's own checks in-process, FAIL CLOSED.
+
+    The workflow in this file's epilog said "always validate first" for years,
+    but nothing enforced it: a config the validator REJECTED still executed to
+    completion. A reviewer who approves a plan on the validator's word was
+    therefore approving a check the executor did not share.
+
+    Returns (ok, errors). An import or schema-file failure is NOT treated as a
+    pass: anything that stops us from validating refuses instead.
+    `--skip-validation` is the one deliberate, loudly-announced way past it.
+    """
+    import shared as _shared
+    candidates = [Path(__file__).resolve().parent / "validate-config-json.py",
+                  Path(_shared.__file__).resolve().parent / "validate-config-json.py"]
+    validator = next((c for c in candidates if c.exists()), candidates[0])
+    if not validator.exists():
+        return False, [f"validator not found next to the executor: {validator}"]
+    try:
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location("_ops_validator", validator)
+        if spec is None or spec.loader is None:
+            return False, [f"could not load a module spec from {validator}"]
+        module = importlib.util.module_from_spec(spec)
+        # The validator imports `shared`, which sits in this same directory.
+        sys.path.insert(0, str(validator.parent))
+        try:
+            spec.loader.exec_module(module)
+        finally:
+            sys.path.pop(0)
+        # `preflight_verdict`, never `full_verdict`: the CLI's full rule set
+        # repeats checks this executor makes itself a moment later with better
+        # diagnostics (anchors, create modes, payload digests, the run_command
+        # allowlist, the parse gate), and refusing on those SHADOWS them -- they
+        # lose their only end-to-end proof. preflight_verdict answers only what
+        # nothing downstream repeats: the schema and backup compatibility. A
+        # validator too old to expose it REFUSES rather than silently
+        # reinstating a rule set this executor did not agree to.
+        if not hasattr(module, "preflight_verdict"):
+            return False, [
+                f"{validator} does not expose full_verdict(): it is older than "
+                "this executor and its verdict would omit the backup guards"
+            ]
+        ok, errors, _ = module.preflight_verdict(config_path)
+        return ok, errors
+    except Exception as exc:  # noqa: BLE001 - fail closed on ANY validator failure
+        return False, [f"validator could not run ({type(exc).__name__}: {exc})"]
+
+
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(
@@ -1396,6 +1545,14 @@ Safety:
     parser.add_argument('--no-parse-check', action='store_true',
                         help='Bypass the parse gate (loudly logged; exists for '
                              'repairing a broken ops_precompile.py and nothing else)')
+    parser.add_argument('--skip-validation', action='store_true',
+                        help='Execute even if validate-config-json.py rejects the config. '
+                             'Escape hatch only -- the refusal is there because a rejected '
+                             'config used to execute anyway.')
+    parser.add_argument('--root', metavar='DIR',
+                        help='The tree to edit. Every path resolves against it. Required when '
+                             'the config lives in a different git worktree than the cwd, which '
+                             'is how an "isolated" run silently edits the main checkout.')
     parser.add_argument('--version', action='version', version=f'%(prog)s {__version__}')
     args = parser.parse_args()
 
@@ -1405,9 +1562,48 @@ Safety:
     signal.signal(signal.SIGINT, _signal_handler)
     signal.signal(signal.SIGTERM, _signal_handler)
 
+    # GATE: settle WHICH TREE this run may edit, before anything reads a path.
+    # Resolve the config path BEFORE any chdir: with --root plus a RELATIVE
+    # config path, every later use would re-resolve against the new root and
+    # read a different file -- or none -- than the one _resolve_root was asked
+    # about.
+    args.config = os.path.abspath(args.config)
+    root, root_errors = _resolve_root(args.config, args.root)
+    if root_errors:
+        print("REFUSING TO EXECUTE: cannot tell which tree you mean.\n")
+        for err in root_errors:
+            print(f"  {err}" if err.startswith(' ') else f"  - {err}")
+        print('\nRESULT-JSON: {"mode": "refused", "status": "ambiguous_root"}')
+        sys.exit(3)
+    if root:
+        os.chdir(root)
+    print(f"Editing tree: {os.path.realpath(os.getcwd())}")
+
+    # GATE: the validator's verdict binds the executor. Applies to --dry-run too,
+    # so a dry run reports the same verdict a real run would obey.
+    if args.skip_validation:
+        print("WARNING: --skip-validation -- executing WITHOUT the validator's verdict.",
+              file=sys.stderr)
+    else:
+        ok, errors = _preflight_validate(args.config)
+        if not ok:
+            print("REFUSING TO EXECUTE: validate-config-json.py rejected this config.\n")
+            for err in errors[:20]:
+                print(f"  - {err}")
+            if len(errors) > 20:
+                print(f"  ... and {len(errors) - 20} more")
+            print("\nFix the config and re-run. Anchor errors usually mean the tree moved,")
+            print("or the ops were already applied -- re-validate against the current tree")
+            print("(validate-config-json.py --stamp-baseline) or re-plan if the drift is real.")
+            print("Deliberate override: --skip-validation")
+            print('RESULT-JSON: {"mode": "refused", "status": "validation_failed", '
+                  f'"error_count": {len(errors)}}}')
+            sys.exit(2)
+
     success = execute_json_config(args.config, dry_run=args.dry_run,
                                   require_approval=not args.no_approval,
                                   check_parse=not args.no_parse_check)
+
     sys.exit(0 if success else 1)
 
 

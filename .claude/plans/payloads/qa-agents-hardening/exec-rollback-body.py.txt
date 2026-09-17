@@ -1,0 +1,53 @@
+    def _audit(self, action: str, path: str, detail: str = "") -> None:
+        """Append one rollback action to a DURABLE log beside the backup.
+
+        Rollback used to report only on stdout. Inside a subagent that stdout
+        dies with the agent's transcript, so a file this run CREATED could be
+        os.unlink()ed with no record surviving the session.
+
+        Never raises: rollback is already the error path, and losing the audit
+        line must not turn a recoverable failure into a crash.
+        """
+        try:
+            self.backup_dir.mkdir(parents=True, exist_ok=True)
+            line = json.dumps({
+                "ts": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+                "action": action,
+                "path": os.path.abspath(path),
+                "tree": os.path.realpath(os.getcwd()),
+                "pid": os.getpid(),
+                "detail": detail,
+            }, sort_keys=True)
+            with open(self.backup_dir / "rollback.log", "a", encoding="utf-8") as fh:
+                fh.write(line + "\n")
+        except Exception:  # noqa: BLE001 - an audit failure must not break rollback
+            pass
+
+    def rollback(self):
+        print("\n  ROLLBACK: Restoring files from backup...")
+        self._audit("rollback_start", str(self.backup_dir),
+                    f"{len(self._modified_files)} modified, "
+                    f"{len(self._created_files)} created")
+        for fp in self._modified_files:
+            rel = Path(os.path.relpath(fp))
+            bp = self.backup_dir / rel
+            if bp.exists():
+                try:
+                    shutil.copy2(str(bp), fp)
+                    print(f"  Restored: {fp}")
+                    self._audit("restored", fp)
+                except Exception as e:
+                    print(f"  Warning: Failed to restore {fp}: {e}")
+                    self._audit("restore_failed", fp, str(e))
+        for fp in self._created_files:
+            if os.path.exists(fp):
+                try:
+                    os.unlink(fp)
+                    print(f"  Removed: {fp}")
+                    self._audit("removed", fp)
+                except Exception as e:
+                    print(f"  Warning: Failed to remove {fp}: {e}")
+                    self._audit("remove_failed", fp, str(e))
+        print("  ROLLBACK COMPLETE")
+        print(f"  Rollback audit: {self.backup_dir / 'rollback.log'}")
+        self._audit("rollback_complete", str(self.backup_dir))

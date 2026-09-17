@@ -912,6 +912,80 @@ def stamp_baseline(config_file: str, config: dict) -> "int | None":
     return len(baseline)
 
 
+def preflight_verdict(config_file: str) -> Tuple[bool, List[str], Optional[dict]]:
+    """The checks the EXECUTOR cannot make for itself -- and ONLY those.
+
+    `full_verdict` below is the CLI's rule set and the right answer for a human
+    asking "is this config good". It is the WRONG answer for the executor's
+    preflight, because the executor repeats most of it a moment later with far
+    better diagnostics: missing and ambiguous anchors, unsupported create modes,
+    tampered payload digests, the run_command allowlist and the parse gate are
+    all enforced downstream, each naming the operation that failed. A preflight
+    that refuses on those SHADOWS them -- measured: 29 tests across 8 files lost
+    their end-to-end proof of exactly those five gates.
+
+    So this returns a verdict on the two things nothing downstream repeats:
+      * the SCHEMA -- structure, unknown top-level keys, operation shape. This
+        is the incident class the gate was added for: a config with a forbidden
+        top-level `description` key was rejected by the validator and executed
+        to completion anyway.
+      * BACKUP COMPATIBILITY -- with a non-writable `backups/`, the CLI printed
+        REJECTED while the executor ran on to die at `backup_dir.mkdir` with an
+        unhandled PermissionError, outside any rollback.
+
+    A config that cannot be read or parsed is DEFERRED, not refused: the
+    executor's own loader reports that as `config-load-error` in RESULT-JSON,
+    which is strictly more informative than a preflight refusal.
+    """
+    try:
+        with open(config_file, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+    except Exception:
+        return True, [], None
+    if not isinstance(config, dict):
+        return True, [], None
+    schema_file = Path(__file__).parent / "operations-schema.json"
+    if schema_file.exists():
+        schema_ok, schema_errors = validate_against_schema(config, str(schema_file))
+        if not schema_ok:
+            return False, schema_errors, config
+    backup_ok, backup_errors = validate_backup_compatibility(config_file, config=config)
+    if not backup_ok:
+        return False, list(backup_errors), config
+    return True, [], config
+
+
+def full_verdict(config_file: str) -> Tuple[bool, List[str], Optional[dict]]:
+    """THE verdict: every check this script applies, in the order it applies them.
+
+    `validate_json_config` is only half of it. The CLI also runs
+    `validate_backup_compatibility`, whose guards are mirrored nowhere else --
+    not in the executor's `validate_path`, not in its schema check. A caller
+    that ran only the first half would share the NAME of this script's rule set
+    without sharing the rule set: with a non-writable `backups/`, this script
+    printed REJECTED while the executor ran on to die at `backup_dir.mkdir`
+    with an unhandled PermissionError, outside any rollback.
+
+    So both callers -- this CLI and execute-json-ops.py's preflight gate -- go
+    through here. Returns `(ok, errors, parsed_config)`; the parse is handed
+    back so the CLI does not read the file a second time.
+    """
+    ok, errors = validate_json_config(config_file)
+    parsed_config = None
+    if ok:
+        try:
+            with open(config_file, 'r', encoding='utf-8') as f:
+                parsed_config = json.load(f)
+        except Exception:
+            parsed_config = None
+        backup_ok, backup_errors = validate_backup_compatibility(
+            config_file, config=parsed_config)
+        if not backup_ok:
+            ok = False
+            errors = list(errors) + list(backup_errors)
+    return ok, errors, parsed_config
+
+
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(
@@ -999,19 +1073,9 @@ Safety Guards (29 total):
 
     print(f"Validating: {os.path.basename(args.config)}\n")
 
-    is_valid, errors = validate_json_config(args.config)
-
-    if is_valid:
-        # Pass pre-parsed config to avoid re-reading the file
-        try:
-            with open(args.config, 'r', encoding='utf-8') as f:
-                parsed_config = json.load(f)
-        except Exception:
-            parsed_config = None
-        backup_valid, backup_errors = validate_backup_compatibility(args.config, config=parsed_config)
-        if not backup_valid:
-            is_valid = False
-            errors.extend(backup_errors)
+    # ONE verdict function for the CLI. The executor's preflight deliberately
+    # calls the NARROWER `preflight_verdict` instead; see its docstring.
+    is_valid, errors, parsed_config = full_verdict(args.config)
 
     if is_valid:
         print("  JSON syntax valid")
@@ -1019,6 +1083,12 @@ Safety Guards (29 total):
         print("  All file paths valid")
         print("  All find patterns exist in files")
         if args.stamp_baseline:
+            if parsed_config is None:
+                # full_verdict hands back None only when the file stopped being
+                # readable between the two reads; stamping a config we cannot
+                # parse would write a baseline over an unknown document.
+                print("\n-> REJECTED (config could not be re-read for stamping)\n")
+                sys.exit(1)
             stamped = stamp_baseline(args.config, parsed_config)
             if stamped is None:
                 print("\n-> REJECTED (baseline stamping failed)\n")

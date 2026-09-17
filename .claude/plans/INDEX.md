@@ -23,12 +23,12 @@ index never outranks the current files.
 | State | Plans |
 |---|---:|
 | `drifted` | 11 |
-| `approved` | 57 |
+| `approved` | 58 |
 | `planned` | 23 |
 | `executed` | 30 |
 | `not_started` | 24 |
 | `legacy` | 5 |
-| **total** | **150** |
+| **total** | **151** |
 
 ## Plans
 
@@ -123,6 +123,7 @@ index never outranks the current files.
 | `.claude/plans/plan-preserve-fault-tolerance.md` | `drifted` | 6 |  |
 | `.claude/plans/plan-protected-docs-scope.md` | `approved` | 1 |  |
 | `.claude/plans/plan-pypi-rename.md` | `drifted` | 2 |  |
+| `.claude/plans/plan-qa-agents-hardening.md` | `approved` | 1 |  |
 | `.claude/plans/plan-queued-ops-gate.md` | `executed` | 3 |  |
 | `.claude/plans/plan-receipts-regressions.md` | `approved` | 1 |  |
 | `.claude/plans/plan-reflection-ledger-isolation.md` | `approved` | 1 |  |

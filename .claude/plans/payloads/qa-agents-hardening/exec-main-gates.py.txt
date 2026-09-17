@@ -1,0 +1,61 @@
+    parser.add_argument('--no-parse-check', action='store_true',
+                        help='Bypass the parse gate (loudly logged; exists for '
+                             'repairing a broken ops_precompile.py and nothing else)')
+    parser.add_argument('--skip-validation', action='store_true',
+                        help='Execute even if validate-config-json.py rejects the config. '
+                             'Escape hatch only -- the refusal is there because a rejected '
+                             'config used to execute anyway.')
+    parser.add_argument('--root', metavar='DIR',
+                        help='The tree to edit. Every path resolves against it. Required when '
+                             'the config lives in a different git worktree than the cwd, which '
+                             'is how an "isolated" run silently edits the main checkout.')
+    parser.add_argument('--version', action='version', version=f'%(prog)s {__version__}')
+    args = parser.parse_args()
+
+    if args.verbose:
+        logging.basicConfig(level=logging.DEBUG, force=True)
+
+    signal.signal(signal.SIGINT, _signal_handler)
+    signal.signal(signal.SIGTERM, _signal_handler)
+
+    # GATE: settle WHICH TREE this run may edit, before anything reads a path.
+    # Resolve the config path BEFORE any chdir: with --root plus a RELATIVE
+    # config path, every later use would re-resolve against the new root and
+    # read a different file -- or none -- than the one _resolve_root was asked
+    # about.
+    args.config = os.path.abspath(args.config)
+    root, root_errors = _resolve_root(args.config, args.root)
+    if root_errors:
+        print("REFUSING TO EXECUTE: cannot tell which tree you mean.\n")
+        for err in root_errors:
+            print(f"  {err}" if err.startswith(' ') else f"  - {err}")
+        print('\nRESULT-JSON: {"mode": "refused", "status": "ambiguous_root"}')
+        sys.exit(3)
+    if root:
+        os.chdir(root)
+    print(f"Editing tree: {os.path.realpath(os.getcwd())}")
+
+    # GATE: the validator's verdict binds the executor. Applies to --dry-run too,
+    # so a dry run reports the same verdict a real run would obey.
+    if args.skip_validation:
+        print("WARNING: --skip-validation -- executing WITHOUT the validator's verdict.",
+              file=sys.stderr)
+    else:
+        ok, errors = _preflight_validate(args.config)
+        if not ok:
+            print("REFUSING TO EXECUTE: validate-config-json.py rejected this config.\n")
+            for err in errors[:20]:
+                print(f"  - {err}")
+            if len(errors) > 20:
+                print(f"  ... and {len(errors) - 20} more")
+            print("\nFix the config and re-run. Anchor errors usually mean the tree moved,")
+            print("or the ops were already applied -- re-validate against the current tree")
+            print("(validate-config-json.py --stamp-baseline) or re-plan if the drift is real.")
+            print("Deliberate override: --skip-validation")
+            print('RESULT-JSON: {"mode": "refused", "status": "validation_failed", '
+                  f'"error_count": {len(errors)}}}')
+            sys.exit(2)
+
+    success = execute_json_config(args.config, dry_run=args.dry_run,
+                                  require_approval=not args.no_approval,
+                                  check_parse=not args.no_parse_check)

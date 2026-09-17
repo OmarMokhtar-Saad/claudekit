@@ -25,6 +25,7 @@ cd .worktrees/impl-core && claude
 
 # 3. when the branch is merged, clean up
 python3 .claude/operations/scripts/worktree-manager.py remove impl-core
+# refuses while the branch has commits its base branch does not contain
 ```
 
 Or use the `/worktree` command inside a Claude Code session. Add `.worktrees/`
@@ -116,6 +117,8 @@ command instead of calling the script directly.
 |---|---|
 | `worktree ... already registered` | `worktree-manager.py list`, then `remove` or pick another slug |
 | `5 worktrees already registered` | merge + remove one; run agents in waves of ≤5 |
+| `has commits not contained in <ref>` | Merge the branch into that ref first, or `remove --force` if the work is disposable |
+| `cannot tell what <branch> should be contained in` | The primary checkout is detached (or the base branch is gone): check out the base branch and re-run |
 | Directory deleted manually, registry stale | `worktree-manager.py prune` |
 | `remove` refuses: "commits not contained in <base>" | merge the branch first (gitOps protocol) or `--force` to discard |
 | Ports/emulators collide between agents | use `WORKTREE_PORT_OFFSET` from `.worktree-env`; one device UDID per worktree |

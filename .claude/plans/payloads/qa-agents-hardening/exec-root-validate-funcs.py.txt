@@ -1,0 +1,114 @@
+def _git_toplevel(start: str) -> Optional[str]:
+    """Real path of the git worktree root containing `start`, else None.
+
+    Inside a linked worktree this returns THAT worktree's root, which is exactly
+    the distinction this is here to make.
+    """
+    if not os.path.isdir(start):
+        return None
+    try:
+        proc = subprocess.run(
+            ['git', 'rev-parse', '--show-toplevel'],
+            cwd=start, capture_output=True, text=True, timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if proc.returncode != 0:
+        return None
+    top = proc.stdout.strip()
+    return os.path.realpath(top) if top else None
+
+
+def _resolve_root(config_path: str, explicit_root: Optional[str]) -> Tuple[Optional[str], List[str]]:
+    """Decide which tree this run is allowed to edit.
+
+    Every path in this executor resolves against ``os.getcwd()`` -- including
+    ``validate_path``'s containment check. That made worktree isolation a
+    convention rather than a fact: an agent given a worktree, whose shell cwd
+    resets to the main checkout between calls (and `cd` is blocked by
+    command-guard.sh), silently validated and edited the MAIN tree while
+    believing it was isolated.
+
+    So: if the config file lives in a DIFFERENT git worktree than the cwd, that
+    is the bug's fingerprint and we refuse. `--root` states the intent
+    explicitly for the legitimate cases (a config kept outside any repo, or a
+    deliberate cross-tree run).
+
+    Returns (root_to_chdir_into_or_None, errors).
+    """
+    if explicit_root:
+        root = os.path.realpath(os.path.expanduser(explicit_root))
+        if not os.path.isdir(root):
+            return None, [f"--root is not a directory: {root}"]
+        return root, []
+
+    cfg_dir = os.path.dirname(os.path.abspath(config_path)) or os.getcwd()
+    cfg_root = _git_toplevel(cfg_dir)
+    cwd_root = _git_toplevel(os.getcwd())
+
+    # A config outside any git tree cannot disagree with us about which tree to
+    # edit, so it keeps today's behaviour.
+    if cfg_root is None or cwd_root is None or cfg_root == cwd_root:
+        return None, []
+
+    return None, [
+        "the ops config and the working directory are in DIFFERENT git worktrees",
+        f"  config lives in : {cfg_root}",
+        f"  cwd resolves to : {cwd_root}",
+        "Paths in this config would resolve against the cwd tree, not the config's.",
+        "This is how a worktree-isolated run silently edits the main checkout.",
+        f"If you meant the config's tree:  --root {cfg_root}",
+        f"If you really meant the cwd tree: --root {cwd_root}",
+    ]
+
+
+def _preflight_validate(config_path: str) -> Tuple[bool, List[str]]:
+    """Run validate-config-json.py's own checks in-process, FAIL CLOSED.
+
+    The workflow in this file's epilog said "always validate first" for years,
+    but nothing enforced it: a config the validator REJECTED still executed to
+    completion. A reviewer who approves a plan on the validator's word was
+    therefore approving a check the executor did not share.
+
+    Returns (ok, errors). An import or schema-file failure is NOT treated as a
+    pass: anything that stops us from validating refuses instead.
+    `--skip-validation` is the one deliberate, loudly-announced way past it.
+    """
+    import shared as _shared
+    candidates = [Path(__file__).resolve().parent / "validate-config-json.py",
+                  Path(_shared.__file__).resolve().parent / "validate-config-json.py"]
+    validator = next((c for c in candidates if c.exists()), candidates[0])
+    if not validator.exists():
+        return False, [f"validator not found next to the executor: {validator}"]
+    try:
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location("_ops_validator", validator)
+        if spec is None or spec.loader is None:
+            return False, [f"could not load a module spec from {validator}"]
+        module = importlib.util.module_from_spec(spec)
+        # The validator imports `shared`, which sits in this same directory.
+        sys.path.insert(0, str(validator.parent))
+        try:
+            spec.loader.exec_module(module)
+        finally:
+            sys.path.pop(0)
+        # `preflight_verdict`, never `full_verdict`: the CLI's full rule set
+        # repeats checks this executor makes itself a moment later with better
+        # diagnostics (anchors, create modes, payload digests, the run_command
+        # allowlist, the parse gate), and refusing on those SHADOWS them -- they
+        # lose their only end-to-end proof. preflight_verdict answers only what
+        # nothing downstream repeats: the schema and backup compatibility. A
+        # validator too old to expose it REFUSES rather than silently
+        # reinstating a rule set this executor did not agree to.
+        if not hasattr(module, "preflight_verdict"):
+            return False, [
+                f"{validator} does not expose full_verdict(): it is older than "
+                "this executor and its verdict would omit the backup guards"
+            ]
+        ok, errors, _ = module.preflight_verdict(config_path)
+        return ok, errors
+    except Exception as exc:  # noqa: BLE001 - fail closed on ANY validator failure
+        return False, [f"validator could not run ({type(exc).__name__}: {exc})"]
+
+

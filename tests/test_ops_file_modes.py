@@ -177,7 +177,14 @@ class TestDeclaredCreateMode:
         Asserted on the FILE, not just the exit code: a refusal that still wrote"""
         ops = _ops(tmp_path, [{'type': 'file_create', 'path': 'evil.sh',
                                'content': SCRIPT_BODY, 'mode': '4755'}])
-        res = _run(EXECUTOR, tmp_path, ops)
+        # The schema enum rejects this mode, so the preflight refuses on the
+        # validator's verdict. Assert that, then step past it: the SUBJECT here
+        # is the executor's OWN enforcement for a config that never went through
+        # the validator, which is exactly what --skip-validation reproduces.
+        refused = _run(EXECUTOR, tmp_path, ops)
+        assert refused.returncode == 2, refused.stdout + refused.stderr
+        assert 'validation_failed' in refused.stdout, refused.stdout
+        res = _run(EXECUTOR, tmp_path, ops, '--skip-validation')
         assert res.returncode != 0, res.stdout + res.stderr
         assert 'unsupported create mode' in (res.stdout + res.stderr).lower()
         assert not (tmp_path / 'evil.sh').exists(), 'refused the mode but wrote the file'
