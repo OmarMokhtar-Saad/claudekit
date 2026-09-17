@@ -1,0 +1,32 @@
+{
+ "plan": "run-tests-before-verdict",
+ "operations": [
+  {
+   "type": "code_edit",
+   "path": ".claude/agents/code-reviewer.md",
+   "description": "Reviewer must run new test files and apply claimed mutants before a verdict",
+   "edits": [
+    {
+     "find": "## Exit Rule -- what ends the review",
+     "add_before": "## Before the verdict: RUN the tests, APPLY the mutants\n\nA change under review that ships new or changed tests is not reviewable by reading them. Three\ntimes on 2026-09-17 a \"mutation-proved\" control passed on its own mutant, because the test pinned\na DIFFERENT mechanism than its name claimed \u2014 the author reasoned about the mechanism and nothing\ncontradicted them.\n\nTwo steps, both mandatory before you emit a verdict block, whenever the change adds or edits a\ntest file:\n\n1. **Run every new or changed test file on the unmutated tree.** A control that is already red\n   there is broken, not proof. Paste the real pass/fail line.\n2. **Hand-apply at least two of the claimed mutation controls** and record WHICH test died. A\n   control that still passes once its own mutant is applied proves nothing and is a **High**\n   finding, never a Medium. Restore the file afterwards.\n\nIf you cannot execute (no Bash, or the suite cannot run here), say so plainly in the report and\nmark the verdict STATIC-ONLY rather than implying the proofs were checked.\n\n---\n\n"
+    }
+   ]
+  },
+  {
+   "type": "file_create",
+   "path": "tests/test_review_runs_the_proofs.py",
+   "content": "\"\"\"Structure test: code-reviewer.md must require running new tests and applying mutants.\n\nWritten 2026-09-17 after the third instance in one day of a mutation control that passed on\nits own mutant (e2e-lane-a, hook-stdin-and-reflection round 1, qa-agents-hardening round 1).\nThis pins the instruction text; it cannot prove the agent obeys it.\n\"\"\"\nfrom pathlib import Path\n\nREPO = Path(__file__).resolve().parents[1]\nCODE_REVIEWER = REPO / \".claude/agents/code-reviewer.md\"\n\n\ndef test_code_reviewer_must_run_new_test_files_before_a_verdict():\n    text = CODE_REVIEWER.read_text(encoding=\"utf-8\")\n    assert \"Run every new or changed test file on the unmutated tree\" in text\n\n\ndef test_code_reviewer_must_apply_claimed_mutants():\n    text = CODE_REVIEWER.read_text(encoding=\"utf-8\")\n    assert \"Hand-apply at least two of the claimed mutation controls\" in text\n\n\ndef test_a_surviving_mutant_is_a_high_finding_not_a_medium():\n    \"\"\"The severity matters: a Medium never forces another round under the exit rule.\"\"\"\n    text = CODE_REVIEWER.read_text(encoding=\"utf-8\")\n    assert \"is a **High**\\n   finding, never a Medium\" in text\n\n\ndef test_the_rule_precedes_the_exit_rule():\n    \"\"\"Ordering is the point - the exit rule must not be reachable before the proofs are run.\"\"\"\n    text = CODE_REVIEWER.read_text(encoding=\"utf-8\")\n    rule = text.index(\"## Before the verdict: RUN the tests, APPLY the mutants\")\n    exit_rule = text.index(\"## Exit Rule -- what ends the review\")\n    assert rule < exit_rule\n"
+  },
+  {
+   "type": "code_edit",
+   "path": "CHANGELOG.md",
+   "description": "Unreleased entry",
+   "edits": [
+    {
+     "find": "## [Unreleased]",
+     "add_after": "\n- **Code review runs the proofs instead of reading them.** Three times in one day a\n  \"mutation-proved\" test passed on its own mutant, because it pinned a different mechanism than\n  its name claimed. `code-reviewer` must now run every new or changed test file on the unmutated\n  tree and hand-apply at least two claimed mutation controls before emitting a verdict; a control\n  that survives its own mutant is a High finding. A reviewer that cannot execute must mark the\n  verdict STATIC-ONLY rather than imply the proofs were checked.\n"
+    }
+   ]
+  }
+ ]
+}

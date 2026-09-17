@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `open-source-forker` — never shipped and have been removed.
 
 ## [Unreleased]
+- **Code review runs the proofs instead of reading them.** Three times in one day a
+  "mutation-proved" test passed on its own mutant, because it pinned a different mechanism than
+  its name claimed. `code-reviewer` must now run every new or changed test file on the unmutated
+  tree and hand-apply at least two claimed mutation controls before emitting a verdict; a control
+  that survives its own mutant is a High finding. A reviewer that cannot execute must mark the
+  verdict STATIC-ONLY rather than imply the proofs were checked.
+
 - **Three enforcement gaps closed, upstreamed from a downstream project that hit each
   one in production.** (1) `command-guard.sh` now tells a **crashed** validator apart
   from a **verdict**: the exit code decides and an anchored traceback pattern on stderr
