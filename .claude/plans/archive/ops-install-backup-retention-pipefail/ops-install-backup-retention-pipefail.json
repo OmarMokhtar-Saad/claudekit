@@ -1,0 +1,16 @@
+{
+ "plan": "install-backup-retention-pipefail",
+ "operations": [
+  {
+   "type": "code_edit",
+   "path": "install.sh",
+   "description": "Backup-count pipeline must not abort the install under pipefail when no backup exists",
+   "edits": [
+    {
+     "find": "    BAK_TOTAL=$(ls -1d \"$TARGET_DIR\"/.claude.bak-* 2>/dev/null | wc -l | tr -d ' ')\n    SURPLUS=$((BAK_TOTAL - KEEP_BACKUPS))\n    if [[ $SURPLUS -gt 0 ]]; then\n        while IFS= read -r OLD; do\n            [[ -d \"$OLD\" ]] || continue\n            rm -rf \"$OLD\" && PRUNED=$((PRUNED + 1))\n        done < <(ls -1d \"$TARGET_DIR\"/.claude.bak-* 2>/dev/null | sort | head -n \"$SURPLUS\")\n    fi\n    [[ $PRUNED -gt 0 ]] && print_ok \"Pruned $PRUNED old .claude.bak-* backup(s); kept newest $KEEP_BACKUPS\"\nfi",
+     "replace": "    # `|| true`: under `set -o pipefail` an `ls` with no match exits 1 and would abort the\n    # whole install on a first-time target (caught by tests/test_install.py, 15 red).\n    BAK_TOTAL=$( (ls -1d \"$TARGET_DIR\"/.claude.bak-* 2>/dev/null || true) | wc -l | tr -d ' ')\n    SURPLUS=$((BAK_TOTAL - KEEP_BACKUPS))\n    if [[ $SURPLUS -gt 0 ]]; then\n        while IFS= read -r OLD; do\n            [[ -d \"$OLD\" ]] || continue\n            rm -rf \"$OLD\" && PRUNED=$((PRUNED + 1))\n        done < <( (ls -1d \"$TARGET_DIR\"/.claude.bak-* 2>/dev/null || true) | sort | head -n \"$SURPLUS\")\n    fi\n    if [[ $PRUNED -gt 0 ]]; then\n        print_ok \"Pruned $PRUNED old .claude.bak-* backup(s); kept newest $KEEP_BACKUPS\"\n    fi\nfi"
+    }
+   ]
+  }
+ ]
+}

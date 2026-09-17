@@ -1,0 +1,37 @@
+{
+ "plan": "install-backup-retention",
+ "operations": [
+  {
+   "type": "code_edit",
+   "path": "install.sh",
+   "edits": [
+    {
+     "find": "mv \"$STAGING\" \"$FINAL_DEST\"\nDEST=\"$FINAL_DEST\"\ntrap - ERR   # past the destructive phase; nothing left to clean up\n",
+     "replace": "mv \"$STAGING\" \"$FINAL_DEST\"\nDEST=\"$FINAL_DEST\"\ntrap - ERR   # past the destructive phase; nothing left to clean up\n\n# ---- Backup retention: every install/update leaves a .claude.bak-<ts>; keep the newest N ----\n# Measured 2026-09-17: fleet projects carried 11-27 untracked backup dirs each (2.8 MB+ per\n# repo), none gitignored. Default keeps 3; CLAUDEKIT_KEEP_BACKUPS=all disables pruning.\nKEEP_BACKUPS=\"${CLAUDEKIT_KEEP_BACKUPS:-3}\"\nif [[ \"$KEEP_BACKUPS\" != \"all\" && \"$KEEP_BACKUPS\" =~ ^[0-9]+$ ]]; then\n    PRUNED=0\n    # Timestamped names sort chronologically, newest last. bash 3.2 / BSD-safe: no mapfile,\n    # no `head -n -N`; compute the surplus count and drop the oldest that many.\n    BAK_TOTAL=$(ls -1d \"$TARGET_DIR\"/.claude.bak-* 2>/dev/null | wc -l | tr -d ' ')\n    SURPLUS=$((BAK_TOTAL - KEEP_BACKUPS))\n    if [[ $SURPLUS -gt 0 ]]; then\n        while IFS= read -r OLD; do\n            [[ -d \"$OLD\" ]] || continue\n            rm -rf \"$OLD\" && PRUNED=$((PRUNED + 1))\n        done < <(ls -1d \"$TARGET_DIR\"/.claude.bak-* 2>/dev/null | sort | head -n \"$SURPLUS\")\n    fi\n    [[ $PRUNED -gt 0 ]] && print_ok \"Pruned $PRUNED old .claude.bak-* backup(s); kept newest $KEEP_BACKUPS\"\nfi\n"
+    },
+    {
+     "find": "    \".claude/skills-applied.json\"\n    \".claude-core.lock\"",
+     "replace": "    \".claude/skills-applied.json\"\n    \".claude.bak-*/\"\n    \".claude-core.lock\""
+    }
+   ],
+   "description": "Installer keeps the newest 3 .claude.bak-* backups and gitignores the pattern"
+  },
+  {
+   "type": "file_create",
+   "path": "tests/test_install_backup_retention.py",
+   "content": "\"\"\"Behavioral: install.sh prunes old .claude.bak-* backups and gitignores the pattern.\n\nMeasured 2026-09-17: every install/fleet update moved the previous .claude aside as\n.claude.bak-<timestamp> and never cleaned up; fleet repos held 11-27 untracked backup\ndirs each. These tests run the real installer against a tmp project.\n\"\"\"\nimport os\nimport subprocess\nimport tempfile\n\nINSTALL_SCRIPT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'install.sh')\n\n\ndef _install(tmpdir, env_extra=None):\n    env = dict(os.environ)\n    env.pop('CLAUDEKIT_KEEP_BACKUPS', None)\n    if env_extra:\n        env.update(env_extra)\n    return subprocess.run(['bash', INSTALL_SCRIPT, tmpdir, '--minimal', '--force'],\n                          capture_output=True, text=True, timeout=120, env=env)\n\n\ndef _seed_backups(tmpdir, n):\n    names = []\n    for i in range(n):\n        name = os.path.join(tmpdir, '.claude.bak-2026010%d-000000' % (i + 1))\n        os.makedirs(os.path.join(name, 'agents'))\n        with open(os.path.join(name, 'marker.txt'), 'w') as f:\n            f.write(str(i))\n        names.append(name)\n    return names\n\n\ndef _backups(tmpdir):\n    return sorted(d for d in os.listdir(tmpdir) if d.startswith('.claude.bak-'))\n\n\ndef test_install_prunes_to_newest_three_backups_by_default():\n    with tempfile.TemporaryDirectory() as tmpdir:\n        _seed_backups(tmpdir, 5)\n        os.makedirs(os.path.join(tmpdir, '.claude'))  # so the install creates one more backup\n        r = _install(tmpdir)\n        assert r.returncode == 0, r.stderr\n        left = _backups(tmpdir)\n        assert len(left) == 3, left\n        # The newest three survive: the two most recent seeds plus the one this install made.\n        assert '.claude.bak-20260104-000000' in left and '.claude.bak-20260105-000000' in left\n        assert '.claude.bak-20260101-000000' not in left\n        assert 'Pruned 3 old .claude.bak-* backup(s)' in r.stdout\n\n\ndef test_keep_backups_all_disables_pruning():\n    with tempfile.TemporaryDirectory() as tmpdir:\n        _seed_backups(tmpdir, 5)\n        os.makedirs(os.path.join(tmpdir, '.claude'))\n        r = _install(tmpdir, {'CLAUDEKIT_KEEP_BACKUPS': 'all'})\n        assert r.returncode == 0, r.stderr\n        assert len(_backups(tmpdir)) == 6\n        assert 'Pruned' not in r.stdout\n\n\ndef test_gitignore_covers_backup_dirs():\n    with tempfile.TemporaryDirectory() as tmpdir:\n        r = _install(tmpdir)\n        assert r.returncode == 0, r.stderr\n        with open(os.path.join(tmpdir, '.gitignore')) as f:\n            lines = f.read().splitlines()\n        assert '.claude.bak-*/' in lines\n",
+   "description": "Installer keeps the newest 3 .claude.bak-* backups and gitignores the pattern"
+  },
+  {
+   "type": "code_edit",
+   "path": "CHANGELOG.md",
+   "edits": [
+    {
+     "find": "## [Unreleased]",
+     "add_after": "\n- **Install backups no longer pile up.** Every install and `ck fleet update` moved the previous\n  `.claude` aside as `.claude.bak-<timestamp>` and never cleaned up; fleet projects carried 11-27\n  untracked backup directories each. The installer now keeps the newest 3 (set\n  `CLAUDEKIT_KEEP_BACKUPS=all` to keep every one, or a number) and gitignores `.claude.bak-*/`.\n"
+    }
+   ],
+   "description": "Installer keeps the newest 3 .claude.bak-* backups and gitignores the pattern"
+  }
+ ]
+}
