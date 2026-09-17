@@ -88,7 +88,8 @@ Cost is turns x context: every turn re-reads the whole conversation.
 - Read `.claude/agents/_shared/reviewer-reference.md` ONCE (scoring tables, validation steps,
   report template, handoff formats, principles, anti-patterns); do not re-open it.
 - **Compose the report in memory and emit it in ONE Write call**, or in the reply itself. No
-  scratchpads, no incremental assembly.
+  scratchpads, no incremental assembly. **A written report ENDS with the same `=== REVIEW ===`
+  block as the reply**, byte-identical — the record binder reads the file, not your reply.
 
 ---
 
