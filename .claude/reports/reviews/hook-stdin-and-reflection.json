@@ -1,0 +1,19 @@
+{
+  "plan": ".claude/plans/plan-hook-stdin-and-reflection.md",
+  "slug": "hook-stdin-and-reflection",
+  "ops_path": ".claude/plans/plan-hook-stdin-and-reflection.ops.json",
+  "ops_sha256": "6487393839b2ab16f340b04013d7718748f8e86e0938d0961e3fef7eac652db2",
+  "score": 90,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] systemMessage rendering on a live Stop hook remains verified by documentation only; eyeball one live Stop before any fleet sync, as the plan's risk section says"
+  ],
+  "verdict_origin": "rubric",
+  "reviewer_session": "9309660c-2b67-4f3b-97f3-801de72eb7a5",
+  "reviewer_role": "reviewer",
+  "recorded_utc": "2026-09-17T14:55:50Z",
+  "operations": 4,
+  "edits": 4,
+  "rounds": [],
+  "round": 1
+}
