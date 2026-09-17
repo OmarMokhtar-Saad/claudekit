@@ -1,6 +1,34 @@
 # AI Session Changelog
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
+## 2026-09-17 (later) — qa-agents hardening upstreamed; an executing review earned its keep
+
+Owner approved option 1 from the qa-agents coordinator session: upstream rather than protect.
+Three files merged into the kit, one entry point ported, eight downstream harnesses converted to
+pytest. Main `224b46d`, pushed; 13 fleet projects synced, committed and (where a remote works)
+pushed.
+
+**What a Bash-less reviewer cannot do.** This morning's `pipeline-session-hygiene` change routed
+Tier 3 plans to an execution-capable review. The very next Tier 3 plan proved why. The executing
+reviewer copied the repo twice at the same revision, applied the ops to one, and ran the suite on
+both: 14 failed before, 43 after. The new executor preflight refused invalid configs so early that
+29 tests proving the parse gate, create-mode refusal, payload-digest check, ambiguous-anchor abort
+and run_command allowlist could no longer reach them. An early refusal is indistinguishable from a
+late one at the exit code. The fix was to narrow the preflight to schema + backup compatibility —
+what nothing downstream repeats — and a hand-run mutant that widens it again reddens 12 downstream
+proofs, so the narrowing is now pinned rather than remembered.
+
+**A mutation control that passed on its own mutant.** The plan claimed the rc-2 exclusion closed
+the `ImportError` bypass. The reviewer showed the refusal echoes to stdout while the discriminator
+greps stderr, so the stdout/stderr split is what closes it. Both conditions are load-bearing in
+different scenarios and each now has a control that dies on its own mutant. Third instance of this
+class (`e2e-lane-a`, this session's `hook-stdin` round 1, and this) — the standing fix is to RUN
+every new test file before issuing a verdict.
+
+**Two gates that bit us twice each today.** `check-plan-artifacts` (a plan must name the paths its
+ops write — a round-2 rewrite dropped two docs paths) and `test_queued_ops_configs_validate_against_head`
+(a spent ops.json must be archived with a README row before the suite is green).
+
 ## 2026-09-17 — session retrospective: token cost measured, three fixes shipped, one live hook bug
 
 Measured from the 16 Sep transcripts, not recalled. Main session 317 turns / median context

@@ -1,6 +1,27 @@
 # Session State
 
 > Update this file at the end of every significant AI working session. It is the resume point.
+**2026-09-17 (later) · Claude (Opus 5) — `fix/qa-agents-hardening`, merged to main `224b46d`, PUSHED.**
+Upstreamed three files qa-agents had hardened in place, ending the fleet exclusion that had
+cost that project three overwritten copies (the fleet preserves *custom* files but overwrites
+kit-owned paths a project edited, so hardening a kit path is invisible to it). `command-guard.sh`
+gains a crash-vs-verdict discriminator and a stdout/stderr split; `execute-json-ops.py` resolves
+paths against the ops.json's git toplevel, audits rollback, and carries a NARROW preflight;
+`worktree-manager.py` refuses to remove a worktree or branch holding commits unmerged into its
+base; the validator gains `preflight_verdict()`. Suite 11449 -> 11479, zero failures.
+**The session's lesson, and the reason today's review routing changed:** the EXECUTING reviewer
+(`code-reviewer`, which has Bash) rejected round 1 at 60/100 by applying the ops in a scratch
+copy and measuring the suite on two identical revisions — the full-config preflight shadowed 29
+tests across 8 files that prove five downstream gates fire through the CLI. A plan reviewer with
+no Bash could not have seen it, and `--skip-validation` on the failures would have restored green
+while deleting the coverage. It also caught a mutation control that passed on its own mutant: the
+claimed mechanism was the rc-2 exclusion, the real one the stdout/stderr split. That is the third
+recorded instance of a proof naming a mechanism it does not test.
+**Open:** qa-agents must take the kit's `review-record.py`, `shared.py`, `validate-config-json.py`
+on a branch and rerun its gate-check harnesses — owned by that project's own session, not this one;
+`vendorparity` will not apply (the kit ships no vendor dir). The executor's bypass flags still
+announce on stderr with no audit log (`audit_bypass`, deliberately out of scope).
+
 **2026-09-17 · Claude (Fable 5.1) — `fix/session-findings-2026-09-17`, three plans, all executed.**
 Retrospective of the 16 Sep transcripts: the main session (317 turns, 51k -> 301k context, zero
 compactions, 57.4M cache-read tokens) cost ~4x all subagents combined (~15M); a planner run of
