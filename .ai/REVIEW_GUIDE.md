@@ -32,6 +32,20 @@ a status — `discharged` (with the evidence that settled it), `open`, or `super
 is the previous round's report, kept under `.claude/reports/reviews/` (gitignored runtime state).
 Re-deriving a settled finding is the single largest source of wasted review tokens here.
 
+### Tier 3 plans need a review that can execute
+
+`reviewer` has no Bash. Its verdict is **static-only**: it is evidence that the plan reads
+correctly and that its anchors exist, and nothing more. On 2026-09-16, four of seven follow-on
+fixes were defects inside plans that had scored 93/100 -- every one of them a defect that running
+the plan's own Validation commands would have surfaced before execution.
+
+So: for a **Tier 3** plan, or any plan whose ops touch hooks, tests, or executable scripts, a
+static-only verdict may NOT be the last review before execution. Follow it with `/code-review` on
+the plan + ops.json -- `code-reviewer` has Bash -- prompted to run the plan's own Validation
+commands against a dry-run or scratch copy and to report the exit codes it actually saw. The
+`reviewer` score still gates the approval record; the code review gates the decision to execute.
+
+
 ## Pre-ops design precheck (Tier 2/3)
 
 Before authoring ops.json, write one paragraph naming **the ownership/data model the change

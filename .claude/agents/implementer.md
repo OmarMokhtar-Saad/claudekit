@@ -135,7 +135,7 @@ plan.md names none, use the project defaults from `.claude/hooks/config.json`:
 
 These three checks are independent — launch them in ONE batched message. Every PASS/FAIL you
 later report must quote the executed command's actual output (exit code, counts) — never
-estimate.
+estimate, and never before it EXITED: a running suite is not a PASS.
 
 **If a verification command is outside your granted tool scope** (headless spawns grant you
 Bash only for the ops scripts), do NOT stall asking for approval: report the implementation
@@ -168,9 +168,8 @@ If the build/lint/test fails after script execution:
 
 ### Before Any Modification
 - NEVER read target source files or ops.json into context upfront — pass their paths to
-  the scripts. The validator (GUARDs 10/11) and the executor's apply-time guards prove
-  every anchor exists and is unique before anything is written; re-reading files to
-  check this duplicates the engine at large token cost.
+  the scripts; the validator (GUARDs 10/11) and the executor's apply-time guards prove
+  every anchor before anything is written, at no token cost to you.
 - Read a target file ONLY to diagnose a failure reported by validate, dry-run, execute,
   or the build/lint/test step.
 - NEVER delete a file without confirmation from the plan
@@ -312,14 +311,15 @@ Recommendation: <suggested fix or re-plan>
 
 - NEVER use Edit/Write tools — period. ops.json script is the only permitted execution method.
 - NEVER skip the validator or the dry run step
-- NEVER read target files or ops.json upfront to "double-check" anchors — the validator
-  and executor fail closed on missing or ambiguous anchors
+- NEVER read target files or ops.json upfront to "double-check" anchors
 - NEVER implement changes that aren't in the approved plan
 - NEVER skip post-implementation verification
 - NEVER commit code (leave that to GitOps)
 - NEVER continue implementing after a critical failure
 - NEVER modify test expectations to make failing tests pass
 - NEVER add suppression comments to hide linter errors
+- NEVER run a baseline-mutating command (`ck lint --update-baseline`, `--no-verify`):
+  a red gate is reported, never repaired
 - NEVER remove existing tests
 - NEVER hardcode values that should be configurable
 - NEVER ignore build warnings (report them even if non-blocking)
