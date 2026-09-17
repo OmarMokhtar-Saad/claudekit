@@ -500,6 +500,38 @@ def handle_stop(event: Dict[str, Any], session_id: str, subagent: bool) -> int:
     )
 
 
+def advise_unmet_duties(session_id: str, subagent: bool) -> None:
+    """Advisory half of the Stop duty, for profiles where blocking is suppressed.
+
+    `minimal` suppresses BLOCKING, not capture - but the duty PROMPT lived inside
+    `handle_stop`, below the blocking gate, so under `minimal` a session was never told
+    what it owed and produced zero receipts (317-turn session, 2026-09-16: 360
+    `Stop blocking suppressed` lines, no receipt). This surfaces the same duty list
+    without exit 2: hooks.log, stderr, and a `systemMessage` on stdout. It never blocks
+    (no `decision` field is emitted) and never raises - an advisory that can break a Stop
+    is worse than no advisory.
+    """
+    try:
+        root = project_root()
+        for warning in advisory_warnings(root):
+            hlog("WARN", warning)
+            sys.stderr.write("WARNING: %s\n" % warning)
+        duties, _ = reflection.duty_summary(session_id, include_inbox=not subagent)
+        if not duties:
+            hlog("INFO", "stop advisory: all duties met")
+            return
+        body = (
+            "REFLECTION DUTIES UNMET (advisory - blocking suppressed by profile):\n%s\n%s"
+            % ("\n".join("  - " + duty for duty in duties),
+               reflection.receipt_instructions(session_id))
+        )
+        hlog("INFO", "stop advisory: %d unmet duty(ies)" % len(duties))
+        sys.stderr.write(body + "\n")
+        sys.stdout.write(json.dumps({"systemMessage": body}) + "\n")
+    except Exception as exc:  # noqa: BLE001 - an advisory must never break a Stop
+        hlog("WARN", "stop advisory failed: %s" % exc)
+
+
 def project_root() -> Path:
     env = os.environ.get("CLAUDE_PROJECT_DIR")
     if env and os.path.isdir(env):
@@ -600,6 +632,10 @@ def main() -> int:
     if not blocking_enabled():
         # See PROFILE CONVENTION in the header: blocking only, recording already ran.
         hlog("INFO", "ECC_HOOK_PROFILE=minimal - %s blocking suppressed" % name)
+        if name in {"Stop", "SubagentStop"}:
+            # Blocking is suppressed; the DUTY PROMPT is not. Without this the learning
+            # loop is inert under `minimal`, which is the profile this repo runs.
+            advise_unmet_duties(session_id, subagent=(name == "SubagentStop"))
         return 0
     if name == "PreToolUse":
         return handle_pre_tool_use(event, session_id)

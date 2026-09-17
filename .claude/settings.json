@@ -37,7 +37,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'ROOT=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\"; bash \"$ROOT/.claude/hooks/command-log-audit.sh\" &'"
+            "command": "bash -c 'ROOT=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\"; PAYLOAD=$(cat); printf %s \"$PAYLOAD\" | bash \"$ROOT/.claude/hooks/command-log-audit.sh\" &'"
           }
         ]
       },
