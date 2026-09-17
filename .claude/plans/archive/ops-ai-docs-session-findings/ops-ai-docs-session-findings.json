@@ -1,0 +1,26 @@
+{
+ "plan": "ai-docs-session-findings",
+ "description": "Record the 2026-09-17 session in SESSION_STATE and CHANGELOG_AI",
+ "operations": [
+  {
+   "type": "code_edit",
+   "path": ".ai/SESSION_STATE.md",
+   "edits": [
+    {
+     "find": "> Update this file at the end of every significant AI working session. It is the resume point.",
+     "add_after": "\n**2026-09-17 \u00b7 Claude (Fable 5.1) \u2014 `fix/session-findings-2026-09-17`, three plans, all executed.**\nRetrospective of the 16 Sep transcripts: the main session (317 turns, 51k -> 301k context, zero\ncompactions, 57.4M cache-read tokens) cost ~4x all subagents combined (~15M); a planner run of\n87 turns read only 102 KB of results yet burned 6.0M because cost = turns x context. Shipped via\nthree Opus planners in parallel (19/18/32 tool calls \u2014 the 16 Sep discovery budget works):\n(1) `agent-token-caps` \u2014 planner 30-call / reviewer 20-call ceilings, two-Write output rule,\nreference prose split to `_shared/*-reference.md` (planner.md -28%, reviewer.md -32%, byte\nratchet with positive control); (2) `pipeline-session-hygiene` \u2014 stage-handoff/compaction rule\nin the four pipeline commands (line-neutral), Tier 3 verdicts from the Bash-less `reviewer`\nmarked STATIC-ONLY and routed to `/code-review`, implementer forbidden from reporting before\nexit or mutating a baseline; (3) `hook-stdin-and-reflection` (Tier 3, REVISE 82 -> APPROVED 90,\nverdict recorded) \u2014 `command-log-audit.sh` was wired `bash X &`, so it read `/dev/null` on every\nBash call (75/75 parse failures in 2 h; the audit log had never existed \u2014 16 Sep's plan had\nmis-filed these as test noise); and the reflection Stop duty prompt sat below the blocking\ngate, so `minimal` sessions were never told what they owed (360 suppressed Stops, 0 receipts).\nLive proof: first line ever written to `bash-commands.log`. Also: the editable `ck` pointed at\nthe removed `.ck-main` worktree (one test red, `ck` unusable); reinstalled from this tree.\n**Open:** eyeball one live Stop `systemMessage` before trusting the advisory; the reviewer\nstill emits the `=== REVIEW ===` block only in its reply, so the verdict was pasted into the\nreport by hand before `review-record.py write` would bind; fleet sync of these files.\n"
+    }
+   ]
+  },
+  {
+   "type": "code_edit",
+   "path": ".ai/CHANGELOG_AI.md",
+   "edits": [
+    {
+     "find": "Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` \u2014 this file tracks the *work sessions* themselves.)",
+     "add_after": "\n## 2026-09-17 \u2014 session retrospective: token cost measured, three fixes shipped, one live hook bug\n\nMeasured from the 16 Sep transcripts, not recalled. Main session 317 turns / median context\n187k / zero compactions = 57.4M cache-read tokens; seven subagents together ~15M. A planner\nconsumed 6.0M over 87 turns while reading 102 KB \u2014 cost is turns x context, and every subagent\nstarts at ~21k tokens (CLAUDE.md + agent prompt + skill listing + MCP schemas). Three plans\nwritten concurrently by Opus planners under the 16 Sep discovery budget (19, 18, 32 calls).\n\n**Bug the previous session mis-filed.** `plan-planner-token-budget` called the\n`[command-log-audit] JSON parse failure` lines \"test-suite artefacts\". Correlation on the\nhooks.log showed 75 Bash calls -> 75 failures in one evening window, and\n`bash-commands.log` did not exist. Cause: settings.json ran the hook as `bash X &` inside\n`bash -c`; POSIX gives a backgrounded command stdin from `/dev/null`. Proof:\n`echo '{...}' | bash -c 'bash -c \"cat | wc -c\" & wait'` prints 0. Fix reads the payload in\nthe foreground and backgrounds only the consumer. The other three `&` hooks never read stdin.\nThe regression test pipes a payload through the EXACT settings.json command string \u2014 the\nonly test shape that can catch this class \u2014 and failed 2/3 on the unfixed tree.\n\n**Learning loop was blind under `minimal`.** Capture ran above the profile gate (pinned), but\n`handle_stop` \u2014 the only thing that tells a session its unmet duties \u2014 sat below it. New\nnon-blocking advisory (exit 0, `systemMessage`) under `minimal`. Rendering of `systemMessage`\non a live Stop is verified by documentation only; eyeball one before relying on it.\n\n**Process.** Reviewer round 1 REVISE 82 found four real test-quality defects (unsandboxed\nCLAUDE_PROJECT_DIR, an assertion guarded behind `if stdout`, a wrong protected-file claim, a\ncontrol that a crashed hook could pass); round 2 APPROVED 90. The reviewer's saved report again\nlacked the `=== REVIEW ===` block; pasted from its reply so `review-record.py write` could bind.\nTier 2 plans ran `--no-approval` (no architecture touched). The concurrent-planner risk was the\nshared context-floor budget (45 chars); executing `agent-token-caps` first freed ~9.3k.\n"
+    }
+   ]
+  }
+ ]
+}

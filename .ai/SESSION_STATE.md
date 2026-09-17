@@ -1,6 +1,27 @@
 # Session State
 
 > Update this file at the end of every significant AI working session. It is the resume point.
+**2026-09-17 · Claude (Fable 5.1) — `fix/session-findings-2026-09-17`, three plans, all executed.**
+Retrospective of the 16 Sep transcripts: the main session (317 turns, 51k -> 301k context, zero
+compactions, 57.4M cache-read tokens) cost ~4x all subagents combined (~15M); a planner run of
+87 turns read only 102 KB of results yet burned 6.0M because cost = turns x context. Shipped via
+three Opus planners in parallel (19/18/32 tool calls — the 16 Sep discovery budget works):
+(1) `agent-token-caps` — planner 30-call / reviewer 20-call ceilings, two-Write output rule,
+reference prose split to `_shared/*-reference.md` (planner.md -28%, reviewer.md -32%, byte
+ratchet with positive control); (2) `pipeline-session-hygiene` — stage-handoff/compaction rule
+in the four pipeline commands (line-neutral), Tier 3 verdicts from the Bash-less `reviewer`
+marked STATIC-ONLY and routed to `/code-review`, implementer forbidden from reporting before
+exit or mutating a baseline; (3) `hook-stdin-and-reflection` (Tier 3, REVISE 82 -> APPROVED 90,
+verdict recorded) — `command-log-audit.sh` was wired `bash X &`, so it read `/dev/null` on every
+Bash call (75/75 parse failures in 2 h; the audit log had never existed — 16 Sep's plan had
+mis-filed these as test noise); and the reflection Stop duty prompt sat below the blocking
+gate, so `minimal` sessions were never told what they owed (360 suppressed Stops, 0 receipts).
+Live proof: first line ever written to `bash-commands.log`. Also: the editable `ck` pointed at
+the removed `.ck-main` worktree (one test red, `ck` unusable); reinstalled from this tree.
+**Open:** eyeball one live Stop `systemMessage` before trusting the advisory; the reviewer
+still emits the `=== REVIEW ===` block only in its reply, so the verdict was pasted into the
+report by hand before `review-record.py write` would bind; fleet sync of these files.
+
 **2026-09-13 · Claude (Opus 5) — `feat/skill-profiles`, merged as PR #42 (`c040ab5`).**
 Per-project skill fit. `ck skill audit` (stack detection, token cost, relevant /
 irrelevant / broken), `profile init` (project-owned `.claude/skills-profile.json`,

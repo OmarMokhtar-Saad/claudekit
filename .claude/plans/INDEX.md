@@ -23,12 +23,12 @@ index never outranks the current files.
 | State | Plans |
 |---|---:|
 | `drifted` | 11 |
-| `approved` | 56 |
-| `planned` | 21 |
+| `approved` | 57 |
+| `planned` | 23 |
 | `executed` | 30 |
 | `not_started` | 24 |
 | `legacy` | 5 |
-| **total** | **147** |
+| **total** | **150** |
 
 ## Plans
 
@@ -44,6 +44,7 @@ index never outranks the current files.
 | `.claude/plans/plan-008-batch1-one-tree.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-008-paper-trail.md` | `executed` | 5 |  |
 | `.claude/plans/plan-adapt-eject-interaction.md` | `not_started` | 0 |  |
+| `.claude/plans/plan-agent-token-caps.md` | `planned` | 1 |  |
 | `.claude/plans/plan-agent-tool-grants.md` | `approved` | 1 |  |
 | `.claude/plans/plan-approval-gate-ops-dir-layout.md` | `executed` | 1 |  |
 | `.claude/plans/plan-approval-machinery.md` | `approved` | 1 |  |
@@ -89,6 +90,7 @@ index never outranks the current files.
 | `.claude/plans/plan-hook-live-findings.md` | `executed` | 10 |  |
 | `.claude/plans/plan-hook-log-dedup.md` | `executed` | 3 |  |
 | `.claude/plans/plan-hook-profiles.md` | `approved` | 1 |  |
+| `.claude/plans/plan-hook-stdin-and-reflection.md` | `approved` | 1 |  |
 | `.claude/plans/plan-install-preservation-and-xpipe-policy.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-install-receipts.md` | `approved` | 1 |  |
 | `.claude/plans/plan-installer-python-hooks.md` | `approved` | 1 |  |
@@ -115,6 +117,7 @@ index never outranks the current files.
 | `.claude/plans/plan-parse-gate-fold-invariance.md` | `drifted` | 9 |  |
 | `.claude/plans/plan-parse-gate-ordering.md` | `drifted` | 2 |  |
 | `.claude/plans/plan-parse-gate-unresolved-paths.md` | `drifted` | 2 |  |
+| `.claude/plans/plan-pipeline-session-hygiene.md` | `planned` | 1 |  |
 | `.claude/plans/plan-planner-token-budget.md` | `planned` | 1 |  |
 | `.claude/plans/plan-preserve-dir-symlinks.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-preserve-fault-tolerance.md` | `drifted` | 6 |  |

@@ -1,6 +1,36 @@
 # AI Session Changelog
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
+## 2026-09-17 — session retrospective: token cost measured, three fixes shipped, one live hook bug
+
+Measured from the 16 Sep transcripts, not recalled. Main session 317 turns / median context
+187k / zero compactions = 57.4M cache-read tokens; seven subagents together ~15M. A planner
+consumed 6.0M over 87 turns while reading 102 KB — cost is turns x context, and every subagent
+starts at ~21k tokens (CLAUDE.md + agent prompt + skill listing + MCP schemas). Three plans
+written concurrently by Opus planners under the 16 Sep discovery budget (19, 18, 32 calls).
+
+**Bug the previous session mis-filed.** `plan-planner-token-budget` called the
+`[command-log-audit] JSON parse failure` lines "test-suite artefacts". Correlation on the
+hooks.log showed 75 Bash calls -> 75 failures in one evening window, and
+`bash-commands.log` did not exist. Cause: settings.json ran the hook as `bash X &` inside
+`bash -c`; POSIX gives a backgrounded command stdin from `/dev/null`. Proof:
+`echo '{...}' | bash -c 'bash -c "cat | wc -c" & wait'` prints 0. Fix reads the payload in
+the foreground and backgrounds only the consumer. The other three `&` hooks never read stdin.
+The regression test pipes a payload through the EXACT settings.json command string — the
+only test shape that can catch this class — and failed 2/3 on the unfixed tree.
+
+**Learning loop was blind under `minimal`.** Capture ran above the profile gate (pinned), but
+`handle_stop` — the only thing that tells a session its unmet duties — sat below it. New
+non-blocking advisory (exit 0, `systemMessage`) under `minimal`. Rendering of `systemMessage`
+on a live Stop is verified by documentation only; eyeball one before relying on it.
+
+**Process.** Reviewer round 1 REVISE 82 found four real test-quality defects (unsandboxed
+CLAUDE_PROJECT_DIR, an assertion guarded behind `if stdout`, a wrong protected-file claim, a
+control that a crashed hook could pass); round 2 APPROVED 90. The reviewer's saved report again
+lacked the `=== REVIEW ===` block; pasted from its reply so `review-record.py write` could bind.
+Tier 2 plans ran `--no-approval` (no architecture touched). The concurrent-planner risk was the
+shared context-floor budget (45 chars); executing `agent-token-caps` first freed ~9.3k.
+
 
 ## 2026-09-16 — six external repos surveyed; four adopted, one measured and killed
 
