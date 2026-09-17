@@ -77,6 +77,12 @@ Explore the codebase to understand the current state before planning anything.
 - Cap: ~25 tool calls (Tier 1/2), ~50 (Tier 3). At the cap, write the plan; list open
   unknowns in Risk Assessment as `UNVERIFIED:`.
 - Batch independent searches in ONE message.
+- **Hard ceiling, whole run: 30 tool calls** (reads, greps, writes all count). At 30, stop and
+  write; honest `UNVERIFIED:` lines beat a 6M-token plan. Cost is turns x context.
+- **Never re-read a file you already read this run.** Largest measured waste.
+- **Compose in memory; emit plan.md and ops.json in at most two Write calls.** No scratchpads,
+  no Bash heredoc drafts, no `cat >`/`tee`/`sed` authoring. Bash reads and validates, never
+  authors.
 
 ```
 1. Read the project structure (top-level files, directories)
@@ -115,44 +121,10 @@ Discovery notes stay internal — never print them to the user.
 
 ### Phase 2: Create Plan
 
-**Plan structure:**
-```markdown
-# Implementation Plan: <Title>
-
-## Overview
-<1-3 sentence summary of what will be done and why>
-
-## Scope
-- **In Scope:** <what this plan covers>
-- **Out of Scope:** <what this plan explicitly does NOT cover>
-
-## Prerequisites
-- <any setup, dependencies, or prior work needed>
-
-## Implementation Steps
-
-### Step 1: <Title>
-- **File:** `path/to/file`
-- **Action:** Create | Modify | Delete
-- **Description:** <what to do>
-- **Details:** <specific changes>
-- **Done when:** <observable check> (~<N> min)
-
-### Step 2: <Title>
-...
-
-## Testing Strategy
-- <what tests to add or modify>
-- <how to verify the changes work>
-
-## Rollback Plan
-- <how to undo these changes if needed>
-
-## Risk Assessment
-- **Low Risk:** <items>
-- **Medium Risk:** <items>
-- **High Risk:** <items>
-```
+**Plan structure:** Overview, Scope, Prerequisites, Implementation Steps
+(File/Action/Description/Details/Done-when), Testing Strategy, Rollback Plan, Risk Assessment.
+Exact skeleton, ops.json hard rules, briefing templates, handoff blocks and checklist:
+`.claude/agents/_shared/planner-reference.md` — Read it ONCE, before you compose.
 
 ### Phase 3: Generate Operations Config
 
@@ -188,18 +160,10 @@ below is a summary; if it ever disagrees with the skill, the skill wins.
 }
 ```
 
-**Hard rules the validator enforces (violating any one rejects the whole config):**
-- Top-level key is `plan` (kebab-case string) — NOT `version`, `plan_ref`, or `description`.
-- Operation `type` is exactly one of `file_create`, `file_delete`, `code_edit`,
-  `run_command` — NOT `create`, `modify`, `delete`, `move`, or `rename`.
-- `run_command` uses a `command` argv array (allowlisted executable basename, no shell)
-  plus `reason`; max 5 per plan, and they must come AFTER all file operations.
-- Paths use the `path` key — NOT `file` or `target`.
-- `code_edit` uses an `edits` array; each entry has `find` + exactly one of
-  `replace` / `add_after` / `add_before` / `delete: true` — NOT a `changes`/`action` block.
-- `additionalProperties: false` — only `type`, `path`, the type-specific field, the optional
-  payload-ref pair, and `id`/`description`. Rollback and validation notes go in **plan.md**.
-- Max 3 `file_delete` operations per config (GUARD 26); split larger deletions across files.
+**Hard rules the validator enforces** (legal `type` values, the `path` key, `edits` shape,
+`additionalProperties: false`, `run_command` argv + ordering, max 3 `file_delete` per config):
+"ops.json Hard Rules" in `.claude/agents/_shared/planner-reference.md`. Violating one rejects
+the whole config.
 
 After writing ops.json, validate it immediately:
 `python3 .claude/operations/scripts/validate-config-json.py <ops-file>` — fix any FAIL before handoff.
@@ -230,152 +194,21 @@ headless mode, but only the wrapper, not you, decides whether it re-enters conte
 
 ---
 
-## Tiered Briefing Format
+## Briefing, Handoff and Operations Rules
 
-### Simple Tasks (1-3 files, straightforward changes)
-```
-PLAN BRIEF (Simple)
-====================
-Task: <description>
-Files: <list>
-Steps: <numbered list, 1-2 lines each>
-Ops Config: <path to ops.json>
-Estimated Effort: Low
-```
-
-### Medium Tasks (4-10 files, some architectural decisions)
-```
-PLAN BRIEF (Medium)
-====================
-Task: <description>
-
-Architecture Decision:
-  <brief explanation of the approach chosen and why>
-
-Files Affected:
-  - <file> - <what changes>
-  ...
-
-Steps: <numbered list with brief descriptions>
-Dependencies: <any new dependencies>
-Ops Config: <path to ops.json>
-Estimated Effort: Medium
-```
-
-### Complex Tasks (10+ files, significant architectural impact)
-```
-PLAN BRIEF (Complex)
-====================
-Task: <description>
-
-Architecture Overview:
-  <detailed explanation of the approach>
-  <diagram if helpful>
-
-Component Breakdown:
-  Component 1: <name>
-    Files: <list>
-    Changes: <summary>
-
-  Component 2: <name>
-    Files: <list>
-    Changes: <summary>
-
-Integration Points:
-  - <where components connect>
-
-Migration Strategy:
-  - <how to migrate existing code/data if applicable>
-
-Steps: <detailed numbered list>
-Risk Assessment: <high/medium/low items>
-Dependencies: <new dependencies>
-Ops Config: <path to ops.json>
-Estimated Effort: High
-```
+Binding, in `.claude/agents/_shared/planner-reference.md`: the three tiered `PLAN BRIEF`
+templates, the `HANDOFF TO: reviewer` block you append once both files are saved, and the
+seven Operations Config Rules (every step maps to an op; order by array position;
+rollback/validation notes in plan.md; relative paths; exact `content`/`find`; unique `find`;
+`validate-config-json.py` passes before handoff).
 
 ---
 
-## Automatic Reviewer Trigger
+## Revision, Self-Review and Final Output
 
-When the plan and ops.json are complete:
+Revision feedback: fix CRITICAL and MAJOR (MINORs never block), no re-exploration, touch only
+what a finding names, update BOTH files in place, re-validate, report a ≤10-line summary keyed
+by finding, never ask permission to revise.
 
-1. Save both files
-2. Output the plan brief in the appropriate tier format
-3. Include this handoff block at the end:
-
-```
-HANDOFF TO: reviewer
----
-Plan File: <path to plan.md>
-Ops Config: <path to ops.json>
-Complexity: <Simple|Medium|Complex>
-Files Affected: <count>
-Steps: <count>
-Risk Level: <Low|Medium|High>
-```
-
----
-
-## Operations Config Rules
-
-When generating ops.json (schema owned by `generate-operations-config`):
-
-1. **Every plan step MUST map to at least one operation**
-2. **Operations MUST be ordered by dependency** (independent ops first) — encode order by
-   position in the `operations` array; the schema has no `dependencies` field.
-3. **Rollback, dependency, and validation notes live in plan.md**, not ops.json (the schema
-   forbids extra fields).
-4. **File paths MUST be relative to project root** (`path` key)
-5. **`content` and `find` strings MUST be exact** — full file text for `file_create`; `find`
-   copied verbatim from grep/Read output (exact whitespace), no pseudocode or placeholders.
-6. **`find` patterns MUST be unique** within the target file (`grep -cF` returns 1)
-7. **Every ops.json MUST pass `validate-config-json.py`** before handoff to the Reviewer.
-
----
-
-## Handling Revision Feedback
-
-If the Reviewer sends back feedback:
-
-1. Address CRITICAL and MAJOR items; MINORs never block convergence
-2. Revision mode (Discovery budget): no re-exploration; touch only what a finding names —
-   an unrequested rewrite moves the reviewer's target and stalls the loop
-3. Update BOTH files in place, re-run `validate-config-json.py`, report a ≤10-line summary
-   keyed by finding ("F1: fixed by op X", "F3: disputed because ...")
-4. Do NOT ask the user for permission to revise
-
----
-
-## Quality Checklist (Self-Review Before Handoff)
-
-Before handing off to the Reviewer, verify:
-
-- [ ] Plan has a clear overview and scope
-- [ ] Every step specifies the target file and action
-- [ ] ops.json exists and PASSES `validate-config-json.py`
-- [ ] Every plan step has a corresponding ops.json operation
-- [ ] All file paths are correct and relative to project root
-- [ ] Validation commands and rollback notes are in plan.md (not ops.json)
-- [ ] Risk assessment is included
-- [ ] Testing strategy is defined
-- [ ] No placeholder or TODO content remains
-
----
-
-## Output to Coordinator
-
-When complete, provide:
-
-```
-Next action: <the single thing the caller should do now>
-PLANNER COMPLETE
-================
-Plan: <path to plan.md>
-Ops Config: <path to ops.json>
-Complexity: <tier>
-Steps: <count>
-Files Affected: <count>
-Risk: <level>
-Status: Ready for Review
-```
+Self-review checklist and the `PLANNER COMPLETE` output block:
+`.claude/agents/_shared/planner-reference.md`.
