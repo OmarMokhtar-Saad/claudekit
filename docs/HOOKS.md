@@ -99,7 +99,7 @@ Unset defaults to `standard`.
 | `config-protection.sh` | Edit/Write | off in `minimal` | Blocks edits to protected config files |
 | `block-no-verify.sh` | Bash | off in `minimal` | Blocks `git commit/push --no-verify` (which would skip hooks) |
 | `commit-quality.sh` | Bash | off in `minimal` | Enforces commit-message quality |
-| `command-guard.sh` | Bash | **`strict` blocks**, `standard` warns, `minimal` off | Denylist speed bump over shell commands (`CommandValidator`). See `SECURITY.md`. |
+| `command-guard.sh` | Bash | **`strict` blocks**, `standard` warns, `minimal` off | Denylist speed bump over shell commands (`CommandValidator`). A flagged command blocks under `standard` too; only a validator that is **missing or crashed** takes the permissive path (and `strict` closes that). See `SECURITY.md`. |
 | `concurrency-guard.py` | Bash | **`minimal` is advisory** (records `WOULD-BLOCK`), else blocks | Blocks tree-wide git that clobbers a concurrent session in a shared tree: `add`/`stage` with `-A|-u|.`, `commit -a`, `reset --hard|--merge|--keep` or bare `reset`, `checkout|restore|switch` with a tree-wide pathspec, `checkout -f`/`switch -f`, `clean -f`, `stash`/`stash push` unscoped, `rm .`, `worktree remove -f`. Tokenises with `shlex`, so flag order, `--`, clusters, `git -C`, `bash -lc` and multi-line scripts are all handled. Scoped and restorative forms (`add -A -- <path>`, `stash push <path>`, `stash pop`) stay allowed. `CK_ALLOW_BROAD_GIT=1` downgrades to a warning. See `.ai/CONCURRENCY.md`. |
 | `pre-commit.sh` | Bash (`git commit`) | always | Validates ops.json configs and scans staged files for secrets |
 | `pre-push.sh` | Bash (`git push`) | always | Full validation suite before a push to remote |

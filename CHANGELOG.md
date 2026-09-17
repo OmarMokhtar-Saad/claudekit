@@ -11,6 +11,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `open-source-forker` — never shipped and have been removed.
 
 ## [Unreleased]
+- **Three enforcement gaps closed, upstreamed from a downstream project that hit each
+  one in production.** (1) `command-guard.sh` now tells a **crashed** validator apart
+  from a **verdict**: the exit code decides and an anchored traceback pattern on stderr
+  only corroborates, so a console script whose package is gone no longer blocks every
+  Bash command, while a genuine refusal whose text carries `ImportError` still blocks.
+  Verdict (stdout) and health (stderr) are no longer merged. (2) `execute-json-ops.py`
+  now **refuses a config the validator's schema rejects** (`--skip-validation` is the one
+  loud override) and **refuses to guess which tree it may edit** when the config lives in
+  a different git worktree than the cwd (`--root` states the intent); rollback writes a
+  durable `backups/<run>/rollback.log`. The preflight is deliberately NARROWER than the
+  validator CLI -- anchors, create modes, payload digests, the run_command allowlist and
+  the parse gate stay the executor's own refusals, reported per operation. (3)
+  `worktree-manager.py remove` now measures containment as `base..branch` against the
+  base **branch**, so merged work is removable without `--force`, unmerged work is
+  refused by name, and an unresolvable containment ref refuses instead of deleting the
+  checkout.
+
 - **Install backups no longer pile up.** Every install and `ck fleet update` moved the previous
   `.claude` aside as `.claude.bak-<timestamp>` and never cleaned up; fleet projects carried 11-27
   untracked backup directories each. The installer now keeps the newest 3 (set

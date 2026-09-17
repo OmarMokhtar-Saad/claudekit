@@ -45,7 +45,12 @@ def gate():
 
 def write_ops(tmp_path, operations):
     cfg = tmp_path / "ops.json"
-    cfg.write_text(json.dumps({"plan_name": "t", "operations": operations}))
+    # "plan", not "plan_name": the executor's normalize_config accepts either,
+    # but the schema does not, and the executor's preflight now shares the
+    # validator's schema verdict. The key was incidental to every assertion in
+    # this file; the parse gate is the subject, so the fixture is corrected
+    # rather than waved through.
+    cfg.write_text(json.dumps({"plan": "t", "operations": operations}))
     return str(cfg)
 
 
@@ -747,7 +752,14 @@ def test_the_both_keys_refusal_also_stops_the_real_executor(tmp_path, monkeypatc
         "files": [{"path": "y.py", "edits": [{"find": "B = 1", "replace": "A = 1"}]}],
         "operations": [{"type": "code_edit", "path": "y.py",
                         "edits": [{"find": "A = 1", "replace": "A = ("}]}]}))
-    res = _run_executor(tmp_path, str(cfg), "--no-approval")
+    # A config may not carry BOTH `files` and `operations`, so the executor's
+    # preflight refuses it on the validator's verdict. Assert that first -- then
+    # step past it, because the SUBJECT here is the parse gate, which sits
+    # downstream of validation and would otherwise lose its only end-to-end proof.
+    refused = _run_executor(tmp_path, str(cfg), "--no-approval")
+    assert refused.returncode == 2, refused.stdout
+    assert "validation_failed" in refused.stdout, refused.stdout
+    res = _run_executor(tmp_path, str(cfg), "--no-approval", "--skip-validation")
     assert res.returncode == 1, res.stdout
     assert "PARSE GATE" in res.stdout, res.stdout
     assert y.read_text() == "A = 1\nB = 1\n"

@@ -1,0 +1,180 @@
+{
+  "plan": "qa-agents-hardening",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/command-guard.sh",
+      "edits": [
+        {
+          "find": "    if command -v claudekit >/dev/null 2>&1; then\n        claudekit check-command \"$1\" 2>&1\n        return $?\n    elif [ -d \"$ROOT/src/claudekit\" ]; then\n        PYTHONPATH=\"$ROOT/src${PYTHONPATH:+:$PYTHONPATH}\" \\\n            python3 -m claudekit.security check-command \"$1\" 2>&1\n        return $?\n    elif python3 -c 'import claudekit.security' 2>/dev/null; then\n        # pip-installed package without the console script on PATH\n        python3 -m claudekit.security check-command \"$1\" 2>&1\n        return $?\n    fi",
+          "replace": "    # STDOUT carries the VERDICT, STDERR carries the validator's own health.\n    # They are never merged: the caller has to tell an attacker-supplied string\n    # echoed back inside a refusal apart from a Python traceback the validator\n    # emitted about itself. See the discriminator below.\n    if command -v claudekit >/dev/null 2>&1; then\n        claudekit check-command \"$1\"\n        return $?\n    elif [ -d \"$ROOT/src/claudekit\" ]; then\n        PYTHONPATH=\"$ROOT/src${PYTHONPATH:+:$PYTHONPATH}\" \\\n            python3 -m claudekit.security check-command \"$1\"\n        return $?\n    elif python3 -c 'import claudekit.security' 2>/dev/null; then\n        # pip-installed package without the console script on PATH\n        python3 -m claudekit.security check-command \"$1\"\n        return $?\n    fi"
+        },
+        {
+          "find": "OUT=\"$(run_validator \"$CMD\")\"; RC=$?",
+          "replace_path": ".claude/plans/payloads/qa-agents-hardening/guard-crash-block.sh.txt",
+          "replace_sha256": "6b5d1667ce23c83ddc98662d11978ed31da2904ab53f5147927b79467f73ec7f"
+        },
+        {
+          "find": "    deny \"command-guard: ${OUT:-policy violation}\"",
+          "replace": "    # OUT first, ERR as the fallback: with the channels split, a validator that\n    # writes its reason to stderr would otherwise refuse with no reason at all.\n    deny \"command-guard: ${OUT:-${ERR:-policy violation}}\""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/execute-json-ops.py",
+      "edits": [
+        {
+          "find": "    def rollback(self):\n        print(\"\\n  ROLLBACK: Restoring files from backup...\")\n        for fp in self._modified_files:\n            rel = Path(os.path.relpath(fp))\n            bp = self.backup_dir / rel\n            if bp.exists():\n                try:\n                    shutil.copy2(str(bp), fp)\n                    print(f\"  Restored: {fp}\")\n                except Exception as e:\n                    print(f\"  Warning: Failed to restore {fp}: {e}\")\n        for fp in self._created_files:\n            if os.path.exists(fp):\n                try:\n                    os.unlink(fp)\n                    print(f\"  Removed: {fp}\")\n                except Exception as e:\n                    print(f\"  Warning: Failed to remove {fp}: {e}\")\n        print(\"  ROLLBACK COMPLETE\")",
+          "replace_path": ".claude/plans/payloads/qa-agents-hardening/exec-rollback-body.py.txt",
+          "replace_sha256": "b0f50a1f9ec22a5f6e955b96189a6217c3bf12cee484d23d5f6c49d43a6b5723"
+        },
+        {
+          "find": "def main():\n    \"\"\"Main entry point.\"\"\"",
+          "add_before_path": ".claude/plans/payloads/qa-agents-hardening/exec-root-validate-funcs.py.txt",
+          "add_before_sha256": "ca2115f10a0c49ca7969a217fcedbc5131586561bf23b883a649fe06ee53fe29"
+        },
+        {
+          "find": "    parser.add_argument('--no-parse-check', action='store_true',\n                        help='Bypass the parse gate (loudly logged; exists for '\n                             'repairing a broken ops_precompile.py and nothing else)')\n    parser.add_argument('--version', action='version', version=f'%(prog)s {__version__}')\n    args = parser.parse_args()\n\n    if args.verbose:\n        logging.basicConfig(level=logging.DEBUG, force=True)\n\n    signal.signal(signal.SIGINT, _signal_handler)\n    signal.signal(signal.SIGTERM, _signal_handler)\n\n    success = execute_json_config(args.config, dry_run=args.dry_run,\n                                  require_approval=not args.no_approval,\n                                  check_parse=not args.no_parse_check)",
+          "replace_path": ".claude/plans/payloads/qa-agents-hardening/exec-main-gates.py.txt",
+          "replace_sha256": "7b17c450669d9a471a5f3effc6dc4404f693bed5ccabe2cc66d33c5bb56dc827"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/validate-config-json.py",
+      "edits": [
+        {
+          "find": "def main():\n    \"\"\"Main entry point.\"\"\"",
+          "add_before_path": ".claude/plans/payloads/qa-agents-hardening/val-full-verdict.py.txt",
+          "add_before_sha256": "2426be38a7283b40929719667429f593e73b9e36a05155a640be1744b19292c2"
+        },
+        {
+          "find": "    is_valid, errors = validate_json_config(args.config)\n\n    if is_valid:\n        # Pass pre-parsed config to avoid re-reading the file\n        try:\n            with open(args.config, 'r', encoding='utf-8') as f:\n                parsed_config = json.load(f)\n        except Exception:\n            parsed_config = None\n        backup_valid, backup_errors = validate_backup_compatibility(args.config, config=parsed_config)\n        if not backup_valid:\n            is_valid = False\n            errors.extend(backup_errors)",
+          "replace": "    # ONE verdict function for the CLI. The executor's preflight deliberately\n    # calls the NARROWER `preflight_verdict` instead; see its docstring.\n    is_valid, errors, parsed_config = full_verdict(args.config)"
+        },
+        {
+          "find": "        if args.stamp_baseline:\n            stamped = stamp_baseline(args.config, parsed_config)",
+          "replace": "        if args.stamp_baseline:\n            if parsed_config is None:\n                # full_verdict hands back None only when the file stopped being\n                # readable between the two reads; stamping a config we cannot\n                # parse would write a baseline over an unknown document.\n                print(\"\\n-> REJECTED (config could not be re-read for stamping)\\n\")\n                sys.exit(1)\n            stamped = stamp_baseline(args.config, parsed_config)"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/worktree-manager.py",
+      "edits": [
+        {
+          "find": "from typing import Any, Dict, List, Optional",
+          "replace": "from typing import Any, Dict, List, Optional, Tuple"
+        },
+        {
+          "find": "            \"base_sha\": base_sha,",
+          "replace": "            \"base_sha\": base_sha,\n            # The base as a NAME that still means something later. `base_sha`\n            # answers \"where did this start\", which is not the question\n            # `remove` has to ask; \"HEAD\" answers nothing at all once the\n            # primary checkout moves.\n            \"base_branch\": base_branch(root, base),"
+        },
+        {
+          "find": "def cmd_remove(args: argparse.Namespace) -> int:",
+          "add_before_path": ".claude/plans/payloads/qa-agents-hardening/wt-containment-funcs.py.txt",
+          "add_before_sha256": "8e988ba428e6cdc280ae1efabd0e0448b82c225533d38d96ad1af200c55a0d80"
+        },
+        {
+          "find": "            base_sha = entry.get(\"base_sha\", entry[\"base\"])\n            unmerged = run_git(\n                wt_path,\n                [\"log\", \"--oneline\", \"--end-of-options\", f\"{base_sha}..HEAD\"],\n                check=False,\n            ).stdout.strip()\n            if unmerged and not args.force:\n                return fail(\n                    f\"{entry['branch']} has commits not contained in \"\n                    f\"{entry['base']} (merge first, or use --force)\", 2,\n                )",
+          "replace_path": ".claude/plans/payloads/qa-agents-hardening/wt-remove-body.py.txt",
+          "replace_sha256": "98ab9f4d693fc4f9d1d5f40780f5883d55bc3abe57868a19e26b80f42a1552c9"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_ops_parse_gate.py",
+      "edits": [
+        {
+          "find": "    cfg.write_text(json.dumps({\"plan_name\": \"t\", \"operations\": operations}))",
+          "replace": "    # \"plan\", not \"plan_name\": the executor's normalize_config accepts either,\n    # but the schema does not, and the executor's preflight now shares the\n    # validator's schema verdict. The key was incidental to every assertion in\n    # this file; the parse gate is the subject, so the fixture is corrected\n    # rather than waved through.\n    cfg.write_text(json.dumps({\"plan\": \"t\", \"operations\": operations}))"
+        },
+        {
+          "find": "    res = _run_executor(tmp_path, str(cfg), \"--no-approval\")\n    assert res.returncode == 1, res.stdout\n    assert \"PARSE GATE\" in res.stdout, res.stdout\n    assert y.read_text() == \"A = 1\\nB = 1\\n\"",
+          "replace": "    # A config may not carry BOTH `files` and `operations`, so the executor's\n    # preflight refuses it on the validator's verdict. Assert that first -- then\n    # step past it, because the SUBJECT here is the parse gate, which sits\n    # downstream of validation and would otherwise lose its only end-to-end proof.\n    refused = _run_executor(tmp_path, str(cfg), \"--no-approval\")\n    assert refused.returncode == 2, refused.stdout\n    assert \"validation_failed\" in refused.stdout, refused.stdout\n    res = _run_executor(tmp_path, str(cfg), \"--no-approval\", \"--skip-validation\")\n    assert res.returncode == 1, res.stdout\n    assert \"PARSE GATE\" in res.stdout, res.stdout\n    assert y.read_text() == \"A = 1\\nB = 1\\n\""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_ops_file_modes.py",
+      "edits": [
+        {
+          "find": "        res = _run(EXECUTOR, tmp_path, ops)\n        assert res.returncode != 0, res.stdout + res.stderr\n        assert 'unsupported create mode' in (res.stdout + res.stderr).lower()",
+          "replace": "        # The schema enum rejects this mode, so the preflight refuses on the\n        # validator's verdict. Assert that, then step past it: the SUBJECT here\n        # is the executor's OWN enforcement for a config that never went through\n        # the validator, which is exactly what --skip-validation reproduces.\n        refused = _run(EXECUTOR, tmp_path, ops)\n        assert refused.returncode == 2, refused.stdout + refused.stderr\n        assert 'validation_failed' in refused.stdout, refused.stdout\n        res = _run(EXECUTOR, tmp_path, ops, '--skip-validation')\n        assert res.returncode != 0, res.stdout + res.stderr\n        assert 'unsupported create mode' in (res.stdout + res.stderr).lower()"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_ops_approval_gate.py",
+      "edits": [
+        {
+          "find": "        _write_ops(config, payload)\n        proc = run_executor(project, config)\n        assert proc.returncode != 0, proc.stdout + proc.stderr\n        reason = result_json(proc.stdout)[\"reason\"]\n        assert \"no review record exists\" in reason, reason",
+          "replace": "        _write_ops(config, payload)\n        # No \"plan\" key: the schema rejects it, so the preflight refuses first.\n        # Assert that, then step past it -- the SUBJECT here is the approval\n        # gate keying by DIRECTORY, which is downstream of validation.\n        refused = run_executor(project, config)\n        assert refused.returncode == 2, refused.stdout + refused.stderr\n        assert \"validation_failed\" in refused.stdout, refused.stdout\n        proc = run_executor(project, config, \"--skip-validation\")\n        assert proc.returncode != 0, proc.stdout + proc.stderr\n        reason = result_json(proc.stdout)[\"reason\"]\n        assert \"no review record exists\" in reason, reason"
+        }
+      ]
+    },
+    {
+      "type": "file_create",
+      "path": "tests/test_ops_gate_enforced.py",
+      "content_path": ".claude/plans/payloads/qa-agents-hardening/test_ops_gate_enforced.py",
+      "content_sha256": "bad622a3682c81f669cdda908a6b177add3a4687067e68e1623550c6b25322f8"
+    },
+    {
+      "type": "file_create",
+      "path": "tests/test_command_guard_crash.py",
+      "content_path": ".claude/plans/payloads/qa-agents-hardening/test_command_guard_crash.py",
+      "content_sha256": "5eb5cc4209c36abeabbd63eb6f3513a847b070929ac90b06513fca1b0bc6ed98"
+    },
+    {
+      "type": "file_create",
+      "path": "tests/test_worktree_containment.py",
+      "content_path": ".claude/plans/payloads/qa-agents-hardening/test_worktree_containment.py",
+      "content_sha256": "9bb08eb09c7246737ffe3f556667022a0141dc1b263ecc3794c6f0b0edd845c8"
+    },
+    {
+      "type": "file_create",
+      "path": "tests/test_rollback_audit.py",
+      "content_path": ".claude/plans/payloads/qa-agents-hardening/test_rollback_audit.py",
+      "content_sha256": "88ee14c6e2a5aa7f8546bf299ffc762360c32f731f442ccf8f0caf751dc8ce09"
+    },
+    {
+      "type": "code_edit",
+      "path": "docs/HOOKS.md",
+      "edits": [
+        {
+          "find": "| `command-guard.sh` | Bash | **`strict` blocks**, `standard` warns, `minimal` off | Denylist speed bump over shell commands (`CommandValidator`). See `SECURITY.md`. |",
+          "replace": "| `command-guard.sh` | Bash | **`strict` blocks**, `standard` warns, `minimal` off | Denylist speed bump over shell commands (`CommandValidator`). A flagged command blocks under `standard` too; only a validator that is **missing or crashed** takes the permissive path (and `strict` closes that). See `SECURITY.md`. |"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "docs/PARALLEL_AGENTS.md",
+      "edits": [
+        {
+          "find": "python3 .claude/operations/scripts/worktree-manager.py remove impl-core",
+          "replace": "python3 .claude/operations/scripts/worktree-manager.py remove impl-core\n# refuses while the branch has commits its base branch does not contain"
+        },
+        {
+          "find": "| Directory deleted manually, registry stale |",
+          "replace": "| `has commits not contained in <ref>` | Merge the branch into that ref first, or `remove --force` if the work is disposable |\n| `cannot tell what <branch> should be contained in` | The primary checkout is detached (or the base branch is gone): check out the base branch and re-run |\n| Directory deleted manually, registry stale |"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "edits": [
+        {
+          "find": "## [Unreleased]",
+          "add_after": "\n- **Three enforcement gaps closed, upstreamed from a downstream project that hit each\n  one in production.** (1) `command-guard.sh` now tells a **crashed** validator apart\n  from a **verdict**: the exit code decides and an anchored traceback pattern on stderr\n  only corroborates, so a console script whose package is gone no longer blocks every\n  Bash command, while a genuine refusal whose text carries `ImportError` still blocks.\n  Verdict (stdout) and health (stderr) are no longer merged. (2) `execute-json-ops.py`\n  now **refuses a config the validator's schema rejects** (`--skip-validation` is the one\n  loud override) and **refuses to guess which tree it may edit** when the config lives in\n  a different git worktree than the cwd (`--root` states the intent); rollback writes a\n  durable `backups/<run>/rollback.log`. The preflight is deliberately NARROWER than the\n  validator CLI -- anchors, create modes, payload digests, the run_command allowlist and\n  the parse gate stay the executor's own refusals, reported per operation. (3)\n  `worktree-manager.py remove` now measures containment as `base..branch` against the\n  base **branch**, so merged work is removable without `--force`, unmerged work is\n  refused by name, and an unresolvable containment ref refuses instead of deleting the\n  checkout.\n"
+        }
+      ]
+    }
+  ]
+}

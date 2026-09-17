@@ -397,7 +397,13 @@ class TestOperationsDirectoryLayout:
         payload = _ops_payload(plan="lens")
         del payload["plan"]
         _write_ops(config, payload)
-        proc = run_executor(project, config)
+        # No "plan" key: the schema rejects it, so the preflight refuses first.
+        # Assert that, then step past it -- the SUBJECT here is the approval
+        # gate keying by DIRECTORY, which is downstream of validation.
+        refused = run_executor(project, config)
+        assert refused.returncode == 2, refused.stdout + refused.stderr
+        assert "validation_failed" in refused.stdout, refused.stdout
+        proc = run_executor(project, config, "--skip-validation")
         assert proc.returncode != 0, proc.stdout + proc.stderr
         reason = result_json(proc.stdout)["reason"]
         assert "no review record exists" in reason, reason

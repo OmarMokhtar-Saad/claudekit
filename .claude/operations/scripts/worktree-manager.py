@@ -37,7 +37,7 @@ import sys
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,40}$")
 MAX_WORKTREES = 5
@@ -254,6 +254,11 @@ def cmd_create(args: argparse.Namespace) -> int:
             "path": rel_path,
             "base": base,
             "base_sha": base_sha,
+            # The base as a NAME that still means something later. `base_sha`
+            # answers "where did this start", which is not the question
+            # `remove` has to ask; "HEAD" answers nothing at all once the
+            # primary checkout moves.
+            "base_branch": base_branch(root, base),
             "index": index,
             "created": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
         })
@@ -290,6 +295,103 @@ def cmd_list(args: argparse.Namespace) -> int:
     return 0
 
 
+def is_branch(root: Path, name: str) -> bool:
+    """Whether *name* is a local branch in *root*."""
+    if not name:
+        return False
+    return run_git(
+        root,
+        ["rev-parse", "--verify", "--quiet", "refs/heads/" + name],
+        check=False,
+    ).returncode == 0
+
+
+def local_of(root: Path, name: str) -> str:
+    """The LOCAL branch *name* stands for, or ``""``.
+
+    A remote-tracking base is the ordinary way to start work from a fetched
+    ref, and ``--base origin/main`` recorded nothing usable: ``is_branch``
+    accepts ``refs/heads/`` only. A worktree based on ``origin/main`` and merged
+    to ``main`` could then never earn removal.
+    """
+    if is_branch(root, name):
+        return name
+    for remote in run_git(root, ["remote"], check=False).stdout.split():
+        prefix = remote + "/"
+        if name.startswith(prefix):
+            local = name[len(prefix):]
+            if is_branch(root, local):
+                return local
+    return ""
+
+
+def base_branch(root: Path, base: str) -> str:
+    """The local branch *base* stands for, or ``""``.
+
+    ``HEAD`` and a raw sha are not names anything can be contained in LATER, so
+    both fall through to whatever branch the primary checkout is on.
+
+    Two measured traps. ``--end-of-options`` is NOT accepted by
+    ``rev-parse --abbrev-ref``, which echoes it into the answer, so it is not
+    passed here. And ``--abbrev-ref`` returns a sha UNCHANGED when it cannot
+    abbreviate one, so the result is confirmed to be a branch, never assumed.
+    ``local_of`` is asked FIRST because it follows git's own refs/heads
+    precedence; two resolvers with one job may not disagree.
+    """
+    name = str(base or "").strip()
+    if name and name != "HEAD":
+        local = local_of(root, name)
+        if local:
+            return local
+        symbolic = run_git(root, ["rev-parse", "--abbrev-ref", name], check=False)
+        resolved = symbolic.stdout.strip() if symbolic.returncode == 0 else ""
+        local = local_of(root, resolved)
+        if local:
+            return local
+    current = run_git(root, ["rev-parse", "--abbrev-ref", "HEAD"], check=False)
+    resolved = current.stdout.strip() if current.returncode == 0 else ""
+    return resolved if is_branch(root, resolved) else ""
+
+
+def containment_ref(root: Path, entry: dict) -> str:
+    """Where *entry*'s work must have landed, resolved NOW rather than at
+    create time.
+
+    The answer has to be a BRANCH. Accepting any candidate that merely resolves
+    to a commit brings back the unsatisfiable comparison: an entry whose
+    ``base`` is a raw sha would be measured against the point the branch
+    started from, which every working branch is ahead of forever.
+    """
+    for candidate in (entry.get("base_branch"), entry.get("base")):
+        name = str(candidate or "").strip()
+        if not name or name == "HEAD":
+            continue
+        local = local_of(root, name)
+        if local:
+            return local
+    return base_branch(root, str(entry.get("base") or "HEAD"))
+
+
+def unmerged_commits(root: Path, wt_path: Path, entry: dict) -> Tuple[str, str]:
+    """``(ref, commits)`` -- what of *entry*'s branch is not yet in *ref*.
+
+    The RANGE is the containment question: ``ref..branch`` lists exactly the
+    commits of ``branch`` that ``ref`` does not already have, so an empty range
+    IS containment. Ranging from ``base_sha`` -- the sha pinned at create time
+    -- asks "does this branch have commits at all": yes for every working
+    branch, and still yes after a merge, so removal could never be earned and
+    only ``--force`` got past it.
+    """
+    ref = containment_ref(root, entry)
+    if not ref:
+        return "", ""
+    return ref, run_git(
+        wt_path,
+        ["log", "--oneline", "--end-of-options", f"{ref}..{entry['branch']}"],
+        check=False,
+    ).stdout.strip()
+
+
 def cmd_remove(args: argparse.Namespace) -> int:
     root = primary_root()
     with RegistryLock(root):
@@ -304,17 +406,37 @@ def cmd_remove(args: argparse.Namespace) -> int:
             dirty = run_git(wt_path, ["status", "--porcelain"], check=False).stdout.strip()
             if dirty and not args.force:
                 return fail(f"{entry['path']} has uncommitted changes (use --force)", 2)
-            base_sha = entry.get("base_sha", entry["base"])
-            unmerged = run_git(
-                wt_path,
-                ["log", "--oneline", "--end-of-options", f"{base_sha}..HEAD"],
-                check=False,
-            ).stdout.strip()
+            ref, unmerged = unmerged_commits(root, wt_path, entry)
+            if not ref and not args.force:
+                # CANNOT ANSWER IS NOT YES. With no resolvable containment ref
+                # -- a sha base whose branch was deleted, a detached primary --
+                # `unmerged` is empty because nothing was asked, not because
+                # the work has landed. Reading that as containment deleted the
+                # checkout and everything untracked in it, with exit 0 and a
+                # success message.
+                named = str(entry.get("base_branch") or entry.get("base") or "")
+                cause = (
+                    f"its base was recorded as {named!r}"
+                    if named and named != "HEAD"
+                    else "no base branch was recorded for it"
+                )
+                return fail(
+                    f"cannot tell what {entry['branch']} should be contained "
+                    f"in: {cause}, and this checkout is not on a branch to "
+                    "fall back to. Check out the base branch here and re-run, "
+                    "or use --force.",
+                    2,
+                )
             if unmerged and not args.force:
+                # Names the ref that was actually tested. The predecessor
+                # printed `entry['base']` -- usually the literal "HEAD" --
+                # while checking something else entirely.
                 return fail(
                     f"{entry['branch']} has commits not contained in "
-                    f"{entry['base']} (merge first, or use --force)", 2,
+                    f"{ref} (merge first, or use --force):\n{unmerged}",
+                    2,
                 )
+
             # Our guards above are the real gate; git's own removal check
             # would refuse over ignored local files (.worktree-env, copied
             # settings.local.json), which are disposable by design.

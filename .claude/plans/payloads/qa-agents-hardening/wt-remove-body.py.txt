@@ -1,0 +1,30 @@
+            ref, unmerged = unmerged_commits(root, wt_path, entry)
+            if not ref and not args.force:
+                # CANNOT ANSWER IS NOT YES. With no resolvable containment ref
+                # -- a sha base whose branch was deleted, a detached primary --
+                # `unmerged` is empty because nothing was asked, not because
+                # the work has landed. Reading that as containment deleted the
+                # checkout and everything untracked in it, with exit 0 and a
+                # success message.
+                named = str(entry.get("base_branch") or entry.get("base") or "")
+                cause = (
+                    f"its base was recorded as {named!r}"
+                    if named and named != "HEAD"
+                    else "no base branch was recorded for it"
+                )
+                return fail(
+                    f"cannot tell what {entry['branch']} should be contained "
+                    f"in: {cause}, and this checkout is not on a branch to "
+                    "fall back to. Check out the base branch here and re-run, "
+                    "or use --force.",
+                    2,
+                )
+            if unmerged and not args.force:
+                # Names the ref that was actually tested. The predecessor
+                # printed `entry['base']` -- usually the literal "HEAD" --
+                # while checking something else entirely.
+                return fail(
+                    f"{entry['branch']} has commits not contained in "
+                    f"{ref} (merge first, or use --force):\n{unmerged}",
+                    2,
+                )

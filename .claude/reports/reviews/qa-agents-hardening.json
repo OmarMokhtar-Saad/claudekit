@@ -1,0 +1,20 @@
+{
+  "plan": ".claude/plans/plan-qa-agents-hardening.md",
+  "slug": "qa-agents-hardening",
+  "ops_path": ".claude/plans/plan-qa-agents-hardening.ops.json",
+  "ops_sha256": "383297d5fe5273b8fbc8a37e98ae1de35256f6eeabfa10037e3a59abb236d9c8",
+  "score": 92,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] check-plan-artifacts.py --check fails: plan-qa-agents-hardening.md does not name docs/HOOKS.md or docs/PARALLEL_AGENTS.md, both written by its ops config",
+    "[MINOR] archive plan-qa-agents-hardening.ops.json after execution, or test_delivery_contract_smoke::test_queued_ops_configs_validate_against_head stays red"
+  ],
+  "verdict_origin": "gate-token",
+  "reviewer_session": "9309660c-2b67-4f3b-97f3-801de72eb7a5",
+  "reviewer_role": "code-reviewer",
+  "recorded_utc": "2026-09-17T21:15:48Z",
+  "operations": 14,
+  "edits": 21,
+  "rounds": [],
+  "round": 1
+}
