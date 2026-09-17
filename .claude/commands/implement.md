@@ -66,7 +66,7 @@ If you must deviate from the ops.json spec, you need explicit user authorization
 - Run `validate-config-json.py <ops.json> --stamp-baseline` and read its verdict. Do NOT parse or read
   ops.json yourself — pass the path; the validator proves every anchor exists and is
   unique (GUARDs 10/11, simulated cumulatively) and the executor fails closed on drift.
-- Note the validation commands recorded in plan.md for Phase 3
+- Note the validation commands recorded in plan.md for Phase 3. STAGE HANDOFF: start from a compacted or fresh context whose only input is the plan path — never continue in the planning/review conversation, and if `suggest-compact` has fired, run `/compact` (or tell the user to) before Phase 2
 
 ### Phase 2: Execution
 The engine applies the whole batch in ONE invocation — there is no per-operation loop to
@@ -87,7 +87,7 @@ cannot run per-operation build/lint checks anyway.
 - Build, tests, and lint are independent — launch them in ONE batched message
 - Validate no regressions introduced
 - Every PASS/FAIL you report must quote the executed command's actual output (exit code,
-  counts) — never estimate or fill in template numbers
+  counts) — never estimate or fill in template numbers, and never before the command has exited: a still-running suite is not a PASS, and a red gate is reported, never repaired with `ck lint --update-baseline`, `--no-verify`, or any other baseline-mutating command
 
 ### Phase 4: Report
 - Summarize all operations executed

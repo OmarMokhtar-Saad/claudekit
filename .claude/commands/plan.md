@@ -102,4 +102,4 @@ and the plan's first 3 non-blank lines — never the full plan body or ops.json 
 
 After output, suggest:
 - `/refine "$ARGUMENTS"` — automatic iterative plan-review loop until score ≥ 90
-- `/review` — single-pass review (auto-detects the saved plan file)
+- `/review` — single-pass review (auto-detects the saved plan file); once APPROVED, run `/implement` from a compacted or fresh context whose only input is the plan path

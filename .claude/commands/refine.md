@@ -374,7 +374,7 @@ Iteration history:
 
 ops.json: <paste the actual validator + dry-run results — never claim this unexecuted>
 
-Next step: run /implement to execute the approved plan
+Next step: run /implement from a compacted or fresh context (plan path is its only input)
 ```
 
 **On ESCALATED (max iterations reached):**

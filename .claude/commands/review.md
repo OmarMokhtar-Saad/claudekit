@@ -15,7 +15,7 @@ Canonical spawn contract: see `.claude/agents/_shared/INVOCATION.md` (single sou
 
 ## Task
 
-Validate the most recent plan.
+Validate the most recent plan. TIER 3 ROUTE: if the plan is Tier 3, or its ops touch hooks, tests, or executable scripts, this `reviewer` verdict is STATIC-ONLY (no Bash — it executed nothing) and may NOT be the last review before execution; follow it with `/code-review` on the plan + ops, where `code-reviewer` has Bash and runs the plan's own Validation commands against a dry-run or scratch copy.
 
 ## Invocation
 
@@ -120,6 +120,6 @@ printf '%s' "$review_output" | \
    **Record REJECTING rounds too — not optional.** Both write calls above are unconditional on purpose: REVISE, REJECTED and CONDITIONAL are recorded exactly like APPROVED (`rounds[]` is a verdict's only durable history), and recording a non-approving verdict authorises nothing — `check` still exits 4.
 
 3. After output, suggest:
-   - If APPROVED (score ≥ 90): run `/implement`
+   - If APPROVED (score ≥ 90): run `/implement` — from a compacted or fresh context whose only input is the plan path (run `/compact` first if `suggest-compact` has fired); do not continue implementing inside this review conversation
    - If CONDITIONAL/REVISE: address issues and re-run `/plan` or `/refine`
    - If REJECTED: restate the task more narrowly and re-run `/plan`

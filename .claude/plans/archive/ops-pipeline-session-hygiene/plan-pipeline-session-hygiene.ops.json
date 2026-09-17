@@ -1,0 +1,142 @@
+{
+  "plan": "pipeline-session-hygiene",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/implementer.md",
+      "description": "Completion requires an exited command",
+      "edits": [
+        {
+          "find": "later report must quote the executed command's actual output (exit code, counts) — never\nestimate.",
+          "replace": "later report must quote the executed command's actual output (exit code, counts) — never\nestimate, and never before it EXITED: a running suite is not a PASS."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/implementer.md",
+      "description": "Forbid baseline-mutating commands",
+      "edits": [
+        {
+          "find": "- NEVER add suppression comments to hide linter errors",
+          "replace": "- NEVER add suppression comments to hide linter errors\n- NEVER run a baseline-mutating command (`ck lint --update-baseline`, `--no-verify`):\n  a red gate is reported, never repaired"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/implementer.md",
+      "description": "Pay for the additions: compress the duplicated rationale (Safety Rules)",
+      "edits": [
+        {
+          "find": "- NEVER read target source files or ops.json into context upfront — pass their paths to\n  the scripts. The validator (GUARDs 10/11) and the executor's apply-time guards prove\n  every anchor exists and is unique before anything is written; re-reading files to\n  check this duplicates the engine at large token cost.",
+          "replace": "- NEVER read target source files or ops.json into context upfront — pass their paths to\n  the scripts; the validator (GUARDs 10/11) and the executor's apply-time guards prove\n  every anchor before anything is written, at no token cost to you."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/implementer.md",
+      "description": "Pay for the additions: compress the duplicated rationale (Anti-Patterns)",
+      "edits": [
+        {
+          "find": "- NEVER read target files or ops.json upfront to \"double-check\" anchors — the validator\n  and executor fail closed on missing or ambiguous anchors",
+          "replace": "- NEVER read target files or ops.json upfront to \"double-check\" anchors"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/commands/review.md",
+      "description": "Tier 3 static-only routing (line-neutral)",
+      "edits": [
+        {
+          "find": "Validate the most recent plan.",
+          "replace": "Validate the most recent plan. TIER 3 ROUTE: if the plan is Tier 3, or its ops touch hooks, tests, or executable scripts, this `reviewer` verdict is STATIC-ONLY (no Bash — it executed nothing) and may NOT be the last review before execution; follow it with `/code-review` on the plan + ops, where `code-reviewer` has Bash and runs the plan's own Validation commands against a dry-run or scratch copy."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/commands/review.md",
+      "description": "Stage handoff on APPROVED (line-neutral)",
+      "edits": [
+        {
+          "find": "   - If APPROVED (score ≥ 90): run `/implement`",
+          "replace": "   - If APPROVED (score ≥ 90): run `/implement` — from a compacted or fresh context whose only input is the plan path (run `/compact` first if `suggest-compact` has fired); do not continue implementing inside this review conversation"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/commands/implement.md",
+      "description": "Stage handoff at Phase 1 (line-neutral)",
+      "edits": [
+        {
+          "find": "- Note the validation commands recorded in plan.md for Phase 3",
+          "replace": "- Note the validation commands recorded in plan.md for Phase 3. STAGE HANDOFF: start from a compacted or fresh context whose only input is the plan path — never continue in the planning/review conversation, and if `suggest-compact` has fired, run `/compact` (or tell the user to) before Phase 2"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/commands/implement.md",
+      "description": "Phase 3 completion discipline (line-neutral)",
+      "edits": [
+        {
+          "find": "  counts) — never estimate or fill in template numbers",
+          "replace": "  counts) — never estimate or fill in template numbers, and never before the command has exited: a still-running suite is not a PASS, and a red gate is reported, never repaired with `ck lint --update-baseline`, `--no-verify`, or any other baseline-mutating command"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/commands/plan.md",
+      "description": "Hand off to a fresh context (line-neutral)",
+      "edits": [
+        {
+          "find": "- `/review` — single-pass review (auto-detects the saved plan file)",
+          "replace": "- `/review` — single-pass review (auto-detects the saved plan file); once APPROVED, run `/implement` from a compacted or fresh context whose only input is the plan path"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/commands/refine.md",
+      "description": "Success banner names the handoff (line-neutral)",
+      "edits": [
+        {
+          "find": "Next step: run /implement to execute the approved plan",
+          "replace": "Next step: run /implement from a compacted or fresh context (plan path is its only input)"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".ai/REVIEW_GUIDE.md",
+      "description": "Document the static-only rule",
+      "edits": [
+        {
+          "find": "Re-deriving a settled finding is the single largest source of wasted review tokens here.",
+          "add_after": "\n\n### Tier 3 plans need a review that can execute\n\n`reviewer` has no Bash. Its verdict is **static-only**: it is evidence that the plan reads\ncorrectly and that its anchors exist, and nothing more. On 2026-09-16, four of seven follow-on\nfixes were defects inside plans that had scored 93/100 -- every one of them a defect that running\nthe plan's own Validation commands would have surfaced before execution.\n\nSo: for a **Tier 3** plan, or any plan whose ops touch hooks, tests, or executable scripts, a\nstatic-only verdict may NOT be the last review before execution. Follow it with `/code-review` on\nthe plan + ops.json -- `code-reviewer` has Bash -- prompted to run the plan's own Validation\ncommands against a dry-run or scratch copy and to report the exit codes it actually saw. The\n`reviewer` score still gates the approval record; the code review gates the decision to execute.\n"
+        }
+      ]
+    },
+    {
+      "type": "file_create",
+      "path": "tests/test_pipeline_hygiene.py",
+      "content": "\"\"\"Pipeline session-hygiene rules (2026-09-16 findings) are present in the prompts.\n\nSTRUCTURE TESTS, named honestly: these assert that prompt TEXT exists. They cannot\nprove any agent obeys it -- no test in this repo can, because the reader is a model.\nThey exist so a future edit cannot silently delete a rule that was added in response\nto a measured incident:\n\n  * The implementer twice reported IMPLEMENTATION COMPLETE while the suite was still\n    running, and once ran `ck lint --update-baseline` to turn a red gate green.\n  * Four of seven follow-on fixes were defects inside 93/100-APPROVED plans, because\n    the `reviewer` agent has no Bash and cannot execute anything it approves.\n\"\"\"\n\nimport os\n\nREPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))\n\n\ndef _read(*parts):\n    with open(os.path.join(REPO, *parts), encoding=\"utf-8\") as fh:\n        return fh.read()\n\n\nclass TestImplementerCannotRepairARedGate:\n    def test_implementer_forbids_baseline_mutation(self):\n        text = _read(\".claude\", \"agents\", \"implementer.md\")\n        assert \"--update-baseline\" in text, (\n            \"implementer.md no longer forbids `ck lint --update-baseline`. An implementer \"\n            \"that may re-record a ratchet can turn any red gate green without a fix.\")\n        assert \"--no-verify\" in text\n        assert \"reported, never repaired\" in text, (\n            \"implementer.md no longer states that a red gate is reported, not repaired.\")\n\n    def test_completion_requires_an_exited_command(self):\n        text = _read(\".claude\", \"agents\", \"implementer.md\")\n        assert \"a running suite is not a PASS\" in text, (\n            \"implementer.md no longer forbids reporting a result before the command exited.\")\n\n\nclass TestTierThreeReviewCanExecute:\n    def test_review_command_names_the_execution_capable_route(self):\n        text = _read(\".claude\", \"commands\", \"review.md\")\n        assert \"STATIC-ONLY\" in text, (\n            \"review.md no longer marks the Bash-less reviewer verdict as static-only.\")\n        assert \"code-reviewer\" in text, (\n            \"review.md no longer names `code-reviewer` -- the only plan-review route with \"\n            \"Bash -- so a Tier 3 plan can reach execution on a verdict nothing executed.\")\n        assert \"/code-review\" in text\n\n    def test_review_guide_carries_the_same_rule(self):\n        text = _read(\".ai\", \"REVIEW_GUIDE.md\")\n        assert \"static-only\" in text.lower()\n"
+    },
+    {
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "description": "Unreleased entry",
+      "edits": [
+        {
+          "find": "## [Unreleased]",
+          "add_after": "\n- **Pipeline session hygiene: stage handoffs, an executing Tier 3 review, and an implementer\n  that cannot repair a red gate.** Three measured failures from 2026-09-16. (1) The main session\n  ran 317 turns from 51k to 301k tokens with zero compactions while `suggest-compact` fired and\n  was ignored -- `/plan`, `/review`, `/refine` and `/implement` now state a stage-handoff rule:\n  implementation starts from a compacted or fresh context whose only input is the plan path.\n  (2) Four of seven follow-on fixes were defects inside 93/100-approved plans, because the\n  `reviewer` agent has no Bash; `/review` and `.ai/REVIEW_GUIDE.md` now mark such a verdict\n  STATIC-ONLY and require an execution-capable `/code-review` before a Tier 3 plan is executed.\n  (3) The implementer reported COMPLETE while the suite was still running and once ran\n  `ck lint --update-baseline` to turn a red gate green; `implementer.md` now forbids both -- a\n  red gate is reported, never repaired. Every command edit is line-neutral against the `ck lint`\n  ratchet and the implementer edit pays for itself against the context floor."
+        }
+      ]
+    }
+  ]
+}
