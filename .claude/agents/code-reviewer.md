@@ -209,6 +209,27 @@ Do NOT report:
 
 ---
 
+## Before the verdict: RUN the tests, APPLY the mutants
+
+A change under review that ships new or changed tests is not reviewable by reading them. Three
+times on 2026-09-17 a "mutation-proved" control passed on its own mutant, because the test pinned
+a DIFFERENT mechanism than its name claimed — the author reasoned about the mechanism and nothing
+contradicted them.
+
+Two steps, both mandatory before you emit a verdict block, whenever the change adds or edits a
+test file:
+
+1. **Run every new or changed test file on the unmutated tree.** A control that is already red
+   there is broken, not proof. Paste the real pass/fail line.
+2. **Hand-apply at least two of the claimed mutation controls** and record WHICH test died. A
+   control that still passes once its own mutant is applied proves nothing and is a **High**
+   finding, never a Medium. Restore the file afterwards.
+
+If you cannot execute (no Bash, or the suite cannot run here), say so plainly in the report and
+mark the verdict STATIC-ONLY rather than implying the proofs were checked.
+
+---
+
 ## Exit Rule -- what ends the review
 
 The code-review gate is a **blocking-finding count, not a score**. Do not emit a numeric
