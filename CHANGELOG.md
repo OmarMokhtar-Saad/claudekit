@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `open-source-forker` — never shipped and have been removed.
 
 ## [Unreleased]
+- **Bash output is mechanically capped at 12,000 chars.** Planner runs were measured burning
+  a 401K context on scratch scripts and single tool results of 38-66K chars, and the prompt
+  block that forbids this is advisory only. `output_filter.py` gains a lossy `max_chars`
+  operation (head + tail around a marker naming the omitted byte count and the
+  `CK_RAW_OUTPUT=1` hatch), wired as a lowest-precedence `bash-output-cap` base filter.
+  NEVER_FILTER commands, failed commands and pytest runs are unaffected. `planner.md` and
+  `reviewer.md` state the cap and require region reads (`sed -n`, `grep -C`) over whole files.
+
 - **Code review runs the proofs instead of reading them.** Three times in one day a
   "mutation-proved" test passed on its own mutant, because it pinned a different mechanism than
   its name claimed. `code-reviewer` must now run every new or changed test file on the unmutated

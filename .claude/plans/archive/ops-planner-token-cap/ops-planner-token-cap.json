@@ -1,0 +1,105 @@
+{
+  "plan": "planner-token-cap",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/output_filter.py",
+      "edits": [
+        {
+          "find": "MAX_FILTERS = 64\nMAX_PATTERN_CHARS = 400",
+          "replace": "MAX_FILTERS = 64\nMAX_PATTERN_CHARS = 400\n# max_chars floor: below this the surviving head and tail are too small to carry usable\n# context, which would make the filter noise rather than a budget.\nMIN_MAX_CHARS = 200"
+        },
+        {
+          "find": "    strip: Optional[Pattern[str]] = None\n    tail: Optional[int] = None",
+          "replace": "    strip: Optional[Pattern[str]] = None\n    tail: Optional[int] = None\n    cap: Optional[int] = None"
+        },
+        {
+          "find": "        else:\n            return None\n    if strip is None and tail is None:\n        return None",
+          "replace": "        elif \"max_chars\" in op:\n            # Lossy like tail_lines -- it drops the MIDDLE of the stream. Only a filter that\n            # declares itself lossy may use it.\n            if spec.get(\"lossy\") is not True:\n                return None\n            n = op[\"max_chars\"]\n            if not isinstance(n, int) or isinstance(n, bool) or n < MIN_MAX_CHARS:\n                return None\n            cap = n\n        else:\n            return None\n    if strip is None and tail is None and cap is None:\n        return None"
+        },
+        {
+          "find": "        \"tail\": tail,\n",
+          "replace": "        \"tail\": tail,\n        \"max_chars\": cap,\n"
+        },
+        {
+          "find": "    dropped = 0\n    tail = compiled[\"tail\"]\n    if tail is not None and len(kept) > tail:\n        dropped = len(kept) - tail\n        kept = kept[-tail:]\n    if removed == 0 and dropped == 0:\n        return text, False",
+          "replace": "    dropped = 0\n    tail = compiled[\"tail\"]\n    if tail is not None and len(kept) > tail:\n        dropped = len(kept) - tail\n        kept = kept[-tail:]\n    body = \"\\n\".join(kept)\n    capped = 0\n    cap = compiled[\"max_chars\"]\n    if cap is not None and len(body) > cap:\n        # Byte-oriented on purpose: the failure mode is BYTES, and one 40K-char line\n        # (minified JSON, a lockfile) is exactly what a line-based cap would miss.\n        capped = len(body) - cap\n        head_n = cap // 2\n        tail_n = cap - head_n\n        body = (\n            body[:head_n]\n            + \"\\n[ck output-filter: \" + str(compiled[\"id\"]) + \"] \" + str(capped)\n            + \" char(s) omitted from the middle of this output. Re-run the command prefixed\"\n            + \" with CK_RAW_OUTPUT=1 for the raw text, or narrow it (sed -n 'a,bp',\"\n            + \" grep -n -C3) so the answer fits.\\n\"\n            + body[-tail_n:]\n        )\n    if removed == 0 and dropped == 0 and capped == 0:\n        return text, False"
+        },
+        {
+          "find": "        \"[ck output-filter: \" + compiled[\"id\"] + \"] {removed} line(s) removed. \"",
+          "replace": "        \"[ck output-filter: \" + compiled[\"id\"] + \"] output rewritten: {removed} line(s) \"\n        \"removed, {capped} char(s) omitted. \""
+        },
+        {
+          "find": "                      .replace(\"{id}\", str(compiled[\"id\"])))\n    return \"\\n\".join([summary] + kept), True",
+          "replace": "                      .replace(\"{capped}\", str(capped))\n                      .replace(\"{id}\", str(compiled[\"id\"])))\n    return summary + \"\\n\" + body, True"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/output-filters.json",
+      "edits": [
+        {
+          "find": "    \"`summary`: {removed} {marks} {dropped} {id}.\",",
+          "replace": "    \"`summary`: {removed} {marks} {dropped} {capped} {id}. `max_chars` (integer >= 200) is\",\n    \"lossy too: it keeps a head and a tail around a marker naming the omitted byte count.\","
+        },
+        {
+          "find": "removed ({marks} pass/skip markers). Prefix the command with CK_RAW_OUTPUT=1 for raw output.\"\n    }\n  ]",
+          "replace": "removed ({marks} pass/skip markers). Prefix the command with CK_RAW_OUTPUT=1 for raw output.\"\n    },\n    {\n      \"id\": \"bash-output-cap\",\n      \"description\": \"Last-resort byte cap on Bash stdout. Measured: planner runs slurp single tool results of 38-66K chars, and one 401K-context planner run spent most of its budget on them. select() returns the FIRST matching filter and load_filters preserves base-file order, so this entry MUST stay LAST: a command with a specific filter (pytest-progress) keeps that filter and is not capped. NEVER_FILTER commands are refused before any filter is consulted.\",\n      \"match\": \".\",\n      \"lossy\": true,\n      \"operations\": [\n        {\n          \"max_chars\": 12000\n        }\n      ],\n      \"summary\": \"[ck output-filter: {id}] stdout capped; see the inline marker for details.\"\n    }\n  ]"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_output_filter.py",
+      "edits": [
+        {
+          "find": "        assert [f[\"id\"] for f in doc[\"filters\"]] == [\"pytest-progress\"]",
+          "replace": "        assert [f[\"id\"] for f in doc[\"filters\"]] == [\"pytest-progress\", \"bash-output-cap\"]"
+        },
+        {
+          "find": "        assert (time.monotonic() - start) / 3 < 0.25",
+          "add_after": "\n\n\nCAP = 12000\nBIG = 40000\n\n\nclass TestMaxChars:\n    \"\"\"The mechanical half of the planner token cap. Every test drives the real script with\n    the SHIPPED base filter file, so it measures what a session actually gets.\"\"\"\n\n    def test_a_long_bash_output_is_capped(self):\n        \"\"\"RED: delete the bash-output-cap entry from output-filters.json -- the hook then\n        declines to rewrite and `out` is None.\"\"\"\n        data = payload(command=\"cat build.log\", stdout=\"x\" * BIG)\n        out = rewritten(run(data))\n        assert out is not None\n        assert len(out[\"stdout\"]) < CAP + 1000\n\n    def test_the_head_and_the_tail_both_survive(self):\n        \"\"\"A head-only truncation loses the end of the output, which is where a summary\n        lives. RED: replace the head+tail slice with `body = body[:cap]`.\"\"\"\n        data = payload(command=\"cat build.log\",\n                       stdout=\"HEAD_MARKER\" + \"y\" * BIG + \"TAIL_MARKER\")\n        out = rewritten(run(data))\n        assert out is not None\n        assert \"HEAD_MARKER\" in out[\"stdout\"]\n        assert \"TAIL_MARKER\" in out[\"stdout\"]\n\n    def test_the_marker_names_the_omitted_byte_count_and_sits_in_the_middle(self):\n        \"\"\"The can-it-fail control for this feature: truncation that does not announce\n        itself IN PLACE is the failure mode, not the cap. The shipped summary deliberately\n        shares NO wording with the inline marker, and this test pins the marker's count and\n        position, so the summary line cannot satisfy it. RED: remove the inline marker (or\n        just the str(capped) byte count) from the truncation branch of apply_filter -- this\n        test goes red while every other test in this class still passes.\"\"\"\n        stdout = \"z\" * BIG\n        out = rewritten(run(payload(command=\"cat build.log\", stdout=stdout)))\n        assert out is not None\n        text = out[\"stdout\"]\n        needle = \"omitted from the middle\"\n        assert text.count(needle) == 1\n        assert text.count(\"CK_RAW_OUTPUT=1\") == 1\n        assert str(len(stdout) - CAP) in text\n        idx = text.index(needle)\n        # strictly interior: not on the first line (that is the summary), and at least\n        # 5000 chars of surviving head and tail on either side of it.\n        assert idx > 5000\n        assert idx < len(text) - 5000\n        assert needle not in text.split(\"\\n\", 1)[0]\n\n    def test_a_short_output_is_not_rewritten(self):\n        \"\"\"No identity rewrites, ever. RED: apply the cap unconditionally.\"\"\"\n        assert run(payload(command=\"cat small.log\", stdout=\"hello\\n\")).stdout == \"\"\n\n    def test_a_never_filter_command_is_not_capped(self):\n        \"\"\"A gate's stdout is read verbatim. RED: delete the _NEVER loop from select() --\n        gen-docs.py then matches the catch-all and its stdout comes back capped.\"\"\"\n        data = payload(command=\"python3 scripts/gen-docs.py --check\", stdout=\"q\" * BIG)\n        assert run(data).stdout == \"\"\n\n    def test_raw_output_env_prefix_bypasses_the_cap(self):\n        \"\"\"RED: remove the _RAW_MARKER check in rewrite().\"\"\"\n        data = payload(command=\"CK_RAW_OUTPUT=1 cat build.log\", stdout=\"x\" * BIG)\n        assert run(data).stdout == \"\"\n\n    def test_pytest_keeps_its_own_filter_and_is_not_capped(self):\n        \"\"\"Precedence proof: select() returns the FIRST matching filter, so the catch-all\n        must stay last or it would shadow pytest-progress. RED: move the bash-output-cap\n        entry above pytest-progress in output-filters.json -- the progress lines then\n        survive and the cap marker appears.\"\"\"\n        stdout = \"\\n\".join([PROGRESS] * 600 + [SUMMARY]) + \"\\n\"\n        assert len(stdout) > CAP\n        out = rewritten(run(payload(stdout=stdout)))\n        assert out is not None\n        assert PROGRESS not in out[\"stdout\"]\n        assert \"omitted from the middle\" not in out[\"stdout\"]"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/planner.md",
+      "edits": [
+        {
+          "find": "  authors.",
+          "add_after": "\n- **Per-call output cap.** A PostToolUse filter mechanically truncates every Bash stdout at\n  12,000 chars (head + tail around a marker naming the omitted bytes). Expect it; do not\n  fight it. Read file REGIONS, not files: `sed -n '120,200p' <file>` or\n  `grep -n -C3 '<pattern>' <file>`, windows <=80 lines. No `cat`/Read of a file over ~200\n  lines, and never write or run a script to explore \u2014 the measured 401K-context planner run\n  was scratch scripts plus 38-58K-char Bash results.\n- **Never author test files.** Tests belong to the tester/implementer: describe them in the\n  Testing Strategy and in ops, never draft them in a scratch file."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/reviewer.md",
+      "edits": [
+        {
+          "find": "- **Never re-read a file you already read this run.**",
+          "add_after": "\n- **Discovery budget.** Read the plan and its ops.json ONCE each \u2014 subject to the\n  \"Token-Efficient Ops Review (manifest-first)\" rule in this file: an ops.json over ~15 KB is\n  never Read whole. For a file the plan touches,\n  read only a window (`grep -n -C3 '<anchor>' <file>`, or `sed -n 'a,bp'`) \u2014 never the whole\n  file, never a scratch script. Bash stdout is mechanically capped at 12,000 chars by a\n  PostToolUse filter; narrow the command rather than re-running it raw."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "edits": [
+        {
+          "find": "## [Unreleased]",
+          "add_after": "\n- **Bash output is mechanically capped at 12,000 chars.** Planner runs were measured burning\n  a 401K context on scratch scripts and single tool results of 38-66K chars, and the prompt\n  block that forbids this is advisory only. `output_filter.py` gains a lossy `max_chars`\n  operation (head + tail around a marker naming the omitted byte count and the\n  `CK_RAW_OUTPUT=1` hatch), wired as a lowest-precedence `bash-output-cap` base filter.\n  NEVER_FILTER commands, failed commands and pytest runs are unaffected. `planner.md` and\n  `reviewer.md` state the cap and require region reads (`sed -n`, `grep -C`) over whole files.\n"
+        }
+      ]
+    }
+  ],
+  "baseline": {
+    ".claude/agents/planner.md": "sha256:6cc9b00b5e7fa71b0d4b1631d9497dba2dddad2fafc756b57106916c76165a2f",
+    ".claude/agents/reviewer.md": "sha256:4ad966ee177ac32991fed2a73c638d117cc5010540a91fb6192278ede6a11b6d",
+    ".claude/hooks/output-filters.json": "sha256:619861861aef49b3e94ad2efda8cd440c42a38f91e605c09491aa1309ad56b63",
+    ".claude/hooks/output_filter.py": "sha256:e6ac02dd97565cb0916c3c719eddec7450f23fc40769f4d3707007be2c7ede23",
+    "CHANGELOG.md": "sha256:b9af86f11a9508ec1af4fbc6e895f4cecc413c8c8507f555e8b99ac898b5765b",
+    "tests/test_output_filter.py": "sha256:8ef0d3b328eb2e7e878ff5983950f255f974e42129962c3219eee90bca0bda24"
+  }
+}

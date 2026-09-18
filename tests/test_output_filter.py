@@ -285,7 +285,7 @@ class TestWiring:
     def test_the_base_filter_file_parses_and_declares_its_version(self):
         doc = json.loads(BASE_FILTERS.read_text(encoding="utf-8"))
         assert doc["schema_version"] == 1
-        assert [f["id"] for f in doc["filters"]] == ["pytest-progress"]
+        assert [f["id"] for f in doc["filters"]] == ["pytest-progress", "bash-output-cap"]
 
 
 class TestHotPath:
@@ -297,3 +297,79 @@ class TestHotPath:
         for _ in range(3):
             run(data)
         assert (time.monotonic() - start) / 3 < 0.25
+
+
+CAP = 12000
+BIG = 40000
+
+
+class TestMaxChars:
+    """The mechanical half of the planner token cap. Every test drives the real script with
+    the SHIPPED base filter file, so it measures what a session actually gets."""
+
+    def test_a_long_bash_output_is_capped(self):
+        """RED: delete the bash-output-cap entry from output-filters.json -- the hook then
+        declines to rewrite and `out` is None."""
+        data = payload(command="cat build.log", stdout="x" * BIG)
+        out = rewritten(run(data))
+        assert out is not None
+        assert len(out["stdout"]) < CAP + 1000
+
+    def test_the_head_and_the_tail_both_survive(self):
+        """A head-only truncation loses the end of the output, which is where a summary
+        lives. RED: replace the head+tail slice with `body = body[:cap]`."""
+        data = payload(command="cat build.log",
+                       stdout="HEAD_MARKER" + "y" * BIG + "TAIL_MARKER")
+        out = rewritten(run(data))
+        assert out is not None
+        assert "HEAD_MARKER" in out["stdout"]
+        assert "TAIL_MARKER" in out["stdout"]
+
+    def test_the_marker_names_the_omitted_byte_count_and_sits_in_the_middle(self):
+        """The can-it-fail control for this feature: truncation that does not announce
+        itself IN PLACE is the failure mode, not the cap. The shipped summary deliberately
+        shares NO wording with the inline marker, and this test pins the marker's count and
+        position, so the summary line cannot satisfy it. RED: remove the inline marker (or
+        just the str(capped) byte count) from the truncation branch of apply_filter -- this
+        test goes red while every other test in this class still passes."""
+        stdout = "z" * BIG
+        out = rewritten(run(payload(command="cat build.log", stdout=stdout)))
+        assert out is not None
+        text = out["stdout"]
+        needle = "omitted from the middle"
+        assert text.count(needle) == 1
+        assert text.count("CK_RAW_OUTPUT=1") == 1
+        assert str(len(stdout) - CAP) in text
+        idx = text.index(needle)
+        # strictly interior: not on the first line (that is the summary), and at least
+        # 5000 chars of surviving head and tail on either side of it.
+        assert idx > 5000
+        assert idx < len(text) - 5000
+        assert needle not in text.split("\n", 1)[0]
+
+    def test_a_short_output_is_not_rewritten(self):
+        """No identity rewrites, ever. RED: apply the cap unconditionally."""
+        assert run(payload(command="cat small.log", stdout="hello\n")).stdout == ""
+
+    def test_a_never_filter_command_is_not_capped(self):
+        """A gate's stdout is read verbatim. RED: delete the _NEVER loop from select() --
+        gen-docs.py then matches the catch-all and its stdout comes back capped."""
+        data = payload(command="python3 scripts/gen-docs.py --check", stdout="q" * BIG)
+        assert run(data).stdout == ""
+
+    def test_raw_output_env_prefix_bypasses_the_cap(self):
+        """RED: remove the _RAW_MARKER check in rewrite()."""
+        data = payload(command="CK_RAW_OUTPUT=1 cat build.log", stdout="x" * BIG)
+        assert run(data).stdout == ""
+
+    def test_pytest_keeps_its_own_filter_and_is_not_capped(self):
+        """Precedence proof: select() returns the FIRST matching filter, so the catch-all
+        must stay last or it would shadow pytest-progress. RED: move the bash-output-cap
+        entry above pytest-progress in output-filters.json -- the progress lines then
+        survive and the cap marker appears."""
+        stdout = "\n".join([PROGRESS] * 600 + [SUMMARY]) + "\n"
+        assert len(stdout) > CAP
+        out = rewritten(run(payload(stdout=stdout)))
+        assert out is not None
+        assert PROGRESS not in out["stdout"]
+        assert "omitted from the middle" not in out["stdout"]

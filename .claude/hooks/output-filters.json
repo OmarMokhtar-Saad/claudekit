@@ -12,7 +12,8 @@
     "",
     "Operations: `strip_lines_matching` (regex, per line) and `tail_lines` (integer; lossy,",
     "so it is refused unless the filter also sets \"lossy\": true). Placeholders available in",
-    "`summary`: {removed} {marks} {dropped} {id}.",
+    "`summary`: {removed} {marks} {dropped} {capped} {id}. `max_chars` (integer >= 200) is",
+    "lossy too: it keeps a head and a tail around a marker naming the omitted byte count.",
     "",
     "Scope is measured, not guessed. Over 4,355 Bash calls in .claude/hooks/hooks.log across",
     "12 active days, the pytest progress lines are 97% of the strippable bytes; git status",
@@ -30,6 +31,18 @@
         }
       ],
       "summary": "[ck output-filter: pytest-progress] {removed} all-passing progress line(s) removed ({marks} pass/skip markers). Prefix the command with CK_RAW_OUTPUT=1 for raw output."
+    },
+    {
+      "id": "bash-output-cap",
+      "description": "Last-resort byte cap on Bash stdout. Measured: planner runs slurp single tool results of 38-66K chars, and one 401K-context planner run spent most of its budget on them. select() returns the FIRST matching filter and load_filters preserves base-file order, so this entry MUST stay LAST: a command with a specific filter (pytest-progress) keeps that filter and is not capped. NEVER_FILTER commands are refused before any filter is consulted.",
+      "match": ".",
+      "lossy": true,
+      "operations": [
+        {
+          "max_chars": 12000
+        }
+      ],
+      "summary": "[ck output-filter: {id}] stdout capped; see the inline marker for details."
     }
   ]
 }
