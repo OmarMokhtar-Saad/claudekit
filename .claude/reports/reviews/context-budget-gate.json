@@ -1,0 +1,22 @@
+{
+  "plan": ".claude/plans/plan-context-budget-gate.md",
+  "slug": "context-budget-gate",
+  "ops_path": ".claude/plans/ops-context-budget-gate.json",
+  "ops_sha256": "6a8c61233f302d10bc58cd87681512676db6e1d3d0b2dce00e2cebbffbd7a2b7",
+  "score": 92,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] plan-context-budget-gate.md:152-157 \u2014 the rewritten mutant-2 prose ends with \"there is no verdict-flip variant\"; measured, mutant 2a (delete the seek only) flips rc 0\u21922 with read_bytes unchanged at 65",
+    "[MINOR] RATCHET: mutation-proof-names-the-wrong-mechanism has reached 3 entries on this artifact (r1 H1, r2 M2-r2, r3 M1-r3). Proposed check: per-plan mutants/*.patch + manifest + scripts/check-mutants.py tha",
+    "[MINOR] context-budget-gate.py:198 \u2014 warn counters still never pruned; a payload without session_id shares one \"unknown\" bucket.",
+    "[MINOR] Evidence gap: the full suite was never run in any round. Run `pytest tests/ -q --tb=no -rf` on a clean clone before and after execution and diff the failure names before committing."
+  ],
+  "verdict_origin": "rubric",
+  "reviewer_session": "f3f9a29b-852e-4bfb-a493-8136b11a7d46",
+  "reviewer_role": "code-reviewer",
+  "recorded_utc": "2026-09-18T22:41:09Z",
+  "operations": 7,
+  "edits": 5,
+  "rounds": [],
+  "round": 1
+}
