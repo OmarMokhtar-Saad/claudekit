@@ -4,6 +4,7 @@ description: |
   Profiles and optimizes runtime performance — latency, memory, throughput, and query efficiency. Use when features are slow, memory usage is high, or scalability is needed.
 
 model: sonnet
+effort: medium
 color: yellow
 tools: ["Read", "Grep", "Glob", "Bash"]
 ---

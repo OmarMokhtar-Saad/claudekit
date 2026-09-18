@@ -4,6 +4,7 @@ description: |
   Active security vulnerability scanner. Performs SAST analysis, dependency CVE detection, secret scanning, and configuration hardening checks. Read-only diagnostic agent. Use when the codebase needs a security audit beyond the plan review checklist.
 
 model: opus
+effort: high
 color: crimson
 memory: project
 tools: ["Read", "Bash", "Grep", "Glob"]

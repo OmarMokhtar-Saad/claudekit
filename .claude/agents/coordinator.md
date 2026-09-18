@@ -4,6 +4,7 @@ description: |
   Orchestration agent that analyzes tasks, routes to appropriate agents, manages handoffs, and tracks workflow state. Use when tasks require multiple agents or complex workflows.
 
 model: sonnet
+effort: medium
 color: gray
 tools: ["Read", "Grep", "Glob", "Bash", "Agent"]
 ---

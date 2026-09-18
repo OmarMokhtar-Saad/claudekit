@@ -5,6 +5,7 @@ description: |
 
 maxTurns: 30
 model: haiku
+effort: low
 color: green
 tools: ["Read", "Bash", "Grep", "Glob"]
 ---

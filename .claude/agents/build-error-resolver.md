@@ -4,6 +4,7 @@ description: |
   Specialist that fixes build errors, type errors, and compilation failures with the smallest possible diff. Strictly prohibited from refactoring, redesigning, or making changes beyond what is needed to fix the error. Use after a build fails and you need targeted, minimal fixes.
 
 model: sonnet
+effort: medium
 color: yellow
 tools: ["Read", "Grep", "Glob", "Bash", "Edit"]
 ---

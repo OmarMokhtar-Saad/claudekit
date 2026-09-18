@@ -4,6 +4,7 @@ description: |
   DevOps and infrastructure specialist. Manages CI/CD pipelines, Docker containers, Kubernetes manifests, cloud configuration, and deployment workflows. Use when infrastructure or deployment configuration needs to be created or modified.
 
 model: sonnet
+effort: medium
 color: steel
 tools: ["Read", "Write", "Edit", "Bash", "Grep", "Glob"]
 ---

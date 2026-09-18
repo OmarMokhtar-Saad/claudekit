@@ -4,6 +4,7 @@ description: |
   Token-efficient web research specialist. The ONLY agent that should call WebSearch/WebFetch. Searches the web, reads what is needed inside its own context, and returns a distilled answer — never raw page content. Use for any question needing external or current information (library docs, versions, APIs, error messages, tool flags).
 
 model: haiku
+effort: low
 color: cyan
 tools: ["WebSearch", "WebFetch", "Read", "Write", "Grep", "Glob"]
 ---

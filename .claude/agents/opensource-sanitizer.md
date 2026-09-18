@@ -4,6 +4,7 @@ description: |
   Scans a codebase for secrets, internal references, employee names, and private infrastructure details before open-sourcing. Produces a PASS/FAIL report with specific file:line findings. Stage 1 of the open-source pipeline — Stage 2 (forker) only runs if this PASSES.
 
 model: sonnet
+effort: medium
 color: red
 tools: ["Read", "Grep", "Glob", "Bash"]
 ---

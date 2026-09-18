@@ -4,6 +4,7 @@ description: |
   Fast codebase exploration specialist. Searches files by patterns, keywords, answers architecture questions. Read-only. Use when you need to find files, understand architecture, or answer questions about the codebase.
 
 model: haiku
+effort: low
 color: yellow
 memory: project
 tools: ["Read", "Grep", "Glob", "Bash"]

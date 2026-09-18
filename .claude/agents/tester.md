@@ -4,6 +4,7 @@ description: |
   Dedicated test writing specialist. Generates unit tests, integration tests, and E2E tests for existing code. Use when test coverage needs to be improved or new tests need to be written.
 
 model: sonnet
+effort: medium
 color: magenta
 tools: ["Read", "Write", "Edit", "Bash", "Grep", "Glob"]
 ---

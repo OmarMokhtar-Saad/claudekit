@@ -305,6 +305,94 @@ class MalformedPolicyFailsClosed(unittest.TestCase):
         self.assertEqual(open(path, encoding="utf-8").read(), before)
 
 
+class EffortIsProjectedPerRole(unittest.TestCase):
+    """Effort is policy data, not a per-file habit.
+
+    A subagent with no `effort:` key inherits the session's effort, so an unprojected
+    role costs whatever the owner's session happened to cost. These tests run the real
+    generator against a temp tree and assert on the files it wrote.
+    """
+
+    AGENTS = ["planner", "reviewer", "implementer"]
+
+    def setUp(self):
+        self.tree = TempTree(self.AGENTS)
+        self.addCleanup(self.tree.cleanup)
+        self.policy = subset_policy(self.AGENTS)
+
+    def effort_of(self, name):
+        with open(self.tree.agent(name), encoding="utf-8") as handle:
+            match = re.search(r"^effort:[ \t]*(\S+)[ \t]*$", handle.read(), re.M)
+        return match.group(1) if match else None
+
+    def test_effort_is_written_under_the_model_line(self):
+        self.tree.write_policy(self.policy)
+        result = run(self.tree.script)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        with open(self.tree.agent("implementer"), encoding="utf-8") as handle:
+            body = handle.read()
+        self.assertRegex(body, r"(?m)^model: \S+\neffort: \S+$")
+        tier = self.policy["roles"]["implementer"]["tier"]
+        self.assertNotIn("effort", self.policy["roles"]["implementer"],
+                         "this role must have NO override, or it proves the wrong thing")
+        self.assertEqual(self.effort_of("implementer"),
+                         self.policy["capability_tiers"][tier]["effort"])
+
+    def test_a_role_override_beats_its_tier_default(self):
+        tier = self.policy["roles"]["implementer"]["tier"]
+        self.policy["capability_tiers"][tier]["effort"] = "low"
+        self.policy["roles"]["implementer"]["effort"] = "max"
+        self.tree.write_policy(self.policy)
+        result = run(self.tree.script)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.effort_of("implementer"), "max")
+
+    def test_check_is_red_when_only_the_effort_drifted(self):
+        self.tree.write_policy(self.policy)
+        self.assertEqual(run(self.tree.script).returncode, 0)
+        self.assertEqual(run(self.tree.script, "--check").returncode, 0,
+                         "a freshly generated tree must be in sync")
+        path = self.tree.agent("reviewer")
+        other = "max" if self.effort_of("reviewer") != "max" else "low"
+        with open(path, encoding="utf-8") as handle:
+            text = handle.read()
+        drifted = re.sub(r"(?m)^effort: \S+$", "effort: " + other, text, count=1)
+        self.assertNotEqual(drifted, text, "the fixture must actually drift")
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(drifted)
+        result = run(self.tree.script, "--check")
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("reviewer", result.stderr)
+
+    def snapshot(self):
+        """Exact bytes of every agent file - the only honest meaning of "wrote nothing"."""
+        out = {}
+        for name in self.AGENTS:
+            with open(self.tree.agent(name), "rb") as handle:
+                out[name] = handle.read()
+        return out
+
+    def test_an_invalid_effort_value_is_rejected(self):
+        self.policy["capability_tiers"]["most-capable"]["effort"] = "turbo"
+        self.tree.write_policy(self.policy)
+        before = self.snapshot()
+        result = run(self.tree.script)
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("effort", result.stderr)
+        self.assertEqual(self.snapshot(), before,
+                         "a rejected policy must not have written anything")
+
+    def test_an_invalid_role_override_is_rejected(self):
+        self.policy["roles"]["implementer"]["effort"] = "turbo"
+        self.tree.write_policy(self.policy)
+        before = self.snapshot()
+        result = run(self.tree.script)
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("effort", result.stderr)
+        self.assertEqual(self.snapshot(), before,
+                         "a rejected policy must not have written anything")
+
+
 class PolicyProseNamesTiersNotVendors(unittest.TestCase):
     """CLAUDE.md's routing policy must not re-hardcode vendor model names."""
 

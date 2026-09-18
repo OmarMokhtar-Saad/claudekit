@@ -4,6 +4,7 @@ description: |
   Quality validation agent. Runs static analysis, tests, and coverage checks with 80/100 approval threshold. Use after implementation to validate code quality before committing.
 
 model: sonnet
+effort: medium
 color: purple
 memory: project
 tools: ["Read", "Bash", "Grep", "Glob"]

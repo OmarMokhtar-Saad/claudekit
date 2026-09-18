@@ -4,6 +4,7 @@ description: |
   Database design and migration specialist. Handles schema design, migration planning, query optimization, and data modeling. Use when database schema changes, migrations, or query performance issues need attention.
 
 model: sonnet
+effort: medium
 color: amber
 tools: ["Read", "Write", "Edit", "Bash", "Grep", "Glob"]
 ---
