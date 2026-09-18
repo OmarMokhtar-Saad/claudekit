@@ -23,12 +23,12 @@ index never outranks the current files.
 | State | Plans |
 |---|---:|
 | `drifted` | 12 |
-| `approved` | 60 |
+| `approved` | 61 |
 | `planned` | 23 |
 | `executed` | 30 |
 | `not_started` | 24 |
 | `legacy` | 5 |
-| **total** | **154** |
+| **total** | **155** |
 
 ## Plans
 
@@ -62,6 +62,7 @@ index never outranks the current files.
 | `.claude/plans/plan-code-review-triage.md` | `approved` | 1 |  |
 | `.claude/plans/plan-command-bash-parse-gate.md` | `executed` | 1 |  |
 | `.claude/plans/plan-command-bash-placeholders.md` | `executed` | 2 |  |
+| `.claude/plans/plan-context-budget-gate.md` | `approved` | 1 |  |
 | `.claude/plans/plan-context-budget-lazy-skills.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-context-economy-rules.md` | `approved` | 1 |  |
 | `.claude/plans/plan-context-recovery-refinement.md` | `approved` | 1 |  |
