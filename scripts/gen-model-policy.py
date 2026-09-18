@@ -29,6 +29,12 @@ MODEL_LINE_RE = re.compile(r"^model:[ \t]*([^\s\r]+)[ \t]*(?=\r?$)", re.M)
 # model value cannot strip the line ending. With newline="" on both ends, a
 # rewrite touches exactly the bytes of the value and nothing else.
 
+EFFORT_LINE_RE = re.compile(r"^effort:[ \t]*([^\s\r]+)[ \t]*(?=\r?$)", re.M)
+ALLOWED_EFFORTS = ("low", "medium", "high", "xhigh", "max")
+# A subagent with no `effort:` key inherits the SESSION's effort, so an unset role costs
+# whatever the owner's last session happened to cost. Projecting it from the table is what
+# makes the budget a decision instead of an accident.
+
 
 def frontmatter_span(text):
     """(start, end) of the YAML frontmatter body, or None if there isn't one.
@@ -63,6 +69,10 @@ def load_policy(path):
     for name, tier in sorted(tiers.items()):
         if not isinstance(tier, dict) or not tier.get("model"):
             raise ValueError("model-policy.json: tier %r has no model" % name)
+        if tier.get("effort") not in ALLOWED_EFFORTS:
+            raise ValueError(
+                "model-policy.json: tier %r declares effort %r, not one of %s"
+                % (name, tier.get("effort"), ", ".join(ALLOWED_EFFORTS)))
         if "degrade_to" not in tier:
             raise ValueError("model-policy.json: tier %r declares no degrade_to" % name)
         target = tier["degrade_to"]
@@ -92,6 +102,10 @@ def load_policy(path):
         if escalate is not None and escalate not in tiers:
             raise ValueError(
                 "model-policy.json: role %r escalates to unknown tier %r" % (name, escalate))
+        if "effort" in role and role["effort"] not in ALLOWED_EFFORTS:
+            raise ValueError(
+                "model-policy.json: role %r declares effort %r, not one of %s"
+                % (name, role["effort"], ", ".join(ALLOWED_EFFORTS)))
         if not role.get("accountable_for"):
             raise ValueError("model-policy.json: role %r declares no accountability" % name)
     for site in policy.get("callsite_overrides", {}).get("sites", []):
@@ -117,9 +131,16 @@ def agent_files(agents_dir):
 
 
 def resolve(policy):
-    """role -> concrete model id for its declared tier."""
+    """role -> (concrete model id, effort) for its declared tier.
+
+    Effort resolves as: the role's own override if it declares one, else its tier's
+    default. Role and capability are chosen separately, and so are role and budget -
+    `reviewer` is balanced tier but reviews adversarially, so it overrides upward.
+    """
     tiers = policy["capability_tiers"]
-    return {name: tiers[role["tier"]]["model"] for name, role in policy["roles"].items()}
+    return {name: (tiers[role["tier"]]["model"],
+                   role.get("effort", tiers[role["tier"]]["effort"]))
+            for name, role in policy["roles"].items()}
 
 
 def sync(check_only):
@@ -154,11 +175,32 @@ def sync(check_only):
         if match is None:
             defects.append("%s: no `model:` line in frontmatter" % name)
             continue
-        if match.group(1) == wanted[name]:
+        model, effort = wanted[name]
+        new_text = text
+        if match.group(1) != model:
+            new_text = text[:match.start()] + "model: " + model + text[match.end():]
+        # `effort:` rides directly under `model:`: replaced when stale, INSERTED when absent.
+        # A missing effort line is drift a run can fix, not a defect - unlike a missing
+        # `model:` line, whose absence means the frontmatter itself is broken.
+        espan = frontmatter_span(new_text)
+        mm = MODEL_LINE_RE.search(new_text, *espan)
+        ematch = EFFORT_LINE_RE.search(new_text, *espan)
+        current_effort = ematch.group(1) if ematch else None
+        if current_effort != effort:
+            if ematch is not None:
+                new_text = (new_text[:ematch.start()] + "effort: " + effort
+                            + new_text[ematch.end():])
+            else:
+                # Reuse the model line's OWN ending so inserting into a CRLF file cannot
+                # smuggle a lone \n into it.
+                line_end = "\r\n" if new_text[mm.end():mm.end() + 2] == "\r\n" else "\n"
+                cut = mm.end() + len(line_end)
+                new_text = (new_text[:cut] + "effort: " + effort + line_end
+                            + new_text[cut:])
+        if new_text == text:
             continue
-        planned.append((name, path,
-                        text[:match.start()] + "model: " + wanted[name] + text[match.end():],
-                        match.group(1)))
+        planned.append((name, path, new_text,
+                        "%s/%s" % (match.group(1), current_effort or "-")))
 
     if defects:
         for line in defects:
@@ -170,8 +212,8 @@ def sync(check_only):
     if check_only:
         if planned:
             for name, _path, _text, current in planned:
-                print("DRIFT: %s: frontmatter says %s, policy says %s"
-                      % (name, current, wanted[name]), file=sys.stderr)
+                print("DRIFT: %s: frontmatter says %s, policy says %s/%s"
+                      % (name, current, wanted[name][0], wanted[name][1]), file=sys.stderr)
             print("Run: python3 scripts/gen-model-policy.py", file=sys.stderr)
             return 1
         print("Model policy in sync: %d agent roles." % len(wanted))
@@ -180,7 +222,7 @@ def sync(check_only):
     for name, path, text, _current in planned:
         with open(path, "w", encoding="utf-8", newline="") as handle:
             handle.write(text)
-        print("Updated %s -> %s" % (name, wanted[name]))
+        print("Updated %s -> %s/%s" % (name, wanted[name][0], wanted[name][1]))
     print("Model policy applied: %d agent roles, %d rewritten." % (len(wanted), len(planned)))
     return 0
 

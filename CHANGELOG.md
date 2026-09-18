@@ -11,6 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `open-source-forker` — never shipped and have been removed.
 
 ## [Unreleased]
+- **Reasoning effort is now policy, not inheritance.** A subagent with no `effort:` key
+  inherits the session's effort, so every agent's cost profile was an accident of the parent
+  session. `.claude/model-policy.json` now gives each capability tier a default effort
+  (most-capable `high`, balanced `medium`, fast `low`) and lets a role override it
+  (`debugger` `xhigh`; `planner`, `code-reviewer` and `reviewer` `high` — `reviewer` is
+  balanced tier but reviews adversarially). `scripts/gen-model-policy.py` projects the
+  resolved effort into all 22 agent frontmatters directly under `model:`, rejects any value
+  outside {low, medium, high, xhigh, max}, and `--check` now fails on effort drift exactly as
+  it does on model drift. `reviewer.md` lost one line of rationale prose to stay under its
+  12,400-byte ceiling; the turn-discipline rules it motivated are unchanged.
 - **Unwindowed reads of large files are blocked, and the expensive agents carry a turn cap.**
   Bash stdout is capped at 12,000 chars, but `Read` was not: across planner runs, Read results
   totalled 16.2M bytes (5.0M of it in single results over 12K), and 83 of 284 Reads in the last

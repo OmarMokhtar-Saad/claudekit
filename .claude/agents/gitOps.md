@@ -4,6 +4,7 @@ description: |
   Git operations specialist for branching, committing, pushing, PRs. Handles version control safely. Use when code changes need to be committed, branches created, or pull requests opened.
 
 model: haiku
+effort: low
 color: orange
 tools: ["Read", "Bash", "Grep", "Glob"]
 ---

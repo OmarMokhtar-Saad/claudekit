@@ -4,6 +4,7 @@ description: |
   Read-only diagnosis agent for bug investigation. Pattern matching, log analysis, root cause identification. Cannot edit code. Use when a bug needs to be investigated and diagnosed before planning a fix.
 
 model: opus
+effort: xhigh
 color: red
 memory: project
 tools: ["Read", "Grep", "Glob", "Bash"]

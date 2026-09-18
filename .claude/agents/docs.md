@@ -4,6 +4,7 @@ description: |
   Documentation specialist, two modes. `mode: create` writes documentation that does not exist yet — API references, knowledge-base articles, READMEs from scratch. `mode: update` syncs documentation that already exists with code that has changed — docstrings, JSDoc, codemaps, API reference drift. Use when documentation must be created or brought back in step with the code.
 
 model: haiku
+effort: low
 color: teal
 tools: ["Read", "Write", "Edit", "Grep", "Glob", "Bash"]
 ---

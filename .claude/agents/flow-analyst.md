@@ -2,6 +2,7 @@
 name: flow-analyst
 description: "Use when /flow-retro runs a review-process retrospective: offline analysis of accumulated rejection briefs, classifying them on the ODC axes and proposing bounded, human-gated prompt and checklist edits. Proposes only; never applies."
 model: opus
+effort: high
 color: purple
 tools: ["Read", "Grep", "Glob", "Write"]
 ---

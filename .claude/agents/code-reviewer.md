@@ -9,6 +9,7 @@ description: |
   assistant: "I'll read every changed file, trace the logic, check for security issues, and produce a ranked findings report with file:line references and suggested fixes."
   </example>
 model: opus
+effort: high
 maxTurns: 30
 color: orange
 memory: project

@@ -1,0 +1,17 @@
+{
+  "plan": ".claude/plans/plan-policy-effort-per-role.md",
+  "slug": "policy-effort-per-role",
+  "ops_path": ".claude/plans/ops-policy-effort-per-role.json",
+  "ops_sha256": "ae3054f762e6970d7dadb2eaa3ea2850e915dd16b7239b6ebf408492cc96cd02",
+  "score": 95,
+  "decision": "APPROVED",
+  "findings": [],
+  "verdict_origin": "rubric",
+  "reviewer_session": "f3f9a29b-852e-4bfb-a493-8136b11a7d46",
+  "reviewer_role": "code-reviewer",
+  "recorded_utc": "2026-09-18T18:32:51Z",
+  "operations": 6,
+  "edits": 19,
+  "rounds": [],
+  "round": 1
+}

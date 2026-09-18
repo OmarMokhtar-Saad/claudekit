@@ -7,6 +7,14 @@
     "Role and capability are chosen SEPARATELY: `accountable_for` says what the role",
     "owns, `tier` says how much intelligence the assignment earns.",
     "Regenerate/verify agent frontmatter with: python3 scripts/gen-model-policy.py [--check]",
+    "`effort` is the reasoning budget the same table owns, because it is the same kind of",
+    "decision as the tier: how much output a role earns. A subagent with NO effort key",
+    "INHERITS the session's effort, so leaving it unset makes every agent's cost profile an",
+    "accident of the parent session. Resolution is: the role's own `effort` if it declares",
+    "one, else its tier's default. Allowed values: low, medium, high, xhigh, max - anything",
+    "else is rejected here, exactly as an unknown tier is. Effort scales ALL output tokens",
+    "(thinking, prose and tool calls), and role and effort are chosen SEPARATELY: `reviewer`",
+    "is balanced tier but reviews adversarially, so it overrides upward.",
     "`degrade_to` is the fallback chain as DATA, not prose: on a rate limit a role",
     "drops one tier along it, and null ends the chain. gen-model-policy.py rejects a",
     "chain that names an unknown tier or that cycles instead of terminating.",
@@ -18,16 +26,19 @@
   "capability_tiers": {
     "most-capable": {
       "model": "opus",
+      "effort": "high",
       "degrade_to": "balanced",
       "use_when": "Novel design, adversarial review, security reasoning, or root-cause work where a wrong answer is expensive and hard to detect."
     },
     "balanced": {
       "model": "sonnet",
+      "effort": "medium",
       "degrade_to": "fast",
       "use_when": "Bounded judgement against a written standard: scoring, specialist review, refactors, test authoring, orchestration."
     },
     "fast": {
       "model": "haiku",
+      "effort": "low",
       "degrade_to": null,
       "use_when": "Mechanical or retrieval work with a checkable output: executing an approved ops.json, searching, summarising, formatting."
     }
@@ -39,7 +50,8 @@
     },
     "code-reviewer": {
       "accountable_for": "Adversarial review of an implementation diff; refute, do not approve.",
-      "tier": "most-capable"
+      "tier": "most-capable",
+      "effort": "high"
     },
     "coordinator": {
       "accountable_for": "Decomposition, file-ownership maps, and handoffs between agents.",
@@ -55,7 +67,8 @@
     },
     "debugger": {
       "accountable_for": "Root-cause diagnosis, read-only.",
-      "tier": "most-capable"
+      "tier": "most-capable",
+      "effort": "xhigh"
     },
     "devops": {
       "accountable_for": "CI/CD, container, and deployment configuration.",
@@ -101,7 +114,8 @@
     },
     "planner": {
       "accountable_for": "Implementation plans plus a machine-executable ops.json.",
-      "tier": "most-capable"
+      "tier": "most-capable",
+      "effort": "high"
     },
     "refactor-cleaner": {
       "accountable_for": "Dead code and duplicate removal, and simplification of code that is used, behaviour preserved either way.",
@@ -110,6 +124,7 @@
     "reviewer": {
       "accountable_for": "Scoring a plan + ops.json against the 90/100 threshold.",
       "tier": "balanced",
+      "effort": "high",
       "escalate_to": "most-capable",
       "escalate_when": "The plan is multi-phase, changes architecture, or touches a security surface."
     },

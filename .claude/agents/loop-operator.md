@@ -4,6 +4,7 @@ description: |
   Monitors and safely intervenes in autonomous agent loops. Detects stagnation, error spirals, and runaway iterations. Pauses the loop and reports state when intervention is needed. Use as a supervisor when running long autonomous loops.
 
 model: sonnet
+effort: medium
 color: purple
 tools: ["Read", "Grep", "Glob", "Bash"]
 ---

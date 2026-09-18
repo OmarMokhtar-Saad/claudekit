@@ -1,0 +1,125 @@
+{
+  "plan": "policy-effort-per-role",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/model-policy.json",
+      "edits": [
+        {
+          "find": "    \"Regenerate/verify agent frontmatter with: python3 scripts/gen-model-policy.py [--check]\",",
+          "replace": "    \"Regenerate/verify agent frontmatter with: python3 scripts/gen-model-policy.py [--check]\",\n    \"`effort` is the reasoning budget the same table owns, because it is the same kind of\",\n    \"decision as the tier: how much output a role earns. A subagent with NO effort key\",\n    \"INHERITS the session's effort, so leaving it unset makes every agent's cost profile an\",\n    \"accident of the parent session. Resolution is: the role's own `effort` if it declares\",\n    \"one, else its tier's default. Allowed values: low, medium, high, xhigh, max - anything\",\n    \"else is rejected here, exactly as an unknown tier is. Effort scales ALL output tokens\",\n    \"(thinking, prose and tool calls), and role and effort are chosen SEPARATELY: `reviewer`\",\n    \"is balanced tier but reviews adversarially, so it overrides upward.\","
+        },
+        {
+          "find": "      \"model\": \"opus\",\n      \"degrade_to\": \"balanced\",",
+          "replace": "      \"model\": \"opus\",\n      \"effort\": \"high\",\n      \"degrade_to\": \"balanced\","
+        },
+        {
+          "find": "      \"model\": \"sonnet\",\n      \"degrade_to\": \"fast\",",
+          "replace": "      \"model\": \"sonnet\",\n      \"effort\": \"medium\",\n      \"degrade_to\": \"fast\","
+        },
+        {
+          "find": "      \"model\": \"haiku\",\n      \"degrade_to\": null,",
+          "replace": "      \"model\": \"haiku\",\n      \"effort\": \"low\",\n      \"degrade_to\": null,"
+        },
+        {
+          "find": "      \"accountable_for\": \"Adversarial review of an implementation diff; refute, do not approve.\",\n      \"tier\": \"most-capable\"",
+          "replace": "      \"accountable_for\": \"Adversarial review of an implementation diff; refute, do not approve.\",\n      \"tier\": \"most-capable\",\n      \"effort\": \"high\""
+        },
+        {
+          "find": "      \"accountable_for\": \"Root-cause diagnosis, read-only.\",\n      \"tier\": \"most-capable\"",
+          "replace": "      \"accountable_for\": \"Root-cause diagnosis, read-only.\",\n      \"tier\": \"most-capable\",\n      \"effort\": \"xhigh\""
+        },
+        {
+          "find": "      \"accountable_for\": \"Implementation plans plus a machine-executable ops.json.\",\n      \"tier\": \"most-capable\"",
+          "replace": "      \"accountable_for\": \"Implementation plans plus a machine-executable ops.json.\",\n      \"tier\": \"most-capable\",\n      \"effort\": \"high\""
+        },
+        {
+          "find": "      \"accountable_for\": \"Scoring a plan + ops.json against the 90/100 threshold.\",\n      \"tier\": \"balanced\",",
+          "replace": "      \"accountable_for\": \"Scoring a plan + ops.json against the 90/100 threshold.\",\n      \"tier\": \"balanced\",\n      \"effort\": \"high\","
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "scripts/gen-model-policy.py",
+      "edits": [
+        {
+          "find": "# rewrite touches exactly the bytes of the value and nothing else.",
+          "replace": "# rewrite touches exactly the bytes of the value and nothing else.\n\nEFFORT_LINE_RE = re.compile(r\"^effort:[ \\t]*([^\\s\\r]+)[ \\t]*(?=\\r?$)\", re.M)\nALLOWED_EFFORTS = (\"low\", \"medium\", \"high\", \"xhigh\", \"max\")\n# A subagent with no `effort:` key inherits the SESSION's effort, so an unset role costs\n# whatever the owner's last session happened to cost. Projecting it from the table is what\n# makes the budget a decision instead of an accident."
+        },
+        {
+          "find": "        if \"degrade_to\" not in tier:\n            raise ValueError(\"model-policy.json: tier %r declares no degrade_to\" % name)",
+          "replace": "        if tier.get(\"effort\") not in ALLOWED_EFFORTS:\n            raise ValueError(\n                \"model-policy.json: tier %r declares effort %r, not one of %s\"\n                % (name, tier.get(\"effort\"), \", \".join(ALLOWED_EFFORTS)))\n        if \"degrade_to\" not in tier:\n            raise ValueError(\"model-policy.json: tier %r declares no degrade_to\" % name)"
+        },
+        {
+          "find": "        if not role.get(\"accountable_for\"):\n            raise ValueError(\"model-policy.json: role %r declares no accountability\" % name)",
+          "replace": "        if \"effort\" in role and role[\"effort\"] not in ALLOWED_EFFORTS:\n            raise ValueError(\n                \"model-policy.json: role %r declares effort %r, not one of %s\"\n                % (name, role[\"effort\"], \", \".join(ALLOWED_EFFORTS)))\n        if not role.get(\"accountable_for\"):\n            raise ValueError(\"model-policy.json: role %r declares no accountability\" % name)"
+        },
+        {
+          "find": "def resolve(policy):\n    \"\"\"role -> concrete model id for its declared tier.\"\"\"\n    tiers = policy[\"capability_tiers\"]\n    return {name: tiers[role[\"tier\"]][\"model\"] for name, role in policy[\"roles\"].items()}",
+          "replace": "def resolve(policy):\n    \"\"\"role -> (concrete model id, effort) for its declared tier.\n\n    Effort resolves as: the role's own override if it declares one, else its tier's\n    default. Role and capability are chosen separately, and so are role and budget -\n    `reviewer` is balanced tier but reviews adversarially, so it overrides upward.\n    \"\"\"\n    tiers = policy[\"capability_tiers\"]\n    return {name: (tiers[role[\"tier\"]][\"model\"],\n                   role.get(\"effort\", tiers[role[\"tier\"]][\"effort\"]))\n            for name, role in policy[\"roles\"].items()}"
+        },
+        {
+          "find": "        if match.group(1) == wanted[name]:\n            continue\n        planned.append((name, path,\n                        text[:match.start()] + \"model: \" + wanted[name] + text[match.end():],\n                        match.group(1)))",
+          "replace": "        model, effort = wanted[name]\n        new_text = text\n        if match.group(1) != model:\n            new_text = text[:match.start()] + \"model: \" + model + text[match.end():]\n        # `effort:` rides directly under `model:`: replaced when stale, INSERTED when absent.\n        # A missing effort line is drift a run can fix, not a defect - unlike a missing\n        # `model:` line, whose absence means the frontmatter itself is broken.\n        espan = frontmatter_span(new_text)\n        mm = MODEL_LINE_RE.search(new_text, *espan)\n        ematch = EFFORT_LINE_RE.search(new_text, *espan)\n        current_effort = ematch.group(1) if ematch else None\n        if current_effort != effort:\n            if ematch is not None:\n                new_text = (new_text[:ematch.start()] + \"effort: \" + effort\n                            + new_text[ematch.end():])\n            else:\n                # Reuse the model line's OWN ending so inserting into a CRLF file cannot\n                # smuggle a lone \\n into it.\n                line_end = \"\\r\\n\" if new_text[mm.end():mm.end() + 2] == \"\\r\\n\" else \"\\n\"\n                cut = mm.end() + len(line_end)\n                new_text = (new_text[:cut] + \"effort: \" + effort + line_end\n                            + new_text[cut:])\n        if new_text == text:\n            continue\n        planned.append((name, path, new_text,\n                        \"%s/%s\" % (match.group(1), current_effort or \"-\")))"
+        },
+        {
+          "find": "                print(\"DRIFT: %s: frontmatter says %s, policy says %s\"\n                      % (name, current, wanted[name]), file=sys.stderr)",
+          "replace": "                print(\"DRIFT: %s: frontmatter says %s, policy says %s/%s\"\n                      % (name, current, wanted[name][0], wanted[name][1]), file=sys.stderr)"
+        },
+        {
+          "find": "        print(\"Updated %s -> %s\" % (name, wanted[name]))",
+          "replace": "        print(\"Updated %s -> %s/%s\" % (name, wanted[name][0], wanted[name][1]))"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_model_policy.py",
+      "edits": [
+        {
+          "find": "class PolicyProseNamesTiersNotVendors(unittest.TestCase):",
+          "replace": "class EffortIsProjectedPerRole(unittest.TestCase):\n    \"\"\"Effort is policy data, not a per-file habit.\n\n    A subagent with no `effort:` key inherits the session's effort, so an unprojected\n    role costs whatever the owner's session happened to cost. These tests run the real\n    generator against a temp tree and assert on the files it wrote.\n    \"\"\"\n\n    AGENTS = [\"planner\", \"reviewer\", \"implementer\"]\n\n    def setUp(self):\n        self.tree = TempTree(self.AGENTS)\n        self.addCleanup(self.tree.cleanup)\n        self.policy = subset_policy(self.AGENTS)\n\n    def effort_of(self, name):\n        with open(self.tree.agent(name), encoding=\"utf-8\") as handle:\n            match = re.search(r\"^effort:[ \\t]*(\\S+)[ \\t]*$\", handle.read(), re.M)\n        return match.group(1) if match else None\n\n    def test_effort_is_written_under_the_model_line(self):\n        self.tree.write_policy(self.policy)\n        result = run(self.tree.script)\n        self.assertEqual(result.returncode, 0, result.stderr)\n        with open(self.tree.agent(\"implementer\"), encoding=\"utf-8\") as handle:\n            body = handle.read()\n        self.assertRegex(body, r\"(?m)^model: \\S+\\neffort: \\S+$\")\n        tier = self.policy[\"roles\"][\"implementer\"][\"tier\"]\n        self.assertNotIn(\"effort\", self.policy[\"roles\"][\"implementer\"],\n                         \"this role must have NO override, or it proves the wrong thing\")\n        self.assertEqual(self.effort_of(\"implementer\"),\n                         self.policy[\"capability_tiers\"][tier][\"effort\"])\n\n    def test_a_role_override_beats_its_tier_default(self):\n        tier = self.policy[\"roles\"][\"implementer\"][\"tier\"]\n        self.policy[\"capability_tiers\"][tier][\"effort\"] = \"low\"\n        self.policy[\"roles\"][\"implementer\"][\"effort\"] = \"max\"\n        self.tree.write_policy(self.policy)\n        result = run(self.tree.script)\n        self.assertEqual(result.returncode, 0, result.stderr)\n        self.assertEqual(self.effort_of(\"implementer\"), \"max\")\n\n    def test_check_is_red_when_only_the_effort_drifted(self):\n        self.tree.write_policy(self.policy)\n        self.assertEqual(run(self.tree.script).returncode, 0)\n        self.assertEqual(run(self.tree.script, \"--check\").returncode, 0,\n                         \"a freshly generated tree must be in sync\")\n        path = self.tree.agent(\"reviewer\")\n        other = \"max\" if self.effort_of(\"reviewer\") != \"max\" else \"low\"\n        with open(path, encoding=\"utf-8\") as handle:\n            text = handle.read()\n        drifted = re.sub(r\"(?m)^effort: \\S+$\", \"effort: \" + other, text, count=1)\n        self.assertNotEqual(drifted, text, \"the fixture must actually drift\")\n        with open(path, \"w\", encoding=\"utf-8\") as handle:\n            handle.write(drifted)\n        result = run(self.tree.script, \"--check\")\n        self.assertEqual(result.returncode, 1, result.stdout)\n        self.assertIn(\"reviewer\", result.stderr)\n\n    def snapshot(self):\n        \"\"\"Exact bytes of every agent file - the only honest meaning of \"wrote nothing\".\"\"\"\n        out = {}\n        for name in self.AGENTS:\n            with open(self.tree.agent(name), \"rb\") as handle:\n                out[name] = handle.read()\n        return out\n\n    def test_an_invalid_effort_value_is_rejected(self):\n        self.policy[\"capability_tiers\"][\"most-capable\"][\"effort\"] = \"turbo\"\n        self.tree.write_policy(self.policy)\n        before = self.snapshot()\n        result = run(self.tree.script)\n        self.assertEqual(result.returncode, 1, result.stdout)\n        self.assertIn(\"effort\", result.stderr)\n        self.assertEqual(self.snapshot(), before,\n                         \"a rejected policy must not have written anything\")\n\n    def test_an_invalid_role_override_is_rejected(self):\n        self.policy[\"roles\"][\"implementer\"][\"effort\"] = \"turbo\"\n        self.tree.write_policy(self.policy)\n        before = self.snapshot()\n        result = run(self.tree.script)\n        self.assertEqual(result.returncode, 1, result.stdout)\n        self.assertIn(\"effort\", result.stderr)\n        self.assertEqual(self.snapshot(), before,\n                         \"a rejected policy must not have written anything\")\n\n\nclass PolicyProseNamesTiersNotVendors(unittest.TestCase):"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_behavior_spec.py",
+      "edits": [
+        {
+          "find": "    KNOWN_KEYS = (\"name\", \"description\", \"model\", \"color\", \"tools\", \"memory\", \"maxTurns\")",
+          "replace": "    KNOWN_KEYS = (\"name\", \"description\", \"model\", \"effort\", \"color\", \"tools\", \"memory\",\n                  \"maxTurns\")"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/reviewer.md",
+      "edits": [
+        {
+          "find": "Cost is turns x context: every turn re-reads the whole conversation.\n\n- **Hard ceiling: ~20 tool calls per review.**",
+          "replace": "- **Hard ceiling: ~20 tool calls per review.**"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "edits": [
+        {
+          "find": "## [Unreleased]\n",
+          "replace": "## [Unreleased]\n- **Reasoning effort is now policy, not inheritance.** A subagent with no `effort:` key\n  inherits the session's effort, so every agent's cost profile was an accident of the parent\n  session. `.claude/model-policy.json` now gives each capability tier a default effort\n  (most-capable `high`, balanced `medium`, fast `low`) and lets a role override it\n  (`debugger` `xhigh`; `planner`, `code-reviewer` and `reviewer` `high` \u2014 `reviewer` is\n  balanced tier but reviews adversarially). `scripts/gen-model-policy.py` projects the\n  resolved effort into all 22 agent frontmatters directly under `model:`, rejects any value\n  outside {low, medium, high, xhigh, max}, and `--check` now fails on effort drift exactly as\n  it does on model drift. `reviewer.md` lost one line of rationale prose to stay under its\n  12,400-byte ceiling; the turn-discipline rules it motivated are unchanged.\n"
+        }
+      ]
+    }
+  ],
+  "baseline": {
+    ".claude/agents/reviewer.md": "sha256:5a4e6e8c0aa1ce71bad8ea3acd209772b7d76acd6412fba6d0efd9d38b31aaab",
+    ".claude/model-policy.json": "sha256:93d75372eb071774385b5af0208bb32ebbc34a10dbe7dfa82f21f4b4275bcc2f",
+    "CHANGELOG.md": "sha256:976d21a0fcdd54fa71646bba8fa03199933eabcfed12553bd7b86a19087687d1",
+    "scripts/gen-model-policy.py": "sha256:2c39cd795b1b945d631253d1306c36a1275fa9d2adb95d39a8b3ef67054f35b2",
+    "tests/test_behavior_spec.py": "sha256:1fb419929c3f66be2d46581bc83ead0203ac828863620c3b78fe48bacfb27ba7",
+    "tests/test_model_policy.py": "sha256:0ac7ba9f2a33abfaa1ec04f312ddb554cc851c8acdcf8ae5c1ff3d4730b57884"
+  }
+}

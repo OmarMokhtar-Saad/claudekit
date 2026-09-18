@@ -4,6 +4,7 @@ description: |
   Creates implementation plans with JSON operations configs. Explores codebase, generates plan.md and ops.json. Use when a task needs an implementation plan before coding begins.
 
 model: opus
+effort: high
 color: cyan
 memory: project
 maxTurns: 40

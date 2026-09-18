@@ -10,6 +10,7 @@ description: |
   </example>
 maxTurns: 25
 model: sonnet
+effort: high
 color: blue
 memory: project
 tools: ["Read", "Grep", "Glob"]
@@ -80,8 +81,6 @@ you re-judge the current version rather than reaffirming the old one.
   letting it move the approval bar each round is how refine loops fail to terminate.
 
 ## Output & Turn Discipline
-
-Cost is turns x context: every turn re-reads the whole conversation.
 
 - **Hard ceiling: ~20 tool calls per review.** At the ceiling, score what you read and state
   which claims you could not verify.

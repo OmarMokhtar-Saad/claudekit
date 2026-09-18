@@ -4,6 +4,7 @@ description: |
   Cleanup and simplification specialist. Removes what nothing uses -- unused files, exports, dependencies, duplicates -- and simplifies what is used but more complicated than it needs to be. Behaviour preserved either way. Use when a codebase has accumulated dead code or needless complexity.
 
 model: sonnet
+effort: medium
 color: teal
 tools: ["Read", "Write", "Edit", "Bash", "Grep", "Glob"]
 ---

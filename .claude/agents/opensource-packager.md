@@ -4,6 +4,7 @@ description: |
   Stage 3 of the open-source pipeline. Generates complete open-source packaging for a sanitized repo — CLAUDE.md, setup.sh, README.md structure, LICENSE, CONTRIBUTING.md, and GitHub templates. Only runs after opensource-sanitizer PASSES and opensource-forker completes.
 
 model: haiku
+effort: low
 color: green
 tools: ["Read", "Glob", "Bash", "Write"]
 ---
