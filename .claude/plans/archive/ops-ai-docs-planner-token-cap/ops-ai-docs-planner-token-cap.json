@@ -1,0 +1,29 @@
+{
+  "plan": "ai-docs-planner-token-cap",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".ai/SESSION_STATE.md",
+      "edits": [
+        {
+          "find": "> Update this file at the end of every significant AI working session. It is the resume point.\n",
+          "add_after": "**2026-09-18 \u00b7 Claude (Fable 5.1) \u2014 `main`, `65eca66` + `ae7d8ba` + `2eb8f5f`, planner token cap. NOT pushed.**\nA planFix planner run in qa-agents ended at 401K context / 89 turns / 20.4M cumulative cache-read\ntokens on scratch scripts (disc.sh rewritten 20x) and single Bash results of 38-58K chars. Its\nplanner.md was a stale pre-ceiling copy \u2014 but a 40-run survey showed planners WITH the prompt\nbudget still end at 120-204K with 45-66K-char results, so the prompt is advisory. Mechanical fix:\n`output_filter.py` gains a lossy `max_chars` op and a last-placed `bash-output-cap` (12,000 chars,\nhead + tail, marker names the omitted bytes; NEVER_FILTER / CK_RAW_OUTPUT=1 untouched). Reviewer\nround 1 REVISE 84 \u2014 the can-it-fail control was inert because the summary line duplicated the\nmarker text; round 2 APPROVED 92. Both mutants run by hand: each reddened exactly the named test.\nFirst cut of the prompt bullets breached `test_agent_prompt_size` (10428/10000, 12765/12400);\ntrimmed to one-liners. Suite 11490, zero failures. Whole pipeline cost ~250K tokens over 6 opus\nsubagent runs. Fleet: 13 projects via `ck fleet update` (0 local overwrites); qa-agents synced by\n3-way merge against kit `2f80443` (its local planner.md hunks kept, missing `_shared/*-reference.md`\nadded, hook registered) as `6b26597d` on `wip/pro-presync`, cherry-picked to the\n`toolkit-providers2` worktree as `372ecb16`. **qa-agents `main` does NOT carry it** \u2014 merge is\nowner-gated.\n**Open:** measure the next qa-agents planner run (target <150K final context, no result >12K);\npush claudekit main; merge/promote in qa-agents.\n\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".ai/CHANGELOG_AI.md",
+      "edits": [
+        {
+          "find": "## 2026-09-17 (later) \u2014 qa-agents hardening upstreamed; an executing review earned its keep\n",
+          "add_before": "## 2026-09-18 \u2014 a 401K planner run; the prompt budget is advisory, the hook is not\n\nA qa-agents planner spent 20.4M cumulative tokens: 89 turns, final context 401K, 34 Writes + 20\nEdits of scratch scripts and five single tool results between 38K and 58K chars. Its planner.md\npredated the hard-ceiling block \u2014 but the 40 most recent planner transcripts across three repos\nshowed the block only moves the median from ~400K to 120-204K; the largest single result stayed\nat 45-66K chars in most runs. A rule the model can read is a rule the model can rationalise past.\n\n**What shipped.** `output_filter.py` (PostToolUse, Bash) gains a `max_chars` operation, lossy and\ntherefore refused without `\"lossy\": true`, and `output-filters.json` a catch-all `bash-output-cap`\nat 12,000 chars placed last so `select()`'s first-match cannot let it shadow `pytest-progress`.\nSeven behavioural tests; the two mandated mutants were hand-applied and each turned exactly its\nnamed test red. Planner and reviewer prompts state the cap in one line each.\n\n**What the review caught.** Round 1 refuted the can-it-fail control: the filter's summary line\nrepeated \"omitted from the middle\", `{capped}` and the hatch, so deleting the inline marker left\nevery assertion satisfied by the summary. Fix: a disjoint summary and positional asserts (count\n== 1, index strictly inside head/tail, not on line 1). Fourth recorded instance of a proof naming\na mechanism it did not test; the first caught before execution.\n\n**What the implementer caught that the reviewer missed.** Both prompt edits breached\n`test_agent_prompt_size` by 428 and 365 bytes; the reviewer scored 92 without running it. The\n`--stamp-baseline`-after-verdict deadlock fired once more (memory `ops-stamp-before-verdict`);\nrebinding was legitimate because the only delta was the `baseline` key.\n\n**Fleet.** `ck fleet update` this time cleared the classifier; 13 projects, zero local overwrites.\nqa-agents got a 3-way merge (`git merge-file`, base = last-synced kit commit) so its own hunks\nsurvived, plus the two `_shared/*-reference.md` files its reviewer.md had been pointing at for two\ndays without anyone noticing.\n\n"
+        }
+      ]
+    }
+  ],
+  "baseline": {
+    ".ai/CHANGELOG_AI.md": "sha256:474261f76085d364e2509a19f206ac3d7529fd2fa0af0c7ef822ea5cc531be55",
+    ".ai/SESSION_STATE.md": "sha256:a4f20b92516de785e2d8631e059972fa6de334b50302ba93c0a4f57f38699eab"
+  }
+}
