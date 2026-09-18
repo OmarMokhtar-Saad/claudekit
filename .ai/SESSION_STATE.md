@@ -1,6 +1,26 @@
 # Session State
 
 > Update this file at the end of every significant AI working session. It is the resume point.
+**2026-09-19 (00:xx) · Claude (Fable 5.1) — `main`, `5890fa4` + `8c59d35`, context-budget gate. PUSHED.**
+The fifth plan of the day closes the two gaps every earlier cap left: the main session (no frontmatter)
+and the built-in `general-purpose` agent (no definition of ours). `context-budget-gate.py` reads the
+last 64 KB of the caller's own transcript, warns at 200K once per 20 guarded calls, refuses
+main-session Write/Edit/NotebookEdit/Bash/Agent at 400K (subagents are advised, not blocked — they
+cannot `/compact`), and refuses `general-purpose` spawns without `CK_ALLOW_GENERAL_PURPOSE=1`. On 14
+real transcripts the tail window matched the true context exactly; one live session was at 369K.
+Executing review went 75 -> 75 -> 92 at the three-round ceiling; the planner's revision was cut off
+by a rate limit and the `NotebookEdit` registry token was the casualty (payload/ops edited out of
+step — `code-reviewer` memory written). The mutation-proof ratchet hit three on one artifact:
+follow-up filed for executable mutants (`payloads/<plan>/mutants/*.patch` + `check-mutants.py`).
+A `.gitignore` 3-way merge into qa-agents was committed WITH conflict markers and amended one
+command later — the merge loop must grep for `^<<<<<<<` before `cp`, not after. Suite 11536. Fleet
+13/13; qa-agents `e8b4d4d5` on `wip/pro-presync`, providers2 `7fc46aeb`.
+**Day total:** 5 plans, 12 subagent review rounds, 4 mechanical layers (Bash cap, Read guard +
+maxTurns, effort, context gate + spawn guard). Planner run 894K -> 56K measured.
+**Open:** qa-agents `main` carries none of the five syncs (`6b26597d ebdb6c5d 34e59728 e8b4d4d5`);
+13 fleet repos uncommitted (classifier-blocked here); `check-mutants.py`; warn-counter pruning (Low);
+qa-agents CLAUDE.md trim (26K); account-B default model -> Sonnet is the owner's call.
+
 **2026-09-18 (evening) · Claude (Fable 5.1) — `main`, `4d6399d` + `e586d3a`, per-role effort. PUSHED.**
 Both accounts (`~/.claude`, `~/.claude-acct-b`) run `effortLevel: low` and subagents inherit it, so
 every planner and reviewer had been reasoning at low. `model-policy.json` now carries a default

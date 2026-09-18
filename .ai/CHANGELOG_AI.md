@@ -1,6 +1,35 @@
 # AI Session Changelog
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
+## 2026-09-19 — the seat that spends is the one nothing capped
+
+Four layers shipped on 2026-09-18 all bind through agent frontmatter or the Bash/Read tool path.
+Two things have neither: the main session, and the built-in `general-purpose` agent. Today's fifth
+plan puts a PreToolUse hook on both — transcript-tail context accounting with a 400K refusal, and a
+refusal of `general-purpose` spawns. The efficacy check ran before the plan was written: 14 real
+transcripts, tail window vs whole-file last-usage, exact match every time.
+
+**Three rounds, three prose defects, zero code defects.** Round 1: the named tail-read mutant
+survived because the test planted its record on line 1, which the fragment-drop discards for any
+reader. Round 2: the fix landed in hook and test but not in the registry op — the planner had been
+rate-limited mid-revision, and I refreshed the digests without checking the op the digest did not
+cover. Round 3: the corrected prose denied a verdict flip that the reviewer then measured. The
+ratchet on `mutation-proof-names-the-wrong-mechanism` is at three; the proposed fix is to make a
+named mutant an executable patch with a named test, so the claim is `pytest`-after-patch and cannot
+be written wrong.
+
+**A merge committed with conflict markers.** The qa-agents sync loop reported `conflicts=1` for
+`.gitignore` and copied the merged file anyway; the commit carried `<<<<<<<`/`>>>>>>>` for one
+command's duration before the amend. The loop's `echo` was informational where it needed to be a
+gate. Same shape as every other finding today: a number printed is not a number checked.
+
+**What a rate limit does to a pipeline.** The revision planner died at "updating the plan document"
+with payloads edited and the ops file stale. CLAUDE.md says degrade one tier, never stop; the main
+agent finished the mechanical part itself (digests, one matcher token, three sentences) rather than
+respawn a planner to read 60K of context for a 40-byte change. The right call, and also exactly the
+kind of "main agent does the work" that the context gate exists to bound — it was 40 bytes, not 9
+ops configs.
+
 ## 2026-09-18 (evening) — effort was inherited from a session set to low
 
 The model policy was already right; the effort was not. Both accounts set `effortLevel: low`,

@@ -1,0 +1,29 @@
+{
+  "plan": "ai-docs-context-gate",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".ai/SESSION_STATE.md",
+      "edits": [
+        {
+          "find": "> Update this file at the end of every significant AI working session. It is the resume point.\n",
+          "add_after": "**2026-09-19 (00:xx) \u00b7 Claude (Fable 5.1) \u2014 `main`, `5890fa4` + `8c59d35`, context-budget gate. PUSHED.**\nThe fifth plan of the day closes the two gaps every earlier cap left: the main session (no frontmatter)\nand the built-in `general-purpose` agent (no definition of ours). `context-budget-gate.py` reads the\nlast 64 KB of the caller's own transcript, warns at 200K once per 20 guarded calls, refuses\nmain-session Write/Edit/NotebookEdit/Bash/Agent at 400K (subagents are advised, not blocked \u2014 they\ncannot `/compact`), and refuses `general-purpose` spawns without `CK_ALLOW_GENERAL_PURPOSE=1`. On 14\nreal transcripts the tail window matched the true context exactly; one live session was at 369K.\nExecuting review went 75 -> 75 -> 92 at the three-round ceiling; the planner's revision was cut off\nby a rate limit and the `NotebookEdit` registry token was the casualty (payload/ops edited out of\nstep \u2014 `code-reviewer` memory written). The mutation-proof ratchet hit three on one artifact:\nfollow-up filed for executable mutants (`payloads/<plan>/mutants/*.patch` + `check-mutants.py`).\nA `.gitignore` 3-way merge into qa-agents was committed WITH conflict markers and amended one\ncommand later \u2014 the merge loop must grep for `^<<<<<<<` before `cp`, not after. Suite 11536. Fleet\n13/13; qa-agents `e8b4d4d5` on `wip/pro-presync`, providers2 `7fc46aeb`.\n**Day total:** 5 plans, 12 subagent review rounds, 4 mechanical layers (Bash cap, Read guard +\nmaxTurns, effort, context gate + spawn guard). Planner run 894K -> 56K measured.\n**Open:** qa-agents `main` carries none of the five syncs (`6b26597d ebdb6c5d 34e59728 e8b4d4d5`);\n13 fleet repos uncommitted (classifier-blocked here); `check-mutants.py`; warn-counter pruning (Low);\nqa-agents CLAUDE.md trim (26K); account-B default model -> Sonnet is the owner's call.\n\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".ai/CHANGELOG_AI.md",
+      "edits": [
+        {
+          "find": "## 2026-09-18 (evening) \u2014 effort was inherited from a session set to low\n",
+          "add_before": "## 2026-09-19 \u2014 the seat that spends is the one nothing capped\n\nFour layers shipped on 2026-09-18 all bind through agent frontmatter or the Bash/Read tool path.\nTwo things have neither: the main session, and the built-in `general-purpose` agent. Today's fifth\nplan puts a PreToolUse hook on both \u2014 transcript-tail context accounting with a 400K refusal, and a\nrefusal of `general-purpose` spawns. The efficacy check ran before the plan was written: 14 real\ntranscripts, tail window vs whole-file last-usage, exact match every time.\n\n**Three rounds, three prose defects, zero code defects.** Round 1: the named tail-read mutant\nsurvived because the test planted its record on line 1, which the fragment-drop discards for any\nreader. Round 2: the fix landed in hook and test but not in the registry op \u2014 the planner had been\nrate-limited mid-revision, and I refreshed the digests without checking the op the digest did not\ncover. Round 3: the corrected prose denied a verdict flip that the reviewer then measured. The\nratchet on `mutation-proof-names-the-wrong-mechanism` is at three; the proposed fix is to make a\nnamed mutant an executable patch with a named test, so the claim is `pytest`-after-patch and cannot\nbe written wrong.\n\n**A merge committed with conflict markers.** The qa-agents sync loop reported `conflicts=1` for\n`.gitignore` and copied the merged file anyway; the commit carried `<<<<<<<`/`>>>>>>>` for one\ncommand's duration before the amend. The loop's `echo` was informational where it needed to be a\ngate. Same shape as every other finding today: a number printed is not a number checked.\n\n**What a rate limit does to a pipeline.** The revision planner died at \"updating the plan document\"\nwith payloads edited and the ops file stale. CLAUDE.md says degrade one tier, never stop; the main\nagent finished the mechanical part itself (digests, one matcher token, three sentences) rather than\nrespawn a planner to read 60K of context for a 40-byte change. The right call, and also exactly the\nkind of \"main agent does the work\" that the context gate exists to bound \u2014 it was 40 bytes, not 9\nops configs.\n\n"
+        }
+      ]
+    }
+  ],
+  "baseline": {
+    ".ai/CHANGELOG_AI.md": "sha256:95e4ed6dee095bc4667e3cf95e028dfce4c133842d173ee23d5e81e41ac15729",
+    ".ai/SESSION_STATE.md": "sha256:f1595f39744165a84eace380d345aa04d8d4b9f965f1ed4e7a32314afe0e8670"
+  }
+}
