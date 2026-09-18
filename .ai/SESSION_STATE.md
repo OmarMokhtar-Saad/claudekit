@@ -1,6 +1,25 @@
 # Session State
 
 > Update this file at the end of every significant AI working session. It is the resume point.
+**2026-09-18 · Claude (Fable 5.1) — `main`, `65eca66` + `ae7d8ba` + `2eb8f5f`, planner token cap. NOT pushed.**
+A planFix planner run in qa-agents ended at 401K context / 89 turns / 20.4M cumulative cache-read
+tokens on scratch scripts (disc.sh rewritten 20x) and single Bash results of 38-58K chars. Its
+planner.md was a stale pre-ceiling copy — but a 40-run survey showed planners WITH the prompt
+budget still end at 120-204K with 45-66K-char results, so the prompt is advisory. Mechanical fix:
+`output_filter.py` gains a lossy `max_chars` op and a last-placed `bash-output-cap` (12,000 chars,
+head + tail, marker names the omitted bytes; NEVER_FILTER / CK_RAW_OUTPUT=1 untouched). Reviewer
+round 1 REVISE 84 — the can-it-fail control was inert because the summary line duplicated the
+marker text; round 2 APPROVED 92. Both mutants run by hand: each reddened exactly the named test.
+First cut of the prompt bullets breached `test_agent_prompt_size` (10428/10000, 12765/12400);
+trimmed to one-liners. Suite 11490, zero failures. Whole pipeline cost ~250K tokens over 6 opus
+subagent runs. Fleet: 13 projects via `ck fleet update` (0 local overwrites); qa-agents synced by
+3-way merge against kit `2f80443` (its local planner.md hunks kept, missing `_shared/*-reference.md`
+added, hook registered) as `6b26597d` on `wip/pro-presync`, cherry-picked to the
+`toolkit-providers2` worktree as `372ecb16`. **qa-agents `main` does NOT carry it** — merge is
+owner-gated.
+**Open:** measure the next qa-agents planner run (target <150K final context, no result >12K);
+push claudekit main; merge/promote in qa-agents.
+
 **2026-09-17 (later) · Claude (Opus 5) — `fix/qa-agents-hardening`, merged to main `224b46d`, PUSHED.**
 Upstreamed three files qa-agents had hardened in place, ending the fleet exclusion that had
 cost that project three overwritten copies (the fleet preserves *custom* files but overwrites

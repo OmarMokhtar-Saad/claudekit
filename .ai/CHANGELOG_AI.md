@@ -1,6 +1,36 @@
 # AI Session Changelog
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
+## 2026-09-18 — a 401K planner run; the prompt budget is advisory, the hook is not
+
+A qa-agents planner spent 20.4M cumulative tokens: 89 turns, final context 401K, 34 Writes + 20
+Edits of scratch scripts and five single tool results between 38K and 58K chars. Its planner.md
+predated the hard-ceiling block — but the 40 most recent planner transcripts across three repos
+showed the block only moves the median from ~400K to 120-204K; the largest single result stayed
+at 45-66K chars in most runs. A rule the model can read is a rule the model can rationalise past.
+
+**What shipped.** `output_filter.py` (PostToolUse, Bash) gains a `max_chars` operation, lossy and
+therefore refused without `"lossy": true`, and `output-filters.json` a catch-all `bash-output-cap`
+at 12,000 chars placed last so `select()`'s first-match cannot let it shadow `pytest-progress`.
+Seven behavioural tests; the two mandated mutants were hand-applied and each turned exactly its
+named test red. Planner and reviewer prompts state the cap in one line each.
+
+**What the review caught.** Round 1 refuted the can-it-fail control: the filter's summary line
+repeated "omitted from the middle", `{capped}` and the hatch, so deleting the inline marker left
+every assertion satisfied by the summary. Fix: a disjoint summary and positional asserts (count
+== 1, index strictly inside head/tail, not on line 1). Fourth recorded instance of a proof naming
+a mechanism it did not test; the first caught before execution.
+
+**What the implementer caught that the reviewer missed.** Both prompt edits breached
+`test_agent_prompt_size` by 428 and 365 bytes; the reviewer scored 92 without running it. The
+`--stamp-baseline`-after-verdict deadlock fired once more (memory `ops-stamp-before-verdict`);
+rebinding was legitimate because the only delta was the `baseline` key.
+
+**Fleet.** `ck fleet update` this time cleared the classifier; 13 projects, zero local overwrites.
+qa-agents got a 3-way merge (`git merge-file`, base = last-synced kit commit) so its own hunks
+survived, plus the two `_shared/*-reference.md` files its reviewer.md had been pointing at for two
+days without anyone noticing.
+
 ## 2026-09-17 (later) — qa-agents hardening upstreamed; an executing review earned its keep
 
 Owner approved option 1 from the qa-agents coordinator session: upstream rather than protect.
