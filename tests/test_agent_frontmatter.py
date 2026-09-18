@@ -14,7 +14,9 @@ AGENTS = sorted(p for p in (REPO / ".claude" / "agents").glob("*.md")
                 if p.read_text(encoding="utf-8").startswith("---\n"))  # skips QUICK_START/HANDOFF_PROTOCOL
 MEMORY_AGENTS = {"code-reviewer", "debugger", "explore", "planner", "reviewer",
                  "security-scanner", "verifier"}
-KEY_LINE = re.compile(r"^[a-z][a-z0-9_-]*:(\s|$)")
+# camelCase is allowed because Claude Code spells its own frontmatter fields that way
+# (`maxTurns`); the leading character stays lowercase so a stray prose line still fails.
+KEY_LINE = re.compile(r"^[a-z][A-Za-z0-9_-]*:(\s|$)")
 
 
 def _frontmatter(path: Path) -> dict:

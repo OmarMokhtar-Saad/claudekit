@@ -1,0 +1,51 @@
+{
+  "plan": "maxturns-frontmatter-contract",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_agent_frontmatter.py",
+      "edits": [
+        {
+          "find": "KEY_LINE = re.compile(r\"^[a-z][a-z0-9_-]*:(\\s|$)\")",
+          "replace": "# camelCase is allowed because Claude Code spells its own frontmatter fields that way\n# (`maxTurns`); the leading character stays lowercase so a stray prose line still fails.\nKEY_LINE = re.compile(r\"^[a-z][A-Za-z0-9_-]*:(\\s|$)\")"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_behavior_spec.py",
+      "edits": [
+        {
+          "find": "    KNOWN_KEYS = (\"name\", \"description\", \"model\", \"color\", \"tools\", \"memory\")",
+          "replace": "    KNOWN_KEYS = (\"name\", \"description\", \"model\", \"color\", \"tools\", \"memory\", \"maxTurns\")"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "README.md",
+      "edits": [
+        {
+          "find": "29 hooks ship in `.claude/hooks/`; 25 are reachable",
+          "replace": "29 hooks ship in `.claude/hooks/`; 26 are reachable"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "docs/HOOKS.md",
+      "edits": [
+        {
+          "find": "ClaudeKit ships 29 hook scripts (plus `lib.sh`, a shared helper library). 25 are\nreachable",
+          "replace": "ClaudeKit ships 29 hook scripts (plus `lib.sh`, a shared helper library). 26 are\nreachable"
+        }
+      ]
+    }
+  ],
+  "baseline": {
+    "README.md": "sha256:d65ee1c1690ba9cce3b210f1eedf3f7073344870fa3069974c56ac38814d8e68",
+    "docs/HOOKS.md": "sha256:dbd2cdf289db31942c03d9f4e9e6f1971009c886ae7ea47ae74b2a8fde4cef17",
+    "tests/test_agent_frontmatter.py": "sha256:35908d7b27a6de284d4b523f8a94b59402f65787774a636911149cf43677f024",
+    "tests/test_behavior_spec.py": "sha256:1b31185ec1368a46682c71d56e41f8695cfc656f63f340cd0b13eb65b25b9c0a"
+  }
+}
