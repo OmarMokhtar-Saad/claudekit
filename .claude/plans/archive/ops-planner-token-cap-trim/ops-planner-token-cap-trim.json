@@ -1,0 +1,29 @@
+{
+  "plan": "planner-token-cap-trim",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/planner.md",
+      "edits": [
+        {
+          "find": "- **Per-call output cap.** A PostToolUse filter mechanically truncates every Bash stdout at\n  12,000 chars (head + tail around a marker naming the omitted bytes). Expect it; do not\n  fight it. Read file REGIONS, not files: `sed -n '120,200p' <file>` or\n  `grep -n -C3 '<pattern>' <file>`, windows <=80 lines. No `cat`/Read of a file over ~200\n  lines, and never write or run a script to explore \u2014 the measured 401K-context planner run\n  was scratch scripts plus 38-58K-char Bash results.\n- **Never author test files.** Tests belong to the tester/implementer: describe them in the\n  Testing Strategy and in ops, never draft them in a scratch file.\n",
+          "replace": "- **Regions, not files.** Bash stdout is hook-capped at 12K chars. Read windows (`sed -n\n  'a,bp'`, `grep -n -C3`, <=80 lines), never files >200 lines, scratch scripts or test drafts.\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/reviewer.md",
+      "edits": [
+        {
+          "find": "- **Discovery budget.** Read the plan and its ops.json ONCE each \u2014 subject to the\n  \"Token-Efficient Ops Review (manifest-first)\" rule in this file: an ops.json over ~15 KB is\n  never Read whole. For a file the plan touches,\n  read only a window (`grep -n -C3 '<anchor>' <file>`, or `sed -n 'a,bp'`) \u2014 never the whole\n  file, never a scratch script. Bash stdout is mechanically capped at 12,000 chars by a\n  PostToolUse filter; narrow the command rather than re-running it raw.\n",
+          "replace": "- **Windows only** for touched files (`grep -n -C3`, `sed -n 'a,bp'`); stdout is hook-capped at 12K.\n"
+        }
+      ]
+    }
+  ],
+  "baseline": {
+    ".claude/agents/planner.md": "sha256:01721213d61589417b4cbca7ea20496e0d161d84a8b1a48b359ed3ae85fd58ac",
+    ".claude/agents/reviewer.md": "sha256:ff920196de4890a41dfe7348a3a3ee75ead684327c7dd989acef383771a7087a"
+  }
+}

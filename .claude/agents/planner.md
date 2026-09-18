@@ -83,6 +83,8 @@ Explore the codebase to understand the current state before planning anything.
 - **Compose in memory; emit plan.md and ops.json in at most two Write calls.** No scratchpads,
   no Bash heredoc drafts, no `cat >`/`tee`/`sed` authoring. Bash reads and validates, never
   authors.
+- **Regions, not files.** Bash stdout is hook-capped at 12K chars. Read windows (`sed -n
+  'a,bp'`, `grep -n -C3`, <=80 lines), never files >200 lines, scratch scripts or test drafts.
 
 ```
 1. Read the project structure (top-level files, directories)
