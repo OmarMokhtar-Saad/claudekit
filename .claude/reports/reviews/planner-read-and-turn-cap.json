@@ -1,0 +1,20 @@
+{
+  "plan": ".claude/plans/plan-planner-read-and-turn-cap.md",
+  "slug": "planner-read-and-turn-cap",
+  "ops_path": ".claude/plans/ops-planner-read-and-turn-cap.json",
+  "ops_sha256": "9b471a3b42670cc321c859bdd186e6f8225896eac707404c7b0abb66e0ede885",
+  "score": 92,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] read-window-guard.py:117 blocks a Read with limit>200 though it is windowed; accepted design, message could say so explicitly",
+    "[MINOR] plan Testing Strategy mutant 1 names one RED test; the measured run produces three"
+  ],
+  "verdict_origin": "rubric",
+  "reviewer_session": "f3f9a29b-852e-4bfb-a493-8136b11a7d46",
+  "reviewer_role": "code-reviewer",
+  "recorded_utc": "2026-09-18T13:57:08Z",
+  "operations": 8,
+  "edits": 6,
+  "rounds": [],
+  "round": 1
+}

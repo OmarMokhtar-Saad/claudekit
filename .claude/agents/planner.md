@@ -6,6 +6,7 @@ description: |
 model: opus
 color: cyan
 memory: project
+maxTurns: 40
 tools: ["Read", "Grep", "Glob", "Write", "Bash"]
 ---
 

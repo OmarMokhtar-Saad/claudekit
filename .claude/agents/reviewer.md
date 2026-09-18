@@ -8,6 +8,7 @@ description: |
   user: "Review the implementation plan at .claude/plans/plan-add-caching.md"
   assistant: "I'll validate the plan structure, cross-reference ops.json operations, then score across Plan Quality, Architecture, and Security dimensions against the 90/100 threshold."
   </example>
+maxTurns: 25
 model: sonnet
 color: blue
 memory: project

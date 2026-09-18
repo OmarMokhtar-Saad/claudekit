@@ -11,6 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `open-source-forker` — never shipped and have been removed.
 
 ## [Unreleased]
+- **Unwindowed reads of large files are blocked, and the expensive agents carry a turn cap.**
+  Bash stdout is capped at 12,000 chars, but `Read` was not: across planner runs, Read results
+  totalled 16.2M bytes (5.0M of it in single results over 12K), and 83 of 284 Reads in the last
+  40 planner/reviewer runs declared no `limit`. New `PreToolUse` hook
+  `.claude/hooks/read-window-guard.py` (registered `blocking`, matcher `Read`) refuses a `Read`
+  with no `limit` when the target exceeds 200 lines, naming the fix on stderr; it allows
+  windowed reads, short files, plans/ops/shared-agent-docs/`CLAUDE.md`/`.ai/*.md`, missing files,
+  and anything under `CK_RAW_READ=1`, and it fails soft on its own errors. `planner`, `reviewer`,
+  `implementer` and `code-reviewer` now declare `maxTurns` (40/25/30/30) so a runaway run stops
+  with a resumable PARTIAL handback instead of a 894K-token context.
 - **Bash output is mechanically capped at 12,000 chars.** Planner runs were measured burning
   a 401K context on scratch scripts and single tool results of 38-66K chars, and the prompt
   block that forbids this is advisory only. `output_filter.py` gains a lossy `max_chars`
