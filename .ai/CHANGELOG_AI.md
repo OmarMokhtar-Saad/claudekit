@@ -1,6 +1,32 @@
 # AI Session Changelog
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
+## 2026-09-18 (later) — the Bash cap was 5% of the problem; Read and turn count were the rest
+
+Before the next planFix plan started, the morning's fixes were measured instead of trusted. Across
+every planner transcript the 12K Bash cap would have removed 0.6M of 11.4M Bash bytes. Read
+results totalled 16.2M with 5.0M over 12K, and output_filter.py never touches Read. The first
+post-cap qa-agents planner run made 91 tool calls against a prompt that says 30. A rule the model
+reads is advisory; the two that bind are a PreToolUse guard and a frontmatter `maxTurns`.
+
+**What the executing reviewer refuted, twice.** Round 1: the allowlist test read `CLAUDE.md`,
+79 lines, so the `<= 200` branch allowed it and the allowlist branch — the anti-brick mitigation
+the risk section leaned on — was never executed; deleting it left 13 tests green. And nothing
+read the dispatch-registry row: flipping it to advisory left 86 dispatch tests green while the
+guard was inert. Round 2 ran three mutants and pasted the red lines. The pattern is now stable
+across four plans: the claim that a test binds is worth nothing until someone applies the mutant.
+
+**What the reviewer could not see.** Nine suite failures after execution: `maxTurns` is camelCase
+by platform spec and the frontmatter contract knew only lowercase keys; the reachable-hook prose
+count is hand-written next to a generated total. Both were one-line follow-ups, but the executing
+reviewer ran four test files, not the suite — `review-does-not-run-the-suite` holds even for a
+reviewer with Bash.
+
+**Cost, measured on this session.** The Fable main session resent 11.0M tokens over 94 turns;
+the six opus subagent runs it spawned cost ~0.25M combined, and their transcripts never entered
+the parent. Anthropic's docs name Sonnet for orchestration and Haiku for subagents. The expensive
+seat is the one that watches tests run.
+
 ## 2026-09-18 — a 401K planner run; the prompt budget is advisory, the hook is not
 
 A qa-agents planner spent 20.4M cumulative tokens: 89 turns, final context 401K, 34 Writes + 20

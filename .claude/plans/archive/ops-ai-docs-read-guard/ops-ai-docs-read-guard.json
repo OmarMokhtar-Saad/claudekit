@@ -1,0 +1,29 @@
+{
+  "plan": "ai-docs-read-guard",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".ai/SESSION_STATE.md",
+      "edits": [
+        {
+          "find": "> Update this file at the end of every significant AI working session. It is the resume point.\n",
+          "add_after": "**2026-09-18 (later) \u00b7 Claude (Fable 5.1) \u2014 `main`, `0b93eb9` + `2e4b110` + `5c18040`, Read guard + maxTurns. NOT pushed.**\nMeasured the morning's fixes before starting the next planFix plan: the prompt budget block moves\nplanner median final context 127K -> 98K; the 12K Bash cap would have cut only 0.6M of 11.4M\nBash bytes (5%) across all planner runs. The bulk was uncapped Read \u2014 16.2M bytes, 5.0M over 12K;\n83 of 284 Reads in the last 40 runs had no `limit` \u2014 and turn counts that ignore the prompt\n(first post-cap qa-agents run: 91 calls, 279K; the planFix run had kept going to 894K / 122.8M).\nShipped mechanically: `read-window-guard.py` (PreToolUse Read, blocking row in the dispatch\nregistry) refuses a Read without `limit<=200` on files over 200 lines, allowlisting plans/ops/\n`_shared`/CLAUDE.md/.ai, `CK_RAW_READ=1` hatch, guard bugs fail open; `maxTurns` 40/25/30/30 on\nplanner/reviewer/implementer/code-reviewer (docs: partial handback at the limit, resumable).\nExecuting review round 1 REVISE 75 \u2014 the allowlist test read the 79-line CLAUDE.md so the branch\nwas never reached, and nothing tested the registry row; round 2 APPROVED 92 with all three\nmutants run. The suite then failed 9: the frontmatter contract knew only lowercase keys and the\nhand-written \"25 are reachable\" had to become 26 \u2014 a follow-up ops fixed both. Suite 11507, zero\nfailures. Fleet 13/13 via `ck fleet update`; qa-agents 3-way merged as `ebdb6c5d` on\n`wip/pro-presync`, cherry-picked to `toolkit-providers2` as `633343a6`; qa-agents `main` still\ndoes not carry any of today's sync. Docs fetched today: Sonnet is Anthropic's pick for\norchestration, Opus for planning, Haiku for subagents; this Fable main session resent 11M tokens\nover 94 turns while the six opus subagent runs cost ~0.25M \u2014 the model/effort policy edit\n(`fast\u2192haiku, balanced\u2192sonnet, most-capable\u2192opus, escalate_to fable`) is proposed, not approved.\n**Open:** measure the next qa-agents planner run (target <150K final, <=40 turns, no Read result\nover 12K); push claudekit main; land the qa-agents commits on its `main`; policy edit decision.\n\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".ai/CHANGELOG_AI.md",
+      "edits": [
+        {
+          "find": "## 2026-09-18 \u2014 a 401K planner run; the prompt budget is advisory, the hook is not\n",
+          "add_before": "## 2026-09-18 (later) \u2014 the Bash cap was 5% of the problem; Read and turn count were the rest\n\nBefore the next planFix plan started, the morning's fixes were measured instead of trusted. Across\nevery planner transcript the 12K Bash cap would have removed 0.6M of 11.4M Bash bytes. Read\nresults totalled 16.2M with 5.0M over 12K, and output_filter.py never touches Read. The first\npost-cap qa-agents planner run made 91 tool calls against a prompt that says 30. A rule the model\nreads is advisory; the two that bind are a PreToolUse guard and a frontmatter `maxTurns`.\n\n**What the executing reviewer refuted, twice.** Round 1: the allowlist test read `CLAUDE.md`,\n79 lines, so the `<= 200` branch allowed it and the allowlist branch \u2014 the anti-brick mitigation\nthe risk section leaned on \u2014 was never executed; deleting it left 13 tests green. And nothing\nread the dispatch-registry row: flipping it to advisory left 86 dispatch tests green while the\nguard was inert. Round 2 ran three mutants and pasted the red lines. The pattern is now stable\nacross four plans: the claim that a test binds is worth nothing until someone applies the mutant.\n\n**What the reviewer could not see.** Nine suite failures after execution: `maxTurns` is camelCase\nby platform spec and the frontmatter contract knew only lowercase keys; the reachable-hook prose\ncount is hand-written next to a generated total. Both were one-line follow-ups, but the executing\nreviewer ran four test files, not the suite \u2014 `review-does-not-run-the-suite` holds even for a\nreviewer with Bash.\n\n**Cost, measured on this session.** The Fable main session resent 11.0M tokens over 94 turns;\nthe six opus subagent runs it spawned cost ~0.25M combined, and their transcripts never entered\nthe parent. Anthropic's docs name Sonnet for orchestration and Haiku for subagents. The expensive\nseat is the one that watches tests run.\n\n"
+        }
+      ]
+    }
+  ],
+  "baseline": {
+    ".ai/CHANGELOG_AI.md": "sha256:2c37e90141db78ea022fd2c8008959609dd1b2913c014e226e8a973f020fc0a0",
+    ".ai/SESSION_STATE.md": "sha256:ae5bb77e38bcb2ec280fd80b16a5f5b236c4335724837d7acfd092d9a0081427"
+  }
+}

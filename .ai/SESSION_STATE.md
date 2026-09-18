@@ -1,6 +1,29 @@
 # Session State
 
 > Update this file at the end of every significant AI working session. It is the resume point.
+**2026-09-18 (later) · Claude (Fable 5.1) — `main`, `0b93eb9` + `2e4b110` + `5c18040`, Read guard + maxTurns. NOT pushed.**
+Measured the morning's fixes before starting the next planFix plan: the prompt budget block moves
+planner median final context 127K -> 98K; the 12K Bash cap would have cut only 0.6M of 11.4M
+Bash bytes (5%) across all planner runs. The bulk was uncapped Read — 16.2M bytes, 5.0M over 12K;
+83 of 284 Reads in the last 40 runs had no `limit` — and turn counts that ignore the prompt
+(first post-cap qa-agents run: 91 calls, 279K; the planFix run had kept going to 894K / 122.8M).
+Shipped mechanically: `read-window-guard.py` (PreToolUse Read, blocking row in the dispatch
+registry) refuses a Read without `limit<=200` on files over 200 lines, allowlisting plans/ops/
+`_shared`/CLAUDE.md/.ai, `CK_RAW_READ=1` hatch, guard bugs fail open; `maxTurns` 40/25/30/30 on
+planner/reviewer/implementer/code-reviewer (docs: partial handback at the limit, resumable).
+Executing review round 1 REVISE 75 — the allowlist test read the 79-line CLAUDE.md so the branch
+was never reached, and nothing tested the registry row; round 2 APPROVED 92 with all three
+mutants run. The suite then failed 9: the frontmatter contract knew only lowercase keys and the
+hand-written "25 are reachable" had to become 26 — a follow-up ops fixed both. Suite 11507, zero
+failures. Fleet 13/13 via `ck fleet update`; qa-agents 3-way merged as `ebdb6c5d` on
+`wip/pro-presync`, cherry-picked to `toolkit-providers2` as `633343a6`; qa-agents `main` still
+does not carry any of today's sync. Docs fetched today: Sonnet is Anthropic's pick for
+orchestration, Opus for planning, Haiku for subagents; this Fable main session resent 11M tokens
+over 94 turns while the six opus subagent runs cost ~0.25M — the model/effort policy edit
+(`fast→haiku, balanced→sonnet, most-capable→opus, escalate_to fable`) is proposed, not approved.
+**Open:** measure the next qa-agents planner run (target <150K final, <=40 turns, no Read result
+over 12K); push claudekit main; land the qa-agents commits on its `main`; policy edit decision.
+
 **2026-09-18 · Claude (Fable 5.1) — `main`, `65eca66` + `ae7d8ba` + `2eb8f5f`, planner token cap. NOT pushed.**
 A planFix planner run in qa-agents ended at 401K context / 89 turns / 20.4M cumulative cache-read
 tokens on scratch scripts (disc.sh rewritten 20x) and single Bash results of 38-58K chars. Its
