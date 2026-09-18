@@ -3,6 +3,7 @@ name: implementer
 description: |
   Executes approved plans exclusively via execute-json-ops.py. No ops.json = STOP and request one. Never falls back to manual edits. Use when a plan has been approved by the Reviewer and code changes need to be applied.
 
+maxTurns: 30
 model: haiku
 color: green
 tools: ["Read", "Bash", "Grep", "Glob"]
