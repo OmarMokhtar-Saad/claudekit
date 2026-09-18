@@ -1,6 +1,19 @@
 # Session State
 
 > Update this file at the end of every significant AI working session. It is the resume point.
+**2026-09-17 (last) · Claude (Opus 5) — `fix/run-the-tests-before-the-verdict`, merged `f34ad23`, PUSHED.**
+One rule, written because the same defect surfaced three times in one day: a mutation control
+that passes on its own mutant, because the test pins a DIFFERENT mechanism than its name claims
+(`e2e-lane-a`; `hook-stdin` round 1 asserting only marker-absence, which a crashed hook also
+produces; `qa-agents-hardening` round 1 crediting the rc-2 exclusion when the stdout/stderr split
+carried the behaviour). `code-reviewer.md` now must RUN every new or changed test file on the
+unmutated tree and hand-apply at least two claimed controls before emitting a verdict; a control
+surviving its own mutant is **High**, never Medium, because a Medium never forces another round
+under the exit rule; a reviewer that cannot execute marks the verdict STATIC-ONLY. Placed
+immediately before the Exit Rule, and `tests/test_review_runs_the_proofs.py` asserts that
+ordering. Applied to itself before shipping: each of two mutants killed exactly one test and the
+prompt was restored byte-identical. Suite 11483. Fleet: 13 synced, verified, committed.
+
 **2026-09-18 (later) · Claude (Fable 5.1) — `main`, `0b93eb9` + `2e4b110` + `5c18040`, Read guard + maxTurns. NOT pushed.**
 Measured the morning's fixes before starting the next planFix plan: the prompt budget block moves
 planner median final context 127K -> 98K; the 12K Bash cap would have cut only 0.6M of 11.4M
