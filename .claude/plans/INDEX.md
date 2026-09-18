@@ -23,12 +23,12 @@ index never outranks the current files.
 | State | Plans |
 |---|---:|
 | `drifted` | 12 |
-| `approved` | 59 |
+| `approved` | 60 |
 | `planned` | 23 |
 | `executed` | 30 |
 | `not_started` | 24 |
 | `legacy` | 5 |
-| **total** | **153** |
+| **total** | **154** |
 
 ## Plans
 
@@ -121,6 +121,7 @@ index never outranks the current files.
 | `.claude/plans/plan-planner-read-and-turn-cap.md` | `approved` | 1 |  |
 | `.claude/plans/plan-planner-token-budget.md` | `planned` | 1 |  |
 | `.claude/plans/plan-planner-token-cap.md` | `drifted` | 2 |  |
+| `.claude/plans/plan-policy-effort-per-role.md` | `approved` | 1 |  |
 | `.claude/plans/plan-preserve-dir-symlinks.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-preserve-fault-tolerance.md` | `drifted` | 6 |  |
 | `.claude/plans/plan-protected-docs-scope.md` | `approved` | 1 |  |
