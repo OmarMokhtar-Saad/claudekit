@@ -23,12 +23,12 @@ index never outranks the current files.
 | State | Plans |
 |---|---:|
 | `drifted` | 12 |
-| `approved` | 58 |
+| `approved` | 59 |
 | `planned` | 23 |
 | `executed` | 30 |
 | `not_started` | 24 |
 | `legacy` | 5 |
-| **total** | **152** |
+| **total** | **153** |
 
 ## Plans
 
@@ -118,6 +118,7 @@ index never outranks the current files.
 | `.claude/plans/plan-parse-gate-ordering.md` | `drifted` | 2 |  |
 | `.claude/plans/plan-parse-gate-unresolved-paths.md` | `drifted` | 2 |  |
 | `.claude/plans/plan-pipeline-session-hygiene.md` | `planned` | 1 |  |
+| `.claude/plans/plan-planner-read-and-turn-cap.md` | `approved` | 1 |  |
 | `.claude/plans/plan-planner-token-budget.md` | `planned` | 1 |  |
 | `.claude/plans/plan-planner-token-cap.md` | `drifted` | 2 |  |
 | `.claude/plans/plan-preserve-dir-symlinks.md` | `not_started` | 0 |  |
