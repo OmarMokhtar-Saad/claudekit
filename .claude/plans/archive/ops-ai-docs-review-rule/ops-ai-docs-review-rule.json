@@ -1,0 +1,16 @@
+{
+ "plan": "ai-docs-review-rule",
+ "operations": [
+  {
+   "type": "code_edit",
+   "path": ".ai/SESSION_STATE.md",
+   "description": "Record the review-proofs rule",
+   "edits": [
+    {
+     "find": "> Update this file at the end of every significant AI working session. It is the resume point.",
+     "add_after": "\n**2026-09-17 (last) \u00b7 Claude (Opus 5) \u2014 `fix/run-the-tests-before-the-verdict`, merged `f34ad23`, PUSHED.**\nOne rule, written because the same defect surfaced three times in one day: a mutation control\nthat passes on its own mutant, because the test pins a DIFFERENT mechanism than its name claims\n(`e2e-lane-a`; `hook-stdin` round 1 asserting only marker-absence, which a crashed hook also\nproduces; `qa-agents-hardening` round 1 crediting the rc-2 exclusion when the stdout/stderr split\ncarried the behaviour). `code-reviewer.md` now must RUN every new or changed test file on the\nunmutated tree and hand-apply at least two claimed controls before emitting a verdict; a control\nsurviving its own mutant is **High**, never Medium, because a Medium never forces another round\nunder the exit rule; a reviewer that cannot execute marks the verdict STATIC-ONLY. Placed\nimmediately before the Exit Rule, and `tests/test_review_runs_the_proofs.py` asserts that\nordering. Applied to itself before shipping: each of two mutants killed exactly one test and the\nprompt was restored byte-identical. Suite 11483. Fleet: 13 synced, verified, committed.\n"
+    }
+   ]
+  }
+ ]
+}
