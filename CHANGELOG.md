@@ -11,6 +11,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `open-source-forker` — never shipped and have been removed.
 
 ## [Unreleased]
+- **Main-session context now has a ceiling, and the one unbounded spawn is refused.** Every
+  cap shipped with the read guard lives in agent frontmatter, so none of them can reach the
+  main session (it has no frontmatter) or the built-in `general-purpose` agent (we do not
+  author its definition). Measured the same day: one main session ran to 842K tokens of
+  context over 428 turns with zero compactions, and another routed a redesign to
+  `general-purpose`, which burned 56 turns to 246K. New blocking PreToolUse hook
+  `.claude/hooks/context-budget-gate.py` reads only the last 64 KB of the caller's own
+  `transcript_path`, sums `input_tokens + cache_read_input_tokens +
+  cache_creation_input_tokens` on the last assistant line, prints one advisory per 20 guarded
+  calls at `CK_CONTEXT_WARN` (200,000) and, in a main session, refuses the call at `CK_CONTEXT_BLOCK` (400,000),
+  naming `/save-session` and `/compact`. It also refuses an agent dispatch that names
+  `general-purpose`, or names nothing, and points at the scoped agents instead. Because a
+  subagent's `transcript_path` is its own `<session-id>/subagents/agent-*.jsonl`, the budget applies per agent, not
+  per session tree. Hatches: `CK_RAW_CONTEXT=1` and `CK_ALLOW_GENERAL_PURPOSE=1`; every
+  unexpected condition (missing, rotated or malformed transcript, unwritable state, bad
+  payload) allows the call.
 - **Reasoning effort is now policy, not inheritance.** A subagent with no `effort:` key
   inherits the session's effort, so every agent's cost profile was an accident of the parent
   session. `.claude/model-policy.json` now gives each capability tier a default effort

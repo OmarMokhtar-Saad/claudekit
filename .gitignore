@@ -30,6 +30,9 @@ backups/
 .codemanifest.lock
 .claude/.managed/
 .claude/hooks/compact-counter.txt
+# Per-session warn counters written by context-budget-gate.py. Same rule as the compact
+# counter above: machine-local runtime state, re-derived on the next call.
+.claude/hooks/.state/
 # Review records: verdict + a full snapshot of each approved ops.json. Local drift-gate
 # state; duplicates large configs, so never shipped.
 # Review VERDICT records are TRACKED: rounds[] carries the score trajectory that

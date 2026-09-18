@@ -1,0 +1,81 @@
+{
+  "plan": "context-budget-gate",
+  "operations": [
+    {
+      "type": "file_create",
+      "path": ".claude/hooks/context-budget-gate.py",
+      "description": "PreToolUse gate: context budget (warn 200K / block 400K, read from the last 64KB of transcript_path) plus a spawn guard refusing the built-in general-purpose agent. Fail-open on every unexpected condition.",
+      "content_path": ".claude/plans/payloads/context-budget-gate/context-budget-gate.py",
+      "content_sha256": "f1a20ba365aaace22b945980653f91aaedf3e06b18f597b3d0f5f3828df15e3f"
+    },
+    {
+      "type": "file_create",
+      "path": "tests/test_context_budget_gate.py",
+      "description": "Behavioural coverage: subprocess runs of the shipped hook with synthetic transcripts and stdin, plus two end-to-end cases through bash .claude/hooks/dispatch.sh PreToolUse and a registry-row assertion.",
+      "content_path": ".claude/plans/payloads/context-budget-gate/test_context_budget_gate.py",
+      "content_sha256": "67e665725362e52d313d334279a1b5da441472d44df1fc334725f078dc521499"
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/dispatch-registry.json",
+      "description": "Register the gate as a blocking PreToolUse handler, directly after the read-window-guard row it is modelled on.",
+      "edits": [
+        {
+          "find": "      {\"id\": \"read-window-guard\", \"file\": \"read-window-guard.py\", \"runner\": \"python3\", \"tier\": \"blocking\", \"matcher\": \"Read\"},",
+          "add_after": "\n      {\"id\": \"context-budget-gate\", \"file\": \"context-budget-gate.py\", \"runner\": \"python3\", \"tier\": \"blocking\", \"matcher\": \"Write|Edit|NotebookEdit|Bash|Agent|Task\"},"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "README.md",
+      "description": "Bump the hand-written reachable-hook count 26 -> 27 (derived: 30 published minus 3 unwired). The adjacent '29 hooks ship' is generator-owned and left to scripts/gen-docs.py.",
+      "edits": [
+        {
+          "find": "`.claude/hooks/`; 26 are reachable",
+          "replace": "`.claude/hooks/`; 27 are reachable"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "docs/HOOKS.md",
+      "description": "Same derived reachable count in the hard-wrapped sentence at docs/HOOKS.md:3.",
+      "edits": [
+        {
+          "find": "library). 26 are",
+          "replace": "library). 27 are"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "description": "Record the new blocking hook under [Unreleased] - user-visible behaviour change with two documented hatches.",
+      "edits": [
+        {
+          "find": "## [Unreleased]",
+          "add_after": "\n- **Main-session context now has a ceiling, and the one unbounded spawn is refused.** Every\n  cap shipped with the read guard lives in agent frontmatter, so none of them can reach the\n  main session (it has no frontmatter) or the built-in `general-purpose` agent (we do not\n  author its definition). Measured the same day: one main session ran to 842K tokens of\n  context over 428 turns with zero compactions, and another routed a redesign to\n  `general-purpose`, which burned 56 turns to 246K. New blocking PreToolUse hook\n  `.claude/hooks/context-budget-gate.py` reads only the last 64 KB of the caller's own\n  `transcript_path`, sums `input_tokens + cache_read_input_tokens +\n  cache_creation_input_tokens` on the last assistant line, prints one advisory per 20 guarded\n  calls at `CK_CONTEXT_WARN` (200,000) and, in a main session, refuses the call at `CK_CONTEXT_BLOCK` (400,000),\n  naming `/save-session` and `/compact`. It also refuses an agent dispatch that names\n  `general-purpose`, or names nothing, and points at the scoped agents instead. Because a\n  subagent's `transcript_path` is its own `<session-id>/subagents/agent-*.jsonl`, the budget applies per agent, not\n  per session tree. Hatches: `CK_RAW_CONTEXT=1` and `CK_ALLOW_GENERAL_PURPOSE=1`; every\n  unexpected condition (missing, rotated or malformed transcript, unwritable state, bad\n  payload) allows the call."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".gitignore",
+      "description": "Ignore the gate's per-session warn counters - machine-local runtime state, beside the identical precedent one line above.",
+      "edits": [
+        {
+          "find": ".claude/hooks/compact-counter.txt",
+          "add_after": "\n# Per-session warn counters written by context-budget-gate.py. Same rule as the compact\n# counter above: machine-local runtime state, re-derived on the next call.\n.claude/hooks/.state/"
+        }
+      ]
+    }
+  ],
+  "baseline": {
+    ".claude/hooks/dispatch-registry.json": "sha256:3603319fe732799dbeb71f90719d946cdd89b74c5709322edaa92f28fac08dc6",
+    ".gitignore": "sha256:0916c5017b0042570ee2b77a10c3d76a2ccdbda34585eaa428d37249f2c85d99",
+    "CHANGELOG.md": "sha256:a6ebf406f3239be4673f3f2d2359e51d8c73f3abc3765f672e528e3021272ac2",
+    "README.md": "sha256:2d401cdf1ceb07b2029b3db6e6bf788505b4cf6cd9e5104406afb27d6ee2f567",
+    "docs/HOOKS.md": "sha256:de05c71a7aa3c19ed513692a7ea12aa94170cd39c9d1cfc13090124ad70a0132"
+  }
+}
