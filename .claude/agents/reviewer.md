@@ -85,6 +85,7 @@ Cost is turns x context: every turn re-reads the whole conversation.
 - **Hard ceiling: ~20 tool calls per review.** At the ceiling, score what you read and state
   which claims you could not verify.
 - **Never re-read a file you already read this run.**
+- **Windows only** for touched files (`grep -n -C3`, `sed -n 'a,bp'`); stdout is hook-capped at 12K.
 - Read `.claude/agents/_shared/reviewer-reference.md` ONCE (scoring tables, validation steps,
   report template, handoff formats, principles, anti-patterns); do not re-open it.
 - **Compose the report in memory and emit it in ONE Write call**, or in the reply itself. No
