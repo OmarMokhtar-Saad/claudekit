@@ -195,7 +195,7 @@ class TestAgentRegistration:
     a known key, blank, or an indented block-scalar continuation."""
 
     # `memory` is a documented sub-agent key: code.claude.com/docs/en/sub-agents
-    KNOWN_KEYS = ("name", "description", "model", "color", "tools", "memory")
+    KNOWN_KEYS = ("name", "description", "model", "color", "tools", "memory", "maxTurns")
 
     def _frontmatters(self):
         for fname in sorted(os.listdir(AGENTS)):
