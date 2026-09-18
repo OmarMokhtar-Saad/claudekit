@@ -1,6 +1,25 @@
 # AI Session Changelog
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
+## 2026-09-18 (evening) — effort was inherited from a session set to low
+
+The model policy was already right; the effort was not. Both accounts set `effortLevel: low`,
+and a subagent without `effort:` in its frontmatter inherits that, so the opus planner and the
+adversarial reviewers were reasoning at low all week. One generator change makes effort a
+projected column next to model, gated the same way.
+
+**The review's own near-miss.** The executing reviewer's first mutant reported "32 passed" —
+a clean, confident, wrong "the tests don't catch this". Its leak wrote into the scratch repo
+root, not the fixture tree, because the test harness sets no cwd and the script resolves its
+agents dir from `__file__`. A mutant that misses its target is indistinguishable from a strong
+test. It caught itself, re-aimed, and only then got the red. Fourth instance of the
+mutation-proof pattern today, and the first where the reviewer was the one fooled.
+
+**What no hook we shipped reaches.** The built-in `general-purpose` agent has no frontmatter, so
+`maxTurns`, model and effort all miss it — and account B routed a 246K redesign to it. The main
+session has no ceiling at all: 842K over four days on one AppiumLens session with zero
+compactions, the main agent hand-authoring nine ops configs. Both are the next mechanical layer.
+
 ## 2026-09-18 (later) — the Bash cap was 5% of the problem; Read and turn count were the rest
 
 Before the next planFix plan started, the morning's fixes were measured instead of trusted. Across

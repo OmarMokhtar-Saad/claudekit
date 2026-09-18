@@ -1,0 +1,29 @@
+{
+  "plan": "ai-docs-effort-policy",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".ai/SESSION_STATE.md",
+      "edits": [
+        {
+          "find": "> Update this file at the end of every significant AI working session. It is the resume point.\n",
+          "add_after": "**2026-09-18 (evening) \u00b7 Claude (Fable 5.1) \u2014 `main`, `4d6399d` + `e586d3a`, per-role effort. PUSHED.**\nBoth accounts (`~/.claude`, `~/.claude-acct-b`) run `effortLevel: low` and subagents inherit it, so\nevery planner and reviewer had been reasoning at low. `model-policy.json` now carries a default\neffort per tier and per-role overrides; `gen-model-policy.py` projects `effort:` under `model:`\nin all 22 agents and `--check` gates it (5 high / 10 medium / 6 low / 1 xhigh). The model table\nitself already matched the docs' guidance (opus planner, sonnet reviewer, haiku executors) \u2014 the\nmorning's Fable spend was the main session, not the agents. Executing review 75 -> 95: a rejection\ntest that asserted the fixture's pre-regeneration state, fixed by byte snapshots and killed by a\none-byte leak mutant. Suite 11512. Fleet 13/13; qa-agents `34e59728` on `wip/pro-presync`,\nproviders2 `ba2d604d`; qa-agents `main` still carries none of today's four syncs.\nMeasured today's other >200K sessions: account-B `appium-lens-parity-redesign` (Opus main, 209K\nin 43 turns: 73K baseline from a 26K CLAUDE.md + MCP schemas, 96K of Artifact page reads, and two\n`general-purpose` opus subagents at 246K/171K that no `maxTurns` reaches); AppiumLens 12-16 Sep\n(842K, 428 turns, zero compactions, main agent authored 9 ops configs itself). The planner run\nunder all three hooks: 14 turns, 56K, no result over 12K.\n**Open:** context-budget gate for main sessions (warn 200K / block writes 400K) and a guard on\nun-budgeted `general-purpose` spawns \u2014 proposed, not approved; qa-agents CLAUDE.md trim; land the\nqa-agents commits on `main`; commit the 13 fleet repos (classifier-blocked here).\n\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".ai/CHANGELOG_AI.md",
+      "edits": [
+        {
+          "find": "## 2026-09-18 (later) \u2014 the Bash cap was 5% of the problem; Read and turn count were the rest\n",
+          "add_before": "## 2026-09-18 (evening) \u2014 effort was inherited from a session set to low\n\nThe model policy was already right; the effort was not. Both accounts set `effortLevel: low`,\nand a subagent without `effort:` in its frontmatter inherits that, so the opus planner and the\nadversarial reviewers were reasoning at low all week. One generator change makes effort a\nprojected column next to model, gated the same way.\n\n**The review's own near-miss.** The executing reviewer's first mutant reported \"32 passed\" \u2014\na clean, confident, wrong \"the tests don't catch this\". Its leak wrote into the scratch repo\nroot, not the fixture tree, because the test harness sets no cwd and the script resolves its\nagents dir from `__file__`. A mutant that misses its target is indistinguishable from a strong\ntest. It caught itself, re-aimed, and only then got the red. Fourth instance of the\nmutation-proof pattern today, and the first where the reviewer was the one fooled.\n\n**What no hook we shipped reaches.** The built-in `general-purpose` agent has no frontmatter, so\n`maxTurns`, model and effort all miss it \u2014 and account B routed a 246K redesign to it. The main\nsession has no ceiling at all: 842K over four days on one AppiumLens session with zero\ncompactions, the main agent hand-authoring nine ops configs. Both are the next mechanical layer.\n\n"
+        }
+      ]
+    }
+  ],
+  "baseline": {
+    ".ai/CHANGELOG_AI.md": "sha256:6245fe80e3be84b6fc35e26f070f1d8acd60bc9abf295b698d97d32f4c189d91",
+    ".ai/SESSION_STATE.md": "sha256:6c053c4086d998d49a46a06d97d65009aef2788f8cfffba0e0aeab83e8803032"
+  }
+}

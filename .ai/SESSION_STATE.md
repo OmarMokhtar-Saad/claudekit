@@ -1,6 +1,25 @@
 # Session State
 
 > Update this file at the end of every significant AI working session. It is the resume point.
+**2026-09-18 (evening) · Claude (Fable 5.1) — `main`, `4d6399d` + `e586d3a`, per-role effort. PUSHED.**
+Both accounts (`~/.claude`, `~/.claude-acct-b`) run `effortLevel: low` and subagents inherit it, so
+every planner and reviewer had been reasoning at low. `model-policy.json` now carries a default
+effort per tier and per-role overrides; `gen-model-policy.py` projects `effort:` under `model:`
+in all 22 agents and `--check` gates it (5 high / 10 medium / 6 low / 1 xhigh). The model table
+itself already matched the docs' guidance (opus planner, sonnet reviewer, haiku executors) — the
+morning's Fable spend was the main session, not the agents. Executing review 75 -> 95: a rejection
+test that asserted the fixture's pre-regeneration state, fixed by byte snapshots and killed by a
+one-byte leak mutant. Suite 11512. Fleet 13/13; qa-agents `34e59728` on `wip/pro-presync`,
+providers2 `ba2d604d`; qa-agents `main` still carries none of today's four syncs.
+Measured today's other >200K sessions: account-B `appium-lens-parity-redesign` (Opus main, 209K
+in 43 turns: 73K baseline from a 26K CLAUDE.md + MCP schemas, 96K of Artifact page reads, and two
+`general-purpose` opus subagents at 246K/171K that no `maxTurns` reaches); AppiumLens 12-16 Sep
+(842K, 428 turns, zero compactions, main agent authored 9 ops configs itself). The planner run
+under all three hooks: 14 turns, 56K, no result over 12K.
+**Open:** context-budget gate for main sessions (warn 200K / block writes 400K) and a guard on
+un-budgeted `general-purpose` spawns — proposed, not approved; qa-agents CLAUDE.md trim; land the
+qa-agents commits on `main`; commit the 13 fleet repos (classifier-blocked here).
+
 **2026-09-17 (last) · Claude (Opus 5) — `fix/run-the-tests-before-the-verdict`, merged `f34ad23`, PUSHED.**
 One rule, written because the same defect surfaced three times in one day: a mutation control
 that passes on its own mutant, because the test pins a DIFFERENT mechanism than its name claims
