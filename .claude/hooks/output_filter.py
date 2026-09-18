@@ -60,6 +60,9 @@ LOCAL_NAME = "output-filters.local.json"
 # against every Bash call in the session.
 MAX_FILTERS = 64
 MAX_PATTERN_CHARS = 400
+# max_chars floor: below this the surviving head and tail are too small to carry usable
+# context, which would make the filter noise rather than a budget.
+MIN_MAX_CHARS = 200
 
 # Commands whose stdout is read verbatim by a gate, a generator check, or a reviewer.
 # Applied after the local-override merge: a downstream filter file cannot override this.
@@ -137,6 +140,7 @@ def compile_filter(spec: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         return None
     strip: Optional[Pattern[str]] = None
     tail: Optional[int] = None
+    cap: Optional[int] = None
     for op in ops:
         if not isinstance(op, dict):
             return None
@@ -157,9 +161,18 @@ def compile_filter(spec: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             if not isinstance(n, int) or isinstance(n, bool) or n < 1:
                 return None
             tail = n
+        elif "max_chars" in op:
+            # Lossy like tail_lines -- it drops the MIDDLE of the stream. Only a filter that
+            # declares itself lossy may use it.
+            if spec.get("lossy") is not True:
+                return None
+            n = op["max_chars"]
+            if not isinstance(n, int) or isinstance(n, bool) or n < MIN_MAX_CHARS:
+                return None
+            cap = n
         else:
             return None
-    if strip is None and tail is None:
+    if strip is None and tail is None and cap is None:
         return None
     summary = spec.get("summary")
     return {
@@ -167,6 +180,7 @@ def compile_filter(spec: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         "match": compiled_match,
         "strip": strip,
         "tail": tail,
+        "max_chars": cap,
         "summary": summary if isinstance(summary, str) else "",
     }
 
@@ -204,17 +218,36 @@ def apply_filter(compiled: Dict[str, Any], text: str) -> Tuple[str, bool]:
     if tail is not None and len(kept) > tail:
         dropped = len(kept) - tail
         kept = kept[-tail:]
-    if removed == 0 and dropped == 0:
+    body = "\n".join(kept)
+    capped = 0
+    cap = compiled["max_chars"]
+    if cap is not None and len(body) > cap:
+        # Byte-oriented on purpose: the failure mode is BYTES, and one 40K-char line
+        # (minified JSON, a lockfile) is exactly what a line-based cap would miss.
+        capped = len(body) - cap
+        head_n = cap // 2
+        tail_n = cap - head_n
+        body = (
+            body[:head_n]
+            + "\n[ck output-filter: " + str(compiled["id"]) + "] " + str(capped)
+            + " char(s) omitted from the middle of this output. Re-run the command prefixed"
+            + " with CK_RAW_OUTPUT=1 for the raw text, or narrow it (sed -n 'a,bp',"
+            + " grep -n -C3) so the answer fits.\n"
+            + body[-tail_n:]
+        )
+    if removed == 0 and dropped == 0 and capped == 0:
         return text, False
     summary = compiled["summary"] or (
-        "[ck output-filter: " + compiled["id"] + "] {removed} line(s) removed. "
+        "[ck output-filter: " + compiled["id"] + "] output rewritten: {removed} line(s) "
+        "removed, {capped} char(s) omitted. "
         "Prefix the command with CK_RAW_OUTPUT=1 for raw output."
     )
     summary = (summary.replace("{removed}", str(removed))
                       .replace("{marks}", str(marks))
                       .replace("{dropped}", str(dropped))
+                      .replace("{capped}", str(capped))
                       .replace("{id}", str(compiled["id"])))
-    return "\n".join([summary] + kept), True
+    return summary + "\n" + body, True
 
 
 def rewrite(payload: Dict[str, Any], directory: str) -> Optional[Dict[str, Any]]:
