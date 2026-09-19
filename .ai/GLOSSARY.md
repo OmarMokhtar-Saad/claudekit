@@ -3,7 +3,7 @@
 | Term | Definition |
 |------|-----------|
 | **Agent** | A single-responsibility role prompt in `.claude/agents/` with model + tools frontmatter. 28 shipped. |
-| **Anti-anchoring** | Preventing bias from a first opinion by spawning evaluators with fresh, unshared context (Santa, GAN, council). |
+| **Anti-anchoring** | Preventing bias from a first opinion by spawning evaluators with fresh, unshared context (council, dual review). |
 | **Auto-checkpoint** | Template hook stashing periodic checkpoints (stable stash SHAs). |
 | **AUTO-REJECT** | Reviewer verdict scoring a plan 0 for a hard violation (e.g., missing ops.json). |
 | **Blueprint** | Multi-session construction plan for EPIC-scope (3+ PR) objectives (`/blueprint`). |
@@ -18,7 +18,6 @@
 | **ECC_HOOK_PROFILE** | Enforcement level env var: `minimal` / `standard` (default) / `strict`. |
 | **Fail closed** | Blocking hook behavior on parse failure: block, don't allow. |
 | **File-based handoff** | Agents exchange artifacts (plan.md, ops.json), not conversation context. |
-| **GAN build** | Generator → fresh Evaluator → Adjudicator iteration loop (`/gan-build`, gan-harness skill). |
 | **Golden Rule** | No code changes without explicit user approval. Mandatory skill for all agents. |
 | **Guard** | One of 29 numbered validation rules in `validate-config-json.py`. |
 | **Handoff Protocol** | The exact block format for agent-to-agent transitions (`HANDOFF_PROTOCOL.md`). |
@@ -36,7 +35,6 @@
 | **PRP** | Product Requirements Process — 4-phase deep-context workflow (`/prp-plan → /prp-implement → /prp-commit → /prp-pr`). |
 | **Protected files** | Patterns that ops can never delete (canonical set: `shared.py` PROTECTED_PATTERNS / PathGuard). |
 | **Quality gates** | Plan ≥90/100 (40/30/30); verification ≥80/100 (30/40/30). |
-| **Santa method** | Dual independent review — Opus Skeptic + Sonnet Pragmatist, no shared context, both must approve (`/santa`). |
 | **Skill** | Loadable procedure module in `.claude/skills/`; 74 shipped; mapped via skills-registry.json. |
 | **Speed bump, not a sandbox** | The mandated honest framing of the security layer. |
 | **Trusted Publishing** | Tokenless PyPI publishing from GitHub Actions (release.yml). |

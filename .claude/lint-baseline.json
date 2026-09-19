@@ -24,7 +24,6 @@
     "explore.md": 88,
     "flags.md": 79,
     "flow-retro.md": 38,
-    "gan-build.md": 227,
     "git.md": 149,
     "hookify.md": 100,
     "implement.md": 148,
@@ -44,11 +43,9 @@
     "prp-implement.md": 160,
     "prp-plan.md": 116,
     "prp-pr.md": 138,
-    "refine.md": 466,
     "resume-session.md": 108,
     "review.md": 125,
     "rollback.md": 95,
-    "santa.md": 124,
     "save-session.md": 108,
     "security.md": 116,
     "ship.md": 228,
@@ -57,8 +54,7 @@
     "test.md": 123,
     "translate.md": 94,
     "verify.md": 131,
-    "worktree.md": 72,
-    "xpipe.md": 69
+    "worktree.md": 72
   },
   "skill_agent_waivers": {}
 }

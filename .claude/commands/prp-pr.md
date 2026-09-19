@@ -117,7 +117,6 @@ Files: <N> changed
 
 Next steps:
   - Review the PR in GitHub
-  - Run /santa <files> for dual review (recommended for auth/security changes)
   - Merge when approved
 ```
 

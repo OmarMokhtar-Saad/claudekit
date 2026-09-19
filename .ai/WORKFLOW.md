@@ -9,8 +9,6 @@ Every sanctioned way work moves through ClaudeKit. Commands in [COMMANDS.md](COM
 `/prp-plan` (deep recon; plan must be executable by a *fresh* agent with zero re-exploration) → `/prp-implement` (per-step validation loops; stops only when all checks pass) → `/prp-commit` (NL file targeting → conventional commit) → `/prp-pr` (template auto-discovery → generated description). Use when one strong agent should carry the whole change with maximal context.
 
 ## 3. Adversarial review
-- **Santa** (`/santa`): Opus Skeptic + Sonnet Pragmatist review independently — no shared context — both must approve. For high-stakes changes (auth, migrations, public API).
-- **GAN build** (`/gan-build`): Generator produces → *fresh* Evaluator scores (anti-anchoring) → Adjudicator decides converge/iterate; threshold + max-iteration caps.
 - **Council** (skill): Architect/Skeptic/Pragmatist/Critic parallel debate for decisions rather than code.
 
 ## 4. Bug flow
@@ -36,7 +34,7 @@ Pick task from [BACKLOG.md](BACKLOG.md) → read the `review/tasks/0XX` spec →
 | Situation | Use |
 |-----------|-----|
 | Normal feature/refactor | Standard pipeline (or PRP if exploration cost dominates) |
-| High-stakes/risky change | Standard + `/santa` before merge |
+| High-stakes/risky change | Standard + `/review --dual` before merge |
 | Vague requirements | `/clarify` questions → `/plan`, or brainstorm mode |
 | Unknown codebase | `/onboard` or `/explore` first |
 | Quality sweep | `/audit`, then plans per finding |

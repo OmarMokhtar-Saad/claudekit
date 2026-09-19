@@ -67,4 +67,5 @@ class TestOneCanonicalTree:
 
     def test_total_command_count(self):
         cmds = [f for f in os.listdir(COMMANDS_DIR) if f.endswith(".md")]
-        assert len(cmds) >= 55, f"Expected >= 55 commands, found {len(cmds)}"
+        # Floor lowered 55 -> 53 on 2026-09-19: /refine, /santa, /gan-build, /xpipe retired.
+        assert len(cmds) >= 53, f"Expected >= 53 commands, found {len(cmds)}"

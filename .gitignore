@@ -83,8 +83,6 @@ backups/
 
 .coverage
 
-# xpipe per-stage headless logs (runtime state)
-.claude/reports/xpipe/
 
 # pytest fixture sandbox for tests/test_silent_failure_lint.py
 .tmp-test-fixtures/

@@ -168,7 +168,6 @@ READY TO PUBLISH
 Next steps:
   1. Review .claude/opensource-output/ carefully
   2. git init in output dir + push to new GitHub repo
-  3. Consider /santa for final review of CLAUDE.md and README
 ```
 
 ## Pipeline Orchestration
