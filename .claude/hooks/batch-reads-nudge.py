@@ -18,7 +18,14 @@ of the pipeline starts with a command in READ_ONLY (git limited to its read subc
 without -i) and nothing redirects to a file. Anything else - an edit, a test run, a build, an
 unknown binary - resets the streak to zero: an unclassifiable command is treated as work,
 never as a read, so the nudge can only under-fire. At NUDGE_AT and every NUDGE_AT after, one
-advisory line is printed to stdout, which PostToolUse delivers to the model.
+advisory line is emitted as `hookSpecificOutput.additionalContext` JSON on stdout.
+
+DELIVERY, measured (qa-agents transcripts, 2026-09-19): plain stdout from a PostToolUse hook is
+recorded in the transcript as a `hook_success` attachment and NEVER reaches the model (18,345
+such attachments, 0 in model context); only the `additionalContext` JSON form does (13
+`hook_additional_context` attachments, all from hooks that emitted JSON). A nudge on plain
+stdout is a dead letter, so this hook emits the JSON form. It runs DIRECTLY from settings.json,
+not through dispatch.sh, which would prefix the JSON and break it.
 
 Advisory tier: exit 0 always, nothing on stderr, a broken counter never touches a verdict.
 `CK_NO_READ_NUDGE=1` silences it for one process tree. stdlib only, py3.9.
@@ -156,11 +163,13 @@ def main():
     except Exception:
         return 0
     if streak and streak % NUDGE_AT == 0:
-        sys.stdout.write(
+        note = (
             "[ck batch-reads] %d consecutive read-only Bash calls. Every call re-sends your "
             "whole context, so reads cost by the TURN, not by the byte: combine the next ones "
             "into one call (`cat a; sed -n '1,80p' b; grep -n pat c`) or read only the region "
-            "you need. Silence for one process tree with CK_NO_READ_NUDGE=1.\n" % streak)
+            "you need. Silence for one process tree with CK_NO_READ_NUDGE=1." % streak)
+        sys.stdout.write(json.dumps({"hookSpecificOutput": {
+            "hookEventName": "PostToolUse", "additionalContext": note}}) + "\n")
     return 0
 
 

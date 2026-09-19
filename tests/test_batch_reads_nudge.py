@@ -1,7 +1,7 @@
 """Behavioural coverage for .claude/hooks/batch-reads-nudge.py (PostToolUse, advisory).
 
 Each case runs the hook as a real subprocess with a PostToolUse payload. The observable is
-stdout (what the model sees) and the exit code (always 0). CK_NO_READ_NUDGE is popped.
+stdout (additionalContext JSON, the only PostToolUse form the model sees) and the exit code (always 0). CK_NO_READ_NUDGE is popped.
 
 Mutants these must catch (apply them, do not assume them):
   * NUDGE_AT = 5 -> 50                        => test_nudges_on_the_fifth_consecutive_read RED
@@ -193,3 +193,17 @@ def test_registry_row_is_advisory_on_bash():
     assert row, "the hook is not registered; it is inert"
     assert row["tier"] == "advisory", "a nudge must never be able to block"
     assert row["matcher"] == "Bash" and row["file"] == "batch-reads-nudge.py"
+
+
+def test_the_nudge_is_additional_context_json_not_plain_stdout(tmp_path):
+    """Plain PostToolUse stdout never reaches the model (transcript evidence in the hook's
+    header); only hookSpecificOutput.additionalContext does. Mutant: write the note as plain
+    text -> json.loads RED."""
+    import json
+    for _ in range(4):
+        run(tmp_path, "cat a.py")
+    out = run(tmp_path, "cat b.py").stdout
+    payload = json.loads(out)
+    spec = payload["hookSpecificOutput"]
+    assert spec["hookEventName"] == "PostToolUse"
+    assert "[ck batch-reads] 5 consecutive" in spec["additionalContext"]
