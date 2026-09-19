@@ -975,14 +975,19 @@ def check_approval(config_file: str, plan_name: str) -> Tuple[bool, str]:
         module = None
         print(f"  Could not load {APPROVAL_SCRIPT}: {e}")
     if module is None or not all(hasattr(module, attr)
-                                 for attr in ("record_paths", "cmd_check")):
+                                 for attr in ("record_paths", "cmd_check", "_records_root")):
         gated, why = _gate_applies(config_file, slugs)
         if gated:
             return False, f"approval-gate: review-record.py unusable ({why})"
         return True, ""
 
     try:
-        recorded = [s for s in slugs if module.record_paths(s)[0].exists()]
+        # Look where `write` put the verdict: the git toplevel of the CONFIG's own
+        # tree. After --root chdirs, the cwd can be a different worktree than the one
+        # holding the record; write and cmd_check call _records_root with the ops file
+        # alone, exactly as here, so all three resolve the same root.
+        root = module._records_root(config_file)
+        recorded = [s for s in slugs if module.record_paths(s, root)[0].exists()]
     except Exception as e:
         return False, f"approval-gate: record lookup failed: {e}"
 

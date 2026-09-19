@@ -50,8 +50,11 @@ def _fixture(tmp_path, ops_edits=1, ops_name='ops-demo.json'):
 
 
 def _approve(tmp_path, plan, ops, score=97, decision='APPROVED'):
+    # A bare approving --decision is refused (exit 7) without --owner-approved; these
+    # fixtures stand in for the owner. Non-approving decisions stay bare.
+    owner = ['--owner-approved'] if decision == 'APPROVED' else []
     return _run(tmp_path, 'write', str(plan), str(ops),
-                '--score', str(score), '--decision', decision)
+                '--score', str(score), '--decision', decision, *owner)
 
 
 class TestRoundHistory:
@@ -498,7 +501,7 @@ class TestWriteSafety:
         ops = plans / 'evil.json'
         ops.write_text(json.dumps({'plan': 'x', 'operations': []}), encoding='utf-8')
         res = _run(tmp_path, 'write', str(plan), str(ops),
-                   '--score', '95', '--decision', 'APPROVED')
+                   '--score', '95', '--decision', 'APPROVED', '--owner-approved')
         assert res.returncode == 0, res.stderr
         reviews = tmp_path / '.claude' / 'reports' / 'reviews'
         names = sorted(p.name for p in reviews.iterdir())
@@ -513,7 +516,7 @@ class TestWriteSafety:
         outside.mkdir()
         (tmp_path / '.claude' / 'reports').symlink_to(outside)
         res = _run(tmp_path, 'write', str(plan), str(ops),
-                   '--score', '95', '--decision', 'APPROVED')
+                   '--score', '95', '--decision', 'APPROVED', '--owner-approved')
         assert res.returncode == 1
         assert 'symlink' in res.stderr
         assert not any(outside.rglob('*.json')), 'nothing may land at the symlink target'
@@ -524,8 +527,9 @@ def _record_round(tmp_path, score, decision, ops_name='ops-demo.json'):
     """Record one verdict against the demo fixture and return the completed process."""
     plan = str(tmp_path / '.claude' / 'plans' / 'plan-demo.md')
     ops = str(tmp_path / '.claude' / 'plans' / ops_name)
+    owner = ['--owner-approved'] if decision == 'APPROVED' else []
     return _run(tmp_path, 'write', plan, ops, '--score', str(score),
-                '--decision', decision)
+                '--decision', decision, *owner)
 
 
 def _written_record(tmp_path):
@@ -723,4 +727,196 @@ class TestDirectoryLayoutKeying:
             assert _approve(d, plan, ops).returncode == 0, name
             record = d / '.claude' / 'reports' / 'reviews' / 'demo.json'
             assert json.loads(record.read_text(encoding='utf-8'))['slug'] == 'demo', name
+
+
+# --- records follow the ops file's tree, not the cwd ---------------------------------
+
+EXECUTOR = os.path.join(SCRIPTS_DIR, 'execute-json-ops.py')
+REVIEWS = ('.claude', 'reports', 'reviews')
+
+
+def _clean_env():
+    """No inherited GIT_* (a hook-exported GIT_DIR would override every cwd below) and
+    the gate-everything switch off, so only the root rule under test decides."""
+    env = {k: v for k, v in os.environ.items() if not k.startswith('GIT_')}
+    env['ECC_HOOK_PROFILE'] = 'minimal'
+    env.pop('ECC_OPS_GATE_ALL', None)
+    return env
+
+
+def _git(cwd, *argv):
+    return subprocess.run(
+        ['git', '-c', 'user.name=t', '-c', 'user.email=t@example.invalid',
+         '-c', 'commit.gpgsign=false'] + list(argv),
+        cwd=str(cwd), capture_output=True, text=True, timeout=60, env=_clean_env())
+
+
+def _cli(cwd, *argv):
+    return subprocess.run([sys.executable, RECORD] + list(argv), cwd=str(cwd),
+                          capture_output=True, text=True, timeout=60, env=_clean_env())
+
+
+def _execute(cwd, ops, root):
+    # --skip-validation keeps the validator's own verdict out of a test about WHERE the
+    # approval gate looks; it does not skip the approval gate.
+    return subprocess.run(
+        [sys.executable, EXECUTOR, str(ops), '--root', str(root), '--skip-validation'],
+        cwd=str(cwd), capture_output=True, text=True, timeout=120, env=_clean_env())
+
+
+def _trivial_ops(path):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({'plan': 'demo', 'operations': [
+        {'type': 'file_create', 'path': 'created.txt', 'content': 'hello\n'}]},
+        indent=2), encoding='utf-8')
+    return path
+
+
+def _worktree_pair(tmp_path):
+    """A main checkout plus a `git worktree add` sibling: the qa-agents layout.
+
+    main/ carries a .claude/ so the old cwd walk resolves to MAIN, as it did live; the
+    sibling holds the plan and the ops file. Every git run is confined to tmp_path."""
+    main = tmp_path / 'main'
+    main.mkdir()
+    assert _git(main, 'init', '-q').returncode == 0
+    res = _git(main, 'commit', '-q', '--allow-empty', '-m', 'init')
+    assert res.returncode == 0, res.stderr
+    (main / '.claude').mkdir()
+    sib = tmp_path / 'main-wt-sibling'
+    res = _git(main, 'worktree', 'add', '-q', str(sib))
+    assert res.returncode == 0, res.stderr
+    ops = _trivial_ops(sib / '.claude' / 'plans' / 'ops-demo.json')
+    plan = sib / '.claude' / 'plans' / 'plan-demo.md'
+    plan.write_text('# Plan: demo\n', encoding='utf-8')
+    return main.resolve(), sib.resolve(), plan, ops
+
+
+def _owner_approve(cwd, plan, ops):
+    return _cli(cwd, 'write', str(plan), str(ops), '--score', '95',
+                '--decision', 'APPROVED', '--owner-approved')
+
+
+class TestRecordsFollowTheOpsTree:
+    """cwd = a main checkout, ops.json in a sibling worktree. Measured live in qa-agents:
+    `write` saved the verdict under MAIN and `execute-json-ops.py --root <worktree>`
+    refused with "no review record exists"; the only workaround was cd.
+
+    Mutant 1 -- _records_root() returns _project_root() (cwd again): the write and
+    sibling-executor tests go red. Mutant 2 -- check_approval calls record_paths(s)
+    with no root: test_executor_looks_where_write_wrote_not_at_its_cwd goes red."""
+
+    def test_write_lands_in_the_ops_files_worktree(self, tmp_path):
+        main, sib, plan, ops = _worktree_pair(tmp_path)
+        res = _owner_approve(main, plan, ops)
+        assert res.returncode == 0, res.stderr
+        assert sib.joinpath(*REVIEWS, 'demo.json').is_file()
+        assert not main.joinpath(*REVIEWS, 'demo.json').exists()
+
+    def test_check_from_the_main_cwd_finds_the_sibling_record(self, tmp_path):
+        main, sib, plan, ops = _worktree_pair(tmp_path)
+        assert _owner_approve(main, plan, ops).returncode == 0
+        res = _cli(main, 'check', str(plan), str(ops))
+        assert res.returncode == 0, res.stderr
+
+    def test_author_sidecar_follows_the_same_root(self, tmp_path):
+        main, sib, plan, ops = _worktree_pair(tmp_path)
+        res = _cli(main, 'author', str(ops), '--session-id', 'author-session')
+        assert res.returncode == 0, res.stderr
+        assert sib.joinpath(*REVIEWS, 'demo.author.json').is_file()
+        assert not main.joinpath(*REVIEWS, 'demo.author.json').exists()
+
+    def test_executor_run_in_the_sibling_is_authorised(self, tmp_path):
+        """The live failure end to end: write from cwd=main, execute --root <sibling>."""
+        main, sib, plan, ops = _worktree_pair(tmp_path)
+        assert _owner_approve(main, plan, ops).returncode == 0
+        proc = _execute(main, ops, sib)
+        out = proc.stdout + proc.stderr
+        assert proc.returncode == 0, out
+        assert 'no review record' not in out, out
+        assert (sib / 'created.txt').read_text(encoding='utf-8') == 'hello\n'
+
+    def test_executor_looks_where_write_wrote_not_at_its_cwd(self, tmp_path):
+        """--root main with the config in the sibling: after the chdir the executor's cwd
+        is MAIN and the verdict is in the SIBLING. Outside a plans/ dir with no plan
+        document, the record lookup is the only thing gating this config, so a lookup
+        at the cwd finds nothing and runs a REJECTED config ungated."""
+        main, sib, plan, ops = _worktree_pair(tmp_path)
+        plan.unlink()
+        ops.unlink()
+        loose = _trivial_ops(sib / 'work' / 'ops-demo.json')
+        res = _cli(main, 'write', str(sib / 'work' / 'plan-unused.md'), str(loose),
+                   '--score', '40', '--decision', 'REJECTED')
+        assert res.returncode == 0, res.stderr
+        assert sib.joinpath(*REVIEWS, 'demo.json').is_file()
+        proc = _execute(main, loose, main)
+        out = proc.stdout + proc.stderr
+        assert proc.returncode != 0, out
+        assert 'does not authorise execution' in out, out
+        assert not (main / 'created.txt').exists()
+
+    def test_outside_git_the_cwd_walk_still_decides(self, tmp_path):
+        """Negative twin: no git tree anywhere, so the historical cwd walk is kept."""
+        assert _git(tmp_path, 'rev-parse', '--show-toplevel').returncode != 0, \
+            'this control needs tmp_path outside any git tree'
+        plan, ops = _fixture(tmp_path)
+        sub = tmp_path / 'sub'
+        sub.mkdir()
+        res = _cli(sub, 'write', str(plan), str(ops), '--score', '60', '--decision', 'REVISE')
+        assert res.returncode == 0, res.stderr
+        assert tmp_path.joinpath(*REVIEWS, 'demo.json').is_file()
+
+
+class TestApprovalNeedsAReview:
+    """A bare approving --decision is not a review. Measured motive: a qa-agents session
+    repeatedly asked its owner to run `write ... --score 95 --decision APPROVED` for
+    fixes no reviewer had seen. Mutant 3 -- delete the refusal in write_verdict:
+    test_bare_approval_is_refused_and_writes_nothing goes red. Mutant 4 -- name the
+    owner flag in the refusal again: the same test goes red."""
+
+    @staticmethod
+    def _snapshot(tmp_path):
+        base = tmp_path / '.claude'
+        return {str(p.relative_to(base)): p.read_bytes()
+                for p in sorted(base.rglob('*')) if p.is_file()}
+
+    @staticmethod
+    def _record(tmp_path):
+        return json.loads(tmp_path.joinpath(*REVIEWS, 'demo.json').read_text(encoding='utf-8'))
+
+    def test_bare_approval_is_refused_and_writes_nothing(self, tmp_path):
+        plan, ops = _fixture(tmp_path)
+        before = self._snapshot(tmp_path)
+        res = _run(tmp_path, 'write', str(plan), str(ops),
+                   '--score', '95', '--decision', 'APPROVED')
+        assert res.returncode == 7, res.stdout + res.stderr
+        assert 'code-reviewer' in res.stderr and '--from-review' in res.stderr
+        # The refusal is read by the agent it refuses: it must not advertise the
+        # human-only escape hatch.
+        assert 'owner-approved' not in res.stderr
+        assert self._snapshot(tmp_path) == before
+
+    def test_parsed_approving_review_is_recorded(self, tmp_path):
+        plan, ops = _fixture(tmp_path)
+        res = _run(tmp_path, 'write', str(plan), str(ops), '--from-review', '-',
+                   stdin=REVIEW_OK)
+        assert res.returncode == 0, res.stderr
+        rec = self._record(tmp_path)
+        assert rec['decision'] == 'APPROVED' and rec['verdict_origin'] == 'rubric'
+
+    def test_owner_flag_records_and_says_so(self, tmp_path):
+        plan, ops = _fixture(tmp_path)
+        res = _run(tmp_path, 'write', str(plan), str(ops), '--score', '95',
+                   '--decision', 'APPROVED', '--owner-approved')
+        assert res.returncode == 0, res.stderr
+        rec = self._record(tmp_path)
+        assert rec['decision'] == 'APPROVED' and rec['verdict_origin'] == 'owner'
+
+    def test_non_authorising_decisions_stay_writable_bare(self, tmp_path):
+        plan, ops = _fixture(tmp_path)
+        for score, decision in ((60, 'REVISE'), (40, 'REJECTED'), (85, 'CONDITIONAL')):
+            res = _run(tmp_path, 'write', str(plan), str(ops),
+                       '--score', str(score), '--decision', decision)
+            assert res.returncode == 0, (decision, res.stderr)
+        assert self._record(tmp_path)['decision'] == 'CONDITIONAL'
 

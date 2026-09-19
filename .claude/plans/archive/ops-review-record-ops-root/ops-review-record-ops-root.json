@@ -1,0 +1,290 @@
+{
+  "plan": "review-record-ops-root",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/review-record.py",
+      "edits": [
+        {
+          "find": "RECORDS_DIR = Path(\".claude/reports/reviews\")\nAPPROVAL_THRESHOLD = 90",
+          "replace": "RECORDS_DIR = Path(\".claude/reports/reviews\")\n# `write` refuses a bare approving --decision (no parsed review, no --owner-approved).\n# 5 is --only-non-approving's refusal and 6 is check's self-review refusal, so 7 is\n# additive: no code anything already reads changes meaning.\nEXIT_UNATTESTED_APPROVAL = 7\nAPPROVAL_THRESHOLD = 90"
+        },
+        {
+          "find": "def record_paths(slug: str):",
+          "replace": "def record_paths(slug: str, root=None):"
+        },
+        {
+          "find": "    d = _records_dir()",
+          "replace": "    d = _records_dir(root)"
+        },
+        {
+          "find": "def _records_dir() -> Path:\n    \"\"\"Nearest .claude/reports/reviews walking up from cwd, so `check` run from a\n    subdirectory does not silently report NO RECORD instead of an error.\"\"\"\n    return _project_root() / RECORDS_DIR",
+          "replace": "def _git_toplevel(start):\n    \"\"\"Real path of the git worktree root containing `start`, else None.\n\n    A local copy of execute-json-ops.py's _git_toplevel, not an import of it: the\n    executor loads THIS module by path, so importing the executor back would pull a\n    1600-line CLI into every record lookup, and the executor's tree gate must keep\n    working when this module is unusable. Inside a linked worktree this returns THAT\n    worktree's root -- the distinction the record store needs.\n    \"\"\"\n    try:\n        where = Path(start).resolve()\n    except (OSError, RuntimeError):\n        return None\n    if not where.is_dir():\n        return None\n    try:\n        proc = subprocess.run([\"git\", \"rev-parse\", \"--show-toplevel\"], cwd=str(where),\n                              capture_output=True, text=True, timeout=10)\n    except (OSError, subprocess.SubprocessError):\n        return None\n    top = proc.stdout.strip() if proc.returncode == 0 else \"\"\n    return Path(os.path.realpath(top)) if top else None\n\n\ndef _records_root(ops=None) -> Path:\n    \"\"\"The project a verdict about `ops` belongs to: the git toplevel of the OPS file,\n    else the cwd walk (the old behaviour, kept outside git).\n\n    cwd alone put the record in whichever checkout the shell sat in. A session whose\n    cwd was a main checkout, reviewing an ops.json in a sibling worktree, wrote the\n    verdict under MAIN, and `execute-json-ops.py --root <worktree>` then refused with\n    \"no review record exists\" (measured in qa-agents). write, check, diff, author and\n    the executor's gate all call this with the ops file and nothing else. There is\n    deliberately no plan fallback: the executor holds only the config, so a\n    plan-rooted answer for an ops file outside git would put the record where the\n    executor never looks. Outside git every caller gets the cwd walk, as before.\n    \"\"\"\n    if ops:\n        top = _git_toplevel(Path(ops).resolve().parent)\n        if top is not None:\n            return top\n    return _project_root()\n\n\ndef _records_dir(root=None) -> Path:\n    \"\"\"<root>/.claude/reports/reviews. With no root this is the cwd walk, so `check`\n    run from a subdirectory does not silently report NO RECORD instead of an error.\"\"\"\n    return (Path(root) if root is not None else _project_root()) / RECORDS_DIR"
+        },
+        {
+          "find": "def _rejections_dir() -> Path:\n    return _project_root() / REJECTIONS_DIR",
+          "replace": "def _rejections_dir(root=None) -> Path:\n    return (Path(root) if root is not None else _project_root()) / REJECTIONS_DIR"
+        },
+        {
+          "find": "def emit_brief(slug: str, record: dict, rounds: list,\n               explicit_session_id=None) -> None:",
+          "replace": "def emit_brief(slug: str, record: dict, rounds: list,\n               explicit_session_id=None, root=None) -> None:"
+        },
+        {
+          "find": "\"(briefs are tracked files and are never written unsanitised).\",\n              file=sys.stderr)\n        return\n\n    directory = _rejections_dir()",
+          "replace": "\"(briefs are tracked files and are never written unsanitised).\",\n              file=sys.stderr)\n        return\n\n    # Same tree as the record it summarises (see _project_root).\n    directory = _rejections_dir(root)"
+        },
+        {
+          "find": "        only_non_approving=getattr(args, \"only_non_approving\", False))",
+          "replace": "        only_non_approving=getattr(args, \"only_non_approving\", False),\n        owner_approved=getattr(args, \"owner_approved\", False))"
+        },
+        {
+          "find": "                  reviewer_role=None, only_non_approving=False) -> int:",
+          "replace": "                  reviewer_role=None, only_non_approving=False,\n                  owner_approved=False) -> int:"
+        },
+        {
+          "find": "    slug = ops_slug(ops_path)\n    rec_path, snap_path = record_paths(slug)\n    rec_path.parent.mkdir(parents=True, exist_ok=True)",
+          "replace": "    # An approving verdict authorises execution, so it must come from a parsed review\n    # block -- never from a bare --score/--decision typed for work no reviewer saw.\n    # Measured: a qa-agents session repeatedly asked its owner to run\n    # `write ... --score 95 --decision APPROVED` for fixes no reviewer had read.\n    # Only APPROVED authorises (cmd_check cannot authorise CONDITIONAL), which is\n    # exactly NON_RECORDABLE_DECISIONS. Rejections stay writable bare: recording one\n    # can only narrow what runs. --owner-approved is the human owner's path. The\n    # refusal below deliberately does not name it, and block-no-verify.sh denies any\n    # agent Bash call carrying it (a PreToolUse speed bump against agents, not a\n    # sandbox).\n    if not from_review and decision in NON_RECORDABLE_DECISIONS and not owner_approved:\n        print(\"REFUSED: a bare --decision %s is not a review; nothing recorded.\" % decision,\n              file=sys.stderr)\n        print(\"         Spawn a fresh code-reviewer (reviewer, for a plan), save its\",\n              file=sys.stderr)\n        print(\"         output to a file, and bind it with:\", file=sys.stderr)\n        print(\"           review-record.py write <plan> <ops> --from-review <file>\",\n              file=sys.stderr)\n        print(\"         Never ask the user to type a score or run an approval for you.\",\n              file=sys.stderr)\n        return EXIT_UNATTESTED_APPROVAL\n    if owner_approved and not from_review:\n        verdict_origin = \"owner\"\n\n    slug = ops_slug(ops_path)\n    root = _records_root(ops_path)\n    rec_path, snap_path = record_paths(slug, root)\n    rec_path.parent.mkdir(parents=True, exist_ok=True)"
+        },
+        {
+          "find": "        # blocking-finding count (code-reviewer's mapping table), where the integer is a\n        # recording device and carries no quality judgement at all.\n        \"verdict_origin\": verdict_origin or \"rubric\",",
+          "replace": "        # blocking-finding count (code-reviewer's mapping table), where the integer is a\n        # recording device and carries no quality judgement at all; \"owner\" = a human\n        # owner recorded a bare approval with --owner-approved and no review exists, so\n        # the integer was typed, not judged. flow-analyst excludes both from score trends.\n        \"verdict_origin\": verdict_origin or \"rubric\","
+        },
+        {
+          "find": "emit_brief(slug, record, rounds, session_id)",
+          "replace": "emit_brief(slug, record, rounds, session_id, root=root)"
+        },
+        {
+          "find": "def author_path(slug: str) -> Path:",
+          "replace": "def author_path(slug: str, root=None) -> Path:"
+        },
+        {
+          "find": "    return _records_dir() / f\"{safe}{AUTHOR_SUFFIX}\"",
+          "replace": "    return _records_dir(root) / f\"{safe}{AUTHOR_SUFFIX}\""
+        },
+        {
+          "find": "def load_author(slug: str) -> str:",
+          "replace": "def load_author(slug: str, root=None) -> str:"
+        },
+        {
+          "find": "    before this feature existed.\n    \"\"\"\n    path = author_path(slug)",
+          "replace": "    before this feature existed.\n    \"\"\"\n    path = author_path(slug, root)"
+        },
+        {
+          "find": "def load_author_role(slug: str) -> str:",
+          "replace": "def load_author_role(slug: str, root=None) -> str:"
+        },
+        {
+          "find": "    load_author, and \"unknown\" never blocks.\n    \"\"\"\n    path = author_path(slug)",
+          "replace": "    load_author, and \"unknown\" never blocks.\n    \"\"\"\n    path = author_path(slug, root)"
+        },
+        {
+          "find": "    slug = ops_slug(ops_path)\n    path = author_path(slug)",
+          "replace": "    slug = ops_slug(ops_path)\n    root = _records_root(ops_path)\n    path = author_path(slug, root)"
+        },
+        {
+          "find": "    existing = load_author(slug)",
+          "replace": "    existing = load_author(slug, root)"
+        },
+        {
+          "find": "def cmd_check(args) -> int:\n    ops_path = Path(args.ops)\n    slug = ops_slug(ops_path)\n    rec_path, _ = record_paths(slug)",
+          "replace": "def cmd_check(args) -> int:\n    ops_path = Path(args.ops)\n    slug = ops_slug(ops_path)\n    root = _records_root(ops_path)\n    rec_path, _ = record_paths(slug, root)"
+        },
+        {
+          "find": "        legacy_path, _ = record_paths(legacy)",
+          "replace": "        legacy_path, _ = record_paths(legacy, root)"
+        },
+        {
+          "find": "    author_role = load_author_role(slug)",
+          "replace": "    author_role = load_author_role(slug, root)"
+        },
+        {
+          "find": "def cmd_diff(args) -> int:\n    ops_path = Path(args.ops)\n    slug = ops_slug(ops_path)\n    rec_path, snap_path = record_paths(slug)",
+          "replace": "def cmd_diff(args) -> int:\n    ops_path = Path(args.ops)\n    slug = ops_slug(ops_path)\n    root = _records_root(ops_path)\n    rec_path, snap_path = record_paths(slug, root)"
+        },
+        {
+          "find": "        legacy_rec, legacy_snap = record_paths(legacy)",
+          "replace": "        legacy_rec, legacy_snap = record_paths(legacy, root)"
+        },
+        {
+          "find": "    w.add_argument(\"--verdict-origin\", dest=\"verdict_origin\",\n                   choices=(\"rubric\", \"gate-token\"), default=\"rubric\",",
+          "replace": "    # A third origin, \"owner\", is set only by --owner-approved (see write_verdict) and\n    # is deliberately not a choice here: it must never be claimable for a parsed review.\n    w.add_argument(\"--verdict-origin\", dest=\"verdict_origin\",\n                   choices=(\"rubric\", \"gate-token\"), default=\"rubric\","
+        },
+        {
+          "find": "                   help=\"Refuse to write an approving verdict (exit 5): for callers that \"\n                        \"may record rejections but must never authorise execution\")\n    w.set_defaults(func=cmd_write)",
+          "replace": "                   help=\"Refuse to write an approving verdict (exit 5): for callers that \"\n                        \"may record rejections but must never authorise execution\")\n    w.add_argument(\"--owner-approved\", dest=\"owner_approved\", action=\"store_true\",\n                   help=\"HUMAN OWNER ONLY: record a bare approving --decision without a \"\n                        \"parsed review (recorded as verdict_origin=owner). Agents are \"\n                        \"denied it at PreToolUse by block-no-verify.sh (a speed bump, \"\n                        \"not a sandbox); an agent binds a reviewer with --from-review\")\n    w.set_defaults(func=cmd_write)"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/execute-json-ops.py",
+      "edits": [
+        {
+          "find": "                                 for attr in (\"record_paths\", \"cmd_check\")):",
+          "replace": "                                 for attr in (\"record_paths\", \"cmd_check\", \"_records_root\")):"
+        },
+        {
+          "find": "        recorded = [s for s in slugs if module.record_paths(s)[0].exists()]",
+          "replace": "        # Look where `write` put the verdict: the git toplevel of the CONFIG's own\n        # tree. After --root chdirs, the cwd can be a different worktree than the one\n        # holding the record; write and cmd_check call _records_root with the ops file\n        # alone, exactly as here, so all three resolve the same root.\n        root = module._records_root(config_file)\n        recorded = [s for s in slugs if module.record_paths(s, root)[0].exists()]"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_review_record.py",
+      "edits": [
+        {
+          "find": "def _approve(tmp_path, plan, ops, score=97, decision='APPROVED'):\n    return _run(tmp_path, 'write', str(plan), str(ops),\n                '--score', str(score), '--decision', decision)",
+          "replace": "def _approve(tmp_path, plan, ops, score=97, decision='APPROVED'):\n    # A bare approving --decision is refused (exit 7) without --owner-approved; these\n    # fixtures stand in for the owner. Non-approving decisions stay bare.\n    owner = ['--owner-approved'] if decision == 'APPROVED' else []\n    return _run(tmp_path, 'write', str(plan), str(ops),\n                '--score', str(score), '--decision', decision, *owner)"
+        },
+        {
+          "find": "                   '--score', '95', '--decision', 'APPROVED')\n        assert res.returncode == 0, res.stderr\n        reviews = tmp_path",
+          "replace": "                   '--score', '95', '--decision', 'APPROVED', '--owner-approved')\n        assert res.returncode == 0, res.stderr\n        reviews = tmp_path"
+        },
+        {
+          "find": "                   '--score', '95', '--decision', 'APPROVED')\n        assert res.returncode == 1",
+          "replace": "                   '--score', '95', '--decision', 'APPROVED', '--owner-approved')\n        assert res.returncode == 1"
+        },
+        {
+          "find": "    return _run(tmp_path, 'write', plan, ops, '--score', str(score),\n                '--decision', decision)",
+          "replace": "    owner = ['--owner-approved'] if decision == 'APPROVED' else []\n    return _run(tmp_path, 'write', plan, ops, '--score', str(score),\n                '--decision', decision, *owner)"
+        },
+        {
+          "find": "            assert json.loads(record.read_text(encoding='utf-8'))['slug'] == 'demo', name",
+          "add_after": "\n\n\n# --- records follow the ops file's tree, not the cwd ---------------------------------\n\nEXECUTOR = os.path.join(SCRIPTS_DIR, 'execute-json-ops.py')\nREVIEWS = ('.claude', 'reports', 'reviews')\n\n\ndef _clean_env():\n    \"\"\"No inherited GIT_* (a hook-exported GIT_DIR would override every cwd below) and\n    the gate-everything switch off, so only the root rule under test decides.\"\"\"\n    env = {k: v for k, v in os.environ.items() if not k.startswith('GIT_')}\n    env['ECC_HOOK_PROFILE'] = 'minimal'\n    env.pop('ECC_OPS_GATE_ALL', None)\n    return env\n\n\ndef _git(cwd, *argv):\n    return subprocess.run(\n        ['git', '-c', 'user.name=t', '-c', 'user.email=t@example.invalid',\n         '-c', 'commit.gpgsign=false'] + list(argv),\n        cwd=str(cwd), capture_output=True, text=True, timeout=60, env=_clean_env())\n\n\ndef _cli(cwd, *argv):\n    return subprocess.run([sys.executable, RECORD] + list(argv), cwd=str(cwd),\n                          capture_output=True, text=True, timeout=60, env=_clean_env())\n\n\ndef _execute(cwd, ops, root):\n    # --skip-validation keeps the validator's own verdict out of a test about WHERE the\n    # approval gate looks; it does not skip the approval gate.\n    return subprocess.run(\n        [sys.executable, EXECUTOR, str(ops), '--root', str(root), '--skip-validation'],\n        cwd=str(cwd), capture_output=True, text=True, timeout=120, env=_clean_env())\n\n\ndef _trivial_ops(path):\n    path.parent.mkdir(parents=True, exist_ok=True)\n    path.write_text(json.dumps({'plan': 'demo', 'operations': [\n        {'type': 'file_create', 'path': 'created.txt', 'content': 'hello\\n'}]},\n        indent=2), encoding='utf-8')\n    return path\n\n\ndef _worktree_pair(tmp_path):\n    \"\"\"A main checkout plus a `git worktree add` sibling: the qa-agents layout.\n\n    main/ carries a .claude/ so the old cwd walk resolves to MAIN, as it did live; the\n    sibling holds the plan and the ops file. Every git run is confined to tmp_path.\"\"\"\n    main = tmp_path / 'main'\n    main.mkdir()\n    assert _git(main, 'init', '-q').returncode == 0\n    res = _git(main, 'commit', '-q', '--allow-empty', '-m', 'init')\n    assert res.returncode == 0, res.stderr\n    (main / '.claude').mkdir()\n    sib = tmp_path / 'main-wt-sibling'\n    res = _git(main, 'worktree', 'add', '-q', str(sib))\n    assert res.returncode == 0, res.stderr\n    ops = _trivial_ops(sib / '.claude' / 'plans' / 'ops-demo.json')\n    plan = sib / '.claude' / 'plans' / 'plan-demo.md'\n    plan.write_text('# Plan: demo\\n', encoding='utf-8')\n    return main.resolve(), sib.resolve(), plan, ops\n\n\ndef _owner_approve(cwd, plan, ops):\n    return _cli(cwd, 'write', str(plan), str(ops), '--score', '95',\n                '--decision', 'APPROVED', '--owner-approved')\n\n\nclass TestRecordsFollowTheOpsTree:\n    \"\"\"cwd = a main checkout, ops.json in a sibling worktree. Measured live in qa-agents:\n    `write` saved the verdict under MAIN and `execute-json-ops.py --root <worktree>`\n    refused with \"no review record exists\"; the only workaround was cd.\n\n    Mutant 1 -- _records_root() returns _project_root() (cwd again): the write and\n    sibling-executor tests go red. Mutant 2 -- check_approval calls record_paths(s)\n    with no root: test_executor_looks_where_write_wrote_not_at_its_cwd goes red.\"\"\"\n\n    def test_write_lands_in_the_ops_files_worktree(self, tmp_path):\n        main, sib, plan, ops = _worktree_pair(tmp_path)\n        res = _owner_approve(main, plan, ops)\n        assert res.returncode == 0, res.stderr\n        assert sib.joinpath(*REVIEWS, 'demo.json').is_file()\n        assert not main.joinpath(*REVIEWS, 'demo.json').exists()\n\n    def test_check_from_the_main_cwd_finds_the_sibling_record(self, tmp_path):\n        main, sib, plan, ops = _worktree_pair(tmp_path)\n        assert _owner_approve(main, plan, ops).returncode == 0\n        res = _cli(main, 'check', str(plan), str(ops))\n        assert res.returncode == 0, res.stderr\n\n    def test_author_sidecar_follows_the_same_root(self, tmp_path):\n        main, sib, plan, ops = _worktree_pair(tmp_path)\n        res = _cli(main, 'author', str(ops), '--session-id', 'author-session')\n        assert res.returncode == 0, res.stderr\n        assert sib.joinpath(*REVIEWS, 'demo.author.json').is_file()\n        assert not main.joinpath(*REVIEWS, 'demo.author.json').exists()\n\n    def test_executor_run_in_the_sibling_is_authorised(self, tmp_path):\n        \"\"\"The live failure end to end: write from cwd=main, execute --root <sibling>.\"\"\"\n        main, sib, plan, ops = _worktree_pair(tmp_path)\n        assert _owner_approve(main, plan, ops).returncode == 0\n        proc = _execute(main, ops, sib)\n        out = proc.stdout + proc.stderr\n        assert proc.returncode == 0, out\n        assert 'no review record' not in out, out\n        assert (sib / 'created.txt').read_text(encoding='utf-8') == 'hello\\n'\n\n    def test_executor_looks_where_write_wrote_not_at_its_cwd(self, tmp_path):\n        \"\"\"--root main with the config in the sibling: after the chdir the executor's cwd\n        is MAIN and the verdict is in the SIBLING. Outside a plans/ dir with no plan\n        document, the record lookup is the only thing gating this config, so a lookup\n        at the cwd finds nothing and runs a REJECTED config ungated.\"\"\"\n        main, sib, plan, ops = _worktree_pair(tmp_path)\n        plan.unlink()\n        ops.unlink()\n        loose = _trivial_ops(sib / 'work' / 'ops-demo.json')\n        res = _cli(main, 'write', str(sib / 'work' / 'plan-unused.md'), str(loose),\n                   '--score', '40', '--decision', 'REJECTED')\n        assert res.returncode == 0, res.stderr\n        assert sib.joinpath(*REVIEWS, 'demo.json').is_file()\n        proc = _execute(main, loose, main)\n        out = proc.stdout + proc.stderr\n        assert proc.returncode != 0, out\n        assert 'does not authorise execution' in out, out\n        assert not (main / 'created.txt').exists()\n\n    def test_outside_git_the_cwd_walk_still_decides(self, tmp_path):\n        \"\"\"Negative twin: no git tree anywhere, so the historical cwd walk is kept.\"\"\"\n        assert _git(tmp_path, 'rev-parse', '--show-toplevel').returncode != 0, \\\n            'this control needs tmp_path outside any git tree'\n        plan, ops = _fixture(tmp_path)\n        sub = tmp_path / 'sub'\n        sub.mkdir()\n        res = _cli(sub, 'write', str(plan), str(ops), '--score', '60', '--decision', 'REVISE')\n        assert res.returncode == 0, res.stderr\n        assert tmp_path.joinpath(*REVIEWS, 'demo.json').is_file()\n\n\nclass TestApprovalNeedsAReview:\n    \"\"\"A bare approving --decision is not a review. Measured motive: a qa-agents session\n    repeatedly asked its owner to run `write ... --score 95 --decision APPROVED` for\n    fixes no reviewer had seen. Mutant 3 -- delete the refusal in write_verdict:\n    test_bare_approval_is_refused_and_writes_nothing goes red. Mutant 4 -- name the\n    owner flag in the refusal again: the same test goes red.\"\"\"\n\n    @staticmethod\n    def _snapshot(tmp_path):\n        base = tmp_path / '.claude'\n        return {str(p.relative_to(base)): p.read_bytes()\n                for p in sorted(base.rglob('*')) if p.is_file()}\n\n    @staticmethod\n    def _record(tmp_path):\n        return json.loads(tmp_path.joinpath(*REVIEWS, 'demo.json').read_text(encoding='utf-8'))\n\n    def test_bare_approval_is_refused_and_writes_nothing(self, tmp_path):\n        plan, ops = _fixture(tmp_path)\n        before = self._snapshot(tmp_path)\n        res = _run(tmp_path, 'write', str(plan), str(ops),\n                   '--score', '95', '--decision', 'APPROVED')\n        assert res.returncode == 7, res.stdout + res.stderr\n        assert 'code-reviewer' in res.stderr and '--from-review' in res.stderr\n        # The refusal is read by the agent it refuses: it must not advertise the\n        # human-only escape hatch.\n        assert 'owner-approved' not in res.stderr\n        assert self._snapshot(tmp_path) == before\n\n    def test_parsed_approving_review_is_recorded(self, tmp_path):\n        plan, ops = _fixture(tmp_path)\n        res = _run(tmp_path, 'write', str(plan), str(ops), '--from-review', '-',\n                   stdin=REVIEW_OK)\n        assert res.returncode == 0, res.stderr\n        rec = self._record(tmp_path)\n        assert rec['decision'] == 'APPROVED' and rec['verdict_origin'] == 'rubric'\n\n    def test_owner_flag_records_and_says_so(self, tmp_path):\n        plan, ops = _fixture(tmp_path)\n        res = _run(tmp_path, 'write', str(plan), str(ops), '--score', '95',\n                   '--decision', 'APPROVED', '--owner-approved')\n        assert res.returncode == 0, res.stderr\n        rec = self._record(tmp_path)\n        assert rec['decision'] == 'APPROVED' and rec['verdict_origin'] == 'owner'\n\n    def test_non_authorising_decisions_stay_writable_bare(self, tmp_path):\n        plan, ops = _fixture(tmp_path)\n        for score, decision in ((60, 'REVISE'), (40, 'REJECTED'), (85, 'CONDITIONAL')):\n            res = _run(tmp_path, 'write', str(plan), str(ops),\n                       '--score', str(score), '--decision', decision)\n            assert res.returncode == 0, (decision, res.stderr)\n        assert self._record(tmp_path)['decision'] == 'CONDITIONAL'"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_rejection_briefs.py",
+      "edits": [
+        {
+          "find": "stdin=REVISE_BLOCK)\n        run_record(tmp_path, \"write\", plan, ops, \"--score\", \"95\", \"--decision\", \"APPROVED\")\n        record = record_json(tmp_path)",
+          "replace": "stdin=REVISE_BLOCK)\n        run_record(tmp_path, \"write\", plan, ops, \"--score\", \"95\", \"--decision\", \"APPROVED\",\n                   \"--owner-approved\")\n        record = record_json(tmp_path)"
+        },
+        {
+          "find": "                   stdin=revise_block())\n        run_record(tmp_path, \"write\", plan, ops, \"--score\", \"95\", \"--decision\", \"APPROVED\")\n        assert not (brief_dir(tmp_path) / \"demo.md\").exists()",
+          "replace": "                   stdin=revise_block())\n        run_record(tmp_path, \"write\", plan, ops, \"--score\", \"95\", \"--decision\", \"APPROVED\",\n                   \"--owner-approved\")\n        assert not (brief_dir(tmp_path) / \"demo.md\").exists()"
+        },
+        {
+          "find": "        result = run_record(tmp_path, \"write\", plan, ops, \"--score\", \"95\",\n                            \"--decision\", \"APPROVED\")\n        assert result.returncode == 0\n        assert record_json(tmp_path)[\"decision\"] == \"APPROVED\"",
+          "replace": "        result = run_record(tmp_path, \"write\", plan, ops, \"--score\", \"95\",\n                            \"--decision\", \"APPROVED\", \"--owner-approved\")\n        assert result.returncode == 0\n        assert record_json(tmp_path)[\"decision\"] == \"APPROVED\""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_ops_approval_gate.py",
+      "edits": [
+        {
+          "find": "         str(config), \"--score\", str(score), \"--decision\", decision],",
+          "replace": "         str(config), \"--score\", str(score), \"--decision\", decision,\n         *([\"--owner-approved\"] if decision == \"APPROVED\" else [])],"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_review_identity_roles.py",
+      "edits": [
+        {
+          "find": "                '--score', str(score), '--decision', decision]\n        if role:",
+          "replace": "                '--score', str(score), '--decision', decision]\n        if decision == 'APPROVED':\n            args.append('--owner-approved')\n        if role:"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_approval_machinery.py",
+      "edits": [
+        {
+          "find": "                     '--score', str(score), '--decision', 'APPROVED'], self.root)",
+          "replace": "                     '--score', str(score), '--decision', 'APPROVED',\n                     '--owner-approved'], self.root)"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_plan_index.py",
+      "edits": [
+        {
+          "find": "         \"--score\", \"95\", \"--decision\", \"APPROVED\"],",
+          "replace": "         \"--score\", \"95\", \"--decision\", \"APPROVED\", \"--owner-approved\"],"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_pipeline_e2e.py",
+      "edits": [
+        {
+          "find": "    write = run_script(RECORDER, [\"write\", str(plan), str(ops), \"--score\", \"95\",\n                                  \"--decision\", \"APPROVED\"], project, env)",
+          "replace": "    write = run_script(RECORDER, [\"write\", str(plan), str(ops), \"--score\", \"95\",\n                                  \"--decision\", \"APPROVED\", \"--owner-approved\"],\n                       project, env)"
+        },
+        {
+          "find": "    reapprove = run_script(RECORDER, [\"write\", str(plan), str(ops), \"--score\", \"92\",\n                                      \"--decision\", \"APPROVED\"], project, env)",
+          "replace": "    reapprove = run_script(RECORDER, [\"write\", str(plan), str(ops), \"--score\", \"92\",\n                                      \"--decision\", \"APPROVED\", \"--owner-approved\"],\n                           project, env)"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/block-no-verify.sh",
+      "edits": [
+        {
+          "find": "# Prevents bypassing git hooks via the --no-verify flag.",
+          "replace": "# Prevents bypassing git hooks via the --no-verify flag.\n# Also denies review-record.py --owner-approved to agents, under EVERY profile\n# (see \"Agent self-approval\" below)."
+        },
+        {
+          "find": "[ \"${ECC_HOOK_PROFILE:-standard}\" = \"minimal\" ] && exit 0\n\nTOOL_INPUT=$(cat)",
+          "replace": "TOOL_INPUT=$(cat)\n\n# --- Agent self-approval: review-record.py --owner-approved -------------------\n# Checked BEFORE the profile guard below, so it binds under every profile. The\n# approval gate this flag bypasses (execute-json-ops.py -> review-record.py\n# check) is profile-independent, so the guard on its escape hatch is too; this\n# repo runs its own sessions on the lightest profile, where a guard that stood\n# down would never bind.\n#\n# --owner-approved records an APPROVED verdict with no parsed review. It is for\n# the human owner, typed in their own terminal or a `!` shell command, neither\n# of which passes through PreToolUse. From an agent it is self-approval.\n#\n# The match is broad on purpose: quote and backslash characters are deleted\n# first; the WHOLE command is scanned, not one ;&| segment, so `bash -c`, a\n# heredoc or a variable set earlier on the line is still seen; the full flag\n# counts anywhere (a renamed copy of the script), and any argparse prefix of it\n# (--ow, --owne, ...) counts on a command that names review-record. An\n# unparseable payload is scanned raw: fail closed.\n# SPEED BUMP AGAINST AGENTS, NOT A SANDBOX: a script file written first, a\n# python -c call to write_verdict(), or a hand-written record file get past it.\nOWNER_FLAG=\"--owner-approved\"\nOWNER_SCAN=$(extract_json_field \"$TOOL_INPUT\" command) || OWNER_SCAN=\"$TOOL_INPUT\"\nOWNER_SCAN=$(printf '%s' \"$OWNER_SCAN\" | tr -d \"\\\"'\\\\\\\\\")\nOWNER_HIT=\"\"\nfor OWNER_TOK in $(printf '%s' \"$OWNER_SCAN\" | grep -oE -e '--ow[a-z-]*'); do\n    if [ \"$OWNER_TOK\" = \"$OWNER_FLAG\" ]; then\n        OWNER_HIT=1\n    fi\n    case \"$OWNER_FLAG\" in\n        \"$OWNER_TOK\"*)\n            if printf '%s' \"$OWNER_SCAN\" | grep -q 'review-record'; then\n                OWNER_HIT=1\n            fi\n            ;;\n    esac\ndone\nif [ -n \"$OWNER_HIT\" ]; then\n    deny \"BLOCKED: an agent may not record an approval without a review.\n\nOnly a reviewer's report authorises execution. Spawn a fresh code-reviewer\n(reviewer, for a plan), save its full output to a file, and bind it:\n  python3 .claude/operations/scripts/review-record.py write <plan> <ops> --from-review <file>\nDo not ask the user to type a score or run an approval for you.\n(Searching source for the flag? Leave off its two leading dashes.)\"\nfi\n\n[ \"${ECC_HOOK_PROFILE:-standard}\" = \"minimal\" ] && exit 0"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_hooks_behavioral.py",
+      "edits": [
+        {
+          "find": "class TestOpsEnforcement:",
+          "replace": "REVIEW_RECORD = \"python3 .claude/operations/scripts/review-record.py\"\nOWNER_WRITE = REVIEW_RECORD + \" write p.md ops.json --score 95 --decision APPROVED\"\n\n\nclass TestOwnerApprovedIsHumanOnly:\n    \"\"\"`review-record.py --owner-approved` records an APPROVED verdict with no review.\n\n    The human owner types it in their own shell, which never passes through\n    PreToolUse. An agent's Bash call carrying it is denied by block-no-verify.sh under\n    EVERY profile, because the approval gate it bypasses is profile-independent.\n    Mutant A (delete the block): every blocked case goes red. Mutant B (move it below\n    the profile guard): the minimal cases go red. Mutant C (drop the review-record\n    condition on prefix tokens): `tar --owner=root` goes red.\n    \"\"\"\n\n    @staticmethod\n    def _hook(payload, profile):\n        return run_hook(\"block-no-verify.sh\", payload,\n                        env=dict(os.environ, ECC_HOOK_PROFILE=profile))\n\n    def test_owner_flag_is_blocked_under_every_profile(self):\n        for profile in (\"minimal\", \"standard\", \"strict\"):\n            p = self._hook({\"command\": OWNER_WRITE + \" --owner-approved\"}, profile)\n            assert p.returncode == 2, (profile, p.stderr)\n            assert \"code-reviewer\" in p.stderr and \"--from-review\" in p.stderr, profile\n\n    def test_quoted_prefixed_and_wrapped_forms_are_blocked(self):\n        forms = (\n            OWNER_WRITE + \" '--owner-approved'\",\n            OWNER_WRITE + ' \"--owner-approved\"',\n            OWNER_WRITE + \" --owner\",\n            OWNER_WRITE + \" --ow\",\n            'bash -c \"' + OWNER_WRITE + ' --owner-approved\"',\n            \"F=--owner-approved; \" + OWNER_WRITE + \" $F\",\n            \"python3 renamed.py write p.md ops.json --decision APPROVED --owner-approved\",\n        )\n        for command in forms:\n            p = self._hook({\"command\": command}, \"minimal\")\n            assert p.returncode == 2, (command, p.stderr)\n\n    def test_unparseable_payload_carrying_the_flag_fails_closed(self):\n        p = self._hook('{\"command\": \"' + OWNER_WRITE + \" --owner-approved\", \"minimal\")\n        assert p.returncode == 2, p.stderr\n\n    def test_review_bound_and_unrelated_commands_pass(self):\n        allowed = (\n            REVIEW_RECORD + \" write p.md ops.json --from-review review.md\",\n            REVIEW_RECORD + \" write p.md ops.json --score 60 --decision REVISE\",\n            \"tar --owner=root -cf out.tar src\",\n            \"grep -n owner-approved .claude/operations/scripts/review-record.py\",\n            \"ls -la\",\n        )\n        for profile in (\"minimal\", \"standard\"):\n            for command in allowed:\n                p = self._hook({\"command\": command}, profile)\n                assert p.returncode == 0, (profile, command, p.stderr)\n\n    def test_minimal_still_passes_a_malformed_payload_without_the_flag(self):\n        p = self._hook(\"{not valid json\", \"minimal\")\n        assert p.returncode == 0, p.stderr\n\n\nclass TestOpsEnforcement:"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/flow-analyst.md",
+      "edits": [
+        {
+          "find": "**Exclude every row whose `verdict_origin` is `gate-token` OR `reconstructed` from any\nscore-trend claim** (`reconstructed` rows come from `rejections backfill`: mined out of a\ntranscript, never recorded at the time, and `source: backfill` marks them).",
+          "replace": "**Exclude every row whose `verdict_origin` is `gate-token`, `reconstructed` OR `owner` from\nany score-trend claim** (`reconstructed` rows come from `rejections backfill`: mined out of a\ntranscript, never recorded at the time, and `source: backfill` marks them; `owner` rows are a\nhuman owner's approval recorded without any review, so that score was typed, not judged)."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "edits": [
+        {
+          "find": "## [Unreleased]",
+          "add_after": "\n- **`review-record.py` records follow the ops file's tree, not the cwd.** `write`, `check`,\n  `diff` and `author` (and `record-code-review`, which calls `write`) now resolve\n  `.claude/reports/reviews/` against the git toplevel of the ops file, falling back to the old\n  cwd walk outside git, and the executor's approval gate looks in the same place. A session in\n  a main checkout reviewing an ops.json in a sibling worktree no longer writes the verdict into\n  the main tree, where `execute-json-ops.py --root <worktree>` could not find it.\n- **`review-record.py write` refuses a bare approving verdict (exit 7).** `--decision APPROVED`\n  without `--from-review` records nothing; bind a reviewer's output with `--from-review <file>`.\n  REVISE, REJECTED and CONDITIONAL stay writable with bare `--score/--decision`. The human\n  owner's `--owner-approved` path is recorded as `verdict_origin: owner` and left out of score\n  trends, and the `block-no-verify` hook now denies any agent Bash command carrying it, under\n  every profile. That deny is a speed bump against agents, not a sandbox: a script written\n  first, or a hand-written record file, still gets past it."
+        }
+      ]
+    }
+  ],
+  "baseline": {
+    ".claude/agents/flow-analyst.md": "sha256:1f2ea90f725e76242b08dab7a928117ef36abd7ef95e868fcb16c016da799af1",
+    ".claude/hooks/block-no-verify.sh": "sha256:bc4d38410aeeda7e04eac612240bff99c5d8da8050f46521730375b7586da251",
+    ".claude/operations/scripts/execute-json-ops.py": "sha256:75a6271dadb2456688c944d0c3cd15c9ed9d2817c10f37b4126eb1fc1ff333bf",
+    ".claude/operations/scripts/review-record.py": "sha256:39f5258ec31f97bcfbb8b6e959d889fd9c8733e7581cdcf9e1ddbda1cf7d8eb5",
+    "CHANGELOG.md": "sha256:13e7094be16f85f1ed79f6db394f22feaec5f832ad8588cd642e38e4a7085fc6",
+    "tests/test_approval_machinery.py": "sha256:9195a74b9293700b714f0c27e29fba106fccd4535e1bddb8f9e055ece54d4dbb",
+    "tests/test_hooks_behavioral.py": "sha256:910f182324a2d61ae52fbb19b3287f7cecd1f1f51903eb488f0331279bc6cd34",
+    "tests/test_ops_approval_gate.py": "sha256:05484cfcbb18a552da3234871590d5ad5920fcb89c929e80c09eb1f43f9368a8",
+    "tests/test_pipeline_e2e.py": "sha256:641c95c37ca30967740b82d3a8e59c6d1f2810615d8407fa7faf7a0880a08a3a",
+    "tests/test_plan_index.py": "sha256:6bb0c2de5d3e35d36e23a0ac92ae20ff1c46ab87a8ace5aeaf7133aaff460299",
+    "tests/test_rejection_briefs.py": "sha256:b990b52377a7be80741b9701c87d69a2f941cb3d4ad28aa5382fe824ec561270",
+    "tests/test_review_identity_roles.py": "sha256:42a846b087003dd5cbccdd7e49c3d49e0d28652de06e98fb0f25e1f223c6bbe4",
+    "tests/test_review_record.py": "sha256:62f9597a6ba5e713b4297f66092c02c0ccfebb639a3e227a3241375fd938fbac"
+  }
+}

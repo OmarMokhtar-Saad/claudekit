@@ -57,6 +57,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 RECORDS_DIR = Path(".claude/reports/reviews")
+# `write` refuses a bare approving --decision (no parsed review, no --owner-approved).
+# 5 is --only-non-approving's refusal and 6 is check's self-review refusal, so 7 is
+# additive: no code anything already reads changes meaning.
+EXIT_UNATTESTED_APPROVAL = 7
 APPROVAL_THRESHOLD = 90
 # Authorship sidecar. Codes 0-4 keep their documented meanings and 5 is taken by
 # `write`, so the self-review refusal is additive: nothing that already reads an
@@ -266,12 +270,12 @@ def sha256_of(path: Path) -> str:
     return h.hexdigest()
 
 
-def record_paths(slug: str):
+def record_paths(slug: str, root=None):
     # Record filenames are derived, not user paths: collapse anything outside
     # [A-Za-z0-9._-] and strip leading dots so a hostile plan filename (e.g.
     # "plan-...md" -> slug "..") cannot produce dot-files or reserved names.
     safe = re.sub(r"[^A-Za-z0-9._-]", "_", slug).lstrip(".") or "_"
-    d = _records_dir()
+    d = _records_dir(root)
     return d / f"{safe}.json", d / f"{safe}.ops.json"
 
 
@@ -324,10 +328,54 @@ def _project_root(start=None) -> Path:
     return cur
 
 
-def _records_dir() -> Path:
-    """Nearest .claude/reports/reviews walking up from cwd, so `check` run from a
-    subdirectory does not silently report NO RECORD instead of an error."""
-    return _project_root() / RECORDS_DIR
+def _git_toplevel(start):
+    """Real path of the git worktree root containing `start`, else None.
+
+    A local copy of execute-json-ops.py's _git_toplevel, not an import of it: the
+    executor loads THIS module by path, so importing the executor back would pull a
+    1600-line CLI into every record lookup, and the executor's tree gate must keep
+    working when this module is unusable. Inside a linked worktree this returns THAT
+    worktree's root -- the distinction the record store needs.
+    """
+    try:
+        where = Path(start).resolve()
+    except (OSError, RuntimeError):
+        return None
+    if not where.is_dir():
+        return None
+    try:
+        proc = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=str(where),
+                              capture_output=True, text=True, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    top = proc.stdout.strip() if proc.returncode == 0 else ""
+    return Path(os.path.realpath(top)) if top else None
+
+
+def _records_root(ops=None) -> Path:
+    """The project a verdict about `ops` belongs to: the git toplevel of the OPS file,
+    else the cwd walk (the old behaviour, kept outside git).
+
+    cwd alone put the record in whichever checkout the shell sat in. A session whose
+    cwd was a main checkout, reviewing an ops.json in a sibling worktree, wrote the
+    verdict under MAIN, and `execute-json-ops.py --root <worktree>` then refused with
+    "no review record exists" (measured in qa-agents). write, check, diff, author and
+    the executor's gate all call this with the ops file and nothing else. There is
+    deliberately no plan fallback: the executor holds only the config, so a
+    plan-rooted answer for an ops file outside git would put the record where the
+    executor never looks. Outside git every caller gets the cwd walk, as before.
+    """
+    if ops:
+        top = _git_toplevel(Path(ops).resolve().parent)
+        if top is not None:
+            return top
+    return _project_root()
+
+
+def _records_dir(root=None) -> Path:
+    """<root>/.claude/reports/reviews. With no root this is the cwd walk, so `check`
+    run from a subdirectory does not silently report NO RECORD instead of an error."""
+    return (Path(root) if root is not None else _project_root()) / RECORDS_DIR
 
 
 def _safe_write(path: Path, text: str) -> bool:
@@ -385,8 +433,8 @@ def is_rejecting(score, decision) -> bool:
                 and isinstance(score, int) and score >= APPROVAL_THRESHOLD)
 
 
-def _rejections_dir() -> Path:
-    return _project_root() / REJECTIONS_DIR
+def _rejections_dir(root=None) -> Path:
+    return (Path(root) if root is not None else _project_root()) / REJECTIONS_DIR
 
 
 def _sanitizers():
@@ -624,7 +672,7 @@ def _append_brief(path: Path, slug: str, row: dict) -> None:
 
 
 def emit_brief(slug: str, record: dict, rounds: list,
-               explicit_session_id=None) -> None:
+               explicit_session_id=None, root=None) -> None:
     """Write/refresh the rejection brief for `slug`. Callers MUST wrap this (see the
     section header): it is allowed to fail, never to propagate."""
     # Trigger FIRST, sanitizers second. The order is load-bearing on a hot path: every
@@ -659,7 +707,8 @@ def emit_brief(slug: str, record: dict, rounds: list,
               file=sys.stderr)
         return
 
-    directory = _rejections_dir()
+    # Same tree as the record it summarises (see _project_root).
+    directory = _rejections_dir(root)
     for p in (directory, directory.parent, directory.parent.parent):
         if p.is_symlink():
             print("NOTE: refusing to write a brief through a symlink: %s" % p,
@@ -739,12 +788,14 @@ def cmd_write(args) -> int:
         session_id=getattr(args, "session_id", None),
         verdict_origin=getattr(args, "verdict_origin", None) or "rubric",
         reviewer_role=getattr(args, "reviewer_role", None),
-        only_non_approving=getattr(args, "only_non_approving", False))
+        only_non_approving=getattr(args, "only_non_approving", False),
+        owner_approved=getattr(args, "owner_approved", False))
 
 
 def write_verdict(plan, ops, from_review=None, score=None, decision=None,
                   session_id=None, verdict_origin="rubric",
-                  reviewer_role=None, only_non_approving=False) -> int:
+                  reviewer_role=None, only_non_approving=False,
+                  owner_approved=False) -> int:
     """Record one verdict against one ops.json. The write half of the approval gate.
 
     Behaviour is unchanged from the argparse-driven version; the proof is that
@@ -792,8 +843,33 @@ def write_verdict(plan, ops, from_review=None, score=None, decision=None,
               "rejections this is the EXPECTED outcome, not a failure.", file=sys.stderr)
         return 5
 
+    # An approving verdict authorises execution, so it must come from a parsed review
+    # block -- never from a bare --score/--decision typed for work no reviewer saw.
+    # Measured: a qa-agents session repeatedly asked its owner to run
+    # `write ... --score 95 --decision APPROVED` for fixes no reviewer had read.
+    # Only APPROVED authorises (cmd_check cannot authorise CONDITIONAL), which is
+    # exactly NON_RECORDABLE_DECISIONS. Rejections stay writable bare: recording one
+    # can only narrow what runs. --owner-approved is the human owner's path. The
+    # refusal below deliberately does not name it, and block-no-verify.sh denies any
+    # agent Bash call carrying it (a PreToolUse speed bump against agents, not a
+    # sandbox).
+    if not from_review and decision in NON_RECORDABLE_DECISIONS and not owner_approved:
+        print("REFUSED: a bare --decision %s is not a review; nothing recorded." % decision,
+              file=sys.stderr)
+        print("         Spawn a fresh code-reviewer (reviewer, for a plan), save its",
+              file=sys.stderr)
+        print("         output to a file, and bind it with:", file=sys.stderr)
+        print("           review-record.py write <plan> <ops> --from-review <file>",
+              file=sys.stderr)
+        print("         Never ask the user to type a score or run an approval for you.",
+              file=sys.stderr)
+        return EXIT_UNATTESTED_APPROVAL
+    if owner_approved and not from_review:
+        verdict_origin = "owner"
+
     slug = ops_slug(ops_path)
-    rec_path, snap_path = record_paths(slug)
+    root = _records_root(ops_path)
+    rec_path, snap_path = record_paths(slug, root)
     rec_path.parent.mkdir(parents=True, exist_ok=True)
 
     record = {
@@ -807,7 +883,9 @@ def write_verdict(plan, ops, from_review=None, score=None, decision=None,
         # How this score was arrived at: "rubric" = a reviewer judged it against the
         # 90-point rubric; "gate-token" = it was derived mechanically from a
         # blocking-finding count (code-reviewer's mapping table), where the integer is a
-        # recording device and carries no quality judgement at all.
+        # recording device and carries no quality judgement at all; "owner" = a human
+        # owner recorded a bare approval with --owner-approved and no review exists, so
+        # the integer was typed, not judged. flow-analyst excludes both from score trends.
         "verdict_origin": verdict_origin or "rubric",
         # WHO reviewed. Written into the RECORD, never into the ops.json:
         # the binding below is over the config's raw bytes, and a key added
@@ -899,7 +977,7 @@ def write_verdict(plan, ops, from_review=None, score=None, decision=None,
     # (reflection.py); a SystemExit raised there is not an Exception and would otherwise
     # escape, failing a write that has already succeeded.
     try:
-        emit_brief(slug, record, rounds, session_id)
+        emit_brief(slug, record, rounds, session_id, root=root)
     except BaseException as e:
         print("WARNING: rejection brief not written (%s); the verdict IS recorded." % e,
               file=sys.stderr)
@@ -942,7 +1020,7 @@ def _record_covers(rec_path: Path, ops_path: Path) -> bool:
         return str(recorded) == str(ops_path)
 
 
-def author_path(slug: str) -> Path:
+def author_path(slug: str, root=None) -> Path:
     """Sidecar naming who AUTHORED the ops.json this record key belongs to.
 
     A SIDECAR, never a key inside the ops.json. cmd_check binds the verdict to
@@ -955,17 +1033,17 @@ def author_path(slug: str) -> Path:
     always resolves next to the record it describes.
     """
     safe = re.sub(r"[^A-Za-z0-9._-]", "_", slug).lstrip(".") or "_"
-    return _records_dir() / f"{safe}{AUTHOR_SUFFIX}"
+    return _records_dir(root) / f"{safe}{AUTHOR_SUFFIX}"
 
 
-def load_author(slug: str) -> str:
+def load_author(slug: str, root=None) -> str:
     """The recorded author session for `slug`, or "unknown".
 
     Unreadable, absent and unresolved all collapse to "unknown", and "unknown" never
     blocks: a gate that refuses on missing data would brick every record written
     before this feature existed.
     """
-    path = author_path(slug)
+    path = author_path(slug, root)
     if not path.exists():
         return "unknown"
     try:
@@ -995,13 +1073,13 @@ def _role(explicit=None) -> str:
     return raw
 
 
-def load_author_role(slug: str) -> str:
+def load_author_role(slug: str, root=None) -> str:
     """The recorded author ROLE for `slug`, or "unknown".
 
     Absent, unreadable and unrecorded all collapse to "unknown", exactly as in
     load_author, and "unknown" never blocks.
     """
-    path = author_path(slug)
+    path = author_path(slug, root)
     if not path.exists():
         return "unknown"
     try:
@@ -1026,12 +1104,13 @@ def record_author(ops, session_id=None, role=None) -> int:
         print(f"Error: ops.json not found: {ops_path}", file=sys.stderr)
         return 1
     slug = ops_slug(ops_path)
-    path = author_path(slug)
+    root = _records_root(ops_path)
+    path = author_path(slug, root)
     path.parent.mkdir(parents=True, exist_ok=True)
 
     session = _session_id(session_id)
     asserted_role = _role(role)
-    existing = load_author(slug)
+    existing = load_author(slug, root)
     if existing != "unknown":
         if existing != session:
             print(f"NOTE: '{slug}' is already recorded as authored by "
@@ -1071,7 +1150,8 @@ def cmd_author(args) -> int:
 def cmd_check(args) -> int:
     ops_path = Path(args.ops)
     slug = ops_slug(ops_path)
-    rec_path, _ = record_paths(slug)
+    root = _records_root(ops_path)
+    rec_path, _ = record_paths(slug, root)
 
     if not rec_path.exists():
         # Records written before keying moved to ops identity live under the plan
@@ -1079,7 +1159,7 @@ def cmd_check(args) -> int:
         # drains as plans are archived instead of needing a migration step. A miss
         # on both keys still fails CLOSED below.
         legacy = plan_slug(args.plan)
-        legacy_path, _ = record_paths(legacy)
+        legacy_path, _ = record_paths(legacy, root)
         if legacy_path.exists():
             print(f"NOTE: no record under ops key '{slug}'; using the legacy "
                   f"plan-slug record '{legacy}'.", file=sys.stderr)
@@ -1138,7 +1218,7 @@ def cmd_check(args) -> int:
     # Ordering matters too: this sits AFTER the drift and threshold checks so a
     # drifted or rejecting verdict still reports its own cause, which is what keeps
     # the executor's remedies distinct.
-    author_role = load_author_role(slug)
+    author_role = load_author_role(slug, root)
     reviewer_role = record.get("reviewer_role")
     if not isinstance(reviewer_role, str) or not reviewer_role:
         reviewer_role = "unknown"
@@ -1181,11 +1261,12 @@ def _normalized(path: Path):
 def cmd_diff(args) -> int:
     ops_path = Path(args.ops)
     slug = ops_slug(ops_path)
-    rec_path, snap_path = record_paths(slug)
+    root = _records_root(ops_path)
+    rec_path, snap_path = record_paths(slug, root)
 
     if not (rec_path.exists() and snap_path.exists()):
         legacy = plan_slug(args.plan)
-        legacy_rec, legacy_snap = record_paths(legacy)
+        legacy_rec, legacy_snap = record_paths(legacy, root)
         # Only adopt a legacy record that is bound to THIS config. Without the
         # ops_path check the fallback happily rendered a delta against an unrelated
         # config's approved snapshot, labelled "approved/<slug>.json" — a diff that
@@ -1768,6 +1849,8 @@ def main() -> int:
                    help="Agent role this verdict is attested to (e.g. reviewer, "
                         "code-reviewer). ASSERTED by the caller, never observed; "
                         "omitted means the author != reviewer gate does not bind")
+    # A third origin, "owner", is set only by --owner-approved (see write_verdict) and
+    # is deliberately not a choice here: it must never be claimable for a parsed review.
     w.add_argument("--verdict-origin", dest="verdict_origin",
                    choices=("rubric", "gate-token"), default="rubric",
                    help="How the score was arrived at: judged against the rubric, or "
@@ -1776,6 +1859,11 @@ def main() -> int:
                    action="store_true",
                    help="Refuse to write an approving verdict (exit 5): for callers that "
                         "may record rejections but must never authorise execution")
+    w.add_argument("--owner-approved", dest="owner_approved", action="store_true",
+                   help="HUMAN OWNER ONLY: record a bare approving --decision without a "
+                        "parsed review (recorded as verdict_origin=owner). Agents are "
+                        "denied it at PreToolUse by block-no-verify.sh (a speed bump, "
+                        "not a sandbox); an agent binds a reviewer with --from-review")
     w.set_defaults(func=cmd_write)
 
     rcr = sub.add_parser("record-code-review",

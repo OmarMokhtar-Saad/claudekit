@@ -104,6 +104,8 @@ class _TempProject(unittest.TestCase):
     def record_verdict(self, session, score=95, decision='APPROVED', role=None):
         args = [REVIEW_RECORD, 'write', self.plan, self.ops,
                 '--score', str(score), '--decision', decision]
+        if decision == 'APPROVED':
+            args.append('--owner-approved')
         if role:
             args += ['--reviewer-role', role]
         proc = _run(args, self.root, session=session)

@@ -277,7 +277,8 @@ def test_plan_artifacts_flow_through_extract_validate_record_execute(project, tm
     assert validate.returncode == 0, validate.stdout + validate.stderr
 
     write = run_script(RECORDER, ["write", str(plan), str(ops), "--score", "95",
-                                  "--decision", "APPROVED"], project, env)
+                                  "--decision", "APPROVED", "--owner-approved"],
+                       project, env)
     assert write.returncode == 0, write.stderr
     reviews = project / ".claude" / "reports" / "reviews"
     record, snapshot = reviews / "fixture.json", reviews / "fixture.ops.json"
@@ -339,7 +340,8 @@ def test_conditional_revise_reapprove_roundtrip(project, tmp_path):
     assert (project / "src" / "app.py").read_text(encoding="utf-8") == ORIGINAL
 
     reapprove = run_script(RECORDER, ["write", str(plan), str(ops), "--score", "92",
-                                      "--decision", "APPROVED"], project, env)
+                                      "--decision", "APPROVED", "--owner-approved"],
+                           project, env)
     assert reapprove.returncode == 0, reapprove.stderr
     record = project / ".claude" / "reports" / "reviews" / "fixture.json"
     assert sha256_of(ops) in record.read_text(encoding="utf-8"), \

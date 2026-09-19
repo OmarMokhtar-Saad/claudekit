@@ -60,6 +60,68 @@ class TestBlockNoVerify:
         assert p.returncode == 2, p.stderr
 
 
+REVIEW_RECORD = "python3 .claude/operations/scripts/review-record.py"
+OWNER_WRITE = REVIEW_RECORD + " write p.md ops.json --score 95 --decision APPROVED"
+
+
+class TestOwnerApprovedIsHumanOnly:
+    """`review-record.py --owner-approved` records an APPROVED verdict with no review.
+
+    The human owner types it in their own shell, which never passes through
+    PreToolUse. An agent's Bash call carrying it is denied by block-no-verify.sh under
+    EVERY profile, because the approval gate it bypasses is profile-independent.
+    Mutant A (delete the block): every blocked case goes red. Mutant B (move it below
+    the profile guard): the minimal cases go red. Mutant C (drop the review-record
+    condition on prefix tokens): `tar --owner=root` goes red.
+    """
+
+    @staticmethod
+    def _hook(payload, profile):
+        return run_hook("block-no-verify.sh", payload,
+                        env=dict(os.environ, ECC_HOOK_PROFILE=profile))
+
+    def test_owner_flag_is_blocked_under_every_profile(self):
+        for profile in ("minimal", "standard", "strict"):
+            p = self._hook({"command": OWNER_WRITE + " --owner-approved"}, profile)
+            assert p.returncode == 2, (profile, p.stderr)
+            assert "code-reviewer" in p.stderr and "--from-review" in p.stderr, profile
+
+    def test_quoted_prefixed_and_wrapped_forms_are_blocked(self):
+        forms = (
+            OWNER_WRITE + " '--owner-approved'",
+            OWNER_WRITE + ' "--owner-approved"',
+            OWNER_WRITE + " --owner",
+            OWNER_WRITE + " --ow",
+            'bash -c "' + OWNER_WRITE + ' --owner-approved"',
+            "F=--owner-approved; " + OWNER_WRITE + " $F",
+            "python3 renamed.py write p.md ops.json --decision APPROVED --owner-approved",
+        )
+        for command in forms:
+            p = self._hook({"command": command}, "minimal")
+            assert p.returncode == 2, (command, p.stderr)
+
+    def test_unparseable_payload_carrying_the_flag_fails_closed(self):
+        p = self._hook('{"command": "' + OWNER_WRITE + " --owner-approved", "minimal")
+        assert p.returncode == 2, p.stderr
+
+    def test_review_bound_and_unrelated_commands_pass(self):
+        allowed = (
+            REVIEW_RECORD + " write p.md ops.json --from-review review.md",
+            REVIEW_RECORD + " write p.md ops.json --score 60 --decision REVISE",
+            "tar --owner=root -cf out.tar src",
+            "grep -n owner-approved .claude/operations/scripts/review-record.py",
+            "ls -la",
+        )
+        for profile in ("minimal", "standard"):
+            for command in allowed:
+                p = self._hook({"command": command}, profile)
+                assert p.returncode == 0, (profile, command, p.stderr)
+
+    def test_minimal_still_passes_a_malformed_payload_without_the_flag(self):
+        p = self._hook("{not valid json", "minimal")
+        assert p.returncode == 0, p.stderr
+
+
 class TestOpsEnforcement:
     def test_direct_source_edit_blocked(self):
         p = run_hook("ops-enforcement.sh", {

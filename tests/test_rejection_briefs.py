@@ -103,7 +103,8 @@ class TestRejectionRoundIsRecorded:
     def test_rejection_then_approval_keeps_the_rejection_in_history(self, tmp_path):
         plan, ops = make_tree(tmp_path)
         run_record(tmp_path, "write", plan, ops, "--from-review", "-", stdin=REVISE_BLOCK)
-        run_record(tmp_path, "write", plan, ops, "--score", "95", "--decision", "APPROVED")
+        run_record(tmp_path, "write", plan, ops, "--score", "95", "--decision", "APPROVED",
+                   "--owner-approved")
         record = record_json(tmp_path)
         assert record["round"] == 2
         assert [r["decision"] for r in record["rounds"]] == ["REVISE"]
@@ -205,7 +206,8 @@ class TestBriefTrigger:
         plan, ops = make_tree(tmp_path)
         run_record(tmp_path, "write", plan, ops, "--from-review", "-",
                    stdin=revise_block())
-        run_record(tmp_path, "write", plan, ops, "--score", "95", "--decision", "APPROVED")
+        run_record(tmp_path, "write", plan, ops, "--score", "95", "--decision", "APPROVED",
+                   "--owner-approved")
         assert not (brief_dir(tmp_path) / "demo.md").exists()
         assert index_rows(tmp_path) == []
 
@@ -940,7 +942,7 @@ class TestOnlyNonApprovingGate:
     def test_without_the_flag_nothing_changes(self, tmp_path):
         plan, ops = make_tree(tmp_path)
         result = run_record(tmp_path, "write", plan, ops, "--score", "95",
-                            "--decision", "APPROVED")
+                            "--decision", "APPROVED", "--owner-approved")
         assert result.returncode == 0
         assert record_json(tmp_path)["decision"] == "APPROVED"
 

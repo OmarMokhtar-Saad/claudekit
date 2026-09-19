@@ -81,7 +81,8 @@ def run_executor(project: Path, config: Path, *extra, **envvars):
 def record(project: Path, slug: str, config: Path, score: int, decision: str):
     proc = subprocess.run(
         [sys.executable, str(RECORDER), "write", f".claude/plans/plan-{slug}.md",
-         str(config), "--score", str(score), "--decision", decision],
+         str(config), "--score", str(score), "--decision", decision,
+         *(["--owner-approved"] if decision == "APPROVED" else [])],
         capture_output=True, text=True, cwd=str(project), timeout=60, env=_env(),
     )
     assert proc.returncode == 0, proc.stderr + proc.stdout
