@@ -1,4 +1,5 @@
 {
+  "autoCompactWindow": 200000,
   "skillListingBudgetFraction": 0.03,
   "skillListingMaxDescChars": 1536,
   "hooks": {
