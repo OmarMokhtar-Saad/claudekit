@@ -1,0 +1,18 @@
+{
+  "plan": "context-gate-compact-first",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/context-budget-gate.py",
+      "edits": [
+        {
+          "find": "                        \"context (block at %dK). Run /save-session, then /compact or start a \"\n                        \"new session and hand it the saved brief. Override for one process \"\n                        \"tree with CK_RAW_CONTEXT=1.\\n\" % (size // 1000, block // 1000))",
+          "replace": "                        \"context (block at %dK). Type /compact now - it is not a tool call, so \"\n                        \"this gate never blocks it; /save-session works once you are back under \"\n                        \"the line. Set /autocompact below %dK so this never fires. Override for \"\n                        \"one process tree with CK_RAW_CONTEXT=1.\\n\"\n                        % (size // 1000, block // 1000, block // 1000))"
+        }
+      ]
+    }
+  ],
+  "baseline": {
+    ".claude/hooks/context-budget-gate.py": "sha256:23fd442529013a7226c94edb8ac5aaf7d27eab4714c8a34af142caafccf522da"
+  }
+}

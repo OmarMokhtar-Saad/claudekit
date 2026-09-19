@@ -232,6 +232,18 @@ def _spawns_unbounded_agent(tool_input):
     return not subagent.strip() or subagent.strip() == UNBOUNDED_AGENT
 
 
+# The block message names /save-session as the way out, and /save-session is a Write to this
+# file. Refusing it would leave the way out blocked. Only the session brief is exempt.
+SESSION_SAVE_SUFFIX = os.path.join(".claude", "session-context.md")
+
+
+def _is_session_save(tool_name, tool_input):
+    if tool_name not in ("Write", "Edit") or not isinstance(tool_input, dict):
+        return False
+    path = tool_input.get("file_path")
+    return isinstance(path, str) and os.path.normpath(path).endswith(SESSION_SAVE_SUFFIX)
+
+
 def _decide(payload):
     """(exit_code, stderr_line) or None. Nothing is emitted from here."""
     tool_name = payload.get("tool_name") or payload.get("name")
@@ -256,12 +268,14 @@ def _decide(payload):
                         "(block line %dK). A subagent cannot run /compact or /save-session - "
                         "stop exploring, write up what you already have and hand it back to "
                         "your caller now.\n" % (size // 1000, block // 1000))
-            elif size >= block:
+            elif size >= block and not _is_session_save(tool_name, payload.get("tool_input")):
                 return (2,
                         "BLOCKED context-budget-gate: this session is at %dK tokens of "
-                        "context (block at %dK). Run /save-session, then /compact or start a "
-                        "new session and hand it the saved brief. Override for one process "
-                        "tree with CK_RAW_CONTEXT=1.\n" % (size // 1000, block // 1000))
+                        "context (block at %dK). Type /compact now - it is not a tool call, so "
+                        "this gate never blocks it; /save-session works once you are back under "
+                        "the line. Set /autocompact below %dK so this never fires. Override for "
+                        "one process tree with CK_RAW_CONTEXT=1.\n"
+                        % (size // 1000, block // 1000, block // 1000))
             elif size >= warn and _should_warn(payload.get("session_id")):
                 note = (0,
                         "context-budget-gate: context %dK tokens (warn %dK, block %dK) - run "
