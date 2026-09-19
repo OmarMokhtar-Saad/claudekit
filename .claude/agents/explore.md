@@ -6,7 +6,6 @@ description: |
 model: haiku
 effort: low
 color: yellow
-memory: project
 tools: ["Read", "Grep", "Glob", "Bash"]
 ---
 

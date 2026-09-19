@@ -1,0 +1,65 @@
+{
+  "plan": "agent-spend-cap",
+  "operations": [
+    {
+      "type": "code_edit",
+      "id": "spend-01-constant",
+      "description": "DEFAULT_AGENT_BUDGET: cap subagent cost on calls x context, the product the context cap cannot see",
+      "path": ".claude/hooks/context-budget-gate.py",
+      "edits": [
+        {
+          "find": "# One advisory line per this many guarded calls, per session.\nWARN_EVERY = 20\n",
+          "replace": "# One advisory line per this many guarded calls, per session.\nWARN_EVERY = 20\n\n# A subagent's cost is turns x context, not context alone, and the context cap can only ever\n# see one of the two factors. Measured on one 297M-token session: the planner that dominated\n# it (45.8M) sat at a 234K median for 118 guarded calls and NEVER crossed the 400K context\n# line, so no context threshold could have fired on it. The product is what ran away, so the\n# product is what is capped. calls x context predicted the six measured agents to within 10%\n# (planner 216 turns x 234K = 50M vs 45.8M actual), which is what makes it a usable proxy and\n# not a guess. 15M is a first calibration against that session, not a law: an explore agent\n# there (34 guarded calls x 63K = 2.1M) stays far under it, and the runaway planner trips it\n# roughly halfway through.\nDEFAULT_AGENT_BUDGET = 15000000\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "id": "spend-02-counter",
+      "description": "_bump_agent_calls: per-agent guarded-call counter keyed on the agent transcript, fail-open",
+      "path": ".claude/hooks/context-budget-gate.py",
+      "edits": [
+        {
+          "find": "def _spawns_unbounded_agent(tool_input):",
+          "replace": "def _bump_agent_calls(transcript_path):\n    \"\"\"Guarded calls this subagent has made, including this one, or None when uncountable.\n\n    Keyed by the caller's OWN transcript basename, never by session_id: a subagent inherits\n    its parent's session_id, so a session-keyed counter would pool every agent in the tree\n    into one running total and refuse the third agent's first call for the first agent's\n    spend. The basename is `agent-<id>.jsonl` and is unique per agent.\n\n    Any failure returns None, which skips the cap. A counter that cannot be read is not\n    evidence of overspend.\n    \"\"\"\n    state_dir = _state_dir()\n    if state_dir is None or not isinstance(transcript_path, str) or not transcript_path:\n        return None\n    try:\n        os.makedirs(state_dir, exist_ok=True)\n        safe = \"\".join(\n            ch for ch in os.path.basename(transcript_path)\n            if ch.isalnum() or ch in \"-_.\"\n        )[:80]\n        if not safe:\n            return None\n        state = os.path.join(state_dir, \"agent-spend-%s\" % safe)\n        seen = 0\n        if os.path.isfile(state):\n            with open(state, \"r\", encoding=\"utf-8\", errors=\"replace\") as handle:\n                try:\n                    seen = int(handle.read().strip() or \"0\")\n                except ValueError:\n                    seen = 0\n        seen += 1\n        with open(state, \"w\", encoding=\"utf-8\") as handle:\n            handle.write(\"%d\\n\" % seen)\n        return seen\n    except Exception:\n        return None\n\n\ndef _spawns_unbounded_agent(tool_input):"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "id": "spend-03-decide",
+      "description": "Refuse a subagent whose calls x context crosses the budget, before the advisory branch",
+      "path": ".claude/hooks/context-budget-gate.py",
+      "edits": [
+        {
+          "find": "        transcript_path, subagent_call = _caller_transcript(payload)\n        size = _context_size(transcript_path) if transcript_path else None\n        if size is not None:\n",
+          "replace": "        transcript_path, subagent_call = _caller_transcript(payload)\n        size = _context_size(transcript_path) if transcript_path else None\n        if size is not None and subagent_call:\n            # Checked BEFORE the context thresholds and returned, not held as a note: this is\n            # the one line the runaway agent actually crosses, so letting the advisory branch\n            # below overwrite it would reproduce the hole this closes.\n            calls = _bump_agent_calls(transcript_path)\n            budget = _threshold(\"CK_AGENT_BUDGET\", DEFAULT_AGENT_BUDGET)\n            if calls is not None and calls * size >= budget:\n                return (2,\n                        \"BLOCKED context-budget-gate: this subagent has spent roughly %dM \"\n                        \"tokens (%d guarded calls at %dK context; budget %dM). Neither factor \"\n                        \"alone is over its line - the PRODUCT is, and the product is the bill. \"\n                        \"Stop here: write up what you already have and hand it back to your \"\n                        \"caller. Handback is not a guarded tool, and neither is Read, Grep or \"\n                        \"Glob, so this refusal cannot trap you. If the work genuinely needs \"\n                        \"more, your caller should split it across fresh agents that each \"\n                        \"start at a small context rather than let one agent re-read a large \"\n                        \"one on every turn. Raise the line with CK_AGENT_BUDGET, or drop the \"\n                        \"whole budget for one process tree with CK_RAW_CONTEXT=1.\\n\"\n                        % (calls * size // 1000000, calls, size // 1000, budget // 1000000))\n        if size is not None:\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "id": "spend-04-hatch-docs",
+      "description": "Document CK_AGENT_BUDGET and the widened CK_RAW_CONTEXT in the module docstring",
+      "path": ".claude/hooks/context-budget-gate.py",
+      "edits": [
+        {
+          "find": "`CK_RAW_CONTEXT=1` disables the context budget (warn and block) for that process tree.",
+          "replace": "`CK_RAW_CONTEXT=1` disables the context budget (warn, block and the per-agent spend cap)\nfor that process tree.\n`CK_AGENT_BUDGET=<tokens>` moves the per-subagent spend line (default 15,000,000)."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "id": "spend-05-tests",
+      "description": "Seven behavioural tests for the spend cap, each named to a mutant",
+      "path": "tests/test_context_budget_gate.py",
+      "edits": [
+        {
+          "find": "def test_raw_context_hatch_allows_an_oversize_session(tmp_path):",
+          "replace": "def subagent(tmp_path, ctx, session=\"sess-S\", agent=\"agent-planner\"):\n    \"\"\"A subagent transcript at `ctx` tokens, at the path the gate recognises as a subagent.\"\"\"\n    d = tmp_path / session / \"subagents\"\n    d.mkdir(parents=True, exist_ok=True)\n    p = d / (agent + \".jsonl\")\n    p.write_text(usage_line(ctx) + \"\\n\", encoding=\"utf-8\")\n    return p\n\n\n# ------------------------------------------------------- per-agent spend cap ----\n#\n# Mutants these must catch (apply them, do not assume them):\n#   * delete the `calls * size >= budget` branch  => test_a_subagent_is_blocked_when_calls\n#                                                    _times_context_exceeds_the_budget RED\n#   * `calls * size` -> `size`                    => test_a_cheap_subagent_is_never_spend\n#                                                    _capped RED (63K context, 40 calls, would\n#                                                    still allow -- but the twin below, a\n#                                                    single call at 400K, would then BLOCK)\n#   * `calls * size` -> `calls`                   => test_a_cheap_subagent_is_never_spend\n#                                                    _capped RED\n#   * key the counter on session_id               => test_the_spend_counter_is_keyed_per_agent\n#                                                    _not_per_session RED\n#   * apply the cap to main sessions too          => test_a_main_session_is_not_spend_capped RED\n#   * DEFAULT_AGENT_BUDGET 15000000 -> 15000000000\n#                                                 => test_the_shipped_budget_is_fifteen_million\n#                                                    RED\n\ndef test_a_subagent_is_blocked_when_calls_times_context_exceeds_the_budget(tmp_path):\n    \"\"\"The shape that actually ran away: a context UNDER the block line, many times over.\n\n    234K is the measured median of the 45.8M planner and is deliberately below the 400K\n    context block line, so this case can only pass because of the product.\n    \"\"\"\n    path = subagent(tmp_path, 234000)\n    env = {\"CK_AGENT_BUDGET\": \"700000\"}  # trips on call 3: 3 x 234K = 702K\n    first = run_hook(tmp_path, path, extra_env=env)\n    assert first.returncode == 0, \"call 1 is well under budget (stderr=%r)\" % first.stderr\n    second = run_hook(tmp_path, path, extra_env=env)\n    assert second.returncode == 0, \"call 2 is still under budget (stderr=%r)\" % second.stderr\n    third = run_hook(tmp_path, path, extra_env=env)\n    assert third.returncode == 2, (\n        \"call 3 crosses the spend line and must be refused (rc=%s, stderr=%r)\"\n        % (third.returncode, third.stderr))\n    assert \"BLOCKED\" in third.stderr and \"guarded calls\" in third.stderr\n    assert \"hand it back\" in third.stderr, (\n        \"the refusal must name the move the agent can make (stderr=%r)\" % third.stderr)\n\n\ndef test_a_cheap_subagent_is_never_spend_capped(tmp_path):\n    \"\"\"The measured explore agent: 63K of context, many calls. It must stay untouched.\n\n    This is the false-positive guard. It is what stops the cap from becoming a reason to\n    export CK_RAW_CONTEXT and disable the whole gate.\n    \"\"\"\n    path = subagent(tmp_path, 63000, agent=\"agent-explore\")\n    for i in range(40):\n        result = run_hook(tmp_path, path)\n        assert result.returncode == 0, (\n            \"a 63K-context agent must never be spend-capped (call %d, stderr=%r)\"\n            % (i + 1, result.stderr))\n\n\ndef test_the_spend_counter_is_keyed_per_agent_not_per_session(tmp_path):\n    \"\"\"Two agents, one session_id. The second must not inherit the first's spend.\"\"\"\n    env = {\"CK_AGENT_BUDGET\": \"700000\"}\n    a = subagent(tmp_path, 234000, agent=\"agent-aaa\")\n    b = subagent(tmp_path, 234000, agent=\"agent-bbb\")\n    for _ in range(3):\n        run_hook(tmp_path, a, session_id=\"shared\", extra_env=env)\n    spent = run_hook(tmp_path, a, session_id=\"shared\", extra_env=env)\n    assert spent.returncode == 2, \"agent A is over its own budget\"\n    fresh = run_hook(tmp_path, b, session_id=\"shared\", extra_env=env)\n    assert fresh.returncode == 0, (\n        \"agent B shares only a session_id and must start at zero (rc=%s, stderr=%r)\"\n        % (fresh.returncode, fresh.stderr))\n\n\ndef test_a_main_session_is_not_spend_capped(tmp_path):\n    \"\"\"A main session has /compact and /save-session; turns are not its failure mode.\"\"\"\n    path = transcript(tmp_path, usage_line(234000))\n    env = {\"CK_AGENT_BUDGET\": \"700000\"}\n    for i in range(6):\n        result = run_hook(tmp_path, path, extra_env=env)\n        assert result.returncode == 0, (\n            \"the spend cap is subagent-only (call %d, rc=%s, stderr=%r)\"\n            % (i + 1, result.returncode, result.stderr))\n\n\ndef test_the_shipped_budget_is_fifteen_million(tmp_path):\n    \"\"\"Pins the DEFAULT, with no env override in play, so raising it cannot pass silently.\"\"\"\n    path = subagent(tmp_path, 8000000, agent=\"agent-huge\")\n    first = run_hook(tmp_path, path)\n    assert first.returncode == 0, \"8M once is under the 15M default (stderr=%r)\" % first.stderr\n    second = run_hook(tmp_path, path)\n    assert second.returncode == 2, (\n        \"16M must cross the shipped 15M default (rc=%s, stderr=%r)\"\n        % (second.returncode, second.stderr))\n\n\ndef test_the_raw_context_hatch_disables_the_spend_cap(tmp_path):\n    path = subagent(tmp_path, 234000, agent=\"agent-hatched\")\n    env = {\"CK_AGENT_BUDGET\": \"100\", \"CK_RAW_CONTEXT\": \"1\"}\n    for _ in range(3):\n        result = run_hook(tmp_path, path, extra_env=env)\n        assert result.returncode == 0, \"CK_RAW_CONTEXT must drop the spend cap too\"\n\n\ndef test_the_spend_cap_writes_no_state_outside_the_project(tmp_path):\n    \"\"\"No project root -> no counter file, and the call is allowed rather than refused.\"\"\"\n    outside = tmp_path / \"outside\"\n    outside.mkdir()\n    path = subagent(tmp_path, 234000, agent=\"agent-nostate\")\n    result = run_hook(tmp_path, path, project_dir=None, cwd=outside,\n                      extra_env={\"CK_AGENT_BUDGET\": \"100\"})\n    assert result.returncode == 0, \"an uncountable agent is allowed, never refused\"\n    assert not (outside / \".claude\").exists(), \"no state may be written outside the project\"\n\n\ndef test_raw_context_hatch_allows_an_oversize_session(tmp_path):"
+        }
+      ]
+    }
+  ]
+}

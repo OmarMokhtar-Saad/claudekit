@@ -1,6 +1,43 @@
 # Session State
 
 > Update this file at the end of every significant AI working session. It is the resume point.
+**2026-09-19 (11:xx) · Claude (Fable 5.1) — `main`, uncommitted, token-spend remediation. NOT committed.**
+Owner: two accounts spent 30M+ in two days. Transcript scan of both accounts (16,057 turns, 09-17→09-19):
+3.33B input tokens, 96% cache re-reads, qa-agents 84%. Drivers, measured: `[1m]` model on both accounts with
+`autoCompactWindow` 350K (7 sessions at 500–966K, 9 compactions in 2 days); up to 8 peer-bridged main sessions
+(305 peer messages, each a full-context turn); planners at 98 turns avg / 646M total (`maxTurns` did not bind
+before the gate); reviewer 56/56 APPROVED at 95–96; one simple plan→review→implement chain = 7.9M; reflection
+loop 436 writes, 0 reads; guards re-sent ~35M at blocks (a block at 443K is the dearest turn in a session).
+Shipped via ops (`ops-token-remediation-ck.json` + `-followup.json`): planner loses Bash, maxTurns 15/8/12 now
+bound by the context gate, five agents drop `memory:`, reflection-gate off Stop/SubagentStop/PreCompact/
+PostToolUse + its registry row, command-log-audit hook removed (3,137 parse failures, never worked), CHANGELOG,
+test constant + agent-memory README trimmed. Account-level (both settings.json): `[1m]` dropped, autocompact
+150K, warp plugin off. qa-agents: same frontmatter ops executed (362 tests green); its hook edits (vendored
+`cli.py` still resolves config cwd-relative — root cause of the adb/ImportError blocks — plus hook unwiring)
+were refused by the auto-mode classifier for a subagent; owner applies them from a qa-agents session.
+Memory: 77 stale project-type files archived (accounts share one dir; index covers 26 of 211 files).
+Umbrella plan + follow-ups (`ck implement`, inline `/plan`, `security.projectTools`, CLAUDE.md trim,
+deletions): `.claude/plans/plan-token-spend-remediation.md`. Reviewer skipped on owner's cost mandate.
+
+**2026-09-19 (05:xx) · Claude (Fable 5.1) — `main`, uncommitted on top of `1723a08`: agent contracts bind, spend cap, batch-reads nudge; fleet-synced.**
+Owner asked why sessions burn 1M+ on small features. Measured session 4c64b8ba (297M, 26 user messages,
+21 spawns): 98.6% of spend was coordination agents, implementer 1.4%. Every cap lived in frontmatter and
+none held — `memory: project` makes the harness grant Write+Edit (7/7 with it, 0/4 without: planner made
+64 Edits, code-reviewer 17 Writes), `maxTurns` ignored (40→216), `model:` overridden by the caller's
+`model: opus`. Cost model `turns × context` predicts each agent within 10%; the 45.8M planner never
+crossed 400K. Shipped in `context-budget-gate.py` (3 ops configs, archived): frontmatter tools with the
+memory-dir carve-out, maxTurns incl. reads (reads never refused), `calls × context` spend line, model
+escalation refusal at spawn; registry routes Read|Grep|Glob. Plus `batch-reads-nudge.py` (session 13e84805:
+2.6M, six files in fourteen calls at a 77K floor). First cut was registry-only and INERT in live sessions (settings.json wires
+PostToolUse individually; dispatch.sh is PreToolUse only) — caught on session 60554075, fixed, pinned by a test
+that executes the settings.json command string. Gate suite 42/42, nudge 16/16, 18 mutants caught, full
+suite 11,553 green (queued-ops gate now clear via archive). Fleet: gate + registry + nudge on 14 projects,
+each probed through its own dispatch.sh; owner commits downstream. Account-level: 5 overlapping plugins
+off, `atlassian` MCP removed everywhere (qa-agent-pro JIRA directive flow needs it re-added if used);
+qa-agents MEMORY.md 4.7K→2.7K tok (lessons → LESSONS.md), CLAUDE.md 250→156 lines (Hard Rules untouched,
+blocks archived in docs/DECISIONS.md). **Not committed** — owner's word pending. Open: `memory: project`
+removal is now optional; qa-agents Hard Rules section (~40% of its CLAUDE.md) is the owner's to trim.
+
 **2026-09-19 (00:xx) · Claude (Fable 5.1) — `main`, `5890fa4` + `8c59d35`, context-budget gate. PUSHED.**
 The fifth plan of the day closes the two gaps every earlier cap left: the main session (no frontmatter)
 and the built-in `general-purpose` agent (no definition of ours). `context-budget-gate.py` reads the
@@ -1074,3 +1111,26 @@ Implemented `.claude/plans/plan-remaining-fixes-2026-07-31.md` end to end:
 ## Suggested first task for a fresh session
 
 Run the DoD gate (see [MODEL_ONBOARDING.md](MODEL_ONBOARDING.md) §5) to confirm the tree is green, then pick up the top unblocked pending item.
+
+### 2026-09-19 (cont.) — command-guard ignored project config from a subdirectory cwd
+- Session 60554075 (qa-agents, 2.8M tokens, 0 agents): 5 of 17 Bash turns refused (`cd`×3, `sort`, `sed`) although qa-agents `config.json` sets `safeMode: false`. Cause: `security/cli.py` opened `.claude/hooks/config.json` cwd-relative; 303/333 payloads had cwd = `desktop/src/main/kotlin/.../setup`. Reproduced: pass from root, refuse from subdir (ECC_HOOK_PROFILE=standard — my earlier probes were vacuous under `minimal`).
+- Fix: `_project_config()` — `CLAUDE_PROJECT_DIR`, then walk up from cwd. 2 regression tests, mutant (cwd-only) caught. Live re-probe from the subdir: all exit 0. Plan archived `ops-command-guard-config-root`; also archived `ops-batch-reads-nudge-wiring`.
+- Open: 14/16 fleet projects run `safeMode` default with the 48-entry allowlist (no cd/sort/sed/uniq/cut/tr/awk/diff/stat/pwd/du) — every such turn is a wasted full-context call. Widening DEFAULT_ALLOWLIST is a policy change → owner decision.
+
+### 2026-09-19 (later) — token audit of session 60554075 → two commits + qa-agents applied
+- 89.9M tokens / 542 turns / 2 real user messages. Causes by spend: 125 turns above 250K context = 35.2M (39%); six `code-reviewer` rounds = 14.2M for 6.4K output; 32 wasted turns (24 hook denials + 8 script failures) ≈ 5.4M; floor 70.9K × 382 = 27.1M; Write churn 81→67 targets.
+- Shipped `558ed14` (bare `S=x` assignment is not an env override; steering names still refused) and `c9f7aea` (`review-round-cap.py` blocks the 4th code-reviewer per session, CK_REVIEW_ROUND_CAP owner knob; context WARN 150K; `proofCommandOrCheck` redacts paths instead of refusing). Commits built from a HEAD-based staging tree so 23 other-session worktree files stayed uncommitted.
+- qa-agents (uncommitted, owner's branch): hook + registry + gate + reflection + `config.json` allowlist (+33) + vendored validator @ c9f7aea + CLAUDE.md turn-hygiene line. `qa-agent-pro` MCP removed from both accounts' `.claude.json`.
+- Open: CLAUDE.md context floor is red AT HEAD (7797 B × 4 = 31188 > 31000) before this session's 156-byte line — owner picks what to trim. greptile/warp plugin toggles in `~/.claude*/settings.json` were classifier-denied — owner flips them. `test_strict_blocks_interpreter_smuggling` fails in the worktree because another session's uncommitted `safeMode` default flip is in `src/`.
+
+
+## 2026-09-19 boot-trim (session f8238882)
+CLAUDE.md policy block v3 -> v5 (full text in .ai/TOKEN_MODEL_POLICY.md). session-start.sh output caps 4000/2000/2400 -> 1200/600/800 chars. Local settings in both repos hide every never-invoked skill and 8 plugins; qa-agents lost its MCP servers. Open: e2e reflection test decision; an ops-enforcement opt-out for Tier 1 direct edits (classifier refused this session); qa-agents agent pruning; kit-level agent allowlist for `ck install`.
+
+- 2026-09-19 (deletions): `/refine`, `/santa`, `/gan-build`, `/xpipe` + `santa-method`, `gan-harness`, `xpipe.py`, `tests/test_xpipe.py`, `.agents/skills/{santa-method,gan-harness}` removed by owner decision (`git rm`, not ops.json — MAX_DELETIONS=3 would have needed 4 configs; owner approved the list verbatim). References updated in 8 commands, 3 agents, 2 skills, `docs/PARALLEL_AGENTS.md`, `.ai/{COMMANDS,WORKFLOW,GLOSSARY,BACKLOG}.md`, 11 templates (PARALLEL-AGENTS-POLICY v2->v3, XPipe text gone), `model-policy.json` (callsite_overrides.sites now empty), `lint-baseline.json`, `skills-registry.json` (rows removed by hand, then gen-registry), 6 tests. Same deletions mirrored in qa-agents (ops-remove-retired-commands.json there restores the pinned CLAUDE.md phrases). NOT committed. Still open: `ops-enforcement.sh:126` mentions `/refine` — hook edits are classifier-refused for the model; owner applies.
+
+- 2026-09-19: owner applied the `ECC_OPS_ENFORCEMENT=off` opt-out in `ops-enforcement.sh` (both repos; classifier refused the model four times). Regression test `tests/test_ops_enforcement_optout.py` (positive control + literal-off only + mutant check), docs/HOOKS.md section, CHANGELOG bullet. qa-agents `settings.local.json` env entry still to be added by the owner.
+
+- 2026-09-19: owner set `ECC_OPS_ENFORCEMENT=off` in qa-agents `.claude/settings.local.json` env (verified valid JSON). Effective from the next qa-agents session.
+
+- 2026-09-19: reconciled the 1331/1245 handoffs against the tree: TestModelRouting + test_doctor_gate green (fixed earlier this session), `numeric_ok` no longer exists, deletions done, command-guard allows `git status` (exit 0 under standard profile). Plan section C marked DONE; qa-agents frontmatter plan now names the archived ops path. Open owner calls: vendorparity direction (re-vendor claudekit rule vs keep qa-agents refusal), 24 `.claude.bak-*` dirs (877 MB) in qa-agents, section E backlog, fleet sync after commit.

@@ -1,0 +1,21 @@
+{
+  "plan": "batch-reads-nudge-style",
+  "operations": [
+    {
+      "type": "code_edit",
+      "id": "brn-04-style",
+      "path": "tests/test_batch_reads_nudge.py",
+      "description": "E702: one statement per line",
+      "edits": [
+        {
+          "find": "        env = dict(os.environ); env[\"CK_NO_READ_NUDGE\"] = \"1\"; env[\"CLAUDE_PROJECT_DIR\"] = str(tmp_path)\n",
+          "replace": "        env = dict(os.environ)\n        env[\"CK_NO_READ_NUDGE\"] = \"1\"\n        env[\"CLAUDE_PROJECT_DIR\"] = str(tmp_path)\n"
+        },
+        {
+          "find": "    outside = tmp_path / \"outside\"; outside.mkdir()\n",
+          "replace": "    outside = tmp_path / \"outside\"\n    outside.mkdir()\n"
+        }
+      ]
+    }
+  ]
+}

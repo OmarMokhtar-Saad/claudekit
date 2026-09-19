@@ -23,12 +23,12 @@ index never outranks the current files.
 | State | Plans |
 |---|---:|
 | `drifted` | 12 |
-| `approved` | 61 |
+| `approved` | 62 |
 | `planned` | 23 |
 | `executed` | 30 |
 | `not_started` | 24 |
 | `legacy` | 5 |
-| **total** | **155** |
+| **total** | **156** |
 
 ## Plans
 
@@ -152,6 +152,7 @@ index never outranks the current files.
 | `.claude/plans/plan-review-loop-3.md` | `planned` | 1 |  |
 | `.claude/plans/plan-review-loop-tripwire.md` | `approved` | 1 |  |
 | `.claude/plans/plan-review-loop.md` | `planned` | 4 |  |
+| `.claude/plans/plan-review-record-ops-root.md` | `approved` | 1 |  |
 | `.claude/plans/plan-review-round-2.md` | `executed` | 18 |  |
 | `.claude/plans/plan-review-round-history.md` | `approved` | 1 |  |
 | `.claude/plans/plan-review-truthfulness-batch.md` | `approved` | 1 |  |

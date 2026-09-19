@@ -1,0 +1,17 @@
+{
+  "plan": "agent-contract-gate-changelog",
+  "operations": [
+    {
+      "type": "code_edit",
+      "id": "cg-11-changelog",
+      "path": "CHANGELOG.md",
+      "description": "[Unreleased] entry for the agent-contract gate",
+      "edits": [
+        {
+          "find": "## [Unreleased]\n",
+          "replace": "## [Unreleased]\n- **Agent frontmatter now binds, and a subagent's spend has a ceiling.** Measured on one\n  297M-token session (26 user messages, 21 spawns): every cap this kit ships lives in agent\n  frontmatter, and none of it held. The planner (`maxTurns: 40`, no `Edit`) ran 216 turns\n  and made 64 Edits; the reviewer (`model: sonnet`, `Read/Grep/Glob`) ran 137 opus turns and\n  wrote files; the code-reviewer made 17 Writes. Cause of the tool leak: the harness grants\n  Write+Edit to every agent that declares `memory:` \u2014 7 of 7 agents with it got them, 0 of 4\n  without. Cause of the model leak: the caller passed `model: opus` in the spawn. Cause of\n  the bill: cost is `turns \u00d7 context`, and the 45.8M planner never crossed the 400K context\n  line \u2014 it sat at a 234K median for 216 turns.\n  `context-budget-gate.py` now enforces, for spawned agents only: the frontmatter `tools:`\n  list, with Write/Edit scoped to the agent's own `.claude/agent-memory/<type>/` when\n  `memory:` is declared (memory keeps working; the planner stops implementing);\n  `maxTurns:`, counted as tool calls including Read/Grep/Glob; a `calls \u00d7 context` spend\n  line (`CK_AGENT_BUDGET`, default 15M); and, at spawn time, a refusal to escalate `model`\n  above what the target's frontmatter declares (`CK_ALLOW_MODEL_OVERRIDE=1` to allow).\n  Read, Grep and Glob are counted but never refused, so every refusal's \"hand back what you\n  have\" stays possible. Agent type comes from the payload or the harness's\n  `agent-<id>.meta.json`. 16 behavioural tests; 12 mutants applied and caught. Cost: ~40ms\n  per Read, same as the read guard.\n"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "plan": "token-remediation-ck-followup",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_agent_frontmatter.py",
+      "edits": [
+        {
+          "find": "MEMORY_AGENTS = {\"code-reviewer\", \"debugger\", \"explore\", \"planner\", \"reviewer\",\n                 \"security-scanner\", \"verifier\"}",
+          "replace": "MEMORY_AGENTS = {\"code-reviewer\", \"planner\"}\n# Trimmed 2026-09-19: debugger, explore, reviewer, security-scanner and verifier had never\n# written to their memory dirs in two days of transcripts, and the field grants Write+Edit."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/agent-memory/README.md",
+      "edits": [
+        {
+          "find": "Agents carrying `memory: project` in this kit: `code-reviewer`, `debugger`, `explore`,\n`verifier`, `security-scanner`, `planner`, `reviewer`.",
+          "replace": "Agents carrying `memory: project` in this kit: `code-reviewer` and `planner`. Five other\nagents dropped the field on 2026-09-19: over two days of transcripts none had written to its\nmemory dir, and the field silently grants Write and Edit to a read-only agent."
+        }
+      ]
+    }
+  ],
+  "baseline": {
+    ".claude/agent-memory/README.md": "sha256:d49d20c5a174913b4a1f3627ea42ac31b1f4615909ef55572f0b762c42025daa",
+    "tests/test_agent_frontmatter.py": "sha256:087b8273b27fe9d665319a3561d7827ec424410c9c8abc4a2627eb30e0a8222a"
+  }
+}

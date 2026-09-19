@@ -1,0 +1,33 @@
+{
+  "plan": "batch-reads-nudge-wiring",
+  "operations": [
+    {
+      "type": "code_edit",
+      "id": "brnw-01-settings",
+      "path": ".claude/settings.json",
+      "description": "wire batch-reads-nudge.py as a PostToolUse hook on Bash (settings.json is the wiring; the registry row is not)",
+      "edits": [
+        {
+          "find": "{\n        \"matcher\": \"Bash\",\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"bash -c 'ROOT=\\\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\\\"; python3 \\\"$ROOT/.claude/hooks/output_filter.py\\\"'\"\n          }\n        ]\n      }",
+          "replace": "{\n        \"matcher\": \"Bash\",\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"bash -c 'ROOT=\\\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\\\"; python3 \\\"$ROOT/.claude/hooks/output_filter.py\\\"'\"\n          }\n        ]\n      },\n      {\n        \"matcher\": \"Bash\",\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"bash -c 'ROOT=\\\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\\\"; python3 \\\"$ROOT/.claude/hooks/batch-reads-nudge.py\\\"'\"\n          }\n        ]\n      }"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "id": "brnw-02-tests",
+      "path": "tests/test_batch_reads_nudge.py",
+      "description": "pin the settings.json wiring and execute its exact command string",
+      "edits": [
+        {
+          "find": "def test_registry_row_is_advisory_on_bash():",
+          "replace": "def test_settings_json_wires_the_hook_on_bash():\n    \"\"\"THE wiring. settings.json routes only PreToolUse through dispatch.sh; every PostToolUse\n    hook is its own entry. A registry row alone left this hook inert in live sessions - the\n    first version shipped that way and a real session with seven consecutive reads never saw\n    the nudge. This test reads what Claude Code reads.\"\"\"\n    settings = json.loads((ROOT / \".claude\" / \"settings.json\").read_text(encoding=\"utf-8\"))\n    groups = settings[\"hooks\"][\"PostToolUse\"]\n    wired = [g for g in groups if any(\"batch-reads-nudge.py\" in h.get(\"command\", \"\") for h in g.get(\"hooks\", []))]\n    assert wired, \"batch-reads-nudge.py is not in settings.json PostToolUse; live sessions never run it\"\n    assert wired[0].get(\"matcher\") == \"Bash\", \"the nudge must run on Bash only\"\n    cmd = wired[0][\"hooks\"][0][\"command\"]\n    assert \"CLAUDE_PROJECT_DIR\" in cmd and \"python3\" in cmd, cmd\n\n\ndef test_the_settings_command_string_runs_the_hook(tmp_path):\n    \"\"\"Execute the exact command string settings.json carries, as Claude Code would.\"\"\"\n    settings = json.loads((ROOT / \".claude\" / \"settings.json\").read_text(encoding=\"utf-8\"))\n    cmd = next(h[\"command\"] for g in settings[\"hooks\"][\"PostToolUse\"] for h in g[\"hooks\"]\n               if \"batch-reads-nudge.py\" in h.get(\"command\", \"\"))\n    env = dict(os.environ)\n    env.pop(\"CK_NO_READ_NUDGE\", None)\n    env[\"CLAUDE_PROJECT_DIR\"] = str(ROOT)\n    session = \"settings-string-%d\" % os.getpid()\n    outs = []\n    for i in range(5):\n        payload = json.dumps({\"session_id\": session, \"tool_name\": \"Bash\",\n                              \"tool_input\": {\"command\": \"cat f%d.py\" % i}, \"tool_response\": {\"stdout\": \"x\"}})\n        r = subprocess.run([\"bash\", \"-c\", cmd], input=payload, capture_output=True, text=True, env=env, cwd=str(tmp_path))\n        assert r.returncode == 0, r.stderr\n        outs.append(r.stdout)\n    state = ROOT / \".claude\" / \"hooks\" / \".state\" / (\"read-streak-\" + session)\n    try:\n        assert \"[ck batch-reads]\" in outs[4], outs\n        assert all(\"[ck batch-reads]\" not in o for o in outs[:4])\n    finally:\n        if state.exists():\n            state.unlink()\n\n\ndef test_registry_row_is_advisory_on_bash():"
+        },
+        {
+          "find": "  * exit non-zero on nudge                    => every nudging test RED on returncode\n",
+          "replace": "  * exit non-zero on nudge                    => every nudging test RED on returncode\n  * remove the settings.json PostToolUse entry => test_settings_json_wires_the_hook_on_bash\n                                                 RED (the registry row alone is NOT wiring)\n"
+        }
+      ]
+    }
+  ]
+}

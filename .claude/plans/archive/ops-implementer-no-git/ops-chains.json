@@ -1,0 +1,27 @@
+{
+  "plan": "ops-implementer-no-git-chains",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_iron_law_hook.py",
+      "description": "re-head the chain cases off `git status` so they stay bound to the metacharacter guard",
+      "edits": [
+        {
+          "find": "    (\"git status; rm src/x.py\", \"semicolon-chain\"),\n    (\"git status && rm src/x.py\", \"and-chain\"),\n    (\"git status || rm src/x.py\", \"or-chain\"),\n    (\"cat f | tee src/x.py\", \"pipe-to-tee\"),\n    (\"git status\\nrm src/x.py\", \"newline-second-command\"),",
+          "replace": "    (\"cat README.md; rm src/x.py\", \"semicolon-chain\"),\n    (\"cat README.md && rm src/x.py\", \"and-chain\"),\n    (\"cat README.md || rm src/x.py\", \"or-chain\"),\n    (\"cat f | tee src/x.py\", \"pipe-to-tee\"),\n    (\"cat README.md\\nrm src/x.py\", \"newline-second-command\"),"
+        },
+        {
+          "find": "     (\"cat-append\", \"heredoc\", \"and-chain\", \"or-chain\", \"pipe-to-tee\",\n      \"newline-second-command\")),",
+          "replace": "     (\"cat-append\", \"heredoc\", \"semicolon-chain\", \"and-chain\", \"or-chain\",\n      \"pipe-to-tee\", \"newline-second-command\")),"
+        },
+        {
+          "find": "     (\"cat-redirect\", \"cat-append\", \"heredoc\", \"and-chain\", \"or-chain\",\n      \"newline-second-command\")),",
+          "replace": "     (\"cat-redirect\", \"cat-append\", \"heredoc\", \"semicolon-chain\", \"and-chain\",\n      \"or-chain\", \"newline-second-command\")),"
+        }
+      ]
+    }
+  ],
+  "baseline": {
+    "tests/test_iron_law_hook.py": "sha256:ca9fd22ba2edca4186023d26eab8e13d6ca210dad89d828be6662bd32597f951"
+  }
+}

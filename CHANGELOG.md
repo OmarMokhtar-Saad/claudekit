@@ -11,6 +11,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `open-source-forker` — never shipped and have been removed.
 
 ## [Unreleased]
+
+- **Removed `/refine`, `/santa`, `/gan-build` and `/xpipe`** with the `santa-method` and
+  `gan-harness` skills, `xpipe.py` and its tests (owner decision 2026-09-19, token cost).
+  Plan-review looping is `/plan` -> `/review` by hand (3 rounds ceiling); dual review is
+  `/review --dual`; there is no cross-account pipeline. Templates' Parallel Agents Policy
+  block is now `v3` without the XPipe text; every command, agent, skill, doc and test that
+  pointed at the four commands was updated, and `model-policy.json` no longer carries
+  their `--model` call-site overrides.
+- **`ECC_OPS_ENFORCEMENT=off`** — a per-project opt-out of the `ops-enforcement` hook alone,
+  set in `.claude/settings.local.json` `env`; the `standard` profile's other hooks keep binding.
+  Only the literal `off` opts out (`tests/test_ops_enforcement_optout.py`). The hook's block
+  message no longer points at the retired `/refine`.
+
+- **`security.projectTools`** — a new array in `.claude/hooks/config.json` naming command
+  heads that drive a device or a build sandbox rather than the host (`adb`, `emulator`,
+  `gradle`, `./gradlew`, `xcrun`). A declared head is exempt from the allowlist check and
+  from the whole-command host-pattern scan, so `adb shell rm -rf /sdcard/x` is allowed
+  while `rm -rf /` stays refused — the blocklist is checked first and is never exempt. The
+  host-pattern skip requires *every* segment head to be a declared tool and is withheld
+  from any command carrying a substitution or a redirect. Empty by default: with no entry
+  the validator behaves exactly as before.
+
+- Token policy v5 in CLAUDE.md (short form; full text and measurements in `.ai/TOKEN_MODEL_POLICY.md`): Tier 1 needs no ops.json scripting, review and verifier only on request, one task per session. CLAUDE.md is back under the context floor.
+- session-start.sh prints at most 1.2 K chars of previous-session excerpt, 600 of footprint and 800 of memory context (was 4 K / 2 K / 2.4 K): SessionStart output is re-sent on every turn.
+- New `claudekit implement <ops.json>` (`ck implement`): validate -> dry-run ->
+  execute -> the validation commands the owning plan names, stopping at the first
+  stage that does not exit 0 and printing one `RESULT:` line. It is the implementer
+  agent's sequence without the agent — Tier 1/2 work now costs one command instead of
+  a subagent conversation. The Iron Law is unchanged: the work still flows through an
+  ops.json and the operations engine. Validation commands run without a shell; one
+  carrying a pipe or redirect is reported as skipped.
+- Reflection gate no longer blocks Stop/SubagentStop/PreToolUse (write-only loop: 0 reads in
+  2 days); command-log-audit hook removed (never parsed a payload); planner loses Bash,
+  planner/reviewer/implementer get binding turn caps 15/8/12; five agents drop unused
+  `memory:`.
 - **Token-spend fixes from the audit of qa-agents session 60554075** (89.9M tokens, 542
   turns, 2 user messages): (1) command-guard no longer refuses a bare shell assignment
   (`S=/tmp/x` on its own line or before `;`) as an "environment override" — it runs no
@@ -23,6 +58,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `CK_REVIEW_ROUND_CAP=N` (0 disables). (4) `reflection.py` redacts the path shape in
   `proofCommandOrCheck` instead of refusing the receipt — a proof command legitimately
   names files, and each refusal cost two full-context turns.
+- **Security: command-guard's allowlist is now opt-in (`security.safeMode` defaults to
+  `false`).** With it on, every `cd`, `sort`, `sed`, `uniq`, `cut`, `awk`, `diff` and every
+  `VAR=x cmd` prefix the agent tried was a refused turn paid at full context; 14 of 16 fleet
+  projects ran that way. The denylist (recursive root deletes, sudo, /etc writes, fork bombs,
+  destructive git resets) still refuses in both modes. The env-assignment allowlist is now
+  gated on `safeMode`, so an IFS-prefixed `ls` passes with it off (disclosed widening) while a
+  prefixed destructive command still refuses. Interpreter smuggling (`bash -c '...'`) is an
+  allowlist catch and is only refused with `safeMode: true`. Owner decision 2026-09-19:
+  "make all commands allowed, we will handle it later." Framing unchanged: a denylist speed
+  bump, not a sandbox.
 - **`review-record.py` records follow the ops file's tree, not the cwd.** `write`, `check`,
   `diff` and `author` (and `record-code-review`, which calls `write`) now resolve
   `.claude/reports/reviews/` against the git toplevel of the ops file, falling back to the old
@@ -36,6 +81,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   trends, and the `block-no-verify` hook now denies any agent Bash command carrying it, under
   every profile. That deny is a speed bump against agents, not a sandbox: a script written
   first, or a hand-written record file, still gets past it.
+- **command-guard now honors the project's `config.json` from any working directory.**
+  `check-command` looked for `.claude/hooks/config.json` relative to the hook's cwd, and
+  Claude Code runs hooks with cwd = the directory the session was started in. A session
+  opened in a subdirectory therefore ran the guard with default policy (safeMode on, the
+  48-entry default allowlist) and silently ignored `security.safeMode` / `allowedCommands`.
+  Measured: one session lost 5 of 17 Bash turns to `cd`/`sort`/`sed` refusals its own
+  config allowed — each a full-context API call. The config is now resolved from
+  `CLAUDE_PROJECT_DIR`, then by walking up from cwd.
+- **Agent frontmatter now binds, and a subagent's spend has a ceiling.** Measured on one
+  297M-token session (26 user messages, 21 spawns): every cap this kit ships lives in agent
+  frontmatter, and none of it held. The planner (`maxTurns: 40`, no `Edit`) ran 216 turns
+  and made 64 Edits; the reviewer (`model: sonnet`, `Read/Grep/Glob`) ran 137 opus turns and
+  wrote files; the code-reviewer made 17 Writes. Cause of the tool leak: the harness grants
+  Write+Edit to every agent that declares `memory:` — 7 of 7 agents with it got them, 0 of 4
+  without. Cause of the model leak: the caller passed `model: opus` in the spawn. Cause of
+  the bill: cost is `turns × context`, and the 45.8M planner never crossed the 400K context
+  line — it sat at a 234K median for 216 turns.
+  `context-budget-gate.py` now enforces, for spawned agents only: the frontmatter `tools:`
+  list, with Write/Edit scoped to the agent's own `.claude/agent-memory/<type>/` when
+  `memory:` is declared (memory keeps working; the planner stops implementing);
+  `maxTurns:`, counted as tool calls including Read/Grep/Glob; a `calls × context` spend
+  line (`CK_AGENT_BUDGET`, default 15M); and, at spawn time, a refusal to escalate `model`
+  above what the target's frontmatter declares (`CK_ALLOW_MODEL_OVERRIDE=1` to allow).
+  Read, Grep and Glob are counted but never refused, so every refusal's "hand back what you
+  have" stays possible. Agent type comes from the payload or the harness's
+  `agent-<id>.meta.json`. 16 behavioural tests; 12 mutants applied and caught. Cost: ~40ms
+  per Read, same as the read guard.
+- **A nudge to batch reads.** New advisory PostToolUse hook `batch-reads-nudge.py`: after 5
+  consecutive read-only Bash calls it prints one line asking for the next reads to be combined
+  into a single call. Measured cause: a 2.6M-token session that read six files in fourteen
+  separate calls at 77K of context each — reads cost by the turn, not by the byte. The
+  classifier is conservative (every pipeline segment must be a known read, no file redirect,
+  `sed` without `-i`, `git` read subcommands only); anything unknown resets the streak, so it
+  can only under-fire. `CK_NO_READ_NUDGE=1` silences it. Wired in `settings.json` (PostToolUse
+  hooks are wired individually there; only PreToolUse goes through `dispatch.sh`, so a registry
+  row alone is inert — the first cut shipped that way and a test now reads the wiring Claude Code
+  reads). 18 tests, 7 mutants caught.
 - **Main-session context now has a ceiling, and the one unbounded spawn is refused.** Every
   cap shipped with the read guard lives in agent frontmatter, so none of them can reach the
   main session (it has no frontmatter) or the built-in `general-purpose` agent (we do not

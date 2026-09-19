@@ -1,0 +1,45 @@
+{
+  "plan": "contrib-governance-p4",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".ai/KNOWLEDGE_BASE.md",
+      "edits": [
+        {
+          "find": "10. Zero runtime Python dependencies.",
+          "add_after": "\n11. Repo-scoped files are not user assets. `CLAUDE.md`, `AGENTS.md` and everything in\n    `.ai/` describe THIS repository; only the corpus under `.claude/` is reusable. Never\n    write a doc, prompt or template that tells a user to copy this repo's own instruction\n    files into their project, and never ship one downstream. The reason is not tidiness:\n    `ck fleet update` physically copies assets into 14+ projects, and a maintainer file\n    that leaks carries hard rules about *our* hooks, *our* gates and *our* release process\n    into a codebase where every one of them is false. The structural guard is that fleet\n    sync only carries what lives under `.claude/` — do not defeat it by moving a\n    maintainer file there.\n12. Write the procedure, not the workaround. A prompt step that cannot be justified\n    without naming a model, a model version or one agent's private tool name is a defect:\n    name the CAPABILITY (`most-capable` / `balanced` / `fast`). `.claude/model-policy.json`\n    is the one table where model names are legal, because changing a model there is a\n    one-line edit. Enforced by `scripts/check-prompt-model-names.py`, whose allowlist\n    requires a reason per entry and a `max` per whole-file exemption."
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/knowledge-ledger.py",
+      "edits": [
+        {
+          "find": "ORIGINS = (\"code\", \"workflow\", \"project\")",
+          "replace": "# \"skill-gap\": a shipped skill or prompt misfired for someone using it. Recorded here\n# rather than in a new store (task 008) and reported with the four-field form in\n# .claude/knowledge/TEMPLATE-skill-gap.md: affected skill, the offending excerpt quoted\n# verbatim, the project context, and what the user did instead.\nORIGINS = (\"code\", \"workflow\", \"project\", \"skill-gap\")"
+        }
+      ]
+    },
+    {
+      "type": "file_create",
+      "path": ".claude/knowledge/TEMPLATE-skill-gap.md",
+      "content": "# Skill-gap report (form)\n\nA skill fired and gave you the wrong procedure, or should have fired and did not. Four\nfields — they are the minimum that makes a report actionable by someone who was not in\nyour session.\n\nThis file is a **form, not an entry**. It sits above `issues/` on purpose, so the ledger\nnever reads it as a record.\n\n## The four fields\n\n1. **Affected skill** — the directory name under `.claude/skills/`, e.g. `clarify`. If\n   you do not know which skill produced the behaviour, say what you asked for; naming\n   the wrong skill is worse than naming none.\n2. **The offending excerpt** — the lines from `SKILL.md` that produced the behaviour,\n   **quoted verbatim**. A paraphrase cannot be grepped back to the file that caused it,\n   so a paraphrased report costs the next reader a re-investigation.\n3. **Project context** — what kind of repository, what you were doing, anything about the\n   setup that a maintainer running this repo would not have. Most skill gaps are gaps\n   between the skill's assumed project and yours.\n4. **What you did instead** — the procedure that actually worked. This is the most\n   valuable field and the one most often omitted: it is the candidate fix.\n\n## Filing it\n\n```bash\npython3 .claude/operations/scripts/knowledge-ledger.py open \\\n  --slug \"<skill>-<short-phrase>\" \\\n  --signature \"<one line: what the skill did that was wrong>\" \\\n  --origin skill-gap\n```\n\nThen paste the four fields into the receipt the command created, under a `## Skill gap`\nheading:\n\n```markdown\n## Skill gap\n\n- affected skill: clarify\n- offending excerpt: |\n    (verbatim lines from .claude/skills/clarify/SKILL.md)\n- project context: monorepo, no test suite, the request was a one-line config change\n- what I did instead: answered the likeliest interpretation and named the assumption\n```\n\n`--origin skill-gap` is what separates these from code and workflow findings, so\n`knowledge-ledger.py search` and the reflection path can retrieve them as a class.\n\n## Before you file\n\nSearch first — `knowledge-ledger.py search \"<keywords>\"`. Exit 3 means nothing is\nrecorded, which means *unknown*, not \"never happened\". If you find a prior, add your\ncontext to it rather than opening a second receipt for the same gap.\n\nIf the fix you propose has been tried and rejected before, it will be in the other store:\n`review-record.py rejections search \"<keywords>\"`.\n"
+    },
+    {
+      "type": "file_create",
+      "path": "tests/test_skill_gap_intake.py",
+      "content": "\"\"\"Behavioural tests for skill-gap intake (C5).\n\nThe negative control is the load-bearing one: a widened enum that accepts anything is\nnot a widened enum, it is a removed check. `--origin skill-gap` being accepted proves\nnothing on its own.\n\"\"\"\n\nimport os\nimport subprocess\nimport sys\nfrom pathlib import Path\n\n# Forced explicitly rather than inherited, per CLAUDE.md.\nos.environ[\"ECC_HOOK_PROFILE\"] = \"minimal\"\n\nREPO = Path(__file__).resolve().parent.parent\nLEDGER = REPO / \".claude\" / \"operations\" / \"scripts\" / \"knowledge-ledger.py\"\nTEMPLATE = REPO / \".claude\" / \"knowledge\" / \"TEMPLATE-skill-gap.md\"\n\n\ndef run(cwd, *argv):\n    env = dict(os.environ)\n    env[\"ECC_HOOK_PROFILE\"] = \"minimal\"\n    return subprocess.run(\n        [sys.executable, str(LEDGER)] + [str(a) for a in argv],\n        cwd=str(cwd), capture_output=True, text=True, timeout=60, env=env,\n    )\n\n\ndef tree(tmp_path):\n    (tmp_path / \".claude\" / \"knowledge\" / \"issues\").mkdir(parents=True)\n    return tmp_path\n\n\ndef issues(root):\n    return sorted((root / \".claude\" / \"knowledge\" / \"issues\").glob(\"*.md\"))\n\n\ndef test_a_skill_gap_can_be_filed_against_the_existing_receipt_path(tmp_path):\n    root = tree(tmp_path)\n    result = run(root, \"open\",\n                 \"--slug\", \"clarify-answered-instead-of-asking\",\n                 \"--signature\", \"clarify answered an ambiguous request instead of \"\n                                \"asking the reverse question\",\n                 \"--origin\", \"skill-gap\")\n    assert result.returncode == 0, result.stderr\n    written = issues(root)\n    assert written, \"no receipt was written\"\n    assert any(\"skill-gap\" in path.read_text(encoding=\"utf-8\") for path in written)\n\n\ndef test_an_unknown_origin_is_still_refused(tmp_path):\n    \"\"\"THE NEGATIVE CONTROL. Widening an enum must not disable it.\"\"\"\n    root = tree(tmp_path)\n    result = run(root, \"open\",\n                 \"--slug\", \"whatever\",\n                 \"--signature\", \"something went wrong somewhere in the pipeline\",\n                 \"--origin\", \"nonsense\")\n    assert result.returncode != 0\n    assert not issues(root)\n\n\ndef test_the_form_asks_for_all_four_fields():\n    text = TEMPLATE.read_text(encoding=\"utf-8\").casefold()\n    for field in (\"affected skill\", \"offending excerpt\", \"project context\",\n                  \"what you did instead\"):\n        assert field in text, \"the form no longer asks for %r\" % field\n    # The excerpt has to be quotable back to its source file; a paraphrase costs the\n    # next reader the whole investigation again.\n    assert \"verbatim\" in text\n    assert \"--origin skill-gap\" in text\n\n\ndef test_the_form_is_not_itself_a_ledger_entry(tmp_path):\n    \"\"\"It lives above issues/ so the ledger cannot mistake the form for a record.\"\"\"\n    assert TEMPLATE.parent.name == \"knowledge\"\n    root = tree(tmp_path)\n    (root / \".claude\" / \"knowledge\" / \"TEMPLATE-skill-gap.md\").write_text(\n        TEMPLATE.read_text(encoding=\"utf-8\"), encoding=\"utf-8\")\n    listing = run(root, \"list\")\n    assert \"TEMPLATE\" not in listing.stdout\n"
+    },
+    {
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "edits": [
+        {
+          "find": "## [Unreleased]",
+          "add_after": "\n- **A skill that misfires now has somewhere to go.** `knowledge-ledger.py open` accepts\n  `--origin skill-gap`, and `.claude/knowledge/TEMPLATE-skill-gap.md` is the four-field form\n  that makes such a report actionable: the affected skill, the offending excerpt **quoted\n  verbatim**, the project context, and what you did instead — the last being the candidate\n  fix, and the field most often omitted. No new store and no new command: skill gaps land in\n  the receipt path that already exists, retrievable as a class through\n  `knowledge-ledger.py search`."
+        }
+      ]
+    }
+  ]
+}
