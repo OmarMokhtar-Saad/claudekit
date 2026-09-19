@@ -16,6 +16,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import shutil
 import sys
 from datetime import datetime, timezone
@@ -171,6 +172,66 @@ def survey_superseded(projects):
     return out
 
 
+# ---- B4: the auto-compact window ------------------------------------------------------
+# The context cap that actually holds a session under 200K is a SETTING, `autoCompactWindow`
+# in .claude/settings.json (the env var CLAUDE_CODE_AUTO_COMPACT_WINDOW would override the
+# tester's /autocompact; the setting does not). install.sh copies settings.json; this script
+# never touched it, so every install kitted before the setting existed was missed. The kit's
+# own settings.json is the single producer of the value.
+AUTOCOMPACT_KEY = "autoCompactWindow"
+
+
+def read_autocompact_window(settings_path: str) -> Optional[int]:
+    """The kit's `autoCompactWindow`, or None when the file or the key is missing."""
+    try:
+        with open(settings_path, encoding="utf-8") as fh:
+            value = json.load(fh).get(AUTOCOMPACT_KEY)
+    except (OSError, ValueError, AttributeError):
+        return None
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None
+    return value
+
+
+def carry_autocompact_window(project_dir: str, kit_value: int, dry: bool) -> Tuple[str, str]:
+    """Insert `autoCompactWindow` into <project>/.claude/settings.json when the key is ABSENT.
+
+    Returns (log_key, line) for the fleet report. Surgical: the key goes in as the first
+    member, textually, so nothing else in the file is reformatted. Never overwrites: a present
+    value, equal to the kit's or not, is the operator's and is logged as skipped.
+    """
+    path = os.path.join(project_dir, ".claude", "settings.json")
+    if not os.path.isfile(path):
+        return "skipped", f"settings.json: absent -- no {AUTOCOMPACT_KEY} edit"
+    text = open(path, encoding="utf-8").read()
+    try:
+        settings = json.loads(text)
+    except ValueError as e:
+        return "skipped", f"settings.json: not valid JSON ({e}) -- left alone"
+    if not isinstance(settings, dict):
+        return "skipped", "settings.json: top level is not an object -- left alone"
+    if AUTOCOMPACT_KEY in settings:
+        current = settings[AUTOCOMPACT_KEY]
+        if current == kit_value:
+            return "skipped", f"settings.json: {AUTOCOMPACT_KEY}={kit_value} already present"
+        return "skipped", (f"settings.json: {AUTOCOMPACT_KEY}={current!r} DIFFERS from the "
+                           f"kit's {kit_value} -- left alone (operator choice)")
+    if settings:
+        brace = text.index("{")
+        m = re.match(r"\{[ \t]*\n([ \t]*)", text[brace:])
+        indent = m.group(1) if m else "  "
+        new_text = (text[:brace + 1] + "\n" + indent + json.dumps(AUTOCOMPACT_KEY) + ": "
+                    + str(kit_value) + "," + text[brace + 1:])
+    else:
+        new_text = json.dumps({AUTOCOMPACT_KEY: kit_value}, indent=2) + "\n"
+    merged = json.loads(new_text)  # the insertion must leave a valid file behind
+    assert merged.get(AUTOCOMPACT_KEY) == kit_value
+    if not dry:
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(new_text)
+    return "edited", f"settings.json: +{AUTOCOMPACT_KEY}={kit_value}"
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true")
@@ -178,6 +239,7 @@ def main():
         KIT, ".claude", "reports", "fleet-sync-2026-08-25.md"))
     args = ap.parse_args()
     dry = args.dry_run
+    kit_window = read_autocompact_window(os.path.join(KIT, ".claude", "settings.json"))
 
     projects = sorted(STACKS)
     peers = survey_superseded(projects)
@@ -325,6 +387,14 @@ def main():
                         f"skills-registry.json: +{len(new)} row(s), -{len(gone)} dangling")
             except Exception as e:
                 L["skipped"].append(f"skills-registry.json: not updated ({e})")
+
+        # ---- B4: carry autoCompactWindow into settings.json (insert-if-absent) ----
+        if kit_window is None:
+            L["skipped"].append(f"settings.json: claudekit's own settings.json has no "
+                                f"{AUTOCOMPACT_KEY} -- nothing to carry")
+        else:
+            key, line = carry_autocompact_window(os.path.join(ROOT, p), kit_window, dry)
+            L[key].append(line)
 
     # ---- B5: the report the owner reviews before committing anything ----------
     lines = [
