@@ -24,11 +24,11 @@ index never outranks the current files.
 |---|---:|
 | `drifted` | 12 |
 | `approved` | 62 |
-| `planned` | 23 |
+| `planned` | 33 |
 | `executed` | 30 |
-| `not_started` | 24 |
+| `not_started` | 26 |
 | `legacy` | 5 |
-| **total** | **156** |
+| **total** | **168** |
 
 ## Plans
 
@@ -57,6 +57,7 @@ index never outranks the current files.
 | `.claude/plans/plan-capability-tiers.md` | `drifted` | 1 |  |
 | `.claude/plans/plan-ck-adapt.md` | `approved` | 1 |  |
 | `.claude/plans/plan-ck-fleet.md` | `planned` | 1 |  |
+| `.claude/plans/plan-ck-implement.md` | `planned` | 3 |  |
 | `.claude/plans/plan-cli-live-findings.md` | `executed` | 4 |  |
 | `.claude/plans/plan-close2.md` | `executed` | 2 |  |
 | `.claude/plans/plan-code-review-triage.md` | `approved` | 1 |  |
@@ -66,6 +67,11 @@ index never outranks the current files.
 | `.claude/plans/plan-context-budget-lazy-skills.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-context-economy-rules.md` | `approved` | 1 |  |
 | `.claude/plans/plan-context-recovery-refinement.md` | `approved` | 1 |  |
+| `.claude/plans/plan-contrib-governance-p1.md` | `planned` | 1 |  |
+| `.claude/plans/plan-contrib-governance-p2.md` | `planned` | 1 |  |
+| `.claude/plans/plan-contrib-governance-p3.md` | `planned` | 1 |  |
+| `.claude/plans/plan-contrib-governance-p4.md` | `planned` | 1 |  |
+| `.claude/plans/plan-contrib-governance.md` | `planned` | 4 |  |
 | `.claude/plans/plan-day-one-blockers.md` | `approved` | 1 |  |
 | `.claude/plans/plan-dispatcher-payload.md` | `drifted` | 2 |  |
 | `.claude/plans/plan-doctor-gate.md` | `approved` | 1 |  |
@@ -92,6 +98,7 @@ index never outranks the current files.
 | `.claude/plans/plan-hook-log-dedup.md` | `executed` | 3 |  |
 | `.claude/plans/plan-hook-profiles.md` | `approved` | 1 |  |
 | `.claude/plans/plan-hook-stdin-and-reflection.md` | `approved` | 1 |  |
+| `.claude/plans/plan-implementer-no-git.md` | `planned` | 2 |  |
 | `.claude/plans/plan-install-preservation-and-xpipe-policy.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-install-receipts.md` | `approved` | 1 |  |
 | `.claude/plans/plan-installer-python-hooks.md` | `approved` | 1 |  |
@@ -119,12 +126,15 @@ index never outranks the current files.
 | `.claude/plans/plan-parse-gate-ordering.md` | `drifted` | 2 |  |
 | `.claude/plans/plan-parse-gate-unresolved-paths.md` | `drifted` | 2 |  |
 | `.claude/plans/plan-pipeline-session-hygiene.md` | `planned` | 1 |  |
+| `.claude/plans/plan-plan-inline.md` | `planned` | 2 |  |
 | `.claude/plans/plan-planner-read-and-turn-cap.md` | `approved` | 1 |  |
 | `.claude/plans/plan-planner-token-budget.md` | `planned` | 1 |  |
 | `.claude/plans/plan-planner-token-cap.md` | `drifted` | 2 |  |
 | `.claude/plans/plan-policy-effort-per-role.md` | `approved` | 1 |  |
+| `.claude/plans/plan-precompile-shadow-false-positive.md` | `planned` | 1 |  |
 | `.claude/plans/plan-preserve-dir-symlinks.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-preserve-fault-tolerance.md` | `drifted` | 6 |  |
+| `.claude/plans/plan-project-tools.md` | `planned` | 1 |  |
 | `.claude/plans/plan-protected-docs-scope.md` | `approved` | 1 |  |
 | `.claude/plans/plan-pypi-rename.md` | `drifted` | 2 |  |
 | `.claude/plans/plan-qa-agents-hardening.md` | `approved` | 1 |  |
@@ -172,6 +182,8 @@ index never outranks the current files.
 | `.claude/plans/plan-task-014-supply-chain-hardening.md` | `planned` | 1 |  |
 | `.claude/plans/plan-token-dash.md` | `executed` | 6 |  |
 | `.claude/plans/plan-token-efficiency.md` | `not_started` | 0 |  |
+| `.claude/plans/plan-token-remediation-ck.md` | `not_started` | 0 |  |
+| `.claude/plans/plan-token-spend-remediation.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-token-waste-workflow-fixes.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-triage-refresh.md` | `executed` | 10 |  |
 | `.claude/plans/plan-uninstall-partial-owned-deadend.md` | `approved` | 1 |  |
