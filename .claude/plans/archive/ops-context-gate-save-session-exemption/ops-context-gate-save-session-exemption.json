@@ -1,0 +1,33 @@
+{
+  "plan": "context-gate-save-session-exemption",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/context-budget-gate.py",
+      "edits": [
+        {
+          "find": "def _decide(payload):",
+          "replace": "# The block message names /save-session as the way out, and /save-session is a Write to this\n# file. Refusing it would leave the way out blocked. Only the session brief is exempt.\nSESSION_SAVE_SUFFIX = os.path.join(\".claude\", \"session-context.md\")\n\n\ndef _is_session_save(tool_name, tool_input):\n    if tool_name not in (\"Write\", \"Edit\") or not isinstance(tool_input, dict):\n        return False\n    path = tool_input.get(\"file_path\")\n    return isinstance(path, str) and os.path.normpath(path).endswith(SESSION_SAVE_SUFFIX)\n\n\ndef _decide(payload):"
+        },
+        {
+          "find": "            elif size >= block:\n                return (2,",
+          "replace": "            elif size >= block and not _is_session_save(tool_name, payload.get(\"tool_input\")):\n                return (2,"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_context_budget_gate.py",
+      "edits": [
+        {
+          "find": "def test_a_subagent_over_the_block_line_is_advised_not_blocked(tmp_path):",
+          "replace": "def test_the_session_save_stays_writable_over_the_block_line(tmp_path):\n    \"\"\"The block message says /save-session; the save itself must never be the thing refused.\n\n    Mutant: drop `_is_session_save` from the block branch -> rc 2 here. The negative twin proves\n    the exemption is the brief only, not every Write.\n    \"\"\"\n    path = transcript(tmp_path, usage_line(450000))\n    brief = str(tmp_path / \".claude\" / \"session-context.md\")\n    saved = run_hook(tmp_path, path, tool_name=\"Write\", tool_input={\"file_path\": brief})\n    assert saved.returncode == 0, \"the session brief must stay writable (stderr=%r)\" % saved.stderr\n    other = run_hook(tmp_path, path, tool_name=\"Write\",\n                     tool_input={\"file_path\": str(tmp_path / \"src\" / \"x.py\")})\n    assert other.returncode == 2, \"only the session brief is exempt\"\n\n\ndef test_a_subagent_over_the_block_line_is_advised_not_blocked(tmp_path):"
+        }
+      ]
+    }
+  ],
+  "baseline": {
+    ".claude/hooks/context-budget-gate.py": "sha256:f1a20ba365aaace22b945980653f91aaedf3e06b18f597b3d0f5f3828df15e3f",
+    "tests/test_context_budget_gate.py": "sha256:67e665725362e52d313d334279a1b5da441472d44df1fc334725f078dc521499"
+  }
+}

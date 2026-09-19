@@ -246,6 +246,21 @@ def test_blocks_at_the_block_threshold(tmp_path):
     assert result.stdout == "", "a block is stderr-only; stdout is never a decision"
 
 
+def test_the_session_save_stays_writable_over_the_block_line(tmp_path):
+    """The block message says /save-session; the save itself must never be the thing refused.
+
+    Mutant: drop `_is_session_save` from the block branch -> rc 2 here. The negative twin proves
+    the exemption is the brief only, not every Write.
+    """
+    path = transcript(tmp_path, usage_line(450000))
+    brief = str(tmp_path / ".claude" / "session-context.md")
+    saved = run_hook(tmp_path, path, tool_name="Write", tool_input={"file_path": brief})
+    assert saved.returncode == 0, "the session brief must stay writable (stderr=%r)" % saved.stderr
+    other = run_hook(tmp_path, path, tool_name="Write",
+                     tool_input={"file_path": str(tmp_path / "src" / "x.py")})
+    assert other.returncode == 2, "only the session brief is exempt"
+
+
 def test_a_subagent_over_the_block_line_is_advised_not_blocked(tmp_path):
     """Both branches in one case: the same 450K transcript, two paths, two verdicts.
 
