@@ -62,8 +62,12 @@ class TestCommandValidator:
         # ignored when from_config read the wrong `hooks` section).
         v = CommandValidator.from_config({"security": {"safeMode": False}})
         assert v.validate("some_unlisted_tool --x")[0] is True
-        # ...while the default (safeMode true) blocks the same command.
-        assert CommandValidator.from_config({}).validate("some_unlisted_tool")[0] is False
+        # The shipped default is safeMode OFF (2026-09-19): unlisted tools pass, the denylist holds.
+        assert CommandValidator.from_config({}).validate("some_unlisted_tool")[0] is True
+        assert CommandValidator.from_config({}).validate("rm -rf /")[0] is False
+        # Opting back in restores the allowlist.
+        v = CommandValidator.from_config({"security": {"safeMode": True}})
+        assert v.validate("some_unlisted_tool --x")[0] is False
 
 
 class TestCommandValidatorBypassCorpus:
@@ -288,3 +292,29 @@ class TestSecurityCLI:
         monkeypatch.chdir(tmp_path)
         # With safeMode off, an unlisted-but-not-blocklisted command is allowed.
         assert security_cli.check_command("some_unlisted_tool --x") == 0
+
+    def test_config_found_from_a_subdirectory_cwd(self, tmp_path, monkeypatch):
+        # Regression: hooks run with cwd = where the session was started, which
+        # may be deep inside the repo. The project's policy must still bind.
+        cfg_dir = tmp_path / ".claude" / "hooks"
+        cfg_dir.mkdir(parents=True)
+        (cfg_dir / "config.json").write_text('{"security": {"safeMode": false}}')
+        sub = tmp_path / "desktop" / "src" / "main"
+        sub.mkdir(parents=True)
+        monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
+        monkeypatch.chdir(sub)
+        assert security_cli.check_command("some_unlisted_tool --x") == 0
+
+    def test_config_found_via_claude_project_dir(self, tmp_path, monkeypatch):
+        proj = tmp_path / "proj"
+        cfg_dir = proj / ".claude" / "hooks"
+        cfg_dir.mkdir(parents=True)
+        (cfg_dir / "config.json").write_text('{"security": {"safeMode": true}}')
+        elsewhere = tmp_path / "elsewhere"
+        elsewhere.mkdir()
+        monkeypatch.chdir(elsewhere)
+        # Control: without the env var, nothing above cwd carries a config -> default (off).
+        monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
+        assert security_cli.check_command("some_unlisted_tool --x") == 0
+        monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(proj))
+        assert security_cli.check_command("some_unlisted_tool --x") == 2

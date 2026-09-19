@@ -325,16 +325,16 @@ UNSAFE_BUILTINS = [
     "ls\nexec rm -rf /",
 ]
 
-# DISCRIMINATOR (blocklist) and MINOR: `FOO=bar mycmd` is ALLOWED today with safe mode off
-# and is rejected after, because the env-assignment allowlist is deliberately not gated on
-# safe_mode. A tightening, disclosed as such.
+# `FOO=bar mycmd`: the env-assignment allowlist is gated on safe_mode since 2026-09-19 —
+# with the allowlist off the prefix is stripped and the command falls through to the
+# denylist (`FOO=bar rm -rf /` still refuses). A loosening, disclosed as such.
 UNSAFE_OTHER = [
     "ls\nrm -rf /",
     "rm -rf /",
     "sudo reboot",
     "echo x > /etc/passwd",
     "cat x\n> /etc/passwd",
-    "FOO=bar mycmd",
+    "FOO=bar rm -rf /",
 ]
 
 UNSAFE_MUST_REJECT = (UNSAFE_WHOLE_STRING + UNSAFE_BUILTINS + UNSAFE_OTHER
@@ -467,6 +467,7 @@ class TestMultiLineConsequences:
         assert not SAFE.validate("")[0]
         assert not SAFE.validate("   \n  \n ")[0]
 
+
 class TestBareAssignments:
     """Regression for session 60554075: `S=/tmp/x` on its own line or before `;` is a shell
     VARIABLE, not an environment override of a command - 4 of 24 hook denials in that
@@ -502,3 +503,6 @@ class TestBareAssignments:
         ok, reason = SAFE.validate("S=1 ls")
         assert not ok and "environment override: S" in reason
         assert SAFE.validate("CI=1 make")[0]
+
+    def test_unsafe_mode_allows_bare_assignments(self):
+        assert UNSAFE.validate("PATH=/evil; ls")[0]

@@ -124,7 +124,7 @@ _SAFE_ENV_ASSIGN_NAMES = {
 # stays so that _split_segments() remains correct if called directly.
 # A segment that is ONLY assignments (`S=/tmp/x` on its own line or before `;`) runs no
 # command, so safe mode allows it - except for names that steer which code a LATER command
-# in the same shell resolves or loads (refused in both modes). Measured on session 60554075: 4 of 24 hook denials
+# in the same shell resolves or loads. Measured on session 60554075: 4 of 24 hook denials
 # were `S=`, `P=`, `F=` scratch variables refused as "environment override".
 _EXEC_STEERING_ENV_NAMES = {
     "PATH", "IFS", "LD_PRELOAD", "LD_LIBRARY_PATH", "LD_AUDIT", "DYLD_INSERT_LIBRARIES",
@@ -288,10 +288,60 @@ class CommandValidator:
 
     def __init__(self, allowlist: Optional[Set[str]] = None,
                  blocklist: Optional[Set[str]] = None,
-                 safe_mode: bool = True):
+                 safe_mode: bool = True,
+                 project_tools: Optional[Set[str]] = None):
         self.allowlist = allowlist or DEFAULT_ALLOWLIST
         self.blocklist = blocklist or BLOCKLIST
         self.safe_mode = safe_mode
+        # security.projectTools: heads that drive a DEVICE or a build sandbox rather than
+        # the host (adb, emulator, gradle, ./gradlew, xcrun). Stored as basenames so
+        # `./gradlew` and `/usr/bin/adb` both register. Empty by default, and with no entry
+        # every branch below behaves exactly as it did before this key existed.
+        self.project_tools = {t.split("/")[-1].strip("\\")
+                              for t in (project_tools or set())}
+
+    def _is_project_tool(self, base: str) -> bool:
+        """True when `base` names a declared security.projectTools head."""
+        return bool(self.project_tools) and base in self.project_tools
+
+    def _all_heads_are_project_tools(self, command: str) -> bool:
+        """True when EVERY segment of `command` is run by a declared project tool.
+
+        Gates the whole-command host-pattern scan, and nothing else. That scan is
+        host-scoped by construction (`[^;&|]*` spans a line), so it can only be skipped
+        when nothing in the command runs on the host outside a project tool: one
+        non-project segment (`adb shell ls; find /tmp -delete`) brings it straight back.
+
+        Deliberately conservative - returns False (i.e. KEEPS the host scan) when:
+          * no project tool is declared;
+          * the command carries a substitution, whose payload is only blocklist-checked;
+          * the command carries a redirect, whose target `_split_segments` drops;
+          * a head's expansion-stripped spelling differs from its token (`$()adb`).
+        """
+        if not self.project_tools:
+            return False
+        if self._command_substitutions(command) or re.search(r'[<>]', command):
+            return False
+        saw_segment = False
+        for line in _split_unquoted_newlines(command):
+            if not line.strip():
+                continue
+            try:
+                segments = self._split_segments(line)
+            except ValueError:
+                return False
+            for parts in segments:
+                while parts and _ENV_ASSIGN_RE.match(parts[0]):
+                    parts = parts[1:]
+                if not parts:
+                    continue
+                saw_segment = True
+                base = parts[0].split("/")[-1].strip("\\")
+                if not self._is_project_tool(base):
+                    return False
+                if _expansion_stripped_base(parts) != base:
+                    return False
+        return saw_segment
 
     def validate(self, command: str) -> Tuple[bool, str]:
         """Validate a command string.
@@ -304,13 +354,19 @@ class CommandValidator:
 
         # 1. Whole-command dangerous patterns (redirects, eval/exec, IFS
         #    evasion, interpreter smuggling, fork bombs).
-        for pattern, label in DANGEROUS_PATTERNS:
-            if re.search(pattern, command):
-                return False, f"Dangerous pattern ({label})"
-        if _git_restore_violation(command):
-            return False, ("Dangerous pattern (git restore overwrites uncommitted work; "
-                           "only pure --staged unstaging is allowed — commit/stash first, "
-                           "or the user runs it manually)")
+        #
+        #    Skipped only when every segment head is a declared security.projectTools
+        #    entry: these patterns describe the HOST, and `adb shell find /sdcard -delete`
+        #    is an argument handed to a device, not a host find. The substitution scan,
+        #    the segmentation and the blocklist below all still run.
+        if not self._all_heads_are_project_tools(command):
+            for pattern, label in DANGEROUS_PATTERNS:
+                if re.search(pattern, command):
+                    return False, f"Dangerous pattern ({label})"
+            if _git_restore_violation(command):
+                return False, ("Dangerous pattern (git restore overwrites uncommitted "
+                               "work; only pure --staged unstaging is allowed — "
+                               "commit/stash first, or the user runs it manually)")
 
         # 2/3. Newlines separate commands, and shlex does not report a BARE one: with
         #      whitespace_split its default whitespace (" \t\r\n") swallows it, so
@@ -437,13 +493,13 @@ class CommandValidator:
             steering = [n for n in names
                         if n.upper() in _EXEC_STEERING_ENV_NAMES
                         or n.lower().startswith("npm_config_")]
-            if steering:
+            if self.safe_mode and steering:
                 return False, f"Dangerous pattern (environment override: {steering[0]})"
             return True, "OK"
 
         while parts and _ENV_ASSIGN_RE.match(parts[0]):
             name = parts[0].split("=", 1)[0]
-            if name not in _SAFE_ENV_ASSIGN_NAMES:
+            if self.safe_mode and name not in _SAFE_ENV_ASSIGN_NAMES:
                 return False, f"Dangerous pattern (environment override: {name})"
             parts = parts[1:]
         if not parts:
@@ -474,6 +530,14 @@ class CommandValidator:
         if blocklist_only:
             return True, "OK"
 
+        # AFTER every deny check above, never before one. Naming a head in
+        # security.projectTools exempts it from the ALLOWLIST and from nothing else: a
+        # blocklisted head (`rm`) was already refused several lines up, so declaring it a
+        # project tool cannot resurrect it.
+        if self.project_tools and (self._is_project_tool(base)
+                                   or self._is_project_tool(normalized)):
+            return True, "OK"
+
         if self.safe_mode and base not in self.allowlist and normalized not in self.allowlist:
             return False, (
                 f"Command not in allowlist: {base}. "
@@ -487,15 +551,24 @@ class CommandValidator:
         """Create a validator from a ClaudeKit config dict.
 
         Reads the ``security`` section (``safeMode`` / ``allowedCommands`` /
-        ``blockedCommands``) — matching config.schema.json.
+        ``blockedCommands`` / ``projectTools``) — matching config.schema.json.
         """
         sec = config.get("security", {}) or {}
-        safe_mode = sec.get("safeMode", True)
+        # Default OFF since 2026-09-19: with the allowlist on, every `cd`, `sort`, `sed`
+        # or `VAR=x cmd` the agent tried was a refused turn paid at full context (5 of
+        # 17 Bash turns in one session). The denylist (rm -rf /, sudo, /etc writes,
+        # fork bombs) still refuses. Set security.safeMode: true to restore the allowlist.
+        safe_mode = sec.get("safeMode", False)
         allowed = set(sec.get("allowedCommands", []))
         blocked = set(sec.get("blockedCommands", []))
+        # Heads that drive a device or a build sandbox (adb, emulator, gradle, ./gradlew,
+        # xcrun): exempt from the allowlist and from the host-pattern scan, never from the
+        # blocklist. Absent/empty -> None -> the validator behaves as it always did.
+        project_tools = set(sec.get("projectTools", []))
 
         return cls(
             allowlist=(allowed | DEFAULT_ALLOWLIST) if allowed else None,
             blocklist=(blocked | BLOCKLIST) if blocked else None,
             safe_mode=safe_mode,
+            project_tools=project_tools or None,
         )
