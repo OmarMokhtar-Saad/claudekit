@@ -143,7 +143,7 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "safeMode": { "type": "boolean", "default": true, "description": "Restrict hook commands to allowlist" },
+        "safeMode": { "type": "boolean", "default": false, "description": "Restrict hook commands to the allowlist (off: denylist only)" },
         "allowedCommands": {
           "type": "array",
           "items": { "type": "string" },
@@ -153,6 +153,11 @@
           "type": "array",
           "items": { "type": "string" },
           "description": "Additional blocked commands"
+        },
+        "projectTools": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Command heads that drive a device or build sandbox rather than the host (e.g. adb, emulator, gradle, ./gradlew, xcrun). Exempt from the allowlist and from the whole-command host-pattern scan; NEVER exempt from the blocklist."
         },
         "timeout": { "type": "integer", "minimum": 1000, "maximum": 600000, "default": 30000 }
       }

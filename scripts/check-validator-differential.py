@@ -54,6 +54,14 @@ ALPHABET = [
 # absorb an unrelated regression.
 DISCLOSED_WIDENINGS: List[Dict[str, str]] = [
     {
+        "payload": r"^[A-Za-z_][A-Za-z0-9_]*=",
+        "baseline_reason": "Dangerous pattern (environment override: IFS)",
+        "why": "2026-09-19: the env-assignment allowlist is gated on safe_mode. With the "
+               "allowlist OFF (now the shipped default) a `VAR=x cmd` prefix is stripped and "
+               "the command falls through to the denylist, so an IFS-prefixed ls is allowed "
+               "while a prefixed destructive command still refuses. safe_mode=True is unchanged.",
+    },
+    {
         "payload": r"(?:^|\s)\d+[<>]",
         "baseline_reason": "Command not in allowlist: ",
         "why": "A file-descriptor digit adjacent to a redirect is no longer read as the base "

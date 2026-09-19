@@ -65,10 +65,13 @@ class TestTheGateBinds:
     def test_the_newline_bypass_is_reported_if_reintroduced(self, tmp_path):
         """The defect this module was built around: if the per-line split is removed, every
         `first\\nblocked` payload flips back to ALLOW and the gate must say so."""
+        # The bare loop line also appears in `_all_heads_are_project_tools` (2026-09-19),
+        # so the anchor carries the comment line that precedes the validate() split.
+        tail = "safe_mode=False, where the allowlist check is skipped entirely.\n"
         holed = _holed(
             tmp_path,
-            "        for line in _split_unquoted_newlines(command):",
-            "        for line in [command]:",
+            tail + "        for line in _split_unquoted_newlines(command):",
+            tail + "        for line in [command]:",
         )
         report = check.compare(MODULE, holed, FAST)
         assert report["status"] == "fail", report
