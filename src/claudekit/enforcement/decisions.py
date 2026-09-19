@@ -2,7 +2,7 @@
 
 The gap this closes
 -------------------
-``.claude/settings.json`` registers 26 hook entries across 8 events. On the
+``.claude/settings.json`` registers 27 hook entries across 8 events. On the
 ``PreToolUse``/``Bash`` matcher alone, six hooks fire on one event, and nothing
 anywhere defined what happens when two of them decide differently. The answer was
 "whatever registration order happens to be", which is not a decision anybody made.
