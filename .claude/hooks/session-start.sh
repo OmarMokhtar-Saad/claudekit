@@ -23,6 +23,19 @@ HOOK_NAME="session-start"
 LOG_FILE="$SCRIPT_DIR/hooks.log"
 log() { hlog "$@"; }
 
+# Why this hook fired - startup, resume, clear or compact - is the payload's `source`. Read
+# stdin only when it is a pipe (Claude Code and dispatch.sh pipe the JSON and close it; a
+# developer running the hook from a terminal has none), bounded so an open-but-idle stdin
+# cannot stall the session. No payload means the pre-payload behaviour: the full startup.
+SS_PAYLOAD=""
+if [ ! -t 0 ]; then
+    IFS= read -r -t 2 -d '' SS_PAYLOAD || true
+fi
+SS_SOURCE=""
+if [ -n "$SS_PAYLOAD" ] && command -v extract_json_field >/dev/null 2>&1; then
+    SS_SOURCE=$(extract_json_field "$SS_PAYLOAD" source 2>/dev/null) || SS_SOURCE=""
+fi
+
 log "INFO" "Session started | pwd=$(pwd) | user=$(whoami)"
 
 # ---------------------------------------------------------------------------
@@ -74,12 +87,21 @@ fi
 # 3. Print startup summary
 # ---------------------------------------------------------------------------
 echo ""
-echo "ClaudeKit session started | $(date '+%Y-%m-%d %H:%M')"
-echo "  Project: $(basename "$(pwd)")"
-[ "$PM" != "unknown" ] && echo "  Package manager: $PM"
-[ -n "$BUILD_CMD" ] && echo "  Build: $BUILD_CMD"
-[ -n "$TEST_CMD"  ] && echo "  Test:  $TEST_CMD"
-[ -n "$LINT_CMD"  ] && echo "  Lint:  $LINT_CMD"
+if [ "$SS_SOURCE" = "compact" ]; then
+    # SessionStart output is re-sent to the model on EVERY later turn, and on a compaction
+    # everything this hook prints was already in context before it. Re-injecting the banner,
+    # the previous-session dump, the footprint and the durable memory (~40 lines, measured
+    # 2026-09-19) taxed every turn until the next compaction. On compact: one line here, the
+    # concurrency check below (its lock is re-taken), then exit before the rest.
+    echo "ClaudeKit session compacted | $(date '+%Y-%m-%d %H:%M') | project: $(basename "$(pwd)") | startup context not re-injected"
+else
+    echo "ClaudeKit session started | $(date '+%Y-%m-%d %H:%M')"
+    echo "  Project: $(basename "$(pwd)")"
+    [ "$PM" != "unknown" ] && echo "  Package manager: $PM"
+    [ -n "$BUILD_CMD" ] && echo "  Build: $BUILD_CMD"
+    [ -n "$TEST_CMD"  ] && echo "  Test:  $TEST_CMD"
+    [ -n "$LINT_CMD"  ] && echo "  Lint:  $LINT_CMD"
+fi
 
 # ---------------------------------------------------------------------------
 # 3.4 Concurrent-session detection (warning only — never blocks)
@@ -124,6 +146,10 @@ if [ "$OTHER_SESSIONS" -gt 0 ]; then
     echo "           Coordinate file ownership (multi-agent-coordination skill);"
     echo "           uncommitted work can be lost to concurrent git operations."
     log "WARN" "Concurrent sessions detected: $OTHER_SESSIONS other live lock(s)"
+fi
+if [ "$SS_SOURCE" = "compact" ]; then
+    log "INFO" "SessionStart source=compact: one-line banner + concurrency check, nothing re-injected"
+    exit 0
 fi
 
 # ---------------------------------------------------------------------------
