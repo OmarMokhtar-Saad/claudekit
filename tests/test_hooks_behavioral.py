@@ -262,9 +262,25 @@ class TestCommandGuard:
         p = run_hook("command-guard.sh", {"command": "echo hi && rm -rf /"}, env=_env("strict"))
         assert p.returncode == 2, p.stderr
 
-    def test_strict_blocks_interpreter_smuggling(self):
-        p = run_hook("command-guard.sh", {"command": "bash -c 'rm -rf /'"}, env=_env("strict"))
+    def test_strict_blocks_interpreter_smuggling(self, tmp_path):
+        # `bash -c '...'` is caught by the allowlist, which is opt-in since 2026-09-19.
+        cfg = tmp_path / ".claude" / "hooks"
+        cfg.mkdir(parents=True)
+        (cfg / "config.json").write_text('{"security": {"safeMode": true}}')
+        env = _env("strict")
+        env.pop("CLAUDE_PROJECT_DIR", None)
+        p = subprocess.run(
+            ["bash", str(HOOKS / "command-guard.sh")],
+            input=json.dumps({"tool_input": {"command": "bash -c 'rm -rf /'"}}),
+            capture_output=True, text=True, cwd=str(tmp_path), env=env, timeout=30,
+        )
         assert p.returncode == 2, p.stderr
+
+    def test_default_policy_allows_unlisted_tools(self):
+        # Shipped default: allowlist off, denylist on.
+        assert run_hook("command-guard.sh", {"command": "cd src && sort f | uniq"}).returncode == 0
+        assert run_hook("command-guard.sh", {"command": "F=1 python3 x.py"}).returncode == 0
+        assert run_hook("command-guard.sh", {"command": "F=1 rm -rf /"}).returncode == 2
 
     def test_strict_allows_safe_command(self):
         p = run_hook("command-guard.sh", {"command": "git status"}, env=_env("strict"))

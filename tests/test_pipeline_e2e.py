@@ -420,13 +420,15 @@ def test_wired_bash_chain_permits_the_ops_path_and_blocks_direct_mutation(projec
     assert (project / "src" / "app.py").read_text(encoding="utf-8") == ORIGINAL
 
 
-def test_reflection_checkpoint_outranks_the_iron_law_allowance(project, tmp_path):
-    """Gate PRECEDENCE - the one thing neither gate's own suite can assert.
+def test_reflection_checkpoint_does_not_gate_the_ops_path(project, tmp_path):
+    """Gate PRECEDENCE after the 2026-09-19 token remediation.
 
-    iron-law-gate.py PERMITS the ops executor command (it is the sanctioned path);
-    reflection-gate.py must still be able to stop that same call while a checkpoint is
-    pending, and must release it once a real receipt exists. Both gates are wired on
-    PreToolUse/Bash, so the composed verdict is what the agent actually experiences."""
+    reflection-gate.py is no longer wired on PreToolUse (the checkpoint forced
+    full-context turns and the ledger was never read), so a pending checkpoint must NOT
+    stop the sanctioned ops path. The checkpoint is still seeded through the real
+    PostToolUseFailure path, which stays wired, so this proves the ledger RECORDS
+    without GATING. The precondition assert is what keeps it honest: a run where no
+    checkpoint was recorded would pass the release asserts vacuously."""
     env = env_for(project, "standard", tmp_path)
     gate = project / ".claude" / "hooks" / "reflection-gate.py"
     command = ("python3 .claude/operations/scripts/execute-json-ops.py "
@@ -442,43 +444,23 @@ def test_reflection_checkpoint_outranks_the_iron_law_allowance(project, tmp_path
                        input=json.dumps(failure), capture_output=True, text=True,
                        cwd=str(project), env=env, timeout=60)
 
+    with scoped_env(CLAUDEKIT_REFLECTION_DIR=str(tmp_path / "ledger"),
+                    CLAUDEKIT_REFLECTION_INBOX=str(tmp_path / "inbox"),
+                    ECC_HOOK_PROFILE="standard"):
+        reflection = _load_reflection()
+        assert reflection.pending_checkpoint("e2e-session-0001"), \
+            "precondition lost: PostToolUseFailure recorded no checkpoint, so a passing " \
+            "release assert below would prove nothing about the PreToolUse wiring"
+
     pending = run_chain(project, "Bash", {"command": command}, "standard", tmp_path,
                         agent_type="implementer")
     assert "iron-law-gate.py" not in blockers(pending), \
         "precondition lost: the Iron Law gate blocked, so this proves nothing about the " \
         "reflection checkpoint"
-    assert "reflection-gate.py" in blockers(pending), (
-        "the reflection checkpoint did not stop the sanctioned ops path: %s"
+    assert "reflection-gate.py" not in blockers(pending), (
+        "reflection-gate.py gated PreToolUse again; its registry row was removed "
+        "2026-09-19: %s"
         % {n: (p.returncode, p.stderr[:200]) for n, p in pending.items()})
-
-    # Discharge it the way the product does: a REAL receipt, HMAC-bound to this
-    # session's token and to the exact pending active set. Minted through the shipped
-    # library (as `test_reflection_gate.py` does) rather than hand-written, because a
-    # hand-written receipt is exactly what the gate is supposed to reject.
-    with scoped_env(CLAUDEKIT_REFLECTION_DIR=str(tmp_path / "ledger"),
-                    CLAUDEKIT_REFLECTION_INBOX=str(tmp_path / "inbox"),
-                    ECC_HOOK_PROFILE="standard"):
-        reflection = _load_reflection()
-        token = reflection.read_session_token("e2e-session-0001")
-        checkpoint = reflection.pending_checkpoint("e2e-session-0001")
-        assert token and checkpoint, "precondition lost: no checkpoint to discharge"
-        reflection.record_receipt("e2e-session-0001", {
-            "schemaVersion": reflection.SCHEMA_VERSION, "taskId": "e2e",
-            "trigger": checkpoint["trigger"],
-            "failureFingerprints": checkpoint["failureFingerprints"],
-            "failedAssumption": "assumed the fixture asserted the pre-state value",
-            "approachesCompared": ["edit the fixture", "run the approved ops config"],
-            "chosenExperiment": "run the approved ops config",
-            "proofCommandOrCheck": "pytest -q tests/test_app.py",
-            "proofOutcome": "the failing assertion now passes",
-            "durableDisposition": "nothing-durable",
-        }, token)
-
-    released = run_chain(project, "Bash", {"command": command}, "standard", tmp_path,
-                         agent_type="implementer")
-    assert blockers(released) == [], (
-        "a valid receipt did not release the gate - agents wedge permanently: %s"
-        % {n: p.stderr[:200] for n, p in released.items() if p.returncode == 2})
 
 
 # ------------------------------------ Group F/G: the executor lock and the hook's root

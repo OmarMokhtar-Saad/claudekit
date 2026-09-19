@@ -46,7 +46,7 @@
   "events": {
     "PreToolUse": [
       {"id": "read-window-guard", "file": "read-window-guard.py", "runner": "python3", "tier": "blocking", "matcher": "Read"},
-      {"id": "context-budget-gate", "file": "context-budget-gate.py", "runner": "python3", "tier": "blocking", "matcher": "Write|Edit|NotebookEdit|Bash|Agent|Task"},
+      {"id": "context-budget-gate", "file": "context-budget-gate.py", "runner": "python3", "tier": "blocking", "matcher": "Read|Grep|Glob|Write|Edit|NotebookEdit|Bash|Agent|Task"},
       {"id": "review-round-cap", "file": "review-round-cap.py", "runner": "python3", "tier": "blocking", "matcher": "Agent|Task"},
       {"id": "iron-law-gate", "file": "iron-law-gate.py", "runner": "python3", "tier": "blocking", "matcher": "Bash"},
       {"id": "command-guard", "file": "command-guard.sh", "runner": "bash", "tier": "blocking", "matcher": "Bash"},
@@ -55,7 +55,6 @@
       {"id": "commit-quality", "file": "commit-quality.sh", "runner": "bash", "tier": "blocking", "matcher": "Bash"},
       {"id": "ops-enforcement", "file": "ops-enforcement.sh", "runner": "bash", "tier": "blocking", "matcher": "str_replace_based_edit_tool|write_file|Write|Edit"},
       {"id": "config-protection", "file": "config-protection.sh", "runner": "bash", "tier": "blocking", "matcher": "str_replace_based_edit_tool|write_file|Write|Edit"},
-      {"id": "reflection-gate", "file": "reflection-gate.py", "runner": "python3", "tier": "blocking", "matcher": "", "args": ["--event", "PreToolUse"]},
       {"id": "file-guard-gate", "file": "file-guard-gate.sh", "runner": "bash", "tier": "advisory", "matcher": "str_replace_based_edit_tool|write_file|Write|Edit"},
       {"id": "security-reminder", "file": "security-reminder.sh", "runner": "bash", "tier": "advisory", "matcher": "str_replace_based_edit_tool|write_file|Write|Edit"},
       {"id": "pre-commit", "file": "pre-commit.sh", "runner": "bash", "tier": "advisory", "matcher": "Bash", "command_matcher": "^\\s*git\\s+commit"},
@@ -66,7 +65,8 @@
       {"id": "post-tool-use", "file": "post-tool-use.sh", "runner": "bash", "tier": "advisory", "matcher": "Edit|Write|Bash"},
       {"id": "command-log-audit", "file": "command-log-audit.sh", "runner": "bash", "tier": "advisory", "matcher": "Bash"},
       {"id": "suggest-compact", "file": "suggest-compact.sh", "runner": "bash", "tier": "advisory", "matcher": ""},
-      {"id": "output-filter", "file": "output_filter.py", "runner": "python3", "tier": "advisory", "matcher": "Bash"}
+      {"id": "output-filter", "file": "output_filter.py", "runner": "python3", "tier": "advisory", "matcher": "Bash"},
+      {"id": "batch-reads-nudge", "file": "batch-reads-nudge.py", "runner": "python3", "tier": "advisory", "matcher": "Bash"}
     ],
     "UserPromptSubmit": [
       {"id": "pre-plan", "file": "pre-plan.sh", "runner": "bash", "tier": "advisory", "matcher": ""},

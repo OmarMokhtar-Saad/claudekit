@@ -11,6 +11,7 @@ LOG_FILE="$SCRIPT_DIR/hooks.log"
 [ -f "$SCRIPT_DIR/lib.sh" ] && . "$SCRIPT_DIR/lib.sh"
 
 [ "${ECC_HOOK_PROFILE:-standard}" = "minimal" ] && exit 0
+[ "${ECC_OPS_ENFORCEMENT:-on}" = "off" ] && exit 0  # per-project opt-out via settings.local.json env
 
 ROOT=$(resolve_root)
 TOOL_INPUT=$(cat)
@@ -123,6 +124,6 @@ deny "OPS ENFORCEMENT — DIRECT EDIT BLOCKED
 Target: $TARGET_PATH
 
 Direct Edit/Write to source files is forbidden. All changes must go through:
-  1. Generate ops.json (via /plan or /refine)
+  1. Generate ops.json (via /plan)
   2. Validate:  python3 .claude/operations/scripts/validate-config-json.py <ops.json>
   3. Execute:   python3 .claude/operations/scripts/execute-json-ops.py <ops.json>"

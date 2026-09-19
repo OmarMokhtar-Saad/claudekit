@@ -98,17 +98,9 @@ def bash_payload(marker: str) -> str:
     })
 
 
-def test_wired_command_log_audit_receives_stdin(tmp_path):
-    marker = "hello-stdin-%s" % uuid.uuid4().hex[:8]
-    root = hook_sandbox(tmp_path)
-    env = sandbox_env(root, tmp_path, "standard")
-    run_hook(wired_command("PostToolUse", "command-log-audit.sh"), root,
-             bash_payload(marker), env)
-    audit = root / ".claude" / "hooks" / "bash-commands.log"
-    assert wait_for_marker(audit, marker), (
-        "the wired PostToolUse command never recorded the payload; "
-        "bash-commands.log exists=%s" % audit.exists()
-    )
+# `test_wired_command_log_audit_receives_stdin` was removed 2026-09-19: the hook it wired is gone.
+# hooks.log showed 5,012 "JSON parse failure" lines and 0 recorded payloads in this repo (3,137 / 0
+# in qa-agents) while this test stayed green -- it proved the sandbox payload, not a production one.
 
 
 def test_backgrounding_before_reading_stdin_starves_the_hook(tmp_path):

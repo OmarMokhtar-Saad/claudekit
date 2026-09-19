@@ -1,6 +1,6 @@
 # Hooks
 
-ClaudeKit ships 31 hook scripts (plus `lib.sh`, a shared helper library). 28 are
+ClaudeKit ships 32 hook scripts (plus `lib.sh`, a shared helper library). 29 are
 reachable: wired into Claude Code through `.claude/settings.json`, or resolved by a
 gate wrapper. They enforce guardrails, capture telemetry, and automate housekeeping
 around the agent workflow.
@@ -88,6 +88,10 @@ Set it in your shell or in `.claude/settings.local.json` (git-ignored):
 ```
 
 Unset defaults to `standard`.
+
+### `ECC_OPS_ENFORCEMENT=off` — keep the profile, drop one gate
+
+Sets only the `ops-enforcement` hook (the Edit/Write source-file gate) to pass-through while every other `standard` hook keeps binding. Put it in the same `env` object. Only the literal `off` opts out; any other value leaves the gate on.
 
 ## Hook catalog
 
