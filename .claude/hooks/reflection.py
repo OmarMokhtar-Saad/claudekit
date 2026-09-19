@@ -1063,8 +1063,12 @@ def record_receipt(
         "failedAssumption": _safe_text("failedAssumption", receipt.get("failedAssumption")),
         "approachesCompared": [_safe_text("approachesCompared", i) for i in compared],
         "chosenExperiment": _safe_text("chosenExperiment", receipt.get("chosenExperiment")),
+        # A proof command legitimately names files. Refusing it cost two full-context
+        # turns per receipt (session 60554075); redact the path shape instead. Secrets
+        # and credential shapes are still REJECTED by _safe_text below.
         "proofCommandOrCheck": _safe_text(
-            "proofCommandOrCheck", receipt.get("proofCommandOrCheck")
+            "proofCommandOrCheck",
+            _ABSOLUTE_PATH.sub(" <path>", str(receipt.get("proofCommandOrCheck") or "")),
         ),
         "proofOutcome": _safe_text("proofOutcome", receipt.get("proofOutcome")),
         "durableDisposition": disposition,

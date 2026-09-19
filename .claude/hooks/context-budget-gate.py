@@ -76,7 +76,7 @@ import sys
 # seek + one read regardless of how large the file has grown.
 TAIL_BYTES = 65536
 
-DEFAULT_WARN = 200000
+DEFAULT_WARN = 150000
 DEFAULT_BLOCK = 400000
 
 # One advisory line per this many guarded calls, per session.
