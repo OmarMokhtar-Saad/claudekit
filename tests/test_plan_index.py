@@ -96,7 +96,7 @@ def approve(root, ops):
         [sys.executable,
          str(root / ".claude" / "operations" / "scripts" / "review-record.py"),
          "write", str(root / ".claude" / "plans" / "plan-fixture-plan.md"), str(ops),
-         "--score", "95", "--decision", "APPROVED"],
+         "--score", "95", "--decision", "APPROVED", "--owner-approved"],
         cwd=str(root), capture_output=True, text=True,
     )
     assert result.returncode == 0, result.stdout + result.stderr

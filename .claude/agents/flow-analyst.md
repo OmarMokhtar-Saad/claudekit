@@ -70,9 +70,10 @@ Two orthogonal axes per brief:
   shows; leaving a round unclassified is a correct answer and `stats --by-type` reports
   it as unclassified rather than imputing it.
 
-**Exclude every row whose `verdict_origin` is `gate-token` OR `reconstructed` from any
-score-trend claim** (`reconstructed` rows come from `rejections backfill`: mined out of a
-transcript, never recorded at the time, and `source: backfill` marks them).
+**Exclude every row whose `verdict_origin` is `gate-token`, `reconstructed` OR `owner` from
+any score-trend claim** (`reconstructed` rows come from `rejections backfill`: mined out of a
+transcript, never recorded at the time, and `source: backfill` marks them; `owner` rows are a
+human owner's approval recorded without any review, so that score was typed, not judged).
 Those integers are derived mechanically from a blocking-finding count (code-reviewer's
 mapping table); they carry no quality judgement, and mixing them with `rubric` scores makes
 a trend that only measures which agent happened to review. Count them for defect TYPE and

@@ -81,7 +81,8 @@ class _TempProject(unittest.TestCase):
 
     def record_approved(self, plan_path, ops_path, score=95):
         proc = _run([REVIEW_RECORD, 'write', plan_path, ops_path,
-                     '--score', str(score), '--decision', 'APPROVED'], self.root)
+                     '--score', str(score), '--decision', 'APPROVED',
+                     '--owner-approved'], self.root)
         self.assertEqual(proc.returncode, 0,
                          'recording the verdict failed: %s%s' % (proc.stdout, proc.stderr))
         return proc

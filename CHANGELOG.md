@@ -11,6 +11,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `open-source-forker` — never shipped and have been removed.
 
 ## [Unreleased]
+- **`review-record.py` records follow the ops file's tree, not the cwd.** `write`, `check`,
+  `diff` and `author` (and `record-code-review`, which calls `write`) now resolve
+  `.claude/reports/reviews/` against the git toplevel of the ops file, falling back to the old
+  cwd walk outside git, and the executor's approval gate looks in the same place. A session in
+  a main checkout reviewing an ops.json in a sibling worktree no longer writes the verdict into
+  the main tree, where `execute-json-ops.py --root <worktree>` could not find it.
+- **`review-record.py write` refuses a bare approving verdict (exit 7).** `--decision APPROVED`
+  without `--from-review` records nothing; bind a reviewer's output with `--from-review <file>`.
+  REVISE, REJECTED and CONDITIONAL stay writable with bare `--score/--decision`. The human
+  owner's `--owner-approved` path is recorded as `verdict_origin: owner` and left out of score
+  trends, and the `block-no-verify` hook now denies any agent Bash command carrying it, under
+  every profile. That deny is a speed bump against agents, not a sandbox: a script written
+  first, or a hand-written record file, still gets past it.
 - **Main-session context now has a ceiling, and the one unbounded spawn is refused.** Every
   cap shipped with the read guard lives in agent frontmatter, so none of them can reach the
   main session (it has no frontmatter) or the built-in `general-purpose` agent (we do not
