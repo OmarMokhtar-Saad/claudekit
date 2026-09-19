@@ -12,6 +12,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Token spend, second batch (the follow-ups of the 2026-09-19 audit).** `session-start.sh`
+  prints one line on `SessionStart` source=compact and exits after the concurrency check: its
+  full output is re-sent to the model on every later turn, and on a compaction everything it
+  printed was already in context. `context-budget-gate.py --advise` is a new DIRECT PostToolUse
+  entry in `.claude/settings.json` that delivers the warn-band advisory (150K, once per 20
+  calls) and the subagent over-the-line advisory as `hookSpecificOutput.additionalContext`,
+  the one PostToolUse form the model reads; the PreToolUse path now only blocks or stays
+  silent (its exit-0 WARN was a dead letter). `fleet-sync.py` B4 carries `autoCompactWindow`
+  into every kitted project's `settings.json` when the key is absent (never overwrites).
+  `scripts/token-audit.py` is the reproducible measurement (dedup by `requestId`, billed vs
+  cache-read vs cache-write, context buckets, compactions, hook nags). Token & Model Policy
+  region v6: "delegate a broad search to an Explore subagent and keep only its conclusion",
+  and the region now ships in every `templates/*/CLAUDE.md` in the `ck adapt` dialect.
 - **Session token spend: `autoCompactWindow: 200000` ships in `.claude/settings.json`,
   `context-budget-gate.py` blocks at 200K (warns at 150K), `suggest-compact.sh` is retired and
   `batch-reads-nudge.py` emits `hookSpecificOutput.additionalContext` JSON.** Measured over 227
