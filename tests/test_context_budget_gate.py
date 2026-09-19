@@ -5,7 +5,7 @@ a synthetic transcript in tmp_path, and asserts the exit code the dispatcher wou
 is imported from the hook, so the shipped artifact is what is measured.
 
 Mutants these tests must catch (apply them, do not assume them):
-  * DEFAULT_BLOCK = 400000 -> 4000000        => test_blocks_at_the_block_threshold RED
+  * DEFAULT_BLOCK = 200000 -> 2000000        => test_blocks_at_the_block_threshold RED
   * replace the seek + bounded read with
     `blob = handle.read()` (whole file)      => test_only_the_tail_is_read RED on read_bytes
                                                 (~40 MB instead of 64 KB) and on wall time.
@@ -195,15 +195,15 @@ def test_below_the_warn_threshold_is_silent(tmp_path):
 
 
 def test_warns_once_at_the_warn_threshold(tmp_path):
-    path = transcript(tmp_path, usage_line(250000))
+    path = transcript(tmp_path, usage_line(160000))
     result = run_hook(tmp_path, path)
     assert result.returncode == 0, "the warn band allows the call"
     assert "/compact" in result.stderr
-    assert "250K" in result.stderr
+    assert "160K" in result.stderr
 
 
 def test_the_warning_is_suppressed_on_the_next_call(tmp_path):
-    path = transcript(tmp_path, usage_line(250000))
+    path = transcript(tmp_path, usage_line(160000))
     first = run_hook(tmp_path, path)
     second = run_hook(tmp_path, path)
     assert first.stderr != ""
@@ -223,7 +223,7 @@ def test_the_warn_counter_writes_no_state_outside_the_project(tmp_path):
     """
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
-    path = transcript(tmp_path, usage_line(250000))
+    path = transcript(tmp_path, usage_line(160000))
 
     first = run_hook(tmp_path, path, project_dir=None, cwd=elsewhere)
     second = run_hook(tmp_path, path, project_dir=None, cwd=elsewhere)
@@ -334,7 +334,7 @@ def subagent(tmp_path, ctx, session="sess-S", agent="agent-planner"):
 #   * `calls * size` -> `size`                    => test_a_cheap_subagent_is_never_spend
 #                                                    _capped RED (63K context, 40 calls, would
 #                                                    still allow -- but the twin below, a
-#                                                    single call at 400K, would then BLOCK)
+#                                                    single call at 200K, would then BLOCK)
 #   * `calls * size` -> `calls`                   => test_a_cheap_subagent_is_never_spend
 #                                                    _capped RED
 #   * key the counter on session_id               => test_the_spend_counter_is_keyed_per_agent
@@ -347,11 +347,11 @@ def subagent(tmp_path, ctx, session="sess-S", agent="agent-planner"):
 def test_a_subagent_is_blocked_when_calls_times_context_exceeds_the_budget(tmp_path):
     """The shape that actually ran away: a context UNDER the block line, many times over.
 
-    234K is the measured median of the 45.8M planner and is deliberately below the 400K
+    117K is the measured median of the 45.8M planner and is deliberately below the 200K
     context block line, so this case can only pass because of the product.
     """
-    path = subagent(tmp_path, 234000)
-    env = {"CK_AGENT_BUDGET": "700000"}  # trips on call 3: 3 x 234K = 702K
+    path = subagent(tmp_path, 117000)
+    env = {"CK_AGENT_BUDGET": "350000"}  # trips on call 3: 3 x 117K = 351K
     first = run_hook(tmp_path, path, extra_env=env)
     assert first.returncode == 0, "call 1 is well under budget (stderr=%r)" % first.stderr
     second = run_hook(tmp_path, path, extra_env=env)
@@ -381,9 +381,9 @@ def test_a_cheap_subagent_is_never_spend_capped(tmp_path):
 
 def test_the_spend_counter_is_keyed_per_agent_not_per_session(tmp_path):
     """Two agents, one session_id. The second must not inherit the first's spend."""
-    env = {"CK_AGENT_BUDGET": "700000"}
-    a = subagent(tmp_path, 234000, agent="agent-aaa")
-    b = subagent(tmp_path, 234000, agent="agent-bbb")
+    env = {"CK_AGENT_BUDGET": "350000"}
+    a = subagent(tmp_path, 117000, agent="agent-aaa")
+    b = subagent(tmp_path, 117000, agent="agent-bbb")
     for _ in range(3):
         run_hook(tmp_path, a, session_id="shared", extra_env=env)
     spent = run_hook(tmp_path, a, session_id="shared", extra_env=env)
@@ -396,8 +396,8 @@ def test_the_spend_counter_is_keyed_per_agent_not_per_session(tmp_path):
 
 def test_a_main_session_is_not_spend_capped(tmp_path):
     """A main session has /compact and /save-session; turns are not its failure mode."""
-    path = transcript(tmp_path, usage_line(234000))
-    env = {"CK_AGENT_BUDGET": "700000"}
+    path = transcript(tmp_path, usage_line(117000))
+    env = {"CK_AGENT_BUDGET": "350000"}
     for i in range(6):
         result = run_hook(tmp_path, path, extra_env=env)
         assert result.returncode == 0, (
@@ -417,7 +417,7 @@ def test_the_shipped_budget_is_fifteen_million(tmp_path):
 
 
 def test_the_raw_context_hatch_disables_the_spend_cap(tmp_path):
-    path = subagent(tmp_path, 234000, agent="agent-hatched")
+    path = subagent(tmp_path, 117000, agent="agent-hatched")
     env = {"CK_AGENT_BUDGET": "100", "CK_RAW_CONTEXT": "1"}
     for _ in range(3):
         result = run_hook(tmp_path, path, extra_env=env)
@@ -428,7 +428,7 @@ def test_the_spend_cap_writes_no_state_outside_the_project(tmp_path):
     """No project root -> no counter file, and the call is allowed rather than refused."""
     outside = tmp_path / "outside"
     outside.mkdir()
-    path = subagent(tmp_path, 234000, agent="agent-nostate")
+    path = subagent(tmp_path, 117000, agent="agent-nostate")
     result = run_hook(tmp_path, path, project_dir=None, cwd=outside,
                       extra_env={"CK_AGENT_BUDGET": "100"})
     assert result.returncode == 0, "an uncountable agent is allowed, never refused"
@@ -639,9 +639,15 @@ def test_raw_context_hatch_allows_an_oversize_session(tmp_path):
 
 
 def test_thresholds_come_from_the_environment(tmp_path):
-    path = transcript(tmp_path, usage_line(250000))
-    result = run_hook(tmp_path, path, extra_env={"CK_CONTEXT_BLOCK": "200000"})
-    assert result.returncode == 2, "CK_CONTEXT_BLOCK must move the block line"
+    """CK_CONTEXT_BLOCK moves the line in BOTH directions: lowered, a session the default
+    would only warn about is refused; raised, a session the default refuses is let through
+    with the warning. One direction alone would also pass with the variable ignored."""
+    path = transcript(tmp_path, usage_line(180000))
+    lowered = run_hook(tmp_path, path, extra_env={"CK_CONTEXT_BLOCK": "150000"})
+    assert lowered.returncode == 2, "CK_CONTEXT_BLOCK=150000 must refuse a 180K session"
+    raised = run_hook(tmp_path, path, extra_env={"CK_CONTEXT_BLOCK": "400000"})
+    assert raised.returncode == 0, "CK_CONTEXT_BLOCK=400000 must let a 180K session through"
+    assert "180K" in raised.stderr, "and the 150K warning still fires below the raised line"
 
 
 def test_a_missing_transcript_allows(tmp_path):

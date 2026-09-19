@@ -18,10 +18,15 @@ THE TWO DECISIONS
 1. CONTEXT BUDGET. The payload names the caller's OWN transcript. Each assistant line in that
    JSONL carries `message.usage`; input_tokens + cache_read_input_tokens +
    cache_creation_input_tokens on the LAST assistant line is the context in force right now.
-   At or above CK_CONTEXT_WARN (200,000) the call is allowed and one advisory line is printed,
-   at most once per 20 guarded calls per session. At or above CK_CONTEXT_BLOCK (400,000) the
+   At or above CK_CONTEXT_WARN (150,000) the call is allowed and one advisory line is printed,
+   at most once per 20 guarded calls per session. At or above CK_CONTEXT_BLOCK (200,000) the
    call is refused: past that size every further tool call re-reads the whole window, so the
-   cheapest correct move is /save-session and then /compact, or a fresh session.
+   cheapest correct move is /compact, then /save-session, or a fresh session.
+   The block line was 400,000 until 2026-09-19. It never fired: an audit of two qa-agents
+   sessions (89.9M tokens, 184 turns) found 72 turns above 200K and 9.5M tokens spent above
+   250K, with the ceiling never reached, so the advisory at 150K was the only thing the model
+   ever saw and it compacted zero times. A warning the model may ignore is not a budget; the
+   line is now where the spend actually is.
    A subagent's hook receives the PARENT's transcript_path plus `agent_id`, so the file read
    for it is `<session>/subagents/agent-<agent_id>.jsonl` beside the parent's - THAT agent's
    context, never the parent's (measuring the parent's blocked every subagent of a big session).
@@ -89,7 +94,7 @@ import sys
 TAIL_BYTES = 65536
 
 DEFAULT_WARN = 150000
-DEFAULT_BLOCK = 400000
+DEFAULT_BLOCK = 200000
 
 # One advisory line per this many guarded calls, per session.
 WARN_EVERY = 20
