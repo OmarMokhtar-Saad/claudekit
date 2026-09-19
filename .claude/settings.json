@@ -41,6 +41,15 @@
             "command": "bash -c 'ROOT=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\"; python3 \"$ROOT/.claude/hooks/batch-reads-nudge.py\"'"
           }
         ]
+      },
+      {
+        "matcher": "Read|Grep|Glob|Write|Edit|NotebookEdit|Bash|Agent|Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'ROOT=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\"; python3 \"$ROOT/.claude/hooks/context-budget-gate.py\" --advise'"
+          }
+        ]
       }
     ],
     "UserPromptSubmit": [

@@ -148,7 +148,7 @@ def fragment_transcript(tmp_path, planted=900000):
 
 def run_hook(tmp_path, transcript_path=None, tool_name="Write", tool_input=None,
              session_id="pytest-context-budget", extra_env=None, project_dir=_UNSET, cwd=None,
-             extra_payload=None):
+             extra_payload=None, args=()):
     payload = {
         "session_id": session_id,
         "tool_name": tool_name,
@@ -172,7 +172,7 @@ def run_hook(tmp_path, transcript_path=None, tool_name="Write", tool_input=None,
         env.update(extra_env)
 
     return subprocess.run(
-        [sys.executable, str(HOOK)],
+        [sys.executable, str(HOOK), *args],
         input=json.dumps(payload),
         capture_output=True,
         text=True,
@@ -187,31 +187,83 @@ def test_hook_ships():
 
 # ------------------------------------------------------------------ context budget ----
 
+def advice(result):
+    """The additionalContext a PostToolUse `--advise` run delivered, or '' for silence."""
+    if not result.stdout.strip():
+        return ""
+    out = json.loads(result.stdout)["hookSpecificOutput"]
+    assert out["hookEventName"] == "PostToolUse", out
+    return out["additionalContext"]
+
+
+ADVISE = ("--advise",)
+
+
 def test_below_the_warn_threshold_is_silent(tmp_path):
     path = transcript(tmp_path, usage_line(50000))
-    result = run_hook(tmp_path, path)
-    assert result.returncode == 0
-    assert result.stderr == "", "a session well under budget must not be nagged"
+    pre = run_hook(tmp_path, path)
+    post = run_hook(tmp_path, path, args=ADVISE)
+    assert pre.returncode == 0 and pre.stderr == "" and pre.stdout == ""
+    assert post.returncode == 0 and advice(post) == "", "a session well under budget must not be nagged"
 
 
 def test_warns_once_at_the_warn_threshold(tmp_path):
     path = transcript(tmp_path, usage_line(160000))
-    result = run_hook(tmp_path, path)
+    result = run_hook(tmp_path, path, args=ADVISE)
     assert result.returncode == 0, "the warn band allows the call"
-    assert "/compact" in result.stderr
-    assert "160K" in result.stderr
+    assert "/compact" in advice(result)
+    assert "160K" in advice(result)
+    assert result.stderr == "", "the advisory is the JSON on stdout; stderr never reaches the model"
+
+
+def test_the_pretooluse_path_never_warns(tmp_path):
+    """Exit-0 stderr from a PreToolUse hook is a transcript attachment, not model context
+    (measured 2026-09-19: 18,345 attachments, 0 in context). The warn band must therefore be
+    SILENT on the dispatch path, and must not spend the per-session counter `--advise` needs."""
+    path = transcript(tmp_path, usage_line(160000))
+    pre = run_hook(tmp_path, path)
+    assert pre.returncode == 0 and pre.stderr == "" and pre.stdout == ""
+    post = run_hook(tmp_path, path, args=ADVISE)
+    assert "160K" in advice(post), "the PreToolUse run must not have consumed the advisory slot"
 
 
 def test_the_warning_is_suppressed_on_the_next_call(tmp_path):
     path = transcript(tmp_path, usage_line(160000))
-    first = run_hook(tmp_path, path)
-    second = run_hook(tmp_path, path)
-    assert first.stderr != ""
+    first = run_hook(tmp_path, path, args=ADVISE)
+    second = run_hook(tmp_path, path, args=ADVISE)
+    assert advice(first) != ""
     assert second.returncode == 0
-    assert second.stderr == "", (
+    assert advice(second) == "", (
         "the advisory must repeat at most once per 20 calls; the state file under "
         ".claude/hooks/.state/ is what makes that true"
     )
+
+
+def test_advise_is_silent_for_a_main_session_over_the_block_line(tmp_path):
+    """The PreToolUse block (exit 2) already carries that message and a block DOES reach the
+    model; a second copy on PostToolUse would be noise on every call."""
+    path = transcript(tmp_path, usage_line(450000))
+    post = run_hook(tmp_path, path, args=ADVISE)
+    assert post.returncode == 0 and advice(post) == "" and post.stderr == ""
+
+
+def test_advise_never_exits_nonzero_and_ignores_unknown_flags(tmp_path):
+    path = transcript(tmp_path, usage_line(450000))
+    result = run_hook(tmp_path, path, args=("--advise", "--no-such-flag"))
+    assert result.returncode == 0, "a flag argparse does not know must not become a block (exit 2)"
+
+
+def test_settings_json_wires_advise_directly_on_posttooluse():
+    """THE wiring. additionalContext JSON only reaches the model from a DIRECT settings.json
+    entry - dispatch.sh prefixes each handler's stdout with `[id] ` and breaks the JSON."""
+    settings = json.loads((ROOT / ".claude" / "settings.json").read_text(encoding="utf-8"))
+    entries = [(g["matcher"], h["command"]) for g in settings["hooks"]["PostToolUse"]
+               for h in g["hooks"] if "context-budget-gate.py" in h["command"]]
+    assert entries, "context-budget-gate.py --advise is not a PostToolUse entry; the warn is a dead letter again"
+    for matcher, command in entries:
+        assert "--advise" in command and "dispatch.sh" not in command
+        for tool in ("Read", "Grep", "Glob", "Edit", "Write", "Bash", "Agent"):
+            assert re.fullmatch(matcher, tool), f"matcher {matcher!r} misses {tool}"
 
 
 def test_the_warn_counter_writes_no_state_outside_the_project(tmp_path):
@@ -225,15 +277,15 @@ def test_the_warn_counter_writes_no_state_outside_the_project(tmp_path):
     elsewhere.mkdir()
     path = transcript(tmp_path, usage_line(160000))
 
-    first = run_hook(tmp_path, path, project_dir=None, cwd=elsewhere)
-    second = run_hook(tmp_path, path, project_dir=None, cwd=elsewhere)
+    first = run_hook(tmp_path, path, project_dir=None, cwd=elsewhere, args=ADVISE)
+    second = run_hook(tmp_path, path, project_dir=None, cwd=elsewhere, args=ADVISE)
 
     assert first.returncode == 0 and second.returncode == 0
     assert not (elsewhere / ".claude").exists(), (
         "the hook created state under an arbitrary cwd: %s"
         % sorted(p.name for p in elsewhere.iterdir())
     )
-    assert "/compact" in first.stderr and "/compact" in second.stderr, (
+    assert "/compact" in advice(first) and "/compact" in advice(second), (
         "with nowhere to keep the counter the advisory must repeat, never go silent"
     )
 
@@ -280,7 +332,11 @@ def test_a_subagent_is_measured_by_its_own_transcript_not_the_parents(tmp_path):
     (own_dir / "agent-abc123.jsonl").write_text(usage_line(450000) + "\n")
     big = run_hook(tmp_path, os.path.join(str(tmp_path), os.path.basename(str(parent))),
                    extra_payload={"agent_id": "abc123", "agent_type": "planner"})
-    assert big.returncode == 0 and "subagent" in big.stderr, big.stderr
+    assert big.returncode == 0 and big.stderr == "", big.stderr  # advised, never blocked
+    big_advice = run_hook(tmp_path, os.path.join(str(tmp_path), os.path.basename(str(parent))),
+                          extra_payload={"agent_id": "abc123", "agent_type": "planner"},
+                          args=ADVISE)
+    assert "subagent" in advice(big_advice), big_advice.stdout
 
 
 def test_a_subagent_over_the_block_line_is_advised_not_blocked(tmp_path):
@@ -298,17 +354,19 @@ def test_a_subagent_over_the_block_line_is_advised_not_blocked(tmp_path):
     main = session_dir / "session.jsonl"
     main.write_text(body, encoding="utf-8")
 
-    sub_result = run_hook(tmp_path, sub, session_id="pytest-subagent")
-    assert sub_result.returncode == 0, (
+    pre = run_hook(tmp_path, sub, session_id="pytest-subagent")
+    assert pre.returncode == 0, (
         "a subagent must not be hard-blocked - it has no /compact (rc=%s, stderr=%r)"
-        % (sub_result.returncode, sub_result.stderr)
+        % (pre.returncode, pre.stderr)
     )
-    assert "BLOCKED" not in sub_result.stderr
-    assert "subagent" in sub_result.stderr and "hand it back" in sub_result.stderr, (
-        "the subagent advisory must name the one move it can make (stderr=%r)"
-        % sub_result.stderr
+    assert pre.stderr == "" and pre.stdout == "", "PreToolUse blocks or stays silent; it never advises"
+    sub_result = run_hook(tmp_path, sub, session_id="pytest-subagent", args=ADVISE)
+    assert sub_result.returncode == 0
+    assert "BLOCKED" not in advice(sub_result)
+    assert "subagent" in advice(sub_result) and "hand it back" in advice(sub_result), (
+        "the subagent advisory must name the one move it can make (stdout=%r)"
+        % sub_result.stdout
     )
-
     main_result = run_hook(tmp_path, main, session_id="pytest-main-session")
     assert main_result.returncode == 2, (
         "a MAIN session at 450K is still refused (rc=%s, stderr=%r)"
@@ -647,7 +705,9 @@ def test_thresholds_come_from_the_environment(tmp_path):
     assert lowered.returncode == 2, "CK_CONTEXT_BLOCK=150000 must refuse a 180K session"
     raised = run_hook(tmp_path, path, extra_env={"CK_CONTEXT_BLOCK": "400000"})
     assert raised.returncode == 0, "CK_CONTEXT_BLOCK=400000 must let a 180K session through"
-    assert "180K" in raised.stderr, "and the 150K warning still fires below the raised line"
+    assert raised.stderr == "", "the PreToolUse path never warns"
+    advised = run_hook(tmp_path, path, extra_env={"CK_CONTEXT_BLOCK": "400000"}, args=ADVISE)
+    assert "180K" in advice(advised), "and the 150K warning still fires below the raised line"
 
 
 def test_a_missing_transcript_allows(tmp_path):

@@ -8,7 +8,7 @@
 #
 # WHY THIS EXISTS
 # ---------------
-# `.claude/settings.json` registers 26 hook entries across 8 events. Six fire on
+# `.claude/settings.json` registers 27 hook entries across 8 events. Six fire on
 # PreToolUse/Bash alone, and nothing defined what happens when two of them decide
 # differently — the outcome fell out of registration order. Worse, a handler that
 # BROKE failed open. Re-measured at 5f3e322, in a clean environment so the outer

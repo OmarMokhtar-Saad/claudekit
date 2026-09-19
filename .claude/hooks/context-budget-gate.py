@@ -18,7 +18,7 @@ THE TWO DECISIONS
 1. CONTEXT BUDGET. The payload names the caller's OWN transcript. Each assistant line in that
    JSONL carries `message.usage`; input_tokens + cache_read_input_tokens +
    cache_creation_input_tokens on the LAST assistant line is the context in force right now.
-   At or above CK_CONTEXT_WARN (150,000) the call is allowed and one advisory line is printed,
+   At or above CK_CONTEXT_WARN (150,000) the call is allowed and `--advise` (PostToolUse) delivers one advisory,
    at most once per 20 guarded calls per session. At or above CK_CONTEXT_BLOCK (200,000) the
    call is refused: past that size every further tool call re-reads the whole window, so the
    cheapest correct move is /compact, then /save-session, or a fresh session.
@@ -38,6 +38,21 @@ THE TWO DECISIONS
    no prompt of ours. It is the one dispatch this kit cannot bound, so an Agent/Task call that
    names it - or names nothing - is refused and the scoped alternatives are named instead.
    Every kit agent, and the other built-ins (Explore, Plan, claude-code-guide), fall through.
+
+TWO ENTRY POINTS
+----------------
+Without arguments this is the PreToolUse handler, run through dispatch.sh: it BLOCKS (exit 2,
+one stderr line) or stays silent. It never advises from there, because exit-0 stderr and plain
+stdout from a PreToolUse/PostToolUse hook are recorded as a `hook_success` attachment and never
+enter model context (measured 2026-09-19 over 227 sessions: 18,345 such attachments, 0 in
+context - the WARN this hook printed for months was a dead letter with a passing test).
+`--advise` is the PostToolUse handler, wired DIRECTLY in settings.json - dispatch.sh prefixes
+each handler's stdout with `[id] `, which breaks the JSON. It prints
+`{"hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": ...}}`, the one
+PostToolUse form the model reads, for the warn band (once per WARN_EVERY counted calls per
+session) and for a subagent at or over the block line (every call: its one move is to stop),
+and always exits 0. A main session at or over the block line gets nothing from `--advise`:
+the PreToolUse block already carries that message, and a block does reach the model.
 
 ONLY THE TAIL IS READ
 ---------------------
@@ -85,6 +100,7 @@ hook chain.
 stdlib only, py3.9 target.
 """
 
+import argparse
 import json
 import os
 import sys
@@ -522,10 +538,6 @@ def _decide(payload):
         return None
     tool_input = payload.get("tool_input")
 
-    # A warning is HELD, not returned, so a de-duplicated advisory can never swallow the
-    # spawn check below it.
-    note = None
-
     if os.environ.get("CK_RAW_CONTEXT") != "1":
         transcript_path, subagent_call = _caller_transcript(payload)
         if tool_name not in GUARDED_TOOLS and not subagent_call:
@@ -538,18 +550,13 @@ def _decide(payload):
                 return verdict
             if tool_name not in GUARDED_TOOLS:
                 return None
-        if size is not None:
+        if size is not None and not subagent_call:
+            # A subagent is never blocked: it can run neither /compact nor /save-session and
+            # cannot set the hatch in its own environment. Its over-the-line advisory, and the
+            # main session's warn-band one, are `--advise`'s (PostToolUse): the only path whose
+            # output the model reads. From here a decision is a block or nothing.
             block = _threshold("CK_CONTEXT_BLOCK", DEFAULT_BLOCK)
-            warn = _threshold("CK_CONTEXT_WARN", DEFAULT_WARN)
-            if size >= block and subagent_call:
-                # Not a block: a subagent has no /compact, no /save-session and no way to set
-                # the hatch in its own environment. The only move it CAN make is to stop.
-                note = (0,
-                        "context-budget-gate: this subagent is at %dK tokens of context "
-                        "(block line %dK). A subagent cannot run /compact or /save-session - "
-                        "stop exploring, write up what you already have and hand it back to "
-                        "your caller now.\n" % (size // 1000, block // 1000))
-            elif size >= block and not _is_session_save(tool_name, tool_input):
+            if size >= block and not _is_session_save(tool_name, tool_input):
                 return (2,
                         "BLOCKED context-budget-gate: this session is at %dK tokens of "
                         "context (block at %dK). Type /compact now - it is not a tool call, so "
@@ -557,11 +564,6 @@ def _decide(payload):
                         "the line. Set /autocompact below %dK so this never fires. Override for "
                         "one process tree with CK_RAW_CONTEXT=1.\n"
                         % (size // 1000, block // 1000, block // 1000))
-            elif size >= warn and _should_warn(payload.get("session_id")):
-                note = (0,
-                        "context-budget-gate: context %dK tokens (warn %dK, block %dK) - run "
-                        "/save-session then /compact, or start a new session.\n"
-                        % (size // 1000, warn // 1000, block // 1000))
     elif tool_name not in GUARDED_TOOLS:
         return None
 
@@ -584,14 +586,77 @@ def _decide(payload):
                     "one process tree with CK_ALLOW_MODEL_OVERRIDE=1.\n"
                     % (requested, target, declared))
 
-    return note
+    return None
 
-def main():
+
+def _subagent_note(size, block):
+    return ("context-budget-gate: this subagent is at %dK tokens of context (block line %dK). "
+            "A subagent cannot run /compact or /save-session - stop exploring, write up what "
+            "you already have and hand it back to your caller now."
+            % (size // 1000, block // 1000))
+
+
+def _warn_note(size, warn, block):
+    return ("context-budget-gate: context %dK tokens (warn %dK, block %dK) - run /save-session "
+            "then /compact, or start a new session."
+            % (size // 1000, warn // 1000, block // 1000))
+
+
+def _advise(payload):
+    """`--advise` (PostToolUse): the advisory the model should read, or None.
+
+    Never a decision - the caller always exits 0 - and never through dispatch.sh. The warn-band
+    advisory is rate-limited by the same per-session counter the PreToolUse path used to spend
+    on a message nobody received; a subagent over the block line is told to stop on every call.
+    """
+    if os.environ.get("CK_RAW_CONTEXT") == "1":
+        return None
+    tool_name = payload.get("tool_name") or payload.get("name")
+    if tool_name not in COUNTED_TOOLS:
+        return None
+    transcript_path, subagent_call = _caller_transcript(payload)
+    if not transcript_path:
+        return None
+    size = _context_size(transcript_path)
+    if size is None:
+        return None
+    block = _threshold("CK_CONTEXT_BLOCK", DEFAULT_BLOCK)
+    warn = _threshold("CK_CONTEXT_WARN", DEFAULT_WARN)
+    if subagent_call:
+        return _subagent_note(size, block) if size >= block else None
+    if size >= block:
+        return None  # the PreToolUse block carries this, and a block reaches the model
+    if size >= warn and _should_warn(payload.get("session_id")):
+        return _warn_note(size, warn, block)
+    return None
+
+
+def _parse_args(argv):
+    # parse_known_args, never parse_args: an unexpected flag from a future registry row must
+    # not turn this fail-soft gate into a crash (argparse exits 2 - the block code).
+    ap = argparse.ArgumentParser(add_help=False)
+    ap.add_argument("--advise", action="store_true",
+                    help="PostToolUse mode: print hookSpecificOutput.additionalContext JSON, exit 0")
+    args, _unknown = ap.parse_known_args(argv)
+    return args
+
+
+def main(argv=None):
+    args = _parse_args(sys.argv[1:] if argv is None else argv)
     try:
         payload = json.load(sys.stdin)
     except Exception:
         return 0
     if not isinstance(payload, dict):
+        return 0
+    if args.advise:
+        try:
+            note = _advise(payload)
+        except Exception:
+            note = None  # the gate's own bug must never cost the model an advisory it can act on
+        if note:
+            sys.stdout.write(json.dumps({"hookSpecificOutput": {
+                "hookEventName": "PostToolUse", "additionalContext": note}}) + "\n")
         return 0
     try:
         decision = _decide(payload)
