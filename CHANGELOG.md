@@ -11,6 +11,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `open-source-forker` — never shipped and have been removed.
 
 ## [Unreleased]
+- **Token-spend fixes from the audit of qa-agents session 60554075** (89.9M tokens, 542
+  turns, 2 user messages): (1) command-guard no longer refuses a bare shell assignment
+  (`S=/tmp/x` on its own line or before `;`) as an "environment override" — it runs no
+  command; names that steer code loading (PATH, IFS, LD_PRELOAD, PYTHONPATH, `npm_config_*`)
+  are still refused, and the prefixed form `S=1 ls` is unchanged. (2) `context-budget-gate`
+  warns at 150K context (was 200K) — 39% of that session's spend was turns above 250K.
+  (3) New blocking hook `review-round-cap.py` (PreToolUse, Agent/Task): the 4th
+  `code-reviewer` spawn in a session exits 2 with the owner-escalation text; the prose
+  ceiling of 3 was never counted because callers did not record rounds. Owner knob:
+  `CK_REVIEW_ROUND_CAP=N` (0 disables). (4) `reflection.py` redacts the path shape in
+  `proofCommandOrCheck` instead of refusing the receipt — a proof command legitimately
+  names files, and each refusal cost two full-context turns.
 - **`review-record.py` records follow the ops file's tree, not the cwd.** `write`, `check`,
   `diff` and `author` (and `record-code-review`, which calls `write`) now resolve
   `.claude/reports/reviews/` against the git toplevel of the ops file, falling back to the old
