@@ -10,8 +10,9 @@ directory is loaded.
 | `memory: local` | `.claude/agent-memory-local/<agent>/` | No (gitignored) |
 | `memory: user` | `~/.claude/agent-memory/<agent>/` | No (outside the repo) |
 
-Agents carrying `memory: project` in this kit: `code-reviewer`, `debugger`, `explore`,
-`verifier`, `security-scanner`, `planner`, `reviewer`.
+Agents carrying `memory: project` in this kit: `code-reviewer` and `planner`. Five other
+agents dropped the field on 2026-09-19: over two days of transcripts none had written to its
+memory dir, and the field silently grants Write and Edit to a read-only agent.
 
 ## What to record
 

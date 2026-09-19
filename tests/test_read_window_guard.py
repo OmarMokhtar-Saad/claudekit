@@ -29,9 +29,9 @@ DISPATCH = ROOT / ".claude" / "hooks" / "dispatch.sh"
 REGISTRY = ROOT / ".claude" / "hooks" / "dispatch-registry.json"
 
 AGENT_MAX_TURNS = {
-    "planner.md": 40,
-    "reviewer.md": 25,
-    "implementer.md": 30,
+    "planner.md": 15,   # 2026-09-19: was 40; planners averaged 98 turns and never hit it
+    "reviewer.md": 8,   # 2026-09-19: was 25
+    "implementer.md": 12,  # 2026-09-19: was 30
     "code-reviewer.md": 30,
 }
 

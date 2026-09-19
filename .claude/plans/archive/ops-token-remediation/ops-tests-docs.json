@@ -1,0 +1,33 @@
+{
+  "plan": "token-remediation-tests-docs",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/_shared/INVOCATION.md",
+      "edits": [
+        {
+          "find": "`Read,Grep,Glob,Write,Bash(python3 .claude/operations/scripts/validate-config-json.py *)`",
+          "replace": "`Read,Grep,Glob,Write`"
+        },
+        {
+          "find": "| planner | `Read, Grep, Glob, Write, Bash` |",
+          "replace": "| planner | `Read, Grep, Glob, Write` |"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_hook_stdin_wiring.py",
+      "edits": [
+        {
+          "find": "def test_wired_command_log_audit_receives_stdin(tmp_path):\n    marker = \"hello-stdin-%s\" % uuid.uuid4().hex[:8]\n    root = hook_sandbox(tmp_path)\n    env = sandbox_env(root, tmp_path, \"standard\")\n    run_hook(wired_command(\"PostToolUse\", \"command-log-audit.sh\"), root,\n             bash_payload(marker), env)\n    audit = root / \".claude\" / \"hooks\" / \"bash-commands.log\"\n    assert wait_for_marker(audit, marker), (\n        \"the wired PostToolUse command never recorded the payload; \"\n        \"bash-commands.log exists=%s\" % audit.exists()\n    )\n\n\n",
+          "replace": "# `test_wired_command_log_audit_receives_stdin` was removed 2026-09-19: the hook it wired is gone.\n# hooks.log showed 5,012 \"JSON parse failure\" lines and 0 recorded payloads in this repo (3,137 / 0\n# in qa-agents) while this test stayed green -- it proved the sandbox payload, not a production one.\n\n\n"
+        }
+      ]
+    }
+  ],
+  "baseline": {
+    ".claude/agents/_shared/INVOCATION.md": "sha256:d441981bb0087a7a7a66f46841ad6b5fa6698d143f9edab37592f2015b8dbd45",
+    "tests/test_hook_stdin_wiring.py": "sha256:d345c989438056f66d9114b1fa537a1b23483a3da63fdfcd919572612e26a71f"
+  }
+}

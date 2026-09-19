@@ -1,0 +1,55 @@
+{
+  "plan": "ops-implementer-no-git",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/iron-law-gate.py",
+      "description": "delete the four git reporter tables; _decide_git refuses unconditionally",
+      "edits": [
+        {
+          "find": "# `git` reporters. The subcommand must be the FIRST token after `git`, so global options\n# are refused too: `git -c alias.x='!sh -c ...' x` and `git -C <dir> ...` are execution\n# vectors, not reporting. checkout / apply / restore / reset / add / commit / push /\n# stash / clean are absent on purpose.\n_GIT_READ_ONLY = frozenset({\n    \"status\", \"diff\", \"log\", \"show\", \"rev-parse\", \"ls-files\", \"shortlog\", \"blame\",\n})\n_GIT_SAFE = frozenset({\n    \"--porcelain\", \"--short\", \"--stat\", \"--numstat\", \"--name-only\", \"--name-status\",\n    \"--oneline\", \"--cached\", \"--staged\", \"--show-toplevel\", \"-n\",\n})\n\n# `branch` and `remote` are NOT read-only subcommands: `git branch -D feature` and\n# `git remote add|remove|set-url|prune` all mutate repository state, destructively in the\n# `-D`/`prune` case. They are kept as reporters only, with a listing-only SAFE list.\n# A POSITIONAL is permitted here so `git branch --list 'feat*'` works (round-3 over-block).\n_GIT_LIST_ONLY = frozenset({\"branch\", \"remote\"})\n_GIT_LIST_SAFE = frozenset({\"-v\", \"-vv\", \"--verbose\", \"--list\", \"--show-current\",\n                            \"-a\", \"--all\"})",
+          "replace": "# `git` is the PARENT SESSION's tool, not the implementer's (2026-09-19 token\n# remediation). The parent creates the branch before the spawn and commits after the ops\n# config has run, so there is nothing left for an implementer to run: every reporter this\n# file used to permit - `status`, `diff --stat`, `log --oneline`, `show`, `branch --list`,\n# `remote -v` - reported on state the implementer does not own, and each one cost a full\n# subagent turn. The four tables that used to sit here (`_GIT_READ_ONLY`, `_GIT_SAFE`,\n# `_GIT_LIST_ONLY`, `_GIT_LIST_SAFE`) took three review rounds to tighten; deleting the\n# grant retires all four, and _decide_git below cannot drift back open one flag at a time."
+        },
+        {
+          "find": "def _decide_git(rest: List[str], root: Path) -> Tuple[bool, str]:\n    if not rest:\n        return False, \"bare `git` - no subcommand to check\"\n    if rest[0].startswith(\"-\"):\n        return False, (\"git global option %s must not precede the subcommand \"\n                       \"(`git -c alias...` and `git -C dir` are execution vectors)\"\n                       % safe(rest[0]))\n    if rest[0] in _GIT_LIST_ONLY:\n        # A POSITIONAL here is how `git remote add origin <url>` and `git branch -m old new`\n        # mutate: the flag list alone does not stop them, because their verbs are bare\n        # words. Positionals are therefore refused UNLESS `--list` is present, which is the\n        # one form that legitimately takes one (`git branch --list 'feat*'`).\n        listing = \"--list\" in rest[1:]\n        for token in rest[1:]:\n            if not token.startswith(\"-\") and not listing:\n                return False, (\"`git %s %s` names a positional; without --list that is a \"\n                               \"mutating form (add/remove/set-url/prune/rename)\"\n                               % (safe(rest[0]), safe(token)))\n        return _check_argv(rest[1:], _GIT_LIST_SAFE, \"git \" + rest[0], root)\n    if rest[0] not in _GIT_READ_ONLY:\n        return False, (\"`git %s` is not a read-only reporter. Permitted: %s\"\n                       % (safe(rest[0]),\n                          \", \".join(sorted(_GIT_READ_ONLY | _GIT_LIST_ONLY))))\n    return _check_argv(rest[1:], _GIT_SAFE, \"git \" + rest[0], root, numeric_ok=True)",
+          "replace": "def _decide_git(rest: List[str], root: Path) -> Tuple[bool, str]:\n    # The verdict does not depend on the argv; the parameters are kept so the dispatch in\n    # decide() stays uniform across heads.\n    del rest, root\n    return False, (\"`git` is the parent session's: it creates the branch before the spawn \"\n                   \"and commits after the ops config has run. An implementer runs no git \"\n                   \"at all - not even a reporter, because branch, index and worktree \"\n                   \"state is not its to read. Ask the parent session for it.\")"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_iron_law_hook.py",
+      "description": "move the nine git reporters ALLOWED -> BLOCKED; retarget the mutants",
+      "edits": [
+        {
+          "find": "    # Read-only inspection, per implementer.md (\"cat, grep, ls, git status\").\n    \"cat README.md\",\n    \"head -n 40 pyproject.toml\",\n    \"grep -rn TODO src\",\n    \"ls -la .claude/plans\",\n    \"find . -name '*.ops.json'\",\n    \"find . -maxdepth 2 -type f -name '*.sh'\",\n    \"wc -l install.sh\",\n    \"git status\",\n    \"git status --porcelain\",\n    \"git diff --stat\",\n    \"git log --oneline -5\",\n    \"git show HEAD --stat\",\n    # `branch`/`remote` are mutating subcommands kept only in their pure listing forms.\n    \"git branch --show-current\",\n    \"git branch --list\",\n    \"git branch --list 'feat*'\",\n    \"git remote -v\",",
+          "replace": "    # Read-only inspection, per implementer.md (\"cat, grep, ls\"). `git` is absent by\n    # decision (2026-09-19): the parent session owns the branch, so every git reporter is\n    # in BLOCKED below.\n    \"cat README.md\",\n    \"head -n 40 pyproject.toml\",\n    \"grep -rn TODO src\",\n    \"ls -la .claude/plans\",\n    \"find . -name '*.ops.json'\",\n    \"find . -maxdepth 2 -type f -name '*.sh'\",\n    \"wc -l install.sh\","
+        },
+        {
+          "find": "    (\"git remote prune origin\", \"git-remote-prune\"),",
+          "add_after": "\n    # 2026-09-19 token remediation: git belongs to the parent session, so the reporters\n    # this corpus used to list as ALLOWED are refused too. They are here, not merely\n    # deleted from ALLOWED, because \"no longer allowed\" and \"blocked\" are different claims\n    # and only the second one is enforced.\n    (\"git status\", \"git-status\"),\n    (\"git status --porcelain\", \"git-status-porcelain\"),\n    (\"git diff --stat\", \"git-diff-stat\"),\n    (\"git log --oneline -5\", \"git-log-oneline\"),\n    (\"git show HEAD --stat\", \"git-show-head\"),\n    (\"git branch --show-current\", \"git-branch-show-current\"),\n    (\"git branch --list\", \"git-branch-list\"),\n    (\"git branch --list 'feat*'\", \"git-branch-list-glob\"),\n    (\"git remote -v\", \"git-remote-v\"),"
+        },
+        {
+          "find": "\"tool_input\": {\"command\": \"git status # XX\"},",
+          "replace": "\"tool_input\": {\"command\": \"cat README.md # XX\"},"
+        },
+        {
+          "find": "    # Flag-only form, so this pins _GIT_LIST_SAFE and nothing else. `git branch -D x` is\n    # bound to TWO guards (the flag list AND the positional rule), which would make it a\n    # poor surgical target - the positional mutant below covers that half.\n    (\"git-branch-delete-flagonly\", \"_GIT_LIST_SAFE = frozenset({\",\n     '_GIT_LIST_SAFE = frozenset({\"-D\",', ()),\n    (\"git-remote-add\", '            if not token.startswith(\"-\") and not listing:',\n     \"            if False:\",\n     (\"git-branch-create-positional\", \"git-remote-set-url\", \"git-remote-prune\")),",
+          "replace": "    # Both git mutants that used to sit here pinned `_GIT_LIST_SAFE` and the positional\n    # loop; the 2026-09-19 remediation deleted that source, so they are replaced by one\n    # mutant against the refusal itself. Its collateral is EVERY other git label - that is\n    # the honest blast radius of a single unconditional refusal, and the assertion that\n    # the set is exact is what stops the refusal being quietly narrowed later.\n    (\"git-status\", \"    del rest, root\",\n     \"    del rest, root\\n    return True, \\\"\\\"\",\n     (\"git-apply\", \"git-checkout\", \"git-restore\", \"git-reset\", \"git-commit\",\n      \"git-dash-c-alias\", \"git-dash-C\", \"git-diff-output\", \"git-branch-delete\",\n      \"git-branch-move\", \"git-remote-add\", \"git-branch-create-positional\",\n      \"git-branch-delete-flagonly\", \"git-remote-set-url\", \"git-remote-prune\",\n      \"invented-git-flag\", \"double-dash-separator\", \"git-status-porcelain\",\n      \"git-diff-stat\", \"git-log-oneline\", \"git-show-head\", \"git-branch-show-current\",\n      \"git-branch-list\", \"git-branch-list-glob\", \"git-remote-v\")),"
+        },
+        {
+          "find": "     (\"git-diff-output\", \"find-delete\", \"ruff-fix\", \"pytest-plugin-injection\",\n      \"pytest-log-file\", \"pytest-log-file-detached\", \"pytest-ini-override\",\n      \"pytest-override-ini-long\", \"git-branch-delete-flagonly\",\n      \"ruff-add-noqa-rewrites-sources\", \"pytest-debug-writes\",\n      \"mypy-install-types-invokes-pip\", \"invented-pytest-flag\", \"invented-git-flag\",\n      \"ops-no-approval-flag\")),",
+          "replace": "     (\"find-delete\", \"ruff-fix\", \"pytest-plugin-injection\",\n      \"pytest-log-file\", \"pytest-log-file-detached\", \"pytest-ini-override\",\n      \"pytest-override-ini-long\",\n      \"ruff-add-noqa-rewrites-sources\", \"pytest-debug-writes\",\n      \"mypy-install-types-invokes-pip\", \"invented-pytest-flag\",\n      \"ops-no-approval-flag\")),"
+        },
+        {
+          "find": "def test_prefix_match_does_not_satisfy_the_allowlist(tmp_path):\n    \"\"\"`git diff` must not be satisfied by `git diff --output=x`.\"\"\"\n    assert run(payload(\"git diff\"), tmp_path).returncode == 0\n    assert run(payload(\"git diff --output=/tmp/x\"), tmp_path).returncode == 2",
+          "replace": "def test_prefix_match_does_not_satisfy_the_allowlist(tmp_path):\n    \"\"\"`ruff check` must not be satisfied by `ruff check --output-file x`.\"\"\"\n    assert run(payload(\"ruff check src/ tests/ scripts/\"), tmp_path).returncode == 0\n    assert run(payload(\"ruff check --output-file /tmp/out src/\"), tmp_path).returncode == 2"
+        }
+      ]
+    }
+  ],
+  "baseline": {
+    ".claude/hooks/iron-law-gate.py": "sha256:0ed6f527221bc3dd14a496eaa4d156ce26c16d2da461d4ab33083ae2ebe1c2fd",
+    "tests/test_iron_law_hook.py": "sha256:3b43b325b0ab6f310243e3fb1224a1ca3210c0aafd5304a063cd0e83a9aae728"
+  }
+}

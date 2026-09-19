@@ -1,6 +1,30 @@
 # AI Session Changelog
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
+## 2026-09-19 (latest) — the bill was context × turns
+
+Measured across both accounts, not one session: 3.33B tokens in two days, 96% of it re-reading
+contexts that a `[1m]` model setting let grow to 966K while `autoCompactWindow` sat at 350K,
+multiplied by eight bridged sessions and planners that averaged 98 turns. The kit's own gates cost
+more than they saved: a block at 443K is the most expensive turn in the session, and the reflection
+loop wrote 436 times for zero reads. Remediation shipped through ops: planner stripped of Bash with
+binding caps, reflection gate reduced to a ledger, the dead audit hook removed, unused `memory:`
+grants dropped; window and compaction fixed at the account level. Lesson: measure the fleet's
+transcripts before tuning one hook, and price a guard's block at the context it fires in.
+
+## 2026-09-19 — the ceiling nobody counted
+Six code-reviewer rounds on one screen (14.2M tokens) ran under a "ceiling: 3" that lived only in prose; review-record.py's MAX_ROUNDS binds on records, and the caller wrote none. The spawn is the one event the caller cannot skip, so `review-round-cap.py` counts spawns. Same audit: 4 of 24 hook denials were `S=/tmp/x` scratch variables refused as env overrides — the bare-assignment early return sat BELOW the env check and was unreachable in safe mode. Lesson recorded: a scratch `git archive` copy imports the editable-installed worktree package; pin PYTHONPATH or the proof measures the wrong tree.
+
+## 2026-09-19 (later) — the frontmatter was advisory all along
+
+Measured, not reasoned: on one 297M session every frontmatter control failed in a different way
+(`memory:` grants Write+Edit; `maxTurns` ignored; caller overrides `model`), and the bill was
+`turns × context`, a product no single-axis cap could see. `context-budget-gate.py` now enforces the
+contract for spawned agents and caps the product; `batch-reads-nudge.py` attacks the turn count on the
+main session. Both fleet-synced and probed live in 14 projects. Owner also cut the 77K per-turn floor:
+plugins/MCP account-wide, memory index split, CLAUDE.md structural trim. Lesson recorded in memory:
+when a control lives only in frontmatter, assume it is advisory until a hook test proves otherwise.
+
 ## 2026-09-19 — the seat that spends is the one nothing capped
 
 Four layers shipped on 2026-09-18 all bind through agent frontmatter or the Bash/Read tool path.
@@ -2218,3 +2242,12 @@ absolute path and raw stderr produced zero leaks across 5,327 bytes of real ledg
 ## Earlier — v1.0.0 → v2.0.0 (2026-03-16/17)
 
 Original corpus build-out (agents/commands/skills/hooks/templates/modes/MCP/i18n) — see CHANGELOG.md. Delivery-shell defects from this era were the subject of the 2026-07-05 audit (`review/FINAL-REPORT.md`, 49/100).
+- 2026-09-19: `check-command` resolves project config via CLAUDE_PROJECT_DIR / walk-up (was cwd-relative; subdirectory sessions ran default policy). Lesson: probe hooks with `ECC_HOOK_PROFILE=standard` — this repo's session env is `minimal`, so command-guard exits 0 before checking anything.
+
+
+## 2026-09-19 — boot trim
+- Policy v5 and session-start caps; evidence in .ai/TOKEN_MODEL_POLICY.md.
+
+## 2026-09-19 — retired commands deleted
+
+Owner-approved deletion of `/refine`, `/santa`, `/gan-build`, `/xpipe` and their skills/script/tests in claudekit and qa-agents; every live reference updated; generators (registry, docs, model-policy) green; targeted tests 815 passed. Full-suite result recorded in SESSION_STATE when it lands. Hook text at `ops-enforcement.sh:126` left for the owner (classifier).

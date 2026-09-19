@@ -6,7 +6,6 @@ description: |
 model: opus
 effort: high
 color: crimson
-memory: project
 tools: ["Read", "Bash", "Grep", "Glob"]
 ---
 

@@ -1,0 +1,19 @@
+{
+  "plan": "ops-archive-rows-2",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/plans/archive/README.md",
+      "description": "archive rows for the smoke-heading fix and this config",
+      "edits": [
+        {
+          "find": "and names each archived config in its own plan. 5 operations. |",
+          "replace": "and names each archived config in its own plan. 5 operations. |\n| `ops-smoke-scripted-heading/ops.json` | Spent - executed 2026-09-19 (Tier 1, `--no-approval`). `test_plan_scripted_path_keeps_stdout_small_and_files_valid` split `plan.md` on `## Invocation - scripted`, which moved under `### `--deep` mechanism B` when `/plan` went inline-by-default; the split raised IndexError instead of naming the drift, so the heading is now asserted before it is used. 1 operation. |\n| `ops-archive-rows-2/ops.json` | Spent - executed 2026-09-19 (Tier 1, `--no-approval`). The two rows above; the queued-ops gate reddens until every executed config is archived with a row. 1 operation. |"
+        }
+      ]
+    }
+  ],
+  "baseline": {
+    ".claude/plans/archive/README.md": "sha256:57d9d8a9ad3de5bd0da7af8935f2f46a72ce30e5188c7480345bf6669a24d60c"
+  }
+}

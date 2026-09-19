@@ -7,8 +7,8 @@ model: opus
 effort: high
 color: cyan
 memory: project
-maxTurns: 40
-tools: ["Read", "Grep", "Glob", "Write", "Bash"]
+maxTurns: 15
+tools: ["Read", "Grep", "Glob", "Write"]
 ---
 
 # Planner Agent

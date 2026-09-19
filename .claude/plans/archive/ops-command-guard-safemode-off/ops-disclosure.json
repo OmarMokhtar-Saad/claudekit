@@ -1,0 +1,17 @@
+{
+  "plan": "command-guard-safemode-off-disclosure",
+  "operations": [
+    {
+      "type": "code_edit",
+      "id": "sd-01",
+      "description": "disclose the env-prefix widening in unsafe mode",
+      "path": "scripts/check-validator-differential.py",
+      "edits": [
+        {
+          "find": "DISCLOSED_WIDENINGS: List[Dict[str, str]] = [\n",
+          "replace": "DISCLOSED_WIDENINGS: List[Dict[str, str]] = [\n    {\n        \"payload\": r\"^[A-Za-z_][A-Za-z0-9_]*=\",\n        \"baseline_reason\": \"Dangerous pattern (environment override: \",\n        \"why\": \"2026-09-19: the env-assignment allowlist is gated on safe_mode. With the \"\n               \"allowlist OFF (now the shipped default) a `VAR=x cmd` prefix is stripped and \"\n               \"the command falls through to the denylist, so an IFS-prefixed ls is allowed \"\n               \"while a prefixed destructive command still refuses. safe_mode=True is unchanged.\",\n    },\n"
+        }
+      ]
+    }
+  ]
+}

@@ -12,8 +12,9 @@ import pytest
 REPO = Path(__file__).resolve().parent.parent
 AGENTS = sorted(p for p in (REPO / ".claude" / "agents").glob("*.md")
                 if p.read_text(encoding="utf-8").startswith("---\n"))  # skips QUICK_START/HANDOFF_PROTOCOL
-MEMORY_AGENTS = {"code-reviewer", "debugger", "explore", "planner", "reviewer",
-                 "security-scanner", "verifier"}
+MEMORY_AGENTS = {"code-reviewer", "planner"}
+# Trimmed 2026-09-19: debugger, explore, reviewer, security-scanner and verifier had never
+# written to their memory dirs in two days of transcripts, and the field grants Write+Edit.
 # camelCase is allowed because Claude Code spells its own frontmatter fields that way
 # (`maxTurns`); the leading character stays lowercase so a stray prose line still fails.
 KEY_LINE = re.compile(r"^[a-z][A-Za-z0-9_-]*:(\s|$)")

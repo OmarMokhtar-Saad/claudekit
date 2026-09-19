@@ -1,0 +1,32 @@
+{
+  "plan": ".claude/plans/plan-context-recovery-refinement.md",
+  "slug": "context-recovery-refinement",
+  "ops_path": ".claude/plans/plan-context-recovery-refinement.ops.json",
+  "ops_sha256": "56afc131138185575a16adf6d768f2424e8c16c51400d41ac530767d1d1ce290",
+  "score": 93,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] preserve_assets.py SKIP_NAMES edit is labelled a \"coherence\" fix but tracing _is_custom() shows it is also load-bearing against stale-footprint carry-over via the manifest-diff branch; the fix is corr",
+    "[MINOR] Round-1 finding \"document the no-session-context.md fleet case\" was not explicitly confirmed as folded into this round's plan prose; verify before merge."
+  ],
+  "verdict_origin": "rubric",
+  "reviewer_session": "681a6e28-56be-452f-abba-a0f2d634f4d7",
+  "reviewer_role": "reviewer",
+  "recorded_utc": "2026-09-16T11:18:09Z",
+  "operations": 8,
+  "edits": 10,
+  "rounds": [
+    {
+      "score": 93,
+      "decision": "APPROVED",
+      "findings": [
+        "[MINOR] preserve_assets.py SKIP_NAMES edit is labelled a \"coherence\" fix but tracing _is_custom() shows it is also load-bearing against stale-footprint carry-over via the manifest-diff branch; the fix is corr",
+        "[MINOR] Round-1 finding \"document the no-session-context.md fleet case\" was not explicitly confirmed as folded into this round's plan prose; verify before merge."
+      ],
+      "recorded_utc": "2026-09-16T09:41:21Z",
+      "ops_sha256": "44316892e73153301d6735acbab7e62ce6ec905ea47dc8182af2b956a673a2f8",
+      "verdict_origin": "rubric"
+    }
+  ],
+  "round": 2
+}

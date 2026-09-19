@@ -1,0 +1,133 @@
+{
+  "plan": "token-remediation-ck",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/planner.md",
+      "edits": [
+        {
+          "find": "maxTurns: 40\ntools: [\"Read\", \"Grep\", \"Glob\", \"Write\", \"Bash\"]\n",
+          "replace": "maxTurns: 15\ntools: [\"Read\", \"Grep\", \"Glob\", \"Write\"]\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/reviewer.md",
+      "edits": [
+        {
+          "find": "maxTurns: 25\nmodel: sonnet\neffort: high\ncolor: blue\nmemory: project\ntools: [\"Read\", \"Grep\", \"Glob\"]\n",
+          "replace": "maxTurns: 8\nmodel: sonnet\neffort: high\ncolor: blue\ntools: [\"Read\", \"Grep\", \"Glob\"]\n"
+        },
+        {
+          "find": "# Reviewer Agent\n\nYou are the **Reviewer**,",
+          "replace": "# Reviewer Agent\n\nRead only plan.md and ops.json. Do not explore the codebase; the validator already checks\npaths. Hand back within 8 turns.\n\nYou are the **Reviewer**,"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/implementer.md",
+      "edits": [
+        {
+          "find": "maxTurns: 30\n",
+          "replace": "maxTurns: 12\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/explore.md",
+      "edits": [
+        {
+          "find": "color: yellow\nmemory: project\n",
+          "replace": "color: yellow\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/debugger.md",
+      "edits": [
+        {
+          "find": "color: red\nmemory: project\n",
+          "replace": "color: red\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/verifier.md",
+      "edits": [
+        {
+          "find": "color: purple\nmemory: project\n",
+          "replace": "color: purple\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/security-scanner.md",
+      "edits": [
+        {
+          "find": "color: crimson\nmemory: project\n",
+          "replace": "color: crimson\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/settings.json",
+      "edits": [
+        {
+          "find": "    \"PostToolUse\": [\n      {\n        \"matcher\": \"\",\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"bash -c 'ROOT=\\\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\\\"; python3 \\\"$ROOT/.claude/hooks/reflection-gate.py\\\" --event PostToolUse'\"\n          }\n        ]\n      },\n",
+          "replace": "    \"PostToolUse\": [\n"
+        },
+        {
+          "find": "      {\n        \"matcher\": \"Bash\",\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"bash -c 'ROOT=\\\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\\\"; PAYLOAD=$(cat); printf %s \\\"$PAYLOAD\\\" | bash \\\"$ROOT/.claude/hooks/command-log-audit.sh\\\" &'\"\n          }\n        ]\n      },\n",
+          "replace": ""
+        },
+        {
+          "find": "    \"PreCompact\": [\n      {\n        \"matcher\": \"\",\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"bash -c 'ROOT=\\\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\\\"; python3 \\\"$ROOT/.claude/hooks/reflection-gate.py\\\" --event PreCompact'\"\n          }\n        ]\n      }\n    ],\n    \"Stop\": [\n      {\n        \"matcher\": \"\",\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"bash -c 'ROOT=\\\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\\\"; python3 \\\"$ROOT/.claude/hooks/reflection-gate.py\\\" --event Stop'\"\n          }\n        ]\n      },\n",
+          "replace": "    \"Stop\": [\n"
+        },
+        {
+          "find": "    \"SubagentStop\": [\n      {\n        \"matcher\": \"\",\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"bash -c 'ROOT=\\\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\\\"; python3 \\\"$ROOT/.claude/hooks/reflection-gate.py\\\" --event SubagentStop'\"\n          }\n        ]\n      }\n    ],\n    \"PostToolUseFailure\": [\n",
+          "replace": "    \"PostToolUseFailure\": [\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/dispatch-registry.json",
+      "edits": [
+        {
+          "find": "      {\"id\": \"reflection-gate\", \"file\": \"reflection-gate.py\", \"runner\": \"python3\", \"tier\": \"blocking\", \"matcher\": \"\", \"args\": [\"--event\", \"PreToolUse\"]},\n",
+          "replace": ""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "edits": [
+        {
+          "find": "## [Unreleased]\n- **Token-spend fixes from the audit",
+          "replace": "## [Unreleased]\n- Reflection gate no longer blocks Stop/SubagentStop/PreToolUse (write-only loop: 0 reads in\n  2 days); command-log-audit hook removed (never parsed a payload); planner loses Bash,\n  planner/reviewer/implementer get binding turn caps 15/8/12; five agents drop unused\n  `memory:`.\n- **Token-spend fixes from the audit"
+        }
+      ]
+    }
+  ],
+  "baseline": {
+    ".claude/agents/debugger.md": "sha256:224291c5e4e11f9d475381f5ced5c4f47d7f930f15e2d5a34b1a2ca30d78cc85",
+    ".claude/agents/explore.md": "sha256:8ed56d2a5f1b32b833697abeec9ede243a799e71d00460ad7dd98db0d180903b",
+    ".claude/agents/implementer.md": "sha256:92e47ac3f069d4a9c526d1aea87baf6188be65dedda027e3180634334c84651a",
+    ".claude/agents/planner.md": "sha256:6c8676e58a1edf2b8a5dba380832fcd15eac09dd096174a33678d443cef5e484",
+    ".claude/agents/reviewer.md": "sha256:61b2a8d1fdac141bacd1f7609e0b10c03e6b2fbb472d352348f1be58b068a65b",
+    ".claude/agents/security-scanner.md": "sha256:36b673dcd9bdb5734230f916b5029ed95d6d11514cb5951146d8cf06887eda5d",
+    ".claude/agents/verifier.md": "sha256:9381c25b9ff47a259ff5877970d5f0de7f9928277a2376796dcfa3fa2d6bf4f1",
+    ".claude/hooks/dispatch-registry.json": "sha256:a037eff6da3daf2cad87b236af459d66bf5ded68e316bf5188352e2ed104747c",
+    ".claude/settings.json": "sha256:2bf37b8c3471070957f6e36ba33aef53c7603428b577d4a135ba241ecec721e6",
+    "CHANGELOG.md": "sha256:b0ff571657206dc4c4512bcf36904165878280adb7e981a8e257b4bbfa2b2e2a"
+  }
+}

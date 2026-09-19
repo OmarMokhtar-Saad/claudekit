@@ -1,0 +1,33 @@
+{
+  "plan": "command-guard-config-root",
+  "operations": [
+    {
+      "type": "code_edit",
+      "id": "cg-01-cli",
+      "description": "check-command resolves the project config from CLAUDE_PROJECT_DIR or by walking up from cwd",
+      "path": "src/claudekit/security/cli.py",
+      "edits": [
+        {
+          "find": "import json\nimport sys\nfrom pathlib import Path\n",
+          "replace": "import json\nimport os\nimport sys\nfrom pathlib import Path\nfrom typing import Optional\n"
+        },
+        {
+          "find": "def _validator_from_project() -> CommandValidator:\n    \"\"\"Build a validator, honoring a project's config.json security section.\"\"\"\n    cfg = Path(\".claude/hooks/config.json\")\n    if cfg.exists():\n        try:\n            return CommandValidator.from_config(json.loads(cfg.read_text()))\n        except (json.JSONDecodeError, OSError):\n            pass  # fall back to defaults rather than crash the guard\n    return CommandValidator()\n",
+          "replace": "def _project_config() -> Optional[Path]:\n    \"\"\"Locate the project's ``.claude/hooks/config.json``.\n\n    Claude Code runs hooks with cwd = the session's cwd, which is the directory\n    the session was STARTED in, not the repo root. A cwd-relative lookup made\n    the guard silently ignore the project's policy for any session opened in a\n    subdirectory: measured 2026-09-19, one session lost 5 of 17 Bash turns to\n    ``cd``/``sort``/``sed`` refusals that the project's own config allowed.\n    Prefer the harness's ``CLAUDE_PROJECT_DIR``, then walk up from cwd.\n    \"\"\"\n    roots = []\n    env_root = os.environ.get(\"CLAUDE_PROJECT_DIR\")\n    if env_root:\n        roots.append(Path(env_root))\n    cwd = Path.cwd()\n    roots.extend([cwd, *cwd.parents])\n    for root in roots:\n        cfg = root / \".claude\" / \"hooks\" / \"config.json\"\n        if cfg.is_file():\n            return cfg\n    return None\n\n\ndef _validator_from_project() -> CommandValidator:\n    \"\"\"Build a validator, honoring a project's config.json security section.\"\"\"\n    cfg = _project_config()\n    if cfg is not None:\n        try:\n            return CommandValidator.from_config(json.loads(cfg.read_text()))\n        except (json.JSONDecodeError, OSError):\n            pass  # fall back to defaults rather than crash the guard\n    return CommandValidator()\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "id": "cg-02-tests",
+      "description": "regression tests: subdirectory cwd and CLAUDE_PROJECT_DIR",
+      "path": "tests/test_security.py",
+      "edits": [
+        {
+          "find": "        monkeypatch.chdir(tmp_path)\n        # With safeMode off, an unlisted-but-not-blocklisted command is allowed.\n        assert security_cli.check_command(\"some_unlisted_tool --x\") == 0\n",
+          "replace": "        monkeypatch.chdir(tmp_path)\n        # With safeMode off, an unlisted-but-not-blocklisted command is allowed.\n        assert security_cli.check_command(\"some_unlisted_tool --x\") == 0\n\n    def test_config_found_from_a_subdirectory_cwd(self, tmp_path, monkeypatch):\n        # Regression: hooks run with cwd = where the session was started, which\n        # may be deep inside the repo. The project's policy must still bind.\n        cfg_dir = tmp_path / \".claude\" / \"hooks\"\n        cfg_dir.mkdir(parents=True)\n        (cfg_dir / \"config.json\").write_text('{\"security\": {\"safeMode\": false}}')\n        sub = tmp_path / \"desktop\" / \"src\" / \"main\"\n        sub.mkdir(parents=True)\n        monkeypatch.delenv(\"CLAUDE_PROJECT_DIR\", raising=False)\n        monkeypatch.chdir(sub)\n        assert security_cli.check_command(\"some_unlisted_tool --x\") == 0\n\n    def test_config_found_via_claude_project_dir(self, tmp_path, monkeypatch):\n        proj = tmp_path / \"proj\"\n        cfg_dir = proj / \".claude\" / \"hooks\"\n        cfg_dir.mkdir(parents=True)\n        (cfg_dir / \"config.json\").write_text('{\"security\": {\"safeMode\": false}}')\n        elsewhere = tmp_path / \"elsewhere\"\n        elsewhere.mkdir()\n        monkeypatch.chdir(elsewhere)\n        # Control: without the env var, nothing above cwd carries a config.\n        monkeypatch.delenv(\"CLAUDE_PROJECT_DIR\", raising=False)\n        assert security_cli.check_command(\"some_unlisted_tool --x\") == 2\n        monkeypatch.setenv(\"CLAUDE_PROJECT_DIR\", str(proj))\n        assert security_cli.check_command(\"some_unlisted_tool --x\") == 0\n"
+        }
+      ]
+    }
+  ]
+}

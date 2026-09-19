@@ -1,0 +1,29 @@
+{
+  "plan": "token-remediation-ck-tests2",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/reviewer.md",
+      "edits": [
+        {
+          "find": "- **Windows only** for touched files (`grep -n -C3`, `sed -n 'a,bp'`); stdout is hook-capped at 12K.\n",
+          "replace": ""
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_read_window_guard.py",
+      "edits": [
+        {
+          "find": "    \"planner.md\": 40,\n    \"reviewer.md\": 25,\n    \"implementer.md\": 30,\n",
+          "replace": "    \"planner.md\": 15,   # 2026-09-19: was 40; planners averaged 98 turns and never hit it\n    \"reviewer.md\": 8,   # 2026-09-19: was 25\n    \"implementer.md\": 12,  # 2026-09-19: was 30\n"
+        }
+      ]
+    }
+  ],
+  "baseline": {
+    ".claude/agents/reviewer.md": "sha256:4045ee66c36f8d123d4a7f8f5d71f72c83ae18e965dc5ce1b21bdc5fab2da1d8",
+    "tests/test_read_window_guard.py": "sha256:4542ce187a81a1a557c52d98a08ec2b1925696ec31a5666df5748ae4d027c533"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "plan": "ops-smoke-scripted-heading",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_delivery_contract_smoke.py",
+      "description": "follow plan.md's scripted-invocation heading under --deep",
+      "edits": [
+        {
+          "find": "    \"\"\"Pull the ```bash fence under '## Invocation \u2014 scripted' out of plan.md --\n    tests the ACTUAL current command text, not a hand-copied mirror that can drift.\"\"\"\n    section = markdown_text.split(\"## Invocation \u2014 scripted\", 1)[1]\n",
+          "replace": "    \"\"\"Pull the ```bash fence under the scripted `--deep` mechanism out of plan.md --\n    tests the ACTUAL current command text, not a hand-copied mirror that can drift.\n\n    The heading moved under `--deep` on 2026-09-19 (the default path is now inline,\n    written by the parent session). Splitting on the OLD heading raised IndexError\n    here rather than naming the drift, so the split is asserted before it is used.\"\"\"\n    heading = \"### `--deep` mechanism B \u2014 scripted (claude -p)\"\n    assert heading in markdown_text, (\n        \"plan.md no longer carries %r; the scripted spawn this test covers was \"\n        \"renamed or removed\" % heading)\n    section = markdown_text.split(heading, 1)[1]\n"
+        }
+      ]
+    }
+  ],
+  "baseline": {
+    "tests/test_delivery_contract_smoke.py": "sha256:399ed39bf83708b15207f2db90231eb6823b616c4b01f55732353e794243c59b"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "plan": "ops-ck-implement-drift-test",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "tests/test_cli_implement.py",
+      "description": "the dry-run stage test uses baseline drift (the validator already checks find anchors)",
+      "edits": [
+        {
+          "find": "def test_a_dry_run_failure_stops_before_the_real_execute(project):\n    \"\"\"An anchor that no longer matches is the common drift case; it must be caught by the\n    dry run, not by a half-applied config.\"\"\"\n    config = write_config(project, \"drift\", [{\"find\": \"NOT_IN_THE_FILE\", \"replace\": \"x\"}])\n\n    proc = run_implement(project, config)\n\n    assert (project / \"src\" / \"app.py\").read_text(encoding=\"utf-8\") == ORIGINAL\n    assert proc.returncode != 0\n    assert \"FAILED at dry-run\" in result_line(proc)\n\n\n",
+          "replace": "def test_baseline_drift_stops_before_the_real_execute(project):\n    \"\"\"Baseline drift is the failure the validator cannot catch -- it hashes nothing -- so\n    it is the case that proves the dry-run stage is a real gate and not decoration.\"\"\"\n    config = write_config(project, \"drift\", BUMP)\n    data = json.loads(config.read_text(encoding=\"utf-8\"))\n    data[\"baseline\"] = {\"src/app.py\": \"sha256:\" + \"0\" * 64}\n    config.write_text(json.dumps(data, indent=2), encoding=\"utf-8\")\n\n    proc = run_implement(project, config)\n\n    assert (project / \"src\" / \"app.py\").read_text(encoding=\"utf-8\") == ORIGINAL\n    assert proc.returncode != 0\n    assert \"FAILED at dry-run\" in result_line(proc), \\\n        \"a config the validator passes and the executor refuses must fail at the dry run\"\n\n\n"
+        }
+      ]
+    }
+  ],
+  "baseline": {
+    "tests/test_cli_implement.py": "sha256:c4eb47aea9817260fb3b7eb13e060dc25e432fafa5960c8348d6e67821c120d2"
+  }
+}

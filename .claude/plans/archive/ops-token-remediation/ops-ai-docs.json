@@ -1,0 +1,29 @@
+{
+  "plan": "token-remediation-ai-docs",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".ai/SESSION_STATE.md",
+      "edits": [
+        {
+          "find": "It is the resume point.\n**2026-09-19 (05:xx) \u00b7 Claude (Fable 5.1)",
+          "replace": "It is the resume point.\n**2026-09-19 (11:xx) \u00b7 Claude (Fable 5.1) \u2014 `main`, uncommitted, token-spend remediation. NOT committed.**\nOwner: two accounts spent 30M+ in two days. Transcript scan of both accounts (16,057 turns, 09-17\u219209-19):\n3.33B input tokens, 96% cache re-reads, qa-agents 84%. Drivers, measured: `[1m]` model on both accounts with\n`autoCompactWindow` 350K (7 sessions at 500\u2013966K, 9 compactions in 2 days); up to 8 peer-bridged main sessions\n(305 peer messages, each a full-context turn); planners at 98 turns avg / 646M total (`maxTurns` did not bind\nbefore the gate); reviewer 56/56 APPROVED at 95\u201396; one simple plan\u2192review\u2192implement chain = 7.9M; reflection\nloop 436 writes, 0 reads; guards re-sent ~35M at blocks (a block at 443K is the dearest turn in a session).\nShipped via ops (`ops-token-remediation-ck.json` + `-followup.json`): planner loses Bash, maxTurns 15/8/12 now\nbound by the context gate, five agents drop `memory:`, reflection-gate off Stop/SubagentStop/PreCompact/\nPostToolUse + its registry row, command-log-audit hook removed (3,137 parse failures, never worked), CHANGELOG,\ntest constant + agent-memory README trimmed. Account-level (both settings.json): `[1m]` dropped, autocompact\n150K, warp plugin off. qa-agents: same frontmatter ops executed (362 tests green); its hook edits (vendored\n`cli.py` still resolves config cwd-relative \u2014 root cause of the adb/ImportError blocks \u2014 plus hook unwiring)\nwere refused by the auto-mode classifier for a subagent; owner applies them from a qa-agents session.\nMemory: 77 stale project-type files archived (accounts share one dir; index covers 26 of 211 files).\nUmbrella plan + follow-ups (`ck implement`, inline `/plan`, `security.projectTools`, CLAUDE.md trim,\ndeletions): `.claude/plans/plan-token-spend-remediation.md`. Reviewer skipped on owner's cost mandate.\n\n**2026-09-19 (05:xx) \u00b7 Claude (Fable 5.1)"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".ai/CHANGELOG_AI.md",
+      "edits": [
+        {
+          "find": "## 2026-09-19 (latest) \u2014 the ceiling nobody counted",
+          "replace": "## 2026-09-19 (latest) \u2014 the bill was context \u00d7 turns\n\nMeasured across both accounts, not one session: 3.33B tokens in two days, 96% of it re-reading\ncontexts that a `[1m]` model setting let grow to 966K while `autoCompactWindow` sat at 350K,\nmultiplied by eight bridged sessions and planners that averaged 98 turns. The kit's own gates cost\nmore than they saved: a block at 443K is the most expensive turn in the session, and the reflection\nloop wrote 436 times for zero reads. Remediation shipped through ops: planner stripped of Bash with\nbinding caps, reflection gate reduced to a ledger, the dead audit hook removed, unused `memory:`\ngrants dropped; window and compaction fixed at the account level. Lesson: measure the fleet's\ntranscripts before tuning one hook, and price a guard's block at the context it fires in.\n\n## 2026-09-19 \u2014 the ceiling nobody counted"
+        }
+      ]
+    }
+  ],
+  "baseline": {
+    ".ai/CHANGELOG_AI.md": "sha256:26f840459ac62bfd6703d8e4b77424e425b4fb08dde86af28a598bd7ab6cc444",
+    ".ai/SESSION_STATE.md": "sha256:2fd4f79a9480e5b1e942852bcbb8b7ced72c867fe244409d066edb10880dda48"
+  }
+}

@@ -1,0 +1,67 @@
+{
+  "plan": "ops-archive-rows",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/plans/archive/README.md",
+      "description": "archive rows for the nine configs spent on the token-remediation follow-ups",
+      "edits": [
+        {
+          "find": "Plan: `.claude/plans/plan-token-spend-remediation.md`. |",
+          "replace": "Plan: `.claude/plans/plan-token-spend-remediation.md`. |\n| `ops-e2e-reflection-test/ops.json` | Spent - executed 2026-09-19 (Tier 1, `--no-approval`). Replaces `test_reflection_checkpoint_outranks_the_iron_law_allowance` with `test_reflection_checkpoint_does_not_gate_the_ops_path`: the PreToolUse reflection row was removed on purpose, so the ledger must RECORD without GATING. The seeded-checkpoint precondition keeps the release assert from passing vacuously. 1 operation. |\n| `ops-ck-implement/ops.json`, `ops-ck-implement/ops-drift-test.json`, `ops-ck-implement/ops-count.json` (3 configs) | Spent - executed 2026-09-19 (Tier 2, `--no-approval`). `ck implement <ops.json>`: validate -> dry-run -> execute -> the plan's validation fence -> one RESULT line; replaces the implementer agent for Tier 1/2. 8 behavioural tests in `tests/test_cli_implement.py` drive a real config through the real engine in tmp_path. Plan: `.claude/plans/plan-ck-implement.md`. 7 operations. |\n| `ops-project-tools/ops.json` | Spent - executed 2026-09-19 (Tier 2, `--no-approval`). `security.projectTools` in `.claude/hooks/config.json`: listed command heads skip the allowlist and host-pattern checks, so `adb shell rm -rf /sdcard/x` is allowed when `adb` is a project tool and refused when it is not, while `rm -rf /` stays refused. Plan: `.claude/plans/plan-project-tools.md`. 4 operations. |\n| `ops-plan-inline/ops.json`, `ops-plan-inline/ops-trim.json` (2 configs) | Spent - executed 2026-09-19 (Tier 1, `--no-approval`). `/plan` writes plan+ops inline by the parent session by default; `--deep` spawns the planner. `.claude/commands/plan.md` and `_shared/INVOCATION.md` follow. Plan: `.claude/plans/plan-plan-inline.md`. 3 operations. |\n| `ops-implementer-no-git/ops.json`, `ops-implementer-no-git/ops-chains.json` (2 configs) | Spent - executed 2026-09-19 (Tier 2, `--no-approval`). iron-law-gate refuses `git` for the implementer outright - the parent session creates the branch and commits - so the four git tables and their reporters are gone. The four chained-command BLOCKED cases were re-headed off `git status` onto `cat README.md`, measured first, so they stay bound to the metacharacter guard. Plan: `.claude/plans/plan-implementer-no-git.md`. 3 operations. |\n| `ops-archive-rows/ops.json` | Spent - executed 2026-09-19 (Tier 1, `--no-approval`). Adds the five rows above and this one, and names each archived config in its own plan. 5 operations. |"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/plans/plan-ck-implement.md",
+      "description": "name the archived configs",
+      "edits": [
+        {
+          "find": "  the caller passes it; the approval gate's default is unchanged.",
+          "replace": "  the caller passes it; the approval gate's default is unchanged.\n\n## Archived configs\n\n- `.claude/plans/archive/ops-ck-implement/ops.json` (4 operations)\n- `.claude/plans/archive/ops-ck-implement/ops-drift-test.json` (1 operation)\n- `.claude/plans/archive/ops-ck-implement/ops-count.json` (2 operations)\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/plans/plan-project-tools.md",
+      "description": "name the archived config",
+      "edits": [
+        {
+          "find": "  honoured, schema-valid and documented; populating it is a per-project decision.",
+          "replace": "  honoured, schema-valid and documented; populating it is a per-project decision.\n\n## Archived configs\n\n- `.claude/plans/archive/ops-project-tools/ops.json` (4 operations)\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/plans/plan-plan-inline.md",
+      "description": "name the archived configs",
+      "edits": [
+        {
+          "find": "  Task-tool spawn instructions and the `claude -p` script are byte-identical afterwards.",
+          "replace": "  Task-tool spawn instructions and the `claude -p` script are byte-identical afterwards.\n\n## Archived configs\n\n- `.claude/plans/archive/ops-plan-inline/ops.json` (2 operations)\n- `.claude/plans/archive/ops-plan-inline/ops-trim.json` (1 operation)\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/plans/plan-implementer-no-git.md",
+      "description": "name the archived configs",
+      "edits": [
+        {
+          "find": "ruff check .claude/hooks/iron-law-gate.py tests/test_iron_law_hook.py\n```",
+          "replace": "ruff check .claude/hooks/iron-law-gate.py tests/test_iron_law_hook.py\n```\n\n## Archived configs\n\n- `.claude/plans/archive/ops-implementer-no-git/ops.json` (2 operations)\n- `.claude/plans/archive/ops-implementer-no-git/ops-chains.json` (1 operation)\n"
+        }
+      ]
+    }
+  ],
+  "baseline": {
+    ".claude/plans/archive/README.md": "sha256:5729c29540c73e4060392c64bc0a80ed812a1dd8fdc32743485ad93afb819d43",
+    ".claude/plans/plan-ck-implement.md": "sha256:7baada0968f605ff49c593a7e936a0845f56257a5edb70e8b0ac704c92a0b0aa",
+    ".claude/plans/plan-implementer-no-git.md": "sha256:5ace86a9e6c96e1328f8553858661684b70a28c57010f18d56a9352b946a8855",
+    ".claude/plans/plan-plan-inline.md": "sha256:736c09014b100163daa26b489117c4cb8ca0cc3432e9f47c91f9f8ebc211dc57",
+    ".claude/plans/plan-project-tools.md": "sha256:dcc6c1129301b6057eaffc2240aa1dbe57c3f97ccdba10f945b1884934753b93"
+  }
+}

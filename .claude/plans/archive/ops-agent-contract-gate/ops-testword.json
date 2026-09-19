@@ -1,0 +1,17 @@
+{
+  "plan": "agent-contract-gate-testword",
+  "operations": [
+    {
+      "type": "code_edit",
+      "id": "cg-10",
+      "path": "tests/test_context_budget_gate.py",
+      "description": "spend-cap assertion: counted calls are 'tool calls' now that reads count",
+      "edits": [
+        {
+          "find": "assert \"BLOCKED\" in third.stderr and \"guarded calls\" in third.stderr",
+          "replace": "assert \"BLOCKED\" in third.stderr and \"tool calls\" in third.stderr"
+        }
+      ]
+    }
+  ]
+}

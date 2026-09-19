@@ -63,17 +63,12 @@ Single source is the enforcing agent: reviewer.md (plans ≥90/100; no ops.json 
 
 Release tag + PyPI publish are **user-gated**. [STATUS](.ai/STATUS.md) · [SESSION_STATE](.ai/SESSION_STATE.md) · [BACKLOG](.ai/BACKLOG.md).
 
-<!-- CLAUDEKIT:TOKEN-MODEL-POLICY v3 START -->
-## Token & Model Policy (ClaudeKit, 2026-07-23)
+<!-- CLAUDEKIT:TOKEN-MODEL-POLICY v5 START -->
+## Token & Model Policy (ClaudeKit)
 
-- **Web research**: main agent and planner MUST NOT call WebSearch/WebFetch directly. Check `.claude/reports/research/` first. Library/API docs -> call context7 YOURSELF (`web-researcher` has no MCP access, so delegating wastes a search); else delegate to `web-researcher`.
-- **Blast-radius tiering** (route by risk surface, not line count):
-  - **Tier 1** — single file, no public API/security/schema/architecture surface (any size: docs, tests, prompts, cosmetic, internal logic) -> create minimal ops.json -> validate -> execute -> compile-verify. SKIP planner/reviewer. Execution fails -> escalate to Tier 2.
-  - **Tier 2** — multi-file, no security/schema surface -> planner + ops.json; reviewer ONLY if architecture is touched (new module boundaries, public API, cross-layer changes).
-  - **Tier 3** — security-relevant, DB migrations, >15 ops, or >2 phases -> full pipeline (planner -> reviewer -> implementer), unchanged.
-  - **Review floor (all tiers)**: every PR gets >=1 adversarial diff review before it merges — fresh `code-reviewer` instance, never the author, prompted to REFUTE not approve. Stop at the first round with zero blocking findings; ceiling 3 rounds; rounds 2+ read only the diff since the last verdict.
-  - **Review routing**: plans -> `reviewer`; code + mutation proofs -> `code-reviewer`. See .ai/REVIEW_GUIDE.md
-- **Verifier gate**: the verifier agent NEVER auto-runs after implementation. Stop, ask the user, run only on explicit approval.
-- **Model routing**: policy names **capability tiers** (`most-capable`/`balanced`/`fast`), never vendor model names. `.claude/model-policy.json` is the one table — role -> accountability + tier (+`escalate_to`/`escalate_when`), tier -> model — and `scripts/gen-model-policy.py --check` gates the agent frontmatter against it. Changing a model is a one-line edit there. Role and capability are chosen **separately**. On limits, degrade one tier, never stop.
-- **Parallel orchestration**: many tasks or plan >15 ops / >2 phases -> `coordinator` agent Orchestration Protocol v2 (decompose with file-ownership map, parallel plan/review, composition gate before execution, disjoint-set parallel execution).
-<!-- CLAUDEKIT:TOKEN-MODEL-POLICY v3 END -->
+Cost = context × turns; both are capped. Full text and the measurements behind it: `.ai/TOKEN_MODEL_POLICY.md`.
+- **Tiers by blast radius**: Tier 1 (one file, no API/security/schema surface) -> the parent applies it directly where the hook profile allows, else one single-op ops.json; no planner, no reviewer. Tier 2 (several files, no security/schema) -> the parent writes plan + ops.json itself; planner only above 5 files. Tier 3 (security, migrations, >15 ops) -> planner -> reviewer -> implementer.
+- **No auto review, no auto verifier**: reviewer, code-reviewer and verifier run only when the user asks; 3 rounds is the ceiling (hook-enforced).
+- **Turns**: batch independent commands in one call; read files in windows, never whole; no "wait for OK" on Tier 1 (backups exist); one task per session, then /clear; never bridge peer sessions.
+- **Model routing**: capability tiers from `.claude/model-policy.json` (most-capable/balanced/fast, each role with `escalate_to`/`escalate_when`), never vendor names; the most-capable tier for implementation, fast tier for scans and probes; WebSearch/WebFetch only via `web-researcher`.
+<!-- CLAUDEKIT:TOKEN-MODEL-POLICY v5 END -->

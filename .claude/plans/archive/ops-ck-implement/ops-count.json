@@ -1,0 +1,31 @@
+{
+  "plan": "ops-ck-implement-count",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "src/claudekit/cli/main.py",
+      "description": "the RESULT line reports the operation COUNT, not the engine's record list",
+      "edits": [
+        {
+          "find": "    applied = _result_json_field(out, \"operations\")\n    backup = _result_json_field(out, \"backup_dir\")\n",
+          "replace": "    # The engine reports \"operations\" as a LIST of per-op records. The RESULT line is a\n    # one-line summary for the caller, so it carries the COUNT, not the records.\n    applied = _result_json_field(out, \"operations\")\n    if isinstance(applied, list):\n        applied = len(applied)\n    backup = _result_json_field(out, \"backup_dir\")\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_cli_implement.py",
+      "description": "assert the operation count in the RESULT line",
+      "edits": [
+        {
+          "find": "    assert (project / \"src\" / \"app.py\").read_text(encoding=\"utf-8\") == \"VALUE = 2\\n\"\n    assert proc.returncode == 0, proc.stdout + proc.stderr\n    assert \"validation 1/1 passed\" in result_line(proc)\n",
+          "replace": "    assert (project / \"src\" / \"app.py\").read_text(encoding=\"utf-8\") == \"VALUE = 2\\n\"\n    assert proc.returncode == 0, proc.stdout + proc.stderr\n    line = result_line(proc)\n    assert \"validation 1/1 passed\" in line\n    # The engine reports \"operations\" as a list of records; the summary must say how many,\n    # not print them. Unasserted, that regression shipped green once already.\n    assert \"applied 1 operation(s)\" in line, line\n"
+        }
+      ]
+    }
+  ],
+  "baseline": {
+    "src/claudekit/cli/main.py": "sha256:701298c8aaf49d5c3c830980277c0d6a231c0d7b39511b34a537611989ad6fec",
+    "tests/test_cli_implement.py": "sha256:f2a783a699f0a1c4a333d43f8c078743513bf47dae1f4184186d24d02c4f1c15"
+  }
+}

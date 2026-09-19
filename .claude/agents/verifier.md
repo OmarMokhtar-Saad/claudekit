@@ -6,7 +6,6 @@ description: |
 model: sonnet
 effort: medium
 color: purple
-memory: project
 tools: ["Read", "Bash", "Grep", "Glob"]
 ---
 

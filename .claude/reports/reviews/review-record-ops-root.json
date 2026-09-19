@@ -1,0 +1,19 @@
+{
+  "plan": ".claude/plans/plan-review-record-ops-root.md",
+  "slug": "review-record-ops-root",
+  "ops_path": ".claude/plans/ops-review-record-ops-root.json",
+  "ops_sha256": "4df048e24aa6b7b55b69371b745df12d19e64bbbdfda409bca0b8d8054f1d432",
+  "score": 93,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] block-no-verify.sh's new owner-approved scan strips only quote characters (tr -d), not whole quoted spans like the --no-verify check above it in the same file; a commit message or grep quoting \"--owne"
+  ],
+  "verdict_origin": "rubric",
+  "reviewer_session": "f3f9a29b-852e-4bfb-a493-8136b11a7d46",
+  "reviewer_role": "reviewer",
+  "recorded_utc": "2026-09-19T03:45:15Z",
+  "operations": 13,
+  "edits": 48,
+  "rounds": [],
+  "round": 1
+}

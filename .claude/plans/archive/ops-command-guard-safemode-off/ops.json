@@ -1,0 +1,85 @@
+{
+  "plan": "command-guard-safemode-off",
+  "operations": [
+    {
+      "type": "code_edit",
+      "id": "sm-01-from-config",
+      "description": "safeMode defaults off: the allowlist stops refusing; the catastrophic-command denylist stays",
+      "path": "src/claudekit/security/command_validator.py",
+      "edits": [
+        {
+          "find": "        safe_mode = sec.get(\"safeMode\", True)\n",
+          "replace": "        # Default OFF since 2026-09-19: with the allowlist on, every `cd`, `sort`, `sed`\n        # or `VAR=x cmd` the agent tried was a refused turn paid at full context (5 of\n        # 17 Bash turns in one session). The denylist (rm -rf /, sudo, /etc writes,\n        # fork bombs) still refuses. Set security.safeMode: true to restore the allowlist.\n        safe_mode = sec.get(\"safeMode\", False)\n"
+        },
+        {
+          "find": "            if name not in _SAFE_ENV_ASSIGN_NAMES:\n                return False, f\"Dangerous pattern (environment override: {name})\"\n",
+          "replace": "            if self.safe_mode and name not in _SAFE_ENV_ASSIGN_NAMES:\n                return False, f\"Dangerous pattern (environment override: {name})\"\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "id": "sm-02-cli-fallback",
+      "description": "CLI fallback without a config matches the shipped default",
+      "path": "src/claudekit/security/cli.py",
+      "edits": [
+        {
+          "find": "            pass  # fall back to defaults rather than crash the guard\n    return CommandValidator()\n",
+          "replace": "            pass  # fall back to defaults rather than crash the guard\n    return CommandValidator(safe_mode=False)\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "id": "sm-03-schema",
+      "description": "schema default follows",
+      "path": "config.schema.json",
+      "edits": [
+        {
+          "find": "\"safeMode\": { \"type\": \"boolean\", \"default\": true, \"description\": \"Restrict hook commands to allowlist\" }",
+          "replace": "\"safeMode\": { \"type\": \"boolean\", \"default\": false, \"description\": \"Restrict hook commands to the allowlist (off: denylist only)\" }"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "id": "sm-04-test-security",
+      "description": "tests follow the new default",
+      "path": "tests/test_security.py",
+      "edits": [
+        {
+          "find": "        # ...while the default (safeMode true) blocks the same command.\n        assert CommandValidator.from_config({}).validate(\"some_unlisted_tool\")[0] is False\n",
+          "replace": "        # The shipped default is safeMode OFF (2026-09-19): unlisted tools pass, the denylist holds.\n        assert CommandValidator.from_config({}).validate(\"some_unlisted_tool\")[0] is True\n        assert CommandValidator.from_config({}).validate(\"rm -rf /\")[0] is False\n        # Opting back in restores the allowlist.\n        v = CommandValidator.from_config({\"security\": {\"safeMode\": True}})\n        assert v.validate(\"some_unlisted_tool --x\")[0] is False\n"
+        },
+        {
+          "find": "        (cfg_dir / \"config.json\").write_text('{\"security\": {\"safeMode\": false}}')\n        elsewhere = tmp_path / \"elsewhere\"\n        elsewhere.mkdir()\n        monkeypatch.chdir(elsewhere)\n        # Control: without the env var, nothing above cwd carries a config.\n        monkeypatch.delenv(\"CLAUDE_PROJECT_DIR\", raising=False)\n        assert security_cli.check_command(\"some_unlisted_tool --x\") == 2\n        monkeypatch.setenv(\"CLAUDE_PROJECT_DIR\", str(proj))\n        assert security_cli.check_command(\"some_unlisted_tool --x\") == 0\n",
+          "replace": "        (cfg_dir / \"config.json\").write_text('{\"security\": {\"safeMode\": true}}')\n        elsewhere = tmp_path / \"elsewhere\"\n        elsewhere.mkdir()\n        monkeypatch.chdir(elsewhere)\n        # Control: without the env var, nothing above cwd carries a config -> default (off).\n        monkeypatch.delenv(\"CLAUDE_PROJECT_DIR\", raising=False)\n        assert security_cli.check_command(\"some_unlisted_tool --x\") == 0\n        monkeypatch.setenv(\"CLAUDE_PROJECT_DIR\", str(proj))\n        assert security_cli.check_command(\"some_unlisted_tool --x\") == 2\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "id": "sm-05-test-segmentation",
+      "description": "env prefix is allowed with safe mode off (disclosed)",
+      "path": "tests/test_validator_segmentation.py",
+      "edits": [
+        {
+          "find": "# DISCRIMINATOR (blocklist) and MINOR: `FOO=bar mycmd` is ALLOWED today with safe mode off\n# and is rejected after, because the env-assignment allowlist is deliberately not gated on\n# safe_mode. A tightening, disclosed as such.\nUNSAFE_OTHER = [\n    \"ls\\nrm -rf /\",\n    \"rm -rf /\",\n    \"sudo reboot\",\n    \"echo x > /etc/passwd\",\n    \"cat x\\n> /etc/passwd\",\n    \"FOO=bar mycmd\",\n]\n",
+          "replace": "# `FOO=bar mycmd`: the env-assignment allowlist is gated on safe_mode since 2026-09-19 \u2014\n# with the allowlist off the prefix is stripped and the command falls through to the\n# denylist (`FOO=bar rm -rf /` still refuses). A loosening, disclosed as such.\nUNSAFE_OTHER = [\n    \"ls\\nrm -rf /\",\n    \"rm -rf /\",\n    \"sudo reboot\",\n    \"echo x > /etc/passwd\",\n    \"cat x\\n> /etc/passwd\",\n    \"FOO=bar rm -rf /\",\n]\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "id": "sm-06-test-hooks",
+      "description": "interpreter smuggling is an allowlist catch: assert it under an opted-in safeMode project",
+      "path": "tests/test_hooks_behavioral.py",
+      "edits": [
+        {
+          "find": "    def test_strict_blocks_interpreter_smuggling(self):\n        p = run_hook(\"command-guard.sh\", {\"command\": \"bash -c 'rm -rf /'\"}, env=_env(\"strict\"))\n        assert p.returncode == 2, p.stderr\n",
+          "replace": "    def test_strict_blocks_interpreter_smuggling(self, tmp_path):\n        # `bash -c '...'` is caught by the allowlist, which is opt-in since 2026-09-19.\n        cfg = tmp_path / \".claude\" / \"hooks\"\n        cfg.mkdir(parents=True)\n        (cfg / \"config.json\").write_text('{\"security\": {\"safeMode\": true}}')\n        env = _env(\"strict\")\n        env.pop(\"CLAUDE_PROJECT_DIR\", None)\n        p = subprocess.run(\n            [\"bash\", str(HOOKS / \"command-guard.sh\")],\n            input=json.dumps({\"tool_input\": {\"command\": \"bash -c 'rm -rf /'\"}}),\n            capture_output=True, text=True, cwd=str(tmp_path), env=env, timeout=30,\n        )\n        assert p.returncode == 2, p.stderr\n\n    def test_default_policy_allows_unlisted_tools(self):\n        # Shipped default: allowlist off, denylist on.\n        assert run_hook(\"command-guard.sh\", {\"command\": \"cd src && sort f | uniq\"}).returncode == 0\n        assert run_hook(\"command-guard.sh\", {\"command\": \"F=1 python3 x.py\"}).returncode == 0\n        assert run_hook(\"command-guard.sh\", {\"command\": \"F=1 rm -rf /\"}).returncode == 2\n"
+        }
+      ]
+    }
+  ]
+}

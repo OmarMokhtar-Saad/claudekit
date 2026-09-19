@@ -1,0 +1,47 @@
+{
+  "plan": "ops-plan-inline",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/commands/plan.md",
+      "description": "default writes plan+ops inline; the planner spawn moves under --deep",
+      "edits": [
+        {
+          "find": "---\ndescription: \"Create implementation plan via planner agent and save to .claude/plans/\"\nargument-hint: \"[task description]\"\nmodel: sonnet\n---\n\n# Planner Command\n\nSpawns the local `planner` agent. Two verified mechanisms (see\n",
+          "replace": "---\ndescription: \"Write plan.md + ops.json inline; --deep spawns the planner agent\"\nargument-hint: \"[--deep] [task description]\"\nmodel: sonnet\n---\n\n# Planner Command\n\n**Default: no spawn.** You \u2014 the parent session \u2014 write `.claude/plans/plan-<slug>.md` and\n`.claude/plans/ops-<slug>.json` yourself, from the context you already hold. A planner spawn\npays a second full corpus load; measured 2026-09-19 it ran 98 turns on average (worst case\n572 turns / 895 K context) and accounted for 19 % of two days' token spend, mostly\nre-reading files the parent had already read. Spawn only for exploration you have not done.\n\n| Mode | What runs | When |\n|---|---|---|\n| default | you write plan + ops.json inline, then validate | you can name the files the change touches (Tier 1/2) |\n| `--deep` | spawns the `planner` agent | the change spans unfamiliar subsystems, or you cannot name those files |\n\n## Task\n\nCreate implementation plan for: $ARGUMENTS\n\nIf `$ARGUMENTS` begins with `--deep`, strip that flag from the task description and follow\nthe `--deep` sections below. Otherwise write both files yourself, as follows.\n\n## Default (no `--deep`) \u2014 you write both files\n\n1. Name every file the change touches. If you cannot, stop and re-run with `--deep`.\n2. Write `.claude/plans/plan-<slug>.md`: overview, scope naming **every path the ops config\n   writes** (`scripts/check-plan-artifacts.py` enforces this), implementation steps, a\n   `## Validation commands` fenced block, rollback plan, risk assessment.\n3. Write `.claude/plans/ops-<slug>.json`. The Iron Law binds the parent too: a plan with no\n   ops config is not a plan.\n4. `python3 .claude/operations/scripts/validate-config-json.py <ops-file> --stamp-baseline`\n5. Report both paths, the verdict and the op count \u2014 never the plan body; you just wrote it.\n\n`ck implement <ops-file>` then runs validate -> dry-run -> execute -> the plan's own\nvalidation commands.\n\n## `--deep` \u2014 spawn the planner agent\n\nTwo verified mechanisms (see\n"
+        },
+        {
+          "find": "## Task\n\nCreate implementation plan for: $ARGUMENTS\n\n## Invocation \u2014 interactive (default)\n",
+          "replace": "### `--deep` mechanism A \u2014 interactive Task tool (preferred)\n"
+        },
+        {
+          "find": "## Invocation \u2014 scripted (claude -p)\n",
+          "replace": "### `--deep` mechanism B \u2014 scripted (claude -p)\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/_shared/INVOCATION.md",
+      "description": "planner row: no Bash since 2026-09-19, spawned only by /plan --deep",
+      "edits": [
+        {
+          "find": "| planner               | `Read,Grep,Glob,Write` | Explore; write `plan.md` + `ops.json`; self-validate the config before handoff. Bash is scoped to the validator only. |\n",
+          "replace": "| planner               | `Read,Grep,Glob,Write` | Explore; write `plan.md` + `ops.json`. **No Bash since 2026-09-19** (token remediation): the caller runs `validate-config-json.py` on its behalf. Spawned only by `/plan --deep` \u2014 the default `/plan` writes both files in the parent session. |\n"
+        },
+        {
+          "find": "Never grant unrestricted `Bash` to planner/reviewer or any read-only role \u2014 planner's Bash is\nscoped to the ops validator script, nothing else. Add a row here before wiring a new agent \u2014\ndo not invent a tool list at the call site.\n",
+          "replace": "Never grant unrestricted `Bash` to planner/reviewer or any read-only role \u2014 the planner has\nno `Bash` at all since 2026-09-19; the caller runs the ops validator on its behalf. Add a row\nhere before wiring a new agent \u2014 do not invent a tool list at the call site.\n"
+        },
+        {
+          "find": "`Read,Grep,Glob` but each declares `Bash` in frontmatter. `planner` declares bare `Bash`\nwhere the headless row scopes it to the ops validator. Recorded rather than hidden.\n",
+          "replace": "`Read,Grep,Glob` but each declares `Bash` in frontmatter. The `planner` row is no longer\ndrift: its `Bash` grant was removed 2026-09-19 and both tables now agree. Recorded rather\nthan hidden.\n"
+        }
+      ]
+    }
+  ],
+  "baseline": {
+    ".claude/agents/_shared/INVOCATION.md": "sha256:c9f40711f35d1cacc9af9d0050aff974d5359e6cc83bbaa4e6aca2db0dc06164",
+    ".claude/commands/plan.md": "sha256:62e25ab03a0e06ec5457c0d891967a9d5b7979fdcb3321b20842015b6f25fabf"
+  }
+}

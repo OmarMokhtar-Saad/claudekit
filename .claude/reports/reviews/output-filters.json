@@ -1,0 +1,32 @@
+{
+  "plan": ".claude/plans/plan-output-filters.md",
+  "slug": "output-filters",
+  "ops_path": ".claude/plans/plan-output-filters.ops.json",
+  "ops_sha256": "57574580a6d7de60a24266493fb1cbae8a3a2516d134113b673e7ee4e8112d0b",
+  "score": 93,
+  "decision": "APPROVED",
+  "findings": [
+    "[MINOR] Plan does not state in Overview/Scope that the filter never fires on a failing pytest run (PostToolUse does not run on non-zero exit) - safe but should be documented as a known gap.",
+    "[MINOR] MAX_FILTERS/MAX_PATTERN_CHARS DoS bounds are real in the shipped code but are not listed among the plan's stated \"four safety properties\" - minor plan/code drift."
+  ],
+  "verdict_origin": "rubric",
+  "reviewer_session": "681a6e28-56be-452f-abba-a0f2d634f4d7",
+  "reviewer_role": "reviewer",
+  "recorded_utc": "2026-09-16T10:22:45Z",
+  "operations": 6,
+  "edits": 3,
+  "rounds": [
+    {
+      "score": 93,
+      "decision": "APPROVED",
+      "findings": [
+        "[MINOR] Plan does not state in Overview/Scope that the filter never fires on a failing pytest run (PostToolUse does not run on non-zero exit) - safe but should be documented as a known gap.",
+        "[MINOR] MAX_FILTERS/MAX_PATTERN_CHARS DoS bounds are real in the shipped code but are not listed among the plan's stated \"four safety properties\" - minor plan/code drift."
+      ],
+      "recorded_utc": "2026-09-16T10:22:35Z",
+      "ops_sha256": "57574580a6d7de60a24266493fb1cbae8a3a2516d134113b673e7ee4e8112d0b",
+      "verdict_origin": "rubric"
+    }
+  ],
+  "round": 2
+}
