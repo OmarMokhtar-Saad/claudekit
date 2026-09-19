@@ -58,7 +58,7 @@ DISPATCH = ROOT / ".claude" / "hooks" / "dispatch.sh"
 REGISTRY = ROOT / ".claude" / "hooks" / "dispatch-registry.json"
 
 HATCHES = ("CK_RAW_CONTEXT", "CK_ALLOW_GENERAL_PURPOSE", "CK_CONTEXT_WARN", "CK_CONTEXT_BLOCK",
-           "CK_CONTEXT_TRACE")
+           "CK_CONTEXT_TRACE", "CK_AGENT_BUDGET", "CK_ALLOW_MODEL_OVERRIDE")
 
 # Mirrors the hook's TAIL_BYTES. Deliberately re-declared rather than imported: these tests
 # measure the shipped artifact from outside, and a constant read out of the module under test
@@ -317,6 +317,320 @@ def test_a_subagent_over_the_block_line_is_advised_not_blocked(tmp_path):
     assert "BLOCKED" in main_result.stderr
 
 
+def subagent(tmp_path, ctx, session="sess-S", agent="agent-planner"):
+    """A subagent transcript at `ctx` tokens, at the path the gate recognises as a subagent."""
+    d = tmp_path / session / "subagents"
+    d.mkdir(parents=True, exist_ok=True)
+    p = d / (agent + ".jsonl")
+    p.write_text(usage_line(ctx) + "\n", encoding="utf-8")
+    return p
+
+
+# ------------------------------------------------------- per-agent spend cap ----
+#
+# Mutants these must catch (apply them, do not assume them):
+#   * delete the `calls * size >= budget` branch  => test_a_subagent_is_blocked_when_calls
+#                                                    _times_context_exceeds_the_budget RED
+#   * `calls * size` -> `size`                    => test_a_cheap_subagent_is_never_spend
+#                                                    _capped RED (63K context, 40 calls, would
+#                                                    still allow -- but the twin below, a
+#                                                    single call at 400K, would then BLOCK)
+#   * `calls * size` -> `calls`                   => test_a_cheap_subagent_is_never_spend
+#                                                    _capped RED
+#   * key the counter on session_id               => test_the_spend_counter_is_keyed_per_agent
+#                                                    _not_per_session RED
+#   * apply the cap to main sessions too          => test_a_main_session_is_not_spend_capped RED
+#   * DEFAULT_AGENT_BUDGET 15000000 -> 15000000000
+#                                                 => test_the_shipped_budget_is_fifteen_million
+#                                                    RED
+
+def test_a_subagent_is_blocked_when_calls_times_context_exceeds_the_budget(tmp_path):
+    """The shape that actually ran away: a context UNDER the block line, many times over.
+
+    234K is the measured median of the 45.8M planner and is deliberately below the 400K
+    context block line, so this case can only pass because of the product.
+    """
+    path = subagent(tmp_path, 234000)
+    env = {"CK_AGENT_BUDGET": "700000"}  # trips on call 3: 3 x 234K = 702K
+    first = run_hook(tmp_path, path, extra_env=env)
+    assert first.returncode == 0, "call 1 is well under budget (stderr=%r)" % first.stderr
+    second = run_hook(tmp_path, path, extra_env=env)
+    assert second.returncode == 0, "call 2 is still under budget (stderr=%r)" % second.stderr
+    third = run_hook(tmp_path, path, extra_env=env)
+    assert third.returncode == 2, (
+        "call 3 crosses the spend line and must be refused (rc=%s, stderr=%r)"
+        % (third.returncode, third.stderr))
+    assert "BLOCKED" in third.stderr and "tool calls" in third.stderr
+    assert "hand it back" in third.stderr, (
+        "the refusal must name the move the agent can make (stderr=%r)" % third.stderr)
+
+
+def test_a_cheap_subagent_is_never_spend_capped(tmp_path):
+    """The measured explore agent: 63K of context, many calls. It must stay untouched.
+
+    This is the false-positive guard. It is what stops the cap from becoming a reason to
+    export CK_RAW_CONTEXT and disable the whole gate.
+    """
+    path = subagent(tmp_path, 63000, agent="agent-explore")
+    for i in range(40):
+        result = run_hook(tmp_path, path)
+        assert result.returncode == 0, (
+            "a 63K-context agent must never be spend-capped (call %d, stderr=%r)"
+            % (i + 1, result.stderr))
+
+
+def test_the_spend_counter_is_keyed_per_agent_not_per_session(tmp_path):
+    """Two agents, one session_id. The second must not inherit the first's spend."""
+    env = {"CK_AGENT_BUDGET": "700000"}
+    a = subagent(tmp_path, 234000, agent="agent-aaa")
+    b = subagent(tmp_path, 234000, agent="agent-bbb")
+    for _ in range(3):
+        run_hook(tmp_path, a, session_id="shared", extra_env=env)
+    spent = run_hook(tmp_path, a, session_id="shared", extra_env=env)
+    assert spent.returncode == 2, "agent A is over its own budget"
+    fresh = run_hook(tmp_path, b, session_id="shared", extra_env=env)
+    assert fresh.returncode == 0, (
+        "agent B shares only a session_id and must start at zero (rc=%s, stderr=%r)"
+        % (fresh.returncode, fresh.stderr))
+
+
+def test_a_main_session_is_not_spend_capped(tmp_path):
+    """A main session has /compact and /save-session; turns are not its failure mode."""
+    path = transcript(tmp_path, usage_line(234000))
+    env = {"CK_AGENT_BUDGET": "700000"}
+    for i in range(6):
+        result = run_hook(tmp_path, path, extra_env=env)
+        assert result.returncode == 0, (
+            "the spend cap is subagent-only (call %d, rc=%s, stderr=%r)"
+            % (i + 1, result.returncode, result.stderr))
+
+
+def test_the_shipped_budget_is_fifteen_million(tmp_path):
+    """Pins the DEFAULT, with no env override in play, so raising it cannot pass silently."""
+    path = subagent(tmp_path, 8000000, agent="agent-huge")
+    first = run_hook(tmp_path, path)
+    assert first.returncode == 0, "8M once is under the 15M default (stderr=%r)" % first.stderr
+    second = run_hook(tmp_path, path)
+    assert second.returncode == 2, (
+        "16M must cross the shipped 15M default (rc=%s, stderr=%r)"
+        % (second.returncode, second.stderr))
+
+
+def test_the_raw_context_hatch_disables_the_spend_cap(tmp_path):
+    path = subagent(tmp_path, 234000, agent="agent-hatched")
+    env = {"CK_AGENT_BUDGET": "100", "CK_RAW_CONTEXT": "1"}
+    for _ in range(3):
+        result = run_hook(tmp_path, path, extra_env=env)
+        assert result.returncode == 0, "CK_RAW_CONTEXT must drop the spend cap too"
+
+
+def test_the_spend_cap_writes_no_state_outside_the_project(tmp_path):
+    """No project root -> no counter file, and the call is allowed rather than refused."""
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    path = subagent(tmp_path, 234000, agent="agent-nostate")
+    result = run_hook(tmp_path, path, project_dir=None, cwd=outside,
+                      extra_env={"CK_AGENT_BUDGET": "100"})
+    assert result.returncode == 0, "an uncountable agent is allowed, never refused"
+    assert not (outside / ".claude").exists(), "no state may be written outside the project"
+
+
+def contract(tmp_path, agent, **fields):
+    """Write `<tmp>/.claude/agents/<agent>.md` with the given frontmatter fields."""
+    d = tmp_path / ".claude" / "agents"
+    d.mkdir(parents=True, exist_ok=True)
+    body = "---\nname: %s\n" % agent
+    for key, value in fields.items():
+        body += "%s: %s\n" % (key, json.dumps(value) if isinstance(value, list) else value)
+    body += "---\n\nPrompt body.\n"
+    (d / (agent + ".md")).write_text(body, encoding="utf-8")
+
+
+def spawned(tmp_path, agent_id="abc123", agent_type=None, ctx=10000, meta_type=None):
+    """A parent transcript plus the spawned agent's own transcript beside it, as the harness
+    lays them out. Returns (parent_path, extra_payload) for run_hook."""
+    parent = transcript(tmp_path, usage_line(450000), name="parent.jsonl")
+    own_dir = tmp_path / "parent" / "subagents"
+    own_dir.mkdir(parents=True, exist_ok=True)
+    (own_dir / ("agent-%s.jsonl" % agent_id)).write_text(usage_line(ctx) + "\n")
+    if meta_type is not None:
+        (own_dir / ("agent-%s.meta.json" % agent_id)).write_text(
+            json.dumps({"agentType": meta_type, "model": "opus"}))
+    extra = {"agent_id": agent_id}
+    if agent_type is not None:
+        extra["agent_type"] = agent_type
+    return parent, extra
+
+
+PLANNER_TOOLS = ["Read", "Grep", "Glob", "Write", "Bash"]
+
+
+# ------------------------------------------------------------ agent contracts ----
+#
+# Mutants these must catch (apply them, do not assume them):
+#   * delete the `tool_name not in allowed` branch      => test_a_tool_outside_the_contract
+#                                                          _is_refused RED
+#   * drop the `_is_memory_write` carve-out             => test_a_memory_write_is_allowed_only
+#                                                          _under_the_agents_own_memory_dir RED
+#   * skip the normpath in `_is_memory_write`           => that test's traversal case RED
+#   * ignore `memory:` (carve out for every agent)      => test_the_memory_carve_out_needs
+#                                                          _memory_declared RED
+#   * read agent_type from the payload only             => test_agent_type_falls_back_to_the
+#                                                          _meta_file RED
+#   * delete the maxTurns branch                        => test_frontmatter_max_turns_binds RED
+#   * refuse Read once over maxTurns                    => test_frontmatter_max_turns_binds RED
+#                                                          (its final Read must stay allowed)
+#   * `asked <= declared` -> `asked < declared`         => test_a_spawn_may_not_escalate_the
+#                                                          _model_above_frontmatter RED (same-
+#                                                          tier spawn would be refused)
+#   * delete `_model_escalation`                        => same test RED
+
+def test_a_tool_outside_the_contract_is_refused(tmp_path):
+    """The measured planner: frontmatter has no Edit; it made 64 of them."""
+    contract(tmp_path, "planner", tools=PLANNER_TOOLS, memory="project", maxTurns=40)
+    parent, extra = spawned(tmp_path, agent_type="planner")
+    result = run_hook(tmp_path, parent, tool_name="Edit",
+                      tool_input={"file_path": str(tmp_path / "src" / "x.py")}, extra_payload=extra)
+    assert result.returncode == 2, (
+        "a planner Edit outside its memory dir must be refused (rc=%s, stderr=%r)"
+        % (result.returncode, result.stderr))
+    assert "not in planner's contract" in result.stderr
+    assert "agent-memory/planner" in result.stderr, "the refusal must say where memory writes go"
+    ok = run_hook(tmp_path, parent, tool_name="Write",
+                  tool_input={"file_path": str(tmp_path / "plan.md")}, extra_payload=extra)
+    assert ok.returncode == 0, "Write IS in the planner's contract (stderr=%r)" % ok.stderr
+
+
+def test_a_memory_write_is_allowed_only_under_the_agents_own_memory_dir(tmp_path):
+    """The memory fix: the harness-granted Edit survives for .claude/agent-memory/<self>/ and
+    nowhere else - not another agent's directory, not a traversal that escapes it."""
+    contract(tmp_path, "planner", tools=PLANNER_TOOLS, memory="project")
+    parent, extra = spawned(tmp_path, agent_type="planner")
+    own = tmp_path / ".claude" / "agent-memory" / "planner" / "MEMORY.md"
+    mine = run_hook(tmp_path, parent, tool_name="Edit", tool_input={"file_path": str(own)},
+                    extra_payload=extra)
+    assert mine.returncode == 0, "own memory must stay writable (stderr=%r)" % mine.stderr
+    theirs = tmp_path / ".claude" / "agent-memory" / "reviewer" / "MEMORY.md"
+    other = run_hook(tmp_path, parent, tool_name="Edit", tool_input={"file_path": str(theirs)},
+                     extra_payload=extra)
+    assert other.returncode == 2, "another agent's memory dir is not this agent's"
+    escape = tmp_path / ".claude" / "agent-memory" / "planner" / ".." / ".." / ".." / "src" / "x.py"
+    traversal = run_hook(tmp_path, parent, tool_name="Edit",
+                         tool_input={"file_path": str(escape)}, extra_payload=extra)
+    assert traversal.returncode == 2, "a traversal out of the memory dir is a source edit"
+
+
+def test_the_memory_carve_out_needs_memory_declared(tmp_path):
+    contract(tmp_path, "gitOps", tools=["Read", "Bash", "Grep", "Glob"])
+    parent, extra = spawned(tmp_path, agent_type="gitOps")
+    path = tmp_path / ".claude" / "agent-memory" / "gitOps" / "MEMORY.md"
+    result = run_hook(tmp_path, parent, tool_name="Write", tool_input={"file_path": str(path)},
+                      extra_payload=extra)
+    assert result.returncode == 2, "no memory: declared, so no memory-dir exemption"
+
+
+def test_agent_type_falls_back_to_the_meta_file(tmp_path):
+    """No agent_type in the payload; the harness's agent-<id>.meta.json names it."""
+    contract(tmp_path, "reviewer", tools=["Read", "Grep", "Glob"], memory="project")
+    parent, extra = spawned(tmp_path, meta_type="reviewer")
+    result = run_hook(tmp_path, parent, tool_name="Bash", tool_input={"command": "ls"},
+                      extra_payload=extra)
+    assert result.returncode == 2, (
+        "the reviewer has no Bash; its type must be read from meta.json (rc=%s, stderr=%r)"
+        % (result.returncode, result.stderr))
+    assert "reviewer" in result.stderr
+
+
+def test_an_agent_without_a_contract_file_is_not_scoped(tmp_path):
+    """A built-in (Explore) or an undefined name has no frontmatter to enforce."""
+    parent, extra = spawned(tmp_path, agent_type="Explore")
+    result = run_hook(tmp_path, parent, tool_name="Edit", tool_input={"file_path": "x.py"},
+                      extra_payload=extra)
+    assert result.returncode == 0, result.stderr
+
+
+def test_frontmatter_max_turns_binds(tmp_path):
+    """maxTurns: 3. Three reads are counted and allowed; the fourth call, a Bash, is refused;
+    a fifth Read is STILL allowed - the way out must stay open."""
+    contract(tmp_path, "code-reviewer", tools=["Read", "Grep", "Glob", "Bash"], maxTurns=3)
+    parent, extra = spawned(tmp_path, agent_type="code-reviewer")
+    for i in range(3):
+        r = run_hook(tmp_path, parent, tool_name="Read", tool_input={"file_path": "x.py"},
+                     extra_payload=extra)
+        assert r.returncode == 0, "read %d is counted, never refused (stderr=%r)" % (i + 1, r.stderr)
+    bash = run_hook(tmp_path, parent, tool_name="Bash", tool_input={"command": "pytest"},
+                    extra_payload=extra)
+    assert bash.returncode == 2, (
+        "call 4 is over maxTurns: 3 and must be refused (rc=%s, stderr=%r)"
+        % (bash.returncode, bash.stderr))
+    assert "maxTurns: 3" in bash.stderr and "hand it back" in bash.stderr
+    after = run_hook(tmp_path, parent, tool_name="Read", tool_input={"file_path": "y.py"},
+                     extra_payload=extra)
+    assert after.returncode == 0, "Read stays open past the cap so the agent can hand back"
+
+
+def test_a_main_session_read_is_never_counted_or_refused(tmp_path):
+    path = transcript(tmp_path, usage_line(450000))
+    for tool in ("Read", "Grep", "Glob"):
+        r = run_hook(tmp_path, path, tool_name=tool, tool_input={"file_path": "x.py"})
+        assert r.returncode == 0 and r.stderr == "", (tool, r.stderr)
+    assert not list((tmp_path / ".claude" / "hooks" / ".state").glob("agent-spend-*")) if (
+        tmp_path / ".claude" / "hooks" / ".state").exists() else True
+
+
+def test_a_spawn_may_not_escalate_the_model_above_frontmatter(tmp_path):
+    """The measured reviewer: frontmatter sonnet, spawned with model=opus, 18.4M."""
+    contract(tmp_path, "reviewer", tools=["Read", "Grep", "Glob"], model="sonnet")
+    path = transcript(tmp_path, usage_line(1000))
+
+    def spawn(**kw):
+        tool_input = {"prompt": "review", "description": "review", "subagent_type": "reviewer"}
+        tool_input.update(kw.pop("input", {}))
+        return run_hook(tmp_path, path, tool_name="Agent", tool_input=tool_input, **kw)
+
+    up = spawn(input={"model": "opus"})
+    assert up.returncode == 2, "opus above a sonnet contract is an escalation (stderr=%r)" % up.stderr
+    assert "model=opus" in up.stderr and "sonnet" in up.stderr
+    same = spawn(input={"model": "sonnet"})
+    assert same.returncode == 0, "the declared tier is allowed (stderr=%r)" % same.stderr
+    down = spawn(input={"model": "haiku"})
+    assert down.returncode == 0, "degrading a tier is allowed (stderr=%r)" % down.stderr
+    none = spawn()
+    assert none.returncode == 0, "no model param defers to frontmatter (stderr=%r)" % none.stderr
+    hatch = spawn(input={"model": "opus"}, extra_env={"CK_ALLOW_MODEL_OVERRIDE": "1"})
+    assert hatch.returncode == 0, "the documented hatch must work"
+    full_id = spawn(input={"model": "claude-opus-5"})
+    assert full_id.returncode == 2, "a full model id names its tier too"
+
+
+def test_dispatch_refuses_a_planner_edit_end_to_end(tmp_path):
+    """payload -> dispatch.sh -> exit 2, against the REAL planner.md in this repo."""
+    parent = transcript(tmp_path, usage_line(1000), name="parent.jsonl")
+    own_dir = tmp_path / "parent" / "subagents"
+    own_dir.mkdir(parents=True)
+    (own_dir / "agent-e2e.jsonl").write_text(usage_line(5000) + "\n")
+    payload = json.dumps({
+        "session_id": "pytest-contract-dispatch",
+        "transcript_path": str(parent),
+        "agent_id": "e2e",
+        "agent_type": "planner",
+        "tool_name": "Edit",
+        "tool_input": {"file_path": str(ROOT / "src" / "claudekit" / "x.py"),
+                       "old_string": "a", "new_string": "b"},
+    })
+    env = dict(os.environ)
+    for key in HATCHES:
+        env.pop(key, None)
+    env["CLAUDE_PROJECT_DIR"] = str(ROOT)
+    env["ECC_HOOK_PROFILE"] = "full"
+    result = subprocess.run(["bash", str(DISPATCH), "PreToolUse"], input=payload,
+                            capture_output=True, text=True, env=env, cwd=str(ROOT))
+    assert result.returncode == 2, (
+        "dispatch.sh let a planner Edit through (rc=%s, stderr=%r)"
+        % (result.returncode, result.stderr))
+    assert "not in planner's contract" in result.stderr
+
+
 def test_raw_context_hatch_allows_an_oversize_session(tmp_path):
     path = transcript(tmp_path, usage_line(450000))
     result = run_hook(tmp_path, path, extra_env={"CK_RAW_CONTEXT": "1"})
@@ -521,6 +835,11 @@ def test_registry_registers_the_gate_as_blocking():
     for tool in ("Write", "Edit", "NotebookEdit", "Bash", "Agent", "Task"):
         assert tool in row["matcher"], (
             "%s is unguarded, so the budget never applies to it" % tool
+        )
+    for tool in ("Read", "Grep", "Glob"):
+        assert tool in row["matcher"], (
+            "%s is not routed to the gate, so a read-heavy agent's turns are never counted "
+            "and its maxTurns can never bind" % tool
         )
 
 

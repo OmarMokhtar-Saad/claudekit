@@ -52,7 +52,9 @@ SANCTIONED = [
     "shellcheck install.sh",
     "shellcheck install.sh .claude/hooks/*.sh",
     "ck doctor --strict",
-    # Read-only inspection, per implementer.md ("cat, grep, ls, git status").
+    # Read-only inspection, per implementer.md ("cat, grep, ls"). `git` is absent by
+    # decision (2026-09-19): the parent session owns the branch, so every git reporter is
+    # in BLOCKED below.
     "cat README.md",
     "head -n 40 pyproject.toml",
     "grep -rn TODO src",
@@ -60,16 +62,6 @@ SANCTIONED = [
     "find . -name '*.ops.json'",
     "find . -maxdepth 2 -type f -name '*.sh'",
     "wc -l install.sh",
-    "git status",
-    "git status --porcelain",
-    "git diff --stat",
-    "git log --oneline -5",
-    "git show HEAD --stat",
-    # `branch`/`remote` are mutating subcommands kept only in their pure listing forms.
-    "git branch --show-current",
-    "git branch --list",
-    "git branch --list 'feat*'",
-    "git remote -v",
     # CLAUDE.md's two remaining mandatory Definition-of-Done gates. Permitted ONLY with
     # --check; without it gen-docs.py rewrites the docs.
     "python3 scripts/gen-docs.py --check",
@@ -120,11 +112,11 @@ BLOCKED = [
     ("cat <<EOF", "heredoc"),
     ("echo $(whoami)", "dollar-paren"),
     ("echo `whoami`", "backtick"),
-    ("git status; rm src/x.py", "semicolon-chain"),
-    ("git status && rm src/x.py", "and-chain"),
-    ("git status || rm src/x.py", "or-chain"),
+    ("cat README.md; rm src/x.py", "semicolon-chain"),
+    ("cat README.md && rm src/x.py", "and-chain"),
+    ("cat README.md || rm src/x.py", "or-chain"),
     ("cat f | tee src/x.py", "pipe-to-tee"),
-    ("git status\nrm src/x.py", "newline-second-command"),
+    ("cat README.md\nrm src/x.py", "newline-second-command"),
     ("rm -rf src", "rm"),
     ("mv src/a.py src/b.py", "mv"),
     ("cp /dev/null src/x.py", "cp"),
@@ -158,6 +150,19 @@ BLOCKED = [
     ("git branch -D", "git-branch-delete-flagonly"),
     ("git remote set-url origin git@evil:x/y.git", "git-remote-set-url"),
     ("git remote prune origin", "git-remote-prune"),
+    # 2026-09-19 token remediation: git belongs to the parent session, so the reporters
+    # this corpus used to list as ALLOWED are refused too. They are here, not merely
+    # deleted from ALLOWED, because "no longer allowed" and "blocked" are different claims
+    # and only the second one is enforced.
+    ("git status", "git-status"),
+    ("git status --porcelain", "git-status-porcelain"),
+    ("git diff --stat", "git-diff-stat"),
+    ("git log --oneline -5", "git-log-oneline"),
+    ("git show HEAD --stat", "git-show-head"),
+    ("git branch --show-current", "git-branch-show-current"),
+    ("git branch --list", "git-branch-list"),
+    ("git branch --list 'feat*'", "git-branch-list-glob"),
+    ("git remote -v", "git-remote-v"),
     # Same bypass class as MAJOR 1, in the other linters.
     ("ruff check --output-file /tmp/out src/", "ruff-output-file"),
     ("ruff check --config /tmp/evil.toml src/", "ruff-config-injection"),
@@ -281,7 +286,7 @@ def test_an_invalid_utf8_allowed_command_still_passes(tmp_path):
         "hook_event_name": "PreToolUse",
         "tool_name": "Bash",
         "agent_type": "implementer",
-        "tool_input": {"command": "git status # XX"},
+        "tool_input": {"command": "cat README.md # XX"},
     }).encode("utf-8").replace(b"XX", b"\xff\xfe")
     result = run_bytes(body, tmp_path)
     assert result.returncode == 0, (
@@ -407,23 +412,29 @@ TARGETED_MUTANTS = [
     # (target_label, source_find, source_replace, collateral_labels)
     ("cat-redirect", "_METACHARACTERS = (",
      "_METACHARACTERS = ()\n_DISABLED_METACHARACTERS = (",
-     ("cat-append", "heredoc", "and-chain", "or-chain", "pipe-to-tee",
-      "newline-second-command")),
+     ("cat-append", "heredoc", "semicolon-chain", "and-chain", "or-chain",
+      "pipe-to-tee", "newline-second-command")),
     ("pipe-to-tee", "_METACHARACTERS = (",
      "_METACHARACTERS = ()\n_DISABLED_METACHARACTERS = (",
-     ("cat-redirect", "cat-append", "heredoc", "and-chain", "or-chain",
-      "newline-second-command")),
+     ("cat-redirect", "cat-append", "heredoc", "semicolon-chain", "and-chain",
+      "or-chain", "newline-second-command")),
     ("pytest-log-file", "_PYTEST_SAFE = frozenset({",
      '_PYTEST_SAFE = frozenset({"--log-file", "--log-file-level",',
      ("pytest-log-file-detached",)),
-    # Flag-only form, so this pins _GIT_LIST_SAFE and nothing else. `git branch -D x` is
-    # bound to TWO guards (the flag list AND the positional rule), which would make it a
-    # poor surgical target - the positional mutant below covers that half.
-    ("git-branch-delete-flagonly", "_GIT_LIST_SAFE = frozenset({",
-     '_GIT_LIST_SAFE = frozenset({"-D",', ()),
-    ("git-remote-add", '            if not token.startswith("-") and not listing:',
-     "            if False:",
-     ("git-branch-create-positional", "git-remote-set-url", "git-remote-prune")),
+    # Both git mutants that used to sit here pinned `_GIT_LIST_SAFE` and the positional
+    # loop; the 2026-09-19 remediation deleted that source, so they are replaced by one
+    # mutant against the refusal itself. Its collateral is EVERY other git label - that is
+    # the honest blast radius of a single unconditional refusal, and the assertion that
+    # the set is exact is what stops the refusal being quietly narrowed later.
+    ("git-status", "    del rest, root",
+     "    del rest, root\n    return True, \"\"",
+     ("git-apply", "git-checkout", "git-restore", "git-reset", "git-commit",
+      "git-dash-c-alias", "git-dash-C", "git-diff-output", "git-branch-delete",
+      "git-branch-move", "git-remote-add", "git-branch-create-positional",
+      "git-branch-delete-flagonly", "git-remote-set-url", "git-remote-prune",
+      "invented-git-flag", "double-dash-separator", "git-status-porcelain",
+      "git-diff-stat", "git-log-oneline", "git-show-head", "git-branch-show-current",
+      "git-branch-list", "git-branch-list-glob", "git-remote-v")),
     ("find-delete", "_FIND_SAFE = frozenset({",
      '_FIND_SAFE = frozenset({"-delete",', ()),
     # D5f. Its blast radius covers the two INTERPRETER cases as well, which is the
@@ -438,11 +449,11 @@ TARGETED_MUTANTS = [
     # than asserted. The cases it does NOT flip are held by the positional path rule.
     ("invented-flag-refused-by-default", "            if bare not in safe_flags:",
      "            if False:",
-     ("git-diff-output", "find-delete", "ruff-fix", "pytest-plugin-injection",
+     ("find-delete", "ruff-fix", "pytest-plugin-injection",
       "pytest-log-file", "pytest-log-file-detached", "pytest-ini-override",
-      "pytest-override-ini-long", "git-branch-delete-flagonly",
+      "pytest-override-ini-long",
       "ruff-add-noqa-rewrites-sources", "pytest-debug-writes",
-      "mypy-install-types-invokes-pip", "invented-pytest-flag", "invented-git-flag",
+      "mypy-install-types-invokes-pip", "invented-pytest-flag",
       "ops-no-approval-flag")),
 ]
 
@@ -713,6 +724,6 @@ def test_ops_script_basename_outside_the_engine_directory_is_blocked(tmp_path):
 
 
 def test_prefix_match_does_not_satisfy_the_allowlist(tmp_path):
-    """`git diff` must not be satisfied by `git diff --output=x`."""
-    assert run(payload("git diff"), tmp_path).returncode == 0
-    assert run(payload("git diff --output=/tmp/x"), tmp_path).returncode == 2
+    """`ruff check` must not be satisfied by `ruff check --output-file x`."""
+    assert run(payload("ruff check src/ tests/ scripts/"), tmp_path).returncode == 0
+    assert run(payload("ruff check --output-file /tmp/out src/"), tmp_path).returncode == 2

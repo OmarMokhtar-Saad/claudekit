@@ -201,9 +201,10 @@ except:
         _ctx_excerpt=""
         _ctx_digest="$CK_ROOT/.claude/operations/scripts/session_digest.py"
         if command -v python3 >/dev/null 2>&1 && [ -f "$_ctx_digest" ]; then
-            _ctx_excerpt=$(python3 "$_ctx_digest" excerpt "$CONTEXT_FILE" 2>/dev/null | head -c 4000)
+            _ctx_excerpt=$(python3 "$_ctx_digest" excerpt "$CONTEXT_FILE" 2>/dev/null | head -c 1200)
         fi
-        [ -n "$_ctx_excerpt" ] || _ctx_excerpt=$(head -20 "$CONTEXT_FILE" | head -c 4000)
+        # 1200 chars, not 4000: this block is re-sent on every turn of the session.
+        [ -n "$_ctx_excerpt" ] || _ctx_excerpt=$(head -8 "$CONTEXT_FILE" | head -c 1200)
         # ONE candidate, resolved from this script's own directory. The cwd-relative
         # second candidate is gone: a hostile cwd could supply its own scanner that
         # exits 0 and the payload printed.
@@ -267,7 +268,7 @@ fi
 _fp_digest="$CK_ROOT/.claude/operations/scripts/session_digest.py"
 _fp_text=""
 if command -v python3 >/dev/null 2>&1 && [ -f "$_fp_digest" ]; then
-    _fp_text=$(python3 "$_fp_digest" footprint-show --root "$CK_ROOT" 2>/dev/null | head -c 2000)
+    _fp_text=$(python3 "$_fp_digest" footprint-show --root "$CK_ROOT" 2>/dev/null | head -c 600)
 fi
 if [ -n "$_fp_text" ]; then
     _fp_scanner=""
@@ -298,7 +299,7 @@ unset _fp_text _fp_digest
 # `$SCRIPT_DIR/` there. Assigning the path to a variable first satisfies neither: it
 # moves the documented hook count and reds both gates.
 [ -f "$SCRIPT_DIR/session-memory-context.py" ] &&
-    _mem_text=$(python3 "$SCRIPT_DIR/session-memory-context.py" 2>/dev/null | head -c 2400)
+    _mem_text=$(python3 "$SCRIPT_DIR/session-memory-context.py" 2>/dev/null | head -c 800)
 if [ -n "$_mem_text" ]; then
     _mem_scanner=""
     [ -f "$SCRIPT_DIR/prompt-injection-scanner.sh" ] &&

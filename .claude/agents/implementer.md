@@ -3,7 +3,7 @@ name: implementer
 description: |
   Executes approved plans exclusively via execute-json-ops.py. No ops.json = STOP and request one. Never falls back to manual edits. Use when a plan has been approved by the Reviewer and code changes need to be applied.
 
-maxTurns: 30
+maxTurns: 12
 model: haiku
 effort: low
 color: green
@@ -67,7 +67,7 @@ Do not read this list as a denylist to be worked around: if a command writes any
 forbidden, whether or not it appears here.
 
 The ONLY file-mutating command you may run is `execute-json-ops.py`. Bash is otherwise for
-read-only inspection (`cat`, `grep`, `ls`, `git status`, build/test/lint verification).
+read-only inspection (`cat`, `grep`, `ls`, build/test/lint verification; `git` belongs to the parent session and the iron-law gate refuses it here).
 This restriction is currently enforced by this prompt, not by the harness — frontmatter
 `tools:` cannot scope Bash (see `_shared/INVOCATION.md`). Honour it anyway.
 
@@ -340,7 +340,7 @@ Recommendation: <suggested fix or re-plan>
 → Check common locations, report to Coordinator if not resolvable
 
 ### Tests fail but they were already failing before
-→ Verify by checking git status. Pre-existing failures are not your problem, but report them.
+→ Verify from the executor's RESULT-JSON and the files it names (no `git`: the iron-law gate refuses it for this agent). Pre-existing failures are not your problem, but report them.
 
 ### Plan step is ambiguous
 → Do NOT guess. Report to Coordinator and request clarification.

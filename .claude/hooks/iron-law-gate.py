@@ -216,25 +216,14 @@ _CK_SAFE = frozenset({"--strict", "--dry-run"})
 # is now the default rather than an enumeration.
 _FIND_SAFE = frozenset({"-name", "-type", "-maxdepth", "-mindepth", "-path"})
 
-# `git` reporters. The subcommand must be the FIRST token after `git`, so global options
-# are refused too: `git -c alias.x='!sh -c ...' x` and `git -C <dir> ...` are execution
-# vectors, not reporting. checkout / apply / restore / reset / add / commit / push /
-# stash / clean are absent on purpose.
-_GIT_READ_ONLY = frozenset({
-    "status", "diff", "log", "show", "rev-parse", "ls-files", "shortlog", "blame",
-})
-_GIT_SAFE = frozenset({
-    "--porcelain", "--short", "--stat", "--numstat", "--name-only", "--name-status",
-    "--oneline", "--cached", "--staged", "--show-toplevel", "-n",
-})
-
-# `branch` and `remote` are NOT read-only subcommands: `git branch -D feature` and
-# `git remote add|remove|set-url|prune` all mutate repository state, destructively in the
-# `-D`/`prune` case. They are kept as reporters only, with a listing-only SAFE list.
-# A POSITIONAL is permitted here so `git branch --list 'feat*'` works (round-3 over-block).
-_GIT_LIST_ONLY = frozenset({"branch", "remote"})
-_GIT_LIST_SAFE = frozenset({"-v", "-vv", "--verbose", "--list", "--show-current",
-                            "-a", "--all"})
+# `git` is the PARENT SESSION's tool, not the implementer's (2026-09-19 token
+# remediation). The parent creates the branch before the spawn and commits after the ops
+# config has run, so there is nothing left for an implementer to run: every reporter this
+# file used to permit - `status`, `diff --stat`, `log --oneline`, `show`, `branch --list`,
+# `remote -v` - reported on state the implementer does not own, and each one cost a full
+# subagent turn. The four tables that used to sit here (`_GIT_READ_ONLY`, `_GIT_SAFE`,
+# `_GIT_LIST_ONLY`, `_GIT_LIST_SAFE`) took three review rounds to tighten; deleting the
+# grant retires all four, and _decide_git below cannot drift back open one flag at a time.
 
 # Interpreter flags that precede the script. All inert: none of them can write or read a
 # flag source. `-c` is deliberately absent - that is `python3 -c "open(p,'w')"`.
@@ -517,29 +506,13 @@ def _decide_python(tokens: List[str], root: Path) -> Tuple[bool, str]:
 
 
 def _decide_git(rest: List[str], root: Path) -> Tuple[bool, str]:
-    if not rest:
-        return False, "bare `git` - no subcommand to check"
-    if rest[0].startswith("-"):
-        return False, ("git global option %s must not precede the subcommand "
-                       "(`git -c alias...` and `git -C dir` are execution vectors)"
-                       % safe(rest[0]))
-    if rest[0] in _GIT_LIST_ONLY:
-        # A POSITIONAL here is how `git remote add origin <url>` and `git branch -m old new`
-        # mutate: the flag list alone does not stop them, because their verbs are bare
-        # words. Positionals are therefore refused UNLESS `--list` is present, which is the
-        # one form that legitimately takes one (`git branch --list 'feat*'`).
-        listing = "--list" in rest[1:]
-        for token in rest[1:]:
-            if not token.startswith("-") and not listing:
-                return False, ("`git %s %s` names a positional; without --list that is a "
-                               "mutating form (add/remove/set-url/prune/rename)"
-                               % (safe(rest[0]), safe(token)))
-        return _check_argv(rest[1:], _GIT_LIST_SAFE, "git " + rest[0], root)
-    if rest[0] not in _GIT_READ_ONLY:
-        return False, ("`git %s` is not a read-only reporter. Permitted: %s"
-                       % (safe(rest[0]),
-                          ", ".join(sorted(_GIT_READ_ONLY | _GIT_LIST_ONLY))))
-    return _check_argv(rest[1:], _GIT_SAFE, "git " + rest[0], root, numeric_ok=True)
+    # The verdict does not depend on the argv; the parameters are kept so the dispatch in
+    # decide() stays uniform across heads.
+    del rest, root
+    return False, ("`git` is the parent session's: it creates the branch before the spawn "
+                   "and commits after the ops config has run. An implementer runs no git "
+                   "at all - not even a reporter, because branch, index and worktree "
+                   "state is not its to read. Ask the parent session for it.")
 
 
 def decide(command: str, root: Path) -> Tuple[bool, str]:
