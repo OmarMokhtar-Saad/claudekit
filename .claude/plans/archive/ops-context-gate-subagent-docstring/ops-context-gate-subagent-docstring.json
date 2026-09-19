@@ -1,0 +1,18 @@
+{
+  "plan": "context-gate-subagent-docstring",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/context-budget-gate.py",
+      "edits": [
+        {
+          "find": "   Subagents get this per-agent for free: a subagent's transcript_path is its own\n   `<project>/<session-id>/subagents/agent-*.jsonl`, so the number read here is THAT agent's\n   context, never the parent's, and no cross-process bookkeeping is needed.",
+          "replace": "   A subagent's hook receives the PARENT's transcript_path plus `agent_id`, so the file read\n   for it is `<session>/subagents/agent-<agent_id>.jsonl` beside the parent's - THAT agent's\n   context, never the parent's (measuring the parent's blocked every subagent of a big session)."
+        }
+      ]
+    }
+  ],
+  "baseline": {
+    ".claude/hooks/context-budget-gate.py": "sha256:6697dacaeb9203ee70961136985bbc11482c5cebd74003d1389448655eecfba4"
+  }
+}

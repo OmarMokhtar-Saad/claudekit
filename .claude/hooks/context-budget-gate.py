@@ -22,9 +22,9 @@ THE TWO DECISIONS
    at most once per 20 guarded calls per session. At or above CK_CONTEXT_BLOCK (400,000) the
    call is refused: past that size every further tool call re-reads the whole window, so the
    cheapest correct move is /save-session and then /compact, or a fresh session.
-   Subagents get this per-agent for free: a subagent's transcript_path is its own
-   `<project>/<session-id>/subagents/agent-*.jsonl`, so the number read here is THAT agent's
-   context, never the parent's, and no cross-process bookkeeping is needed.
+   A subagent's hook receives the PARENT's transcript_path plus `agent_id`, so the file read
+   for it is `<session>/subagents/agent-<agent_id>.jsonl` beside the parent's - THAT agent's
+   context, never the parent's (measuring the parent's blocked every subagent of a big session).
    A subagent is NEVER hard-blocked, though: it can run neither /compact nor /save-session, and
    the hatch is read from the hook process's inherited environment, which a subagent cannot set
    for itself. Blocking it would leave it with no route out, so at or above the block line a
@@ -119,6 +119,24 @@ def _is_subagent(path):
     if not isinstance(path, str):
         return False
     return SUBAGENT_MARKER in path.replace("\\", "/")
+
+
+def _caller_transcript(payload):
+    """(transcript to measure, is-subagent) for the agent that made THIS call.
+
+    A hook fired inside a subagent receives the PARENT's transcript_path plus `agent_id`.
+    Measuring that path read the parent's context, so a large main session blocked its own
+    subagents. With an agent_id the caller's transcript is
+    `<session>/subagents/agent-<agent_id>.jsonl` beside the parent's file.
+    """
+    path = payload.get("transcript_path")
+    agent_id = payload.get("agent_id")
+    if isinstance(agent_id, str) and agent_id:
+        if not agent_id.isalnum() or not isinstance(path, str):
+            return None, True
+        own = os.path.join(os.path.splitext(path)[0], "subagents", "agent-%s.jsonl" % agent_id)
+        return own, True
+    return path, _is_subagent(path)
 
 
 def _tail_lines(path):
@@ -255,12 +273,12 @@ def _decide(payload):
     note = None
 
     if os.environ.get("CK_RAW_CONTEXT") != "1":
-        transcript_path = payload.get("transcript_path")
-        size = _context_size(transcript_path)
+        transcript_path, subagent_call = _caller_transcript(payload)
+        size = _context_size(transcript_path) if transcript_path else None
         if size is not None:
             block = _threshold("CK_CONTEXT_BLOCK", DEFAULT_BLOCK)
             warn = _threshold("CK_CONTEXT_WARN", DEFAULT_WARN)
-            if size >= block and _is_subagent(transcript_path):
+            if size >= block and subagent_call:
                 # Not a block: a subagent has no /compact, no /save-session and no way to set
                 # the hatch in its own environment. The only move it CAN make is to stop.
                 note = (0,

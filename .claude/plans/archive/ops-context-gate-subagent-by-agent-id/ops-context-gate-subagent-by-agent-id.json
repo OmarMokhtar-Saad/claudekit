@@ -1,0 +1,45 @@
+{
+  "plan": "context-gate-subagent-by-agent-id",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/context-budget-gate.py",
+      "edits": [
+        {
+          "find": "def _tail_lines(path):",
+          "replace": "def _caller_transcript(payload):\n    \"\"\"(transcript to measure, is-subagent) for the agent that made THIS call.\n\n    A hook fired inside a subagent receives the PARENT's transcript_path plus `agent_id`.\n    Measuring that path read the parent's context, so a large main session blocked its own\n    subagents. With an agent_id the caller's transcript is\n    `<session>/subagents/agent-<agent_id>.jsonl` beside the parent's file.\n    \"\"\"\n    path = payload.get(\"transcript_path\")\n    agent_id = payload.get(\"agent_id\")\n    if isinstance(agent_id, str) and agent_id:\n        if not agent_id.isalnum() or not isinstance(path, str):\n            return None, True\n        own = os.path.join(os.path.splitext(path)[0], \"subagents\", \"agent-%s.jsonl\" % agent_id)\n        return own, True\n    return path, _is_subagent(path)\n\n\ndef _tail_lines(path):"
+        },
+        {
+          "find": "        transcript_path = payload.get(\"transcript_path\")\n        size = _context_size(transcript_path)",
+          "replace": "        transcript_path, subagent_call = _caller_transcript(payload)\n        size = _context_size(transcript_path) if transcript_path else None"
+        },
+        {
+          "find": "            if size >= block and _is_subagent(transcript_path):",
+          "replace": "            if size >= block and subagent_call:"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_context_budget_gate.py",
+      "edits": [
+        {
+          "find": "             session_id=\"pytest-context-budget\", extra_env=None, project_dir=_UNSET, cwd=None):",
+          "replace": "             session_id=\"pytest-context-budget\", extra_env=None, project_dir=_UNSET, cwd=None,\n             extra_payload=None):"
+        },
+        {
+          "find": "    if transcript_path is not None:\n        payload[\"transcript_path\"] = str(transcript_path)\n",
+          "replace": "    if transcript_path is not None:\n        payload[\"transcript_path\"] = str(transcript_path)\n    if extra_payload:\n        payload.update(extra_payload)\n"
+        },
+        {
+          "find": "def test_a_subagent_over_the_block_line_is_advised_not_blocked(tmp_path):",
+          "replace": "def test_a_subagent_is_measured_by_its_own_transcript_not_the_parents(tmp_path):\n    \"\"\"A subagent's hook gets the PARENT's transcript_path plus agent_id.\n\n    Mutant: measure payload transcript_path instead of the agent's file -> the 450K parent\n    blocks its 10K subagent (rc 2). The twin proves a large subagent is still advised.\n    \"\"\"\n    parent = transcript(tmp_path, usage_line(450000))\n    own_dir = tmp_path / os.path.splitext(os.path.basename(str(parent)))[0] / \"subagents\"\n    own_dir.mkdir(parents=True)\n    (own_dir / \"agent-abc123.jsonl\").write_text(usage_line(10000) + \"\\n\")\n    small = run_hook(tmp_path, os.path.join(str(tmp_path), os.path.basename(str(parent))),\n                     extra_payload={\"agent_id\": \"abc123\", \"agent_type\": \"planner\"})\n    assert small.returncode == 0 and not small.stderr.strip(), small.stderr\n    (own_dir / \"agent-abc123.jsonl\").write_text(usage_line(450000) + \"\\n\")\n    big = run_hook(tmp_path, os.path.join(str(tmp_path), os.path.basename(str(parent))),\n                   extra_payload={\"agent_id\": \"abc123\", \"agent_type\": \"planner\"})\n    assert big.returncode == 0 and \"subagent\" in big.stderr, big.stderr\n\n\ndef test_a_subagent_over_the_block_line_is_advised_not_blocked(tmp_path):"
+        }
+      ]
+    }
+  ],
+  "baseline": {
+    ".claude/hooks/context-budget-gate.py": "sha256:96e8edc56dd53173bccbdd99d55f4edcacd2297a37cf19418760974c62197714",
+    "tests/test_context_budget_gate.py": "sha256:dd0e4069814668b12bef83a33cbb0fce03a91b887feda46dee9f1c8bff0edb68"
+  }
+}

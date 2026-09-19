@@ -147,7 +147,8 @@ def fragment_transcript(tmp_path, planted=900000):
 
 
 def run_hook(tmp_path, transcript_path=None, tool_name="Write", tool_input=None,
-             session_id="pytest-context-budget", extra_env=None, project_dir=_UNSET, cwd=None):
+             session_id="pytest-context-budget", extra_env=None, project_dir=_UNSET, cwd=None,
+             extra_payload=None):
     payload = {
         "session_id": session_id,
         "tool_name": tool_name,
@@ -155,6 +156,8 @@ def run_hook(tmp_path, transcript_path=None, tool_name="Write", tool_input=None,
     }
     if transcript_path is not None:
         payload["transcript_path"] = str(transcript_path)
+    if extra_payload:
+        payload.update(extra_payload)
 
     env = dict(os.environ)
     for key in HATCHES:
@@ -259,6 +262,25 @@ def test_the_session_save_stays_writable_over_the_block_line(tmp_path):
     other = run_hook(tmp_path, path, tool_name="Write",
                      tool_input={"file_path": str(tmp_path / "src" / "x.py")})
     assert other.returncode == 2, "only the session brief is exempt"
+
+
+def test_a_subagent_is_measured_by_its_own_transcript_not_the_parents(tmp_path):
+    """A subagent's hook gets the PARENT's transcript_path plus agent_id.
+
+    Mutant: measure payload transcript_path instead of the agent's file -> the 450K parent
+    blocks its 10K subagent (rc 2). The twin proves a large subagent is still advised.
+    """
+    parent = transcript(tmp_path, usage_line(450000))
+    own_dir = tmp_path / os.path.splitext(os.path.basename(str(parent)))[0] / "subagents"
+    own_dir.mkdir(parents=True)
+    (own_dir / "agent-abc123.jsonl").write_text(usage_line(10000) + "\n")
+    small = run_hook(tmp_path, os.path.join(str(tmp_path), os.path.basename(str(parent))),
+                     extra_payload={"agent_id": "abc123", "agent_type": "planner"})
+    assert small.returncode == 0 and not small.stderr.strip(), small.stderr
+    (own_dir / "agent-abc123.jsonl").write_text(usage_line(450000) + "\n")
+    big = run_hook(tmp_path, os.path.join(str(tmp_path), os.path.basename(str(parent))),
+                   extra_payload={"agent_id": "abc123", "agent_type": "planner"})
+    assert big.returncode == 0 and "subagent" in big.stderr, big.stderr
 
 
 def test_a_subagent_over_the_block_line_is_advised_not_blocked(tmp_path):
