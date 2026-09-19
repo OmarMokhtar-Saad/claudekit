@@ -65,7 +65,8 @@
       {"id": "post-tool-use", "file": "post-tool-use.sh", "runner": "bash", "tier": "advisory", "matcher": "Edit|Write|Bash"},
       {"id": "command-log-audit", "file": "command-log-audit.sh", "runner": "bash", "tier": "advisory", "matcher": "Bash"},
       {"id": "output-filter", "file": "output_filter.py", "runner": "python3", "tier": "advisory", "matcher": "Bash"},
-      {"id": "batch-reads-nudge", "file": "batch-reads-nudge.py", "runner": "python3", "tier": "advisory", "matcher": "Bash"}
+      {"id": "batch-reads-nudge", "file": "batch-reads-nudge.py", "runner": "python3", "tier": "advisory", "matcher": "Bash"},
+      {"id": "context-budget-advise", "file": "context-budget-gate.py", "runner": "python3", "tier": "advisory", "matcher": "Read|Grep|Glob|Write|Edit|NotebookEdit|Bash|Agent|Task", "args": ["--advise"]}
     ],
     "UserPromptSubmit": [
       {"id": "pre-plan", "file": "pre-plan.sh", "runner": "bash", "tier": "advisory", "matcher": ""},
