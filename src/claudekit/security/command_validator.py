@@ -122,6 +122,19 @@ _SAFE_ENV_ASSIGN_NAMES = {
 # NOTE: "\n" is unreachable AFTER the per-line split in validate() - shlex only
 # ever emitted it for an escaped newline, and those lines are now split first. It
 # stays so that _split_segments() remains correct if called directly.
+# A segment that is ONLY assignments (`S=/tmp/x` on its own line or before `;`) runs no
+# command, so safe mode allows it - except for names that steer which code a LATER command
+# in the same shell resolves or loads (refused in both modes). Measured on session 60554075: 4 of 24 hook denials
+# were `S=`, `P=`, `F=` scratch variables refused as "environment override".
+_EXEC_STEERING_ENV_NAMES = {
+    "PATH", "IFS", "LD_PRELOAD", "LD_LIBRARY_PATH", "LD_AUDIT", "DYLD_INSERT_LIBRARIES",
+    "DYLD_LIBRARY_PATH", "DYLD_FRAMEWORK_PATH", "PYTHONPATH", "PYTHONHOME", "PYTHONSTARTUP",
+    "NODE_OPTIONS", "NODE_PATH", "PERL5LIB", "PERL5OPT", "RUBYLIB", "RUBYOPT", "GEM_HOME",
+    "GEM_PATH", "CLASSPATH", "JAVA_TOOL_OPTIONS", "JDK_JAVA_OPTIONS", "BASH_ENV", "ENV",
+    "PROMPT_COMMAND", "SHELL", "GIT_SSH_COMMAND", "GIT_CONFIG_COUNT", "GIT_EXEC_PATH",
+    "GIT_DIR", "CDPATH", "HOME", "TMPDIR", "SUDO_ASKPASS", "SSH_ASKPASS", "EDITOR",
+    "VISUAL", "PAGER", "GIT_PAGER", "MANPAGER", "BROWSER", "LESSOPEN", "LESSCLOSE",
+}
 _SEPARATORS = {";", "&&", "||", "|", "&", "|&", "\n"}
 # Redirect operators: skip the operator and its target token when segmenting.
 _REDIRECTS = {">", ">>", "<", "<<", "<<<", "<>", ">&", "&>", "&>>"}
@@ -417,6 +430,15 @@ class CommandValidator:
             parts = segment
 
         if not parts:
+            return True, "OK"
+
+        if all(_ENV_ASSIGN_RE.match(p) for p in parts):
+            names = [p.split("=", 1)[0] for p in parts]
+            steering = [n for n in names
+                        if n.upper() in _EXEC_STEERING_ENV_NAMES
+                        or n.lower().startswith("npm_config_")]
+            if steering:
+                return False, f"Dangerous pattern (environment override: {steering[0]})"
             return True, "OK"
 
         while parts and _ENV_ASSIGN_RE.match(parts[0]):

@@ -466,3 +466,39 @@ class TestMultiLineConsequences:
     def test_empty_and_whitespace_only_commands_are_rejected(self):
         assert not SAFE.validate("")[0]
         assert not SAFE.validate("   \n  \n ")[0]
+
+class TestBareAssignments:
+    """Regression for session 60554075: `S=/tmp/x` on its own line or before `;` is a shell
+    VARIABLE, not an environment override of a command - 4 of 24 hook denials in that
+    session were scratch variables refused as `environment override: S/P/F`.
+
+    A bare assignment runs no command, so safe mode allows it UNLESS the name steers which
+    code a later command resolves or loads (PATH, IFS, LD_PRELOAD, PYTHONPATH, ...). The
+    prefixed form `S=1 ls` is unchanged: still an override, still refused in safe mode.
+
+    Mutants: drop the all-assignment branch => test_scratch_variable_lines_pass RED;
+    drop the steering check => test_steering_names_stay_refused_even_bare RED."""
+
+    def test_scratch_variable_lines_pass(self):
+        for cmd in ("S=/tmp/x\ngrep -n foo $S",
+                    "S=/tmp/x; grep -n foo $S",
+                    "F=/tmp/y\nwc -l $F",
+                    "P=/a/b/c.kt\nhead -n 40 $P",
+                    "A=1 B=2\nls"):
+            ok, reason = SAFE.validate(cmd)
+            assert ok, (cmd, reason)
+
+    def test_steering_names_stay_refused_even_bare(self):
+        for cmd, name in (("PATH=/evil; ls", "PATH"),
+                          ("LD_PRELOAD=x.so\nls", "LD_PRELOAD"),
+                          ("IFS=,; ls", "IFS"),
+                          ("PYTHONPATH=/x\npython3 a.py", "PYTHONPATH"),
+                          ("npm_config_script_shell=/x; npm test", "npm_config_script_shell"),
+                          ("path=/evil\nls", "path")):
+            ok, reason = SAFE.validate(cmd)
+            assert not ok and "environment override: " + name in reason, (cmd, reason)
+
+    def test_prefixed_override_is_unchanged(self):
+        ok, reason = SAFE.validate("S=1 ls")
+        assert not ok and "environment override: S" in reason
+        assert SAFE.validate("CI=1 make")[0]
