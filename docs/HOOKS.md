@@ -1,6 +1,6 @@
 # Hooks
 
-ClaudeKit ships 32 hook scripts (plus `lib.sh`, a shared helper library). 29 are
+ClaudeKit ships 31 hook scripts (plus `lib.sh`, a shared helper library). 28 are
 reachable: wired into Claude Code through `.claude/settings.json`, or resolved by a
 gate wrapper. They enforce guardrails, capture telemetry, and automate housekeeping
 around the agent workflow.
@@ -115,7 +115,6 @@ Sets only the `ops-enforcement` hook (the Edit/Write source-file gate) to pass-t
 | `security-reminder.sh` | Edit/Write | `standard` + `strict` | Non-blocking reminder when touching sensitive files |
 | `file-guard-gate.sh` | Edit/Write | `strict` only | Advisory warning (never blocks) when the edit target is a sensitive file; wraps `file-guard.sh` |
 | `injection-scan-gate.sh` | UserPromptSubmit | `strict` only | Advisory warning (never blocks) when a prompt matches a known injection pattern; wraps `prompt-injection-scanner.sh` |
-| `suggest-compact.sh` | PreToolUse (all) | all incl. `minimal` | Suggests `/compact` when the session grows large (background) |
 | `pre-plan.sh` | UserPromptSubmit | always | Detects near-duplicate plans before one is created |
 
 ### Telemetry & housekeeping
