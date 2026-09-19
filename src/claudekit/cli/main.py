@@ -5,6 +5,7 @@ import argparse
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -56,8 +57,8 @@ __version__ = _resolve_version()
 # BEGIN GENERATED:counts - owned by scripts/gen-docs.py; never hand-edit.
 # Regenerate with: python3 scripts/gen-docs.py
 EXPECTED_AGENTS = 22
-EXPECTED_COMMANDS = 57
-EXPECTED_SKILLS = 81
+EXPECTED_COMMANDS = 53
+EXPECTED_SKILLS = 79
 # END GENERATED:counts
 
 # Colors
@@ -1020,6 +1021,188 @@ def cmd_execute(args):
         cmd.append("--verbose")
     return subprocess.run(cmd).returncode
 
+
+# Validation-command headings a plan may use for its own checks. `check-plan-artifacts.py`
+# is not shipped in an installed tree, so the CLI carries its own light resolution.
+_PLAN_VALIDATION_HEADINGS = (
+    "validation commands", "testing strategy", "tests", "verification",
+)
+
+
+def _plan_for_ops(ops_path):
+    """The plan doc that owns an ops config, or None.
+
+    `ops-<slug>.json` is owned by `plan-<slug>.md` (or `<slug>.md`), looked up beside the
+    config and then in `.claude/plans/`. Hyphen boundaries are walked longest-first so a
+    sub-step config such as `ops-<slug>-followup.json` still finds `plan-<slug>.md`.
+    """
+    stem = ops_path.stem
+    if stem.startswith("ops-"):
+        stem = stem[4:]
+    seen, dirs = set(), []
+    for d in (ops_path.parent, Path(".claude/plans")):
+        if str(d) not in seen:
+            seen.add(str(d))
+            dirs.append(d)
+    parts = stem.split("-")
+    for n in range(len(parts), 0, -1):
+        slug = "-".join(parts[:n])
+        for d in dirs:
+            for name in (f"plan-{slug}.md", f"{slug}.md"):
+                candidate = d / name
+                if candidate.is_file():
+                    return candidate
+    return None
+
+
+def _plan_validation_commands(plan_path):
+    """The commands a plan names as its own validation: the first fenced block under a
+    validation heading. Blank lines and comment-only lines are dropped."""
+    try:
+        lines = plan_path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return []
+    start = None
+    for i, line in enumerate(lines):
+        if line.startswith("##"):
+            heading = line.lstrip("#").strip().rstrip(":").lower()
+            if heading in _PLAN_VALIDATION_HEADINGS:
+                start = i
+                break
+    if start is None:
+        return []
+    commands, in_fence = [], False
+    for line in lines[start + 1:]:
+        if line.startswith("```"):
+            if in_fence:
+                break
+            if line.strip("` ").lower() in ("", "bash", "sh", "shell", "console"):
+                in_fence = True
+            continue
+        if line.startswith("##") and not in_fence:
+            break
+        text = line.strip()
+        if in_fence and text and not text.startswith("#"):
+            commands.append(text)
+    return commands
+
+
+def _shell_free_argv(text):
+    """argv for a plan's validation command, or None when it would need a real shell.
+
+    A plan is a document. Handing its contents to `sh` would make "run the plan's
+    validation commands" mean "run whatever the plan says, composed"; a command whose
+    tokens include a shell operator is therefore reported and skipped, not reinterpreted.
+    """
+    try:
+        argv = shlex.split(text, comments=True)
+    except ValueError:
+        return None
+    if not argv:
+        return None
+    if any(token in ("|", "||", "&&", ";", "&", ">", ">>", "<", "<<") for token in argv):
+        return None
+    return argv
+
+
+def _result_json_field(output, key):
+    """One field of the executor's last RESULT-JSON line, or None if it never reported."""
+    for line in reversed(output.splitlines()):
+        if line.startswith("RESULT-JSON: "):
+            try:
+                return json.loads(line[len("RESULT-JSON: "):]).get(key)
+            except ValueError:
+                return None
+    return None
+
+
+def _run_stage(cmd, echo=True):
+    """Run one stage, echoing what it printed. Returns (returncode, combined output)."""
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    output = (proc.stdout or "") + (proc.stderr or "")
+    if echo and output.strip():
+        print(output.rstrip())
+    return proc.returncode, output
+
+
+def cmd_implement(args):
+    """validate -> dry-run -> execute -> the plan's validation commands.
+
+    The implementer agent's whole job, minus the model: the same three engine calls in the
+    same order, stopping at the first stage that does not exit 0, then the checks the
+    owning plan names for itself. The Iron Law is unchanged — the work still flows through
+    an ops.json and the operations engine; only the caller is cheaper.
+    """
+    config = Path(args.config)
+    if not config.is_file():
+        err(f"Ops config not found: {config}")
+        return 1
+    validator = Path(".claude/operations/scripts/validate-config-json.py")
+    executor = Path(".claude/operations/scripts/execute-json-ops.py")
+    for script in (validator, executor):
+        if not script.exists():
+            err(f"{script.name} not found. Run: claudekit init")
+            return 1
+
+    verbose = ["--verbose"] if args.verbose else []
+    approval = ["--no-approval"] if args.no_approval else []
+
+    info(f"[1/4] validate {config}")
+    rc, _ = _run_stage([sys.executable, str(validator), str(config)] + verbose)
+    if rc != 0:
+        print(f"RESULT: {config.name} — FAILED at validate (exit {rc}); nothing was written")
+        return rc
+
+    info(f"[2/4] dry-run {config}")
+    rc, _ = _run_stage([sys.executable, str(executor), str(config), "--dry-run"]
+                       + approval + verbose)
+    if rc != 0:
+        print(f"RESULT: {config.name} — FAILED at dry-run (exit {rc}); nothing was written")
+        return rc
+
+    info(f"[3/4] execute {config}")
+    rc, out = _run_stage([sys.executable, str(executor), str(config)] + approval + verbose)
+    # The engine reports "operations" as a LIST of per-op records. The RESULT line is a
+    # one-line summary for the caller, so it carries the COUNT, not the records.
+    applied = _result_json_field(out, "operations")
+    if isinstance(applied, list):
+        applied = len(applied)
+    backup = _result_json_field(out, "backup_dir")
+    if rc != 0:
+        print(f"RESULT: {config.name} — FAILED at execute (exit {rc}); "
+              f"restore with: claudekit rollback --backup {backup or '<see RESULT-JSON>'}")
+        return rc
+
+    plan = Path(args.plan) if args.plan else _plan_for_ops(config)
+    checks = _plan_validation_commands(plan) if plan and plan.is_file() else []
+    if not checks:
+        warn(f"[4/4] no validation commands found ({plan.name if plan else 'no plan'})")
+    else:
+        info(f"[4/4] running the validation commands from {plan.name}")
+    passed = failed = skipped = 0
+    for text in checks:
+        argv = _shell_free_argv(text)
+        if argv is None:
+            skipped += 1
+            warn(f"  SKIP {text}  (needs a shell — run it yourself)")
+            continue
+        crc, _ = _run_stage(argv)
+        if crc == 0:
+            passed += 1
+            ok(f"  PASS {text}")
+        else:
+            failed += 1
+            err(f"  FAIL {text}  (exit {crc})")
+
+    summary = f"validation {passed}/{len(checks)} passed"
+    if failed:
+        summary += f", {failed} failed"
+    if skipped:
+        summary += f", {skipped} skipped"
+    print(f"RESULT: {config.name} — applied "
+          f"{applied if applied is not None else '?'} operation(s), "
+          f"backup {backup or 'none'}, {summary}")
+    return 1 if failed else 0
 
 def cmd_rollback(args):
     """Rollback from a backup."""
@@ -2684,6 +2867,17 @@ def main():
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("-v", "--verbose", action="store_true")
 
+    # implement
+    p = sub.add_parser("implement",
+                       help="validate -> dry-run -> execute -> the plan's checks")
+    p.add_argument("config", help="Path to ops.json")
+    p.add_argument("--plan", metavar="PLAN.md",
+                   help="Plan naming the validation commands "
+                        "(default: the plan matching the config name)")
+    p.add_argument("--no-approval", action="store_true",
+                   help="Pass --no-approval through to the executor")
+    p.add_argument("-v", "--verbose", action="store_true")
+
     # rollback
     p = sub.add_parser("rollback", help="Rollback from backup")
     p.add_argument("--backup", help="Backup directory")
@@ -2877,6 +3071,7 @@ def main():
         "lint": cmd_lint,
         "validate": cmd_validate,
         "execute": cmd_execute,
+        "implement": cmd_implement,
         "rollback": cmd_rollback,
         "agents": cmd_agents,
         "diff": cmd_diff,
