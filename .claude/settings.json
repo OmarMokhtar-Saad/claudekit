@@ -25,15 +25,6 @@
         ]
       },
       {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash -c 'ROOT=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\"; cd \"$ROOT\" && bash \"$ROOT/.claude/hooks/suggest-compact.sh\"'"
-          }
-        ]
-      },
-      {
         "matcher": "Bash",
         "hooks": [
           {

@@ -102,7 +102,7 @@ class TestTheRegistryIsLocked:
             "mkdir is the portable atomic lock; flock is Linux-only")
 
     def test_contention_never_drops_a_checkpoint(self):
-        """The deliberate difference from suggest-compact.sh, pinned.
+        """The deliberate difference from the retired suggest-compact.sh, pinned.
 
         That hook SKIPS its work when the lock is held, because a lost counter
         increment costs nothing. A skipped checkpoint costs the user's uncommitted
