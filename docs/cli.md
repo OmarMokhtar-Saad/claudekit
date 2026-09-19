@@ -222,6 +222,24 @@ claudekit execute ops.json              # Apply changes
 claudekit execute ops.json --verbose    # Debug output
 ```
 
+### `claudekit implement <ops.json>`
+
+Run the whole implementation path for one operations config: validate -> dry-run ->
+execute -> the validation commands the owning plan names for itself. It stops at the
+first stage that does not exit 0 and prints exactly one `RESULT:` line.
+
+```bash
+claudekit implement .claude/plans/ops-my-change.json
+claudekit implement ops.json --no-approval      # skip the review-record gate
+claudekit implement ops.json --plan PLAN.md     # name the plan explicitly
+```
+
+The plan is resolved from the config name (`ops-<slug>.json` -> `plan-<slug>.md`,
+beside the config and then in `.claude/plans/`). Its validation commands are the first
+fenced block under a `## Validation commands`, `## Testing Strategy`, `## Tests` or
+`## Verification` heading. They run **without a shell**, so a command carrying a pipe,
+redirect or chain is reported as skipped rather than reinterpreted.
+
 ### `claudekit rollback`
 
 Rollback from a previous backup.
