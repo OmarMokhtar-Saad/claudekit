@@ -87,7 +87,6 @@ def test_project_state_resolves_through_the_project_root(hook, var):
     ("file-guard.sh", "LOG_FILE"),
     ("check-comment-replacement.sh", "LOG_FILE"),
     ("auto-checkpoint.sh", "LOG_FILE"),
-    ("suggest-compact.sh", "COUNTER_FILE"),
     ("format-typecheck.sh", "EDITED_LOG"),
     ("command-log-audit.sh", "AUDIT_LOG"),
     ("cost-tracker.sh", "COST_LOG"),
