@@ -12,6 +12,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Session token spend: `autoCompactWindow: 200000` ships in `.claude/settings.json`,
+  `context-budget-gate.py` blocks at 200K (warns at 150K), `suggest-compact.sh` is retired and
+  `batch-reads-nudge.py` emits `hookSpecificOutput.additionalContext` JSON.** Measured over 227
+  qa-agents sessions (16,770 unique requests, deduplicated by `requestId`): 85% of 5.24B billed
+  tokens were spent by turns already above 200K context, with 16 compactions in total. Transcript
+  evidence on hook delivery: plain PostToolUse stdout is recorded as a `hook_success` attachment
+  and never reaches the model (18,345 measured, 0 in context); only `additionalContext` JSON and a
+  block (exit 2 + stderr) do. `suggest-compact`'s 667 `/compact` tips and the read nudge were
+  therefore dead letters; the window setting does what they meant to do. A hook that wants the
+  model to read something emits the JSON form and runs directly from `settings.json`
+  (`dispatch.sh` would prefix and break it). `install.sh` copies `settings.json`, `fleet-sync.py`
+  does not, so existing installs add the one line by hand. 31 hooks ship, 28 reachable.
 - **Removed `/refine`, `/santa`, `/gan-build` and `/xpipe`** with the `santa-method` and
   `gan-harness` skills, `xpipe.py` and its tests (owner decision 2026-09-19, token cost).
   Plan-review looping is `/plan` -> `/review` by hand (3 rounds ceiling); dual review is
