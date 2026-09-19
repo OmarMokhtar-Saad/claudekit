@@ -5,7 +5,7 @@ the overlapping skill descriptions -- so for that rule "the suite is green" and 
 rule does not run" look identical from the outside.
 
 `skill-agent-costume` is NOT clean, and an earlier draft of this docstring claimed it
-was. Two skills really do grant `Agent` (`gan-harness`, `opensource-pipeline`); they are
+was. One skill really does grant `Agent` (`opensource-pipeline`; `gan-harness` was deleted 2026-09-19); it was
 waived by name in `.claude/lint-baseline.json`, and the rule fires on any un-waived
 grant. Review caught the false claim in `lint.py`'s docstring and in the plan; it
 survived HERE for one more round, which is its own small lesson about correcting a
@@ -155,7 +155,7 @@ class TestSkillAgentCostume:
         """The regression fixture for the finding above, against the SHIPPED files
         rather than a synthetic one -- so a future regex change that stops reading the
         block form goes red here even if the synthetic case still passes."""
-        for name in ("gan-harness", "opensource-pipeline"):
+        for name in ("opensource-pipeline",):
             path = os.path.join(REPO, ".claude", "skills", name, "SKILL.md")
             with open(path, encoding="utf-8") as fh:
                 assert "Agent" in lint.declared_tools(fh.read()), name
@@ -207,7 +207,7 @@ class TestSkillAgentCostume:
         So: no waivers, and the rule still fires. Both halves asserted."""
         assert lint.load_waivers(REPO) == set()
         assert lint.check_skill_agent_costume(REPO) == []
-        for name in ("gan-harness", "opensource-pipeline"):
+        for name in ("opensource-pipeline",):
             path = os.path.join(REPO, ".claude", "skills", name, "SKILL.md")
             with open(path, encoding="utf-8") as fh:
                 body = fh.read()

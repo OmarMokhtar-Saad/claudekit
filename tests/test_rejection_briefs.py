@@ -1362,7 +1362,7 @@ class TestTheSessionIdIsProvenOrUnknown:
 
 
 class TestTheCallSitesPassItExplicitly:
-    CALLERS = {"review.md": 125, "refine.md": 466, "code-review.md": 140}
+    CALLERS = {"review.md": 125, "code-review.md": 140}
 
     def test_every_recording_call_site_passes_session_id(self):
         for name in self.CALLERS:

@@ -42,7 +42,7 @@ projects, which have no tier resolver, so each `--model` literal must appear in 
 - `--allowedTools` scopes the sub-agent to exactly the tools its role needs.
 - **Cost: ~13–14s cold boot measured in this repo** (new CLI + MCP servers). MCP-heavy
   projects can hit timeouts — one field report (AppiumLens, 2026-06-30) did. Use this path
-  for string-pipeline commands (/plan, /refine loops) and CI, not for interactive fan-outs.
+  for string-pipeline commands (/plan loops) and CI, not for interactive fan-outs.
 
 Verified 2026-07-08: `claude -p --agent explore` failed with "agent not found" pre-fix;
 post-fix it completed a trivial haiku task in 13s. Probe agent with clean frontmatter
@@ -79,7 +79,7 @@ plan-token-waste-workflow-fixes.md`).
 - **Revision/edit requests** operate in place on the existing file (Write/Edit on the same
   path) — never re-emit the complete artifact from scratch.
 
-This is the rule the `/plan` (Issues 1–2) and `/refine` (Issue 3) fixes both apply; keep any
+This is the rule the `/plan` fixes (Issues 1–3) apply; keep any
 new command or agent that moves a plan/ops payload consistent with it.
 
 ---
@@ -101,7 +101,7 @@ lands. It is not present today.
 
 | Agent                 | `--allowedTools`                                                | Rationale                                             |
 |-----------------------|-----------------------------------------------------------------|------------------------------------------------------|
-| planner               | `Read,Grep,Glob,Write,Bash(python3 .claude/operations/scripts/validate-config-json.py *)` | Explore; write `plan.md` + `ops.json`; self-validate the config before handoff. Bash is scoped to the validator only. |
+| planner               | `Read,Grep,Glob,Write` | Explore; write `plan.md` + `ops.json`. **No Bash since 2026-09-19** (token remediation): the caller runs `validate-config-json.py` on its behalf. Spawned only by `/plan --deep` — the default `/plan` writes both files in the parent session. |
 | reviewer              | `Read,Grep,Glob`                                                | Read-only: analyze the plan/ops.json, emit a verdict.|
 | explore               | `Read,Grep,Glob`                                                | Read-only codebase search.                           |
 | debugger              | `Read,Grep,Glob,Bash(git log *),Bash(git diff *)`               | Read-only diagnosis; history inspection.             |
@@ -111,9 +111,9 @@ lands. It is not present today.
 | code-reviewer         | `Read,Grep,Glob,Bash(git show *),Bash(git diff *),Bash(git rev-parse *),Bash(git ls-files *),Bash(git worktree *),Bash(gh pr *)` | Phase 0 must pin the revision under review before any finding: `gh pr diff/view`, `git diff <base>...<ref>`, `git show <ref>:<path>`, `git rev-parse HEAD`, `git ls-files --others` for untracked files, and a detached `git worktree` for whole-tree search. Non-mutating with respect to the repository under review — `git worktree` writes only to a detached tmpdir; no commit, no checkout of the shared tree. (Space-form specifiers verified honoured on this path, 2026-08-19.) |
 | gitOps                | `Read,Bash(git *)`                                              | Git operations only.                                 |
 
-Never grant unrestricted `Bash` to planner/reviewer or any read-only role — planner's Bash is
-scoped to the ops validator script, nothing else. Add a row here before wiring a new agent —
-do not invent a tool list at the call site.
+Never grant unrestricted `Bash` to planner/reviewer or any read-only role — the planner has
+no `Bash` at all since 2026-09-19; the caller runs the ops validator on its behalf. Add a row
+here before wiring a new agent — do not invent a tool list at the call site.
 
 ---
 
@@ -214,7 +214,7 @@ the wide rows is owned by each agent's maintainer.
 
 | Agent | frontmatter `tools:` |
 |-----------------------|--------------------------------|
-| planner | `Read, Grep, Glob, Write, Bash` |
+| planner | `Read, Grep, Glob, Write` |
 | reviewer | `Read, Grep, Glob` |
 | explore | `Read, Grep, Glob, Bash` |
 | debugger | `Read, Grep, Glob, Bash` |
@@ -226,8 +226,9 @@ the wide rows is owned by each agent's maintainer.
 
 **Wider than their documented role (known drift, not yet narrowed):** `explore`,
 `security-scanner`, and `code-reviewer` are documented above as read-only
-`Read,Grep,Glob` but each declares `Bash` in frontmatter. `planner` declares bare `Bash`
-where the headless row scopes it to the ops validator. Recorded rather than hidden.
+`Read,Grep,Glob` but each declares `Bash` in frontmatter. The `planner` row is no longer
+drift: its `Bash` grant was removed 2026-09-19 and both tables now agree. Recorded rather
+than hidden.
 
 ---
 

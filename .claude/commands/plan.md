@@ -1,54 +1,67 @@
 ---
-description: "Create implementation plan via planner agent and save to .claude/plans/"
-argument-hint: "[task description]"
+description: "Write plan.md + ops.json inline; --deep spawns the planner agent"
+argument-hint: "[--deep] [task description]"
 model: sonnet
 ---
 
 # Planner Command
 
-Spawns the local `planner` agent. Two verified mechanisms (see
-`.claude/agents/_shared/INVOCATION.md`, single source of truth):
+**Default: no spawn.** You — the parent session — write `.claude/plans/plan-<slug>.md` and
+`.claude/plans/ops-<slug>.json` yourself, from the context you already hold. A planner spawn
+pays a second full corpus load: measured 2026-09-19, 98 turns average (worst 572 / 895 K) and
+19 % of two days' token spend, mostly re-reading files the parent had already read.
 
-- **Interactive session (default): Task tool**, `subagent_type: "planner"` — no cold boot,
-  shares the session's MCP servers and permission gating.
-- **Scripted/CI: `claude -p --agent planner`** — pays ~13s cold boot per spawn.
-
-DELIVERY CONTRACT differs by mechanism — paths and summaries reach the main context, never
-full file bodies:
-- **Interactive:** the planner writes `.claude/plans/plan-<slug>.md` and
-  `.claude/plans/ops-<slug>.json` itself (nothing blocks this — see below) and returns only
-  paths + a short summary.
-- **Headless (`claude -p`):** the platform's sensitive-path gate blocks writes into
-  `.claude/**`, so stdout is the delivery contract; this command captures it SILENTLY
-  (no `tee`) and writes it to disk itself, then reports only paths + a short summary.
+| Mode | What runs | When |
+|---|---|---|
+| default | you write plan + ops.json inline, then validate | you can name the files the change touches (Tier 1/2) |
+| `--deep` | spawns the `planner` agent | the change spans unfamiliar subsystems, or you cannot name those files |
 
 ## Task
 
 Create implementation plan for: $ARGUMENTS
 
-## Invocation — interactive (default)
+If `$ARGUMENTS` begins with `--deep`, strip that flag from the task description and follow
+the `--deep` sections below. Otherwise write both files yourself, as follows.
 
-**Delivery contract: paths, never payloads** — an interactive Task-subagent shares this
-session's hooks/permissions, and `.claude/plans/` is not blocked by any of them
-(`ops-enforcement.sh` allows all of `.claude/**`; `config-protection.sh` only matches
-linter/formatter filenames; `file-guard-gate.sh` is advisory-only and `strict`-profile
-gated — verified by reading all three, 2026-07-31). So the planner writes its own files;
-the main agent never re-types or Reads back the plan body.
+## Default (no `--deep`) — you write both files
 
-1. Spawn via the Task tool with `subagent_type: "planner"` (model: opus) and the same
-   task/exploration instructions as `PLANNER_MSG` below, plus: "Write the plan to
-   `.claude/plans/plan-<slug>.md` and the ops config to `.claude/plans/ops-<slug>.json`
-   yourself using the Write tool. Run `python3 .claude/operations/scripts/validate-config-json.py
-   <ops-file>` and include its verdict. Return ONLY: both file paths, the validation
-   verdict, the op count, and a ≤10-line plan summary — do NOT print the plan body or the
-   ops.json contents in your response."
-2. Main agent re-runs `python3 .claude/operations/scripts/validate-config-json.py <ops-file>`
-   once (trust but verify) and reports the paths + verdict. Do NOT Read the plan or ops
-   file back into context unless the user explicitly asks to see them.
+1. Name every file the change touches. If you cannot, stop and re-run with `--deep`.
+2. Write `.claude/plans/plan-<slug>.md`: overview, scope naming **every path the ops config
+   writes** (`scripts/check-plan-artifacts.py` enforces this), implementation steps, a
+   `## Validation commands` fenced block, rollback plan, risk assessment.
+3. Write `.claude/plans/ops-<slug>.json`. The Iron Law binds the parent too: a plan with no
+   ops config is not a plan.
+4. `python3 .claude/operations/scripts/validate-config-json.py <ops-file> --stamp-baseline`
+5. Report both paths, the verdict and the op count — never the plan body; you just wrote it.
 
-## Invocation — scripted (claude -p)
+`ck implement <ops-file>` then runs validate -> dry-run -> execute -> the plan's own
+validation commands.
 
-Use the Bash tool to run:
+## `--deep` — spawn the planner agent
+
+Two mechanisms, both verified (see `.claude/agents/_shared/INVOCATION.md`, single source of
+truth). Either way the delivery contract is PATHS + A SHORT SUMMARY, never file bodies.
+
+### `--deep` mechanism A — interactive Task tool (preferred)
+
+No cold boot; shares the session's MCP servers and permission gating. No hook of this session
+blocks `.claude/plans/` (`ops-enforcement.sh` allows all of `.claude/**`; `config-protection.sh`
+matches only linter/formatter names; `file-guard-gate.sh` is advisory, `strict`-gated — all
+three read 2026-07-31), so the planner writes its own files.
+
+1. Spawn with `subagent_type: "planner"` (model: opus) and the task/exploration instructions
+   of `PLANNER_MSG` below, plus: "Write the plan to `.claude/plans/plan-<slug>.md` and the
+   ops config to `.claude/plans/ops-<slug>.json` yourself using the Write tool. Return ONLY:
+   both paths, the op count and a ≤10-line summary — never the plan body or ops.json."
+2. Main agent runs `python3 .claude/operations/scripts/validate-config-json.py <ops-file>`
+   (the planner has no Bash) and reports paths + verdict. Do NOT Read either file back into
+   context unless the user asks to see it.
+
+### `--deep` mechanism B — scripted (claude -p)
+
+Pays ~13s cold boot per spawn. The headless planner cannot write into `.claude/**` (platform
+sensitive-path gate, verified 2026-07-08), so its stdout is the delivery contract: the block
+below stays SILENT except for the final summary — no `tee`, no echo of `plan_output`.
 
 ```bash
 PLAN_FILE=".claude/plans/plan-$(date +%Y%m%d-%H%M%S).md"
@@ -58,27 +71,17 @@ PLANNER_MSG="Create a complete implementation plan for the following task.
 
 Task: $ARGUMENTS
 
-Before writing anything, explore the codebase with BATCHED parallel Read/Grep/Glob calls —
-fire all independent searches in ONE message; do not serialize independent lookups.
-Open the plan with a 3-line summary: goal, approach, riskiest step.
+Explore with BATCHED parallel Read/Grep/Glob calls — fire all independent searches in ONE
+message. Open the plan with a 3-line summary: goal, approach, riskiest step.
 
 IRON LAW: The plan MUST include a valid ops.json."
 
-plan_output=$(echo "$PLANNER_MSG" | claude -p --agent planner --model opus --allowedTools "Read,Grep,Glob,Write,Bash(python3 .claude/operations/scripts/validate-config-json.py *)")
+plan_output=$(echo "$PLANNER_MSG" | claude -p --agent planner --model opus --allowedTools "Read,Grep,Glob,Write")
 EXIT_CODE=$?
-
-if [ $EXIT_CODE -ne 0 ]; then
-  echo "ERROR: Planner agent failed (exit code $EXIT_CODE). Check that .claude/agents/planner.md exists."
-  exit 1
-fi
+[ $EXIT_CODE -ne 0 ] && { echo "ERROR: planner failed (exit $EXIT_CODE) — check .claude/agents/planner.md"; exit 1; }
 
 printf '%s\n' "$plan_output" > "$PLAN_FILE"
 
-# The planner cannot write into .claude/ itself when spawned headless (sensitive-path
-# gate, verified 2026-07-08) — its stdout is the delivery contract. Extract the ops.json
-# it emitted and validate it. Everything in this block stays SILENT except the final
-# summary — no `tee`, no echoing plan_output — so the full payload never lands in the
-# main session's context as a Bash tool result.
 OPS_FILE="${PLAN_FILE%.md}.ops.json"
 python3 .claude/operations/scripts/extract-json-from-plan.py "$PLAN_FILE" --output "$OPS_FILE" \
   && python3 .claude/operations/scripts/validate-config-json.py "$OPS_FILE" > /tmp/plan-validate.$$ 2>&1 \
@@ -89,17 +92,12 @@ VERDICT=$(grep -m1 '^-> ' /tmp/plan-validate.$$ 2>/dev/null | sed 's/^-> //')
 [ -z "$VERDICT" ] && VERDICT="validated"
 rm -f /tmp/plan-validate.$$
 
-echo ""
-echo "Plan saved to: $PLAN_FILE"
-echo "Ops config:    $OPS_FILE ($VERDICT, $OP_COUNT ops)"
-echo ""
-echo "Summary (first 3 lines):"
+printf '\nPlan saved to: %s\nOps config:    %s (%s, %s ops)\n\nSummary:\n' \
+  "$PLAN_FILE" "$OPS_FILE" "$VERDICT" "$OP_COUNT"
 grep -v '^$' "$PLAN_FILE" | head -3
 ```
 
-Final stdout of this block must stay ≤15 lines total: paths, op count, validation verdict,
-and the plan's first 3 non-blank lines — never the full plan body or ops.json contents.
+Final stdout ≤15 lines: paths, op count, verdict, the plan's first 3 non-blank lines.
 
 After output, suggest:
-- `/refine "$ARGUMENTS"` — automatic iterative plan-review loop until score ≥ 90
 - `/review` — single-pass review (auto-detects the saved plan file); once APPROVED, run `/implement` from a compacted or fresh context whose only input is the plan path

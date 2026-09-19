@@ -232,8 +232,8 @@ def ops_slug(ops_path) -> str:
 def resolve_ops(plan_path: str):
     """Find the ops.json a plan owns, across every naming convention in use.
 
-    /plan and /refine both derive it as ${PLAN_FILE%.md}.ops.json -- the UN-stripped
-    stem, "plan-" prefix and all (plan.md:63, refine.md:229). hooks/lib.sh separately
+    /plan derives it as ${PLAN_FILE%.md}.ops.json -- the UN-stripped
+    stem, "plan-" prefix and all (plan.md:63). hooks/lib.sh separately
     matches `*.ops.json` and `ops-*.json`. Guessing one form silently disables the
     mechanism for the others -- try every form and report failure loudly.
     """

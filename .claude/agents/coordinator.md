@@ -56,8 +56,8 @@ Analyze every incoming request and classify it into exactly one category:
 
 | Category    | Keywords / Signals                                      | Primary Pipeline                                      |
 |-------------|--------------------------------------------------------|-------------------------------------------------------|
-| **Feature** | "add", "create", "implement", "build", "new"          | refine (= planner → reviewer, looped) → Implementer → Verifier → GitOps |
-| **Bug**     | "fix", "broken", "error", "crash", "not working"      | Debugger → refine → Implementer → Verifier → GitOps |
+| **Feature** | "add", "create", "implement", "build", "new"          | Planner → Reviewer (looped) → Implementer → Verifier → GitOps |
+| **Bug**     | "fix", "broken", "error", "crash", "not working"      | Debugger → Planner → Reviewer → Implementer → Verifier → GitOps |
 | **Quality** | "test", "coverage", "lint", "check", "validate"       | Verifier                                              |
 | **Git**     | "commit", "push", "branch", "PR", "merge", "release"  | GitOps                                                |
 | **Docs (new)**    | "document", "write docs for", "API docs"        | docs (`mode: create`)                                 |

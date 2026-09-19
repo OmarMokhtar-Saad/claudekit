@@ -68,7 +68,7 @@ Asymmetric roles beat symmetric peers. Recommended split:
 | Adversary | Cursor / Codex / other tool | cross-reviews Claude branches, or implements a DISJOINT module | write to Claude-owned files |
 
 A different model family reviewing the work catches failure modes self-review
-cannot (same insight as the santa-method skill, extended across vendors).
+cannot (a second, independent reviewer, extended across vendors).
 
 Non-Claude tools get **disjoint file ownership or read-only review** — never
 shared write access to Claude-owned modules.

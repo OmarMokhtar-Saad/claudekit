@@ -101,11 +101,6 @@ class TestEvidenceIntegrity:
         text = _read(SKILLS, "token-optimization", "SKILL.md")
         assert "Verification evidence" in text
 
-    def test_refine_success_banner_is_earned(self):
-        text = _read(COMMANDS, "refine.md")
-        assert "ops.json: validated and dry-run clean" not in text
-        assert "execute-json-ops.py" in text  # post-approval dry-run actually runs
-
     def test_loop_start_gate_lines_require_real_output(self):
         text = _read(COMMANDS, "loop-start.md")
         assert "tests PASS (12/12)" not in text  # templated fake evidence removed
@@ -181,7 +176,7 @@ class TestModelRouting:
         match whatever the planner's tier currently resolves to."""
         policy = self._policy()
         model = policy["capability_tiers"][self._tier_of("planner")]["model"]
-        for command in ("plan.md", "refine.md"):
+        for command in ("plan.md",):
             assert f"--agent planner --model {model}" in _read(COMMANDS, command), \
                 f"{command} disagrees with the planner's tier in model-policy.json"
 
@@ -334,7 +329,7 @@ class TestContractConsistency:
 
     def test_pipeline_commands_offer_task_tool_path(self):
         # Interactive default = Task tool (no cold boot); claude -p = scripted path.
-        for cmd in ("plan.md", "review.md", "refine.md"):
+        for cmd in ("plan.md", "review.md"):
             text = _read(COMMANDS, cmd)
             assert "Task tool" in text, f"{cmd}: missing interactive Task-tool path"
             assert "claude -p" in text, f"{cmd}: missing scripted claude -p path"
@@ -344,5 +339,4 @@ class TestContractConsistency:
         # sensitive-path gate) — stdout is the delivery contract, commands save.
         assert "Headless fallback" in _read(AGENTS, "planner.md")
         assert "extract-json-from-plan.py" in _read(COMMANDS, "plan.md")
-        assert "extract-json-from-plan.py" in _read(COMMANDS, "refine.md")
         assert "verification pending" in _read(AGENTS, "implementer.md")

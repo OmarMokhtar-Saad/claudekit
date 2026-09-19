@@ -215,6 +215,5 @@ Human approval required to continue. Reply with:
 
 - The loop-operator is a safety layer — it CANNOT guarantee completion, only safe termination
 - For deterministic tasks (fix N known errors), use `/build-fix` directly
-- For GAN-style generative tasks, use `/gan-build` instead
 - Loop-operator escalation is a feature, not a failure — it means the task needs human judgment
 - Always review the loop report before committing — autonomous loops can produce unexpected diffs

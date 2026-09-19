@@ -1,7 +1,7 @@
 {
   "version": "2.0",
   "lastUpdated": "2026-07-08",
-  "description": "ClaudeKit skills registry \u2014 maps skills to agents",
+  "description": "ClaudeKit skills registry — maps skills to agents",
   "renamedAgents": {
     "code-simplifier": {
       "to": "refactor-cleaner",
@@ -641,7 +641,7 @@
       "usedBy": [
         "coordinator"
       ],
-      "description": "Audit token consumption across agents, skills, MCP servers \u2014 find bloat and optimize"
+      "description": "Audit token consumption across agents, skills, MCP servers — find bloat and optimize"
     },
     {
       "id": "token-budget-advisor",
@@ -667,7 +667,7 @@
       "usedBy": [
         "coordinator"
       ],
-      "description": "Research-first approach \u2014 search npm/PyPI/MCP/GitHub before writing custom code"
+      "description": "Research-first approach — search npm/PyPI/MCP/GitHub before writing custom code"
     },
     {
       "id": "codebase-onboarding",
@@ -675,7 +675,7 @@
       "path": "skills/codebase-onboarding/SKILL.md",
       "mandatory": false,
       "usedBy": [],
-      "description": "Analyze unfamiliar codebase in 4 phases \u2014 generates onboarding guide and starter CLAUDE.md"
+      "description": "Analyze unfamiliar codebase in 4 phases — generates onboarding guide and starter CLAUDE.md"
     },
     {
       "id": "project-adaptation",
@@ -710,14 +710,6 @@
       "description": "Multi-source research with parallel subagents, cross-referencing, and confidence-rated reports"
     },
     {
-      "id": "santa-method",
-      "name": "Santa Method",
-      "path": "skills/santa-method/SKILL.md",
-      "mandatory": false,
-      "usedBy": [],
-      "description": "Adversarial dual-review: two independent reviewers (Opus+Sonnet) with no shared context, both must approve"
-    },
-    {
       "id": "hookify",
       "name": "Hookify",
       "path": "skills/hookify/SKILL.md",
@@ -733,7 +725,7 @@
       "usedBy": [
         "coordinator"
       ],
-      "description": "Structured session save/resume \u2014 serialize task state, decisions, next steps across sessions"
+      "description": "Structured session save/resume — serialize task state, decisions, next steps across sessions"
     },
     {
       "id": "prp-plan",
@@ -741,17 +733,7 @@
       "path": "skills/prp-plan/SKILL.md",
       "mandatory": false,
       "usedBy": [],
-      "description": "Product Requirements Process plan phase \u2014 deep codebase analysis before writing a single line of implementation"
-    },
-    {
-      "id": "gan-harness",
-      "name": "GAN Harness",
-      "path": "skills/gan-harness/SKILL.md",
-      "mandatory": false,
-      "usedBy": [
-        "gan-build"
-      ],
-      "description": "GAN-style generate-evaluate-iterate loop with anti-anchoring Evaluator"
+      "description": "Product Requirements Process plan phase — deep codebase analysis before writing a single line of implementation"
     },
     {
       "id": "opensource-pipeline",
@@ -770,7 +752,7 @@
         "code-reviewer",
         "verifier"
       ],
-      "description": "Judge whether tests would actually catch a regression \u2014 four gap shapes, the Demonstration, and proving a check binds by mutation"
+      "description": "Judge whether tests would actually catch a regression — four gap shapes, the Demonstration, and proving a check binds by mutation"
     },
     {
       "id": "java-review-checklist",
@@ -780,7 +762,7 @@
       "usedBy": [
         "code-reviewer"
       ],
-      "description": "Use when a diff under review contains `.java` files \u2014 null/Optional misuse, equals/hashCode contracts, exceptions, concurrency, security and performance."
+      "description": "Use when a diff under review contains `.java` files — null/Optional misuse, equals/hashCode contracts, exceptions, concurrency, security and performance."
     },
     {
       "id": "kotlin-review-checklist",
@@ -790,7 +772,7 @@
       "usedBy": [
         "code-reviewer"
       ],
-      "description": "Use when a diff under review contains `.kt` files \u2014 nullability, coroutine scope and cancellation, immutability, security, Java interop and idiom."
+      "description": "Use when a diff under review contains `.kt` files — nullability, coroutine scope and cancellation, immutability, security, Java interop and idiom."
     },
     {
       "id": "ai-agent-testing",
@@ -798,7 +780,7 @@
       "path": "skills/ai-agent-testing/SKILL.md",
       "mandatory": false,
       "usedBy": [],
-      "description": "Use when testing an LLM-agent system \u2014 the two-suite doctrine that keeps the merge gate deterministic, plus the agent invariants worth asserting."
+      "description": "Use when testing an LLM-agent system — the two-suite doctrine that keeps the merge gate deterministic, plus the agent invariants worth asserting."
     },
     {
       "id": "defect-pinning",
@@ -806,7 +788,7 @@
       "path": "skills/defect-pinning/SKILL.md",
       "mandatory": false,
       "usedBy": [],
-      "description": "Use when a defect is confirmed but not yet fixed \u2014 pin it to a quarantined reproducing test so it cannot be re-found, re-argued, or silently fixed."
+      "description": "Use when a defect is confirmed but not yet fixed — pin it to a quarantined reproducing test so it cannot be re-found, re-argued, or silently fixed."
     },
     {
       "id": "prompt-evaluation",
@@ -814,7 +796,7 @@
       "path": "skills/prompt-evaluation/SKILL.md",
       "mandatory": false,
       "usedBy": [],
-      "description": "Use when iterating on a prompt \u2014 isolated judges, one per criterion, over a versioned eval set. Exploratory only; eval-harness stays the CI gate."
+      "description": "Use when iterating on a prompt — isolated judges, one per criterion, over a versioned eval set. Exploratory only; eval-harness stays the CI gate."
     },
     {
       "id": "whitebox-invariant-testing",
@@ -822,7 +804,7 @@
       "path": "skills/whitebox-invariant-testing/SKILL.md",
       "mandatory": false,
       "usedBy": [],
-      "description": "Use when testing an SDK or dependency you cannot modify \u2014 build an invariant table from its source, then attack each promise through harness knobs."
+      "description": "Use when testing an SDK or dependency you cannot modify — build an invariant table from its source, then attack each promise through harness knobs."
     },
     {
       "id": "request-shaping",
@@ -838,7 +820,7 @@
       "path": "skills/release-integrity/SKILL.md",
       "mandatory": false,
       "usedBy": [],
-      "description": "Use when a repo publishes versioned artifacts (a zip, wheel, image, or tag) \u2014 the four deterministic gates that keep a published release identical to the tree it claims to come from."
+      "description": "Use when a repo publishes versioned artifacts (a zip, wheel, image, or tag) — the four deterministic gates that keep a published release identical to the tree it claims to come from."
     }
   ],
   "agentsWithoutSkills": [

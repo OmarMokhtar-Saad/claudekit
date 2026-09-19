@@ -183,7 +183,6 @@ Next steps:
   1. Review .claude/opensource-output/ carefully
   2. Address any WARNING findings above
   3. git init in output dir + push to new GitHub repo
-  4. Consider /santa CLAUDE.md README.md for dual review
 ```
 
 **Failure (BLOCKERs found):**
@@ -219,4 +218,3 @@ Fix all BLOCKERs and re-run:
 - If pipeline fails at Stage 2, re-run from Stage 1 (no `--package-only` shortcut)
 - `.claude/opensource-output/` is overwritten on each successful run
 - WARNING findings do not block the pipeline but should be reviewed before publishing
-- For high-risk repos (payments, auth, infra), run `/santa .claude/opensource-output/CLAUDE.md` after pipeline completes

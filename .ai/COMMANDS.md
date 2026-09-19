@@ -8,7 +8,6 @@
 |---------|------|-----------|
 | `/plan <task>` | Create implementation plan + ops.json in `.claude/plans/` | planner |
 | `/review <plan>` | Score plan vs 90/100 threshold | reviewer |
-| `/refine <task>` | Auto-loop planner ↔ reviewer until ≥90 with no issues | planner+reviewer |
 | `/implement <plan>` | Execute approved ops.json (dry-run → execute → verify build/lint/test) | implementer |
 | `/verify` | Unified quality validation vs 80/100 | verifier |
 | `/coordinator <task>` | Full multi-agent orchestration for complex tasks | coordinator |
@@ -37,8 +36,6 @@
 
 | Command | Does |
 |---------|------|
-| `/santa <target>` | Dual independent review — Opus Skeptic + Sonnet Pragmatist, no shared context, both must approve |
-| `/gan-build <task>` | Generator → fresh Evaluator → Adjudicator loop until threshold/max-iterations |
 | `/blueprint <epic>` | Multi-session construction blueprint for 3+-PR objectives (blueprint skill) |
 | `/loop-start <task>` | Autonomous loop supervised by loop-operator |
 | `/batch <change>` | Large-scale parallel changes via worktree agents |

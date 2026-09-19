@@ -249,7 +249,7 @@ class TestOpsResolution:
             assert res.stdout.strip().endswith(name)
 
     def test_resolves_the_actual_plan_and_refine_naming_form(self, tmp_path):
-        """Regression: /plan and /refine emit ${PLAN_FILE%.md}.ops.json -- the stem
+        """Regression: /plan emits ${PLAN_FILE%.md}.ops.json -- the stem
         WITH the 'plan-' prefix retained, e.g. 'plan-demo.ops.json'. A resolver that
         strips the prefix before trying any candidate never finds this form, which
         bricks the mainline pipeline (the CRITICAL that motivated review round 2)."""

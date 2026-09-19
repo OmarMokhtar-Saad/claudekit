@@ -121,5 +121,5 @@ printf '%s' "$review_output" | \
 
 3. After output, suggest:
    - If APPROVED (score ≥ 90): run `/implement` — from a compacted or fresh context whose only input is the plan path (run `/compact` first if `suggest-compact` has fired); do not continue implementing inside this review conversation
-   - If CONDITIONAL/REVISE: address issues and re-run `/plan` or `/refine`
+   - If CONDITIONAL/REVISE: address issues and re-run `/plan`
    - If REJECTED: restate the task more narrowly and re-run `/plan`

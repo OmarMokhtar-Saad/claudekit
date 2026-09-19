@@ -142,7 +142,6 @@ Validation results:
 Next steps:
   /prp-commit "add <feature name>"   — commit these changes
   /prp-pr                            — create PR
-  /santa <file>                      — dual review (recommended for auth/security changes)
 ```
 
 ---

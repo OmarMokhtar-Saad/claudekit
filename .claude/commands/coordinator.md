@@ -47,7 +47,7 @@ Use this table to determine which agent(s) to invoke:
 A second copy lived here and the two disagreed on five of eight intents (a feature lost
 `Verifier → GitOps`; a bug lost both; docs split between two agents now merged into one).
 Route from the canonical table. Two conventions it now states, which lived only here:
-`refine` **is** the looped planner → reviewer cycle, not an alternative to it; and docs
+the planner → reviewer cycle is `/plan` → `/review`, repeated until APPROVED; and docs
 route by mode — the one `docs` agent, `mode: create` for new documentation and
 `mode: update` for syncing what exists.
 
@@ -57,7 +57,7 @@ Read-only agents with independent inputs (explore, debugger, security-scanner,
 code-reviewer, verifier-as-reader) MUST be spawned together in ONE message — never
 one per turn. Two independent read-only tasks already justify a parallel group. Only
 implementer and gitOps are strictly serialized (they write). Spawn mechanism per routing
-row: slash commands where one exists (e.g. `/refine`, `/debug`), otherwise
+row: slash commands where one exists (e.g. `/plan`, `/debug`), otherwise
 `claude -p --agent <name>` with the scoped tool row from
 `.claude/agents/_shared/INVOCATION.md`.
 
@@ -94,16 +94,16 @@ Maintain a workflow state throughout the orchestration:
 
 | From Agent   | Condition                | Hand Off To   |
 |--------------|--------------------------|---------------|
-| refine       | APPROVED (score >= 90)   | implementer   |
-| refine       | ESCALATED (max iter)     | human review  |
+| reviewer     | APPROVED (score >= 90)   | implementer   |
+| reviewer     | ESCALATED (3 rounds)     | human review  |
 | implementer  | Implementation complete  | verifier      |
 | implementer  | Implementation failed    | debugger      |
 | verifier     | Score >= 90 (PASS)       | git (commit)  |
 | verifier     | Score < 90 (FAIL)        | debugger      |
-| debugger     | Diagnosis complete       | refine (fix plan) |
+| debugger     | Diagnosis complete       | planner (fix plan) |
 | docs         | Documentation complete   | verifier (optional) |
 
-> Note: `/refine` replaces the manual planner → reviewer → planner cycle. It automatically loops until the plan is APPROVED or the iteration cap is reached. Use `/plan` and `/review` directly only for one-off, single-pass inspection.
+> Note: loop `/plan` → `/review` by hand until the plan is APPROVED; 3 rounds is the ceiling. There is no automatic loop command.
 
 ## Escalation Rules
 

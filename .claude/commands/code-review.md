@@ -134,7 +134,6 @@ python3 .claude/operations/scripts/review-record.py record-code-review \
 ## Notes
 
 - Uses `code-reviewer` agent (Opus model) for thorough analysis
-- For high-stakes changes (auth, payments, security), consider `/santa` for dual review
 - Does NOT modify any code — read-only analysis only
 - Findings are confidence-filtered: only real issues with file:line references
 - NEVER reports style nitpicks without functional or security impact

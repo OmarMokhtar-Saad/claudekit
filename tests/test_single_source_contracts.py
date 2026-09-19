@@ -52,7 +52,6 @@ class TestTheTaxonomyHasOneDefinition:
 
     @pytest.mark.parametrize("path", [
         os.path.join(".claude", "commands", "review.md"),
-        os.path.join(".claude", "commands", "refine.md"),
         os.path.join(".claude", "agents", "reviewer.md"),
     ])
     def test_no_file_restates_the_score_bands_as_its_own_rule(self, path):
@@ -64,7 +63,6 @@ class TestTheTaxonomyHasOneDefinition:
 
     @pytest.mark.parametrize("path", [
         os.path.join(".claude", "commands", "review.md"),
-        os.path.join(".claude", "commands", "refine.md"),
         os.path.join(".claude", "agents", "reviewer.md"),
     ])
     def test_each_points_at_the_one_definition(self, path):
@@ -128,7 +126,7 @@ class TestTheRoutingTableHasOneDefinition:
         """Two conventions lived only in the deleted copy. Losing them to a
         deduplication would be exactly the batch-1 mistake in a new costume."""
         body = _read(CMD_COORD)
-        assert "planner" in body.lower() and "refine" in body
+        assert "planner" in body.lower()
         assert "mode: create" in body and "mode: update" in body
 
     def test_the_docs_route_distinguishes_create_from_update(self):

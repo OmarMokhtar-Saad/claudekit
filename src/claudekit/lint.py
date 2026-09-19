@@ -13,7 +13,7 @@ spec named, and the shape of each is chosen so a clean run means something:
 * `duplicate-triggers` flags nothing because the corpus is genuinely clean -- batch 2
   merged five names away to reach that state. It is a regression guard.
 * `skill-agent-costume` is silent for a DIFFERENT reason, and the distinction matters:
-  two skills really do grant `Agent` (`gan-harness`, `opensource-pipeline`) and are
+  one skill really does grant `Agent` (`opensource-pipeline`; `gan-harness` was deleted) and is
   waived by name in the baseline. Silent-by-waiver is not the same as clean, and an
   earlier draft of this docstring conflated them -- the third place the same false
   claim had to be corrected, after `lint.py`'s own text and the plan. Class:

@@ -147,28 +147,6 @@
   },
   "callsite_overrides": {
     "_why": "Commands ship to user projects, where repo-root scripts/ does not exist (install.sh:203 copies only .claude/operations/scripts/*.py), so an invocation cannot resolve a tier at run time. Rather than leave the literals unguarded, every one is enumerated: the audit test derives the expected value from the table for ordinary sites and demands a reason for the rest. Note: a site is registered only if the literal SURVIVES this change. model-router.md's example was rewritten into a tier lookup instead, so it needs no entry - registering one would have failed the registry-decay test immediately.",
-    "sites": [
-      {
-        "path": ".claude/commands/santa.md",
-        "line_hint": 64,
-        "model": "opus",
-        "role": null,
-        "reason": "Deliberate model DIVERSITY, not a tier choice: the santa-method pairs two reviewers on different models so neither anchors on the other. Resolving both from one tier would defeat the pattern."
-      },
-      {
-        "path": ".claude/commands/santa.md",
-        "line_hint": 68,
-        "model": "sonnet",
-        "role": null,
-        "reason": "The other half of the santa-method pair. See above."
-      },
-      {
-        "path": ".claude/commands/gan-build.md",
-        "line_hint": 85,
-        "model": "opus",
-        "role": null,
-        "reason": "Illustrative prose showing the raw `claude -p` form with no agent file; not a spawn this repo performs."
-      }
-    ]
+    "sites": []
   }
 }
