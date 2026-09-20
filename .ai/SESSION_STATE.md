@@ -1,6 +1,24 @@
 # Session State
 
 > Update this file at the end of every significant AI working session. It is the resume point.
+**2026-09-20 (13:xx) · Claude (Opus 5) — `main`, uncommitted on top of `681515d`: quoted-heredoc bodies are data, not shell.**
+`command-guard` refused legitimate commands in qa-agents. Root cause in `validate()`: every newline-separated
+line went to the shell parser, heredoc bodies included. A QUOTED delimiter (`<<'EOF'`) means bash expands
+nothing — the body is bytes on stdin — so an apostrophe in prose opened a quote that never closed and the
+guard answered `Malformed command (No closing quotation)` (shape observed live in hooks.log). Fix:
+`_strip_quoted_heredoc_bodies()` blanks quoted bodies, line count preserved, on the per-line split ONLY.
+Every whole-command check still reads the ORIGINAL, so `python3 <<'PY'` + `import subprocess` is still
+refused — interpreter smuggling is about what the body is FED TO, not how it parses. Carve-outs, each
+pinned: unquoted `<<EOF` is untouched (bash still expands it, `$(rm -rf /)` inside stays live), `<<<` is a
+here-string with no body and is stepped over, an unterminated heredoc is handed back untouched and the
+existing parser fails it closed. `_all_heads_are_project_tools` deliberately does NOT strip — the
+conservative side. One disclosed fail-open: a blocklisted NAME inside a quoted body is now text, the same
+position the validator has always held for `echo 'rm -rf /'` (hard rule 6). 33 cases in
+`tests/test_validator_heredoc.py`, both modes, discriminators and guards labelled;
+`test_validator_differential.py`'s mutant anchor updated for the new call spelling and the mutation kept to
+the split alone. Vendored copy in qa-agents synced after the commit. Lesson: a guard that parses DATA as
+code produces refusals nobody can act on — the fix is to know where the shell stops, not to widen a list.
+
 **2026-09-19 (11:xx) · Claude (Fable 5.1) — `main`, uncommitted, token-spend remediation. NOT committed.**
 Owner: two accounts spent 30M+ in two days. Transcript scan of both accounts (16,057 turns, 09-17→09-19):
 3.33B input tokens, 96% cache re-reads, qa-agents 84%. Drivers, measured: `[1m]` model on both accounts with

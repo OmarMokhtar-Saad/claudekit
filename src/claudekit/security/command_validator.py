@@ -283,6 +283,92 @@ def _split_unquoted_newlines(command: str) -> List[str]:
     return lines
 
 
+# `<<'EOF'`, `<<"EOF"` and the tab-stripping `<<-'EOF'`. An UNQUOTED `<<EOF` is
+# deliberately NOT matched: bash still expands that body, so `$(rm -rf /)` inside it is
+# live code and has to stay visible to the validator.
+_HEREDOC_OPEN_RE = re.compile(r"""<<(-?)[ \t]*(?:'([^']*)'|"([^"]*)")""")
+
+
+def _quoted_heredoc_delimiters(line: str) -> List[Tuple[str, bool]]:
+    """Delimiters of the QUOTED heredocs opened on one line, in the order bash reads them.
+
+    Returns `(delimiter, strip_leading_tabs)` per opener. `<<<` is a here-string with no
+    body at all and is stepped over: reading it as `<<` plus a quoted word would consume
+    the following lines as a body that does not exist.
+
+    Quote state is tracked within the line, so `echo "a <<'b'"` opens nothing. It is NOT
+    carried between lines, and that is deliberate: when an earlier line leaves a quote
+    open, this scanner reads the opener as live while the cross-line splitter reads the
+    whole region as one quoted ARGUMENT - so the lines blanked here were already inert to
+    the validator. The divergence can only remove text the splitter never segmented.
+    """
+    out: List[Tuple[str, bool]] = []
+    in_single = in_double = in_comment = False
+    i, n = 0, len(line)
+    while i < n:
+        ch = line[i]
+        if ch == "\\" and not in_single and not in_comment and i + 1 < n:
+            i += 2
+            continue
+        if ch == "'" and not in_double and not in_comment:
+            in_single = not in_single
+        elif ch == '"' and not in_single and not in_comment:
+            in_double = not in_double
+        elif ch == "#" and not in_single and not in_double:
+            in_comment = True
+        elif ch == "<" and not in_single and not in_double and not in_comment \
+                and line.startswith("<<", i):
+            if line.startswith("<<<", i):
+                i += 3
+                continue
+            match = _HEREDOC_OPEN_RE.match(line, i)
+            if match:
+                delim = match.group(2) if match.group(2) is not None else match.group(3)
+                out.append((delim, match.group(1) == "-"))
+                i = match.end()
+                continue
+            i += 2
+            continue
+        i += 1
+    return out
+
+
+def _strip_quoted_heredoc_bodies(command: str) -> str:
+    """Blank the bodies of QUOTED heredocs, preserving the line count.
+
+    A quoted delimiter means bash performs no expansion whatsoever on the body: it is
+    DATA handed to the command's stdin, not shell. Parsing it as shell produced real
+    false refusals - `Malformed command (No closing quotation)` for any body containing
+    an apostrophe, and a dangerous-pattern hit on prose that merely mentioned a
+    blocklisted name.
+
+    Only the per-line segmentation in validate() sees the stripped string. The
+    whole-command DANGEROUS_PATTERNS scan still runs on the ORIGINAL, so
+    `python3 <<'PY'` followed by `import subprocess` is still refused - interpreter
+    smuggling is about what the body is FED TO, not about how the body parses.
+
+    An unterminated heredoc returns the input untouched: the command is malformed, and
+    the existing parser already fails it closed.
+    """
+    if "<<" not in command:
+        return command
+    lines = command.split("\n")
+    out = list(lines)
+    pending: List[Tuple[str, bool]] = []
+    for i, line in enumerate(lines):
+        if pending:
+            delim, strip_tabs = pending[0]
+            out[i] = ""
+            candidate = line.lstrip("\t") if strip_tabs else line
+            if candidate.rstrip("\r") == delim:
+                pending.pop(0)
+            continue
+        pending = _quoted_heredoc_delimiters(line)
+    if pending:
+        return command
+    return "\n".join(out)
+
+
 class CommandValidator:
     """Validates shell commands against a denylist/allowlist policy."""
 
@@ -386,7 +472,14 @@ class CommandValidator:
         #      whole-string by construction - `[^;&|]*` spans a newline - and they are the
         #      ONLY thing standing between `git reset\n--hard` and ALLOW when
         #      safe_mode=False, where the allowlist check is skipped entirely.
-        for line in _split_unquoted_newlines(command):
+        #
+        #      The bodies of QUOTED heredocs (`<<'EOF'`) are blanked before the split.
+        #      bash expands nothing in them, so they are stdin DATA, not shell - and
+        #      parsing them as shell refused real commands: any apostrophe in a body
+        #      produced `Malformed command (No closing quotation)`. Only this loop sees
+        #      the stripped string; every whole-command check above reads the original,
+        #      and _all_heads_are_project_tools deliberately does not strip either.
+        for line in _split_unquoted_newlines(_strip_quoted_heredoc_bodies(command)):
             if not line.strip():
                 continue
             ok, reason = self._validate_line(line)
