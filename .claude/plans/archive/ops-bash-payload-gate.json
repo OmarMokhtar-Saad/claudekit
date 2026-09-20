@@ -1,0 +1,63 @@
+{
+  "plan": "bash-payload-gate",
+  "operations": [
+    {
+      "type": "file_create",
+      "path": ".claude/hooks/bash-payload-gate.py",
+      "description": "Blocking PreToolUse/Bash hook: refuse a command whose TEXT exceeds 1,500 chars, exempt the payload-carrying commands, fail open on anything else.",
+      "content_path": ".claude/plans/payloads/bash-payload-gate/bash-payload-gate.py",
+      "content_sha256": "02ffc2f8b552f97bddf98f8c21aae93af397e511fdfb460dc8b809fd823a3cee"
+    },
+    {
+      "type": "file_create",
+      "path": "tests/test_bash_payload_gate.py",
+      "description": "Behavioural coverage: subprocess runs of the shipped hook over real stdin payloads, both fail directions, both hatches, and the registry row.",
+      "content_path": ".claude/plans/payloads/bash-payload-gate/test_bash_payload_gate.py",
+      "content_sha256": "7d55ef80c7f6f587fa4bce022387a64daae9696f3e90afb87faa047b9bda79a0"
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/hooks/dispatch-registry.json",
+      "description": "Register the gate as a blocking PreToolUse handler on Bash, beside the iron-law-gate row. No command_matcher: that is reserved for advisory rows.",
+      "edits": [
+        {
+          "find": "      {\"id\": \"iron-law-gate\", \"file\": \"iron-law-gate.py\", \"runner\": \"python3\", \"tier\": \"blocking\", \"matcher\": \"Bash\"},",
+          "add_after": "\n      {\"id\": \"bash-payload-gate\", \"file\": \"bash-payload-gate.py\", \"runner\": \"python3\", \"tier\": \"blocking\", \"matcher\": \"Bash\"},"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "README.md",
+      "description": "Derived hook counts: 31 -> 32 shipped, 28 -> 29 reachable.",
+      "edits": [
+        {
+          "find": "31 hooks ship in `.claude/hooks/`; 28 are reachable",
+          "replace": "32 hooks ship in `.claude/hooks/`; 29 are reachable"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "docs/HOOKS.md",
+      "description": "The same two derived counts in the opening sentence.",
+      "edits": [
+        {
+          "find": "ClaudeKit ships 31 hook scripts (plus `lib.sh`, a shared helper library). 28 are",
+          "replace": "ClaudeKit ships 32 hook scripts (plus `lib.sh`, a shared helper library). 29 are"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "description": "Record the new blocking hook under [Unreleased].",
+      "edits": [
+        {
+          "find": "## [Unreleased]",
+          "add_after": "\n- **The agent's own command text now has a ceiling.** Every cap this kit shipped measured\n  tool OUTPUT -- `output_filter.py` bounds a Bash stdout, `read-window-guard.py` bounds a\n  Read, `context-budget-gate.py` bounds the window. Nothing bounded what the model WRITES.\n  Measured 2026-09-20 over a 251-call session billed 27.52M tokens: `tool_use` parameters\n  were **40.3% of the transcript body (65,883 tokens)**, very nearly equal to all tool\n  results combined (73,542), and the 48,464 tokens of oversized inline payloads carried\n  **1.68M re-billed tokens, 6% of the bill**, because a token authored at request k is\n  re-billed by every request until the next compaction reset. New blocking PreToolUse hook\n  `.claude/hooks/bash-payload-gate.py` refuses a Bash command whose TEXT exceeds 1,500\n  chars -- the measured knee between the two populations of command length (p75 475, p90\n  2,777), refusing 15.5% of calls in that session and trimming ~22,425 tokens -- and names\n  the cheaper route in its refusal: write the script to the session scratchpad and run it\n  by path. It is a budget, not a sandbox (hard rule 6): it bounds a command's SIZE, never\n  its meaning, and `iron-law-gate.py` still decides whether a Bash call may write at all.\n  Two documented hatches: `git commit|apply|am|tag`, `gh pr|issue|release\n  create|edit|comment` and `patch` are exempt because the message IS the payload, and\n  `CK_RAW_INPUT=1` overrides for one process tree. Fails OPEN everywhere else -- an\n  unparseable payload, a foreign tool or a bug in the hook must never deny the main agent\n  its Bash tool. Covered by `tests/test_bash_payload_gate.py` (24 cases, including the\n  registry row's tier, runner and matcher)."
+        }
+      ]
+    }
+  ]
+}

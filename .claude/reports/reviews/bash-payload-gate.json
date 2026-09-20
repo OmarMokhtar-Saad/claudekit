@@ -1,0 +1,26 @@
+{
+  "plan": "bash-payload-gate",
+  "slug": "bash-payload-gate",
+  "ops_path": ".claude/plans/ops-bash-payload-gate.json",
+  "ops_sha256": "503e59150441f90f586e0caaa9beec38bb4e5ccc852d0cdd5869b4b1b0382c3c",
+  "score": 100,
+  "decision": "APPROVED",
+  "findings": [],
+  "verdict_origin": "owner",
+  "reviewer_session": "unknown",
+  "reviewer_role": "unknown",
+  "recorded_utc": "2026-09-20T15:01:52Z",
+  "operations": 6,
+  "edits": 4,
+  "rounds": [
+    {
+      "score": 100,
+      "decision": "APPROVED",
+      "findings": [],
+      "recorded_utc": "2026-09-20T14:59:48Z",
+      "ops_sha256": "f0d42265aa13c14a72007e2beb6bb525ab7dd066cf8fb091d1a3453e10c3a8f6",
+      "verdict_origin": "owner"
+    }
+  ],
+  "round": 2
+}

@@ -11,6 +11,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `open-source-forker` — never shipped and have been removed.
 
 ## [Unreleased]
+- **The agent's own command text now has a ceiling.** Every cap this kit shipped measured
+  tool OUTPUT -- `output_filter.py` bounds a Bash stdout, `read-window-guard.py` bounds a
+  Read, `context-budget-gate.py` bounds the window. Nothing bounded what the model WRITES.
+  Measured 2026-09-20 over a 251-call session billed 27.52M tokens: `tool_use` parameters
+  were **40.3% of the transcript body (65,883 tokens)**, very nearly equal to all tool
+  results combined (73,542), and the 48,464 tokens of oversized inline payloads carried
+  **1.68M re-billed tokens, 6% of the bill**, because a token authored at request k is
+  re-billed by every request until the next compaction reset. New blocking PreToolUse hook
+  `.claude/hooks/bash-payload-gate.py` refuses a Bash command whose TEXT exceeds 1,500
+  chars -- the measured knee between the two populations of command length (p75 475, p90
+  2,777), refusing 15.5% of calls in that session and trimming ~22,425 tokens -- and names
+  the cheaper route in its refusal: write the script to the session scratchpad and run it
+  by path. It is a budget, not a sandbox (hard rule 6): it bounds a command's SIZE, never
+  its meaning, and `iron-law-gate.py` still decides whether a Bash call may write at all.
+  Two documented hatches: `git commit|apply|am|tag`, `gh pr|issue|release
+  create|edit|comment` and `patch` are exempt because the message IS the payload, and
+  `CK_RAW_INPUT=1` overrides for one process tree. Fails OPEN everywhere else -- an
+  unparseable payload, a foreign tool or a bug in the hook must never deny the main agent
+  its Bash tool. Covered by `tests/test_bash_payload_gate.py` (24 cases, including the
+  registry row's tier, runner and matcher).
 
 - **`command-guard` no longer parses quoted-heredoc bodies as shell.** A quoted delimiter
   (`<<'EOF'`, `<<"EOF"`, `<<-'EOF'`) means bash expands nothing in the body: it is stdin
