@@ -1,7 +1,17 @@
 # AI Session Changelog
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
-## 2026-09-19 (latest) — the bill was context × turns
+## 2026-09-20 (latest) — the guard was parsing stdin as shell
+
+A quoted heredoc body is DATA: bash expands nothing in `<<'EOF'`, so the bytes go to the command's
+stdin untouched. `command-guard` parsed them as shell anyway, and any apostrophe in the body produced
+`Malformed command (No closing quotation)` — a refusal with no action the author could take. The fix
+blanks quoted bodies before the per-line split and nowhere else, so every whole-command check still
+reads the original and interpreter smuggling stays blocked. Unquoted `<<EOF` is left alone on purpose:
+bash still expands it. Lesson: before hardening a parser, find where the shell stops and the data
+starts — a false refusal teaches people to route around the guard, which costs more than the hole.
+
+## 2026-09-19 — the bill was context × turns
 
 Measured across both accounts, not one session: 3.33B tokens in two days, 96% of it re-reading
 contexts that a `[1m]` model setting let grow to 966K while `autoCompactWindow` sat at 350K,

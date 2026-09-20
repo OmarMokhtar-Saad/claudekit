@@ -12,6 +12,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`command-guard` no longer parses quoted-heredoc bodies as shell.** A quoted delimiter
+  (`<<'EOF'`, `<<"EOF"`, `<<-'EOF'`) means bash expands nothing in the body: it is stdin
+  DATA. `CommandValidator.validate()` fed every line to the shell parser regardless, so any
+  apostrophe in a body (`don't`, `it's`) opened a quote that never closed and the command was
+  refused as `Malformed command (No closing quotation)` — observed live in `hooks.log`.
+  `_strip_quoted_heredoc_bodies()` blanks those bodies (line count preserved) before the
+  per-line split only; every whole-command check, `DANGEROUS_PATTERNS` included, still reads
+  the original string, so `python3 <<'PY'` + `import subprocess` is still refused. An
+  UNQUOTED `<<EOF` body is left alone because bash still expands it, `<<<` is stepped over as
+  a here-string with no body, and an unterminated heredoc returns the input untouched.
+  Documented consequence: a blocklisted NAME inside a quoted body is now text, the same
+  position the validator already took for `echo 'rm -rf /'`. 33 cases in
+  `tests/test_validator_heredoc.py`, both modes.
 - **Token spend, second batch (the follow-ups of the 2026-09-19 audit).** `session-start.sh`
   prints one line on `SessionStart` source=compact and exits after the concurrency check: its
   full output is re-sent to the model on every later turn, and on a compaction everything it
