@@ -16,6 +16,12 @@ log() { hlog "$1" "$2"; }
 
 # Read tool input; fail closed on an unparseable payload.
 TOOL_INPUT=$(cat)
+# Fast path: a payload that never mentions "commit" cannot be a git commit. This runs on
+# every Bash call, so skip the JSON parse below for the ~all calls that are not commits.
+# Only an object-shaped payload takes the fast path: anything else still reaches the
+# parser below and fails closed. (Claude Code serialises with JSON.stringify, which never
+# \u-escapes ASCII, so a real "git commit" always contains the literal word.)
+case "$TOOL_INPUT" in *commit*) ;; \{*\}) exit 0 ;; esac
 CMD=$(extract_json_field "$TOOL_INPUT" command) || deny \
     "BLOCKED: could not parse the tool payload; refusing to run an unverified commit."
 
