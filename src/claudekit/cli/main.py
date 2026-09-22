@@ -542,9 +542,26 @@ def _doctor_checks(args, tally):
         # Agents
         agents = list((claude_dir / "agents").glob("*.md")) if (claude_dir / "agents").is_dir() else []
         agent_count = len([a for a in agents if a.name not in ("HANDOFF_PROTOCOL.md", "QUICK_START.md")])
-        check(f"Agents installed: {agent_count}",
-              agent_count >= EXPECTED_AGENTS,
-              f"Expected ≥{EXPECTED_AGENTS} agents, found {agent_count}")
+        # An agent the project parked (manifest `parked`, or a file in agents-unused/)
+        # or removed (manifest `removed`) is a decision install.sh now honours, not a
+        # missing file: it counts toward the expected set. Measured 2026-09-22 on
+        # qa-agents: a dozen parked agents made every doctor run fail this check.
+        _parked_agents = {rel for key in ("parked", "removed")
+                          for rel in (_manifest.get(key) or [])
+                          if isinstance(rel, str) and rel.startswith("agents/")
+                          and rel.count("/") == 1}
+        _unused_dir = claude_dir / "agents-unused"
+        if _unused_dir.is_dir():
+            _parked_agents |= {"agents/" + a.name for a in _unused_dir.glob("*.md")}
+        _parked_agents -= {"agents/" + a.name for a in agents}
+        parked_count = len(_parked_agents)
+        label = f"Agents installed: {agent_count}"
+        if parked_count:
+            label += f" (+{parked_count} parked)"
+        check(label,
+              agent_count + parked_count >= EXPECTED_AGENTS,
+              f"Expected ≥{EXPECTED_AGENTS} agents, found {agent_count}"
+              + (f" installed + {parked_count} parked" if parked_count else ""))
 
         # Commands
         commands = list((claude_dir / "commands").glob("*.md")) if (claude_dir / "commands").is_dir() else []

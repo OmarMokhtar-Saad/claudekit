@@ -94,6 +94,10 @@ if [ "$SS_SOURCE" = "compact" ]; then
     # 2026-09-19) taxed every turn until the next compaction. On compact: one line here, the
     # concurrency check below (its lock is re-taken), then exit before the rest.
     echo "ClaudeKit session compacted | $(date '+%Y-%m-%d %H:%M') | project: $(basename "$(pwd)") | startup context not re-injected"
+elif [ "${CK_SESSION_START_BRIEF:-0}" = "1" ]; then
+    # Opt-in (project settings env): the header line only, then the same early exit as a
+    # compaction. Build/test/lint are in CLAUDE.md, and /resume-session restores the rest.
+    echo "ClaudeKit session started | $(date '+%Y-%m-%d %H:%M') | project: $(basename "$(pwd)")"
 else
     echo "ClaudeKit session started | $(date '+%Y-%m-%d %H:%M')"
     echo "  Project: $(basename "$(pwd)")"
@@ -149,6 +153,10 @@ if [ "$OTHER_SESSIONS" -gt 0 ]; then
 fi
 if [ "$SS_SOURCE" = "compact" ]; then
     log "INFO" "SessionStart source=compact: one-line banner + concurrency check, nothing re-injected"
+    exit 0
+fi
+if [ "${CK_SESSION_START_BRIEF:-0}" = "1" ]; then
+    log "INFO" "SessionStart brief (CK_SESSION_START_BRIEF=1): header + concurrency check only"
     exit 0
 fi
 
