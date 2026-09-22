@@ -204,11 +204,33 @@ def _consider(path: str, backup: str, dest: str, project_root: str,
         result.failed.append((rel, e.__class__.__name__))
 
 
-def format_report(result: PreserveResult) -> List[str]:
-    """The operator-facing lines. Separate from the walk so tests can assert on both."""
+# Above this many preserved files the names go to the log only. A fleet run printed
+# ~2000 "preserved:" lines per repo (2026-09-23), which buried every other line.
+INLINE_LIMIT = 10
+
+
+def write_log(result: PreserveResult, log_path: str) -> None:
+    """The full preserved list, one path per line, for the run that printed only a count."""
+    with open(log_path, "w", encoding="utf-8") as fh:
+        for rel in sorted(result.restored):
+            fh.write(rel + "\n")
+
+
+def format_report(result: PreserveResult, log_path: Optional[str] = None) -> List[str]:
+    """The operator-facing lines. Separate from the walk so tests can assert on both.
+
+    With ``log_path`` (the list was written there) the names print inline only up to
+    ``INLINE_LIMIT``; without one every name prints, as before.
+    """
     out: List[str] = []
-    for rel in sorted(result.restored):
-        out.append("    preserved: " + rel)
+    restored = sorted(result.restored)
+    if restored and log_path is not None:
+        out.append("    preserved: %d custom file(s) -- list in %s" % (len(restored), log_path))
+        if len(restored) <= INLINE_LIMIT:
+            out.extend("      " + rel for rel in restored)
+    else:
+        for rel in restored:
+            out.append("    preserved: " + rel)
     if result.restored and not result.had_manifest:
         out.append("    (pre-manifest backup: preserved files may include assets from an")
         out.append("     older kit version -- run `ck diff` to review the custom list)")
@@ -232,11 +254,20 @@ def format_report(result: PreserveResult) -> List[str]:
 
 
 def main(argv: Sequence[str]) -> int:
-    if len(argv) != 2:
-        print("usage: preserve_assets.py <backup_dir> <dest_dir>", file=sys.stderr)
+    if len(argv) not in (2, 3):
+        print("usage: preserve_assets.py <backup_dir> <dest_dir> [<preserved_log>]",
+              file=sys.stderr)
         return 2
     result = preserve_tree(argv[0], argv[1])
-    for line in format_report(result):
+    log_path: Optional[str] = argv[2] if len(argv) == 3 else None
+    if log_path is not None:
+        try:
+            write_log(result, log_path)
+        except OSError as e:
+            # No log means no place for the list: fall back to printing every name.
+            print("    (could not write %s: %s)" % (log_path, e.__class__.__name__))
+            log_path = None
+    for line in format_report(result, log_path):
         print(line)
     return 0
 

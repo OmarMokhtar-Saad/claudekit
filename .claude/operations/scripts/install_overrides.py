@@ -176,7 +176,8 @@ def modified_files(final_dest: str, staging: str) -> Dict[str, str]:
     install staged for that path. The manifest records that kit hash for a kept file, so
     the file stays "locally modified" and is kept again on the next update. Merged files,
     never-managed files, ``runtime/`` and paths the new kit does not ship are excluded;
-    a shipped path on disk that the receipt never recorded is kept too.
+    a shipped path on disk that the receipt never recorded is kept too. A file whose
+    bytes already equal the kit's is never kept: the kit copy wins, mode included.
     """
     manifest = _read_json(os.path.join(final_dest, MANIFEST))
     files = manifest.get("files") if isinstance(manifest, dict) else None
@@ -195,9 +196,17 @@ def modified_files(final_dest: str, staging: str) -> Dict[str, str]:
             if not os.path.isfile(on_disk):
                 continue
             try:
-                if rel in files and _sha256(on_disk) == files[rel]:
+                on_hash = _sha256(on_disk)
+                if rel in files and on_hash == files[rel]:
                     continue
-                out[rel] = _sha256(os.path.join(root, name))
+                kit_hash = _sha256(os.path.join(root, name))
+                if on_hash == kit_hash:
+                    # Same bytes: only the mode can differ, and the kit copy carries the
+                    # right one. Keeping it (cp -p) would install the project's 644 and
+                    # receipt a match, so the NEXT run flips it to 755 -- measured on the
+                    # 2026-09-23 fleet run. Let the kit copy win on the first run.
+                    continue
+                out[rel] = kit_hash
             except OSError:
                 continue
     return out

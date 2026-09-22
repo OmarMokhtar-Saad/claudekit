@@ -24,11 +24,11 @@ index never outranks the current files.
 |---|---:|
 | `drifted` | 12 |
 | `approved` | 63 |
-| `planned` | 35 |
+| `planned` | 36 |
 | `executed` | 30 |
 | `not_started` | 26 |
 | `legacy` | 5 |
-| **total** | **171** |
+| **total** | **172** |
 
 ## Plans
 
@@ -189,6 +189,7 @@ index never outranks the current files.
 | `.claude/plans/plan-token-waste-workflow-fixes.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-triage-refresh.md` | `executed` | 10 |  |
 | `.claude/plans/plan-uninstall-partial-owned-deadend.md` | `approved` | 1 |  |
+| `.claude/plans/plan-update-followups.md` | `planned` | 1 |  |
 | `.claude/plans/plan-update-preserves-modified-files.md` | `planned` | 1 |  |
 | `.claude/plans/plan-validator-base-normalisation.md` | `approved` | 1 |  |
 | `.claude/plans/plan-validator-comment-escape.md` | `approved` | 1 |  |

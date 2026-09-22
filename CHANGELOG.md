@@ -11,6 +11,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `open-source-forker` — never shipped and have been removed.
 
 ## [Unreleased]
+- **`ck update` prints a preserved-file count, not ~2000 lines.** The full list is written
+  to `preserved-files.log` inside the run's `.claude.bak-*` backup; up to 10 names still
+  print inline.
+- **A second `ck update` is a true no-op for hook modes.** A managed file whose bytes
+  already equal the kit's is installed from the kit (mode included) instead of being kept
+  at the project's mode, so the 644 -> 755 flip that used to land on the second run lands
+  on the first, or not at all.
+- **`ck doctor [PATH]`.** The health checks run against PATH (default: the current
+  directory) instead of rejecting the argument.
 - **`ck update` keeps locally-modified managed files.** Any managed file whose bytes
   differ from the hash the last install receipted is kept with a warning instead of
   being replaced (`--force` overwrites). `skills-registry.json` is merged so project

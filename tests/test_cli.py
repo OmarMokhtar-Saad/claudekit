@@ -58,6 +58,23 @@ class TestDoctorCommand:
         assert result.returncode in (0, 1)
         assert "ClaudeKit Doctor" in result.stdout
 
+    def test_doctor_accepts_a_project_path(self, tmp_path):
+        """Fleet follow-up (2026-09-23): `ck doctor <path>` was rejected; every check is
+        cwd-relative, so PATH runs them from there and the caller's cwd is untouched."""
+        root = os.path.abspath(os.path.join(os.path.dirname(CLI_PATH), "..", "..", ".."))
+        here = subprocess.run([sys.executable, CLI_PATH, "doctor"], cwd=root,
+                              capture_output=True, text=True, timeout=30)
+        there = subprocess.run([sys.executable, CLI_PATH, "doctor", root], cwd=str(tmp_path),
+                               capture_output=True, text=True, timeout=30)
+        assert there.returncode == here.returncode, there.stdout + there.stderr
+        assert there.stdout.splitlines()[-1] == here.stdout.splitlines()[-1]
+        empty = subprocess.run([sys.executable, CLI_PATH, "doctor", str(tmp_path)], cwd=root,
+                               capture_output=True, text=True, timeout=30)
+        assert empty.returncode == 1 and ".claude/ directory exists" in empty.stderr
+        missing = subprocess.run([sys.executable, CLI_PATH, "doctor", str(tmp_path / "nope")],
+                                 capture_output=True, text=True, timeout=30)
+        assert missing.returncode == 1 and "Not a directory" in missing.stderr
+
 
 class TestAgentsCommand:
     """Test the agents listing command."""

@@ -277,6 +277,8 @@ def test_modified_files_reports_only_changed_managed_files(tmp_path):
         (d / "agents" / "unreceipted.md").write_text("kit-shipped")
     (final / "agents" / "edited.md").write_text("project")
     (final / "agents" / "unreceipted.md").write_text("project-added")
+    (final / "agents" / "stale-receipt.md").write_text("kit")
+    (staging / "agents" / "stale-receipt.md").write_text("kit")
     (final / "agents" / "gone-from-kit.md").write_text("project")
     (final / "runtime" / "events" / "local.jsonl").write_text("x")
     (final / "settings.json").write_text('{"a": 1}')
@@ -284,9 +286,38 @@ def test_modified_files_reports_only_changed_managed_files(tmp_path):
     (final / ".claudekit-manifest.json").write_text(json.dumps({"files": {
         "agents/same.md": h("same"), "agents/edited.md": h("kit"),
         "agents/gone-from-kit.md": h("kit"), "runtime/events/local.jsonl": h("kit"),
+        "agents/stale-receipt.md": h("older kit"),
         "settings.json": h("{}"), "hooks.log": h("kit")}}))
     assert mod.modified_files(str(final), str(staging)) == {
-        "agents/edited.md": h("kit"), "agents/unreceipted.md": h("kit-shipped")}
+        "agents/edited.md": h("kit"), "agents/unreceipted.md": h("kit-shipped")}, \
+        "bytes equal to the kit's are never kept, whatever the receipt says"
+
+
+def _modes(claude):
+    return {p.relative_to(claude): p.stat().st_mode & 0o777
+            for p in claude.rglob("*") if p.is_file() and "runtime" not in p.parts}
+
+
+def test_hook_mode_is_set_on_the_first_run_so_the_second_is_a_no_op(tmp_path):
+    """Fleet run 2026-09-23: a hook whose receipt was stale but whose bytes matched the
+    new kit was kept (cp -p) at the project's 644, receipted as matching, and flipped to
+    755 only on the SECOND run. Identical bytes take the kit copy, mode included."""
+    claude = fresh_project(tmp_path)
+    hook = claude / "hooks" / "auto-checkpoint.sh"
+    hook.chmod(0o644)
+    m = manifest(claude)
+    m["files"]["hooks/auto-checkpoint.sh"] = "0" * 64
+    (claude / ".claudekit-manifest.json").write_text(json.dumps(m))
+
+    r = install(tmp_path, "--full", "--yes")
+    assert r.returncode == 0, r.stderr + r.stdout
+    assert "Kept locally-modified hooks/auto-checkpoint.sh" not in r.stdout + r.stderr
+    assert hook.stat().st_mode & 0o111, "kit hook must be executable after the first run"
+    first = _modes(claude)
+
+    r = install(tmp_path, "--full", "--yes")
+    assert r.returncode == 0, r.stderr + r.stdout
+    assert _modes(claude) == first, "second run must not change any mode"
 
 
 # ---------------------------------------------------------------- install.sh: modified tree

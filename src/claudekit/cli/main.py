@@ -428,8 +428,19 @@ def cmd_doctor(args) -> int:
     stream, and the exit code is `_doctor_checks`'s own. The verdict is the only new
     line and it is the LAST line of stdout.
     """
+    root = os.path.abspath(getattr(args, "path", ".") or ".")
+    if not os.path.isdir(root):
+        print(f"{C.RED}[x]{C.NC} Not a directory: {root}", file=sys.stderr)
+        return 1
     tally: dict = {}
-    rc = _doctor_checks(args, tally)
+    # Every check is written against the cwd; running them from PATH keeps them all
+    # honest at once instead of threading a root through each one.
+    prev = os.getcwd()
+    os.chdir(root)
+    try:
+        rc = _doctor_checks(args, tally)
+    finally:
+        os.chdir(prev)
     print(_doctor_verdict(rc, tally))
     return rc
 
@@ -2877,6 +2888,8 @@ def main():
 
     # doctor
     p = sub.add_parser("doctor", help="Run health checks on installation")
+    p.add_argument("path", nargs="?", default=".", metavar="PATH",
+                   help="Project root to check (default: current directory)")
     p.add_argument("--strict", action="store_true",
                    help="Treat warnings as failures (exit 1)")
     p.add_argument("--min-score", type=int, metavar="N",

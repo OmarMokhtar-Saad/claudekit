@@ -1,0 +1,111 @@
+{
+  "plan": "ops-update-followups",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/install_overrides.py",
+      "edits": [
+        {
+          "find": "            try:\n                if rel in files and _sha256(on_disk) == files[rel]:\n                    continue\n                out[rel] = _sha256(os.path.join(root, name))\n            except OSError:\n                continue\n",
+          "replace": "            try:\n                on_hash = _sha256(on_disk)\n                if rel in files and on_hash == files[rel]:\n                    continue\n                kit_hash = _sha256(os.path.join(root, name))\n                if on_hash == kit_hash:\n                    # Same bytes: only the mode can differ, and the kit copy carries the\n                    # right one. Keeping it (cp -p) would install the project's 644 and\n                    # receipt a match, so the NEXT run flips it to 755 -- measured on the\n                    # 2026-09-23 fleet run. Let the kit copy win on the first run.\n                    continue\n                out[rel] = kit_hash\n            except OSError:\n                continue\n"
+        },
+        {
+          "find": "    a shipped path on disk that the receipt never recorded is kept too.\n",
+          "replace": "    a shipped path on disk that the receipt never recorded is kept too. A file whose\n    bytes already equal the kit's is never kept: the kit copy wins, mode included.\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/preserve_assets.py",
+      "edits": [
+        {
+          "find": "def format_report(result: PreserveResult) -> List[str]:\n    \"\"\"The operator-facing lines. Separate from the walk so tests can assert on both.\"\"\"\n    out: List[str] = []\n    for rel in sorted(result.restored):\n        out.append(\"    preserved: \" + rel)\n",
+          "replace": "# Above this many preserved files the names go to the log only. A fleet run printed\n# ~2000 \"preserved:\" lines per repo (2026-09-23), which buried every other line.\nINLINE_LIMIT = 10\n\n\ndef write_log(result: PreserveResult, log_path: str) -> None:\n    \"\"\"The full preserved list, one path per line, for the run that printed only a count.\"\"\"\n    with open(log_path, \"w\", encoding=\"utf-8\") as fh:\n        for rel in sorted(result.restored):\n            fh.write(rel + \"\\n\")\n\n\ndef format_report(result: PreserveResult, log_path: Optional[str] = None) -> List[str]:\n    \"\"\"The operator-facing lines. Separate from the walk so tests can assert on both.\n\n    With ``log_path`` (the list was written there) the names print inline only up to\n    ``INLINE_LIMIT``; without one every name prints, as before.\n    \"\"\"\n    out: List[str] = []\n    restored = sorted(result.restored)\n    if restored and log_path is not None:\n        out.append(\"    preserved: %d custom file(s) -- list in %s\" % (len(restored), log_path))\n        if len(restored) <= INLINE_LIMIT:\n            out.extend(\"      \" + rel for rel in restored)\n    else:\n        for rel in restored:\n            out.append(\"    preserved: \" + rel)\n"
+        },
+        {
+          "find": "    if len(argv) != 2:\n        print(\"usage: preserve_assets.py <backup_dir> <dest_dir>\", file=sys.stderr)\n        return 2\n    result = preserve_tree(argv[0], argv[1])\n    for line in format_report(result):\n        print(line)\n    return 0\n",
+          "replace": "    if len(argv) not in (2, 3):\n        print(\"usage: preserve_assets.py <backup_dir> <dest_dir> [<preserved_log>]\",\n              file=sys.stderr)\n        return 2\n    result = preserve_tree(argv[0], argv[1])\n    log_path: Optional[str] = argv[2] if len(argv) == 3 else None\n    if log_path is not None:\n        try:\n            write_log(result, log_path)\n        except OSError as e:\n            # No log means no place for the list: fall back to printing every name.\n            print(\"    (could not write %s: %s)\" % (log_path, e.__class__.__name__))\n            log_path = None\n    for line in format_report(result, log_path):\n        print(line)\n    return 0\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "install.sh",
+      "edits": [
+        {
+          "find": "    python3 \"$CLAUDE_SRC/operations/scripts/preserve_assets.py\" \"$BACKUP\" \"$FINAL_DEST\" \\\n        || print_warn \"Custom-asset preservation failed (files remain in the backup)\"\n",
+          "replace": "    # The full list goes next to the backup it came from; the console gets a count.\n    python3 \"$CLAUDE_SRC/operations/scripts/preserve_assets.py\" \"$BACKUP\" \"$FINAL_DEST\" \\\n        \"$BACKUP/preserved-files.log\" \\\n        || print_warn \"Custom-asset preservation failed (files remain in the backup)\"\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "src/claudekit/cli/main.py",
+      "edits": [
+        {
+          "find": "    tally: dict = {}\n    rc = _doctor_checks(args, tally)\n    print(_doctor_verdict(rc, tally))\n    return rc\n",
+          "replace": "    root = os.path.abspath(getattr(args, \"path\", \".\") or \".\")\n    if not os.path.isdir(root):\n        print(f\"{C.RED}[x]{C.NC} Not a directory: {root}\", file=sys.stderr)\n        return 1\n    tally: dict = {}\n    # Every check is written against the cwd; running them from PATH keeps them all\n    # honest at once instead of threading a root through each one.\n    prev = os.getcwd()\n    os.chdir(root)\n    try:\n        rc = _doctor_checks(args, tally)\n    finally:\n        os.chdir(prev)\n    print(_doctor_verdict(rc, tally))\n    return rc\n"
+        },
+        {
+          "find": "    p = sub.add_parser(\"doctor\", help=\"Run health checks on installation\")\n    p.add_argument(\"--strict\", action=\"store_true\",\n",
+          "replace": "    p = sub.add_parser(\"doctor\", help=\"Run health checks on installation\")\n    p.add_argument(\"path\", nargs=\"?\", default=\".\", metavar=\"PATH\",\n                   help=\"Project root to check (default: current directory)\")\n    p.add_argument(\"--strict\", action=\"store_true\",\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "docs/cli.md",
+      "edits": [
+        {
+          "find": "claudekit doctor --min-score 90   # exit 1 if the readiness score is below 90\n```\n",
+          "replace": "claudekit doctor --min-score 90   # exit 1 if the readiness score is below 90\nclaudekit doctor ../other-project # check another project (default: current directory)\n```\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_install_overrides.py",
+      "edits": [
+        {
+          "find": "    (final / \"agents\" / \"edited.md\").write_text(\"project\")\n    (final / \"agents\" / \"unreceipted.md\").write_text(\"project-added\")\n",
+          "replace": "    (final / \"agents\" / \"edited.md\").write_text(\"project\")\n    (final / \"agents\" / \"unreceipted.md\").write_text(\"project-added\")\n    (final / \"agents\" / \"stale-receipt.md\").write_text(\"kit\")\n    (staging / \"agents\" / \"stale-receipt.md\").write_text(\"kit\")\n"
+        },
+        {
+          "find": "        \"agents/gone-from-kit.md\": h(\"kit\"), \"runtime/events/local.jsonl\": h(\"kit\"),\n        \"settings.json\": h(\"{}\"), \"hooks.log\": h(\"kit\")}}))\n    assert mod.modified_files(str(final), str(staging)) == {\n        \"agents/edited.md\": h(\"kit\"), \"agents/unreceipted.md\": h(\"kit-shipped\")}\n",
+          "replace": "        \"agents/gone-from-kit.md\": h(\"kit\"), \"runtime/events/local.jsonl\": h(\"kit\"),\n        \"agents/stale-receipt.md\": h(\"older kit\"),\n        \"settings.json\": h(\"{}\"), \"hooks.log\": h(\"kit\")}}))\n    assert mod.modified_files(str(final), str(staging)) == {\n        \"agents/edited.md\": h(\"kit\"), \"agents/unreceipted.md\": h(\"kit-shipped\")}, \\\n        \"bytes equal to the kit's are never kept, whatever the receipt says\"\n\n\ndef _modes(claude):\n    return {p.relative_to(claude): p.stat().st_mode & 0o777\n            for p in claude.rglob(\"*\") if p.is_file() and \"runtime\" not in p.parts}\n\n\ndef test_hook_mode_is_set_on_the_first_run_so_the_second_is_a_no_op(tmp_path):\n    \"\"\"Fleet run 2026-09-23: a hook whose receipt was stale but whose bytes matched the\n    new kit was kept (cp -p) at the project's 644, receipted as matching, and flipped to\n    755 only on the SECOND run. Identical bytes take the kit copy, mode included.\"\"\"\n    claude = fresh_project(tmp_path)\n    hook = claude / \"hooks\" / \"auto-checkpoint.sh\"\n    hook.chmod(0o644)\n    m = manifest(claude)\n    m[\"files\"][\"hooks/auto-checkpoint.sh\"] = \"0\" * 64\n    (claude / \".claudekit-manifest.json\").write_text(json.dumps(m))\n\n    r = install(tmp_path, \"--full\", \"--yes\")\n    assert r.returncode == 0, r.stderr + r.stdout\n    assert \"Kept locally-modified hooks/auto-checkpoint.sh\" not in r.stdout + r.stderr\n    assert hook.stat().st_mode & 0o111, \"kit hook must be executable after the first run\"\n    first = _modes(claude)\n\n    r = install(tmp_path, \"--full\", \"--yes\")\n    assert r.returncode == 0, r.stderr + r.stdout\n    assert _modes(claude) == first, \"second run must not change any mode\"\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_preserve_assets.py",
+      "edits": [
+        {
+          "find": "class TestReport(PreserveCase):\n    def test_failures_are_reported_with_a_count_and_names(self):\n",
+          "replace": "class TestReport(PreserveCase):\n    def test_with_a_log_the_console_gets_a_count_and_the_log_gets_the_names(self):\n        result = preserve_assets.PreserveResult()\n        result.restored = [\"plans/%03d.md\" % i for i in range(25)]\n        log = os.path.join(self.tmp, \"preserved-files.log\")\n        preserve_assets.write_log(result, log)\n        lines = preserve_assets.format_report(result, log)\n        self.assertEqual(lines[0], \"    preserved: 25 custom file(s) -- list in \" + log)\n        self.assertEqual(len(lines), 1, lines)\n        with open(log, encoding=\"utf-8\") as fh:\n            self.assertEqual(fh.read().splitlines(), sorted(result.restored))\n\n    def test_a_short_list_is_still_printed_inline_next_to_the_count(self):\n        result = preserve_assets.PreserveResult()\n        result.restored = [\"b.md\", \"a.md\"]\n        lines = preserve_assets.format_report(result, \"/tmp/x.log\")\n        self.assertEqual(lines, [\"    preserved: 2 custom file(s) -- list in /tmp/x.log\",\n                                 \"      a.md\", \"      b.md\"])\n\n    def test_without_a_log_every_name_is_printed(self):\n        result = preserve_assets.PreserveResult()\n        result.restored = [\"b.md\", \"a.md\"]\n        self.assertEqual(preserve_assets.format_report(result),\n                         [\"    preserved: a.md\", \"    preserved: b.md\"])\n\n    def test_failures_are_reported_with_a_count_and_names(self):\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_cli.py",
+      "edits": [
+        {
+          "find": "        # Should complete without crashing\n        assert result.returncode in (0, 1)\n        assert \"ClaudeKit Doctor\" in result.stdout\n",
+          "replace": "        # Should complete without crashing\n        assert result.returncode in (0, 1)\n        assert \"ClaudeKit Doctor\" in result.stdout\n\n    def test_doctor_accepts_a_project_path(self, tmp_path):\n        \"\"\"Fleet follow-up (2026-09-23): `ck doctor <path>` was rejected; every check is\n        cwd-relative, so PATH runs them from there and the caller's cwd is untouched.\"\"\"\n        root = os.path.abspath(os.path.join(os.path.dirname(CLI_PATH), \"..\", \"..\", \"..\"))\n        here = subprocess.run([sys.executable, CLI_PATH, \"doctor\"], cwd=root,\n                              capture_output=True, text=True, timeout=30)\n        there = subprocess.run([sys.executable, CLI_PATH, \"doctor\", root], cwd=str(tmp_path),\n                               capture_output=True, text=True, timeout=30)\n        assert there.returncode == here.returncode, there.stdout + there.stderr\n        assert there.stdout.splitlines()[-1] == here.stdout.splitlines()[-1]\n        empty = subprocess.run([sys.executable, CLI_PATH, \"doctor\", str(tmp_path)], cwd=root,\n                               capture_output=True, text=True, timeout=30)\n        assert empty.returncode == 1 and \".claude/ directory exists\" in empty.stdout\n        missing = subprocess.run([sys.executable, CLI_PATH, \"doctor\", str(tmp_path / \"nope\")],\n                                 capture_output=True, text=True, timeout=30)\n        assert missing.returncode == 1 and \"Not a directory\" in missing.stderr\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "edits": [
+        {
+          "find": "## [Unreleased]\n",
+          "replace": "## [Unreleased]\n- **`ck update` prints a preserved-file count, not ~2000 lines.** The full list is written\n  to `preserved-files.log` inside the run's `.claude.bak-*` backup; up to 10 names still\n  print inline.\n- **A second `ck update` is a true no-op for hook modes.** A managed file whose bytes\n  already equal the kit's is installed from the kit (mode included) instead of being kept\n  at the project's mode, so the 644 -> 755 flip that used to land on the second run lands\n  on the first, or not at all.\n- **`ck doctor [PATH]`.** The health checks run against PATH (default: the current\n  directory) instead of rejecting the argument.\n"
+        }
+      ]
+    }
+  ]
+}
