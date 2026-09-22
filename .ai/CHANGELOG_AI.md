@@ -1,7 +1,11 @@
 # AI Session Changelog
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
-## 2026-09-20 (latest) — the guard was parsing stdin as shell
+## 2026-09-22 (latest) — the installer could not honour a deletion
+
+`ck update` re-created what qa-agents had deleted and dropped what it had configured, because install.sh copied by directory listing and swapped settings.json whole. The manifest now says what a project has parked or removed and the installer skips it; settings.json is merged with `hooks` as the only kit-owned key and `skillOverrides`/`permissions` kept verbatim when the project declares them. The context-saving keys measured on qa-agents ship in the template, behind that same rule. Lesson: a deep merge that adds the kit's entries back into a per-item decision list is the same bug in a smaller font — project-owned lists must be copied, not merged. Follow-up (owner): qa-agents' manifest needs `removed: [commands/coordinator.md]`; its two doctor warnings are unregistered local skills.
+
+## 2026-09-20 — the guard was parsing stdin as shell
 
 A quoted heredoc body is DATA: bash expands nothing in `<<'EOF'`, so the bytes go to the command's
 stdin untouched. `command-guard` parsed them as shell anyway, and any apostrophe in the body produced
