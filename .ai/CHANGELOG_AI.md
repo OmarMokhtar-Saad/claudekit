@@ -1,7 +1,11 @@
 # AI Session Changelog
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
-## 2026-09-22 (latest) — the installer could not honour a deletion
+## 2026-09-23 (latest) — two rewriters are fine when they never meet
+
+The rewriter test asserted 'exactly one hook emits updatedToolOutput' because the host resolves competing rewrites last-write-wins. web-park needs to rewrite too. The honest invariant is not 'one rewriter' but 'no two rewriters on the same tool', so the test now reads settings.json and asserts the matcher sets are disjoint — a red test if anyone wires either hook onto the other's matcher. Same session: the WebFetch cache keyed on URL alone served the answer to the previous question; the key now carries a hash of the whitespace-normalised prompt. Lesson: a cache key must cover every input that changes the output, and a tool that summarises has the question as an input.
+
+## 2026-09-22 — the installer could not honour a deletion
 
 `ck update` re-created what qa-agents had deleted and dropped what it had configured, because install.sh copied by directory listing and swapped settings.json whole. The manifest now says what a project has parked or removed and the installer skips it; settings.json is merged with `hooks` as the only kit-owned key and `skillOverrides`/`permissions` kept verbatim when the project declares them. The context-saving keys measured on qa-agents ship in the template, behind that same rule. Lesson: a deep merge that adds the kit's entries back into a per-item decision list is the same bug in a smaller font — project-owned lists must be copied, not merged. Follow-up (owner): qa-agents' manifest needs `removed: [commands/coordinator.md]`; its two doctor warnings are unregistered local skills.
 
