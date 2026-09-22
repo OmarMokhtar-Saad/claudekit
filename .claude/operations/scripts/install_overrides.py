@@ -39,6 +39,9 @@ from typing import Any, Dict, List, Sequence, Set, Tuple
 # wired by path to the scripts the same install ships, so a stale project copy would
 # reference hooks that no longer exist (or miss ones that now do).
 KIT_MANAGED_KEYS = ("hooks",)
+# Per-entry decision lists: a project that declares one keeps it verbatim. Deep-merging
+# the kit's entries in would re-hide a skill or re-deny a tool the project chose to keep.
+PROJECT_OWNED_KEYS = ("skillOverrides", "permissions")
 
 # Prompt-asset roots where "receipted but gone" means "the project removed it".
 INFERRED_REMOVAL_ROOTS = ("agents/", "commands/", "skills/")
@@ -118,6 +121,9 @@ def _deep_merge(kit: Any, project: Any) -> Any:
 def merge_settings(kit: Dict[str, Any], project: Dict[str, Any]) -> Dict[str, Any]:
     """Kit-managed keys come from the kit; everything else the project has is kept."""
     merged = _deep_merge(kit, project)
+    for key in PROJECT_OWNED_KEYS:
+        if key in project:
+            merged[key] = project[key]
     for key in KIT_MANAGED_KEYS:
         if key in kit:
             merged[key] = kit[key]
