@@ -266,13 +266,27 @@ class TestWiring:
         assert matching[0]["matcher"] == "Bash"
 
     def test_it_is_the_only_hook_that_can_rewrite_output(self):
-        """The host resolves competing rewrites last-write-wins. Exactly one rewriter."""
+        """The host resolves competing rewrites last-write-wins, so two rewriters may
+        never fire on the same tool. Exactly two exist -- this one on Bash, web-park on
+        WebFetch|WebSearch -- and their matchers must stay disjoint. RED: wire either on
+        the other's matcher, or add a third file that emits updatedToolOutput."""
         hooks_dir = REPO / ".claude" / "hooks"
         rewriters = [p for p in sorted(hooks_dir.glob("*"))
                      if p.is_file() and "updatedToolOutput" in p.read_text(
                          encoding="utf-8", errors="replace")]
-        assert rewriters == [hooks_dir / "output_filter.py"], \
-            f"expected exactly one rewriter, found: {rewriters}"
+        assert rewriters == [hooks_dir / "output_filter.py", hooks_dir / "web-park.py"], \
+            f"expected exactly two rewriters, found: {rewriters}"
+        settings = json.loads((REPO / ".claude" / "settings.json").read_text(encoding="utf-8"))
+        matchers = {}
+        for entry in settings["hooks"]["PostToolUse"]:
+            for hook in entry["hooks"]:
+                for name in ("output_filter.py", "web-park.py"):
+                    if name in hook["command"]:
+                        matchers.setdefault(name, set()).update(
+                            entry["matcher"].split("|"))
+        assert set(matchers) == {"output_filter.py", "web-park.py"}, matchers
+        assert not (matchers["output_filter.py"] & matchers["web-park.py"]), \
+            f"rewriters share a tool matcher: {matchers}"
 
     def test_the_script_lives_in_the_hooks_directory(self):
         """It is wired DIRECTLY in settings.json, so it is a hook and must be counted --
@@ -299,7 +313,9 @@ class TestHotPath:
         assert (time.monotonic() - start) / 3 < 0.25
 
 
-CAP = 12000
+CAP = next(op["max_chars"] for f in json.loads(BASE_FILTERS.read_text(encoding="utf-8"))["filters"]
+           if f["id"] == "bash-output-cap" for op in f["operations"] if "max_chars" in op)
+HALF = CAP // 2
 BIG = 40000
 
 
@@ -341,10 +357,10 @@ class TestMaxChars:
         assert text.count("CK_RAW_OUTPUT=1") == 1
         assert str(len(stdout) - CAP) in text
         idx = text.index(needle)
-        # strictly interior: not on the first line (that is the summary), and at least
-        # 5000 chars of surviving head and tail on either side of it.
-        assert idx > 5000
-        assert idx < len(text) - 5000
+        # strictly interior: not on the first line (that is the summary), and a full
+        # half-cap of surviving head and tail on either side of it.
+        assert idx > HALF
+        assert idx < len(text) - HALF
         assert needle not in text.split("\n", 1)[0]
 
     def test_a_short_output_is_not_rewritten(self):

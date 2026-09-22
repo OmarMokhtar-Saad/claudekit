@@ -27,7 +27,7 @@ def load():
 
 
 fs = load()
-WINDOW = 200000
+WINDOW = 100000
 
 
 def project(tmp_path, text=None):
@@ -56,9 +56,9 @@ def test_absent_settings_file_is_skipped(tmp_path):
 
 def test_absent_key_is_inserted_first_and_nothing_else_moves(tmp_path):
     key, line = fs.carry_autocompact_window(project(tmp_path, PRETTY), WINDOW, dry=False)
-    assert key == "edited" and "+autoCompactWindow=200000" in line
+    assert key == "edited" and "+autoCompactWindow=100000" in line
     text = settings_text(tmp_path)
-    assert text.startswith('{\n  "autoCompactWindow": 200000,\n  "permissions"'), text
+    assert text.startswith('{\n  "autoCompactWindow": 100000,\n  "permissions"'), text
     assert text.endswith("}\n"), "the trailing newline is kept"
     merged = json.loads(text)
     assert merged["autoCompactWindow"] == WINDOW
@@ -69,7 +69,7 @@ def test_absent_key_is_inserted_first_and_nothing_else_moves(tmp_path):
 
 def test_indent_follows_the_file(tmp_path):
     fs.carry_autocompact_window(project(tmp_path, '{\n    "hooks": {}\n}\n'), WINDOW, dry=False)
-    assert settings_text(tmp_path).startswith('{\n    "autoCompactWindow": 200000,\n    "hooks"')
+    assert settings_text(tmp_path).startswith('{\n    "autoCompactWindow": 100000,\n    "hooks"')
 
 
 def test_empty_object_becomes_the_one_key(tmp_path):
@@ -79,7 +79,7 @@ def test_empty_object_becomes_the_one_key(tmp_path):
 
 
 def test_equal_value_is_skipped_and_the_file_is_untouched(tmp_path):
-    before = '{\n  "autoCompactWindow": 200000,\n  "hooks": {}\n}\n'
+    before = '{\n  "autoCompactWindow": 100000,\n  "hooks": {}\n}\n'
     key, line = fs.carry_autocompact_window(project(tmp_path, before), WINDOW, dry=False)
     assert key == "skipped" and "already present" in line
     assert settings_text(tmp_path) == before

@@ -23,12 +23,12 @@ index never outranks the current files.
 | State | Plans |
 |---|---:|
 | `drifted` | 12 |
-| `approved` | 62 |
+| `approved` | 63 |
 | `planned` | 33 |
 | `executed` | 30 |
 | `not_started` | 26 |
 | `legacy` | 5 |
-| **total** | **168** |
+| **total** | **169** |
 
 ## Plans
 
@@ -50,6 +50,7 @@ index never outranks the current files.
 | `.claude/plans/plan-approval-machinery.md` | `approved` | 1 |  |
 | `.claude/plans/plan-backlog-triage-pass.md` | `executed` | 2 |  |
 | `.claude/plans/plan-backup-history.md` | `planned` | 4 |  |
+| `.claude/plans/plan-bash-payload-gate.md` | `approved` | 1 |  |
 | `.claude/plans/plan-callsite-audit-line-level.md` | `approved` | 1 |  |
 | `.claude/plans/plan-canonical-skill-wins.md` | `approved` | 1 |  |
 | `.claude/plans/plan-capability-tiers-audit.md` | `approved` | 1 |  |

@@ -108,3 +108,7 @@ backups/
 # would put unreviewed prose in the tree. The README explaining that IS committed.
 .claude/knowledge/proposals/*.md
 !.claude/knowledge/proposals/README.md
+
+# ClaudeKit hook runtime state (rotated logs, cadence ledger) - never source
+.claude/hooks/hooks.log.*
+.claude/hooks/compaction-cadence.jsonl

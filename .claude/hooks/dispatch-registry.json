@@ -67,7 +67,8 @@
       {"id": "command-log-audit", "file": "command-log-audit.sh", "runner": "bash", "tier": "advisory", "matcher": "Bash"},
       {"id": "output-filter", "file": "output_filter.py", "runner": "python3", "tier": "advisory", "matcher": "Bash"},
       {"id": "batch-reads-nudge", "file": "batch-reads-nudge.py", "runner": "python3", "tier": "advisory", "matcher": "Bash"},
-      {"id": "context-budget-advise", "file": "context-budget-gate.py", "runner": "python3", "tier": "advisory", "matcher": "Read|Grep|Glob|Write|Edit|NotebookEdit|Bash|Agent|Task", "args": ["--advise"]}
+      {"id": "context-budget-advise", "file": "context-budget-gate.py", "runner": "python3", "tier": "advisory", "matcher": "Read|Grep|Glob|Write|Edit|NotebookEdit|Bash|Agent|Task", "args": ["--advise"]},
+      {"id": "web-park", "file": "web-park.py", "runner": "python3", "tier": "advisory", "matcher": "WebFetch|WebSearch"}
     ],
     "UserPromptSubmit": [
       {"id": "pre-plan", "file": "pre-plan.sh", "runner": "bash", "tier": "advisory", "matcher": ""},
@@ -75,10 +76,12 @@
     ],
     "SessionStart": [
       {"id": "reflection-gate", "file": "reflection-gate.py", "runner": "python3", "tier": "advisory", "matcher": "", "args": ["--event", "SessionStart"]},
-      {"id": "session-start", "file": "session-start.sh", "runner": "bash", "tier": "advisory", "matcher": ""}
+      {"id": "session-start", "file": "session-start.sh", "runner": "bash", "tier": "advisory", "matcher": ""},
+      {"id": "compaction-cadence", "file": "compaction-cadence.py", "runner": "python3", "tier": "advisory", "matcher": ""}
     ],
     "PreCompact": [
-      {"id": "reflection-gate", "file": "reflection-gate.py", "runner": "python3", "tier": "advisory", "matcher": "", "args": ["--event", "PreCompact"]}
+      {"id": "reflection-gate", "file": "reflection-gate.py", "runner": "python3", "tier": "advisory", "matcher": "", "args": ["--event", "PreCompact"]},
+      {"id": "compaction-cadence", "file": "compaction-cadence.py", "runner": "python3", "tier": "advisory", "matcher": ""}
     ],
     "Stop": [
       {"id": "reflection-gate", "file": "reflection-gate.py", "runner": "python3", "tier": "advisory", "matcher": "", "args": ["--event", "Stop"]},

@@ -45,6 +45,9 @@ ACCEPTED_RESIDUE = {
     ".claude/hooks/iron-law-gate.py",
     ".claude/hooks/reflection-gate.py",
     ".claude/hooks/reflection.py",
+    # advisory hooks: fail open by design (a broken advisory must never block a tool)
+    ".claude/hooks/compaction-cadence.py",
+    ".claude/hooks/web-park.py",
 }
 
 

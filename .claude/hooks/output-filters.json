@@ -34,12 +34,12 @@
     },
     {
       "id": "bash-output-cap",
-      "description": "Last-resort byte cap on Bash stdout. Measured: planner runs slurp single tool results of 38-66K chars, and one 401K-context planner run spent most of its budget on them. select() returns the FIRST matching filter and load_filters preserves base-file order, so this entry MUST stay LAST: a command with a specific filter (pytest-progress) keeps that filter and is not capped. NEVER_FILTER commands are refused before any filter is consulted.",
+      "description": "Last-resort byte cap on Bash stdout. Measured: planner runs slurp single tool results of 38-66K chars, and one 401K-context planner run spent most of its budget on them. select() returns the FIRST matching filter and load_filters preserves base-file order, so this entry MUST stay LAST: a command with a specific filter (pytest-progress) keeps that filter and is not capped. NEVER_FILTER commands are refused before any filter is consulted. The cap is 6000, not 12000: read-window-guard.py bounds the Read tool but `cat file.md` through Bash bypasses it entirely, and the five largest results in the measured session (10,284 / 8,130 / 7,174 / 6,951 / 6,724 chars) all sat under the old 12000 ceiling.",
       "match": ".",
       "lossy": true,
       "operations": [
         {
-          "max_chars": 12000
+          "max_chars": 6000
         }
       ],
       "summary": "[ck output-filter: {id}] stdout capped; see the inline marker for details."
