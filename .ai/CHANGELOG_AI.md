@@ -1,7 +1,11 @@
 # AI Session Changelog
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
-## 2026-09-23 (latest) — a receipt that hashes the on-disk copy cannot tell drift from update
+## 2026-09-23 (latest) — keeping identical bytes defers the mode fix by one run
+
+A kept file is copied with `cp -p`, so a hook whose bytes already matched the kit was installed at the project's 644 and receipted as matching; the next run then applied the kit's 755. Identical bytes now take the kit copy on the first run. Also: the preserved list moved from ~2000 console lines to a count plus a log next to the backup, and `ck doctor` accepts a project path by running its cwd-relative checks from there.
+
+## 2026-09-23 — a receipt that hashes the on-disk copy cannot tell drift from update
 
 `ck update` overwrote 69 committed qa-agents files because the installer only skipped manifest-listed removals. The fix compares each staged kit file with the last-installed hash and keeps mismatches (and unreceipted files) unless `--force`; kept files are receipted with the kit hash so they stay kept. Registry merged, runtime/ never written, manifest sorted and stable. Lesson: the first reinstall after a merge-file edit rewrites the receipt, so a zero-diff test must commit an installer-produced baseline.
 

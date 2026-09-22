@@ -36,6 +36,7 @@ Run health checks on the current ClaudeKit installation.
 claudekit doctor                  # exit 0 on pass/warn, 1 on failure
 claudekit doctor --strict         # treat warnings as failures (exit 1)
 claudekit doctor --min-score 90   # exit 1 if the readiness score is below 90
+claudekit doctor ../other-project # check another project (default: current directory)
 ```
 
 Checks: Python version, Bash, Git, agents, commands, skills, hooks, registry integrity, config validity, and `.claude/skills-profile.json` when present.

@@ -198,6 +198,33 @@ class TestWhatCountsAsCustom(PreserveCase):
 
 
 class TestReport(PreserveCase):
+    def test_with_a_log_the_console_gets_a_count_and_the_log_gets_the_names(self):
+        result = preserve_assets.PreserveResult()
+        result.had_manifest = True
+        result.restored = ["plans/%03d.md" % i for i in range(25)]
+        log = os.path.join(self.dest, "preserved-files.log")
+        preserve_assets.write_log(result, log)
+        lines = preserve_assets.format_report(result, log)
+        self.assertEqual(lines[0], "    preserved: 25 custom file(s) -- list in " + log)
+        self.assertEqual(len(lines), 1, lines)
+        with open(log, encoding="utf-8") as fh:
+            self.assertEqual(fh.read().splitlines(), sorted(result.restored))
+
+    def test_a_short_list_is_still_printed_inline_next_to_the_count(self):
+        result = preserve_assets.PreserveResult()
+        result.had_manifest = True
+        result.restored = ["b.md", "a.md"]
+        lines = preserve_assets.format_report(result, "/tmp/x.log")
+        self.assertEqual(lines, ["    preserved: 2 custom file(s) -- list in /tmp/x.log",
+                                 "      a.md", "      b.md"])
+
+    def test_without_a_log_every_name_is_printed(self):
+        result = preserve_assets.PreserveResult()
+        result.had_manifest = True
+        result.restored = ["b.md", "a.md"]
+        self.assertEqual(preserve_assets.format_report(result),
+                         ["    preserved: a.md", "    preserved: b.md"])
+
     def test_failures_are_reported_with_a_count_and_names(self):
         result = preserve_assets.PreserveResult()
         result.failed = [("a/b.md", "PermissionError")]

@@ -876,7 +876,9 @@ if [[ -n "${BACKUP:-}" && -d "${BACKUP:-}" ]]; then
     # defects in three rounds. It also crossed the silent-failure scanner's
     # MAX_JOIN_LINES, leaving the REST of this file unscanned. Now a real module with
     # direct tests: tests/test_preserve_assets.py.
+    # The full list goes next to the backup it came from; the console gets a count.
     python3 "$CLAUDE_SRC/operations/scripts/preserve_assets.py" "$BACKUP" "$FINAL_DEST" \
+        "$BACKUP/preserved-files.log" \
         || print_warn "Custom-asset preservation failed (files remain in the backup)"
 fi
 
