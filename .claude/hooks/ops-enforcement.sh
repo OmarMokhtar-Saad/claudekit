@@ -2,7 +2,8 @@
 # =============================================================================
 # Ops Enforcement Hook (PreToolUse — Edit / Write)
 # Blocks direct file edits to source code. ALL source changes must go through
-# execute-json-ops.py. Only .claude/ config files and docs may be edited directly.
+# execute-json-ops.py. Only .claude/ config files, docs and a Tier-1 single-line Edit
+# may be applied directly.
 # Blocks with exit 2 + stderr; fails CLOSED on payload parse failure.
 # =============================================================================
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -117,6 +118,22 @@ through an ops.json:
   1. Write .claude/plans/<name>.ops.json
   2. Validate:  python3 .claude/operations/scripts/validate-config-json.py <ops.json>
   3. Execute:   python3 .claude/operations/scripts/execute-json-ops.py <ops.json>"
+fi
+
+# Allow: a Tier-1 single-line Edit. The Token & Model Policy says Tier 1 (one file, no
+# API/security/schema surface) is applied directly, with no plan and no wait -- and a
+# hook that forced every one-line fix through ops.json made that rule unreachable. Only
+# the narrowest shape passes: tool Edit on an existing file, non-empty old_string, neither
+# side spanning a newline, replace_all not set. Write, MultiEdit, multi-line hunks and
+# global replaces still need an ops.json, as does anything .ops-source-globs marks above.
+if [ "$TOOL_NAME" = "Edit" ] && [ -f "$ABS_TARGET" ] && printf '%s' "$TOOL_INPUT" | python3 -c '
+import json, sys
+t = json.load(sys.stdin).get("tool_input") or {}
+old, new = t.get("old_string"), t.get("new_string")
+ok = (isinstance(old, str) and isinstance(new, str) and old != ""
+      and "\n" not in old and "\n" not in new and t.get("replace_all") is not True)
+sys.exit(0 if ok else 1)' 2>/dev/null; then
+    exit 0
 fi
 
 # BLOCK: direct source edit inside this project.

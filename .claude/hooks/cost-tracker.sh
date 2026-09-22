@@ -26,7 +26,8 @@ log() {
 }
 
 # Get session metadata
-SESSION_ID="${CLAUDE_SESSION_ID:-$(date +%s)}"
+# CLAUDE_CODE_SESSION_ID is the documented hook-env name (env-vars.md); CLAUDE_SESSION_ID is never set.
+SESSION_ID="${CLAUDE_CODE_SESSION_ID:-${CLAUDE_SESSION_ID:-$(date +%s)}}"
 SESSION_DATE=$(date '+%Y-%m-%d')
 SESSION_TIME=$(date '+%H:%M:%S')
 PROJECT=$(basename "$(pwd)")

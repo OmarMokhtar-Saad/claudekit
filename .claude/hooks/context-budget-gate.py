@@ -561,9 +561,12 @@ def _decide(payload):
                         "BLOCKED context-budget-gate: this session is at %dK tokens of "
                         "context (block at %dK). Type /compact now - it is not a tool call, so "
                         "this gate never blocks it; /save-session works once you are back under "
-                        "the line. Set /autocompact below %dK so this never fires. Override for "
-                        "one process tree with CK_RAW_CONTEXT=1.\n"
-                        % (size // 1000, block // 1000, block // 1000))
+                        "the line. Auto-compact fires about 33K below autoCompactWindow, so a window "
+                        "of at most %dK compacts before this gate is reached (the documented "
+                        "minimum window is 100K; if that is still above the line, raise "
+                        "CK_CONTEXT_BLOCK instead). Override for one process tree with "
+                        "CK_RAW_CONTEXT=1.\n"
+                        % (size // 1000, block // 1000, (block + 33000) // 1000))
     elif tool_name not in GUARDED_TOOLS:
         return None
 

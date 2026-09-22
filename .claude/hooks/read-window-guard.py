@@ -72,6 +72,21 @@ def _allowlisted(path):
     return False
 
 
+# Read renders these itself (images visually, PDFs by page), so a line count is meaningless:
+# a screenshot "has" thousands of lines of compressed bytes and was being blocked.
+NON_TEXT_EXTENSIONS = (
+    ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".tif", ".tiff", ".heic", ".ico", ".pdf",
+)
+
+
+def _not_text(path):
+    """True for a known image/PDF extension, or a NUL byte in the first 8 KiB (binary)."""
+    if path.lower().endswith(NON_TEXT_EXTENSIONS):
+        return True
+    with open(path, "rb") as handle:
+        return b"\0" in handle.read(8192)
+
+
 def _longer_than_threshold(path):
     """True when the file has more than THRESHOLD lines. Short-circuits at THRESHOLD+1,
     so a multi-million-line file costs 201 iterations, not a full scan."""
@@ -121,6 +136,8 @@ def main():
             return 0
         if not os.path.isfile(path):
             # Missing or not a regular file: let Read report it in its own words.
+            return 0
+        if _not_text(path):
             return 0
         if not _longer_than_threshold(path):
             return 0
