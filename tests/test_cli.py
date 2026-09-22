@@ -224,6 +224,28 @@ class TestLifecycleCommands:
         assert rc == 0
         assert "--force" in recorded["cmd"] and "--full" in recorded["cmd"]
 
+    def test_update_keeps_modified_files_unless_forced(self, tmp_path, monkeypatch):
+        # Receipted install: the installer must NOT get --force (it keeps local edits)
+        # unless the user passed `ck update --force`.
+        m = self._import_main()
+        base = tmp_path / ".claude"
+        (base / "agents").mkdir(parents=True)
+        (base / m.MANIFEST_NAME).write_text(json.dumps(
+            {"version": "0.0.0", "mode": "full", "files": {}}))
+        recorded = {}
+
+        def fake_run(cmd, *a, **kw):
+            recorded["cmd"] = cmd
+            class R:
+                returncode = 0
+            return R()
+
+        monkeypatch.setattr(m.subprocess, "run", fake_run)
+        assert m.cmd_update(self._ns(target=str(tmp_path), yes=True)) == 0
+        assert "--force" not in recorded["cmd"], "a receipted update overwrote local edits"
+        assert m.cmd_update(self._ns(target=str(tmp_path), yes=True, force=True)) == 0
+        assert "--force" in recorded["cmd"]
+
     def test_diff_fallback_without_manifest(self, tmp_path, capsys):
         # Pre-manifest install: diff falls back to comparing against the kit
         # source tree instead of erroring.

@@ -1,7 +1,11 @@
 # AI Session Changelog
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
-## 2026-09-23 (latest) — two rewriters are fine when they never meet
+## 2026-09-23 (latest) — a receipt that hashes the on-disk copy cannot tell drift from update
+
+`ck update` overwrote 69 committed qa-agents files because the installer only skipped manifest-listed removals. The fix compares each staged kit file with the last-installed hash and keeps mismatches (and unreceipted files) unless `--force`; kept files are receipted with the kit hash so they stay kept. Registry merged, runtime/ never written, manifest sorted and stable. Lesson: the first reinstall after a merge-file edit rewrites the receipt, so a zero-diff test must commit an installer-produced baseline.
+
+## 2026-09-23 — two rewriters are fine when they never meet
 
 The rewriter test asserted 'exactly one hook emits updatedToolOutput' because the host resolves competing rewrites last-write-wins. web-park needs to rewrite too. The honest invariant is not 'one rewriter' but 'no two rewriters on the same tool', so the test now reads settings.json and asserts the matcher sets are disjoint — a red test if anyone wires either hook onto the other's matcher. Same session: the WebFetch cache keyed on URL alone served the answer to the previous question; the key now carries a hash of the whitespace-normalised prompt. Lesson: a cache key must cover every input that changes the output, and a tool that summarises has the question as an input.
 

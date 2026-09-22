@@ -162,7 +162,7 @@ def preserve_tree(backup: str, dest: str) -> PreserveResult:
     project_root = os.path.dirname(os.path.realpath(dest))
 
     for root, dirs, names in os.walk(backup):
-        dirs[:] = [d for d in dirs if d != "__pycache__"]
+        dirs[:] = [d for d in dirs if d != "__pycache__" and not (root == backup and d == "runtime")]
         # A symlink to an EXISTING directory is classified as a directory, so it lands in
         # `dirs` and a loop over `names` alone can never carry it over -- measured: 36 of
         # them under one project's plans/, silently dropped on every update. (A DANGLING

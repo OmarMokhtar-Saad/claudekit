@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `open-source-forker` — never shipped and have been removed.
 
 ## [Unreleased]
+- **`ck update` keeps locally-modified managed files.** Any managed file whose bytes
+  differ from the hash the last install receipted is kept with a warning instead of
+  being replaced (`--force` overwrites). `skills-registry.json` is merged so project
+  entries survive, `settings.json` keeps the project's key order (project wins on every
+  key except `hooks`), `runtime/` is moved across untouched and never receipted, and
+  the manifest is idempotent, so a reinstall over a committed tree leaves
+  `git status` clean.
 - **The kit template ships the context-saving settings.** `permissions.deny` for tools no
   agent uses, `skillListingMaxDescChars: 150`, and a `skillOverrides` block that hides the
   optional skills (~27k tokens per session, measured on qa-agents). A fresh install gets
