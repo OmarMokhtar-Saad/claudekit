@@ -137,6 +137,7 @@ BACKUP=""
 # never touched until the atomic swap succeeds — no more rm -rf of live data.
 _cleanup_on_failure() {
     [[ -d "$STAGING" ]] && rm -rf "$STAGING"
+    rm -f "${CK_SKIP_FLAT:-}" "${CK_SKIP_JSON:-}" 2>/dev/null || true
     print_err "Installation failed. Your existing .claude (if any) was left untouched."
 }
 trap '_cleanup_on_failure' ERR
@@ -203,17 +204,52 @@ echo ""
 print_step "Creating directory structure..."
 mkdir -p "$DEST"/{agents/_shared,commands,skills,hooks,operations/scripts,local,modes}
 
+# ---- Project overrides: assets this project has parked or removed ----
+# Read from the EXISTING .claude/ (still in place: we write to staging) before any
+# copy. Measured 2026-09-22 on qa-agents: every `ck update` re-created the command
+# the project had deleted and the twelve agents it had moved to agents-unused/,
+# because the copies below never consulted .claudekit-manifest.json. The manifest's
+# `parked` / `removed` lists, a receipted prompt asset that is gone from disk, and
+# `<dir>-unused/<name>` all mean "do not install <dir>/<name>"; the new manifest
+# carries the result forward so the decision outlives this receipt.
+CK_SKIP_FLAT="$(mktemp "${TMPDIR:-/tmp}/ck-skip.XXXXXX")"
+CK_SKIP_JSON="$CK_SKIP_FLAT.json"
+python3 "$CLAUDE_SRC/operations/scripts/install_overrides.py" skip-list \
+    "$FINAL_DEST" "$CK_SKIP_FLAT" "$CK_SKIP_JSON"
+export CK_SKIP_JSON
+SKIPPED_COUNT=0
+# `grep -qxF` on a small file: bash 3.2 has no associative arrays.
+_ck_skipped() {
+    if grep -qxF -- "$1" "$CK_SKIP_FLAT" 2>/dev/null; then
+        SKIPPED_COUNT=$((SKIPPED_COUNT + 1))
+        return 0
+    fi
+    return 1
+}
+
 # Copy agents
 AGENT_COUNT=$(ls -1 "$CLAUDE_SRC"/agents/*.md 2>/dev/null | grep -v -E '(QUICK_START|HANDOFF_PROTOCOL)' | wc -l | tr -d ' ')
 print_step "Installing agents (${AGENT_COUNT})..."
-cp "$CLAUDE_SRC"/agents/*.md "$DEST/agents/"
-cp "$CLAUDE_SRC"/agents/_shared/*.md "$DEST/agents/_shared/"
+for _asset in "$CLAUDE_SRC"/agents/*.md; do
+    [[ -f "$_asset" ]] || continue
+    _ck_skipped "agents/${_asset##*/}" && continue
+    cp "$_asset" "$DEST/agents/"
+done
+for _asset in "$CLAUDE_SRC"/agents/_shared/*.md; do
+    [[ -f "$_asset" ]] || continue
+    _ck_skipped "agents/_shared/${_asset##*/}" && continue
+    cp "$_asset" "$DEST/agents/_shared/"
+done
 print_ok "Agents installed"
 
 # Copy commands. One tree: `.claude/commands/` is the only source, so no
 # installed command is decided by copy order (task 008 batch 1).
 print_step "Installing commands..."
-cp "$CLAUDE_SRC"/commands/*.md "$DEST/commands/"
+for _asset in "$CLAUDE_SRC"/commands/*.md; do
+    [[ -f "$_asset" ]] || continue
+    _ck_skipped "commands/${_asset##*/}" && continue
+    cp "$_asset" "$DEST/commands/"
+done
 CMD_COUNT=$(ls -1 "$DEST/commands/"*.md 2>/dev/null | wc -l | tr -d ' ')
 print_ok "$CMD_COUNT commands installed"
 
@@ -230,6 +266,9 @@ if [[ "$MODE" == "full" ]]; then
     for skill_dir in "$CLAUDE_SRC"/skills/*/; do
         if [[ -d "$skill_dir" ]]; then
             skill_name=$(basename "$skill_dir")
+            if _ck_skipped "skills/$skill_name" || _ck_skipped "skills/$skill_name/SKILL.md"; then
+                continue
+            fi
             mkdir -p "$DEST/skills/$skill_name"
             cp "$skill_dir"*.md "$DEST/skills/$skill_name/" 2>/dev/null || true
         fi
@@ -293,6 +332,7 @@ if [[ "$MODE" == "full" ]]; then
                 *.log|*.pyc|*.orig|*.rej|*.swp|*~) continue ;;
                 compact-counter.txt|settings.local.json) continue ;;
             esac
+            _ck_skipped "hooks/${_hook_src##*/}" && continue
             cp "$_hook_src" "$DEST/hooks/"
         done
     }
@@ -316,8 +356,23 @@ if [[ "$MODE" == "full" ]]; then
     # Install settings.json — WITHOUT it, none of the hooks above ever fire.
     # (For years this was omitted, so every install shipped dead hooks.)
     if [[ -f "$CLAUDE_SRC/settings.json" ]]; then
-        cp "$CLAUDE_SRC/settings.json" "$DEST/settings.json"
-        print_ok "settings.json installed (hooks wired)"
+        if [[ -f "$FINAL_DEST/settings.json" ]]; then
+            # Merge, never overwrite: `hooks` is kit-managed and replaced; every other
+            # key the project committed (autoCompactWindow, env thresholds,
+            # permissions.deny, skillOverrides, ...) is kept. A project file that is not
+            # a JSON object aborts the install (the old tree is untouched) rather than
+            # being silently replaced.
+            if ! python3 "$CLAUDE_SRC/operations/scripts/install_overrides.py" settings \
+                    "$CLAUDE_SRC/settings.json" "$FINAL_DEST/settings.json" "$DEST/settings.json"; then
+                print_err "settings.json merge failed; the existing .claude/ was not changed"
+                _cleanup_on_failure
+                exit 1
+            fi
+            print_ok "settings.json merged (kit hooks replaced; project keys kept)"
+        else
+            cp "$CLAUDE_SRC/settings.json" "$DEST/settings.json"
+            print_ok "settings.json installed (hooks wired)"
+        fi
         # Fail closed on a hook we can PROVE is wired-but-missing: settings.json
         # references hooks BY PATH, and a missing one makes Claude Code run
         # `python3 <missing>` -> exit 2 -> every tool call blocked.
@@ -716,6 +771,18 @@ if commit and os.environ.get("CK_SRC_DIRTY"):
     source["dirty"] = True
     source["pinned"] = False
 
+# Carry the project's parked/removed decisions forward: the skip list was computed
+# from the PREVIOUS receipt (plus disk state) before the copy, and this receipt is
+# what the next install reads. Dropping them here would re-install everything once.
+overrides = {"parked": [], "removed": []}
+try:
+    with open(os.environ["CK_SKIP_JSON"], encoding="utf-8") as fh:
+        loaded = json.load(fh)
+    for key in overrides:
+        overrides[key] = sorted(p for p in loaded.get(key, []) if isinstance(p, str))
+except (KeyError, OSError, ValueError, AttributeError):
+    pass
+
 manifest = {
     "version": os.environ.get("CLAUDEKIT_VERSION", "unknown"),
     "installed_at": datetime.datetime.now().isoformat(timespec="seconds"),
@@ -723,10 +790,16 @@ manifest = {
     "language": lang,
     "source": source,
     "files": files,
+    "parked": overrides["parked"],
+    "removed": overrides["removed"],
 }
 with open(os.path.join(dest, ".claudekit-manifest.json"), "w") as fh:
     json.dump(manifest, fh, indent=2)
 MANIFEST_PY
+rm -f "$CK_SKIP_FLAT" "$CK_SKIP_JSON"
+if [[ "$SKIPPED_COUNT" -gt 0 ]]; then
+    print_ok "Skipped $SKIPPED_COUNT asset(s) this project parked or removed (recorded in the manifest)"
+fi
 
 # ---- Preserve project-custom assets from the previous install ----
 # Files in the backup that (a) don't exist in the new tree and (b) weren't

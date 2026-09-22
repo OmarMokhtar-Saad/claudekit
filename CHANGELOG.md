@@ -11,6 +11,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `open-source-forker` — never shipped and have been removed.
 
 ## [Unreleased]
+- **`ck update` no longer undoes a project's decisions.** install.sh now skips assets the
+  project parked or removed: manifest `parked`/`removed` lists, a receipted agent/command/skill
+  that is no longer on disk (a deleted `commands/coordinator.md` stays deleted), and anything
+  under `<dir>-unused/`. Hooks are never inferred as removed. The decision is carried forward
+  into the new `.claudekit-manifest.json`. Measured 2026-09-22 on qa-agents: two committed
+  changes came back on every update.
+- **`settings.json` is merged on update, not replaced.** The `hooks` block is kit-owned and
+  rewritten; every other project key (`autoCompactWindow`, `env` thresholds,
+  `permissions.deny`, `skillOverrides`, ...) survives, kit-only keys are added. An unparseable
+  project `settings.json` aborts the install before the swap; the old tree is untouched.
+- **`CK_SESSION_START_BRIEF=1` trims SessionStart to its header line** (plus the concurrency
+  check). Default off. Upstreamed from qa-agents, where `ck update` kept undoing it.
+- **`ck doctor` counts parked agents** (`agents-unused/`, manifest `parked`/`removed`) toward
+  the expected set instead of failing a project that deliberately parked them.
 - **The agent's own command text now has a ceiling.** Every cap this kit shipped measured
   tool OUTPUT -- `output_filter.py` bounds a Bash stdout, `read-window-guard.py` bounds a
   Read, `context-budget-gate.py` bounds the window. Nothing bounded what the model WRITES.

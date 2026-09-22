@@ -192,5 +192,26 @@ install. Your customizations in `CLAUDE.project.md` and `CONSTITUTION.md` are
 thereafter, so a reinstall carries the existing files across instead of
 re-rendering them. The same applies to `settings.local.json` and to the
 `security` block of `hooks/config.json` (the rest of that file is updated by the
-kit). Everything else under `.claude/` is kit-owned and is replaced — recover
-prior versions from the timestamped backup or from version control if needed.
+kit).
+
+`settings.json` is **merged**, not replaced: the `hooks` block is kit-owned and
+is rewritten on every update, every other key the project has set
+(`autoCompactWindow`, `env`, `permissions`, `skillOverrides`, ...) is kept, and
+kit-only keys are added. A `settings.json` that does not parse aborts the
+install before anything is swapped in.
+
+Assets the project **parked or removed** are not recreated:
+
+- a `parked` or `removed` list in `.claudekit-manifest.json` (paths relative to
+  `.claude/`, e.g. `commands/coordinator.md`);
+- an agent, command or skill the manifest receipted that is no longer on disk —
+  a deleted `commands/coordinator.md` stays deleted;
+- anything under `agents-unused/`, `commands-unused/`, `skills-unused/` or
+  `hooks-unused/`.
+
+Hooks are never inferred as removed (a missing wired hook blocks every tool
+call); list them explicitly under `removed` if that is what you want. The
+decision is carried forward into the new manifest, and `ck doctor` counts
+parked agents toward the expected set. Everything else under `.claude/` is
+kit-owned and is replaced — recover prior versions from the timestamped backup
+or from version control if needed.
