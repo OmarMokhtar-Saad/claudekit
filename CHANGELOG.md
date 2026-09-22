@@ -30,6 +30,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   check). Default off. Upstreamed from qa-agents, where `ck update` kept undoing it.
 - **`ck doctor` counts parked agents** (`agents-unused/`, manifest `parked`/`removed`) toward
   the expected set instead of failing a project that deliberately parked them.
+- **Rapid auto-compaction is now a visible stop signal, not a silent spiral.** New advisory
+  hook `compaction-cadence.py` on `PreCompact` + `SessionStart`. Measured 2026-09-20 on a
+  30-request session billed 1.84M tokens: **five auto-compactions in 29 minutes**, the
+  intervals collapsing 10.5 -> 6.9 -> 2.4 -> 2.2 min while the compaction summaries grew
+  13,796 -> 23,762 chars and became **76% of all text in the session**. Each summary is
+  re-injected into the next request and is larger than the last, so every cycle starts with
+  less headroom and the next one arrives sooner — it accelerates rather than settling. The
+  model cannot see this: after a compaction it wakes up with a tidy summary and no record of
+  how many it has already had. `PreCompact` now appends to a ledger and **never blocks**
+  (blocking a compaction only overflows the context it was called to relieve); the post-
+  compaction `SessionStart` reads that ledger and injects `additionalContext` — the one
+  channel that reaches the model after a compaction — telling it to finish or abandon the
+  current step and hand back, when two compactions land inside `CK_COMPACT_MIN_INTERVAL`
+  (300s) or the session passes `CK_COMPACT_MAX_CYCLES` (3). Compaction itself stays hugely
+  net-positive — ungated, that session would have billed ~6.1M against an actual 1.84M — so
+  what the hook targets is the growth RATE, never the ceiling.
+- **A repeat web fetch no longer re-bills the page.** New advisory hook `web-park.py` on
+  `PostToolUse` for `WebFetch|WebSearch`. In the same session, **one URL accounted for 4 of
+  the 10 fetches**; the content had not expired, it had merely scrolled out of attention,
+  which a file fixes and a re-fetch does not. Every fetched page is written to the research
+  dir (`CK_RESEARCH_DIR`, default `.claude/hooks/research/`). The **first** fetch is left
+  completely intact — the model asked for it — with only the parked path appended; a
+  **repeat** of the same URL, or the same normalised WebSearch query, in the same session is
+  replaced via `hookSpecificOutput.updatedToolOutput` with a pointer to that file. The
+  response's shape is preserved (a dict keeps its siblings, e.g. `durationMs`), an
+  unrecognised shape is left untouched, and `CK_RAW_WEB=1` disables the hook for one process
+  tree — a wrong guess here would cost a fetch outright, so every failure mode is silent.
+- **`bash-output-cap` tightened 12,000 -> 6,000 chars.** `read-window-guard.py` bounds the
+  `Read` tool, but `cat file.md` through Bash bypasses it entirely and lands whole in
+  `tool_result` — 44% of the measured session's body. The five largest results were 10,284 /
+  8,130 / 7,174 / 6,951 / 6,724 chars, **every one of them under the old ceiling**. Nothing
+  is lost silently: the cap keeps a head and a tail around an inline marker naming the
+  omitted byte count, `CK_RAW_OUTPUT=1` disables it for one command, and the entry stays LAST
+  in `output-filters.json` so `pytest-progress` still wins for pytest.
+- **`autoCompactWindow` now ships at 100000, down from 200000.** `install.sh` copies
+  `.claude/settings.json` into every managed project wholesale, and a project-level setting
+  outranks the user level — so a kit update was silently RAISING the window in any project
+  whose owner had lowered it. At 100000 auto-compact fires at 66–79k and a measured session's
+  average context fell 96k -> 52k (**-46%**). `fleet-sync.py` carries the shipped value, so
+  the two are one source of truth.
 - **The agent's own command text now has a ceiling.** Every cap this kit shipped measured
   tool OUTPUT -- `output_filter.py` bounds a Bash stdout, `read-window-guard.py` bounds a
   Read, `context-budget-gate.py` bounds the window. Nothing bounded what the model WRITES.

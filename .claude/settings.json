@@ -1,5 +1,5 @@
 {
-  "autoCompactWindow": 200000,
+  "autoCompactWindow": 100000,
   "skillListingBudgetFraction": 0.03,
   "skillListingMaxDescChars": 150,
   "permissions": {
@@ -133,6 +133,15 @@
             "command": "bash -c 'ROOT=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\"; python3 \"$ROOT/.claude/hooks/context-budget-gate.py\" --advise'"
           }
         ]
+      },
+      {
+        "matcher": "WebFetch|WebSearch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'ROOT=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\"; python3 \"$ROOT/.claude/hooks/web-park.py\"'"
+          }
+        ]
       }
     ],
     "UserPromptSubmit": [
@@ -171,6 +180,26 @@
           {
             "type": "command",
             "command": "bash -c 'ROOT=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\"; bash \"$ROOT/.claude/hooks/session-start.sh\"'"
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'ROOT=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\"; python3 \"$ROOT/.claude/hooks/compaction-cadence.py\"'"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'ROOT=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\"; python3 \"$ROOT/.claude/hooks/compaction-cadence.py\"'"
           }
         ]
       }
