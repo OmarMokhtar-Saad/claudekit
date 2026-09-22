@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `open-source-forker` — never shipped and have been removed.
 
 ## [Unreleased]
+- **The kit template ships the context-saving settings.** `permissions.deny` for tools no
+  agent uses, `skillListingMaxDescChars: 150`, and a `skillOverrides` block that hides the
+  optional skills (~27k tokens per session, measured on qa-agents). A fresh install gets
+  them; a project that declared its own `skillOverrides` or `permissions` keeps them verbatim
+  on reinstall (the kit's entries are not merged back in).
 - **`ck update` no longer undoes a project's decisions.** install.sh now skips assets the
   project parked or removed: manifest `parked`/`removed` lists, a receipted agent/command/skill
   that is no longer on disk (a deleted `commands/coordinator.md` stays deleted), and anything

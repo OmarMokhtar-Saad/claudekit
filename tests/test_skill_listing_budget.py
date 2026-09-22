@@ -81,7 +81,9 @@ def test_measured_listing_fits_the_declared_fraction():
 
 
 def test_no_single_entry_exceeds_the_per_skill_cap():
-    cap = _settings().get("skillListingMaxDescChars", MAX_DESC_CHARS_DEFAULT)
+    # The listing setting now trims what Claude Code *shows* (150 chars); the file cap
+    # stays the documented 1536 so a description is never truncated by the default.
+    cap = MAX_DESC_CHARS_DEFAULT
     over = []
     for path in _listed_files():
         fm = _frontmatter(path.read_text(encoding="utf-8"))
