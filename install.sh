@@ -79,7 +79,7 @@ usage() {
     echo "  --language LANG Pre-configure for language (python|typescript|java|go|kotlin|swift|rust|csharp|ruby|php)"
     echo "  --with-mcp      Install MCP server configurations"
     echo "  --with-i18n     Install internationalization files"
-    echo "  --force         Overwrite existing .claude directory (backed up first)"
+    echo "  --force         Overwrite locally-modified managed files (default: keep them; the tree is backed up first)"
     echo "  --yes           Non-interactive: assume yes to prompts (for CI)"
     echo "  --help          Show this help"
     echo ""
@@ -280,7 +280,15 @@ if [[ "$MODE" == "full" ]]; then
     # 008 batch 1, `i18n-workflow` shipped from `templates/skills/` and was absent
     # from the registry, so `ck doctor --strict` exited 1 on a fresh install.
     if [[ -f "$CLAUDE_SRC/skills/skills-registry.json" ]]; then
-        cp "$CLAUDE_SRC/skills/skills-registry.json" "$DEST/skills/"
+        if [[ -f "$FINAL_DEST/skills/skills-registry.json" ]] && \
+           python3 "$CLAUDE_SRC/operations/scripts/install_overrides.py" registry \
+               "$CLAUDE_SRC/skills/skills-registry.json" \
+               "$FINAL_DEST/skills/skills-registry.json" \
+               "$DEST/skills/skills-registry.json"; then
+            print_ok "skills-registry.json merged (project entries kept)"
+        else
+            cp "$CLAUDE_SRC/skills/skills-registry.json" "$DEST/skills/"
+        fi
     fi
     SKILL_COUNT=$(find "$DEST/skills" -name "SKILL.md" 2>/dev/null | wc -l | tr -d ' ')
     print_ok "$SKILL_COUNT skills installed"
@@ -688,10 +696,38 @@ PRESERVE_SECURITY_PY
     fi
 fi
 
+# ---- Keep locally-modified managed files (hash differs from the last receipt) ----
+# The previous manifest holds the kit's hash of every managed file. A file whose bytes
+# no longer match was edited by the project; it is copied back over the staged kit copy
+# unless --force. The new manifest keeps the KIT hash for it, so it stays "modified".
+CK_KEEP_FLAT="$(mktemp "${TMPDIR:-/tmp}/ck-keep.XXXXXX")"
+CK_KEEP_JSON="$CK_KEEP_FLAT.json"
+export CK_KEEP_JSON
+if [[ -d "$FINAL_DEST" ]] && [[ "$FORCE" != true ]]; then
+    python3 "$CLAUDE_SRC/operations/scripts/install_overrides.py" keep-modified \
+        "$FINAL_DEST" "$STAGING" "$CK_KEEP_FLAT" "$CK_KEEP_JSON" \
+        || print_warn "Could not compute locally-modified files; kit copies will be installed"
+    while IFS= read -r _rel; do
+        [[ -n "$_rel" ]] || continue
+        cp -p "$FINAL_DEST/$_rel" "$STAGING/$_rel"
+        print_warn "Kept locally-modified $_rel (use --force to overwrite)"
+    done < "$CK_KEEP_FLAT"
+fi
+
 # ---- Atomic swap: back up any existing .claude, move staging into place ----
 if [[ -d "$FINAL_DEST" ]]; then
     BACKUP="$TARGET_DIR/.claude.bak-$(date +%Y%m%d-%H%M%S)"
     mv "$FINAL_DEST" "$BACKUP"
+    export CK_PREV_MANIFEST="$BACKUP/.claudekit-manifest.json"
+    # runtime/ is the project's own state (event logs, caches): moved across untouched,
+    # never staged, never receipted.
+    if [[ -d "$BACKUP/runtime" ]]; then
+        if [[ -e "$STAGING/runtime" ]]; then
+            cp -Rp "$BACKUP/runtime/." "$STAGING/runtime/"
+        else
+            mv "$BACKUP/runtime" "$STAGING/runtime"
+        fi
+    fi
 fi
 mv "$STAGING" "$FINAL_DEST"
 DEST="$FINAL_DEST"
@@ -749,7 +785,9 @@ NEVER_MANAGED = {"hooks.log", "settings.local.json", ".claudekit-manifest.json",
 
 dest, mode, lang = sys.argv[1], sys.argv[2], sys.argv[3]
 files = {}
-for root, _, names in os.walk(dest):
+for root, dirs, names in os.walk(dest):
+    dirs[:] = sorted(d for d in dirs if not (root == dest and d == "runtime"))
+    names.sort()
     for n in names:
         path = os.path.join(root, n)
         rel = os.path.relpath(path, dest)
@@ -763,6 +801,16 @@ for root, _, names in os.walk(dest):
 
 # An unpinnable source is recorded as unpinnable. Fabricating a commit - or
 # omitting the field so a reader assumes one - would make provenance a guess.
+# Kept (locally-modified) files are receipted with the KIT's hash so they stay kept.
+try:
+    with open(os.environ["CK_KEEP_JSON"], encoding="utf-8") as fh:
+        for rel, kit_hash in json.load(fh).items():
+            if rel in files and isinstance(kit_hash, str):
+                files[rel] = kit_hash
+except (KeyError, OSError, ValueError, AttributeError):
+    pass
+files = dict(sorted(files.items()))
+
 commit = os.environ.get("CK_SRC_COMMIT") or None
 source = {"commit": commit, "pinned": bool(commit)}
 if commit and os.environ.get("CK_SRC_DIRTY"):
@@ -793,10 +841,25 @@ manifest = {
     "parked": overrides["parked"],
     "removed": overrides["removed"],
 }
+# Idempotent receipt: an unchanged install keeps its timestamp, and keys other tools
+# added (e.g. last_enhanced) are carried, so a committed manifest does not churn.
+try:
+    with open(os.environ["CK_PREV_MANIFEST"], encoding="utf-8") as fh:
+        prev = json.load(fh)
+    if not isinstance(prev, dict):
+        prev = {}
+except (KeyError, OSError, ValueError):
+    prev = {}
+if all(prev.get(k) == manifest[k] for k in manifest if k != "installed_at") \
+        and isinstance(prev.get("installed_at"), str):
+    manifest["installed_at"] = prev["installed_at"]
+for k, v in prev.items():
+    if k not in manifest:
+        manifest[k] = v
 with open(os.path.join(dest, ".claudekit-manifest.json"), "w") as fh:
     json.dump(manifest, fh, indent=2)
 MANIFEST_PY
-rm -f "$CK_SKIP_FLAT" "$CK_SKIP_JSON"
+rm -f "$CK_SKIP_FLAT" "$CK_SKIP_JSON" "$CK_KEEP_FLAT" "$CK_KEEP_JSON"
 if [[ "$SKIPPED_COUNT" -gt 0 ]]; then
     print_ok "Skipped $SKIPPED_COUNT asset(s) this project parked or removed (recorded in the manifest)"
 fi

@@ -24,11 +24,11 @@ index never outranks the current files.
 |---|---:|
 | `drifted` | 12 |
 | `approved` | 63 |
-| `planned` | 33 |
+| `planned` | 35 |
 | `executed` | 30 |
 | `not_started` | 26 |
 | `legacy` | 5 |
-| **total** | **169** |
+| **total** | **171** |
 
 ## Plans
 
@@ -67,6 +67,7 @@ index never outranks the current files.
 | `.claude/plans/plan-context-budget-gate.md` | `approved` | 1 |  |
 | `.claude/plans/plan-context-budget-lazy-skills.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-context-economy-rules.md` | `approved` | 1 |  |
+| `.claude/plans/plan-context-growth-controls.md` | `planned` | 1 |  |
 | `.claude/plans/plan-context-recovery-refinement.md` | `approved` | 1 |  |
 | `.claude/plans/plan-contrib-governance-p1.md` | `planned` | 1 |  |
 | `.claude/plans/plan-contrib-governance-p2.md` | `planned` | 1 |  |
@@ -188,6 +189,7 @@ index never outranks the current files.
 | `.claude/plans/plan-token-waste-workflow-fixes.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-triage-refresh.md` | `executed` | 10 |  |
 | `.claude/plans/plan-uninstall-partial-owned-deadend.md` | `approved` | 1 |  |
+| `.claude/plans/plan-update-preserves-modified-files.md` | `planned` | 1 |  |
 | `.claude/plans/plan-validator-base-normalisation.md` | `approved` | 1 |  |
 | `.claude/plans/plan-validator-comment-escape.md` | `approved` | 1 |  |
 | `.claude/plans/plan-validator-comment-inert.md` | `approved` | 1 |  |

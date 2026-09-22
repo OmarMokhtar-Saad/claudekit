@@ -2288,7 +2288,7 @@ def cmd_update(args):
                 return 0
     else:
         modified, missing, _ = _classify_manifest(target, manifest)
-        if modified:
+        if modified and getattr(args, "force", False):
             warn(f"{len(modified)} locally-modified managed files will be overwritten "
                  "(the installer backs up the previous .claude/ first):")
             for rel in modified:
@@ -2305,7 +2305,17 @@ def cmd_update(args):
     # rather than silently reinstalling an older ejection as `generic`.
     _nested = _receipt.get("manifest") or {}
     mode = _receipt.get("mode") or _nested.get("mode") or "full"
-    cmd = ["bash", str(install_script), str(target), f"--{mode}", "--force", "--yes"]
+    # A receipted install keeps every locally-modified managed file unless --force; a
+    # legacy tree has no receipt to compare against, so it is replaced (backed up first).
+    force = manifest is None or getattr(args, "force", False)
+    if manifest is not None and not force:
+        kept = _classify_manifest(target, manifest)[0]
+        if kept:
+            info(f"{len(kept)} locally-modified managed files will be kept "
+                 "(use --force to overwrite).")
+    cmd = ["bash", str(install_script), str(target), f"--{mode}", "--yes"]
+    if force:
+        cmd.append("--force")
     lang = _receipt.get("language") or _nested.get("language")
     if lang and lang != "auto":
         cmd.extend(["--language", lang])
@@ -2921,6 +2931,8 @@ def main():
 
     # update
     p = sub.add_parser("update", help="Re-install over an existing project (backs up first)")
+    p.add_argument("--force", action="store_true",
+                   help="Overwrite locally-modified managed files (default: keep them)")
     p.add_argument("target", nargs="?", default=".", help="Project directory (default: .)")
     p.add_argument("--yes", "--non-interactive", dest="yes", action="store_true",
                    help="Assume yes to prompts")

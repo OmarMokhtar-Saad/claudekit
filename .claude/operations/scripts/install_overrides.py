@@ -30,6 +30,7 @@ tests that run install.sh end to end.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import sys
@@ -48,6 +49,13 @@ INFERRED_REMOVAL_ROOTS = ("agents/", "commands/", "skills/")
 
 # Roots whose `<root>-unused/` sibling marks parked files.
 PARKABLE_ROOTS = ("agents", "commands", "skills", "hooks")
+
+# Files the installer merges rather than copies; they are never "kept" wholesale.
+MERGED_FILES = ("settings.json", "skills/skills-registry.json")
+# Local-only by definition; never receipted, never compared.
+NEVER_MANAGED = ("hooks.log", "settings.local.json", ".claudekit-manifest.json",
+                 "session-footprint.md")
+MANIFEST = ".claudekit-manifest.json"
 
 
 def _read_json(path: str) -> Any:
@@ -111,9 +119,14 @@ def write_skip_files(final_dest: str, flat_out: str, json_out: str) -> int:
 def _deep_merge(kit: Any, project: Any) -> Any:
     """Project wins at every leaf; kit-only keys are added. Lists and scalars are leaves."""
     if isinstance(kit, dict) and isinstance(project, dict):
-        merged: Dict[str, Any] = dict(kit)
+        # Project key order first so a committed file round-trips byte for byte;
+        # kit-only keys are appended.
+        merged: Dict[str, Any] = {}
         for key, value in project.items():
             merged[key] = _deep_merge(kit[key], value) if key in kit else value
+        for key, value in kit.items():
+            if key not in merged:
+                merged[key] = value
         return merged
     return project
 
@@ -151,14 +164,132 @@ def write_merged_settings(kit_path: str, project_path: str, out_path: str) -> in
     return 0
 
 
+def _sha256(path: str) -> str:
+    with open(path, "rb") as fh:
+        return hashlib.sha256(fh.read()).hexdigest()
+
+
+def modified_files(final_dest: str, staging: str) -> Dict[str, str]:
+    """Managed files whose on-disk bytes differ from the hash the last install receipted.
+
+    Returns ``{rel: kit_hash}`` where ``kit_hash`` is the sha256 of the copy the new
+    install staged for that path. The manifest records that kit hash for a kept file, so
+    the file stays "locally modified" and is kept again on the next update. Merged files,
+    never-managed files, ``runtime/`` and paths the new kit does not ship are excluded;
+    a shipped path on disk that the receipt never recorded is kept too.
+    """
+    manifest = _read_json(os.path.join(final_dest, MANIFEST))
+    files = manifest.get("files") if isinstance(manifest, dict) else None
+    if not isinstance(files, dict):
+        return {}
+    out: Dict[str, str] = {}
+    # Walk what the new kit ships, not the receipt: a shipped file present on disk that
+    # the receipt never recorded has unknown provenance and is kept like a modified one.
+    for root, dirs, names in os.walk(staging):
+        dirs[:] = sorted(d for d in dirs if d != "__pycache__")
+        for name in sorted(names):
+            rel = os.path.relpath(os.path.join(root, name), staging)
+            if rel in MERGED_FILES or rel.startswith("runtime/") or name in NEVER_MANAGED:
+                continue
+            on_disk = os.path.join(final_dest, rel)
+            if not os.path.isfile(on_disk):
+                continue
+            try:
+                if rel in files and _sha256(on_disk) == files[rel]:
+                    continue
+                out[rel] = _sha256(os.path.join(root, name))
+            except OSError:
+                continue
+    return out
+
+
+def write_keep_files(final_dest: str, staging: str, flat_out: str, json_out: str) -> int:
+    """Flat list (one rel per line) for bash to copy back; JSON ``{rel: kit_hash}`` for the manifest."""
+    kept = modified_files(final_dest, staging)
+    with open(flat_out, "w", encoding="utf-8") as fh:
+        for rel in kept:
+            fh.write(rel + "\n")
+    with open(json_out, "w", encoding="utf-8") as fh:
+        json.dump(kept, fh, indent=2)
+    return 0
+
+
+def _entry_key(item: Any) -> Any:
+    if isinstance(item, dict):
+        for key in ("id", "name"):
+            if isinstance(item.get(key), str):
+                return item[key]
+    return None
+
+
+def merge_registry(kit: Any, project: Any) -> Any:
+    """Kit entries update shared ones; project-only entries and keys survive; kit-only are appended.
+
+    Dicts recurse in project key order. Lists of keyed dicts (``id``/``name``) keep project
+    order, take the kit's version of a shared entry, keep project-only entries and append
+    kit-only ones. Lists of strings are project + kit-only. Scalars are the kit's, except
+    ``lastUpdated`` which is the later of the two.
+    """
+    if isinstance(kit, dict) and isinstance(project, dict):
+        merged: Dict[str, Any] = {}
+        for key, value in project.items():
+            if key not in kit:
+                merged[key] = value
+            elif key == "lastUpdated" and isinstance(value, str) and isinstance(kit[key], str):
+                merged[key] = max(value, kit[key])
+            else:
+                merged[key] = merge_registry(kit[key], value)
+        for key, value in kit.items():
+            if key not in merged:
+                merged[key] = value
+        return merged
+    if isinstance(kit, list) and isinstance(project, list):
+        kit_keyed = {_entry_key(i): i for i in kit if _entry_key(i) is not None}
+        if kit_keyed or any(_entry_key(i) is not None for i in project):
+            out: List[Any] = []
+            seen: Set[Any] = set()
+            for item in project:
+                key = _entry_key(item)
+                if key is None:
+                    out.append(item)
+                    continue
+                seen.add(key)
+                out.append(kit_keyed.get(key, item))
+            out.extend(i for i in kit if _entry_key(i) is not None and _entry_key(i) not in seen)
+            return out
+        if all(isinstance(i, str) for i in kit + project):
+            return list(project) + [i for i in kit if i not in project]
+        return kit
+    return kit
+
+
+def write_merged_registry(kit_path: str, project_path: str, out_path: str) -> int:
+    kit = _read_json(kit_path)
+    project = _read_json(project_path)
+    if not isinstance(kit, dict) or not isinstance(project, dict):
+        sys.stderr.write(
+            f"install_overrides: skills-registry.json unreadable ({kit_path} / {project_path})\n")
+        return 1
+    with open(out_path, "w", encoding="utf-8") as fh:
+        json.dump(merge_registry(kit, project), fh, indent=2, ensure_ascii=False)
+        fh.write("\n")
+    return 0
+
+
 def main(argv: Sequence[str]) -> int:
     if len(argv) == 4 and argv[0] == "skip-list":
         return write_skip_files(argv[1], argv[2], argv[3])
     if len(argv) == 4 and argv[0] == "settings":
         return write_merged_settings(argv[1], argv[2], argv[3])
+    if len(argv) == 4 and argv[0] == "registry":
+        return write_merged_registry(argv[1], argv[2], argv[3])
+    if len(argv) == 5 and argv[0] == "keep-modified":
+        return write_keep_files(argv[1], argv[2], argv[3], argv[4])
     sys.stderr.write(
         "usage: install_overrides.py skip-list <final_dest> <flat_out> <json_out>\n"
-        "       install_overrides.py settings <kit_settings> <project_settings> <out>\n")
+        "       install_overrides.py settings <kit_settings> <project_settings> <out>\n"
+        "       install_overrides.py registry <kit_registry> <project_registry> <out>\n"
+        "       install_overrides.py keep-modified <final_dest> <staging> <flat_out> <json_out>\n")
     return 2
 
 

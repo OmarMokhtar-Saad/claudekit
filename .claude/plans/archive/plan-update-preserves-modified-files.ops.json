@@ -1,0 +1,131 @@
+{
+  "plan": "ops-update-preserves-modified-files",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/install_overrides.py",
+      "edits": [
+        {
+          "find": "import json\nimport os\nimport sys\n",
+          "replace": "import hashlib\nimport json\nimport os\nimport sys\n"
+        },
+        {
+          "find": "# Roots whose `<root>-unused/` sibling marks parked files.\nPARKABLE_ROOTS = (\"agents\", \"commands\", \"skills\", \"hooks\")\n",
+          "add_after": "\n# Files the installer merges rather than copies; they are never \"kept\" wholesale.\nMERGED_FILES = (\"settings.json\", \"skills/skills-registry.json\")\n# Local-only by definition; never receipted, never compared.\nNEVER_MANAGED = (\"hooks.log\", \"settings.local.json\", \".claudekit-manifest.json\",\n                 \"session-footprint.md\")\nMANIFEST = \".claudekit-manifest.json\"\n"
+        },
+        {
+          "find": "    if isinstance(kit, dict) and isinstance(project, dict):\n        merged: Dict[str, Any] = dict(kit)\n        for key, value in project.items():\n            merged[key] = _deep_merge(kit[key], value) if key in kit else value\n        return merged\n    return project\n",
+          "replace": "    if isinstance(kit, dict) and isinstance(project, dict):\n        # Project key order first so a committed file round-trips byte for byte;\n        # kit-only keys are appended.\n        merged: Dict[str, Any] = {}\n        for key, value in project.items():\n            merged[key] = _deep_merge(kit[key], value) if key in kit else value\n        for key, value in kit.items():\n            if key not in merged:\n                merged[key] = value\n        return merged\n    return project\n"
+        },
+        {
+          "find": "def main(argv: Sequence[str]) -> int:\n",
+          "add_before": "def _sha256(path: str) -> str:\n    with open(path, \"rb\") as fh:\n        return hashlib.sha256(fh.read()).hexdigest()\n\n\ndef modified_files(final_dest: str, staging: str) -> Dict[str, str]:\n    \"\"\"Managed files whose on-disk bytes differ from the hash the last install receipted.\n\n    Returns ``{rel: kit_hash}`` where ``kit_hash`` is the sha256 of the copy the new\n    install staged for that path. The manifest records that kit hash for a kept file, so\n    the file stays \"locally modified\" and is kept again on the next update. Merged files,\n    never-managed files, ``runtime/`` and paths the new kit does not ship are excluded.\n    \"\"\"\n    manifest = _read_json(os.path.join(final_dest, MANIFEST))\n    files = manifest.get(\"files\") if isinstance(manifest, dict) else None\n    if not isinstance(files, dict):\n        return {}\n    out: Dict[str, str] = {}\n    for rel in sorted(files):\n        if not isinstance(rel, str) or rel in MERGED_FILES or rel.startswith(\"runtime/\"):\n            continue\n        if os.path.basename(rel) in NEVER_MANAGED:\n            continue\n        on_disk = os.path.join(final_dest, rel)\n        staged = os.path.join(staging, rel)\n        if not os.path.isfile(on_disk) or not os.path.isfile(staged):\n            continue\n        try:\n            if _sha256(on_disk) == files[rel]:\n                continue\n            out[rel] = _sha256(staged)\n        except OSError:\n            continue\n    return out\n\n\ndef write_keep_files(final_dest: str, staging: str, flat_out: str, json_out: str) -> int:\n    \"\"\"Flat list (one rel per line) for bash to copy back; JSON ``{rel: kit_hash}`` for the manifest.\"\"\"\n    kept = modified_files(final_dest, staging)\n    with open(flat_out, \"w\", encoding=\"utf-8\") as fh:\n        for rel in kept:\n            fh.write(rel + \"\\n\")\n    with open(json_out, \"w\", encoding=\"utf-8\") as fh:\n        json.dump(kept, fh, indent=2)\n    return 0\n\n\ndef _entry_key(item: Any) -> Any:\n    if isinstance(item, dict):\n        for key in (\"id\", \"name\"):\n            if isinstance(item.get(key), str):\n                return item[key]\n    return None\n\n\ndef merge_registry(kit: Any, project: Any) -> Any:\n    \"\"\"Kit entries update shared ones; project-only entries and keys survive; kit-only are appended.\n\n    Dicts recurse in project key order. Lists of keyed dicts (``id``/``name``) keep project\n    order, take the kit's version of a shared entry, keep project-only entries and append\n    kit-only ones. Lists of strings are project + kit-only. Scalars are the kit's, except\n    ``lastUpdated`` which is the later of the two.\n    \"\"\"\n    if isinstance(kit, dict) and isinstance(project, dict):\n        merged: Dict[str, Any] = {}\n        for key, value in project.items():\n            if key not in kit:\n                merged[key] = value\n            elif key == \"lastUpdated\" and isinstance(value, str) and isinstance(kit[key], str):\n                merged[key] = max(value, kit[key])\n            else:\n                merged[key] = merge_registry(kit[key], value)\n        for key, value in kit.items():\n            if key not in merged:\n                merged[key] = value\n        return merged\n    if isinstance(kit, list) and isinstance(project, list):\n        kit_keyed = {_entry_key(i): i for i in kit if _entry_key(i) is not None}\n        if kit_keyed or any(_entry_key(i) is not None for i in project):\n            out: List[Any] = []\n            seen: Set[Any] = set()\n            for item in project:\n                key = _entry_key(item)\n                if key is None:\n                    out.append(item)\n                    continue\n                seen.add(key)\n                out.append(kit_keyed.get(key, item))\n            out.extend(i for i in kit if _entry_key(i) is not None and _entry_key(i) not in seen)\n            return out\n        if all(isinstance(i, str) for i in kit + project):\n            return list(project) + [i for i in kit if i not in project]\n        return kit\n    return kit\n\n\ndef write_merged_registry(kit_path: str, project_path: str, out_path: str) -> int:\n    kit = _read_json(kit_path)\n    project = _read_json(project_path)\n    if not isinstance(kit, dict) or not isinstance(project, dict):\n        sys.stderr.write(\n            f\"install_overrides: skills-registry.json unreadable ({kit_path} / {project_path})\\n\")\n        return 1\n    with open(out_path, \"w\", encoding=\"utf-8\") as fh:\n        json.dump(merge_registry(kit, project), fh, indent=2, ensure_ascii=False)\n        fh.write(\"\\n\")\n    return 0\n\n\n"
+        },
+        {
+          "find": "    if len(argv) == 4 and argv[0] == \"settings\":\n        return write_merged_settings(argv[1], argv[2], argv[3])\n    sys.stderr.write(\n        \"usage: install_overrides.py skip-list <final_dest> <flat_out> <json_out>\\n\"\n        \"       install_overrides.py settings <kit_settings> <project_settings> <out>\\n\")\n",
+          "replace": "    if len(argv) == 4 and argv[0] == \"settings\":\n        return write_merged_settings(argv[1], argv[2], argv[3])\n    if len(argv) == 4 and argv[0] == \"registry\":\n        return write_merged_registry(argv[1], argv[2], argv[3])\n    if len(argv) == 5 and argv[0] == \"keep-modified\":\n        return write_keep_files(argv[1], argv[2], argv[3], argv[4])\n    sys.stderr.write(\n        \"usage: install_overrides.py skip-list <final_dest> <flat_out> <json_out>\\n\"\n        \"       install_overrides.py settings <kit_settings> <project_settings> <out>\\n\"\n        \"       install_overrides.py registry <kit_registry> <project_registry> <out>\\n\"\n        \"       install_overrides.py keep-modified <final_dest> <staging> <flat_out> <json_out>\\n\")\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "install.sh",
+      "edits": [
+        {
+          "find": "  --force         Overwrite existing .claude directory (backed up first)",
+          "replace": "  --force         Overwrite locally-modified managed files (default: keep them; the tree is backed up first)"
+        },
+        {
+          "find": "    if [[ -f \"$CLAUDE_SRC/skills/skills-registry.json\" ]]; then\n        cp \"$CLAUDE_SRC/skills/skills-registry.json\" \"$DEST/skills/\"\n    fi\n",
+          "replace": "    if [[ -f \"$CLAUDE_SRC/skills/skills-registry.json\" ]]; then\n        if [[ -f \"$FINAL_DEST/skills/skills-registry.json\" ]] && \\\n           python3 \"$CLAUDE_SRC/operations/scripts/install_overrides.py\" registry \\\n               \"$CLAUDE_SRC/skills/skills-registry.json\" \\\n               \"$FINAL_DEST/skills/skills-registry.json\" \\\n               \"$DEST/skills/skills-registry.json\"; then\n            print_ok \"skills-registry.json merged (project entries kept)\"\n        else\n            cp \"$CLAUDE_SRC/skills/skills-registry.json\" \"$DEST/skills/\"\n        fi\n    fi\n"
+        },
+        {
+          "find": "# ---- Atomic swap: back up any existing .claude, move staging into place ----\n",
+          "add_before": "# ---- Keep locally-modified managed files (hash differs from the last receipt) ----\n# The previous manifest holds the kit's hash of every managed file. A file whose bytes\n# no longer match was edited by the project; it is copied back over the staged kit copy\n# unless --force. The new manifest keeps the KIT hash for it, so it stays \"modified\".\nCK_KEEP_FLAT=\"$(mktemp \"${TMPDIR:-/tmp}/ck-keep.XXXXXX\")\"\nCK_KEEP_JSON=\"$CK_KEEP_FLAT.json\"\nexport CK_KEEP_JSON\nif [[ -d \"$FINAL_DEST\" ]] && [[ \"$FORCE\" != true ]]; then\n    python3 \"$CLAUDE_SRC/operations/scripts/install_overrides.py\" keep-modified \\\n        \"$FINAL_DEST\" \"$STAGING\" \"$CK_KEEP_FLAT\" \"$CK_KEEP_JSON\" \\\n        || print_warn \"Could not compute locally-modified files; kit copies will be installed\"\n    while IFS= read -r _rel; do\n        [[ -n \"$_rel\" ]] || continue\n        cp -p \"$FINAL_DEST/$_rel\" \"$STAGING/$_rel\"\n        print_warn \"Kept locally-modified $_rel (use --force to overwrite)\"\n    done < \"$CK_KEEP_FLAT\"\nfi\n\n"
+        },
+        {
+          "find": "    BACKUP=\"$TARGET_DIR/.claude.bak-$(date +%Y%m%d-%H%M%S)\"\n    mv \"$FINAL_DEST\" \"$BACKUP\"\nfi\n",
+          "replace": "    BACKUP=\"$TARGET_DIR/.claude.bak-$(date +%Y%m%d-%H%M%S)\"\n    mv \"$FINAL_DEST\" \"$BACKUP\"\n    export CK_PREV_MANIFEST=\"$BACKUP/.claudekit-manifest.json\"\n    # runtime/ is the project's own state (event logs, caches): moved across untouched,\n    # never staged, never receipted.\n    if [[ -d \"$BACKUP/runtime\" ]]; then\n        if [[ -e \"$STAGING/runtime\" ]]; then\n            cp -Rp \"$BACKUP/runtime/.\" \"$STAGING/runtime/\"\n        else\n            mv \"$BACKUP/runtime\" \"$STAGING/runtime\"\n        fi\n    fi\nfi\n"
+        },
+        {
+          "find": "dest, mode, lang = sys.argv[1], sys.argv[2], sys.argv[3]\nfiles = {}\nfor root, _, names in os.walk(dest):\n    for n in names:\n",
+          "replace": "dest, mode, lang = sys.argv[1], sys.argv[2], sys.argv[3]\nfiles = {}\nfor root, dirs, names in os.walk(dest):\n    dirs[:] = sorted(d for d in dirs if not (root == dest and d == \"runtime\"))\n    names.sort()\n    for n in names:\n"
+        },
+        {
+          "find": "commit = os.environ.get(\"CK_SRC_COMMIT\") or None\n",
+          "add_before": "# Kept (locally-modified) files are receipted with the KIT's hash so they stay kept.\ntry:\n    with open(os.environ[\"CK_KEEP_JSON\"], encoding=\"utf-8\") as fh:\n        for rel, kit_hash in json.load(fh).items():\n            if rel in files and isinstance(kit_hash, str):\n                files[rel] = kit_hash\nexcept (KeyError, OSError, ValueError, AttributeError):\n    pass\nfiles = dict(sorted(files.items()))\n\n"
+        },
+        {
+          "find": "with open(os.path.join(dest, \".claudekit-manifest.json\"), \"w\") as fh:\n    json.dump(manifest, fh, indent=2)\n",
+          "replace": "# Idempotent receipt: an unchanged install keeps its timestamp, and keys other tools\n# added (e.g. last_enhanced) are carried, so a committed manifest does not churn.\ntry:\n    with open(os.environ[\"CK_PREV_MANIFEST\"], encoding=\"utf-8\") as fh:\n        prev = json.load(fh)\n    if not isinstance(prev, dict):\n        prev = {}\nexcept (KeyError, OSError, ValueError):\n    prev = {}\nif all(prev.get(k) == manifest[k] for k in manifest if k != \"installed_at\") \\\n        and isinstance(prev.get(\"installed_at\"), str):\n    manifest[\"installed_at\"] = prev[\"installed_at\"]\nfor k, v in prev.items():\n    if k not in manifest:\n        manifest[k] = v\nwith open(os.path.join(dest, \".claudekit-manifest.json\"), \"w\") as fh:\n    json.dump(manifest, fh, indent=2)\n"
+        },
+        {
+          "find": "rm -f \"$CK_SKIP_FLAT\" \"$CK_SKIP_JSON\"\n",
+          "replace": "rm -f \"$CK_SKIP_FLAT\" \"$CK_SKIP_JSON\" \"$CK_KEEP_FLAT\" \"$CK_KEEP_JSON\"\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/preserve_assets.py",
+      "edits": [
+        {
+          "find": "        dirs[:] = [d for d in dirs if d != \"__pycache__\"]\n",
+          "replace": "        dirs[:] = [d for d in dirs if d != \"__pycache__\" and not (root == backup and d == \"runtime\")]\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "src/claudekit/cli/main.py",
+      "edits": [
+        {
+          "find": "        if modified:\n            warn(f\"{len(modified)} locally-modified managed files will be overwritten \"\n",
+          "replace": "        if modified and getattr(args, \"force\", False):\n            warn(f\"{len(modified)} locally-modified managed files will be overwritten \"\n"
+        },
+        {
+          "find": "    cmd = [\"bash\", str(install_script), str(target), f\"--{mode}\", \"--force\", \"--yes\"]\n",
+          "replace": "    # A receipted install keeps every locally-modified managed file unless --force; a\n    # legacy tree has no receipt to compare against, so it is replaced (backed up first).\n    force = manifest is None or getattr(args, \"force\", False)\n    if manifest is not None and not force:\n        kept = _classify_manifest(target, manifest)[0]\n        if kept:\n            info(f\"{len(kept)} locally-modified managed files will be kept \"\n                 \"(use --force to overwrite).\")\n    cmd = [\"bash\", str(install_script), str(target), f\"--{mode}\", \"--yes\"]\n    if force:\n        cmd.append(\"--force\")\n"
+        },
+        {
+          "find": "    p = sub.add_parser(\"update\", help=\"Re-install over an existing project (backs up first)\")\n",
+          "add_after": "    p.add_argument(\"--force\", action=\"store_true\",\n                   help=\"Overwrite locally-modified managed files (default: keep them)\")\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_cli.py",
+      "edits": [
+        {
+          "find": "        rc = m.cmd_update(self._ns(target=str(tmp_path), yes=True))\n        assert rc == 0\n        assert \"--force\" in recorded[\"cmd\"] and \"--full\" in recorded[\"cmd\"]\n",
+          "add_after": "\n    def test_update_keeps_modified_files_unless_forced(self, tmp_path, monkeypatch):\n        # Receipted install: the installer must NOT get --force (it keeps local edits)\n        # unless the user passed `ck update --force`.\n        m = self._import_main()\n        base = tmp_path / \".claude\"\n        (base / \"agents\").mkdir(parents=True)\n        (base / m.MANIFEST_NAME).write_text(json.dumps(\n            {\"version\": \"0.0.0\", \"mode\": \"full\", \"files\": {}}))\n        recorded = {}\n\n        def fake_run(cmd, *a, **kw):\n            recorded[\"cmd\"] = cmd\n            class R:\n                returncode = 0\n            return R()\n\n        monkeypatch.setattr(m.subprocess, \"run\", fake_run)\n        assert m.cmd_update(self._ns(target=str(tmp_path), yes=True)) == 0\n        assert \"--force\" not in recorded[\"cmd\"], \"a receipted update overwrote local edits\"\n        assert m.cmd_update(self._ns(target=str(tmp_path), yes=True, force=True)) == 0\n        assert \"--force\" in recorded[\"cmd\"]\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_install_overrides.py",
+      "edits": [
+        {
+          "find": "  - unparseable settings.json overwritten -> install \"succeeds\" and the old tree is replaced\n\"\"\"\n",
+          "replace": "  - unparseable settings.json overwritten -> install \"succeeds\" and the old tree is replaced\n  - modified managed file overwritten     -> git status shows M after a reinstall\n  - registry copied instead of merged     -> the project's skill entry is gone\n  - runtime/ staged or receipted          -> events jsonl changes / manifest churns\n\"\"\"\n"
+        },
+        {
+          "find": "@pytest.mark.parametrize(\"key\", [\"parked\", \"removed\"])\ndef test_fresh_manifest_has_empty_override_lists(tmp_path, key):\n    assert manifest(fresh_project(tmp_path))[key] == []\n",
+          "add_after": "\n\n# ---------------------------------------------------------------- module: merge order / registry\n\ndef test_deep_merge_keeps_project_key_order_then_appends_kit_keys():\n    merged = mod._deep_merge({\"a\": 1, \"b\": {\"x\": 1, \"y\": 2}, \"z\": 9}, {\"b\": {\"y\": 3}, \"a\": 2})\n    assert list(merged) == [\"b\", \"a\", \"z\"]\n    assert merged[\"b\"] == {\"y\": 3, \"x\": 1}\n\n\nKIT_REG = {\"version\": \"2.0\", \"lastUpdated\": \"2026-09-01\",\n           \"skills\": [{\"id\": \"tdd\", \"name\": \"tdd\", \"path\": \"skills/tdd/SKILL.md\", \"usedBy\": [\"tester\"]},\n                      {\"id\": \"new-kit\", \"name\": \"new-kit\", \"path\": \"skills/new-kit/SKILL.md\"}],\n           \"agentMapping\": {\"tester\": [\"tdd\"]}, \"agentsWithoutSkills\": [\"gitOps\"]}\nPROJ_REG = {\"version\": \"1.0\", \"lastUpdated\": \"2026-09-10\",\n            \"skills\": [{\"id\": \"flow-diagram\", \"name\": \"flow-diagram\", \"path\": \"skills/flow-diagram/SKILL.md\"},\n                       {\"id\": \"tdd\", \"name\": \"tdd\", \"path\": \"skills/tdd/SKILL.md\", \"usedBy\": []}],\n            \"agentMapping\": {\"tester\": [\"tdd\"], \"qa-lead\": [\"flow-diagram\"]},\n            \"agentsWithoutSkills\": [\"gitOps\", \"local-only\"]}\n\n\ndef test_merge_registry_keeps_project_entries_and_adds_kit_ones():\n    got = mod.merge_registry(KIT_REG, PROJ_REG)\n    ids = [s[\"id\"] for s in got[\"skills\"]]\n    assert ids == [\"flow-diagram\", \"tdd\", \"new-kit\"]\n    assert got[\"skills\"][1][\"usedBy\"] == [\"tester\"], \"shared entry takes the kit version\"\n    assert got[\"agentMapping\"] == {\"tester\": [\"tdd\"], \"qa-lead\": [\"flow-diagram\"]}\n    assert got[\"agentsWithoutSkills\"] == [\"gitOps\", \"local-only\"]\n    assert got[\"version\"] == \"2.0\" and got[\"lastUpdated\"] == \"2026-09-10\"\n\n\ndef test_merge_registry_is_idempotent():\n    once = mod.merge_registry(KIT_REG, PROJ_REG)\n    assert mod.merge_registry(KIT_REG, once) == once\n\n\ndef test_write_merged_registry_fails_closed_on_garbage(tmp_path):\n    kit = tmp_path / \"kit.json\"\n    kit.write_text(json.dumps(KIT_REG))\n    proj = tmp_path / \"proj.json\"\n    proj.write_text(\"[not an object]\")\n    out = tmp_path / \"out.json\"\n    assert mod.write_merged_registry(str(kit), str(proj), str(out)) == 1\n    assert not out.exists()\n\n\ndef test_modified_files_reports_only_changed_managed_files(tmp_path):\n    final = tmp_path / \"final\"\n    staging = tmp_path / \"staging\"\n    for d in (final, staging):\n        (d / \"agents\").mkdir(parents=True)\n        (d / \"runtime\" / \"events\").mkdir(parents=True)\n        (d / \"agents\" / \"same.md\").write_text(\"same\")\n        (d / \"agents\" / \"edited.md\").write_text(\"kit\")\n        (d / \"settings.json\").write_text(\"{}\")\n    (final / \"agents\" / \"edited.md\").write_text(\"project\")\n    (final / \"agents\" / \"gone-from-kit.md\").write_text(\"project\")\n    (final / \"runtime\" / \"events\" / \"local.jsonl\").write_text(\"x\")\n    (final / \"settings.json\").write_text('{\"a\": 1}')\n    h = lambda s: mod.hashlib.sha256(s.encode()).hexdigest()  # noqa: E731\n    (final / \".claudekit-manifest.json\").write_text(json.dumps({\"files\": {\n        \"agents/same.md\": h(\"same\"), \"agents/edited.md\": h(\"kit\"),\n        \"agents/gone-from-kit.md\": h(\"kit\"), \"runtime/events/local.jsonl\": h(\"kit\"),\n        \"settings.json\": h(\"{}\"), \"hooks.log\": h(\"kit\")}}))\n    assert mod.modified_files(str(final), str(staging)) == {\"agents/edited.md\": h(\"kit\")}\n\n\n# ---------------------------------------------------------------- install.sh: modified tree\n\ndef _git(cwd, *args):\n    return subprocess.run([\"git\", \"-C\", str(cwd), *args], capture_output=True, text=True,\n                          check=True).stdout\n\n\ndef test_reinstall_over_modified_committed_tree_changes_no_tracked_file(tmp_path):\n    \"\"\"The user's acceptance test (qa-agents, 2026-09-23): commit a project tree that edits\n    an agent, a hook, a skill, settings.json, the registry and runtime events; reinstall;\n    `git status --short` shows no modified tracked file. `--force` then overwrites.\"\"\"\n    claude = fresh_project(tmp_path)\n    planner = claude / \"agents\" / \"planner.md\"\n    planner.write_text(\"# project planner\\n\")\n    hook = claude / \"hooks\" / \"notify.sh\"\n    hook.write_text(hook.read_text() + \"\\n# project tweak\\n\")\n    skill = next(claude.glob(\"skills/*/SKILL.md\"))\n    skill.write_text(skill.read_text() + \"\\nproject addendum\\n\")\n    settings = json.loads((claude / \"settings.json\").read_text())\n    settings[\"autoCompactWindow\"] = 123456\n    settings[\"env\"] = dict(settings.get(\"env\", {}), CK_PROJECT_ONLY=\"1\")\n    (claude / \"settings.json\").write_text(json.dumps(settings, indent=2) + \"\\n\")\n    reg_path = claude / \"skills\" / \"skills-registry.json\"\n    reg = json.loads(reg_path.read_text())\n    reg[\"skills\"].append({\"id\": \"flow-diagram\", \"name\": \"flow-diagram\",\n                          \"path\": \"skills/flow-diagram/SKILL.md\", \"mandatory\": False,\n                          \"usedBy\": [\"qa-lead\"], \"description\": \"project skill\"})\n    reg_path.write_text(json.dumps(reg, indent=2, ensure_ascii=False) + \"\\n\")\n    events = claude / \"runtime\" / \"events\" / \"local.jsonl\"\n    events.parent.mkdir(parents=True)\n    events.write_text('{\"event\": \"project\"}\\n')\n    _git(tmp_path, \"init\", \"-q\")\n    _git(tmp_path, \"config\", \"user.email\", \"t@example.com\")\n    _git(tmp_path, \"config\", \"user.name\", \"t\")\n    _git(tmp_path, \"add\", \"-A\")\n    _git(tmp_path, \"commit\", \"-qm\", \"project state\")\n\n    r = install(tmp_path, \"--full\", \"--yes\")\n    assert r.returncode == 0, r.stderr + r.stdout\n    status = [l for l in _git(tmp_path, \"status\", \"--short\").splitlines() if not l.startswith(\"??\")]\n    assert status == [], \"reinstall changed tracked files:\\n\" + \"\\n\".join(status)\n    untracked = [l for l in _git(tmp_path, \"status\", \"--short\").splitlines() if l.startswith(\"??\")]\n    assert all(\".claude.bak-\" in l for l in untracked), untracked\n    assert \"Kept locally-modified agents/planner.md\" in r.stdout + r.stderr\n    assert manifest(claude)[\"files\"][\"agents/planner.md\"] != mod._sha256(str(planner)), \\\n        \"a kept file must be receipted with the kit hash so it stays kept\"\n    assert not any(k.startswith(\"runtime/\") for k in manifest(claude)[\"files\"])\n\n    r = install(tmp_path, \"--full\", \"--yes\", \"--force\")\n    assert r.returncode == 0, r.stderr + r.stdout\n    assert planner.read_text() != \"# project planner\\n\", \"--force must overwrite\"\n    assert events.read_text() == '{\"event\": \"project\"}\\n', \"runtime is never the installer's\"\n    assert json.loads((claude / \"settings.json\").read_text())[\"autoCompactWindow\"] == 123456\n\n\ndef test_manifest_is_stable_across_reinstall_and_carries_foreign_keys(tmp_path):\n    claude = fresh_project(tmp_path)\n    path = claude / \".claudekit-manifest.json\"\n    m = manifest(claude)\n    m[\"last_enhanced\"] = \"2026-01-01T00:00:00\"\n    path.write_text(json.dumps(m, indent=2))\n    r = install(tmp_path, \"--full\", \"--yes\")\n    assert r.returncode == 0, r.stderr + r.stdout\n    got = manifest(claude)\n    assert got[\"last_enhanced\"] == \"2026-01-01T00:00:00\"\n    assert got[\"installed_at\"] == m[\"installed_at\"], \"unchanged install must keep its timestamp\"\n    first = path.read_bytes()\n    r = install(tmp_path, \"--full\", \"--yes\")\n    assert r.returncode == 0, r.stderr + r.stdout\n    assert path.read_bytes() == first\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "CHANGELOG.md",
+      "edits": [
+        {
+          "find": "## [Unreleased]\n- **The kit template ships the context-saving settings.**",
+          "replace": "## [Unreleased]\n- **`ck update` keeps locally-modified managed files.** Any managed file whose bytes\n  differ from the hash the last install receipted is kept with a warning instead of\n  being replaced (`--force` overwrites). `skills-registry.json` is merged so project\n  entries survive, `settings.json` keeps the project's key order (project wins on every\n  key except `hooks`), `runtime/` is moved across untouched and never receipted, and\n  the manifest is idempotent, so a reinstall over a committed tree leaves\n  `git status` clean.\n- **The kit template ships the context-saving settings.**"
+        }
+      ]
+    }
+  ]
+}

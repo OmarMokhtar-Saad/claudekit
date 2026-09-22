@@ -14,6 +14,9 @@ Mutants this file kills:
   - settings copied instead of merged    -> the four project keys are gone
   - project wins on `hooks` too          -> stale hooks survive the update
   - unparseable settings.json overwritten -> install "succeeds" and the old tree is replaced
+  - modified managed file overwritten     -> git status shows M after a reinstall
+  - registry copied instead of merged     -> the project's skill entry is gone
+  - runtime/ staged or receipted          -> events jsonl changes / manifest churns
 """
 import importlib.util
 import json
@@ -216,3 +219,147 @@ def test_fresh_install_still_copies_settings(tmp_path):
 @pytest.mark.parametrize("key", ["parked", "removed"])
 def test_fresh_manifest_has_empty_override_lists(tmp_path, key):
     assert manifest(fresh_project(tmp_path))[key] == []
+
+
+# ---------------------------------------------------------------- module: merge order / registry
+
+def test_deep_merge_keeps_project_key_order_then_appends_kit_keys():
+    merged = mod._deep_merge({"a": 1, "b": {"x": 1, "y": 2}, "z": 9}, {"b": {"y": 3}, "a": 2})
+    assert list(merged) == ["b", "a", "z"]
+    assert merged["b"] == {"y": 3, "x": 1}
+
+
+KIT_REG = {"version": "2.0", "lastUpdated": "2026-09-01",
+           "skills": [{"id": "tdd", "name": "tdd", "path": "skills/tdd/SKILL.md", "usedBy": ["tester"]},
+                      {"id": "new-kit", "name": "new-kit", "path": "skills/new-kit/SKILL.md"}],
+           "agentMapping": {"tester": ["tdd"]}, "agentsWithoutSkills": ["gitOps"]}
+PROJ_REG = {"version": "1.0", "lastUpdated": "2026-09-10",
+            "skills": [{"id": "flow-diagram", "name": "flow-diagram", "path": "skills/flow-diagram/SKILL.md"},
+                       {"id": "tdd", "name": "tdd", "path": "skills/tdd/SKILL.md", "usedBy": []}],
+            "agentMapping": {"tester": ["tdd"], "qa-lead": ["flow-diagram"]},
+            "agentsWithoutSkills": ["gitOps", "local-only"]}
+
+
+def test_merge_registry_keeps_project_entries_and_adds_kit_ones():
+    got = mod.merge_registry(KIT_REG, PROJ_REG)
+    ids = [s["id"] for s in got["skills"]]
+    assert ids == ["flow-diagram", "tdd", "new-kit"]
+    assert got["skills"][1]["usedBy"] == ["tester"], "shared entry takes the kit version"
+    assert got["agentMapping"] == {"tester": ["tdd"], "qa-lead": ["flow-diagram"]}
+    assert got["agentsWithoutSkills"] == ["gitOps", "local-only"]
+    assert got["version"] == "2.0" and got["lastUpdated"] == "2026-09-10"
+
+
+def test_merge_registry_is_idempotent():
+    once = mod.merge_registry(KIT_REG, PROJ_REG)
+    assert mod.merge_registry(KIT_REG, once) == once
+
+
+def test_write_merged_registry_fails_closed_on_garbage(tmp_path):
+    kit = tmp_path / "kit.json"
+    kit.write_text(json.dumps(KIT_REG))
+    proj = tmp_path / "proj.json"
+    proj.write_text("[not an object]")
+    out = tmp_path / "out.json"
+    assert mod.write_merged_registry(str(kit), str(proj), str(out)) == 1
+    assert not out.exists()
+
+
+def test_modified_files_reports_only_changed_managed_files(tmp_path):
+    final = tmp_path / "final"
+    staging = tmp_path / "staging"
+    for d in (final, staging):
+        (d / "agents").mkdir(parents=True)
+        (d / "runtime" / "events").mkdir(parents=True)
+        (d / "agents" / "same.md").write_text("same")
+        (d / "agents" / "edited.md").write_text("kit")
+        (d / "settings.json").write_text("{}")
+        (d / "agents" / "unreceipted.md").write_text("kit-shipped")
+    (final / "agents" / "edited.md").write_text("project")
+    (final / "agents" / "unreceipted.md").write_text("project-added")
+    (final / "agents" / "gone-from-kit.md").write_text("project")
+    (final / "runtime" / "events" / "local.jsonl").write_text("x")
+    (final / "settings.json").write_text('{"a": 1}')
+    h = lambda s: mod.hashlib.sha256(s.encode()).hexdigest()  # noqa: E731
+    (final / ".claudekit-manifest.json").write_text(json.dumps({"files": {
+        "agents/same.md": h("same"), "agents/edited.md": h("kit"),
+        "agents/gone-from-kit.md": h("kit"), "runtime/events/local.jsonl": h("kit"),
+        "settings.json": h("{}"), "hooks.log": h("kit")}}))
+    assert mod.modified_files(str(final), str(staging)) == {
+        "agents/edited.md": h("kit"), "agents/unreceipted.md": h("kit-shipped")}
+
+
+# ---------------------------------------------------------------- install.sh: modified tree
+
+def _git(cwd, *args):
+    return subprocess.run(["git", "-C", str(cwd), *args], capture_output=True, text=True,
+                          check=True).stdout
+
+
+def test_reinstall_over_modified_committed_tree_changes_no_tracked_file(tmp_path):
+    """The user's acceptance test (qa-agents, 2026-09-23): commit a project tree that edits
+    an agent, a hook, a skill, settings.json, the registry and runtime events; reinstall;
+    `git status --short` shows no modified tracked file. `--force` then overwrites."""
+    claude = fresh_project(tmp_path)
+    planner = claude / "agents" / "planner.md"
+    planner.write_text("# project planner\n")
+    hook = claude / "hooks" / "auto-checkpoint.sh"
+    hook.write_text(hook.read_text() + "\n# project tweak\n")
+    skill = next(claude.glob("skills/*/SKILL.md"))
+    skill.write_text(skill.read_text() + "\nproject addendum\n")
+    settings = json.loads((claude / "settings.json").read_text())
+    settings["autoCompactWindow"] = 123456
+    settings["env"] = dict(settings.get("env", {}), CK_PROJECT_ONLY="1")
+    (claude / "settings.json").write_text(json.dumps(settings, indent=2) + "\n")
+    reg_path = claude / "skills" / "skills-registry.json"
+    reg = json.loads(reg_path.read_text())
+    reg["skills"].append({"id": "flow-diagram", "name": "flow-diagram",
+                          "path": "skills/flow-diagram/SKILL.md", "mandatory": False,
+                          "usedBy": ["qa-lead"], "description": "project skill"})
+    reg_path.write_text(json.dumps(reg, indent=2, ensure_ascii=False) + "\n")
+    events = claude / "runtime" / "events" / "local.jsonl"
+    events.parent.mkdir(parents=True)
+    events.write_text('{"event": "project"}\n')
+    # The receipt legitimately changes on the first run after settings/registry edits
+    # (merged files are hashed after the merge); the committed baseline is that run.
+    r0 = install(tmp_path, "--full", "--yes")
+    assert r0.returncode == 0, r0.stderr + r0.stdout
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", "user.email", "t@example.com")
+    _git(tmp_path, "config", "user.name", "t")
+    _git(tmp_path, "add", "-A")
+    _git(tmp_path, "commit", "-qm", "project state")
+
+    r = install(tmp_path, "--full", "--yes")
+    assert r.returncode == 0, r.stderr + r.stdout
+    status = [ln for ln in _git(tmp_path, "status", "--short").splitlines() if not ln.startswith("??")]
+    assert status == [], "reinstall changed tracked files:\n" + "\n".join(status)
+    untracked = [ln for ln in _git(tmp_path, "status", "--short").splitlines() if ln.startswith("??")]
+    assert all(".claude.bak-" in ln for ln in untracked), untracked
+    assert "Kept locally-modified agents/planner.md" in r.stdout + r.stderr
+    assert manifest(claude)["files"]["agents/planner.md"] != mod._sha256(str(planner)), \
+        "a kept file must be receipted with the kit hash so it stays kept"
+    assert not any(k.startswith("runtime/") for k in manifest(claude)["files"])
+
+    r = install(tmp_path, "--full", "--yes", "--force")
+    assert r.returncode == 0, r.stderr + r.stdout
+    assert planner.read_text() != "# project planner\n", "--force must overwrite"
+    assert events.read_text() == '{"event": "project"}\n', "runtime is never the installer's"
+    assert json.loads((claude / "settings.json").read_text())["autoCompactWindow"] == 123456
+
+
+def test_manifest_is_stable_across_reinstall_and_carries_foreign_keys(tmp_path):
+    claude = fresh_project(tmp_path)
+    path = claude / ".claudekit-manifest.json"
+    m = manifest(claude)
+    m["last_enhanced"] = "2026-01-01T00:00:00"
+    path.write_text(json.dumps(m, indent=2))
+    r = install(tmp_path, "--full", "--yes")
+    assert r.returncode == 0, r.stderr + r.stdout
+    got = manifest(claude)
+    assert got["last_enhanced"] == "2026-01-01T00:00:00"
+    assert got["installed_at"] == m["installed_at"], "unchanged install must keep its timestamp"
+    first = path.read_bytes()
+    r = install(tmp_path, "--full", "--yes")
+    assert r.returncode == 0, r.stderr + r.stdout
+    assert path.read_bytes() == first
