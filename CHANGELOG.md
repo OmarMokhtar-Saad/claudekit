@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `open-source-forker` — never shipped and have been removed.
 
 ## [Unreleased]
+
+- autoCompactWindow shipped at 175000 (was 100000). The 33k buffer made 100k fire at ~67k, one third of the 200k context, and sessions stopped mid-task on every cycle; 175k fires at ~142k (71%). Existing projects keep their committed value, so the fleet was edited directly.
 - **Delegation by default.** Three advisory hooks, all wired directly from `settings.json`:
   `delegation-report.py` (Stop) prints one `[ck delegation]` line — direct vs agent calls,
   test runs, peak context, main vs subagent tokens, and dollars by capability tier — and logs a

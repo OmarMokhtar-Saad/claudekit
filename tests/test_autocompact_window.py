@@ -1,4 +1,4 @@
-"""`.claude/settings.json` ships `autoCompactWindow: 100000`.
+"""`.claude/settings.json` ships `autoCompactWindow: 175000`.
 
 WHY: on a 1M-window model Claude Code's own auto-compact does not fire until ~1M tokens, and
 every API turn re-sends the whole context. Measured over 227 qa-agents sessions (16,770 unique
@@ -21,7 +21,7 @@ def _settings():
     return json.loads((ROOT / ".claude" / "settings.json").read_text(encoding="utf-8"))
 
 
-def test_auto_compact_window_is_shipped_at_one_hundred_k():
+def test_auto_compact_window_is_shipped_at_175k():
     value = _settings().get("autoCompactWindow")
     assert isinstance(value, int) and not isinstance(value, bool), (
         "autoCompactWindow must be an integer token count (Claude Code stores the parsed value)")
