@@ -1,8 +1,8 @@
 # Hooks
 
-ClaudeKit ships 34 hook scripts (plus `lib.sh`, a shared helper library). 31 are
-reachable: wired into Claude Code through `.claude/settings.json`, or resolved by a
-gate wrapper. They enforce guardrails, capture telemetry, and automate housekeeping
+ClaudeKit ships 37 hook scripts (plus `lib.sh`, a shared helper library).
+34 are reachable: wired into Claude Code through `.claude/settings.json`, or resolved
+by a gate wrapper. They enforce guardrails, capture telemetry, and automate housekeeping
 around the agent workflow.
 
 **Three ship unwired**, and the count must not be read as saying otherwise:

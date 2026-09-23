@@ -11,6 +11,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `open-source-forker` — never shipped and have been removed.
 
 ## [Unreleased]
+- **Delegation by default.** Three advisory hooks, all wired directly from `settings.json`:
+  `delegation-report.py` (Stop) prints one `[ck delegation]` line — direct vs agent calls,
+  test runs, peak context, main vs subagent tokens, and dollars by capability tier — and logs a
+  `delegation_report` event; `delegate-nudge.py` (PreToolUse) suggests `explore` once a session
+  is past 60k context with 12+ direct reads/searches or 3+ test runs and no Agent call
+  (cooldown 15); `route-hint.py` (UserPromptSubmit) flags search-shaped prompts that are
+  broad (where/all/every/across, or 2+ named files or directories) or arrive past 40k context.
+  Short questions get no hint, because answering them directly is cheaper. Prices live in
+  `model-policy.json` as `usd_per_mtok` per tier; `ck doctor` warns on an unpriced tier.
+  Silence with `CK_NO_DELEGATION_REPORT` / `CK_NO_DELEGATE_NUDGE` / `CK_NO_ROUTE_HINT=1`.
+  The report waits while a background subagent is still running, so it prints once per stop,
+  complete. The suggested call names explore's policy model, `maxTurns 12` (now also in
+  `explore.md`) and the next tier up to escalate to. A new `frontier` tier (Fable, no role
+  assigned) prices Fable sessions; models matching no tier show as "unpriced N tok".
+  The "N are reachable" hook count in README.md and docs/HOOKS.md is now generated, and
+  `gen-docs.py --check` fails on a hand-edited or deleted count.
+  Token & Model Policy region is now v7 (`ck adapt` carries the new "Delegate by default" rule).
 - **`ck flow "<task>"`.** One headless command chains planner -> extracted ops.json ->
   reviewer -> `review-record.py write` -> executor (gate on) + the plan's checks -> verifier
   fed the captured test output, and prints per-phase usage (turns, avg ctx, rebilled, cost)

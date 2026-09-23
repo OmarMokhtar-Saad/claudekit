@@ -59,7 +59,8 @@
       {"id": "file-guard-gate", "file": "file-guard-gate.sh", "runner": "bash", "tier": "advisory", "matcher": "str_replace_based_edit_tool|write_file|Write|Edit"},
       {"id": "security-reminder", "file": "security-reminder.sh", "runner": "bash", "tier": "advisory", "matcher": "str_replace_based_edit_tool|write_file|Write|Edit"},
       {"id": "pre-commit", "file": "pre-commit.sh", "runner": "bash", "tier": "advisory", "matcher": "Bash", "command_matcher": "^\\s*git\\s+commit"},
-      {"id": "pre-push", "file": "pre-push.sh", "runner": "bash", "tier": "advisory", "matcher": "Bash", "command_matcher": "^\\s*git\\s+push"}
+      {"id": "pre-push", "file": "pre-push.sh", "runner": "bash", "tier": "advisory", "matcher": "Bash", "command_matcher": "^\\s*git\\s+push"},
+      {"id": "delegate-nudge", "file": "delegate-nudge.py", "runner": "python3", "tier": "advisory", "matcher": "Read|Grep|Glob|Bash", "args": ["--dispatched"]}
     ],
     "PostToolUse": [
       {"id": "reflection-gate", "file": "reflection-gate.py", "runner": "python3", "tier": "advisory", "matcher": "", "args": ["--event", "PostToolUse"]},
@@ -72,7 +73,8 @@
     ],
     "UserPromptSubmit": [
       {"id": "pre-plan", "file": "pre-plan.sh", "runner": "bash", "tier": "advisory", "matcher": ""},
-      {"id": "injection-scan-gate", "file": "injection-scan-gate.sh", "runner": "bash", "tier": "advisory", "matcher": ""}
+      {"id": "injection-scan-gate", "file": "injection-scan-gate.sh", "runner": "bash", "tier": "advisory", "matcher": ""},
+      {"id": "route-hint", "file": "route-hint.py", "runner": "python3", "tier": "advisory", "matcher": ""}
     ],
     "SessionStart": [
       {"id": "reflection-gate", "file": "reflection-gate.py", "runner": "python3", "tier": "advisory", "matcher": "", "args": ["--event", "SessionStart"]},
@@ -87,7 +89,8 @@
       {"id": "reflection-gate", "file": "reflection-gate.py", "runner": "python3", "tier": "advisory", "matcher": "", "args": ["--event", "Stop"]},
       {"id": "cost-tracker", "file": "cost-tracker.sh", "runner": "bash", "tier": "advisory", "matcher": ""},
       {"id": "desktop-notify", "file": "desktop-notify.sh", "runner": "bash", "tier": "advisory", "matcher": ""},
-      {"id": "format-typecheck", "file": "format-typecheck.sh", "runner": "bash", "tier": "advisory", "matcher": ""}
+      {"id": "format-typecheck", "file": "format-typecheck.sh", "runner": "bash", "tier": "advisory", "matcher": ""},
+      {"id": "delegation-report", "file": "delegation-report.py", "runner": "python3", "tier": "advisory", "matcher": ""}
     ],
     "SubagentStop": [
       {"id": "reflection-gate", "file": "reflection-gate.py", "runner": "python3", "tier": "advisory", "matcher": "", "args": ["--event", "SubagentStop"]}
