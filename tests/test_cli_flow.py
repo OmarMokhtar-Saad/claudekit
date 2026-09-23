@@ -27,6 +27,21 @@ if role == "planner":
            "edits": [{{"find": "hello\\n", "replace": "hello, flow\\n"}}]}}]}}
     result = ("# Plan: greet\\n\\n## Validation commands\\n\\n```bash\\n{python} --version\\n```\\n\\n"
               "## Operations\\n\\n```json\\n" + json.dumps(ops, indent=2) + "\\n```\\n")
+    plan = os.environ.get("FAKE_PLAN")
+    if plan == "create":
+        ops = {{"plan": "plan-greet", "operations": [{{"type": "file_create",
+               "path": "src/new.txt", "content": "new\\n"}}]}}
+        checks = ("{python} .claude/operations/scripts/validate-config-json.py "
+                  ".claude/plans/plan-greet.ops.json\\ntest -f src/new.txt && echo shell-ok\\n"
+                  "{python} -c print(4242)")
+    elif plan == "missing":
+        checks = "ck-flow-no-such-binary --version"
+    else:
+        checks = None
+    if checks is not None:
+        result = ("# Plan: greet\\n\\n## Validation commands\\n\\n```bash\\n" + checks
+                  + "\\n```\\n\\n## Operations\\n\\n```json\\n" + json.dumps(ops, indent=2)
+                  + "\\n```\\n")
     turns, cost = 3, 0.12
 elif role == "reviewer":
     result = ("Looks fine.\\n\\nSCORE: " + os.environ.get("FAKE_SCORE", "95") + "\\nDECISION: "
@@ -98,6 +113,46 @@ class FlowTest(unittest.TestCase):
         self.assertIn("--agent reviewer --model sonnet --allowedTools Read,Grep,Glob "
                       "--output-format json", log)
         self.assertIn("--agent planner --model opus --allowedTools Read,Grep,Glob,Write", log)
+
+    def test_file_create_plan_validates_its_config_before_executing(self):
+        proc = self.run_flow(FAKE_PLAN="create")
+        out = proc.stdout + proc.stderr
+        self.assertEqual(proc.returncode, 0, out)
+        self.assertEqual((self.project / "src" / "new.txt").read_text(), "new\n")
+        self.assertNotIn("already exists", out)
+        verifier_prompt = self.log.read_text().split("=== verifier")[1]
+        # the config check ran first, the executor next, the plain check after it
+        self.assertLess(verifier_prompt.index("validate-config-json.py"),
+                        verifier_prompt.index("RESULT-JSON"))
+        self.assertLess(verifier_prompt.index("RESULT-JSON"),
+                        verifier_prompt.index("4242\n(exit 0)"))
+        # the shell line is not run, and says so as its own row
+        self.assertIn("echo shell-ok\n(skipped: needs a shell)", verifier_prompt)
+        self.assertRegex(out, r"check: test -f src/new.txt.*skipped: needs shell")
+
+    def test_missing_validation_binary_is_exit_127_not_a_traceback(self):
+        proc = self.run_flow(FAKE_PLAN="missing")
+        out = proc.stdout + proc.stderr
+        self.assertEqual(proc.returncode, 1, out)
+        self.assertNotIn("Traceback", out)
+        self.assertIn("implementer exited 127", out)
+
+    def test_python_default_names_its_source(self):
+        env = dict(os.environ, ECC_HOOK_PROFILE="minimal", FAKE_CLAUDE_LOG=str(self.log))
+
+        def flow(slug):
+            return subprocess.run(
+                [sys.executable, CLI_PATH, "flow", "greet", "--slug", slug,
+                 "--claude", str(self.fake)],
+                capture_output=True, text=True, cwd=str(self.project), env=env,
+                timeout=300).stdout
+
+        self.assertIn("(no .venv found; the interpreter running ck)", flow("greet"))
+        project = self.project.resolve()  # git reports /private/var, not /var
+        venv_python = project / ".venv" / "bin" / "python"
+        venv_python.parent.mkdir(parents=True)
+        venv_python.symlink_to(sys.executable)
+        self.assertIn(f"python {venv_python} ({project}/.venv)", flow("greet2"))
 
     def test_rejecting_reviewer_stops_before_the_implementer(self):
         proc = self.run_flow(FAKE_SCORE="40", FAKE_DECISION="REJECTED")

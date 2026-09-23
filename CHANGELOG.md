@@ -44,6 +44,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`git status`, `ls`, builds) are no longer counted as direct in `[ck delegation]`. When an
   agent already ran this session, the deny names it: continue it with `SendMessage(<id>)`
   instead of reading directly.
+- **`ck flow` fixes.** A plan's `validate-config-json.py` validation line now runs before the
+  executor, so file_create plans no longer fail with "File already exists". A validation
+  command whose binary is missing is exit 127 instead of a traceback. A line that needs a
+  shell (`&&`, `||`, pipes) is shown as its own "skipped: needs shell" row in the usage table.
+  The default `--python` is the project's `.venv`, else the main checkout's (first
+  `git worktree list` entry), and flow prints which one it used. The executor's refusal for
+  an old validator now names `preflight_verdict()`, the function it actually checks.
 - **`ck flow "<task>"`.** One headless command chains planner -> extracted ops.json ->
   reviewer -> `review-record.py write` -> executor (gate on) + the plan's checks -> verifier
   fed the captured test output, and prints per-phase usage (turns, avg ctx, rebilled, cost)

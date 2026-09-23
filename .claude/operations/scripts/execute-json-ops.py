@@ -1520,7 +1520,7 @@ def _preflight_validate(config_path: str) -> Tuple[bool, List[str]]:
         # reinstating a rule set this executor did not agree to.
         if not hasattr(module, "preflight_verdict"):
             return False, [
-                f"{validator} does not expose full_verdict(): it is older than "
+                f"{validator} does not expose preflight_verdict(): it is older than "
                 "this executor and its verdict would omit the backup guards"
             ]
         ok, errors, _ = module.preflight_verdict(config_path)
