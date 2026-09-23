@@ -30,10 +30,15 @@ tests that run install.sh end to end.
 """
 from __future__ import annotations
 
+import ast
+import difflib
 import hashlib
 import json
 import os
+import shutil
+import subprocess
 import sys
+import tempfile
 from typing import Any, Dict, List, Sequence, Set, Tuple
 
 # Keys the kit owns outright: the project's copy is replaced, never merged. Hooks are
@@ -285,6 +290,252 @@ def write_merged_registry(kit_path: str, project_path: str, out_path: str) -> in
     return 0
 
 
+# ---- kit history: stale copy vs real edit, 3-way merge, scripts as one unit ------------
+# `modified_files` keeps every managed file whose bytes differ from the receipt. Measured
+# 2026-09-23 on qa-agents: 46 files kept, most of them byte-identical to an OLDER kit
+# version -- stale copies, not edits -- so fixes never reached the project. The history
+# (.claudekit-history.json, built at release by scripts/gen-kit-history.py) lists the
+# sha256 of every version the kit ever shipped for a path; a file matching one is stale
+# and is replaced. A file matching none is a project edit: it is 3-way merged (base = the
+# shipped version the receipt names, fetched from the kit's git by blob id) and, on a
+# conflict, kept with the new kit copy beside it as `<file>.kit-new`.
+HISTORY = ".claudekit-history.json"
+KIT_NEW = ".kit-new"
+SCRIPTS_DIR = "operations/scripts/"
+
+
+def load_history(path: str) -> Dict[str, Dict[str, List[str]]]:
+    """``{rel: {sha256: [version, git_blob]}}``; empty when absent or malformed."""
+    data = _read_json(path)
+    files = data.get("files") if isinstance(data, dict) else None
+    return files if isinstance(files, dict) else {}
+
+
+def _git_blob(kit_git: str, blob: str) -> Any:
+    """Bytes of ``blob`` in the kit's git, or None (no git, not a repo, unknown blob)."""
+    if not kit_git or not blob:
+        return None
+    try:
+        proc = subprocess.run(["git", "-C", kit_git, "cat-file", "blob", blob],
+                              capture_output=True, timeout=30)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return proc.stdout if proc.returncode == 0 else None
+
+
+def _merge3(ours: str, base: bytes, theirs: str) -> Tuple[int, bytes]:
+    """``git merge-file -p``: (0, merged) when clean, (>0, _) on conflict, (-1, _) unusable."""
+    with tempfile.NamedTemporaryFile(delete=False) as fh:
+        fh.write(base)
+        base_path = fh.name
+    try:
+        proc = subprocess.run(["git", "merge-file", "-p", "-L", "project", "-L", "base",
+                               "-L", "kit", ours, base_path, theirs],
+                              capture_output=True, timeout=60)
+    except (OSError, subprocess.SubprocessError):
+        return -1, b""
+    finally:
+        os.unlink(base_path)
+    return (proc.returncode, proc.stdout) if proc.returncode >= 0 else (-1, b"")
+
+
+def _diff_size(a: str, b: str) -> int:
+    """Changed lines between two files (added + removed); -1 when not text."""
+    try:
+        with open(a, encoding="utf-8") as fa, open(b, encoding="utf-8") as fb:
+            left, right = fa.readlines(), fb.readlines()
+    except (OSError, UnicodeDecodeError):
+        return -1
+    return sum(1 for line in difflib.unified_diff(left, right, n=0)
+               if line[:1] in "+-" and not line.startswith(("+++", "---")))
+
+
+def _module_api(source: Any) -> Any:
+    """Top-level names a Python module (bytes) defines, or None when it does not parse."""
+    try:
+        tree = ast.parse(source)
+    except (SyntaxError, ValueError, TypeError):
+        return None
+    names: Set[str] = set()
+    for node in tree.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            names.add(node.name)
+        elif isinstance(node, (ast.Assign, ast.AnnAssign)):
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            for target in targets:
+                for sub in ast.walk(target):
+                    if isinstance(sub, ast.Name):
+                        names.add(sub.id)
+        elif isinstance(node, (ast.Import, ast.ImportFrom)):
+            names.update((a.asname or a.name).split(".")[0] for a in node.names)
+    return names
+
+
+def _needs(path: str, siblings: Set[str]) -> Dict[str, Set[str]]:
+    """``{sibling_module: names used}`` for the sibling scripts ``path`` imports."""
+    try:
+        with open(path, encoding="utf-8") as fh:
+            tree = ast.parse(fh.read())
+    except (OSError, SyntaxError, UnicodeDecodeError, ValueError):
+        return {}
+    needs: Dict[str, Set[str]] = {}
+    aliases: Dict[str, str] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module in siblings and not node.level:
+            needs.setdefault(node.module, set()).update(
+                a.name for a in node.names if a.name != "*")
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name in siblings:
+                    aliases[alias.asname or alias.name] = alias.name
+                    needs.setdefault(alias.name, set())
+    for node in ast.walk(tree):
+        if (isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name)
+                and node.value.id in aliases):
+            needs[aliases[node.value.id]].add(node.attr)
+    return needs
+
+
+def _final_bytes(final_dest: str, rel: str, merged: Dict[str, bytes]) -> Any:
+    """What a kept file will contain: its merge result, else the project's copy."""
+    if rel in merged:
+        return merged[rel]
+    try:
+        with open(os.path.join(final_dest, rel), "rb") as fh:
+            return fh.read()
+    except OSError:
+        return None
+
+
+def reconcile(final_dest: str, staging: str, history_path: str, kit_git: str,
+              apply: bool = True) -> Tuple[Dict[str, str], List[Dict[str, Any]]]:
+    """Decide every managed file the project changed; return (kept, report).
+
+    ``kept`` is ``{rel: kit_hash}`` for files whose project copy stays (receipted with the
+    kit hash, as ``modified_files`` does). ``report`` has one row per decision:
+    ``status`` stale (replaced) | merged (clean 3-way merge applied) | edited (kept; the
+    release did not change the file) | conflict (kept; ``<rel>.kit-new`` written) | held
+    (kit copy of a script held back: it needs names a kept sibling lacks), plus
+    ``release_changed`` and ``diff`` (changed lines, project vs kit). With ``apply`` the
+    staging tree is updated; without it nothing is written (``ck update --show-kept``).
+    """
+    manifest = _read_json(os.path.join(final_dest, MANIFEST))
+    receipt = manifest.get("files") if isinstance(manifest, dict) else None
+    receipt = receipt if isinstance(receipt, dict) else {}
+    history = load_history(history_path)
+    kept: Dict[str, str] = {}
+    merged_bytes: Dict[str, bytes] = {}  # the final content of a clean merge
+    report: List[Dict[str, Any]] = []
+
+    def row(rel: str, status: str, **extra: Any) -> None:
+        entry: Dict[str, Any] = {"path": rel, "status": status}
+        entry.update(extra)
+        report.append(entry)
+
+    for rel, kit_hash in modified_files(final_dest, staging).items():
+        ours = os.path.join(final_dest, rel)
+        theirs = os.path.join(staging, rel)
+        on_hash = _sha256(ours)
+        diff = _diff_size(ours, theirs)
+        shipped = (history.get(rel) or {}).get(on_hash)
+        if shipped:
+            # A version the kit shipped, byte for byte: stale, not an edit. Kit copy wins.
+            row(rel, "stale", was=shipped[0], release_changed=True, diff=diff)
+            continue
+        base_hash = receipt.get(rel)
+        release_changed = base_hash != kit_hash
+        if not release_changed:
+            # The kit did not change this file since the receipt: nothing to merge.
+            kept[rel] = kit_hash
+            row(rel, "edited", release_changed=False, diff=diff)
+            continue
+        base_entry = (history.get(rel) or {}).get(base_hash) if base_hash else None
+        base = _git_blob(kit_git, base_entry[1]) if base_entry else None
+        code, merged = _merge3(ours, base, theirs) if base is not None else (-1, b"")
+        if code == 0:
+            merged_bytes[rel] = merged
+            if apply:
+                with open(theirs, "wb") as fh:
+                    fh.write(merged)
+            kept[rel] = kit_hash
+            row(rel, "merged", release_changed=True, diff=diff)
+            continue
+        kept[rel] = kit_hash
+        row(rel, "conflict", release_changed=True, diff=diff,
+            reason="merge conflict" if code > 0 else "no base version to merge against")
+
+    # operations/scripts/ is one unit: a refreshed script must not import a name a kept
+    # sibling does not define. Such a script is held at the project's version too (its
+    # kit copy goes to .kit-new); repeat until nothing more is held.
+    scripts = os.path.join(staging, SCRIPTS_DIR)
+    if os.path.isdir(scripts):
+        modules = {n[:-3] for n in os.listdir(scripts) if n.endswith(".py")}
+        changed = True
+        while changed:
+            changed = False
+            kept_api = {m: _module_api(_final_bytes(final_dest, SCRIPTS_DIR + m + ".py",
+                                                    merged_bytes))
+                        for m in modules if SCRIPTS_DIR + m + ".py" in kept}
+            for name in sorted(modules):
+                rel = SCRIPTS_DIR + name + ".py"
+                if rel in kept:
+                    continue
+                missing = sorted(
+                    "%s.%s" % (mod, n)
+                    for mod, used in _needs(os.path.join(scripts, name + ".py"),
+                                            set(kept_api)).items()
+                    for n in used if kept_api[mod] is not None and n not in kept_api[mod])
+                ours = os.path.join(final_dest, rel)
+                if not missing or not os.path.isfile(ours):
+                    continue
+                kept[rel] = _sha256(os.path.join(scripts, name + ".py"))
+                report[:] = [r for r in report if r["path"] != rel]
+                row(rel, "held", release_changed=True,
+                    diff=_diff_size(ours, os.path.join(scripts, name + ".py")),
+                    reason="needs %s from a kept sibling" % ", ".join(missing))
+                changed = True
+
+    if apply:
+        for entry in report:
+            rel = entry["path"]
+            if entry["status"] in ("conflict", "held"):
+                shutil.copy2(os.path.join(staging, rel), os.path.join(staging, rel + KIT_NEW))
+            if entry["status"] in ("edited", "conflict", "held"):
+                shutil.copy2(os.path.join(final_dest, rel), os.path.join(staging, rel))
+    report.sort(key=lambda r: r["path"])
+    return kept, report
+
+
+def write_reconcile(final_dest: str, staging: str, history_path: str, kit_git: str,
+                    json_out: str, report_out: str) -> int:
+    """Apply ``reconcile`` to staging; JSON ``{rel: kit_hash}`` for the manifest, the report
+    for the log (one line per decision on stdout, the rows as JSON in ``report_out``)."""
+    kept, report = reconcile(final_dest, staging, history_path, kit_git)
+    with open(json_out, "w", encoding="utf-8") as fh:
+        json.dump(kept, fh, indent=2)
+    with open(report_out, "w", encoding="utf-8") as fh:
+        json.dump({"rows": report}, fh, indent=2)
+    for entry in report:
+        print(format_row(entry))
+    return 0
+
+
+def format_row(entry: Dict[str, Any]) -> str:
+    """One log line: what happened to a file the project changed."""
+    rel, status = entry["path"], entry["status"]
+    diff = entry.get("diff", -1)
+    size = "binary" if diff < 0 else "%d line(s) differ" % diff
+    changed = "release-changed %s" % ("yes" if entry.get("release_changed") else "no")
+    if status == "stale":
+        return "updated %s (was kit v%s)" % (rel, entry.get("was", "?"))
+    if status == "merged":
+        return "merged %s (project edits kept, kit changes applied)" % rel
+    if status == "edited":
+        return "Kept locally-modified %s (edited, %s, %s)" % (rel, changed, size)
+    return "Kept locally-modified %s (%s, %s, %s; %s; kit copy in %s%s)" % (
+        rel, status, changed, size, entry.get("reason", ""), rel, KIT_NEW)
+
+
 def main(argv: Sequence[str]) -> int:
     if len(argv) == 4 and argv[0] == "skip-list":
         return write_skip_files(argv[1], argv[2], argv[3])
@@ -294,11 +545,15 @@ def main(argv: Sequence[str]) -> int:
         return write_merged_registry(argv[1], argv[2], argv[3])
     if len(argv) == 5 and argv[0] == "keep-modified":
         return write_keep_files(argv[1], argv[2], argv[3], argv[4])
+    if len(argv) == 7 and argv[0] == "reconcile":
+        return write_reconcile(argv[1], argv[2], argv[3], argv[4], argv[5], argv[6])
     sys.stderr.write(
         "usage: install_overrides.py skip-list <final_dest> <flat_out> <json_out>\n"
         "       install_overrides.py settings <kit_settings> <project_settings> <out>\n"
         "       install_overrides.py registry <kit_registry> <project_registry> <out>\n"
-        "       install_overrides.py keep-modified <final_dest> <staging> <flat_out> <json_out>\n")
+        "       install_overrides.py keep-modified <final_dest> <staging> <flat_out> <json_out>\n"
+        "       install_overrides.py reconcile <final_dest> <staging> <history> <kit_git> "
+        "<json_out> <report_out>\n")
     return 2
 
 

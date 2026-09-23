@@ -537,6 +537,14 @@ def _doctor_checks(args, tally):
     claude_dir = Path(".claude")
     check(".claude/ directory exists", claude_dir.is_dir(),
           "Run: claudekit init", fix_cmd="ck init")
+    # `ck update` writes <file>.kit-new beside a kept file whose kit changes conflict.
+    _kit_new = sorted(str(p.relative_to(claude_dir)) for p in claude_dir.rglob("*.kit-new")
+                      if "runtime" not in p.relative_to(claude_dir).parts) \
+        if claude_dir.is_dir() else []
+    if _kit_new:
+        check(f"Unmerged kit updates: {len(_kit_new)} .kit-new file(s)", "warn",
+              "merge each into the file beside it, then delete it: "
+              + ", ".join(_kit_new[:5]) + (" ..." if len(_kit_new) > 5 else ""))
 
     if claude_dir.is_dir():
         # A `--minimal` install ships "agents, commands, and operations only", so no
@@ -2277,6 +2285,54 @@ def cmd_uninstall(args):
     return 0
 
 
+def _install_overrides(root):
+    """The kit's install_overrides.py, loaded as a module (it lives outside the package)."""
+    import importlib.util
+    path = root / ".claude" / "operations" / "scripts" / "install_overrides.py"
+    spec = importlib.util.spec_from_file_location("ck_install_overrides", str(path))
+    if spec is None or spec.loader is None:
+        return None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _show_kept(target, root):
+    """`ck update --show-kept`: what an update would do with every file the project
+    changed, without installing. A git kit's history is rebuilt through HEAD, as
+    install.sh does; a wheel uses the shipped .claude/.claudekit-history.json."""
+    import tempfile
+    overrides = _install_overrides(root)
+    if overrides is None:
+        err("install_overrides.py not found in the kit.")
+        return 1
+    kit_git = str(root) if (root / ".git").exists() else ""
+    history = root / ".claude" / ".claudekit-history.json"
+    with tempfile.TemporaryDirectory() as tmp:
+        gen = root / "scripts" / "gen-kit-history.py"
+        if kit_git and gen.exists():
+            fresh = Path(tmp) / "history.json"
+            if subprocess.run([sys.executable, str(gen), "--root", kit_git, "--through",
+                               "HEAD", "--out", str(fresh)], capture_output=True,
+                              timeout=120).returncode == 0:
+                history = fresh
+        _, rows = overrides.reconcile(str(_manifest_base(target)), str(root / ".claude"),
+                                      str(history), kit_git, apply=False)
+    if not rows:
+        ok("No locally-modified managed files: an update installs the kit as shipped.")
+        return 0
+    print(f"  {'path':52} {'status':9} {'release-changed':16} diff")
+    for row in rows:
+        diff = row.get("diff", -1)
+        print(f"  {row['path'][:52]:52} {row['status']:9} "
+              f"{'yes' if row.get('release_changed') else 'no':16} "
+              f"{'binary' if diff < 0 else diff}")
+    kept = sum(1 for row in rows if row["status"] not in ("stale", "merged"))
+    info(f"{len(rows)} file(s) differ from the kit: {kept} would be kept, "
+         f"{len(rows) - kept} refreshed or merged.")
+    return 0
+
+
 def cmd_update(args):
     """Re-install ClaudeKit over an existing project, preserving local edits via backup."""
     target = Path(args.target or ".").resolve()
@@ -2298,6 +2354,11 @@ def cmd_update(args):
     if not install_script.exists():
         err(f"install.sh not found at {install_script}")
         return 1
+    if getattr(args, "show_kept", False):
+        if manifest is None:
+            err("--show-kept needs an install receipt (.claudekit-manifest.json).")
+            return 1
+        return _show_kept(target, root)
 
     if manifest is None and ejected is not None:
         info(f"Re-adopting an ejected project (ejected from "
@@ -2981,6 +3042,8 @@ def main():
     p = sub.add_parser("update", help="Re-install over an existing project (backs up first)")
     p.add_argument("--force", action="store_true",
                    help="Overwrite locally-modified managed files (default: keep them)")
+    p.add_argument("--show-kept", action="store_true",
+                   help="List the files an update would keep, refresh or merge; install nothing")
     p.add_argument("target", nargs="?", default=".", help="Project directory (default: .)")
     p.add_argument("--yes", "--non-interactive", dest="yes", action="store_true",
                    help="Assume yes to prompts")

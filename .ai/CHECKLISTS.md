@@ -29,6 +29,7 @@
 ## Release ([PLAYBOOK.md](PLAYBOOK.md) has the full recipe)
 
 - [ ] Owner approval · [ ] DoD gate on main · [ ] CHANGELOG dated · [ ] 3 version locations agree
+- [ ] After the version bump commit: `python3 scripts/gen-kit-history.py`, commit `.claude/.claudekit-history.json` (CI checks it)
 - [ ] Local wheel dry-run (build → clean venv install → `ck init` + `doctor`)
 - [ ] Tag pushed → release.yml green → PyPI install verified from a clean venv
 - [ ] GitHub Release notes · [ ] STATUS/SESSION_STATE updated
