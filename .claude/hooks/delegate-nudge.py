@@ -27,9 +27,10 @@ settings hook (test_dispatch_merge), and dispatch.sh would otherwise run it a se
 prefix its JSON.
 
 ENFORCEMENT (top two tiers): when the session model is on the first two tiers of the
-degrade_to ladder (frontier, most-capable) and route-hint.py fired for this prompt_id, the 4th
-direct Read/Grep/Glob of the turn is denied - exit 2, the explore Agent call as the reason on
-stderr. Re-reading a file opened this turn, or the one file the prompt named, stays allowed;
+degrade_to ladder (frontier, most-capable), session context is above CONTEXT_FLOOR and
+route-hint.py fired for this prompt_id, the 4th direct Read/Grep/Glob - or Bash search/read that
+classify() counts as direct - of the turn is denied: exit 2, the explore Agent call as the reason
+on stderr, plus a SendMessage(<agentId>) resume hint when an agent already ran this session. Re-reading a file opened this turn, or the one file the prompt named, stays allowed;
 subagent calls (agent_id in the payload) are never counted. Session model: the transcript's
 latest main-thread model, else the session-model.py ledger; unknown stays advisory.
 `"delegation": {"enforce": false}` in .claude/settings(.local).json turns the deny off.
@@ -88,13 +89,18 @@ def advance(state, transcript, report):
     # Only whole lines are consumed; a line still being written is read next time.
     end = blob.rfind(b"\n") + 1
     for line in blob[:end].decode("utf-8", errors="replace").split("\n"):
-        if '"assistant"' not in line:
+        if '"assistant"' not in line and '"agentId"' not in line:
             continue
         try:
             record = json.loads(line)
         except ValueError:
             continue
-        if not isinstance(record, dict) or record.get("type") != "assistant":
+        if not isinstance(record, dict):
+            continue
+        result = record.get("toolUseResult")
+        if isinstance(result, dict) and isinstance(result.get("agentId"), str):
+            state["last_agent_id"] = result["agentId"]
+        if record.get("type") != "assistant":
             continue
         message = record.get("message")
         if not isinstance(message, dict):
@@ -127,12 +133,14 @@ def should_nudge(state):
 
 
 # ---- enforcement on the top two tiers -------------------------------------------------
-# On frontier/most-capable, a route-hinted turn gets TURN_LIMIT direct Read/Grep/Glob calls;
-# the next is denied with the explore Agent call as the reason. Measured: capped explore on
-# sonnet cost $0.14 where opus answering the same question directly cost $0.22 - and opus
-# ignored the advisory hint. Sonnet and haiku stay advisory: there the parent is already cheap.
+# On frontier/most-capable past CONTEXT_FLOOR, a route-hinted turn gets TURN_LIMIT direct
+# Read/Grep/Glob/search-Bash calls; the next is denied with the explore Agent call as the
+# reason. Measured: capped explore on sonnet cost $0.14 where opus answering the same question
+# directly cost $0.22 - and opus ignored the advisory hint. Sonnet and haiku stay advisory:
+# there the parent is already cheap. Below CONTEXT_FLOOR the deny does not pay: enforced opus
+# on a small context spent 130k main + 225k subagent and still gave a degraded answer.
 TURN_LIMIT = 3
-ENFORCED = ("Read", "Grep", "Glob")
+ENFORCED = ("Read", "Grep", "Glob", "Bash")
 
 
 def enforce_enabled(root):
@@ -189,11 +197,16 @@ def _named(path, named):
 
 def gate(payload, state, report, root):
     """Deny reason for this call, or None. Enforces only when every condition holds: main
-    thread (no agent_id), a Read/Grep/Glob, route-hint fired for this prompt_id,
-    delegation.enforce on, and the session model on one of the top two tiers."""
+    thread (no agent_id), a Read/Grep/Glob or search Bash, context above CONTEXT_FLOOR,
+    route-hint fired for this prompt_id, delegation.enforce on, and the session model on one
+    of the top two tiers."""
     tool = payload.get("tool_name")
     prompt_id = payload.get("prompt_id")
     if payload.get("agent_id") or tool not in ENFORCED or not prompt_id:
+        return None
+    if state["context"] <= CONTEXT_FLOOR:
+        return None
+    if tool == "Bash" and report.classify(tool, payload.get("tool_input")) != "direct":
         return None
     hint = _json(report.route_state_path(root, payload.get("session_id")))
     if hint.get("prompt_id") != prompt_id or not enforce_enabled(root):
@@ -214,11 +227,15 @@ def gate(payload, state, report, root):
                 turn["opened"].append(path)
             return None
         if turn["count"] >= TURN_LIMIT:
-            return ("[ck delegate] %d direct Read/Grep/Glob calls this turn on the %s tier. "
-                    "Continue the search with %s and keep only its conclusion. "
+            resume = state.get("last_agent_id")
+            resume = ("If explore returned partial output, continue it with SendMessage(%s) "
+                      "instead of reading directly. " % resume) if isinstance(resume, str) else ""
+            return ("[ck delegate] %d direct Read/Grep/Glob/search-Bash calls this turn on the "
+                    "%s tier. Continue the search with %s and keep only its conclusion. %s"
                     "(Re-reading a file already opened this turn, or the one file the prompt "
                     "names, stays allowed. Turn off per project: \"delegation\": "
-                    "{\"enforce\": false} in .claude/settings.json.)" % (TURN_LIMIT, tier, call))
+                    "{\"enforce\": false} in .claude/settings.json.)"
+                    % (TURN_LIMIT, tier, call, resume))
         turn["count"] += 1
         if isinstance(path, str):
             turn["opened"].append(path)

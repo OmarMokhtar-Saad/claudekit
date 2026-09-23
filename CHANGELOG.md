@@ -38,6 +38,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   claude process, then `ANTHROPIC_MODEL`, then the settings `model`. A later `/model` switch
   is read from the transcript. A project turns the deny off with
   `"delegation": {"enforce": false}` in `.claude/settings.json`.
+  The deny engages only above 60k session context: below it, measured runs cost more
+  delegated than direct. A Bash call that searches or reads (`grep`, `egrep`, `rg`, `cat`,
+  `find`, `sed -n`) now counts as a direct call and is denied the same way. Other Bash calls
+  (`git status`, `ls`, builds) are no longer counted as direct in `[ck delegation]`. When an
+  agent already ran this session, the deny names it: continue it with `SendMessage(<id>)`
+  instead of reading directly.
 - **`ck flow "<task>"`.** One headless command chains planner -> extracted ops.json ->
   reviewer -> `review-record.py write` -> executor (gate on) + the plan's checks -> verifier
   fed the captured test output, and prints per-phase usage (turns, avg ctx, rebilled, cost)
