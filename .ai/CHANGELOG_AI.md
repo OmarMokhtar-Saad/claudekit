@@ -1,7 +1,13 @@
 # AI Session Changelog
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
-## 2026-09-23 (latest) — delegation layer: a $0 line reads as free
+## 2026-09-23 (latest) — ck update stops managing project state; fleet on 3.2.1
+
+- `92ca9be`: `install_overrides.is_unmanaged` is the one definition of project data under `.claude/` (hook logs, `hooks/.state/`, `agent-memory/` except README, `knowledge/rejections/INDEX.jsonl`, `plans/archive/README.md`, `runtime/`); install.sh's manifest writer imports it, reconcile skips it, `gen-kit-history.py` excludes it (history regenerated). Test `test_runtime_state_is_never_managed` (red before; mutation of the reconcile filter kills it). `test_session_digest` repointed from install.sh's text to the predicate.
+- qa-agents' first preview showed 11 conflicts; 8 were the kit's own logs, memory and indexes compared by `--show-kept` against the raw kit tree. After the fix the real update wrote one `.kit-new`, touched nothing outside `.claude/`. The preview still overstates (it walks the kit tree, not what install.sh copies) -- filed, with `model-policy.json` never shipping.
+- Lesson: a dry run is only as honest as its input set; `--show-kept` and the installer must derive "what ships" from one place, exactly as the manifest writer and reconcile now share `is_unmanaged`.
+
+## 2026-09-23 — delegation layer: a $0 line reads as free
 
 Three advisory hooks (Stop report, PreToolUse nudge, UserPromptSubmit route hint) priced from `model-policy.json` tiers. The first real qa-agents transcript put 1.0M of 1.1M tokens on Fable 5.1, which no tier prices, and the report said `unpriced $0.00` -- a figure that reads as free. Unpriced models now show as a token count with the model id. Also: tool_use blocks are deduped by id like usage is by message id. A/B on qa-agents: the route hint made the session delegate on turn 1 (main 191k -> 109k), but the explore subagent spent 412k, so total cost rose ($0.14 -> $0.20). Delegation cuts main context, not automatically dollars. Lesson: price what you can, and count loudly what you can't.
 
