@@ -44,6 +44,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`git status`, `ls`, builds) are no longer counted as direct in `[ck delegation]`. When an
   agent already ran this session, the deny names it: continue it with `SendMessage(<id>)`
   instead of reading directly.
+- **`ck update` refreshes stale copies instead of keeping them forever.** A kept file was
+  receipted with the kit's hash, so a copy an older installer kept looked edited on every
+  later update (46 on qa-agents). The kit now ships `.claude/.claudekit-history.json`, the
+  sha256 of every version of every managed file across the last 30 releases
+  (`scripts/gen-kit-history.py`, CI-checked; a git kit rebuilds it through HEAD at install).
+  A file whose bytes match a shipped version is replaced and logged `updated <file> (was kit
+  vX)`. A real edit is 3-way merged (`git merge-file`, base = the shipped version the receipt
+  names): a clean merge is applied; a conflict keeps the project file and writes
+  `<file>.kit-new` beside it, which `ck doctor` warns about. `operations/scripts/` is treated
+  as one unit: a refreshed script that imports a name its kept sibling lacks is held back
+  too. `ck update --show-kept` lists each decision (stale | merged | edited | conflict | held,
+  release-changed, diff size) without installing; the installer writes the same rows to
+  `.claude/runtime/kit-update.json` and `ck fleet update` prints them. A wheel install has no
+  kit git, so a real edit there is kept (conflict, no base) rather than merged.
 - **`ck flow` fixes.** A plan's `validate-config-json.py` validation line now runs before the
   executor, so file_create plans no longer fail with "File already exists". A validation
   command whose binary is missing is exit 127 instead of a traceback. A line that needs a

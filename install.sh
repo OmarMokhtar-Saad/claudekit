@@ -700,18 +700,46 @@ fi
 # The previous manifest holds the kit's hash of every managed file. A file whose bytes
 # no longer match was edited by the project; it is copied back over the staged kit copy
 # unless --force. The new manifest keeps the KIT hash for it, so it stays "modified".
+# `reconcile` first checks the kit history: bytes the kit once shipped are a stale copy
+# and are replaced; a real edit is 3-way merged, and a conflict keeps the project file
+# with the kit copy beside it as <file>.kit-new. A git kit rebuilds the history through
+# HEAD (installs happen from any commit); a wheel uses the one built at release.
 CK_KEEP_FLAT="$(mktemp "${TMPDIR:-/tmp}/ck-keep.XXXXXX")"
 CK_KEEP_JSON="$CK_KEEP_FLAT.json"
+CK_KEEP_REPORT="$CK_KEEP_FLAT.report"
+CK_HISTORY="$CLAUDE_SRC/.claudekit-history.json"
+CK_KIT_GIT=""
 export CK_KEEP_JSON
+rm -f "$STAGING/.claudekit-history.json"   # the kit's, not the project's
 if [[ -d "$FINAL_DEST" ]] && [[ "$FORCE" != true ]]; then
-    python3 "$CLAUDE_SRC/operations/scripts/install_overrides.py" keep-modified \
-        "$FINAL_DEST" "$STAGING" "$CK_KEEP_FLAT" "$CK_KEEP_JSON" \
-        || print_warn "Could not compute locally-modified files; kit copies will be installed"
-    while IFS= read -r _rel; do
-        [[ -n "$_rel" ]] || continue
-        cp -p "$FINAL_DEST/$_rel" "$STAGING/$_rel"
-        print_warn "Kept locally-modified $_rel (use --force to overwrite)"
-    done < "$CK_KEEP_FLAT"
+    if git -C "$SCRIPT_DIR" rev-parse --git-dir >/dev/null 2>&1; then
+        CK_KIT_GIT="$SCRIPT_DIR"
+        if [[ -f "$SCRIPT_DIR/scripts/gen-kit-history.py" ]] \
+            && python3 "$SCRIPT_DIR/scripts/gen-kit-history.py" --root "$SCRIPT_DIR" \
+                --through HEAD --out "$CK_KEEP_FLAT.history" >/dev/null 2>&1; then
+            CK_HISTORY="$CK_KEEP_FLAT.history"
+        fi
+    fi
+    if python3 "$CLAUDE_SRC/operations/scripts/install_overrides.py" reconcile \
+        "$FINAL_DEST" "$STAGING" "$CK_HISTORY" "$CK_KIT_GIT" "$CK_KEEP_JSON" \
+        "$CK_KEEP_REPORT" > "$CK_KEEP_FLAT"; then
+        while IFS= read -r _line; do
+            case "$_line" in
+                updated*|merged*) print_ok "$_line" ;;
+                *) print_warn "$_line (use --force to overwrite)" ;;
+            esac
+        done < "$CK_KEEP_FLAT"
+    else
+        print_warn "Could not reconcile locally-modified files; keeping every one of them"
+        python3 "$CLAUDE_SRC/operations/scripts/install_overrides.py" keep-modified \
+            "$FINAL_DEST" "$STAGING" "$CK_KEEP_FLAT" "$CK_KEEP_JSON" \
+            || print_warn "Could not compute locally-modified files; kit copies will be installed"
+        while IFS= read -r _rel; do
+            [[ -n "$_rel" ]] || continue
+            cp -p "$FINAL_DEST/$_rel" "$STAGING/$_rel"
+            print_warn "Kept locally-modified $_rel (use --force to overwrite)"
+        done < "$CK_KEEP_FLAT"
+    fi
 fi
 
 # ---- Atomic swap: back up any existing .claude, move staging into place ----
@@ -731,6 +759,13 @@ if [[ -d "$FINAL_DEST" ]]; then
 fi
 mv "$STAGING" "$FINAL_DEST"
 DEST="$FINAL_DEST"
+# The reconcile rows, for `ck fleet update` and `ck update --show-kept`: runtime/ is the
+# project's state, never receipted.
+if [[ -s "$CK_KEEP_REPORT" ]]; then
+    { mkdir -p "$FINAL_DEST/runtime" && cp "$CK_KEEP_REPORT" "$FINAL_DEST/runtime/kit-update.json"; } || true
+else
+    rm -f "$FINAL_DEST/runtime/kit-update.json"
+fi
 trap - ERR   # past the destructive phase; nothing left to clean up
 
 # ---- Backup retention: every install/update leaves a .claude.bak-<ts>; keep the newest N ----
@@ -791,7 +826,7 @@ for root, dirs, names in os.walk(dest):
     for n in names:
         path = os.path.join(root, n)
         rel = os.path.relpath(path, dest)
-        if n in NEVER_MANAGED or n.endswith(".pyc"):
+        if n in NEVER_MANAGED or n.endswith((".pyc", ".kit-new")):
             continue
         try:
             with open(path, "rb") as fh:
@@ -859,7 +894,8 @@ for k, v in prev.items():
 with open(os.path.join(dest, ".claudekit-manifest.json"), "w") as fh:
     json.dump(manifest, fh, indent=2)
 MANIFEST_PY
-rm -f "$CK_SKIP_FLAT" "$CK_SKIP_JSON" "$CK_KEEP_FLAT" "$CK_KEEP_JSON"
+rm -f "$CK_SKIP_FLAT" "$CK_SKIP_JSON" "$CK_KEEP_FLAT" "$CK_KEEP_JSON" "$CK_KEEP_REPORT" \
+    "$CK_KEEP_FLAT.history"
 if [[ "$SKIPPED_COUNT" -gt 0 ]]; then
     print_ok "Skipped $SKIPPED_COUNT asset(s) this project parked or removed (recorded in the manifest)"
 fi

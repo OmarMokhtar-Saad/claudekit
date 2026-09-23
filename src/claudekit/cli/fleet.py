@@ -22,6 +22,7 @@ Git mutation is deliberately absent: committing downstream is the owner's step.
 
 import argparse
 import fnmatch
+import json
 import os
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
@@ -196,6 +197,25 @@ def _plan_update(repo: Path) -> Tuple[int, int]:
     return len(modified) + len(missing), len(custom)
 
 
+def _print_kit_update(repo: Path) -> None:
+    """The installer's per-file decisions (runtime/kit-update.json): stale copies
+    refreshed, edits merged, and what was kept, with release-changed and diff size."""
+    try:
+        rows = json.loads((_m._manifest_base(repo) / "runtime" / "kit-update.json")
+                          .read_text(encoding="utf-8"))["rows"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return
+    root = _m.find_claudekit_root()
+    overrides = _m._install_overrides(root) if root is not None else None
+    if overrides is None:
+        return
+    for row in rows:
+        print(f"      {overrides.format_row(row)}")
+    kept = sum(1 for row in rows if row.get("status") not in ("stale", "merged"))
+    if rows:
+        print(f"      kept {kept}, refreshed or merged {len(rows) - kept}")
+
+
 def _fleet_update(repos: List[Path], dry_run: bool, assume_yes: bool) -> int:
     if dry_run:
         for repo in repos:
@@ -228,6 +248,7 @@ def _fleet_update(repos: List[Path], dry_run: bool, assume_yes: bool) -> int:
             continue
         print(f"  {repo.name[:28]:28} written {written}, preserved {preserved}, "
               f"skipped 0")
+        _print_kit_update(repo)
         _suggest_commit(repo)
     if failures:
         _m.err(f"{failures} of {len(repos)} project(s) failed to update.")
