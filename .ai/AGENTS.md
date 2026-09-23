@@ -30,7 +30,7 @@ flowchart TB
         REV[reviewer<br/>opus - plan gate 90/100]
         IMPL[implementer<br/>sonnet - executes ops.json]
         VER[verifier<br/>sonnet - quality gate 80/100]
-        DBG[debugger<br/>opus - read-only root cause]
+        DBG[debugger<br/>sonnet - read-only root cause]
         DOC[documenter<br/>haiku - new docs]
         DOCU[doc-updater<br/>haiku - doc sync + codemaps]
         GIT[gitOps<br/>haiku - branch/commit/PR]
