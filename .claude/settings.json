@@ -1,5 +1,5 @@
 {
-  "autoCompactWindow": 100000,
+  "autoCompactWindow": 175000,
   "skillListingBudgetFraction": 0.03,
   "skillListingMaxDescChars": 150,
   "permissions": {
