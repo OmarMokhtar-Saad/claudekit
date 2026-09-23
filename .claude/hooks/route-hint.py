@@ -15,6 +15,9 @@ one line to one turn. A search match alone is not enough: the prompt must also b
 (where/all/every/across, or 2+ named files or directories) or the session already past 40k
 context (BROAD, PATH, CONTEXT_FLOOR). `additionalContext` JSON on stdout, the form that reaches the model.
 
+When it fires it also writes .claude/hooks/.state/route-<session> = {prompt_id, named paths}:
+delegate-nudge.py enforces delegation only on a turn this hook routed.
+
 Advisory tier: exit 0 always, nothing on stderr. `CK_NO_ROUTE_HINT=1` silences it.
 stdlib only, py3.9.
 """
@@ -74,6 +77,21 @@ def _explore_call():
         return "Agent(subagent_type=explore, model=haiku, maxTurns 12)"
 
 
+def _mark(payload):
+    """Record that the hint fired for this prompt_id, and the paths it named: on the top two
+    tiers delegate-nudge.py denies the 4th direct search call of a hinted turn."""
+    try:
+        report = _report()
+        path = report.route_state_path(report._root(), payload.get("session_id"))
+        named = sorted(p for p in set(PATH.findall(payload.get("prompt") or ""))
+                       if not p.endswith("/"))
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump({"prompt_id": payload.get("prompt_id"), "named": named}, fh)
+    except Exception:  # silent-ok: no marker = this turn stays advisory; the hint still goes out
+        pass
+
+
 def main():
     if os.environ.get("CK_NO_ROUTE_HINT") == "1":
         return 0
@@ -87,6 +105,7 @@ def main():
     if not (BROAD.search(prompt) or len(set(PATH.findall(prompt))) >= 2
             or _context(payload.get("transcript_path")) > CONTEXT_FLOOR):
         return 0
+    _mark(payload)
     note = ("[ck route] This reads as a search. Send it to %s and keep only its "
             "conclusion; read directly only the file you will edit. Silence for one process "
             "tree with CK_NO_ROUTE_HINT=1." % _explore_call())

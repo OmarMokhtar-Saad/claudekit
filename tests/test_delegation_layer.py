@@ -427,3 +427,146 @@ def test_gen_docs_check_fails_when_the_reachable_phrase_is_deleted(tmp_path):
     readme.write_text(re.sub(r"\d+ are reachable", "several are wired", readme.read_text()))
     rc, out = _gen_docs_check(tree)
     assert rc != 0 and "README.md" in out, out
+
+
+# ---- enforcement on the top two tiers -------------------------------------------------
+
+LEDGER = HOOKS / "session-model.py"
+MODELS = {"fable": "claude-fable-5-1", "opus": "claude-opus-5-5",
+          "sonnet": "claude-sonnet-5", "haiku": "claude-haiku-4-5-20251001"}
+
+
+def _hinted(proj, prompt="where is the retry logic? see src/retry.py", pid="p1"):
+    r = _run(ROUTE, {"session_id": "s1", "prompt_id": pid, "prompt": prompt}, proj)
+    assert "explore" in r.stdout
+
+
+def _ledger(proj, model):
+    path = proj / ".claude" / "runtime" / "session-model" / "s1.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"model": model, "source": "argv"}))
+
+
+def _call(proj, tool="Read", path=None, pid="p1", extra=None):
+    tool_input = {"file_path": path} if tool == "Read" else {"pattern": path or "x"}
+    payload = {"session_id": "s1", "prompt_id": pid, "tool_name": tool,
+               "tool_input": tool_input, "transcript_path": str(proj / "absent.jsonl")}
+    payload.update(extra or {})
+    return _run(NUDGE, payload, proj)
+
+
+def _four(proj, tools=("Read", "Grep", "Glob", "Read")):
+    return [_call(proj, tool, "f%d.py" % i) for i, tool in enumerate(tools)]
+
+
+@pytest.mark.parametrize("tier", ["fable", "opus"])
+def test_top_two_tiers_deny_the_4th_direct_call(tmp_path, tier):
+    proj = _project(tmp_path)
+    _ledger(proj, MODELS[tier])
+    _hinted(proj)
+    *allowed, denied = _four(proj)
+    assert [r.returncode for r in allowed] == [0, 0, 0]
+    assert denied.returncode == 2
+    call = subprocess.run([sys.executable, "-c",
+                           "import importlib.util as u;s=u.spec_from_file_location('r',%r);"
+                           "m=u.module_from_spec(s);s.loader.exec_module(m);"
+                           "print(m.explore_call(%r))" % (str(REPORT), str(proj))],
+                          capture_output=True, text=True).stdout.strip()
+    assert call.startswith("Agent(subagent_type=explore") and "maxTurns 12" in call
+    assert call in denied.stderr
+
+
+@pytest.mark.parametrize("tier", ["sonnet", "haiku"])
+def test_lower_tiers_stay_advisory(tmp_path, tier):
+    proj = _project(tmp_path)
+    _ledger(proj, MODELS[tier])
+    _hinted(proj)
+    assert [r.returncode for r in _four(proj, ("Read",) * 6)] == [0] * 6
+
+
+def test_transcript_model_overrides_the_ledger(tmp_path):
+    """A /model switch shows in the transcript before any ledger could know it."""
+    proj = _project(tmp_path)
+    _ledger(proj, MODELS["sonnet"])
+    _write(proj / "absent.jsonl", [_assistant("m1", MODELS["opus"])])
+    _hinted(proj)
+    assert _four(proj)[-1].returncode == 2
+
+
+def test_no_deny_when_the_hint_did_not_fire_for_this_prompt(tmp_path):
+    proj = _project(tmp_path)
+    _ledger(proj, MODELS["opus"])
+    _hinted(proj, pid="p0")
+    assert [r.returncode for r in [_call(proj, "Read", "f%d" % i) for i in range(5)]] == [0] * 5
+
+
+def test_short_prompt_leaves_no_hint_so_no_deny(tmp_path):
+    proj = _project(tmp_path)
+    _ledger(proj, MODELS["opus"])
+    _run(ROUTE, {"session_id": "s1", "prompt_id": "p1", "prompt": "commit this"}, proj)
+    assert all(r.returncode == 0 for r in _four(proj))
+
+
+def test_exemptions(tmp_path):
+    proj = _project(tmp_path)
+    _ledger(proj, MODELS["opus"])
+    _hinted(proj, "where is the retry logic? start at src/retry.py")
+    assert all(r.returncode == 0 for r in _four(proj, ("Read", "Grep", "Glob")))
+    assert _call(proj, "Read", str(proj / "src" / "retry.py")).returncode == 0  # named file
+    assert _call(proj, "Read", "f0.py").returncode == 0  # opened this turn
+    assert _call(proj, "Read", "other.py").returncode == 2
+
+
+def test_subagent_calls_are_never_denied(tmp_path):
+    proj = _project(tmp_path)
+    _ledger(proj, MODELS["opus"])
+    _hinted(proj)
+    extra = {"agent_id": "a1", "agent_type": "explore"}
+    assert all(_call(proj, "Grep", "p%d" % i, extra=extra).returncode == 0 for i in range(6))
+
+
+def test_a_new_prompt_resets_the_turn(tmp_path):
+    proj = _project(tmp_path)
+    _ledger(proj, MODELS["opus"])
+    _hinted(proj, pid="p1")
+    _four(proj, ("Grep",) * 3)
+    _hinted(proj, pid="p2")
+    assert _call(proj, "Grep", "y", pid="p2").returncode == 0
+
+
+@pytest.mark.parametrize("where", ["settings.json", "settings.local.json"])
+def test_delegation_enforce_false_turns_it_off(tmp_path, where):
+    proj = _project(tmp_path)
+    (proj / ".claude" / where).write_text(json.dumps({"delegation": {"enforce": False}}))
+    _ledger(proj, MODELS["opus"])
+    _hinted(proj)
+    assert all(r.returncode == 0 for r in _four(proj))
+
+
+def test_unknown_model_stays_advisory(tmp_path):
+    proj = _project(tmp_path)
+    _hinted(proj)
+    assert all(r.returncode == 0 for r in _four(proj))
+
+
+def test_ledger_reads_the_model_from_settings(tmp_path):
+    proj = _project(tmp_path)
+    (proj / ".claude" / "settings.json").write_text(json.dumps({"model": "opus"}))
+    env = {"CLAUDE_PID": "", "ANTHROPIC_MODEL": "", "CLAUDE_CONFIG_DIR": str(tmp_path / "home")}
+    r = _run(LEDGER, {"session_id": "s1"}, proj, env=env)
+    assert (r.returncode, r.stdout, r.stderr) == (0, "", "")
+    ledger = proj / ".claude" / "runtime" / "session-model" / "s1.json"
+    assert json.loads(ledger.read_text()) == {"model": "opus", "source": "settings"}
+
+
+def test_ledger_reads_model_from_the_claude_process_argv(tmp_path):
+    proj = _project(tmp_path)
+    sleeper = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)",
+                                "--model", "fable"])
+    try:
+        r = _run(LEDGER, {"session_id": "s1"}, proj, env={"CLAUDE_PID": str(sleeper.pid)})
+    finally:
+        sleeper.kill()
+    ledger = proj / ".claude" / "runtime" / "session-model" / "s1.json"
+    assert r.returncode == 0
+    assert json.loads(ledger.read_text()) == {"model": "fable", "source": "argv"}
