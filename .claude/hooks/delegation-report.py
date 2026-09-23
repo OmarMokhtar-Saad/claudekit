@@ -80,6 +80,12 @@ def load_tiers(root):
 EXPLORE_MAX_TURNS = 12
 
 
+def route_state_path(root, session_id):
+    """Where route-hint.py records the prompt it fired on, for delegate-nudge.py's gate."""
+    safe = "".join(ch for ch in str(session_id or "") if ch.isalnum() or ch in "-_")[:64]
+    return os.path.join(root, ".claude", "hooks", ".state", "route-%s" % (safe or "unknown"))
+
+
 def explore_call(root):
     """The Agent call the nudge and route hint suggest: explore's tier model from the policy,
     its turn cap, and the next rung up the degrade_to ladder to escalate to."""

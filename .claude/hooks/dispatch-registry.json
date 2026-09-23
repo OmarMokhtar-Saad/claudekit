@@ -79,7 +79,8 @@
     "SessionStart": [
       {"id": "reflection-gate", "file": "reflection-gate.py", "runner": "python3", "tier": "advisory", "matcher": "", "args": ["--event", "SessionStart"]},
       {"id": "session-start", "file": "session-start.sh", "runner": "bash", "tier": "advisory", "matcher": ""},
-      {"id": "compaction-cadence", "file": "compaction-cadence.py", "runner": "python3", "tier": "advisory", "matcher": ""}
+      {"id": "compaction-cadence", "file": "compaction-cadence.py", "runner": "python3", "tier": "advisory", "matcher": ""},
+      {"id": "session-model", "file": "session-model.py", "runner": "python3", "tier": "advisory", "matcher": ""}
     ],
     "PreCompact": [
       {"id": "reflection-gate", "file": "reflection-gate.py", "runner": "python3", "tier": "advisory", "matcher": "", "args": ["--event", "PreCompact"]},

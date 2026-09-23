@@ -28,6 +28,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The "N are reachable" hook count in README.md and docs/HOOKS.md is now generated, and
   `gen-docs.py --check` fails on a hand-edited or deleted count.
   Token & Model Policy region is now v7 (`ck adapt` carries the new "Delegate by default" rule).
+- **Delegation is enforced on the top two tiers.** When the session runs on Fable or Opus and
+  `route-hint.py` fired for the current prompt, `delegate-nudge.py` denies the 4th direct
+  Read/Grep/Glob of that turn. The reason it gives is the exact explore Agent call, with
+  `maxTurns 12`. Still allowed: re-reading a file already opened this turn, reading the one
+  file the prompt named, and any call made inside a subagent. Sonnet and Haiku sessions only
+  get the advisory. A new `session-model.py` (SessionStart) records the session model, because
+  Claude Code's SessionStart payload does not carry it: the hook reads `--model` from the
+  claude process, then `ANTHROPIC_MODEL`, then the settings `model`. A later `/model` switch
+  is read from the transcript. A project turns the deny off with
+  `"delegation": {"enforce": false}` in `.claude/settings.json`.
 - **`ck flow "<task>"`.** One headless command chains planner -> extracted ops.json ->
   reviewer -> `review-record.py write` -> executor (gate on) + the plan's checks -> verifier
   fed the captured test output, and prints per-phase usage (turns, avg ctx, rebilled, cost)
