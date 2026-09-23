@@ -40,7 +40,8 @@ PRE-FLIGHT CHECKLIST:
   [ ] Plan file exists and was APPROVED by Reviewer
   [ ] Check for ops.json at the specified path
   [ ] ops.json is present → proceed to Script Execution Workflow
-  [ ] ops.json is MISSING → STOP. Notify user: "No ops.json found. Ask the Planner to generate one before /implement is called."
+  [ ] ops.json is MISSING → STOP. Print the exact next step, not a generic refusal:
+      `No ops.json at .claude/plans/<plan-slug>.ops.json. Generate it: /plan <task> (headless: echo "<task>" | claude -p --agent planner --model opus --allowedTools "Read,Grep,Glob,Write" > .claude/plans/plan-<slug>.md, then python3 .claude/operations/scripts/extract-json-from-plan.py .claude/plans/plan-<slug>.md --output .claude/plans/plan-<slug>.ops.json). Then rerun /implement .claude/plans/plan-<slug>.ops.json.`
   [ ] Target files exist — proven by the validator (GUARDs 6/12), not by Reading them
   [ ] Verify build tools are available
   [ ] Backups are automatic — the executor backs up every file before touching it
@@ -57,6 +58,10 @@ PRE-FLIGHT CHECKLIST:
 > path is forbidden, no matter which tool or binary performs it.** You hold unrestricted
 > `Bash`, so the Edit/Write ban alone does not contain you.
 > If ops.json is missing, do not fall back to manual edits. STOP and request ops.json.
+> If the executor prints `APPROVAL GATE`, do not retry blind: it names the missing step.
+> Relay it verbatim -- a reviewer verdict for the plan, then `python3
+> .claude/operations/scripts/review-record.py write --from-review <review-file>
+> --reviewer-role reviewer <plan.md> <ops.json>`, then the same execute command again.
 > The script ensures atomic operations, proper ordering, and rollback capability.
 
 Examples of forbidden mutation — **illustrative, NOT exhaustive**: `sed -i`, `> file`,

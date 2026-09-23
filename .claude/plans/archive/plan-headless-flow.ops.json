@@ -1,0 +1,43 @@
+{
+  "plan": "plan-headless-flow",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": ".claude/commands/plan.md",
+      "edits": [
+        {
+          "find": "If `$ARGUMENTS` begins with `--deep`, strip that flag from the task description and follow\nthe `--deep` sections below. Otherwise write both files yourself, as follows.\n",
+          "replace": "If `$ARGUMENTS` begins with `--deep`, strip that flag from the task description and follow\nthe `--deep` sections below. Otherwise write both files yourself, as follows.\n\n**Headless (`claude -p`): mechanism B, always.** Without the Task tool this body cannot\nbe followed inline: measured on 2026-09-23, a headless `/plan` skipped the plan file and\nimplemented the task directly (7 turns, 36k avg context). If `Task` is not in your tool\nlist, skip the inline steps and run the bash block under \"Mechanism B\" regardless of\n`--deep`: it shells out to `claude -p --agent planner` and saves the plan and the\nextracted ops.json under `.claude/plans/` itself (Bash redirection is not gated there).\nIf Bash is unavailable as well, stop and print exactly this, then end the turn:\n`/plan is interactive-only in this mode. Run: echo \"<task>\" | claude -p --agent planner --model opus --allowedTools \"Read,Grep,Glob,Write\" > .claude/plans/plan-<slug>.md`\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/agents/implementer.md",
+      "edits": [
+        {
+          "find": "  [ ] ops.json is MISSING \u2192 STOP. Notify user: \"No ops.json found. Ask the Planner to generate one before /implement is called.\"\n",
+          "replace": "  [ ] ops.json is MISSING \u2192 STOP. Print the exact next step, not a generic refusal:\n      `No ops.json at .claude/plans/<plan-slug>.ops.json. Generate it: /plan <task> (headless: echo \"<task>\" | claude -p --agent planner --model opus --allowedTools \"Read,Grep,Glob,Write\" > .claude/plans/plan-<slug>.md, then python3 .claude/operations/scripts/extract-json-from-plan.py .claude/plans/plan-<slug>.md --output .claude/plans/plan-<slug>.ops.json). Then rerun /implement .claude/plans/plan-<slug>.ops.json.`\n"
+        },
+        {
+          "find": "> If ops.json is missing, do not fall back to manual edits. STOP and request ops.json.\n",
+          "replace": "> If ops.json is missing, do not fall back to manual edits. STOP and request ops.json.\n> If the executor prints `APPROVAL GATE`, do not retry blind: it names the missing step.\n> Relay it verbatim -- a reviewer verdict for the plan, then `python3\n> .claude/operations/scripts/review-record.py write --from-review <review-file>\n> --reviewer-role reviewer <plan.md> <ops.json>`, then the same execute command again.\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": ".claude/operations/scripts/execute-json-ops.py",
+      "edits": [
+        {
+          "find": "PRECOMPILE_SCRIPT = Path(__file__).resolve().parent / \"ops_precompile.py\"\n",
+          "replace": "def approval_plan_hint(config_file) -> str:\n    \"\"\"The plan.md the gate expects next to this ops.json (the /plan naming\n    convention <slug>.ops.json <-> <slug>.md), or a placeholder when the name\n    does not follow it. Printed in the refusal so the next command is copy-pasteable.\"\"\"\n    name = str(config_file)\n    if name.endswith(\".ops.json\"):\n        return name[: -len(\".ops.json\")] + \".md\"\n    return \"<plan.md>\"\n\n\nPRECOMPILE_SCRIPT = Path(__file__).resolve().parent / \"ops_precompile.py\"\n"
+        },
+        {
+          "find": "            print(\"  Run /review for this plan (or re-run it if the ops.json changed after\")\n            print(\"  approval), then retry. --no-approval bypasses this gate and exists only\")\n            print(\"  for bootstrap and repo-maintenance runs you are authorised to make.\")\n",
+          "replace": "            plan_hint = approval_plan_hint(config_file)\n            recorder = Path(__file__).resolve().parent / \"review-record.py\"\n            print(\"  Next (each refusal names the exact command; re-run 1-2 if the ops.json\")\n            print(\"  changed after approval):\")\n            print(f\"    1. Run /review for this plan ({plan_hint}); headless: pipe the plan and\")\n            print(\"       ops paths to `claude -p --agent reviewer` and save its output to a file.\")\n            print(f\"    2. python3 {recorder} write --from-review <review-file> \"\n                  f\"--reviewer-role reviewer {plan_hint} {config_file}\")\n            print(f\"    3. python3 {Path(__file__).resolve()} {config_file}\")\n            print(\"  --no-approval bypasses this gate and exists only for bootstrap and\")\n            print(\"  repo-maintenance runs you are authorised to make.\")\n"
+        }
+      ]
+    }
+  ]
+}
