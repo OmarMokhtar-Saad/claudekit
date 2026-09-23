@@ -468,6 +468,27 @@ asset changes, so they are recorded as options with trade-offs.
 
 ## P1 — high value, unblocked
 
+- [ ] **[MEDIUM] `ck update --show-kept` compares against the whole kit tree, not what
+  `install.sh` stages** (found 2026-09-23, qa-agents). `_show_kept` (`src/claudekit/cli/main.py`)
+  passes `<kit>/.claude` as the staging dir to `reconcile(apply=False)`, so any file the kit tree
+  holds but the installer never copies is reported. qa-agents' preview promised `.kit-new` for
+  `model-policy.json` and `local/CLAUDE.template.md` and a stale refresh of `lint-baseline.json`;
+  the real update touched none of them (install.sh never ships them). Before `92ca9be` it also
+  listed the kit's own hook logs and agent memory. Fix: derive the shipped set from the
+  installer, not the tree; e.g. factor install.sh's copy phase so `--show-kept` can stage into a
+  temp dir (install into scratch, reconcile, discard), or have install.sh emit a
+  `shipped-files` list the preview reads. Regression test: a kit-tree file install.sh does not
+  copy, edited in the project, must not appear in `--show-kept`.
+- [ ] **[HIGH] `model-policy.json` never reaches kitted projects** (found 2026-09-23, qa-agents).
+  `install.sh` does not copy `.claude/model-policy.json`, so a policy change lands only through
+  the agent frontmatter `gen-model-policy.py` wrote in the kit. After the 3.2.1 update qa-agents'
+  `debugger.md` says sonnet/high while its policy file still says most-capable/xhigh, has no
+  `frontier` tier, no `usd_per_mtok` (which the newly installed `delegation-report.py` prices
+  from) and no `coordinator` role; running `gen-model-policy.py` there would revert the agent.
+  Fix: ship it as a managed file (so reconcile refreshes a stale copy and 3-way merges a
+  project's edited policy), and have doctor WARN when agent frontmatter disagrees with the local
+  policy. Regression test: an install carries the policy; an update over a stale copy refreshes
+  it; an edited copy merges.
 - [ ] **[MEDIUM] `install.sh` appends the ClaudeKit block to the repo `.gitignore` on every update
   even when the project excludes `.claude/` locally** (found 2026-09-23, hermes-agent fleet
   update: `M .gitignore`, +10 lines; the owner reverted it). `install.sh:952-977` appends each
