@@ -48,6 +48,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   debugger runs on log audits cost 2.3M tokens in one hermes-agent session (2026-09-23). On a
   rate limit it drops to the fast tier. No role is above effort high now; planner stays
   most-capable/high and reviewer balanced/high, escalating to most-capable per its rule.
+- **`ck update` never manages project state.** Hook logs, `hooks/.state/`, `agent-memory/`
+  (except its README), `knowledge/rejections/INDEX.jsonl`, `plans/archive/README.md` and
+  `runtime/` are never receipted, compared, kept or merged, so an update writes no `.kit-new`
+  for them and `--show-kept` no longer lists them (it compared the kit's own logs and memory
+  against the project's). One predicate, `install_overrides.is_unmanaged`, now serves the
+  manifest writer, reconcile and `gen-kit-history.py`.
 - **`ck update` refreshes stale copies instead of keeping them forever.** A kept file was
   receipted with the kit's hash, so a copy an older installer kept looked edited on every
   later update (46 on qa-agents). The kit now ships `.claude/.claudekit-history.json`, the

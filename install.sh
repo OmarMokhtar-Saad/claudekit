@@ -807,6 +807,7 @@ CLAUDEKIT_SOURCE_DIRTY="$(git -C "$SCRIPT_DIR" status --porcelain 2>/dev/null | 
 CLAUDEKIT_VERSION="$VERSION" \
 CK_SRC_COMMIT="$CLAUDEKIT_SOURCE_COMMIT" \
 CK_SRC_DIRTY="$CLAUDEKIT_SOURCE_DIRTY" \
+CK_OVERRIDES_DIR="$CLAUDE_SRC/operations/scripts" \
 python3 - "$FINAL_DEST" "$MODE" "$LANGUAGE" <<'MANIFEST_PY' && print_ok "Install manifest written" || print_warn "Manifest generation failed"
 import hashlib, json, os, sys, datetime
 
@@ -814,9 +815,9 @@ import hashlib, json, os, sys, datetime
 # these would make `ck update` overwrite a per-project permission allowlist and
 # `ck uninstall` delete a log - which is exactly what happened before, and cost a
 # hand-preservation pass across 17 projects during the 2026-07-31 rollout.
-# Must stay in step with SKIP_NAMES in the preserve block below.
-NEVER_MANAGED = {"hooks.log", "settings.local.json", ".claudekit-manifest.json",
-                 "session-footprint.md"}
+# One definition, shared with reconcile and gen-kit-history: install_overrides.is_unmanaged.
+sys.path.insert(0, os.environ["CK_OVERRIDES_DIR"])
+from install_overrides import is_unmanaged
 
 dest, mode, lang = sys.argv[1], sys.argv[2], sys.argv[3]
 files = {}
@@ -826,7 +827,7 @@ for root, dirs, names in os.walk(dest):
     for n in names:
         path = os.path.join(root, n)
         rel = os.path.relpath(path, dest)
-        if n in NEVER_MANAGED or n.endswith((".pyc", ".kit-new")):
+        if is_unmanaged(rel):
             continue
         try:
             with open(path, "rb") as fh:

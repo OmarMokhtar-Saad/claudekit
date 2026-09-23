@@ -15,7 +15,7 @@ the file's NAME, it is whether the kit owns the file WHOLE or in PART:
 * **Class 1 — whole-file kit-owned.** Every key in the receipt's ``files`` map minus
   the Class 2 members that are receipted. A COMPLEMENT, never an enumeration: the
   receipt walk (``install.sh``) records everything under ``.claude/`` except
-  ``NEVER_MANAGED`` and ``.pyc``, so any hand-written membership list drifts out of
+  what ``install_overrides.is_unmanaged`` excludes, so any hand-written membership list drifts out of
   step with it the moment that walk changes. Drawing it as ``MANAGED_DIRS`` minus
   ``DIFF_IGNORED`` left ``settings.json``, ``local/CONSTITUTION.md``, ``profiles/**``
   and ``knowledge/issues/README.md`` receipted but in NEITHER class.

@@ -60,7 +60,24 @@ MERGED_FILES = ("settings.json", "skills/skills-registry.json")
 # Local-only by definition; never receipted, never compared.
 NEVER_MANAGED = ("hooks.log", "settings.local.json", ".claudekit-manifest.json",
                  "session-footprint.md")
+# Project state the kit tree may hold a copy of (the kit's own runtime, or a seed file):
+# never receipted, compared, kept or merged, so an update never writes a .kit-new for it.
+# agent-memory/README.md is the shipped entry-format contract and stays managed.
+RUNTIME_STATE_DIRS = ("runtime/", "hooks/.state/", "agent-memory/")
+RUNTIME_STATE_FILES = ("knowledge/rejections/INDEX.jsonl", "plans/archive/README.md")
 MANIFEST = ".claudekit-manifest.json"
+
+
+def is_unmanaged(rel: str) -> bool:
+    """True for a path under .claude/ that is project data, never a kit asset.
+    install.sh's manifest writer and scripts/gen-kit-history.py import this."""
+    rel = rel.replace(os.sep, "/")
+    name = rel.rsplit("/", 1)[-1]
+    if name in NEVER_MANAGED or name.endswith((".pyc", ".kit-new")):
+        return True
+    if rel in RUNTIME_STATE_FILES or (rel.startswith("hooks/") and name.endswith(".log")):
+        return True
+    return rel.startswith(RUNTIME_STATE_DIRS) and rel != "agent-memory/README.md"
 
 
 def _read_json(path: str) -> Any:
@@ -195,7 +212,7 @@ def modified_files(final_dest: str, staging: str) -> Dict[str, str]:
         dirs[:] = sorted(d for d in dirs if d != "__pycache__")
         for name in sorted(names):
             rel = os.path.relpath(os.path.join(root, name), staging)
-            if rel in MERGED_FILES or rel.startswith("runtime/") or name in NEVER_MANAGED:
+            if rel in MERGED_FILES or is_unmanaged(rel):
                 continue
             on_disk = os.path.join(final_dest, rel)
             if not os.path.isfile(on_disk):
