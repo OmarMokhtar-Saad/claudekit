@@ -109,7 +109,7 @@ TaskCreate:
 **Example invocation.**
 ```bash
 echo "Diagnose: app crashes with NullPointerException when processing orders. Produce a diagnosis report." | \
-  claude -p --agent debugger --model opus --allowedTools "Read,Grep,Glob,Bash"
+  claude -p --agent debugger --model sonnet --allowedTools "Read,Grep,Glob,Bash"
 ```
 
 **Improvement notes.** None significant; one of the most internally consistent agents. Its report location convention (`.claude/reports/debug-<descriptor>.md`) comes from WORKFLOW_FILE_TEMPLATES.md rather than its own file.

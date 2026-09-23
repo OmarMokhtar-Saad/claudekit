@@ -44,6 +44,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`git status`, `ls`, builds) are no longer counted as direct in `[ck delegation]`. When an
   agent already ran this session, the deny names it: continue it with `SendMessage(<id>)`
   instead of reading directly.
+- **The debugger runs on the balanced tier at effort high** (was most-capable at xhigh). Two
+  debugger runs on log audits cost 2.3M tokens in one hermes-agent session (2026-09-23). On a
+  rate limit it drops to the fast tier. No role is above effort high now; planner stays
+  most-capable/high and reviewer balanced/high, escalating to most-capable per its rule.
 - **`ck update` refreshes stale copies instead of keeping them forever.** A kept file was
   receipted with the kit's hash, so a copy an older installer kept looked edited on every
   later update (46 on qa-agents). The kit now ships `.claude/.claudekit-history.json`, the

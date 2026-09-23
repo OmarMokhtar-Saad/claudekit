@@ -112,8 +112,11 @@ class ModelPolicyIsTheSourceOfTruth(unittest.TestCase):
     # These are what "no routing regression" actually means, and changing one
     # should require editing this list and saying why.
     SHIPPED_MODELS = {
-        "code-reviewer": "opus", "debugger": "opus", "planner": "opus",
+        "code-reviewer": "opus", "planner": "opus",
         "security-scanner": "opus",
+        # debugger: moved to sonnet/high 2026-09-23 - two opus/xhigh log audits cost
+        # 2.3M tokens in one hermes-agent session.
+        "debugger": "sonnet",
         # flow-analyst: root-cause work over rejection briefs, most-capable tier.
         "flow-analyst": "opus",
         "build-error-resolver": "sonnet",

@@ -78,8 +78,8 @@
     },
     "debugger": {
       "accountable_for": "Root-cause diagnosis, read-only.",
-      "tier": "most-capable",
-      "effort": "xhigh"
+      "tier": "balanced",
+      "effort": "high"
     },
     "devops": {
       "accountable_for": "CI/CD, container, and deployment configuration.",
