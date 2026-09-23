@@ -35,7 +35,7 @@ ASSET_DIRS: Tuple[str, ...] = (
     "local", "plans", "knowledge", "defects",
 )
 
-# Must stay in step with NEVER_MANAGED in install.sh's manifest block.
+# Must stay in step with install_overrides.NEVER_MANAGED.
 SKIP_NAMES = {"hooks.log", "settings.local.json", ".claudekit-manifest.json",
               "session-footprint.md"}
 

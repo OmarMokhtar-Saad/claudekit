@@ -88,6 +88,34 @@ def test_update_refreshes_stale_copy_keeps_edit_and_reports(tmp_path):
     assert "kept 1, refreshed or merged 1" in out
 
 
+RUNTIME_STATE = ("hooks/bash-commands.log", "hooks/.state/spend.jsonl",
+                 "agent-memory/planner/MEMORY.md", "knowledge/rejections/INDEX.jsonl",
+                 "plans/archive/README.md", "runtime/events/local.jsonl")
+
+
+def test_runtime_state_is_never_managed(tmp_path):
+    """Project state the kit happens to ship a copy of is never compared, kept or merged:
+    no .kit-new, no row, no receipt, and the project's bytes survive the update."""
+    (tmp_path / "pyproject.toml").touch()
+    install(tmp_path)
+    claude = tmp_path / ".claude"
+    for rel in RUNTIME_STATE:
+        (claude / rel).parent.mkdir(parents=True, exist_ok=True)
+        (claude / rel).write_text("project state for %s\n" % rel)
+
+    shown = run(sys.executable, CLI, "update", "--show-kept", tmp_path)
+    assert shown.returncode == 0, shown.stderr + shown.stdout
+    for rel in RUNTIME_STATE:
+        assert rel not in shown.stdout, shown.stdout
+
+    r = install(tmp_path)
+    assert not list(claude.rglob("*.kit-new")), r.stdout
+    for rel in RUNTIME_STATE:
+        assert (claude / rel).read_text() == "project state for %s\n" % rel
+    manifest = json.loads((claude / ".claudekit-manifest.json").read_text())["files"]
+    assert not [rel for rel in RUNTIME_STATE if rel in manifest]
+
+
 def test_doctor_warns_on_kit_new(tmp_path):
     (tmp_path / "pyproject.toml").touch()
     install(tmp_path)

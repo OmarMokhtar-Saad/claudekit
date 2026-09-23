@@ -30,9 +30,12 @@ import sys
 
 RELEASES = 30
 OUT = os.path.join(".claude", ".claudekit-history.json")
-# Must stay in step with NEVER_MANAGED in install.sh's manifest writer.
-NEVER_MANAGED = {"hooks.log", "settings.local.json", ".claudekit-manifest.json",
-                 "session-footprint.md", ".claudekit-history.json"}
+# What is managed is install_overrides.is_unmanaged's call, shared with install.sh's
+# manifest writer and reconcile; the history file itself is the kit's, never a project's.
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir,
+                                ".claude", "operations", "scripts"))
+from install_overrides import is_unmanaged  # noqa: E402
+
 VERSION_LINE = re.compile(r'^version\s*=\s*"([^"]+)"', re.M)
 
 
@@ -67,8 +70,7 @@ def _managed(path):
     if not path.startswith(".claude/"):
         return None
     rel = path[len(".claude/"):]
-    name = rel.rsplit("/", 1)[-1]
-    if name in NEVER_MANAGED or name.endswith(".pyc") or rel.startswith("runtime/"):
+    if rel == ".claudekit-history.json" or is_unmanaged(rel):
         return None
     return rel
 

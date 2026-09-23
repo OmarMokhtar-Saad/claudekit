@@ -29,7 +29,7 @@ Never destructive:
 
 It cannot interact with the installer's preservation trap (a file written before
 preserve_assets.py runs makes preservation skip the project's real one): this name is in
-preserve_assets.py SKIP_NAMES and install.sh NEVER_MANAGED, so the preserving walk never
+preserve_assets.py SKIP_NAMES and install_overrides.NEVER_MANAGED, so the preserving walk never
 reaches `_consider` for it, and this script runs at session start, never inside install.
 
 Advisory: always exits 0, prints at most one line, and never blocks a session. The profile

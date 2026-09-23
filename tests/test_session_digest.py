@@ -22,6 +22,7 @@ cannot be shown failing is not evidence.
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
@@ -259,14 +260,19 @@ def test_the_footprint_is_never_a_tracked_or_managed_artifact(tmp_path):
 
     Structural on purpose -- these are set-membership contracts, and the alternative is
     running a full install. RED if any of the three entries is dropped;
-    preserve_assets.py:38 additionally requires SKIP_NAMES and NEVER_MANAGED to agree,
+    preserve_assets.py:38 additionally requires SKIP_NAMES and is_unmanaged to agree,
     which the last assertion pins.
     """
     name = "session-footprint.md"
     assert ".claude/%s" % name in (REPO / ".gitignore").read_text()
-    installer = (REPO / "install.sh").read_text()
+    scripts = REPO / ".claude" / "operations" / "scripts"
+    sys.path.insert(0, str(scripts))
+    try:
+        from install_overrides import is_unmanaged
+    finally:
+        sys.path.remove(str(scripts))
     preserve = (REPO / ".claude" / "operations" / "scripts" / "preserve_assets.py").read_text()
-    assert name in installer, "install.sh NEVER_MANAGED would hash it into the manifest"
+    assert is_unmanaged(name), "install.sh's manifest writer would hash it into the manifest"
     assert name in preserve, "preserve_assets SKIP_NAMES must stay in step with it"
 
 
