@@ -90,7 +90,8 @@ def test_report_counts_prices_and_logs(tmp_path):
     r = _run(REPORT, {"session_id": "abc/1", "transcript_path": str(transcript)}, proj)
     assert r.returncode == 0 and r.stdout == ""
     line = r.stderr.strip()
-    assert line.startswith("[ck delegation] direct 3 · agent 1 · tests 1 · peak ctx 1.0M"), line
+    # Read + Grep are direct; `ls src` is neither search nor test, so it is not counted.
+    assert line.startswith("[ck delegation] direct 2 · agent 1 · tests 1 · peak ctx 1.0M"), line
     # opus: 1M cache read @0.2 + 1M output @20; haiku: 1M cache read @0.1
     assert "most-capable $20.20" in line and "fast $0.10" in line and "$20.30" in line, line
 
@@ -365,7 +366,7 @@ def test_report_defers_while_a_background_agent_is_open(tmp_path):
 
     _write(transcript, [_notice("m2-t2")], mode="a")
     r = _run(REPORT, {"session_id": "s", "transcript_path": str(transcript)}, proj)
-    assert r.stderr.startswith("[ck delegation] direct 3 · agent 1"), r.stderr
+    assert r.stderr.startswith("[ck delegation] direct 2 · agent 1"), r.stderr
     assert len(eventlog.read(str(events))) == 1
 
 
@@ -447,10 +448,23 @@ def _ledger(proj, model):
     path.write_text(json.dumps({"model": model, "source": "argv"}))
 
 
+def _main_transcript(proj, context=70_000, model=""):
+    """The main transcript: one assistant turn at `context`. model "" names no model, so the
+    ledger decides the tier."""
+    _write(proj / "main.jsonl", [_assistant("m0", model, context=context)])
+
+
 def _call(proj, tool="Read", path=None, pid="p1", extra=None):
-    tool_input = {"file_path": path} if tool == "Read" else {"pattern": path or "x"}
+    if tool == "Read":
+        tool_input = {"file_path": path}
+    elif tool == "Bash":
+        tool_input = {"command": path}
+    else:
+        tool_input = {"pattern": path or "x"}
+    if not (proj / "main.jsonl").exists():
+        _main_transcript(proj)  # enforcement engages only past 60k context
     payload = {"session_id": "s1", "prompt_id": pid, "tool_name": tool,
-               "tool_input": tool_input, "transcript_path": str(proj / "absent.jsonl")}
+               "tool_input": tool_input, "transcript_path": str(proj / "main.jsonl")}
     payload.update(extra or {})
     return _run(NUDGE, payload, proj)
 
@@ -488,9 +502,60 @@ def test_transcript_model_overrides_the_ledger(tmp_path):
     """A /model switch shows in the transcript before any ledger could know it."""
     proj = _project(tmp_path)
     _ledger(proj, MODELS["sonnet"])
-    _write(proj / "absent.jsonl", [_assistant("m1", MODELS["opus"])])
+    _main_transcript(proj, model=MODELS["opus"])
     _hinted(proj)
     assert _four(proj)[-1].returncode == 2
+
+
+@pytest.mark.parametrize("tier", ["fable", "opus"])
+def test_top_two_tiers_not_denied_at_or_below_60k(tmp_path, tier):
+    proj = _project(tmp_path)
+    _ledger(proj, MODELS[tier])
+    _main_transcript(proj, context=60_000)
+    _hinted(proj)
+    assert [r.returncode for r in _four(proj, ("Read",) * 6)] == [0] * 6
+
+
+def test_bash_search_is_counted_and_denied(tmp_path):
+    proj = _project(tmp_path)
+    _ledger(proj, MODELS["opus"])
+    _hinted(proj)
+    assert all(r.returncode == 0 for r in _four(proj, ("Read", "Grep", "Glob")))
+    denied = _call(proj, "Bash", "grep -rn retry src")
+    assert denied.returncode == 2 and "search-Bash" in denied.stderr
+
+
+@pytest.mark.parametrize("command", ["git status", "ls src", "sed -i s/a/b/ f"])
+def test_non_search_bash_is_not_counted(tmp_path, command):
+    proj = _project(tmp_path)
+    _ledger(proj, MODELS["opus"])
+    _hinted(proj)
+    assert all(r.returncode == 0 for r in _four(proj, ("Read", "Grep", "Glob")))
+    assert _call(proj, "Bash", command).returncode == 0
+    assert _call(proj, "Bash", "sed -n 1,5p f").returncode == 2  # the 4th counted call
+
+
+def test_deny_names_the_last_agent_to_resume(tmp_path):
+    proj = _project(tmp_path)
+    _ledger(proj, MODELS["opus"])
+    _write(proj / "main.jsonl", [
+        _assistant("m0", "", context=70_000),
+        {"type": "user", "toolUseResult": {"status": "completed", "agentId": "a1"},
+         "message": {"role": "user", "content": "partial"}},
+        {"type": "user", "toolUseResult": {"status": "completed", "agentId": "a2"},
+         "message": {"role": "user", "content": "partial"}}])
+    _hinted(proj)
+    denied = _four(proj)[-1]
+    assert denied.returncode == 2
+    assert "continue it with SendMessage(a2)" in denied.stderr
+
+
+def test_deny_without_an_agent_has_no_resume_text(tmp_path):
+    proj = _project(tmp_path)
+    _ledger(proj, MODELS["opus"])
+    _hinted(proj)
+    denied = _four(proj)[-1]
+    assert denied.returncode == 2 and "SendMessage" not in denied.stderr
 
 
 def test_no_deny_when_the_hint_did_not_fire_for_this_prompt(tmp_path):

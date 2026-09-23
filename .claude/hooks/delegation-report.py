@@ -15,7 +15,8 @@ WHAT IT DOES
 Scans the session transcript (payload `transcript_path`) and its subagent transcripts
 (`<transcript minus .jsonl>/subagents/agent-*.jsonl`, the layout Claude Code writes):
   * main-thread tool calls, classified by `classify()`: `agent` (Agent/Task), `test` (a Bash
-    test runner), `direct` (Read/Grep/Glob and every other Bash call);
+    test runner), `direct` (Read/Grep/Glob, and a Bash call that runs a search or read:
+    grep/egrep/rg/cat/find/`sed -n`); any other Bash call (git status, ls, builds) is neither;
   * tokens per assistant message, deduplicated by message id (one message is split across
     several transcript lines that repeat the same usage);
   * peak context (input + cache read + cache write of the largest main-thread request).
@@ -44,6 +45,7 @@ TEST_RUN = re.compile(
     r"(npm|pnpm|yarn|bun)\s+(run\s+)?test|go\s+test|cargo\s+test|"
     r"\S*gradlew\S*\s+(\S+\s+)*\S*test\S*|mvn\s+(\S+\s+)*test|swift\s+test|xcodebuild\s+(\S+\s+)*test"
     r")\b")
+BASH_SEARCH = re.compile(r"(^|[\s;&|(])(grep|egrep|rg|cat|find|sed\s+-n)\b")
 PRICE_KEYS = (("input_tokens", "input"), ("output_tokens", "output"),
               ("cache_read_input_tokens", "cache_read"),
               ("cache_creation_input_tokens", "cache_write"))
@@ -60,6 +62,8 @@ def classify(tool_name, tool_input):
         command = tool_input.get("command") if isinstance(tool_input, dict) else None
         if isinstance(command, str) and TEST_RUN.search(command):
             return "test"
+        if not (isinstance(command, str) and BASH_SEARCH.search(command)):
+            return None
     return "direct"
 
 
