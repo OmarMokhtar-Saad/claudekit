@@ -6,9 +6,14 @@ the usage block of that JSON is what the per-phase table reports (turns, average
 per turn, rebilled input tokens, cost). Headless agents cannot write under ``.claude/``
 (platform gate), so every artifact is saved here from the agent's stdout.
 
-Local phases (record, implementer) run the operations scripts with ``--python``; in a git
-worktree that defaults to the main checkout's ``.venv`` interpreter, because worktrees
-do not carry a venv of their own.
+Local phases (record, implementer) run the operations scripts with ``--python``; that
+defaults to the main checkout's ``.venv`` interpreter (the first entry of ``git worktree
+list``), because worktrees do not carry a venv of their own. ``ck flow`` prints which one.
+
+The plan's validation commands run shell-free (see ``_shell_free_argv`` in main.py): a
+``validate-config-json.py`` line runs BEFORE the executor, since after it a file_create
+target already exists; the rest run after. A line that needs a shell is a "skipped" row in
+the usage table, and a missing binary is exit 127, never a traceback.
 """
 
 import json
@@ -86,22 +91,22 @@ def usage_of(data):
 
 
 def default_python(root):
-    """In a git worktree, the main checkout's ``.venv`` interpreter when it exists;
-    otherwise the interpreter running ``ck``."""
+    """(interpreter, where it came from): the ``.venv`` of ``root``, else of the main
+    checkout (the first ``git worktree list`` entry), else the interpreter running ``ck``."""
+    roots = [Path(root)]
     try:
-        proc = subprocess.run(["git", "rev-parse", "--git-common-dir"], cwd=str(root),
+        proc = subprocess.run(["git", "worktree", "list", "--porcelain"], cwd=str(root),
                               capture_output=True, text=True)
+        if proc.returncode == 0 and proc.stdout.startswith("worktree "):
+            roots.append(Path(proc.stdout.splitlines()[0][len("worktree "):]))
     except OSError:
-        return sys.executable
-    common = proc.stdout.strip()
-    if proc.returncode != 0 or not common:
-        return sys.executable
-    main_root = (Path(root) / common).resolve().parent
-    for cand in (main_root / ".venv" / "bin" / "python",
-                 main_root / ".venv" / "Scripts" / "python.exe"):
-        if cand.exists():
-            return str(cand)
-    return sys.executable
+        pass
+    for base in roots:
+        for cand in (base / ".venv" / "bin" / "python",
+                     base / ".venv" / "Scripts" / "python.exe"):
+            if cand.exists():
+                return str(cand), f"{base}/.venv"
+    return sys.executable, "no .venv found; the interpreter running ck"
 
 
 def slug_for(task):
@@ -130,6 +135,18 @@ def run_script(python, script, args, root):
     argv = [python, str(root / SCRIPTS / script)] + [str(a) for a in args]
     proc = subprocess.run(argv, capture_output=True, text=True, cwd=str(root))
     return proc.returncode, proc.stdout + proc.stderr
+
+
+def run_check(cmd, root, shell_free_argv):
+    """(exit code, transcript) for one plan validation line; None when it needs a shell."""
+    argv = shell_free_argv(cmd)
+    if argv is None:
+        return None, f"\n$ {cmd}\n(skipped: needs a shell)\n"
+    try:
+        proc = subprocess.run(argv, capture_output=True, text=True, cwd=str(root))
+    except OSError as exc:
+        return 127, f"\n$ {cmd}\n{argv[0]}: {exc}\n(exit 127)\n"
+    return proc.returncode, f"\n$ {cmd}\n{proc.stdout}{proc.stderr}(exit {proc.returncode})\n"
 
 
 def save(path, text):
@@ -255,20 +272,31 @@ def run_flow(task, root, python, claude_bin, models, slug, validation_commands,
         return finish(2, f"review did not authorise execution (review-record exit {rc}; "
                          f"see {review})")
 
-    # 4. implementer: the executor with the gate on, then the plan's own checks
-    rc, text = run_script(python, "execute-json-ops.py", [ops], root)
-    impl_output = text
+    # 4. implementer: the plan's config check (before: after the executor a file_create
+    # target exists and the validator refuses it), the executor with the gate on, then the
+    # plan's other checks
+    checks = validation_commands(root / plan_md)
+    before = [c for c in checks if "validate-config-json.py" in c]
+    after = [c for c in checks if c not in before]
+    impl_output, rc = "", 0
+
+    def run_checks(cmds):
+        nonlocal impl_output
+        for cmd in cmds:
+            code, text = run_check(cmd, root, shell_free_argv)
+            impl_output += text
+            if code is None:
+                local(f"check: {cmd[:40]}", "skipped: needs shell", text)
+            elif code != 0:
+                return code
+        return 0
+
+    rc = run_checks(before)
     if rc == 0:
-        for cmd in validation_commands(root / plan_md):
-            argv = shell_free_argv(cmd)
-            if argv is None:
-                impl_output += f"\n$ {cmd}\n(skipped: needs a shell)\n"
-                continue
-            proc = subprocess.run(argv, capture_output=True, text=True, cwd=str(root))
-            impl_output += f"\n$ {cmd}\n{proc.stdout}{proc.stderr}(exit {proc.returncode})\n"
-            if proc.returncode != 0:
-                rc = proc.returncode
-                break
+        rc, text = run_script(python, "execute-json-ops.py", [ops], root)
+        impl_output += text
+    if rc == 0:
+        rc = run_checks(after)
     local("implementer", rc, impl_output)
     if rc != 0:
         print(impl_output.rstrip(), file=out)
@@ -303,11 +331,11 @@ def cmd_flow(args, validation_commands, shell_free_argv):
     except ValueError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
-    python = args.python or default_python(root)
+    python, source = (args.python, "--python") if args.python else default_python(root)
     claude_bin = args.claude or os.environ.get("CK_CLAUDE_BIN") or "claude"
     slug = args.slug or slug_for(args.task)
     if (root / PLANS / f"plan-{slug}.md").exists() and not args.slug:
         slug = f"{slug}-{time.strftime('%H%M%S')}"
-    print(f"[flow] python {python}; claude {claude_bin}; slug {slug}")
+    print(f"[flow] python {python} ({source}); claude {claude_bin}; slug {slug}")
     return run_flow(args.task, root, python, claude_bin, models, slug,
                     validation_commands, shell_free_argv)
