@@ -468,6 +468,15 @@ asset changes, so they are recorded as options with trade-offs.
 
 ## P1 — high value, unblocked
 
+- [ ] **[MEDIUM] `install.sh` appends the ClaudeKit block to the repo `.gitignore` on every update
+  even when the project excludes `.claude/` locally** (found 2026-09-23, hermes-agent fleet
+  update: `M .gitignore`, +10 lines; the owner reverted it). `install.sh:952-977` appends each
+  missing `ENTRIES` line unconditionally, so a project that reverts the block gets it back on
+  the next `ck update`, a tracked-file change outside the manifest. Fix: skip the whole step
+  when `.claude/.gitignore` contains `*` (or `git check-ignore -q .claude/x` succeeds, or the
+  entries live in `.git/info/exclude`); regression test: install twice into a repo whose
+  `.claude/.gitignore` is `*` and assert the repo `.gitignore` bytes are unchanged.
+
 - [ ] **`AGENTS.md` is a mechanical `.claude` -> `.Codex` sed of `CLAUDE.md`, and most of it is
   wrong.** Found 2026-08-21 by the reviewer of `plan-remove-codex-mirror` (my own grep missed
   it: I searched case-sensitively for `.codex` and the file writes `.Codex`). The sed also
