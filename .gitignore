@@ -112,3 +112,4 @@ backups/
 # ClaudeKit hook runtime state (rotated logs, cadence ledger) - never source
 .claude/hooks/hooks.log.*
 .claude/hooks/compaction-cadence.jsonl
+.claude/hooks/research/
