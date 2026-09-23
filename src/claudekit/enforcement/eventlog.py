@@ -69,6 +69,11 @@ KIND_FIELDS: Dict[str, Tuple[str, ...]] = {
         "plan", "config_path", "operation_index", "operation_type", "target_path",
         "status", "duration_ms", "detail_preview",
     ),
+    # One session's delegation split at Stop: who did the reading, and what it cost.
+    "delegation_report": (
+        "direct_calls", "agent_calls", "test_runs", "peak_context",
+        "main_tokens", "subagent_tokens", "cost_by_tier",
+    ),
 }
 
 KINDS: Tuple[str, ...] = tuple(sorted(KIND_FIELDS))

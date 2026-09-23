@@ -15,6 +15,7 @@ Usage:
     python3 scripts/gen-docs.py --check    # exit 1 if anything is stale
 """
 
+import json
 import re
 import sys
 from pathlib import Path
@@ -53,6 +54,11 @@ NO_AUTOFIX = {PY_BLOCK_FILE}
 # A number followed by (optionally one adjective) one of the tracked nouns:
 #   "28 agents", "39 slash commands", "73 domain skills", "18 workflow hooks".
 _DRIFT_RE = re.compile(r"(\d+)\s+(?:[\w-]+\s+)?(agents?|commands?|skills?|hooks?)\b")
+
+# "34 are reachable": hooks something actually invokes. Must stay on one line, and must
+# be present in every REACH_FILES entry -- a deleted phrase would pass the check vacuously.
+_REACH_RE = re.compile(r"(\d+)\s+are\s+reachable\b")
+REACH_FILES = ["README.md", "docs/HOOKS.md"]
 
 # Escape hatch: a line carrying this marker is neither drift-checked nor rewritten
 # (for genuine examples like "add 2 hooks of your own").
@@ -151,12 +157,35 @@ def count_hooks() -> int:
     return len([p for p in files if not _is_helper_module(p, files)])
 
 
+def count_reachable_hooks() -> int:
+    """Hooks something invokes: named in settings.json or a dispatch-registry `file`,
+    or named inside a hook that is itself reachable (gate wrappers such as
+    file-guard-gate.sh -> file-guard.sh). The rest ship unwired."""
+    files = _hook_files()
+    hooks = [p for p in files if not _is_helper_module(p, files)]
+    settings = ROOT / ".claude" / "settings.json"
+    wired = settings.read_text() if settings.exists() else ""
+    registry = ROOT / ".claude" / "hooks" / "dispatch-registry.json"
+    if registry.exists():
+        doc = json.loads(registry.read_text())
+        wired += "\n".join(row.get("file", "") for rows in doc.get("events", {}).values()
+                           for row in rows)
+    reach = {p for p in hooks if p.name in wired}
+    while True:
+        text = "\n".join(p.read_text(errors="replace") for p in reach)
+        new = {p for p in hooks if p not in reach and p.name in text}
+        if not new:
+            return len(reach)
+        reach |= new
+
+
 def counts() -> dict:
     return {
         "agent": count_agents(),
         "command": count_commands(),
         "skill": count_skills(),
         "hook": count_hooks(),
+        "reachable": count_reachable_hooks(),
     }
 
 
@@ -210,14 +239,28 @@ def scan_drift(c: dict) -> list:
                 expected = plural[noun]
                 if found != expected:
                     problems.append((rel, i, line.strip(), found, expected))
+            for m in _REACH_RE.finditer(line):
+                if int(m.group(1)) != c["reachable"]:
+                    problems.append((rel, i, line.strip(), int(m.group(1)), c["reachable"]))
     return problems
+
+
+def missing_reach_phrase(c: dict) -> list:
+    """REACH_FILES that no longer state the reachable count at all. A tree with no reachable
+    hook (a scaffolded project) has no count to bind."""
+    if not c["reachable"]:
+        return []
+    return [rel for rel in REACH_FILES
+            if (ROOT / rel).exists() and not _REACH_RE.search((ROOT / rel).read_text())]
 
 
 def _fix_line(line: str, c: dict) -> str:
     def repl(m):
         expected = c[m.group(2).rstrip("s")]
         return m.group(0).replace(m.group(1), str(expected), 1)
-    return _DRIFT_RE.sub(repl, line)
+    line = _DRIFT_RE.sub(repl, line)
+    return _REACH_RE.sub(lambda m: m.group(0).replace(m.group(1), str(c["reachable"]), 1),
+                         line)
 
 
 def fix_drift(c: dict) -> list:
@@ -287,6 +330,10 @@ def main(argv=None) -> int:
             for rel, ln, txt, found, expected in drift:
                 print(f"  {rel}:{ln}: says {found}, should be {expected} "
                       f"-> {txt}", file=sys.stderr)
+            rc = 1
+        for rel in missing_reach_phrase(c):
+            print(f"ERROR: {rel} no longer states '<n> are reachable' on one line - "
+                  "the reachable-hook count is not bound to anything.", file=sys.stderr)
             rc = 1
         if rc == 0:
             print("OK: docs counts are current.")

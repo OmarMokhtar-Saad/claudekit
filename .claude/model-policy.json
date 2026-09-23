@@ -1,5 +1,6 @@
 {
   "_readme": [
+    "`usd_per_mtok` is list price per million tokens (platform.claude.com/docs/en/about-claude/pricing, 2026-09-23); delegation-report.py prices sessions from it.",
     "THE single source of truth for which capability tier each agent role earns.",
     "Policy is written in TIER names everywhere else in this repo (CLAUDE.md, agent",
     "prompts, .ai/ docs). Concrete vendor model ids appear ONLY in capability_tiers",
@@ -24,21 +25,31 @@
   ],
   "version": 1,
   "capability_tiers": {
+    "frontier": {
+      "model": "fable",
+      "effort": "high",
+      "usd_per_mtok": {"input": 10, "output": 50, "cache_read": 0.25, "cache_write": 12.5},
+      "degrade_to": "most-capable",
+      "use_when": "Priced so sessions run on it are costed; no role is assigned to it."
+    },
     "most-capable": {
       "model": "opus",
       "effort": "high",
+      "usd_per_mtok": {"input": 4, "output": 20, "cache_read": 0.2, "cache_write": 5},
       "degrade_to": "balanced",
       "use_when": "Novel design, adversarial review, security reasoning, or root-cause work where a wrong answer is expensive and hard to detect."
     },
     "balanced": {
       "model": "sonnet",
       "effort": "medium",
+      "usd_per_mtok": {"input": 2, "output": 10, "cache_read": 0.2, "cache_write": 2.5},
       "degrade_to": "fast",
       "use_when": "Bounded judgement against a written standard: scoring, specialist review, refactors, test authoring, orchestration."
     },
     "fast": {
       "model": "haiku",
       "effort": "low",
+      "usd_per_mtok": {"input": 1, "output": 5, "cache_read": 0.1, "cache_write": 1.25},
       "degrade_to": null,
       "use_when": "Mechanical or retrieval work with a checkable output: executing an approved ops.json, searching, summarising, formatting."
     }

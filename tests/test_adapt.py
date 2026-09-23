@@ -24,8 +24,8 @@ from claudekit import adapt  # noqa: E402
 
 #: The real dialect on disk, quoted from CLAUDE.md. If the convention changes, these
 #: fixtures fail rather than the writer silently drifting away from it.
-REAL_START = "<!-- CLAUDEKIT:TOKEN-MODEL-POLICY v6 START -->"
-REAL_END = "<!-- CLAUDEKIT:TOKEN-MODEL-POLICY v6 END -->"
+REAL_START = "<!-- CLAUDEKIT:TOKEN-MODEL-POLICY v7 START -->"
+REAL_END = "<!-- CLAUDEKIT:TOKEN-MODEL-POLICY v7 END -->"
 
 #: The OTHER dialect, which all eleven templates/*/CLAUDE.md use and the installer
 #: renders into a target. Adapt must ignore it completely.
@@ -40,13 +40,13 @@ def test_the_real_repo_markers_are_still_the_dialect_we_parse():
     assert REAL_END in text, "CLAUDE.md no longer carries the END form we parse"
     region, fenced = adapt.find_region(text, "TOKEN-MODEL-POLICY")
     assert region is not None, "the parser cannot read the repo's own real region"
-    assert region.version == 6  # bumped 2026-09-19 with policy v6 (Explore clause)
+    assert region.version == 7  # bumped 2026-09-23 with policy v7 (delegate by default)
     assert fenced == []
 
 
 def test_the_writer_emits_the_dialect_on_disk_byte_for_byte():
     """Literal expected bytes — a shared constant cannot satisfy this."""
-    block = adapt.render_region("body", region_id="TOKEN-MODEL-POLICY", version=6)
+    block = adapt.render_region("body", region_id="TOKEN-MODEL-POLICY", version=7)
     assert block[0] == REAL_START
     assert block[-1] == REAL_END
 

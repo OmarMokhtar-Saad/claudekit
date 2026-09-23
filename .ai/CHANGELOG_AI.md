@@ -1,7 +1,13 @@
 # AI Session Changelog
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
-## 2026-09-23 (latest) — headless flow: /plan in -p mode, actionable gate messages, `ck flow`
+## 2026-09-23 (latest) — delegation layer: a $0 line reads as free
+
+Three advisory hooks (Stop report, PreToolUse nudge, UserPromptSubmit route hint) priced from `model-policy.json` tiers. The first real qa-agents transcript put 1.0M of 1.1M tokens on Fable 5.1, which no tier prices, and the report said `unpriced $0.00` -- a figure that reads as free. Unpriced models now show as a token count with the model id. Also: tool_use blocks are deduped by id like usage is by message id. A/B on qa-agents: the route hint made the session delegate on turn 1 (main 191k -> 109k), but the explore subagent spent 412k, so total cost rose ($0.14 -> $0.20). Delegation cuts main context, not automatically dollars. Lesson: price what you can, and count loudly what you can't.
+
+Owner follow-ups applied in the same session. Fable is priced as a `frontier` tier; its $0.25 cache read looked like a typo but is the page's documented 0.025x rate. The reachable-hook count is generated. The Stop report defers while an async Agent call has no completion notice. The suggested call carries `maxTurns 12` plus the escalation model, and explore.md is capped. The capped rerun of B (session f0f21602, explore passed via `--agents` with maxTurns 12, so nothing was written in qa-agents) printed one report line, not two: `direct 2 · agent 1 · main 151k · subagents 234k · $0.14` against uncapped B's `main 109k · subagents 412k · $0.20`. The cap took subagent spend back to A's $0.14; the main thread did two direct reads of its own. The same capped case with the main session on opus (d05696a7): `direct 6 · agent 0 · main 167k · $0.22 (most-capable)`. The hint was delivered once, and opus answered directly anyway (more file:line detail). A hint is advisory, and the stronger model is the one most likely to ignore it. The route hint now skips short questions: it needs a breadth word, 2+ named paths, or more than 40k of context.
+
+## 2026-09-23 — headless flow: /plan in -p mode, actionable gate messages, `ck flow`
 
 - `.claude/commands/plan.md`: headless (no Task tool) => mechanism B always; refusal text names the `claude -p --agent planner` command when Bash is missing too.
 - `.claude/agents/implementer.md`, `execute-json-ops.py`: "no ops.json" and `APPROVAL GATE` refusals print the expected ops path and the exact `review-record.py write --from-review` / executor commands (`approval_plan_hint()`).

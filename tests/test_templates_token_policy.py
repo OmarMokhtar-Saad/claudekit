@@ -36,13 +36,13 @@ ROOT_VERSION, ROOT_BODY = region((ROOT / "CLAUDE.md").read_text(encoding="utf-8"
 
 
 def test_the_kit_root_carries_the_current_policy():
-    assert ROOT_VERSION == 6
+    assert ROOT_VERSION == 7
     text = "\n".join(bullets(ROOT_BODY))
-    assert "Explore subagent" in text, "v6 is the Explore clause"
+    assert "searches go to `explore` (fast tier)" in text, "v7 is the delegate clause"
     assert "batch independent commands in one call" in text
     assert "read files in windows, never whole" in text
     assert '"wait for OK"' in text
-    assert len(bullets(ROOT_BODY)) == 4
+    assert len(bullets(ROOT_BODY)) == 5
 
 
 def test_there_are_templates():

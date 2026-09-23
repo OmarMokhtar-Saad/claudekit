@@ -506,6 +506,22 @@ def _doctor_checks(args, tally):
           "locally; CI runs it regardless",
           fix_cmd=_SHELLCHECK_INSTALL.get(sys.platform))
 
+    # delegation-report.py prices sessions from capability_tiers[*].usd_per_mtok; a tier
+    # without one is reported as tokens only, so its share of the bill goes missing.
+    policy_path = Path(".claude") / "model-policy.json"
+    if policy_path.is_file():
+        try:
+            tiers = json.loads(policy_path.read_text(encoding="utf-8")).get(
+                "capability_tiers") or {}
+        except (OSError, ValueError, AttributeError):
+            tiers = {}
+        unpriced = sorted(name for name, spec in tiers.items()
+                          if not isinstance(spec, dict)
+                          or not isinstance(spec.get("usd_per_mtok"), dict))
+        check("capability tiers priced", "warn" if unpriced else True,
+              "no usd_per_mtok on %s in .claude/model-policy.json — the delegation "
+              "report shows those tiers as unpriced" % ", ".join(unpriced))
+
     # Git
     try:
         result = subprocess.run(["git", "--version"], capture_output=True, text=True,
