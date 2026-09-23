@@ -1,7 +1,15 @@
 # AI Session Changelog
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
-## 2026-09-23 (latest) — keeping identical bytes defers the mode fix by one run
+## 2026-09-23 (latest) — headless flow: /plan in -p mode, actionable gate messages, `ck flow`
+
+- `.claude/commands/plan.md`: headless (no Task tool) => mechanism B always; refusal text names the `claude -p --agent planner` command when Bash is missing too.
+- `.claude/agents/implementer.md`, `execute-json-ops.py`: "no ops.json" and `APPROVAL GATE` refusals print the expected ops path and the exact `review-record.py write --from-review` / executor commands (`approval_plan_hint()`).
+- `src/claudekit/cli/flow.py` (new) + `main.py` `flow` sub-command: planner -> extract -> stamp -> reviewer -> `review-record.py write` then `check` -> executor (gate on) + plan checks -> verifier with captured output; usage table (turns, avg ctx, rebilled, cost). `--python`, `--slug`, `--claude`, `--model ROLE=MODEL`.
+- `tests/test_cli_flow.py`: full chain with gate ON, rejecting reviewer stops before the implementer (exit 2), model override / bad role, usage math.
+- `docs/cli.md`, `CHANGELOG.md` `[Unreleased]`.
+
+## 2026-09-23 — keeping identical bytes defers the mode fix by one run
 
 A kept file is copied with `cp -p`, so a hook whose bytes already matched the kit was installed at the project's 644 and receipted as matching; the next run then applied the kit's 755. Identical bytes now take the kit copy on the first run. Also: the preserved list moved from ~2000 console lines to a count plus a log next to the backup, and `ck doctor` accepts a project path by running its cwd-relative checks from there.
 

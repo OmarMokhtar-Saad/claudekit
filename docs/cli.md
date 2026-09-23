@@ -241,6 +241,30 @@ fenced block under a `## Validation commands`, `## Testing Strategy`, `## Tests`
 `## Verification` heading. They run **without a shell**, so a command carrying a pipe,
 redirect or chain is reported as skipped rather than reinterpreted.
 
+### `claudekit flow "<task>"`
+
+The whole pipeline, headless, in one command: `claude -p --agent planner` writes the
+plan and its ops.json (saved under `.claude/plans/` from the agent's stdout, since
+headless agents cannot write there), `--agent reviewer` scores it, `review-record.py
+write --from-review` records the verdict, `execute-json-ops.py` applies it with the
+approval gate on and runs the plan's validation commands, and `--agent verifier` gets
+that captured output so it verifies instead of rerunning. Every agent runs with its
+scoped `--allowedTools` and `--output-format json`; the usage block of each run is the
+table printed at the end (turns, average context per turn, rebilled input tokens,
+cost). A review that does not authorise execution stops the chain with exit 2 and no
+edit to the tree.
+
+```bash
+ck flow "add a --json flag to ck doctor"
+ck flow "..." --python /path/to/.venv/bin/python   # interpreter for the ops scripts
+ck flow "..." --model reviewer=sonnet --model verifier=haiku
+ck flow "..." --slug doctor-json --claude /opt/bin/claude   # or $CK_CLAUDE_BIN
+```
+
+In a git worktree `--python` defaults to the main checkout's `.venv/bin/python` when it
+exists. Artifacts: `plan-<slug>.md`, `.ops.json`, `.review.md`, `.verify.md` under
+`.claude/plans/`.
+
 ### `claudekit rollback`
 
 Rollback from a previous backup.

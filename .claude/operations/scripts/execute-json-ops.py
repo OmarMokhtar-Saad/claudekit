@@ -1024,6 +1024,16 @@ def check_approval(config_file: str, plan_name: str) -> Tuple[bool, str]:
     return True, ""
 
 
+def approval_plan_hint(config_file) -> str:
+    """The plan.md the gate expects next to this ops.json (the /plan naming
+    convention <slug>.ops.json <-> <slug>.md), or a placeholder when the name
+    does not follow it. Printed in the refusal so the next command is copy-pasteable."""
+    name = str(config_file)
+    if name.endswith(".ops.json"):
+        return name[: -len(".ops.json")] + ".md"
+    return "<plan.md>"
+
+
 PRECOMPILE_SCRIPT = Path(__file__).resolve().parent / "ops_precompile.py"
 
 
@@ -1135,9 +1145,17 @@ def execute_json_config(config_file: str, dry_run: bool = False,
             print("\nAPPROVAL GATE: refusing to execute — this ops.json is not bound to an "
                   "APPROVED review record.")
             print(f"  {approval_reason}")
-            print("  Run /review for this plan (or re-run it if the ops.json changed after")
-            print("  approval), then retry. --no-approval bypasses this gate and exists only")
-            print("  for bootstrap and repo-maintenance runs you are authorised to make.")
+            plan_hint = approval_plan_hint(config_file)
+            recorder = Path(__file__).resolve().parent / "review-record.py"
+            print("  Next (each refusal names the exact command; re-run 1-2 if the ops.json")
+            print("  changed after approval):")
+            print(f"    1. Run /review for this plan ({plan_hint}); headless: pipe the plan and")
+            print("       ops paths to `claude -p --agent reviewer` and save its output to a file.")
+            print(f"    2. python3 {recorder} write --from-review <review-file> "
+                  f"--reviewer-role reviewer {plan_hint} {config_file}")
+            print(f"    3. python3 {Path(__file__).resolve()} {config_file}")
+            print("  --no-approval bypasses this gate and exists only for bootstrap and")
+            print("  repo-maintenance runs you are authorised to make.")
             _emit_result(plan_name, dry_run, 'failed', [], reason=approval_reason)
             return False
         print("Approval: reviewed verdict verified for this exact ops.json")

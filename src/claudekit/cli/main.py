@@ -2420,6 +2420,13 @@ def _print_directives(found):
         print(f"      [{item['kind']}] {item['text']}")
 
 
+def cmd_flow(args):
+    """ck flow "<task>": the headless plan -> review -> record -> implement -> verify
+    chain with a per-phase usage table (see claudekit/cli/flow.py)."""
+    from claudekit.cli import flow
+    return flow.cmd_flow(args, _plan_validation_commands, _shell_free_argv)
+
+
 def cmd_memory(args):
     """Project-local, schema-validated memory with evidence precedence enforced."""
     from claudekit import memory as mem
@@ -2918,6 +2925,18 @@ def main():
                    help="Pass --no-approval through to the executor")
     p.add_argument("-v", "--verbose", action="store_true")
 
+    # flow
+    p = sub.add_parser("flow", help="headless planner -> review -> record -> implement -> verify, with per-phase usage")
+    p.add_argument("task", help="What to build (the planner's prompt)")
+    p.add_argument("--python", metavar="PATH",
+                   help="Interpreter for the operations scripts (default: the main "
+                        "checkout's .venv when run in a worktree, else this one)")
+    p.add_argument("--slug", help="Plan slug (default: derived from the task)")
+    p.add_argument("--claude", metavar="BIN",
+                   help="claude binary (default: $CK_CLAUDE_BIN or claude)")
+    p.add_argument("--model", action="append", metavar="ROLE=MODEL",
+                   help="Override a role's model, e.g. reviewer=sonnet (repeatable)")
+
     # rollback
     p = sub.add_parser("rollback", help="Rollback from backup")
     p.add_argument("--backup", help="Backup directory")
@@ -3114,6 +3133,7 @@ def main():
         "validate": cmd_validate,
         "execute": cmd_execute,
         "implement": cmd_implement,
+        "flow": cmd_flow,
         "rollback": cmd_rollback,
         "agents": cmd_agents,
         "diff": cmd_diff,

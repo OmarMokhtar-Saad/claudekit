@@ -11,6 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `open-source-forker` — never shipped and have been removed.
 
 ## [Unreleased]
+- **`ck flow "<task>"`.** One headless command chains planner -> extracted ops.json ->
+  reviewer -> `review-record.py write` -> executor (gate on) + the plan's checks -> verifier
+  fed the captured test output, and prints per-phase usage (turns, avg ctx, rebilled, cost)
+  from `--output-format json`. `--python` defaults to the main checkout's `.venv` in a worktree.
+- **Headless `/plan` no longer implements the task itself.** Without the Task tool the command
+  shells out to `claude -p --agent planner` (or prints that exact command when Bash is
+  unavailable too) instead of skipping the plan file.
+- **Gate refusals name the next command.** The implementer's "no ops.json" pre-flight and the
+  executor's `APPROVAL GATE` message print the expected ops path, the planner/extract commands
+  and the exact `review-record.py write --from-review ... --reviewer-role reviewer` line.
 - **`ck update` prints a preserved-file count, not ~2000 lines.** The full list is written
   to `preserved-files.log` inside the run's `.claude.bak-*` backup; up to 10 names still
   print inline.

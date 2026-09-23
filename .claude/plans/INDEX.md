@@ -24,11 +24,11 @@ index never outranks the current files.
 |---|---:|
 | `drifted` | 12 |
 | `approved` | 63 |
-| `planned` | 36 |
+| `planned` | 37 |
 | `executed` | 30 |
 | `not_started` | 26 |
 | `legacy` | 5 |
-| **total** | **172** |
+| **total** | **173** |
 
 ## Plans
 
@@ -96,6 +96,7 @@ index never outranks the current files.
 | `.claude/plans/plan-graph-p4-impact.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-graph-render-diff.md` | `planned` | 8 |  |
 | `.claude/plans/plan-harness-findings.md` | `approved` | 1 |  |
+| `.claude/plans/plan-headless-flow.md` | `planned` | 1 |  |
 | `.claude/plans/plan-hook-live-findings.md` | `executed` | 10 |  |
 | `.claude/plans/plan-hook-log-dedup.md` | `executed` | 3 |  |
 | `.claude/plans/plan-hook-profiles.md` | `approved` | 1 |  |

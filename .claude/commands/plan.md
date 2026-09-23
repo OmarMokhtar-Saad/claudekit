@@ -23,6 +23,15 @@ Create implementation plan for: $ARGUMENTS
 If `$ARGUMENTS` begins with `--deep`, strip that flag from the task description and follow
 the `--deep` sections below. Otherwise write both files yourself, as follows.
 
+**Headless (`claude -p`): mechanism B, always.** Without the Task tool this body cannot
+be followed inline: measured on 2026-09-23, a headless `/plan` skipped the plan file and
+implemented the task directly (7 turns, 36k avg context). If `Task` is not in your tool
+list, skip the inline steps and run the bash block under "Mechanism B" regardless of
+`--deep`: it shells out to `claude -p --agent planner` and saves the plan and the
+extracted ops.json under `.claude/plans/` itself (Bash redirection is not gated there).
+If Bash is unavailable as well, stop and print exactly this, then end the turn:
+`/plan is interactive-only in this mode. Run: echo "<task>" | claude -p --agent planner --model opus --allowedTools "Read,Grep,Glob,Write" > .claude/plans/plan-<slug>.md`
+
 ## Default (no `--deep`) — you write both files
 
 1. Name every file the change touches. If you cannot, stop and re-run with `--deep`.
