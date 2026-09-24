@@ -12,6 +12,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **The kit's own runtime state no longer ships.** Installing or `ck update`-ing from a kit
+  checkout copied gitignored runtime files that the hook denylist didn't name. The kit's own
+  session log, `hooks/compaction-cadence.jsonl`, reached every project as a `.kit-new`. A wheel
+  built from a used checkout also bundled `hooks/.state/` ledgers, research caches, reflection
+  notes and worktrees (9,150 files instead of 1,491). In the kit's own checkout, `install.sh` and
+  `setup.py` now treat `.gitignore` as the list of runtime state. The denylists are only the
+  fallback for a source with no git. An outer repo's `.gitignore` is never consulted, so a kit
+  vendored in a project that ignores `.claude/` still ships every hook.
+
 - **Subagents are capped on tokens spent, not tool calls.** `context-budget-gate.py` no longer
   counts tool calls against `maxTurns`. It truncated 75% of planners and 80% of explore runs, and
   guarded 3% of subagent tokens (1,391 runs measured). Parallel batches used up the count, and at

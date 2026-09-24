@@ -331,11 +331,27 @@ if [[ "$MODE" == "full" ]]; then
     # `python3 <missing>` exits 2 -- which on PreToolUse means BLOCK. A fresh
     # install produced a project where every Edit, Write and Bash was blocked.
     # Ship everything; deny only runtime state and editor/merge debris.
+    # In the kit's own checkout .gitignore is the authority on runtime state, so a
+    # new ledger needs no entry in the case list (compaction-cadence.jsonl, the kit's
+    # session log, reached every project as a .kit-new). Only when the checkout root
+    # IS the kit: a wheel's share/ under a project's ignored .venv/ would drop every hook.
     _copy_hook_assets() {
         _src_dir="$1"
         [[ -d "$_src_dir" ]] || return 0
+        _nl=$'\n'
+        _hook_ignored=""
+        # `|| true` inside each $(): set -E hands the ERR trap to command
+        # substitutions, and a failing git outside a repo would run
+        # _cleanup_on_failure there and delete the staging tree.
+        if command -v git >/dev/null 2>&1 && [[ "$(git -C "$SCRIPT_DIR" rev-parse \
+            --show-toplevel 2>/dev/null || true)" == "$(cd "$SCRIPT_DIR" && pwd -P)" ]]; then
+            _hook_ignored="$(cd "$_src_dir" && git check-ignore -- * 2>/dev/null || true)"
+        fi
         for _hook_src in "$_src_dir"/*; do
             [[ -f "$_hook_src" ]] || continue
+            case "$_nl$_hook_ignored$_nl" in
+                *"$_nl${_hook_src##*/}$_nl"*) continue ;;
+            esac
             case "${_hook_src##*/}" in
                 *.log|*.pyc|*.orig|*.rej|*.swp|*~) continue ;;
                 compact-counter.txt|settings.local.json) continue ;;

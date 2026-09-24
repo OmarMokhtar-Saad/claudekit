@@ -1,6 +1,11 @@
 # Session State
 
 > Update this file at the end of every significant AI working session. It is the resume point.
+**2026-09-24 (later) -- `.gitignore` decides runtime state for install.sh and setup.py.**
+`compaction-cadence.jsonl`, the kit's own gitignored session log, reached hermes-agent as a `.kit-new`, and a wheel
+built from this checkout bundled 9,150 files instead of 1,491. Both paths now skip ignored files, but only in the kit's own
+checkout, never an outer repo's. Five named mutants, all RED (`tests/test_hook_delivery.py`).
+
 **2026-09-24 -- subagents capped on spend, not tool calls; `--from-task` (branch `feat/subagent-spend-line`: `d658091a`, `4e86b640`).**
 Plan `.claude/plans/plan-subagent-spend-wind-down.md`. Measured over 1,391 subagent runs, both
 accounts: the gate's tool-call maxTurns cap truncated 75% of planners, 80% of explores, and guarded

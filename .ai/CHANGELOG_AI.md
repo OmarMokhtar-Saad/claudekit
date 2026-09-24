@@ -1,7 +1,16 @@
 # AI Session Changelog
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
-## 2026-09-24 (latest) — subagent spend line replaces the tool-call cap; `--from-task`
+## 2026-09-24 (latest) — install.sh / setup.py stop shipping gitignored runtime state
+
+- `install.sh` `_copy_hook_assets`: skips `git check-ignore` hits when `rev-parse --show-toplevel`
+  is the kit itself. `|| true` inside the `$()` matters: `set -E` hands the ERR trap to command
+  substitutions, and a failing git outside a repo deleted the staging tree (two tests caught it).
+- `setup.py` `_git_ignored()`: the same rule for the wheel. Paths are root-relative (macOS `/var`
+  -> `/private/var` broke absolute ones). An ignored walk root returns nothing.
+- Tests: 4 new tests plus the structural test (it asserted the leak). Five mutants, all RED.
+
+## 2026-09-24 — subagent spend line replaces the tool-call cap; `--from-task`
 
 - `context-budget-gate.py`: the tool-call count against maxTurns is gone, and `_charge_agent` sums
   per-turn context (a parallel batch shares a message.id and is charged once). The ledger is
