@@ -104,11 +104,16 @@ def test_python_hooks_installed_and_executable():
 def test_all_source_hook_assets_installed():
     """Structural: catches the NEXT stale extension, not just this one."""
     src = REPO / ".claude" / "hooks"
+    names = sorted(p.name for p in src.iterdir() if p.is_file())
+    ignored = set(subprocess.run(
+        ["git", "check-ignore", "--stdin"], cwd=src, input="\n".join(names),
+        capture_output=True, text=True,
+    ).stdout.split())
     expected = {
-        p.name for p in src.iterdir()
-        if p.is_file()
-        and p.name not in RUNTIME_NAMES
-        and not p.name.endswith(RUNTIME_SUFFIXES)
+        n for n in names
+        if n not in RUNTIME_NAMES
+        and not n.endswith(RUNTIME_SUFFIXES)
+        and n not in ignored
     }
     assert expected, "source hooks dir is empty -- fixture precondition failed"
     with tempfile.TemporaryDirectory() as tmp:
@@ -124,6 +129,46 @@ def test_no_runtime_state_installed():
         names = _installed_names(tmp)
         assert not [n for n in names if n.endswith(".log")], f"logs installed: {names}"
         assert "compact-counter.txt" not in names
+
+
+def _git_init(path, ignore=None):
+    subprocess.run(["git", "init", "-q", str(path)], check=True, capture_output=True)
+    if ignore is not None:
+        (Path(path) / ".gitignore").write_text(ignore, encoding="utf-8")
+
+
+def test_gitignored_hook_state_not_installed():
+    """Regression (2026-09-24): compaction-cadence.jsonl, the kit's own session log, is
+    gitignored but matched no denylist entry, so every `ck update` shipped it and it
+    surfaced in hermes-agent as a .kit-new. In a kit checkout .gitignore decides;
+    an untracked hook that is NOT ignored (work in progress) still ships."""
+    with tempfile.TemporaryDirectory() as tmp:
+        kit = _kit_copy(Path(tmp) / "kit")
+        _git_init(kit)
+        hooks = kit / ".claude" / "hooks"
+        (hooks / "compaction-cadence.jsonl").write_text('{"ts": 1}\n', encoding="utf-8")
+        (hooks / "probe-new-hook.sh").write_text("#!/bin/bash\nexit 0\n", encoding="utf-8")
+        target = Path(tmp) / "target"
+        target.mkdir()
+        _install(target, script=kit / "install.sh")
+        names = _installed_names(target)
+        assert "compaction-cadence.jsonl" not in names, "gitignored runtime log was installed"
+        assert "probe-new-hook.sh" in names, "untracked, not-ignored hook was dropped"
+
+
+def test_outer_repo_ignoring_the_kit_does_not_drop_hooks():
+    """A kit copy inside a project repo that gitignores `.claude/` (common) sits in a
+    work tree whose .gitignore covers every hook. Only the kit's own checkout is trusted."""
+    with tempfile.TemporaryDirectory() as tmp:
+        outer = Path(tmp) / "outer"
+        _git_init(outer, ignore=".claude/\n")
+        kit = _kit_copy(outer / "kit")
+        target = Path(tmp) / "target"
+        target.mkdir()
+        _install(target, script=kit / "install.sh")
+        assert "reflection-gate.py" in _installed_names(target), (
+            "an outer repo's .gitignore stripped the kit's hooks"
+        )
 
 
 def test_installer_fails_closed_on_wired_but_missing_hook():
@@ -278,3 +323,51 @@ def test_setup_bundles_python_hooks():
     assert any(f.endswith("reflection-gate.py") and "hooks" in f for f in flat), (
         "wheel/sdist asset bundle is missing the wired Python hook"
     )
+
+
+def _setup_assets(root):
+    """Run setup.py's asset collection from `root` (setup() stubbed), as a build would."""
+    import importlib.util
+
+    setuptools = pytest.importorskip("setuptools")
+    spec = importlib.util.spec_from_file_location("_ck_setup_ignored", Path(root) / "setup.py")
+    mod = importlib.util.module_from_spec(spec)
+    orig = setuptools.setup
+    setuptools.setup = lambda *a, **k: None
+    cwd = os.getcwd()
+    try:
+        os.chdir(root)
+        spec.loader.exec_module(mod)
+        return {f for _dest, files in mod._asset_data_files() for f in files}
+    finally:
+        os.chdir(cwd)
+        setuptools.setup = orig
+
+
+def _setup_fixture(root):
+    root.mkdir(parents=True)
+    shutil.copy(REPO / "setup.py", root / "setup.py")
+    for rel in ("hooks/gate.py", "hooks/ledger.jsonl", "worktrees/w/SKILL.md"):
+        (root / ".claude" / rel).parent.mkdir(parents=True, exist_ok=True)
+        (root / ".claude" / rel).write_text("x\n", encoding="utf-8")
+    return root
+
+
+def test_setup_leaves_gitignored_state_out_of_the_wheel():
+    """A wheel built from a used checkout bundled every ledger, research cache and
+    worktree under .claude/ (9,150 files instead of 1,491 on 2026-09-24)."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = _setup_fixture(Path(tmp) / "kit")
+        _git_init(root, ignore=".claude/hooks/*.jsonl\n.claude/worktrees/\n")
+        files = _setup_assets(root)
+        assert os.path.join(".claude", "hooks", "gate.py") in files
+        assert not [f for f in files if f.endswith("ledger.jsonl") or "worktrees" in f], files
+
+
+def test_setup_ignores_an_outer_repo_gitignore():
+    with tempfile.TemporaryDirectory() as tmp:
+        _git_init(Path(tmp), ignore=".claude/\n")
+        files = _setup_assets(_setup_fixture(Path(tmp) / "kit"))
+        assert os.path.join(".claude", "hooks", "gate.py") in files, (
+            "an outer repo's .gitignore stripped the kit's assets from the wheel"
+        )
