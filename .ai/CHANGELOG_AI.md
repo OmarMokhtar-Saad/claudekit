@@ -1,7 +1,23 @@
 # AI Session Changelog
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
-## 2026-09-23 (latest) — ck update stops managing project state; fleet on 3.2.1
+## 2026-09-24 (latest) — subagent spend line replaces the tool-call cap; `--from-task`
+
+- `context-budget-gate.py`: the tool-call count against maxTurns is gone, and `_charge_agent` sums
+  per-turn context (a parallel batch shares a message.id and is charged once). The ledger is
+  `.state/agent-spend-<agent>`. The wind-down note fires at 70% or 5 turns before native maxTurns.
+  Past the line, exploration is refused and writes get `GRACE_WRITES = 6`. The `SubagentHandback`
+  cap depends on whether the agent can write. Tests: 17 new, every named mutant RED. The handback
+  has two guards, so single mutants stay GREEN by design; this is documented.
+- Agents: planner 60 / code-reviewer 60 / implementer 40 / explore 40 / reviewer 30 maxTurns;
+  planner and reviewer prose now name the spend line and handback cap (within the size ceilings).
+- `review-record.py`: `--from-task` reads the last parseable review (text or handback) from
+  `agent-<id>.jsonl` and the role from `agent-<id>.meta.json`, and refuses a contradicting
+  `--reviewer-role`. `review_evidence` keeps the text per round. Sanity check: 138 of the 163
+  newest real reviewer transcripts parse. Seven mutants, all RED.
+- Model: Opus 5.5. Evidence: hermes-agent session `hermes-agent-20260924-1456` (76a36013).
+
+## 2026-09-23 — ck update stops managing project state; fleet on 3.2.1
 
 - `92ca9be`: `install_overrides.is_unmanaged` is the one definition of project data under `.claude/` (hook logs, `hooks/.state/`, `agent-memory/` except README, `knowledge/rejections/INDEX.jsonl`, `plans/archive/README.md`, `runtime/`); install.sh's manifest writer imports it, reconcile skips it, `gen-kit-history.py` excludes it (history regenerated). Test `test_runtime_state_is_never_managed` (red before; mutation of the reconcile filter kills it). `test_session_digest` repointed from install.sh's text to the predicate.
 - qa-agents' first preview showed 11 conflicts; 8 were the kit's own logs, memory and indexes compared by `--show-kept` against the raw kit tree. After the fix the real update wrote one `.kit-new`, touched nothing outside `.claude/`. The preview still overstates (it walks the kit tree, not what install.sh copies) -- filed, with `model-policy.json` never shipping.
