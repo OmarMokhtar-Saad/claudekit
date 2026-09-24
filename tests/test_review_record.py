@@ -920,3 +920,144 @@ class TestApprovalNeedsAReview:
             assert res.returncode == 0, (decision, res.stderr)
         assert self._record(tmp_path)['decision'] == 'CONDITIONAL'
 
+
+
+REVIEW_DRAFT = REVIEW_OK.replace('SCORE: 97', 'SCORE: 70').replace('APPROVED', 'REVISE')
+
+
+def _task(tmp_path, *texts, agent_id='a1b2c3d4', agent_type='reviewer', handback=None):
+    """A reviewer's own transcript as the harness lays it out: projects/<proj>/<session>/
+    subagents/agent-<id>.jsonl plus its meta file. Returns (config_dir, transcript)."""
+    config = tmp_path / 'cfg'
+    d = config / 'projects' / '-proj' / 'sess-1' / 'subagents'
+    d.mkdir(parents=True, exist_ok=True)
+    lines = [json.dumps({'type': 'user', 'message': {'role': 'user', 'content': 'review it'}})]
+    for text in texts:
+        lines.append(json.dumps({'type': 'assistant', 'message': {
+            'role': 'assistant', 'content': [{'type': 'text', 'text': text}]}}))
+    if handback is not None:
+        lines.append(json.dumps({'type': 'assistant', 'message': {
+            'role': 'assistant', 'content': [{'type': 'tool_use', 'id': 't1',
+                                              'name': 'SubagentHandback',
+                                              'input': {'message': handback}}]}}))
+    path = d / ('agent-%s.jsonl' % agent_id)
+    path.write_text('\n'.join(lines) + '\n', encoding='utf-8')
+    if agent_type is not None:
+        (d / ('agent-%s.meta.json' % agent_id)).write_text(
+            json.dumps({'agentType': agent_type}), encoding='utf-8')
+    return config, path
+
+
+def _run_env(cwd, env_extra, *argv):
+    env = dict(os.environ, **env_extra)
+    env.pop('CLAUDEKIT_AGENT_ROLE', None)
+    return subprocess.run([sys.executable, RECORD] + list(argv), cwd=str(cwd),
+                          capture_output=True, text=True, timeout=60, env=env)
+
+
+def _demo_record(tmp_path):
+    path = tmp_path / '.claude' / 'reports' / 'reviews' / 'demo.json'
+    return json.loads(path.read_text(encoding='utf-8'))
+
+
+class TestFromTask:
+    """--from-task binds a review from the reviewer's own transcript (2026-09-24: the main
+    thread copied replies into /private/tmp by hand and typed the role)."""
+
+    def test_binds_by_agent_id_with_the_role_the_harness_recorded(self, tmp_path):
+        plan, ops = _fixture(tmp_path)
+        config, _ = _task(tmp_path, REVIEW_OK)
+        res = _run_env(tmp_path, {'CLAUDE_CONFIG_DIR': str(config)},
+                       'write', str(plan), str(ops), '--from-task', 'a1b2c3d4')
+        assert res.returncode == 0, res.stderr
+        rec = _demo_record(tmp_path)
+        assert rec['decision'] == 'APPROVED' and rec['score'] == 97
+        assert rec['reviewer_role'] == 'reviewer'
+        assert rec['reviewer_role_source'] == 'transcript'
+
+    def test_the_last_review_block_wins_over_a_draft(self, tmp_path):
+        plan, ops = _fixture(tmp_path)
+        _, path = _task(tmp_path, REVIEW_DRAFT, 'thinking aloud', REVIEW_OK)
+        res = _run(tmp_path, 'write', str(plan), str(ops), '--from-task', str(path))
+        assert res.returncode == 0, res.stderr
+        assert _demo_record(tmp_path)['score'] == 97
+
+    def test_a_handback_message_is_read(self, tmp_path):
+        plan, ops = _fixture(tmp_path)
+        _, path = _task(tmp_path, 'working...', handback=REVIEW_DRAFT)
+        res = _run(tmp_path, 'write', str(plan), str(ops), '--from-task', str(path))
+        assert res.returncode == 0, res.stderr
+        assert _demo_record(tmp_path)['decision'] == 'REVISE'
+
+    def test_a_typed_role_that_contradicts_the_harness_is_refused(self, tmp_path):
+        plan, ops = _fixture(tmp_path)
+        _, path = _task(tmp_path, REVIEW_OK, agent_type='planner')
+        res = _run(tmp_path, 'write', str(plan), str(ops), '--from-task', str(path),
+                   '--reviewer-role', 'reviewer')
+        assert res.returncode == 1 and 'contradicts' in res.stderr, res.stderr
+        assert not (tmp_path / '.claude' / 'reports' / 'reviews' / 'demo.json').exists()
+
+    def test_the_harness_role_feeds_the_self_review_gate(self, tmp_path):
+        """A planner's reply bound with --from-task is attested to planner, so check refuses
+        it as a verdict from a role that does not review."""
+        plan, ops = _fixture(tmp_path)
+        _, path = _task(tmp_path, REVIEW_OK, agent_type='planner')
+        assert _run(tmp_path, 'write', str(plan), str(ops), '--from-task',
+                    str(path)).returncode == 0
+        check = _run(tmp_path, 'check', str(plan), str(ops))
+        assert check.returncode == 6, (check.returncode, check.stderr)
+
+    def test_no_review_block_records_nothing(self, tmp_path):
+        plan, ops = _fixture(tmp_path)
+        _, path = _task(tmp_path, 'I ran out of turns before scoring.')
+        res = _run(tmp_path, 'write', str(plan), str(ops), '--from-task', str(path))
+        assert res.returncode == 1 and 'no parseable' in res.stderr, res.stderr
+        assert not (tmp_path / '.claude' / 'reports' / 'reviews' / 'demo.json').exists()
+
+    def test_an_unknown_agent_id_records_nothing(self, tmp_path):
+        plan, ops = _fixture(tmp_path)
+        res = _run_env(tmp_path, {'CLAUDE_CONFIG_DIR': str(tmp_path / 'empty')},
+                       'write', str(plan), str(ops), '--from-task', 'deadbeef')
+        assert res.returncode == 1 and 'no subagent transcript' in res.stderr, res.stderr
+
+    def test_a_wildcard_id_is_not_globbed(self, tmp_path):
+        """'*' would match every transcript on disk and bind whichever is newest."""
+        plan, ops = _fixture(tmp_path)
+        config, _ = _task(tmp_path, REVIEW_OK)
+        for ref in ('*', 'a1b2*', '../*'):
+            res = _run_env(tmp_path, {'CLAUDE_CONFIG_DIR': str(config)},
+                           'write', str(plan), str(ops), '--from-task', ref)
+            assert res.returncode == 1 and 'no subagent transcript' in res.stderr, ref
+        assert not (tmp_path / '.claude' / 'reports' / 'reviews' / 'demo.json').exists()
+
+
+class TestReviewEvidence:
+    """The review text is kept beside the record; a tmp scratchpad copy does not survive."""
+
+    def test_a_from_review_file_is_copied_beside_the_record(self, tmp_path):
+        plan, ops = _fixture(tmp_path)
+        scratch = tmp_path / 'scratch-review.md'
+        scratch.write_text(REVIEW_OK, encoding='utf-8')
+        res = _run(tmp_path, 'write', str(plan), str(ops), '--from-review', str(scratch))
+        assert res.returncode == 0, res.stderr
+        scratch.unlink()
+        evidence = tmp_path / _demo_record(tmp_path)['review_evidence']
+        assert evidence.read_text(encoding='utf-8') == REVIEW_OK
+        assert evidence.parent == tmp_path / '.claude' / 'reports' / 'reviews'
+
+    def test_each_round_keeps_its_own_evidence(self, tmp_path):
+        plan, ops = _fixture(tmp_path)
+        for text in (REVIEW_DRAFT, REVIEW_OK):
+            assert _run(tmp_path, 'write', str(plan), str(ops), '--from-review', '-',
+                        stdin=text).returncode == 0
+        rec = _demo_record(tmp_path)
+        first, second = rec['rounds'][0]['review_evidence'], rec['review_evidence']
+        assert first and second and first != second
+        assert (tmp_path / first).read_text(encoding='utf-8') == REVIEW_DRAFT
+
+    def test_a_bare_rejection_has_no_evidence(self, tmp_path):
+        plan, ops = _fixture(tmp_path)
+        assert _run(tmp_path, 'write', str(plan), str(ops), '--score', '60',
+                    '--decision', 'REVISE').returncode == 0
+        rec = _demo_record(tmp_path)
+        assert rec['review_evidence'] is None and rec['reviewer_role_source'] == 'none'

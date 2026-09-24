@@ -27,6 +27,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   it off. Native `maxTurns` is now a runaway backstop: planner 60, code-reviewer 60,
   implementer 40, explore 40 (was 12), reviewer 30. The suggested explore call names
   `maxTurns 40`.
+- **`review-record.py write --from-task <agentId>`** reads the reviewer's reply from the
+  subagent's own transcript: the last parseable `=== REVIEW ===` block, a `SubagentHandback`
+  message included. It takes the role from the harness's `agent-<id>.meta.json` instead of
+  `--reviewer-role`, and refuses a typed role that contradicts that file. Every recorded round
+  now keeps the review text beside the record (`<slug>.review-<sha12>.md`, `review_evidence`),
+  so a verdict bound from a tmp file survives it. `reviewer_role_source` says whether the role
+  was read from the transcript or asserted by the caller.
 - autoCompactWindow shipped at 175000 (was 100000). The 33k buffer made 100k fire at ~67k, one third of the 200k context, and sessions stopped mid-task on every cycle; 175k fires at ~142k (71%). Existing projects keep their committed value, so the fleet was edited directly.
 - **Delegation by default.** Three advisory hooks, all wired directly from `settings.json`:
   `delegation-report.py` (Stop) prints one `[ck delegation]` line — direct vs agent calls,

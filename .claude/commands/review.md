@@ -106,16 +106,16 @@ printf '%s' "$review_output" | \
 
 2. **Record the verdict (Task-tool path).** The bash block above only runs on the
    scripted `claude -p` path. When the reviewer ran via the Task tool (the interactive
-   default), save its reply VERBATIM to a file and record from that file — never a rewrite
-   or summary; no `=== REVIEW ===` block records nothing (re-ask, never compose one):
+   default), record from the reviewer's own transcript by the `agentId` the Task tool returned (the script reads the last `=== REVIEW ===` block and the harness-recorded role, and keeps the text beside the record).
+   Never copy, rewrite or summarise the reply by hand; no block records nothing (re-ask, never compose one):
    ```bash
    python3 .claude/operations/scripts/review-record.py resolve "$PLAN_FILE"
    ```
    ```bash
-   python3 .claude/operations/scripts/review-record.py write "$PLAN_FILE" "<resolved-ops-path>" --from-review "<saved-output-file>" --session-id "${CLAUDE_SESSION_ID:-}" --reviewer-role reviewer
+   python3 .claude/operations/scripts/review-record.py write "$PLAN_FILE" "<resolved-ops-path>" --from-task "<agentId>" --session-id "${CLAUDE_SESSION_ID:-}"
    ```
    Skipping this step means `/implement`'s STEP 0 gate refuses with exit 3 (no record) —
-   it fails closed, not silently.
+   it fails closed, not silently. A review that exists only as a file: `--from-review "<file>" --reviewer-role reviewer`.
 
    **Record REJECTING rounds too — not optional.** Both write calls above are unconditional on purpose: REVISE, REJECTED and CONDITIONAL are recorded exactly like APPROVED (`rounds[]` is a verdict's only durable history), and recording a non-approving verdict authorises nothing — `check` still exits 4.
 
