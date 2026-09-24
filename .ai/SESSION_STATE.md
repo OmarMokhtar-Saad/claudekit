@@ -1,6 +1,17 @@
 # Session State
 
 > Update this file at the end of every significant AI working session. It is the resume point.
+**2026-09-24 -- subagents capped on spend, not tool calls; `--from-task` (branch `feat/subagent-spend-line`: `d658091a`, `4e86b640`).**
+Plan `.claude/plans/plan-subagent-spend-wind-down.md`. Measured over 1,391 subagent runs, both
+accounts: the gate's tool-call maxTurns cap truncated 75% of planners, 80% of explores, and guarded
+3% of subagent tokens. It was replaced with a per-role spend line (`ROLE_BUDGETS`) and a 70% wind-down note.
+Past the line, Write/Edit keep 6 grace calls. The handback cap is 3,000 chars for writers and 8,000 for readers.
+Native maxTurns are now backstops. Separately, `review-record.py --from-task <agentId>` plus `review_evidence`.
+Suite before `--from-task`: 11862 passed, 1 failed (reviewer.md 12,429 > 12,400 bytes, since trimmed).
+**Open, owner:** merge the branch; fleet
+`ck update` beyond hermes-agent/qa-agents; kit `DEFAULT_WARN` is still 150000 while the fleet
+env is 120000 (trigger ~142k with autoCompactWindow 175000).
+
 **2026-09-23 (17:xx) -- Part B shipped, runtime state unmanaged, qa-agents + hermes-agent on 3.2.1 (`main`).**
 Commits on main, all pushed: `009b00a`, `7c0ffcd` (Part A, delegation deny past 60k); `eb6d5d7` (ck flow
 fixes); `9d17b3c` (kit history, stale refresh, 3-way merge, `.kit-new`, `--show-kept`, fleet log);
