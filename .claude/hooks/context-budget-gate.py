@@ -80,9 +80,10 @@ nothing on stdout - project hard rule 2. Never exit 1, never stdout-as-decision.
 
 ESCAPE HATCHES
 --------------
-`CK_RAW_CONTEXT=1` disables the context budget (warn, block and the per-agent spend cap)
-for that process tree.
-`CK_AGENT_BUDGET=<tokens>` moves the per-subagent spend line (default 15,000,000).
+`CK_RAW_CONTEXT=1` disables the context budget (warn, block, the per-agent spend line and the
+handback cap) for that process tree.
+`CK_AGENT_BUDGET=<tokens>` replaces every per-role spend line (ROLE_BUDGETS, default 15,000,000).
+`CK_HANDBACK_MAX=<chars>` replaces both handback caps.
 `CK_ALLOW_MODEL_OVERRIDE=1` lets an Agent call spawn a scoped agent on a higher tier than its
 frontmatter declares.
 
@@ -90,9 +91,23 @@ AGENT CONTRACTS (subagents only)
 --------------------------------
 For a spawned agent whose type names a file under .claude/agents/, the frontmatter is enforced
 here because nothing else enforces it: `tools:` (with Write/Edit scoped to the agent's own
-.claude/agent-memory/<type>/ when `memory:` is declared), `maxTurns:` (counted as tool calls
-including Read/Grep/Glob), and, at spawn time, `model:` against the Agent call's model param.
-Read, Grep and Glob are never refused.
+.claude/agent-memory/<type>/ when `memory:` is declared) and, at spawn time, `model:` against
+the Agent call's model param. `maxTurns:` is the harness's own cap and binds natively (it
+counts turns); this gate only warns when an agent is WIND_DOWN_TURNS short of it. It used to
+count tool calls against it as well and refuse Write at the cap. Measured 2026-09-24 over 1391
+subagent runs, that stopped 75% of planners and 80% of explore agents; 34 of the 49 it stopped
+wrote nothing and sent their plan back as a 15-40K-char handback. Those capped runs held 3% of
+subagent tokens.
+
+SPEND LINE AND WIND-DOWN (subagents only)
+-----------------------------------------
+Spend is charged once per assistant turn (deduplicated by message id, so a parallel batch of
+reads costs one turn, as it does on the bill) at that turn's context size. The line is
+per role (ROLE_BUDGETS). From WIND_DOWN_SHARE of it `--advise` tells the agent to write its
+deliverable. Past the line the order reverses: Read, Grep, Glob, Bash and spawns close, and
+Write/Edit stay open for GRACE_WRITES calls so the deliverable lands on disk. The handback
+itself is never refused for spend, only for size (HANDBACK_MAX_*): everything in it is re-read
+on every later turn of the caller.
 `CK_ALLOW_GENERAL_PURPOSE=1` disables the spawn guard. Both are named in the message that
 blocks, because a control with no documented override becomes a reason to disable the whole
 hook chain.
@@ -126,6 +141,35 @@ WARN_EVERY = 20
 # roughly halfway through.
 DEFAULT_AGENT_BUDGET = 15000000
 
+# Per-role lines, measured 2026-09-24 over 1391 subagent runs: near the p90 of runs that
+# finished (planner p50 5.9M, code-reviewer p90 7.5M, reviewer p90 3.1M, explore p90 3.8M), so
+# an ordinary run never meets its line while the runaway tail does - runs over 8M held 58% of
+# all subagent tokens. A role missing here gets DEFAULT_AGENT_BUDGET.
+ROLE_BUDGETS = {
+    "planner": 8000000,
+    "implementer": 10000000,
+    "code-reviewer": 6000000,
+    "reviewer": 3000000,
+    "explore": 3000000,
+}
+
+# `--advise` starts the wind-down at this share of the line, or this many turns short of the
+# frontmatter maxTurns, and repeats it once per WIND_DOWN_EVERY counted calls.
+WIND_DOWN_SHARE = 0.7
+WIND_DOWN_TURNS = 5
+WIND_DOWN_EVERY = 4
+
+# Past the line exploration closes and the deliverable stays writable for this many calls.
+GRACE_WRITES = 6
+EXPLORATION_TOOLS = ("Read", "Grep", "Glob", "Bash", "Agent", "Task")
+WRITE_TOOLS = ("Write", "Edit", "NotebookEdit")
+
+# The harness tool a spawned agent returns through. Its whole message lands in the caller's
+# context; an agent that can write puts the detail in a file and hands back the path.
+HANDBACK_TOOL = "SubagentHandback"
+HANDBACK_MAX_WRITER = 3000
+HANDBACK_MAX_READER = 8000
+
 # The harness grants Write+Edit to every agent that declares `memory:` so it can keep its own
 # notes; on the measured session that turned a read-only reviewer into a 17-Write author and a
 # planner into a 64-Edit implementer. Those tools are scoped back to the agent's own memory
@@ -145,11 +189,11 @@ GUARDED_TOOLS = ("Write", "Edit", "NotebookEdit", "Bash", "Agent", "Task")
 SPAWN_TOOLS = ("Agent", "Task")
 
 # Read, Grep and Glob are COUNTED for a subagent (they are most of a reviewer's turns: one
-# measured reviewer made 3 guarded calls and 70 reads) but are never refused, for anyone. Every
-# refusal in this file ends "read what you have and hand it back", and a gate that closed the
-# read path would turn its own advice into a trap.
+# measured reviewer made 3 guarded calls and 70 reads). They are outside every contract check
+# and are refused only to a subagent past its spend line, whose way out is Write + handback -
+# never a read.
 COUNTED_TOOLS = GUARDED_TOOLS + ("Read", "Grep", "Glob")
-NEVER_REFUSED = ("Read", "Grep", "Glob")
+CONTRACT_EXEMPT = ("Read", "Grep", "Glob")
 
 UNBOUNDED_AGENT = "general-purpose"
 
@@ -219,10 +263,16 @@ def _tail_lines(path):
 
 def _context_size(path):
     """Tokens of context from the LAST assistant usage record in the tail, else None."""
+    return _last_usage(path)[0]
+
+
+def _last_usage(path):
+    """(tokens of context, message id or None) from the LAST assistant usage record in the
+    tail, else (None, None). The id is what lets a parallel batch be charged as one turn."""
     if not isinstance(path, str) or not path.strip():
-        return None
+        return None, None
     if not os.path.isfile(path):
-        return None
+        return None, None
     for line in reversed(_tail_lines(path)):
         line = line.strip()
         if not line or '"usage"' not in line:
@@ -248,8 +298,9 @@ def _context_size(path):
             if isinstance(value, int) and not isinstance(value, bool):
                 total += value
         if total > 0:
-            return total
-    return None
+            message_id = message.get("id")
+            return total, (message_id if isinstance(message_id, str) and message_id else None)
+    return None, None
 
 
 def _state_dir():
@@ -297,42 +348,85 @@ def _should_warn(session_id):
         return True
 
 
-def _bump_agent_calls(transcript_path):
-    """Guarded calls this subagent has made, including this one, or None when uncountable.
+def _agent_state_path(transcript_path):
+    """`.state/agent-spend-<transcript basename>`, or None when there is nowhere to keep it.
 
     Keyed by the caller's OWN transcript basename, never by session_id: a subagent inherits
     its parent's session_id, so a session-keyed counter would pool every agent in the tree
     into one running total and refuse the third agent's first call for the first agent's
-    spend. The basename is `agent-<id>.jsonl` and is unique per agent.
-
-    Any failure returns None, which skips the cap. A counter that cannot be read is not
-    evidence of overspend.
+    spend. The basename is `agent-<id>.jsonl` and is unique per agent, and a SendMessage
+    resume continues the same file - so resumes add to one line instead of resetting it.
     """
     state_dir = _state_dir()
     if state_dir is None or not isinstance(transcript_path, str) or not transcript_path:
         return None
+    safe = "".join(
+        ch for ch in os.path.basename(transcript_path) if ch.isalnum() or ch in "-_."
+    )[:80]
+    return os.path.join(state_dir, "agent-spend-%s" % safe) if safe else None
+
+
+def _load_agent_state(path):
+    """The agent's ledger. A pre-2026-09-24 file holds a bare call count; it is read as calls
+    with no spend, so a running agent loses its history once rather than failing."""
+    state = {"calls": 0, "turns": 0, "spend": 0, "last_id": None, "grace": 0, "advised": None}
+    if path is None or not os.path.isfile(path):
+        return state
+    with open(path, "r", encoding="utf-8", errors="replace") as handle:
+        raw = handle.read().strip()
     try:
-        os.makedirs(state_dir, exist_ok=True)
-        safe = "".join(
-            ch for ch in os.path.basename(transcript_path)
-            if ch.isalnum() or ch in "-_."
-        )[:80]
-        if not safe:
-            return None
-        state = os.path.join(state_dir, "agent-spend-%s" % safe)
-        seen = 0
-        if os.path.isfile(state):
-            with open(state, "r", encoding="utf-8", errors="replace") as handle:
-                try:
-                    seen = int(handle.read().strip() or "0")
-                except ValueError:
-                    seen = 0
-        seen += 1
-        with open(state, "w", encoding="utf-8") as handle:
-            handle.write("%d\n" % seen)
-        return seen
+        loaded = json.loads(raw or "{}")
+    except ValueError:
+        return state
+    if isinstance(loaded, int) and not isinstance(loaded, bool):
+        state["calls"] = loaded
+    elif isinstance(loaded, dict):
+        for key in state:
+            if key in loaded:
+                state[key] = loaded[key]
+    return state
+
+
+def _save_agent_state(path, state):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as handle:
+        handle.write(json.dumps(state) + "\n")
+
+
+def _charge_agent(transcript_path, size, message_id, tool_name, budget):
+    """Count this call and charge its turn; returns the updated ledger, or None.
+
+    A turn is charged once at its context size: every call of a parallel batch carries the
+    same message id, and the bill charges the context once per turn, not once per tool. A
+    record without an id (older harnesses, the tests) is charged per call. Write calls made
+    after the line are counted separately - they are the grace window.
+
+    Any failure returns None, which skips the spend line. A ledger that cannot be read is not
+    evidence of overspend.
+    """
+    path = _agent_state_path(transcript_path)
+    if path is None:
+        return None
+    try:
+        state = _load_agent_state(path)
+        state["calls"] += 1
+        if size is not None and (message_id is None or message_id != state["last_id"]):
+            state["turns"] += 1
+            state["spend"] += size
+            state["last_id"] = message_id
+        if state["spend"] >= budget and tool_name in WRITE_TOOLS:
+            state["grace"] += 1
+        _save_agent_state(path, state)
+        return state
     except Exception:
         return None
+
+
+def _agent_budget(agent_type):
+    """CK_AGENT_BUDGET when set, else the role's line, else the default."""
+    if os.environ.get("CK_AGENT_BUDGET") is not None:
+        return _threshold("CK_AGENT_BUDGET", DEFAULT_AGENT_BUDGET)
+    return ROLE_BUDGETS.get(agent_type, DEFAULT_AGENT_BUDGET)
 
 
 def _project_root():
@@ -456,17 +550,49 @@ def _model_escalation(tool_input):
     return (requested, contract["model"], target)
 
 
-def _subagent_verdict(tool_name, tool_input, payload, transcript_path, size):
-    """The three refusals that only apply inside a spawned agent, in the order they bind:
-    contract scope (call 1), frontmatter maxTurns, then the calls x context spend line.
-    Read/Grep/Glob are counted here and then allowed unconditionally."""
+def _can_write(contract):
+    """True when the agent has somewhere to put a long deliverable other than its handback."""
+    if contract is None:
+        return False
+    tools = contract.get("tools")
+    return tools is None or any(tool in tools for tool in ("Write", "Edit"))
+
+
+def _handback_verdict(tool_input, contract):
+    """Refuse an oversize handback. Measured: planner handbacks of 15-40K chars that the caller
+    then carried, and re-read, on every later turn."""
+    message = tool_input.get("message") if isinstance(tool_input, dict) else None
+    if not isinstance(message, str):
+        return None
+    writer = _can_write(contract)
+    limit = _threshold("CK_HANDBACK_MAX", HANDBACK_MAX_WRITER if writer else HANDBACK_MAX_READER)
+    if len(message) <= limit:
+        return None
+    if writer:
+        move = ("Put the detail in the file you own (the plan, ops.json, the report) and hand "
+                "back its path plus a summary of at most %d chars." % limit)
+    else:
+        move = ("Cut it to the verdict and the findings that change what your caller does "
+                "next, each with file:line, in at most %d chars." % limit)
+    return (2,
+            "BLOCKED context-budget-gate: this handback is %d chars (line %d). All of it lands "
+            "in your caller's context and is re-read on every one of its later turns. %s "
+            "Override for one process tree with CK_RAW_CONTEXT=1.\n"
+            % (len(message), limit, move))
+
+
+def _subagent_verdict(tool_name, tool_input, payload, transcript_path, size, message_id):
+    """The refusals that only apply inside a spawned agent, in the order they bind: handback
+    size, contract scope, then the spend line."""
     agent_type = _agent_type(payload, transcript_path)
     contract = _agent_contract(agent_type)
-    calls = _bump_agent_calls(transcript_path)
-    if tool_name in NEVER_REFUSED:
-        return None
+    budget = _agent_budget(agent_type)
+    state = _charge_agent(transcript_path, size, message_id, tool_name, budget)
 
-    if contract is not None:
+    if tool_name == HANDBACK_TOOL:
+        return _handback_verdict(tool_input, contract)
+
+    if contract is not None and tool_name not in CONTRACT_EXEMPT:
         allowed = contract.get("tools")
         if allowed is not None and tool_name not in allowed:
             if not (contract.get("memory") and _is_memory_write(tool_name, tool_input, agent_type)):
@@ -478,30 +604,29 @@ def _subagent_verdict(tool_name, tool_input, payload, transcript_path, size):
                         "Changes ship as ops.json for the implementer, never as this agent's "
                         "edits. Override for one process tree with CK_RAW_CONTEXT=1.\n"
                         % (tool_name, agent_type, ", ".join(sorted(allowed)), memory_note))
-        cap = contract.get("maxTurns")
-        if cap and calls is not None and calls >= cap:
-            return (2,
-                    "BLOCKED context-budget-gate: %s has made %d tool calls and its frontmatter "
-                    "says maxTurns: %d. This gate is what makes that number bind (measured "
-                    "without it: 216 turns against 40). Stop here, write up what you have and "
-                    "hand it back; Read, Grep, Glob and the handback stay open. Override for one "
-                    "process tree with CK_RAW_CONTEXT=1.\n" % (agent_type, calls, cap))
 
-    if size is not None and calls is not None:
-        budget = _threshold("CK_AGENT_BUDGET", DEFAULT_AGENT_BUDGET)
-        if calls * size >= budget:
-            return (2,
-                    "BLOCKED context-budget-gate: this subagent has spent roughly %dM "
-                    "tokens (%d tool calls at %dK context; budget %dM). Neither factor "
-                    "alone is over its line - the PRODUCT is, and the product is the bill. "
-                    "Stop here: write up what you already have and hand it back to your "
-                    "caller. Handback is not a guarded tool, and neither is Read, Grep or "
-                    "Glob, so this refusal cannot trap you. If the work genuinely needs "
-                    "more, your caller should split it across fresh agents that each "
-                    "start at a small context rather than let one agent re-read a large "
-                    "one on every turn. Raise the line with CK_AGENT_BUDGET, or drop the "
-                    "whole budget for one process tree with CK_RAW_CONTEXT=1.\n"
-                    % (calls * size // 1000000, calls, size // 1000, budget // 1000000))
+    if state is None or state["spend"] < budget:
+        return None
+    spent = ("BLOCKED context-budget-gate: %s has spent about %.1fM tokens over %d turns "
+             "(context now %dK; its line is %gM)."
+             % (agent_type or "this subagent", state["spend"] / 1e6, state["turns"],
+                (size or 0) // 1000, budget / 1e6))
+    hatch = (" Override for one process tree with CK_RAW_CONTEXT=1, or move the line with "
+             "CK_AGENT_BUDGET.\n")
+    if tool_name in WRITE_TOOLS:
+        if state["grace"] <= GRACE_WRITES:
+            return None
+        return (2, spent + " The %d-call write window after the line is used up: hand back "
+                "now, a short summary that names the file you wrote." % GRACE_WRITES + hatch)
+    if tool_name in EXPLORATION_TOOLS:
+        if _can_write(contract):
+            move = ("Write your deliverable now - Write/Edit stay open for %d calls past the "
+                    "line - then hand back a short summary that names the file." % GRACE_WRITES)
+        else:
+            move = ("Hand back what you have now: the verdict and the findings that matter, "
+                    "each with file:line.")
+        return (2, spent + " Exploring is over: Read, Grep, Glob, Bash and spawns are closed "
+                "from here. " + move + hatch)
     return None
 
 
@@ -534,7 +659,7 @@ def _is_session_save(tool_name, tool_input):
 def _decide(payload):
     """(exit_code, stderr_line) or None. Nothing is emitted from here."""
     tool_name = payload.get("tool_name") or payload.get("name")
-    if tool_name not in COUNTED_TOOLS:
+    if tool_name not in COUNTED_TOOLS and tool_name != HANDBACK_TOOL:
         return None
     tool_input = payload.get("tool_input")
 
@@ -543,9 +668,10 @@ def _decide(payload):
         if tool_name not in GUARDED_TOOLS and not subagent_call:
             # A main-session read is neither counted nor budgeted; nothing to measure.
             return None
-        size = _context_size(transcript_path) if transcript_path else None
+        size, message_id = _last_usage(transcript_path) if transcript_path else (None, None)
         if subagent_call:
-            verdict = _subagent_verdict(tool_name, tool_input, payload, transcript_path, size)
+            verdict = _subagent_verdict(tool_name, tool_input, payload, transcript_path, size,
+                                        message_id)
             if verdict is not None:
                 return verdict
             if tool_name not in GUARDED_TOOLS:
@@ -599,6 +725,46 @@ def _subagent_note(size, block):
             % (size // 1000, block // 1000))
 
 
+def _wind_down_note(payload, transcript_path):
+    """The advisory that comes BEFORE the spend line or the native maxTurns, or None.
+
+    Reads the ledger the PreToolUse path keeps (never charges it) and records when it last
+    advised, so the note repeats once per WIND_DOWN_EVERY calls instead of on every one. Past
+    the line it is silent: the PreToolUse refusal carries that message, and it reaches the
+    model.
+    """
+    path = _agent_state_path(transcript_path)
+    if path is None:
+        return None
+    try:
+        state = _load_agent_state(path)
+        agent_type = _agent_type(payload, transcript_path)
+        budget = _agent_budget(agent_type)
+        if state["spend"] >= budget:
+            return None
+        contract = _agent_contract(agent_type) or {}
+        cap = contract.get("maxTurns")
+        turns_left = cap - state["turns"] if cap else None
+        near_turns = turns_left is not None and turns_left <= WIND_DOWN_TURNS
+        if state["spend"] < budget * WIND_DOWN_SHARE and not near_turns:
+            return None
+        advised = state["advised"]
+        if isinstance(advised, int) and state["calls"] - advised < WIND_DOWN_EVERY:
+            return None
+        state["advised"] = state["calls"]
+        _save_agent_state(path, state)
+    except Exception:
+        return None
+    turns_note = (" and %d turn(s) short of its maxTurns %d, where the harness stops it mid-work"
+                  % (max(turns_left, 0), cap) if near_turns else "")
+    return ("context-budget-gate: wind down. This subagent has spent about %.1fM of its %gM "
+            "token line (%d%%)%s. Stop exploring: write your deliverable now (the plan, ops.json "
+            "or report file), then hand back a short summary that names it. Past the line Read, "
+            "Grep, Glob and Bash close and only Write/Edit stay open, for %d calls."
+            % (state["spend"] / 1e6, budget / 1e6, 100 * state["spend"] // budget,
+               turns_note, GRACE_WRITES))
+
+
 def _warn_note(size, warn, block):
     return ("context-budget-gate: context %dK tokens (warn %dK, block %dK) - run /save-session "
             "then /compact, or start a new session."
@@ -610,7 +776,8 @@ def _advise(payload):
 
     Never a decision - the caller always exits 0 - and never through dispatch.sh. The warn-band
     advisory is rate-limited by the same per-session counter the PreToolUse path used to spend
-    on a message nobody received; a subagent over the block line is told to stop on every call.
+    on a message nobody received; a subagent over the block line is told to stop on every call,
+    and one nearing its spend line or maxTurns gets the wind-down note.
     """
     if os.environ.get("CK_RAW_CONTEXT") == "1":
         return None
@@ -626,7 +793,9 @@ def _advise(payload):
     block = _threshold("CK_CONTEXT_BLOCK", DEFAULT_BLOCK)
     warn = _threshold("CK_CONTEXT_WARN", DEFAULT_WARN)
     if subagent_call:
-        return _subagent_note(size, block) if size >= block else None
+        if size >= block:
+            return _subagent_note(size, block)
+        return _wind_down_note(payload, transcript_path)
     if size >= block:
         return None  # the PreToolUse block carries this, and a block reaches the model
     if size >= warn and _should_warn(payload.get("session_id")):

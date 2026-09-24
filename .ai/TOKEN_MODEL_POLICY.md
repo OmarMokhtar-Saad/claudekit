@@ -10,7 +10,7 @@ full plus the evidence. Maintainers only.
 | Input tokens in 2 days | 1.88 B (97 % cache re-reads), 8,728 API turns |
 | Boot context per turn, qa-agents / claudekit | 66 K / 58 K tokens before any work |
 | A 4-op Tier 1 task | 47 turns, 4.0 M tokens; ~15 turns spent scripting an ops.json with exact anchors |
-| Planner runs | avg 98 turns; `maxTurns` in frontmatter never bound |
+| Planner runs | avg 98 turns; `maxTurns` in frontmatter never bound (corrected 2026-09-24: native maxTurns does bind, 16+ hits; see below) |
 | Reflection Stop gate | 4 extra full-context turns per stop; 135 issue files, 164 proposals, 0 reads |
 | Skills | 83 shipped, 3 ever invoked in qa-agents, 0 in claudekit |
 | Agents | 28 shipped, 13 ever spawned fleet-wide |
@@ -59,3 +59,16 @@ full plus the evidence. Maintainers only.
 - **Turn hygiene**: `/compact` at 150K, never 300K; `py_compile` patch scripts before running; no re-reads; 3 review rounds is a hard stop (hook-enforced).
 - **Parallel orchestration**: many tasks or plan >15 ops / >2 phases -> `coordinator` agent Orchestration Protocol v2 (decompose with file-ownership map, parallel plan/review, composition gate before execution, disjoint-set parallel execution).
 <!-- CLAUDEKIT:TOKEN-MODEL-POLICY v3 END -->
+
+## Subagent caps (2026-09-24, 1,391 runs measured)
+
+- A tool-call cap is the wrong unit. It counts Read/Grep/Glob, so parallel batches use it up.
+  The gate's cap truncated 75% of planners and 80% of explores, yet guarded 3% of subagent tokens.
+  34 of the 49 runs it cut off wrote nothing, because at the cap Write was blocked while Read stayed open.
+- 68% of subagent tokens sit in runs with 61+ calls, and cost is context x turns. So the gate caps
+  spend per role (`ROLE_BUDGETS`) and warns at 70%. Past the line it refuses exploration, not
+  the deliverable Write.
+- Native `maxTurns` binds and stops the agent mid-work. That makes it a runaway backstop (planner 60,
+  code-reviewer 60, implementer 40, explore 40, reviewer 30), not a budget.
+- PostToolUse `additionalContext` reaches subagents (41 advisories found in subagent transcripts),
+  which is what makes the wind-down note possible.

@@ -10,7 +10,7 @@ description: |
   </example>
 model: opus
 effort: high
-maxTurns: 30
+maxTurns: 60
 color: orange
 memory: project
 tools: ["Read", "Grep", "Glob", "Bash"]

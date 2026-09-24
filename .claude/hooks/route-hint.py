@@ -74,7 +74,7 @@ def _explore_call():
         report = _report()
         return report.explore_call(report._root())
     except Exception:
-        return "Agent(subagent_type=explore, model=haiku, maxTurns 12)"
+        return "Agent(subagent_type=explore, model=haiku, maxTurns 40)"
 
 
 def _mark(payload):

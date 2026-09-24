@@ -12,6 +12,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Subagents are capped on tokens spent, not tool calls.** `context-budget-gate.py` no longer
+  counts tool calls against `maxTurns`. It truncated 75% of planners and 80% of explore runs, and
+  guarded 3% of subagent tokens (1,391 runs measured). Parallel batches used up the count, and at
+  the cap Read stayed open while Write was blocked. Each subagent now has a token line: the sum of
+  its per-turn context, where a parallel batch counts as one turn. The lines are planner 8M,
+  implementer 10M, code-reviewer 6M, reviewer 3M, explore 3M, and 15M for any other role
+  (`ROLE_BUDGETS`). At 70%, or 5 turns before native `maxTurns`, a `wind down` note arrives.
+  Past the line, exploration (Read/Grep/Glob/Bash/Agent) is refused with a message that names
+  the way out. Write/Edit keep a 6-call grace window so the deliverable still lands.
+  `SubagentHandback` is never refused for spend. It is capped at 3,000 chars for agents that can
+  write (the deliverable is on disk) and 8,000 for read-only agents. `CK_AGENT_BUDGET` replaces
+  every role's line, `CK_HANDBACK_MAX` replaces both caps, and `CK_RAW_CONTEXT=1` turns all of
+  it off. Native `maxTurns` is now a runaway backstop: planner 60, code-reviewer 60,
+  implementer 40, explore 40 (was 12), reviewer 30. The suggested explore call names
+  `maxTurns 40`.
 - autoCompactWindow shipped at 175000 (was 100000). The 33k buffer made 100k fire at ~67k, one third of the 200k context, and sessions stopped mid-task on every cycle; 175k fires at ~142k (71%). Existing projects keep their committed value, so the fleet was edited directly.
 - **Delegation by default.** Three advisory hooks, all wired directly from `settings.json`:
   `delegation-report.py` (Stop) prints one `[ck delegation]` line — direct vs agent calls,

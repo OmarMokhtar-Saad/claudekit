@@ -376,13 +376,13 @@ def test_route_hint_names_the_cap_and_the_ladder_model(tmp_path):
     policy = json.loads(POLICY.read_text())
     tiers, tier = policy["capability_tiers"], policy["roles"]["explore"]["tier"]
     (up,) = [name for name, spec in tiers.items() if spec["degrade_to"] == tier]
-    assert "model=%s, maxTurns 12" % tiers[tier]["model"] in text, text
+    assert "model=%s, maxTurns 40" % tiers[tier]["model"] in text, text
     assert "escalate to model=%s" % tiers[up]["model"] in text, text
 
 
-def test_explore_frontmatter_caps_turns_at_12():
+def test_explore_frontmatter_caps_turns_at_40():
     head = (ROOT / ".claude" / "agents" / "explore.md").read_text().split("---")[1]
-    assert "\nmaxTurns: 12\n" in head
+    assert "\nmaxTurns: 40\n" in head
 
 
 # ---- gen-docs reachable-hook count ----------------------------------------------------
@@ -486,7 +486,7 @@ def test_top_two_tiers_deny_the_4th_direct_call(tmp_path, tier):
                            "m=u.module_from_spec(s);s.loader.exec_module(m);"
                            "print(m.explore_call(%r))" % (str(REPORT), str(proj))],
                           capture_output=True, text=True).stdout.strip()
-    assert call.startswith("Agent(subagent_type=explore") and "maxTurns 12" in call
+    assert call.startswith("Agent(subagent_type=explore") and "maxTurns 40" in call
     assert call in denied.stderr
 
 

@@ -81,7 +81,7 @@ def load_tiers(root):
     return {name: spec for name, spec in tiers.items() if isinstance(spec, dict)}
 
 
-EXPLORE_MAX_TURNS = 12
+EXPLORE_MAX_TURNS = 40
 
 
 def route_state_path(root, session_id):

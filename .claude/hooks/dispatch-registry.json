@@ -46,7 +46,7 @@
   "events": {
     "PreToolUse": [
       {"id": "read-window-guard", "file": "read-window-guard.py", "runner": "python3", "tier": "blocking", "matcher": "Read"},
-      {"id": "context-budget-gate", "file": "context-budget-gate.py", "runner": "python3", "tier": "blocking", "matcher": "Read|Grep|Glob|Write|Edit|NotebookEdit|Bash|Agent|Task"},
+      {"id": "context-budget-gate", "file": "context-budget-gate.py", "runner": "python3", "tier": "blocking", "matcher": "Read|Grep|Glob|Write|Edit|NotebookEdit|Bash|Agent|Task|SubagentHandback"},
       {"id": "review-round-cap", "file": "review-round-cap.py", "runner": "python3", "tier": "blocking", "matcher": "Agent|Task"},
       {"id": "iron-law-gate", "file": "iron-law-gate.py", "runner": "python3", "tier": "blocking", "matcher": "Bash"},
       {"id": "bash-payload-gate", "file": "bash-payload-gate.py", "runner": "python3", "tier": "blocking", "matcher": "Bash"},

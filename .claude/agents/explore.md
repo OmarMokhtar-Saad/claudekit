@@ -7,7 +7,7 @@ model: haiku
 effort: low
 color: yellow
 tools: ["Read", "Grep", "Glob", "Bash"]
-maxTurns: 12
+maxTurns: 40
 ---
 
 # Explore Agent
