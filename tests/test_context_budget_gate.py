@@ -58,7 +58,7 @@ DISPATCH = ROOT / ".claude" / "hooks" / "dispatch.sh"
 REGISTRY = ROOT / ".claude" / "hooks" / "dispatch-registry.json"
 
 HATCHES = ("CK_RAW_CONTEXT", "CK_ALLOW_GENERAL_PURPOSE", "CK_CONTEXT_WARN", "CK_CONTEXT_BLOCK",
-           "CK_CONTEXT_TRACE", "CK_AGENT_BUDGET", "CK_ALLOW_MODEL_OVERRIDE")
+           "CK_CONTEXT_TRACE", "CK_AGENT_BUDGET", "CK_ALLOW_MODEL_OVERRIDE", "CK_HANDBACK_MAX")
 
 # Mirrors the hook's TAIL_BYTES. Deliberately re-declared rather than imported: these tests
 # measure the shipped artifact from outside, and a constant read out of the module under test
@@ -68,19 +68,20 @@ TAIL_BYTES = 65536
 _UNSET = object()
 
 
-def usage_line(total):
-    """One assistant transcript line whose three usage counters sum to `total`."""
-    return json.dumps({
-        "type": "assistant",
-        "message": {
-            "role": "assistant",
-            "usage": {
-                "input_tokens": total - 2,
-                "cache_read_input_tokens": 1,
-                "cache_creation_input_tokens": 1,
-            },
+def usage_line(total, message_id=None):
+    """One assistant transcript line whose three usage counters sum to `total`. Lines that share
+    a `message_id` are one turn, as a parallel tool batch is on the bill."""
+    message = {
+        "role": "assistant",
+        "usage": {
+            "input_tokens": total - 2,
+            "cache_read_input_tokens": 1,
+            "cache_creation_input_tokens": 1,
         },
-    })
+    }
+    if message_id is not None:
+        message["id"] = message_id
+    return json.dumps({"type": "assistant", "message": message})
 
 
 def filler_line(index, width=1024):
@@ -384,69 +385,123 @@ def subagent(tmp_path, ctx, session="sess-S", agent="agent-planner"):
     return p
 
 
-# ------------------------------------------------------- per-agent spend cap ----
+# ------------------------------------------------------- per-agent spend line ----
 #
 # Mutants these must catch (apply them, do not assume them):
-#   * delete the `calls * size >= budget` branch  => test_a_subagent_is_blocked_when_calls
-#                                                    _times_context_exceeds_the_budget RED
-#   * `calls * size` -> `size`                    => test_a_cheap_subagent_is_never_spend
-#                                                    _capped RED (63K context, 40 calls, would
-#                                                    still allow -- but the twin below, a
-#                                                    single call at 200K, would then BLOCK)
-#   * `calls * size` -> `calls`                   => test_a_cheap_subagent_is_never_spend
-#                                                    _capped RED
-#   * key the counter on session_id               => test_the_spend_counter_is_keyed_per_agent
-#                                                    _not_per_session RED
-#   * apply the cap to main sessions too          => test_a_main_session_is_not_spend_capped RED
-#   * DEFAULT_AGENT_BUDGET 15000000 -> 15000000000
-#                                                 => test_the_shipped_budget_is_fifteen_million
-#                                                    RED
+#   * delete the `spend < budget` early return        => test_past_the_line_exploration_closes
+#                                                        _and_names_the_way_out RED
+#   * charge every call even when the id repeats      => test_a_parallel_batch_is_charged_as_one
+#                                                        _turn RED
+#   * key the ledger on session_id                    => test_the_spend_ledger_is_keyed_per_agent
+#                                                        _not_per_session RED
+#   * apply the line to main sessions too             => test_a_main_session_is_not_spend_capped RED
+#   * DEFAULT_AGENT_BUDGET 15000000 -> anything else  => test_the_shipped_default_is_fifteen
+#                                                        _million RED
+#   * drop the ROLE_BUDGETS lookup                    => test_the_role_line_comes_from_role
+#                                                        _budgets RED
+#   * refuse Write inside the grace window, or never
+#     close it                                        => test_past_the_line_writes_get_a_grace
+#                                                        _window RED
+#   * drop the handback's early return AND list it in
+#     EXPLORATION_TOOLS                               => test_the_handback_is_never_refused_for
+#                                                        _spend RED (either edit alone stays
+#                                                        GREEN: two guards, by design)
 
-def test_a_subagent_is_blocked_when_calls_times_context_exceeds_the_budget(tmp_path):
-    """The shape that actually ran away: a context UNDER the block line, many times over.
+# Mirrors the hook's GRACE_WRITES, re-declared for the same reason TAIL_BYTES is.
+GRACE_WRITES = 6
+BASH = {"command": "ls"}
+
+
+def test_past_the_line_exploration_closes_and_names_the_way_out(tmp_path):
+    """The shape that actually ran away: a context UNDER the block line, many turns over.
 
     117K is the measured median of the 45.8M planner and is deliberately below the 200K
-    context block line, so this case can only pass because of the product.
+    context block line, so this case can only fire on the accumulated spend.
     """
     path = subagent(tmp_path, 117000)
-    env = {"CK_AGENT_BUDGET": "350000"}  # trips on call 3: 3 x 117K = 351K
-    first = run_hook(tmp_path, path, extra_env=env)
-    assert first.returncode == 0, "call 1 is well under budget (stderr=%r)" % first.stderr
-    second = run_hook(tmp_path, path, extra_env=env)
-    assert second.returncode == 0, "call 2 is still under budget (stderr=%r)" % second.stderr
-    third = run_hook(tmp_path, path, extra_env=env)
-    assert third.returncode == 2, (
-        "call 3 crosses the spend line and must be refused (rc=%s, stderr=%r)"
-        % (third.returncode, third.stderr))
-    assert "BLOCKED" in third.stderr and "tool calls" in third.stderr
-    assert "hand it back" in third.stderr, (
-        "the refusal must name the move the agent can make (stderr=%r)" % third.stderr)
+    env = {"CK_AGENT_BUDGET": "350000"}  # crossed by charge 3: 3 x 117K = 351K
+    for i in range(2):
+        r = run_hook(tmp_path, path, tool_name="Bash", tool_input=BASH, extra_env=env)
+        assert r.returncode == 0, "call %d is under the line (stderr=%r)" % (i + 1, r.stderr)
+    for tool in ("Bash", "Read", "Grep", "Glob", "Agent"):
+        r = run_hook(tmp_path, path, tool_name=tool,
+                     tool_input={"file_path": "x.py", "subagent_type": "explore"}, extra_env=env)
+        assert r.returncode == 2, (
+            "%s past the line must be refused (rc=%s, stderr=%r)" % (tool, r.returncode, r.stderr))
+    assert "Exploring is over" in r.stderr and "hand back" in r.stderr.lower(), (
+        "the refusal must name the move the agent can make (stderr=%r)" % r.stderr)
+
+
+def test_past_the_line_writes_get_a_grace_window(tmp_path):
+    """The inversion: a planner past its line may no longer read, but may still put its plan
+    on disk - GRACE_WRITES times, then the window shuts and only the handback is left."""
+    contract(tmp_path, "planner", tools=PLANNER_TOOLS)
+    parent, extra = spawned(tmp_path, agent_type="planner", ctx=117000)
+    env = {"CK_AGENT_BUDGET": "350000"}
+    for _ in range(2):
+        r = run_hook(tmp_path, parent, tool_name="Read", tool_input={"file_path": "x.py"},
+                     extra_payload=extra, extra_env=env)
+        assert r.returncode == 0, r.stderr
+    read = run_hook(tmp_path, parent, tool_name="Read", tool_input={"file_path": "y.py"},
+                    extra_payload=extra, extra_env=env)
+    assert read.returncode == 2 and "Write your deliverable now" in read.stderr, read.stderr
+    plan = {"file_path": str(tmp_path / ".claude" / "plans" / "plan-x.md")}
+    for i in range(GRACE_WRITES):
+        w = run_hook(tmp_path, parent, tool_name="Write", tool_input=plan, extra_payload=extra,
+                     extra_env=env)
+        assert w.returncode == 0, "grace write %d must pass (stderr=%r)" % (i + 1, w.stderr)
+    shut = run_hook(tmp_path, parent, tool_name="Write", tool_input=plan, extra_payload=extra,
+                    extra_env=env)
+    assert shut.returncode == 2 and "write window" in shut.stderr, (shut.returncode, shut.stderr)
+
+
+def test_a_parallel_batch_is_charged_as_one_turn(tmp_path):
+    """Five calls from one assistant message share its id and cost one turn, as on the bill.
+    The old per-call count charged the batch five times - the kit's own batch-reads advice
+    burned the cap faster."""
+    d = tmp_path / "sess-P" / "subagents"
+    d.mkdir(parents=True)
+    path = d / "agent-batch.jsonl"
+    env = {"CK_AGENT_BUDGET": "350000"}
+    for turn in ("msg_1", "msg_2"):
+        path.write_text(usage_line(117000, message_id=turn) + "\n", encoding="utf-8")
+        for i in range(5):
+            r = run_hook(tmp_path, path, tool_name="Bash", tool_input=BASH, extra_env=env)
+            assert r.returncode == 0, "%s call %d: one turn is charged once (stderr=%r)" % (
+                turn, i + 1, r.stderr)
+    path.write_text(usage_line(117000, message_id="msg_3") + "\n", encoding="utf-8")
+    third = run_hook(tmp_path, path, tool_name="Bash", tool_input=BASH, extra_env=env)
+    assert third.returncode == 2, "turn 3 crosses 351K (rc=%s, stderr=%r)" % (
+        third.returncode, third.stderr)
 
 
 def test_a_cheap_subagent_is_never_spend_capped(tmp_path):
-    """The measured explore agent: 63K of context, many calls. It must stay untouched.
+    """The measured explore agent: 63K of context, many calls, no contract - the 15M default.
 
-    This is the false-positive guard. It is what stops the cap from becoming a reason to
+    This is the false-positive guard. It is what stops the line from becoming a reason to
     export CK_RAW_CONTEXT and disable the whole gate.
     """
     path = subagent(tmp_path, 63000, agent="agent-explore")
     for i in range(40):
-        result = run_hook(tmp_path, path)
+        result = run_hook(tmp_path, path, tool_name="Bash", tool_input=BASH)
         assert result.returncode == 0, (
             "a 63K-context agent must never be spend-capped (call %d, stderr=%r)"
             % (i + 1, result.stderr))
 
 
-def test_the_spend_counter_is_keyed_per_agent_not_per_session(tmp_path):
+def test_the_spend_ledger_is_keyed_per_agent_not_per_session(tmp_path):
     """Two agents, one session_id. The second must not inherit the first's spend."""
     env = {"CK_AGENT_BUDGET": "350000"}
     a = subagent(tmp_path, 117000, agent="agent-aaa")
     b = subagent(tmp_path, 117000, agent="agent-bbb")
     for _ in range(3):
-        run_hook(tmp_path, a, session_id="shared", extra_env=env)
-    spent = run_hook(tmp_path, a, session_id="shared", extra_env=env)
-    assert spent.returncode == 2, "agent A is over its own budget"
-    fresh = run_hook(tmp_path, b, session_id="shared", extra_env=env)
+        run_hook(tmp_path, a, tool_name="Bash", tool_input=BASH, session_id="shared",
+                 extra_env=env)
+    spent = run_hook(tmp_path, a, tool_name="Bash", tool_input=BASH, session_id="shared",
+                     extra_env=env)
+    assert spent.returncode == 2, "agent A is over its own line"
+    fresh = run_hook(tmp_path, b, tool_name="Bash", tool_input=BASH, session_id="shared",
+                     extra_env=env)
     assert fresh.returncode == 0, (
         "agent B shares only a session_id and must start at zero (rc=%s, stderr=%r)"
         % (fresh.returncode, fresh.stderr))
@@ -457,40 +512,144 @@ def test_a_main_session_is_not_spend_capped(tmp_path):
     path = transcript(tmp_path, usage_line(117000))
     env = {"CK_AGENT_BUDGET": "350000"}
     for i in range(6):
-        result = run_hook(tmp_path, path, extra_env=env)
+        result = run_hook(tmp_path, path, tool_name="Bash", tool_input=BASH, extra_env=env)
         assert result.returncode == 0, (
-            "the spend cap is subagent-only (call %d, rc=%s, stderr=%r)"
+            "the spend line is subagent-only (call %d, rc=%s, stderr=%r)"
             % (i + 1, result.returncode, result.stderr))
 
 
-def test_the_shipped_budget_is_fifteen_million(tmp_path):
-    """Pins the DEFAULT, with no env override in play, so raising it cannot pass silently."""
+def test_the_shipped_default_is_fifteen_million(tmp_path):
+    """Pins the DEFAULT for a role with no line of its own, with no env override in play."""
     path = subagent(tmp_path, 8000000, agent="agent-huge")
-    first = run_hook(tmp_path, path)
+    first = run_hook(tmp_path, path, tool_name="Bash", tool_input=BASH)
     assert first.returncode == 0, "8M once is under the 15M default (stderr=%r)" % first.stderr
-    second = run_hook(tmp_path, path)
+    second = run_hook(tmp_path, path, tool_name="Bash", tool_input=BASH)
     assert second.returncode == 2, (
         "16M must cross the shipped 15M default (rc=%s, stderr=%r)"
         % (second.returncode, second.stderr))
 
 
-def test_the_raw_context_hatch_disables_the_spend_cap(tmp_path):
+def test_the_role_line_comes_from_role_budgets(tmp_path):
+    """reviewer's line is 3M: at 190K a turn, turn 16 (3.04M) crosses it. A planner at the same
+    size is still open on turn 16 (8M line) - the line is per role, not global."""
+    for role, agent_id in (("reviewer", "rev1"), ("planner", "pln1")):
+        contract(tmp_path, role, tools=["Read", "Grep", "Glob", "Bash"])
+        parent, extra = spawned(tmp_path, agent_id=agent_id, agent_type=role, ctx=190000)
+        for i in range(15):
+            r = run_hook(tmp_path, parent, tool_name="Bash", tool_input=BASH, extra_payload=extra)
+            assert r.returncode == 0, "%s turn %d (stderr=%r)" % (role, i + 1, r.stderr)
+        sixteenth = run_hook(tmp_path, parent, tool_name="Bash", tool_input=BASH,
+                             extra_payload=extra)
+        assert sixteenth.returncode == (2 if role == "reviewer" else 0), (
+            role, sixteenth.returncode, sixteenth.stderr)
+
+
+def test_the_raw_context_hatch_disables_the_spend_line(tmp_path):
     path = subagent(tmp_path, 117000, agent="agent-hatched")
     env = {"CK_AGENT_BUDGET": "100", "CK_RAW_CONTEXT": "1"}
     for _ in range(3):
-        result = run_hook(tmp_path, path, extra_env=env)
-        assert result.returncode == 0, "CK_RAW_CONTEXT must drop the spend cap too"
+        result = run_hook(tmp_path, path, tool_name="Bash", tool_input=BASH, extra_env=env)
+        assert result.returncode == 0, "CK_RAW_CONTEXT must drop the spend line too"
 
 
-def test_the_spend_cap_writes_no_state_outside_the_project(tmp_path):
-    """No project root -> no counter file, and the call is allowed rather than refused."""
+def test_the_spend_ledger_writes_no_state_outside_the_project(tmp_path):
+    """No project root -> no ledger file, and the call is allowed rather than refused."""
     outside = tmp_path / "outside"
     outside.mkdir()
     path = subagent(tmp_path, 117000, agent="agent-nostate")
-    result = run_hook(tmp_path, path, project_dir=None, cwd=outside,
-                      extra_env={"CK_AGENT_BUDGET": "100"})
+    result = run_hook(tmp_path, path, tool_name="Bash", tool_input=BASH, project_dir=None,
+                      cwd=outside, extra_env={"CK_AGENT_BUDGET": "100"})
     assert result.returncode == 0, "an uncountable agent is allowed, never refused"
     assert not (outside / ".claude").exists(), "no state may be written outside the project"
+
+
+def test_the_wind_down_note_arrives_before_the_line(tmp_path):
+    """PostToolUse additionalContext reaches subagents (41 such notes found in subagent
+    transcripts, 2026-09-24), so the agent hears about the line before it meets it."""
+    path = subagent(tmp_path, 100000, agent="agent-wind")
+    env = {"CK_AGENT_BUDGET": "1000000"}
+    for _ in range(6):
+        run_hook(tmp_path, path, tool_name="Bash", tool_input=BASH, extra_env=env)
+    assert advice(run_hook(tmp_path, path, tool_name="Bash", extra_env=env, args=ADVISE)) == "", (
+        "60% of the line is not yet the wind-down band")
+    run_hook(tmp_path, path, tool_name="Bash", tool_input=BASH, extra_env=env)
+    note = advice(run_hook(tmp_path, path, tool_name="Bash", extra_env=env, args=ADVISE))
+    assert "wind down" in note and "(70%)" in note and "write your deliverable" in note, note
+    again = run_hook(tmp_path, path, tool_name="Bash", extra_env=env, args=ADVISE)
+    assert advice(again) == "", "the note repeats once per few calls, not on every one"
+
+
+def test_the_wind_down_note_fires_near_native_max_turns(tmp_path):
+    """maxTurns binds natively and stops the agent mid-work; the note comes 5 turns before."""
+    contract(tmp_path, "explore", tools=["Read", "Grep", "Glob", "Bash"], maxTurns=8)
+    parent, extra = spawned(tmp_path, agent_type="explore", ctx=10000)
+    for _ in range(2):
+        run_hook(tmp_path, parent, tool_name="Read", tool_input={"file_path": "x.py"},
+                 extra_payload=extra)
+    early = run_hook(tmp_path, parent, tool_name="Read", extra_payload=extra, args=ADVISE)
+    assert advice(early) == "", "6 turns left is not yet near maxTurns 8"
+    run_hook(tmp_path, parent, tool_name="Read", tool_input={"file_path": "y.py"},
+             extra_payload=extra)
+    note = advice(run_hook(tmp_path, parent, tool_name="Read", extra_payload=extra, args=ADVISE))
+    assert "wind down" in note and "maxTurns 8" in note, note
+
+
+def test_max_turns_is_not_a_tool_call_cap(tmp_path):
+    """maxTurns binds natively and counts turns. The gate used to count tool calls against it,
+    refuse Write at the cap and leave Read open: measured 2026-09-24, that stopped 75% of
+    planners and 34 of the 49 runs it stopped wrote nothing."""
+    contract(tmp_path, "code-reviewer", tools=["Read", "Grep", "Glob", "Bash"], maxTurns=3)
+    parent, extra = spawned(tmp_path, agent_type="code-reviewer")
+    for i in range(10):
+        tool = "Bash" if i % 2 else "Read"
+        r = run_hook(tmp_path, parent, tool_name=tool,
+                     tool_input=BASH if tool == "Bash" else {"file_path": "x.py"},
+                     extra_payload=extra)
+        assert r.returncode == 0, "call %d against maxTurns 3 (stderr=%r)" % (i + 1, r.stderr)
+
+
+# ---------------------------------------------------------------- handback size ----
+
+def handback(tmp_path, parent, extra, chars, env=None):
+    return run_hook(tmp_path, parent, tool_name="SubagentHandback",
+                    tool_input={"message": "x" * chars}, extra_payload=extra, extra_env=env)
+
+
+def test_an_oversize_handback_is_refused_by_what_the_agent_can_write(tmp_path):
+    """A writer has a file for the detail, so its line is 3,000 chars; a read-only reviewer's
+    handback IS its deliverable, so its line is 8,000."""
+    contract(tmp_path, "planner", tools=PLANNER_TOOLS)
+    contract(tmp_path, "reviewer", tools=["Read", "Grep", "Glob"])
+    parent, planner = spawned(tmp_path, agent_id="pln1", agent_type="planner")
+    assert handback(tmp_path, parent, planner, 2900).returncode == 0
+    big = handback(tmp_path, parent, planner, 5000)
+    assert big.returncode == 2 and "path" in big.stderr, (big.returncode, big.stderr)
+    parent, reviewer = spawned(tmp_path, agent_id="rev1", agent_type="reviewer")
+    assert handback(tmp_path, parent, reviewer, 5000).returncode == 0
+    long = handback(tmp_path, parent, reviewer, 9000)
+    assert long.returncode == 2 and "file:line" in long.stderr, (long.returncode, long.stderr)
+
+
+def test_the_handback_is_never_refused_for_spend(tmp_path):
+    """Past the line the handback is the way out; it may be refused for size, never spend."""
+    path = subagent(tmp_path, 117000, agent="agent-over")
+    env = {"CK_AGENT_BUDGET": "100"}
+    r = run_hook(tmp_path, path, tool_name="Bash", tool_input=BASH, extra_env=env)
+    assert r.returncode == 2, "the agent is over its line"
+    out = run_hook(tmp_path, path, tool_name="SubagentHandback", tool_input={"message": "done"},
+                   extra_env=env)
+    assert out.returncode == 0, out.stderr
+
+
+def test_the_handback_cap_is_subagent_only_and_hatched(tmp_path):
+    main = transcript(tmp_path, usage_line(250000))
+    r = run_hook(tmp_path, main, tool_name="SubagentHandback", tool_input={"message": "x" * 9000})
+    assert r.returncode == 0, "a main session has no handback to cap, nor a block for it"
+    contract(tmp_path, "planner", tools=PLANNER_TOOLS)
+    parent, planner = spawned(tmp_path, agent_id="pln2", agent_type="planner")
+    assert handback(tmp_path, parent, planner, 5000, env={"CK_RAW_CONTEXT": "1"}).returncode == 0
+    assert handback(tmp_path, parent, planner, 5000,
+                    env={"CK_HANDBACK_MAX": "6000"}).returncode == 0
 
 
 def contract(tmp_path, agent, **fields):
@@ -535,9 +694,8 @@ PLANNER_TOOLS = ["Read", "Grep", "Glob", "Write", "Bash"]
 #                                                          _memory_declared RED
 #   * read agent_type from the payload only             => test_agent_type_falls_back_to_the
 #                                                          _meta_file RED
-#   * delete the maxTurns branch                        => test_frontmatter_max_turns_binds RED
-#   * refuse Read once over maxTurns                    => test_frontmatter_max_turns_binds RED
-#                                                          (its final Read must stay allowed)
+#   * count tool calls against maxTurns again           => test_max_turns_is_not_a_tool_call
+#                                                          _cap RED
 #   * `asked <= declared` -> `asked < declared`         => test_a_spawn_may_not_escalate_the
 #                                                          _model_above_frontmatter RED (same-
 #                                                          tier spawn would be refused)
@@ -605,26 +763,6 @@ def test_an_agent_without_a_contract_file_is_not_scoped(tmp_path):
     result = run_hook(tmp_path, parent, tool_name="Edit", tool_input={"file_path": "x.py"},
                       extra_payload=extra)
     assert result.returncode == 0, result.stderr
-
-
-def test_frontmatter_max_turns_binds(tmp_path):
-    """maxTurns: 3. Three reads are counted and allowed; the fourth call, a Bash, is refused;
-    a fifth Read is STILL allowed - the way out must stay open."""
-    contract(tmp_path, "code-reviewer", tools=["Read", "Grep", "Glob", "Bash"], maxTurns=3)
-    parent, extra = spawned(tmp_path, agent_type="code-reviewer")
-    for i in range(3):
-        r = run_hook(tmp_path, parent, tool_name="Read", tool_input={"file_path": "x.py"},
-                     extra_payload=extra)
-        assert r.returncode == 0, "read %d is counted, never refused (stderr=%r)" % (i + 1, r.stderr)
-    bash = run_hook(tmp_path, parent, tool_name="Bash", tool_input={"command": "pytest"},
-                    extra_payload=extra)
-    assert bash.returncode == 2, (
-        "call 4 is over maxTurns: 3 and must be refused (rc=%s, stderr=%r)"
-        % (bash.returncode, bash.stderr))
-    assert "maxTurns: 3" in bash.stderr and "hand it back" in bash.stderr
-    after = run_hook(tmp_path, parent, tool_name="Read", tool_input={"file_path": "y.py"},
-                     extra_payload=extra)
-    assert after.returncode == 0, "Read stays open past the cap so the agent can hand back"
 
 
 def test_a_main_session_read_is_never_counted_or_refused(tmp_path):
@@ -898,14 +1036,14 @@ def test_registry_registers_the_gate_as_blocking():
     assert row["tier"] == "blocking", (
         "an advisory row cannot deny a tool call; the gate would be observable but powerless"
     )
-    for tool in ("Write", "Edit", "NotebookEdit", "Bash", "Agent", "Task"):
+    for tool in ("Write", "Edit", "NotebookEdit", "Bash", "Agent", "Task", "SubagentHandback"):
         assert tool in row["matcher"], (
             "%s is unguarded, so the budget never applies to it" % tool
         )
     for tool in ("Read", "Grep", "Glob"):
         assert tool in row["matcher"], (
-            "%s is not routed to the gate, so a read-heavy agent's turns are never counted "
-            "and its maxTurns can never bind" % tool
+            "%s is not routed to the gate, so a read-heavy agent's spend is never charged "
+            "and its line can never close exploration" % tool
         )
 
 

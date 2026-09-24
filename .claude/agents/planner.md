@@ -7,7 +7,7 @@ model: opus
 effort: high
 color: cyan
 memory: project
-maxTurns: 15
+maxTurns: 60
 tools: ["Read", "Grep", "Glob", "Write"]
 ---
 
@@ -79,8 +79,8 @@ Explore the codebase to understand the current state before planning anything.
 - Cap: ~25 tool calls (Tier 1/2), ~50 (Tier 3). At the cap, write the plan; list open
   unknowns in Risk Assessment as `UNVERIFIED:`.
 - Batch independent searches in ONE message.
-- **Hard ceiling, whole run: 30 tool calls** (reads, greps, writes all count). At 30, stop and
-  write; honest `UNVERIFIED:` lines beat a 6M-token plan. Cost is turns x context.
+- **Token line: 8M per run** (hook-enforced). At 70% a `wind down` note arrives: write now.
+  Past the line only Write/Edit stay open (6 calls). Handback: the path plus <=3,000 chars.
 - **Never re-read a file you already read this run.** Largest measured waste.
 - **Compose in memory; emit plan.md and ops.json in at most two Write calls.** No scratchpads,
   no Bash heredoc drafts, no `cat >`/`tee`/`sed` authoring. Bash reads and validates, never
