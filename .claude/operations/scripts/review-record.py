@@ -8,6 +8,7 @@ and lets a later stage prove the file has not drifted.
 
 Usage:
   review-record.py resolve <plan.md>
+  review-record.py write   <plan.md> <ops.json> --from-task <agentId|transcript.jsonl>
   review-record.py write   <plan.md> <ops.json> --from-review <file|->
   review-record.py write   <plan.md> <ops.json> --score N --decision D
   review-record.py write   ... [--session-id UUID]   (records a rejection brief)
@@ -92,7 +93,7 @@ VALID_DECISIONS = ("APPROVED", "CONDITIONAL", "REVISE", "REJECTED")
 # trajectory are exactly the signals that make review outcomes measurable, and
 # both were destroyed at write time.
 ROUND_KEYS = ("score", "decision", "findings", "recorded_utc", "ops_sha256",
-               "verdict_origin")
+              "verdict_origin", "review_evidence")
 # The review loop's documented ceiling is 3 rounds; 20 is far above any real run
 # while still bounding a pathological loop. Dropping is announced, never silent.
 MAX_ROUNDS = 20
@@ -773,6 +774,74 @@ def cmd_resolve(args) -> int:
     return 0
 
 
+# --------------------------------------------------------------------------- --from-task
+#
+# Measured 2026-09-24 (hermes-agent): the main thread bound each review by copying the
+# reviewer's reply out of its task output into a /private/tmp scratchpad with a helper it
+# wrote on the spot, then typed --reviewer-role. The evidence died with the tmp dir and the
+# role was whatever the caller said. --from-task reads the reply from the reviewer's OWN
+# transcript and takes the role from the harness's meta file beside it.
+
+_AGENT_ID_RE = re.compile(r"^[A-Za-z0-9_-]{4,64}$")
+_HANDBACK_TOOL = "SubagentHandback"
+
+
+def _task_transcript(ref: str):
+    """The subagent transcript `ref` names - a path to it, or the agentId the Agent tool
+    returned - or None. Several matches (one id, two projects) -> the newest."""
+    path = Path(ref).expanduser()
+    if path.suffix == ".jsonl" and path.is_file():
+        return path
+    if not _AGENT_ID_RE.match(ref):
+        return None
+    base = Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude") / "projects"
+    hits = list(base.glob("*/*/subagents/agent-%s.jsonl" % ref))
+    return max(hits, key=lambda p: p.stat().st_mtime) if hits else None
+
+
+def _message_texts(message):
+    """Every text an assistant message carries: its text blocks and a handback's message."""
+    content = message.get("content")
+    if isinstance(content, str):
+        return [content]
+    texts = []
+    for block in content if isinstance(content, list) else []:
+        if not isinstance(block, dict):
+            continue
+        if block.get("type") == "text" and isinstance(block.get("text"), str):
+            texts.append(block["text"])
+        elif block.get("type") == "tool_use" and block.get("name") == _HANDBACK_TOOL:
+            handed = (block.get("input") or {}).get("message")
+            if isinstance(handed, str):
+                texts.append(handed)
+    return texts
+
+
+def _task_review(transcript: Path):
+    """(reply, agent type) from a subagent transcript. The reply is the LAST assistant text
+    that parse_verdict accepts - earlier ones are drafts. The type comes from the harness's
+    agent-<id>.meta.json, never from the caller; None when there is no meta file."""
+    reply = None
+    with open(transcript, encoding="utf-8", errors="replace") as handle:
+        for line in handle:
+            try:
+                rec = json.loads(line)
+            except ValueError:
+                continue
+            message = rec.get("message") if isinstance(rec, dict) else None
+            if not isinstance(message, dict) or message.get("role") != "assistant":
+                continue
+            for text in _message_texts(message):
+                if parse_verdict(text)[0] is not None:
+                    reply = text
+    meta = transcript.with_name(transcript.name[:-len(".jsonl")] + ".meta.json")
+    try:
+        agent_type = json.loads(meta.read_text(encoding="utf-8")).get("agentType")
+    except (OSError, ValueError, AttributeError):
+        agent_type = None
+    return reply, (agent_type.strip().lower() if isinstance(agent_type, str) else None)
+
+
 def cmd_write(args) -> int:
     """argparse adapter. `write_verdict` below is the real entry point.
 
@@ -784,7 +853,7 @@ def cmd_write(args) -> int:
     """
     return write_verdict(
         plan=args.plan, ops=args.ops, from_review=args.from_review,
-        score=args.score, decision=args.decision,
+        from_task=getattr(args, "from_task", None), score=args.score, decision=args.decision,
         session_id=getattr(args, "session_id", None),
         verdict_origin=getattr(args, "verdict_origin", None) or "rubric",
         reviewer_role=getattr(args, "reviewer_role", None),
@@ -795,7 +864,7 @@ def cmd_write(args) -> int:
 def write_verdict(plan, ops, from_review=None, score=None, decision=None,
                   session_id=None, verdict_origin="rubric",
                   reviewer_role=None, only_non_approving=False,
-                  owner_approved=False) -> int:
+                  owner_approved=False, from_task=None) -> int:
     """Record one verdict against one ops.json. The write half of the approval gate.
 
     Behaviour is unchanged from the argparse-driven version; the proof is that
@@ -807,9 +876,34 @@ def write_verdict(plan, ops, from_review=None, score=None, decision=None,
         return 1
 
     findings = []
-    if from_review:
+    raw = None
+    role_source = "asserted"
+    if from_task:
+        if from_review:
+            print("Error: --from-task and --from-review are exclusive", file=sys.stderr)
+            return 1
+        transcript = _task_transcript(from_task)
+        if transcript is None:
+            print("Error: no subagent transcript for %r (pass the agentId the Agent tool "
+                  "returned, or the path to its agent-<id>.jsonl)." % from_task,
+                  file=sys.stderr)
+            return 1
+        raw, task_role = _task_review(transcript)
+        if raw is None:
+            print("Error: %s holds no parseable === REVIEW === block; nothing recorded."
+                  % transcript, file=sys.stderr)
+            return 1
+        if task_role is not None:
+            if reviewer_role and _role(reviewer_role) != task_role:
+                print("REFUSED: --reviewer-role %s contradicts the transcript, which the "
+                      "harness recorded as %s. Nothing recorded." % (reviewer_role, task_role),
+                      file=sys.stderr)
+                return 1
+            reviewer_role, role_source = task_role, "transcript"
+    elif from_review:
         raw = sys.stdin.read() if from_review == "-" else \
             Path(from_review).read_text(encoding="utf-8")
+    if raw is not None:
         score, decision, findings = parse_verdict(raw)
         if score is None:
             print("Error: could not parse SCORE/DECISION from the review output.",
@@ -853,24 +947,37 @@ def write_verdict(plan, ops, from_review=None, score=None, decision=None,
     # refusal below deliberately does not name it, and block-no-verify.sh denies any
     # agent Bash call carrying it (a PreToolUse speed bump against agents, not a
     # sandbox).
-    if not from_review and decision in NON_RECORDABLE_DECISIONS and not owner_approved:
+    if raw is None and decision in NON_RECORDABLE_DECISIONS and not owner_approved:
         print("REFUSED: a bare --decision %s is not a review; nothing recorded." % decision,
               file=sys.stderr)
-        print("         Spawn a fresh code-reviewer (reviewer, for a plan), save its",
+        print("         Spawn a fresh code-reviewer (reviewer, for a plan) and bind its",
               file=sys.stderr)
-        print("         output to a file, and bind it with:", file=sys.stderr)
-        print("           review-record.py write <plan> <ops> --from-review <file>",
+        print("         reply straight from its transcript with the agentId it returned:",
+              file=sys.stderr)
+        print("           review-record.py write <plan> <ops> --from-task <agentId>",
+              file=sys.stderr)
+        print("         (or --from-review <file> for a review saved elsewhere).",
               file=sys.stderr)
         print("         Never ask the user to type a score or run an approval for you.",
               file=sys.stderr)
         return EXIT_UNATTESTED_APPROVAL
-    if owner_approved and not from_review:
+    if owner_approved and raw is None:
         verdict_origin = "owner"
 
     slug = ops_slug(ops_path)
     root = _records_root(ops_path)
     rec_path, snap_path = record_paths(slug, root)
     rec_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # The review text itself, kept beside the record: a --from-review file in a tmp
+    # scratchpad is gone by the next reboot, and a verdict nobody can re-read is a claim.
+    evidence = None
+    if raw is not None:
+        digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()
+        ev_path = rec_path.with_name("%s.review-%s.md" % (rec_path.name[:-len(".json")],
+                                                          digest[:12]))
+        if _safe_write(ev_path, raw):
+            evidence = os.path.relpath(str(ev_path))
 
     record = {
         "plan": os.path.relpath(plan),
@@ -897,6 +1004,10 @@ def write_verdict(plan, ops, from_review=None, score=None, decision=None,
         # and it is ASSERTED by the caller (see REVIEWER_ROLES).
         "reviewer_session": _session_id(session_id),
         "reviewer_role": _role(reviewer_role),
+        # "transcript" = read from the harness's meta file by --from-task; "asserted" =
+        # typed by the caller. cmd_check does not read it; it says how far to trust the role.
+        "reviewer_role_source": role_source if reviewer_role else "none",
+        "review_evidence": evidence,
         "recorded_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
     record.update(load_ops_summary(ops_path))
@@ -1840,6 +1951,10 @@ def main() -> int:
     w = sub.add_parser("write", help="Record a verdict against the current ops.json")
     w.add_argument("plan")
     w.add_argument("ops")
+    w.add_argument("--from-task", dest="from_task", default=None,
+                   help="The reviewer's agentId (or its agent-<id>.jsonl): read its last "
+                        "review block from its own transcript, and its role from the "
+                        "harness's meta file instead of --reviewer-role")
     w.add_argument("--from-review", help="File containing reviewer output, or '-' for stdin")
     w.add_argument("--score", type=int)
     w.add_argument("--decision", choices=VALID_DECISIONS)
