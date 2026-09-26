@@ -54,6 +54,13 @@ ALPHABET = [
 # absorb an unrelated regression.
 DISCLOSED_WIDENINGS: List[Dict[str, str]] = [
     {
+        "payload": r"\bssh\b",
+        "baseline_reason": "Blocked command: ssh",
+        "why": "2026-09-26, owner decision: ssh is removed from BLOCKLIST. Only the exact old "
+               "`Blocked command: ssh` refusal is absorbed; scp, rsync, curl, wget and every "
+               "other blocklisted head still refuse.",
+    },
+    {
         "payload": r"^[A-Za-z_][A-Za-z0-9_]*=",
         "baseline_reason": "Dangerous pattern (environment override: IFS)",
         "why": "2026-09-19: the env-assignment allowlist is gated on safe_mode. With the "
