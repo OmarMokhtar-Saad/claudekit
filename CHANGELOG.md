@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **The command guard now allows `ssh` (owner decision).** `ssh` is no longer in the
+  validator's `BLOCKLIST`. `scp`, `rsync`, `curl`, `wget`, `kill`, `rm`, `chmod` and `sudo`
+  are still refused. The widening is recorded in `scripts/check-validator-differential.py`.
+
 - **The kit's own runtime state no longer ships.** Installing or `ck update`-ing from a kit
   checkout copied gitignored runtime files that the hook denylist didn't name. The kit's own
   session log, `hooks/compaction-cadence.jsonl`, reached every project as a `.kit-new`. A wheel

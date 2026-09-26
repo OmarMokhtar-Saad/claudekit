@@ -42,7 +42,7 @@ BLOCKLIST = {
     "rm", "rmdir", "dd", "mkfs", "fdisk", "mount", "umount",
     "chmod", "chown", "chgrp",
     "curl", "wget",          # network access should be explicit
-    "ssh", "scp", "rsync",
+    "scp", "rsync",
     "sudo", "su", "doas",
     "kill", "killall", "pkill",
     "reboot", "shutdown", "halt", "poweroff",
