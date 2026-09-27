@@ -40,8 +40,10 @@ ABS_ROOT=$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$RO
 # Allow: session scratchpad / OS temp dirs. These live OUTSIDE the project and are
 # never source code — blocking them produced false "CROSS-PROJECT EDIT BLOCKED"
 # denials on the agent's own scratch files (upstreamed from an AppiumLens field fix).
-# Project src/ protection is unaffected.
+# Project src/ protection is unaffected: a target inside the project root never takes
+# this exemption, or a project checked out under a scratchpad would have none.
 case "$ABS_TARGET" in
+    "$ABS_ROOT"/*) : ;;
     /private/tmp/claude-*|/tmp/claude-*|/private/var/folders/*|/var/folders/*) exit 0 ;;
 esac
 
