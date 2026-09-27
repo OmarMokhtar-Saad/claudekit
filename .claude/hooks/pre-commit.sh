@@ -66,63 +66,70 @@ validate_configured_cmd() {
 # ---------------------------------------------------------------------------
 validate_ops_configs() {
     log "INFO" "Validating operations configs..."
-    local has_errors=0
+    local has_errors=0 checked=0 kind ops_file msg
 
-    while IFS= read -r ops_file; do
-        if ! python3 -c "import json, sys; json.load(open(sys.argv[1]))" "$ops_file" 2>/dev/null; then
-            log "ERROR" "Invalid JSON: $ops_file"
-            echo "ERROR: Invalid JSON in $ops_file"
-            has_errors=1
-            continue
-        fi
-
-        # Validate required fields (supports both legacy and modern formats)
-        local valid
-        valid=$(python3 -c "
+    # One python3 for every file: two per file made each commit take 100-135s over ~1,300 plans.
+    # It prints one tab-separated line per file: OK, JSON (unparseable) or BAD with the reason.
+    while IFS=$'\t' read -r kind ops_file msg; do
+        case "$kind" in
+            OK) checked=$((checked + 1)) ;;
+            JSON)
+                log "ERROR" "Invalid JSON: $ops_file"
+                echo "ERROR: Invalid JSON in $ops_file"
+                has_errors=1 ;;
+            BAD)
+                log "ERROR" "Validation failed for $ops_file: $msg"
+                echo "ERROR: $ops_file - $msg"
+                has_errors=1 ;;
+            *)
+                log "ERROR" "ops config check failed: $kind $ops_file $msg"
+                has_errors=1 ;;
+        esac
+    done < <(find "$CK_ROOT/.claude/plans/" "${OPS_FIND_EXPR[@]}" -print0 2>/dev/null | python3 -c '
 import json, sys
-try:
-    data = json.load(open(sys.argv[1]))
-    if 'plan' not in data:
-        print('missing plan field')
-    elif 'operations' in data:
-        if not isinstance(data['operations'], list):
-            print('operations must be array')
-        else:
-            for i, op in enumerate(data['operations']):
-                if 'type' not in op:
-                    print(f'operation {i} missing type')
-                    sys.exit(0)
-                if 'path' not in op:
-                    print(f'operation {i} missing path')
-                    sys.exit(0)
-            print('ok')
-    elif 'files' in data:
-        if not isinstance(data['files'], list):
-            print('files must be array')
-        else:
-            for i, f in enumerate(data['files']):
-                if 'path' not in f:
-                    print(f'file {i} missing path')
-                    sys.exit(0)
-                if 'edits' not in f:
-                    print(f'file {i} missing edits')
-                    sys.exit(0)
-            print('ok')
-    else:
-        print('missing operations or files field')
-except Exception as e:
-    print(f'parse error: {e}')
-" "$ops_file" 2>/dev/null)
 
-        if [ "$valid" != "ok" ]; then
-            log "ERROR" "Validation failed for $ops_file: $valid"
-            echo "ERROR: $ops_file - $valid"
-            has_errors=1
-        else
-            log "INFO" "Valid: $ops_file"
-        fi
-    done < <(find "$CK_ROOT/.claude/plans/" "${OPS_FIND_EXPR[@]}" 2>/dev/null)
+def check(data):
+    """The reason a parsed config is invalid, or "ok" (supports legacy and modern formats)."""
+    if "plan" not in data:
+        return "missing plan field"
+    if "operations" in data:
+        if not isinstance(data["operations"], list):
+            return "operations must be array"
+        for i, op in enumerate(data["operations"]):
+            if "type" not in op:
+                return "operation %d missing type" % i
+            if "path" not in op:
+                return "operation %d missing path" % i
+        return "ok"
+    if "files" in data:
+        if not isinstance(data["files"], list):
+            return "files must be array"
+        for i, f in enumerate(data["files"]):
+            if "path" not in f:
+                return "file %d missing path" % i
+            if "edits" not in f:
+                return "file %d missing edits" % i
+        return "ok"
+    return "missing operations or files field"
 
+for raw in sys.stdin.buffer.read().split(b"\0"):
+    if not raw:
+        continue
+    path = raw.decode("utf-8", "replace")
+    try:
+        with open(raw) as fh:
+            data = json.load(fh)
+    except Exception:
+        print("JSON\t%s\t" % path)
+        continue
+    try:
+        why = check(data)
+    except Exception as e:
+        why = "parse error: %s" % e
+    print("OK\t%s\t" % path if why == "ok" else "BAD\t%s\t%s" % (path, why.replace("\t", " ")))
+' 2>/dev/null || echo "CRASH")
+
+    log "INFO" "Valid ops configs: $checked"
     return $has_errors
 }
 
