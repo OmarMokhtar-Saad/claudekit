@@ -471,6 +471,72 @@ class TestPreCommitBuildCmd:
         assert "Running build" not in p.stdout
 
 
+class TestPreCommitOpsConfigs:
+    """pre-commit.sh validates every ops config under .claude/plans/ on each `git commit`. It
+    spawned two python3 processes per file: over the 1,296 plans of a real project that was
+    100-135s a commit. One process now checks them all, with the same error lines."""
+
+    OPS = {"plan": "p.md", "operations": [{"type": "edit", "path": "a.py"}]}
+
+    def _repo(self, tmp_path, n_ok, extra=()):
+        import shutil
+        repo = tmp_path / "repo"
+        plans = repo / ".claude" / "plans"
+        plans.mkdir(parents=True)
+        subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+        hd = repo / ".claude" / "hooks"
+        hd.mkdir()
+        for name in ("pre-commit.sh", "lib.sh"):
+            shutil.copy(HOOKS / name, hd / name)
+        for i in range(n_ok):
+            (plans / ("ops-%03d.json" % i)).write_text(json.dumps(self.OPS))
+        for name, text in extra:
+            (plans / name).write_text(text)
+        return repo
+
+    def _run(self, tmp_path, repo):
+        # A python3 shim that counts its calls, so the test measures spawns, not wall time.
+        shim = tmp_path / "shim"
+        shim.mkdir(exist_ok=True)
+        calls = tmp_path / "calls"
+        real = subprocess.run(["bash", "-c", "command -v python3"], capture_output=True,
+                              text=True).stdout.strip()
+        (shim / "python3").write_text('#!/bin/sh\necho x >> "%s"\nexec "%s" "$@"\n' % (calls, real))
+        (shim / "python3").chmod(0o755)
+        calls.write_text("")
+        p = subprocess.run(
+            ["bash", str(repo / ".claude" / "hooks" / "pre-commit.sh")],
+            capture_output=True, text=True, cwd=str(repo), timeout=120,
+            env=dict(os.environ, PATH="%s:%s" % (shim, os.environ["PATH"]), CLAUDE_PROJECT_DIR=str(repo)),
+        )
+        return p, len(calls.read_text().split())
+
+    def test_the_python_spawns_do_not_grow_with_the_number_of_plans(self, tmp_path):
+        _, few = self._run(tmp_path / "a", self._repo(tmp_path / "a", 3))
+        _, many = self._run(tmp_path / "b", self._repo(tmp_path / "b", 60))
+        assert many == few, (few, many)
+
+    def test_every_bad_config_is_still_reported_and_fails_the_hook(self, tmp_path):
+        bad = [("ops-broken.json", "{not json"),
+               ("ops-noplan.json", json.dumps({"operations": []})),
+               ("ops-nopath.json", json.dumps({"plan": "p", "operations": [{"type": "edit"}]})),
+               ("x.ops.json", json.dumps({"plan": "p", "files": [{"path": "a"}]})),
+               ("ops-neither.json", json.dumps({"plan": "p"}))]
+        p, _ = self._run(tmp_path, self._repo(tmp_path, 2, bad))
+        assert p.returncode != 0
+        plans = str(tmp_path / "repo" / ".claude" / "plans")
+        assert "ERROR: Invalid JSON in %s/ops-broken.json" % plans in p.stdout
+        assert "ERROR: %s/ops-noplan.json - missing plan field" % plans in p.stdout
+        assert "ERROR: %s/ops-nopath.json - operation 0 missing path" % plans in p.stdout
+        assert "ERROR: %s/x.ops.json - file 0 missing edits" % plans in p.stdout
+        assert "ERROR: %s/ops-neither.json - missing operations or files field" % plans in p.stdout
+        assert "ops-000.json" not in p.stdout
+
+    def test_valid_configs_pass(self, tmp_path):
+        p, _ = self._run(tmp_path, self._repo(tmp_path, 5))
+        assert p.returncode == 0, p.stdout + p.stderr
+
+
 class TestCommandLogAudit:
     """command-log-audit.sh appends the raw Bash command to a persistent audit
     log; embedded newlines/CRs must be neutralized so a logged command can't
