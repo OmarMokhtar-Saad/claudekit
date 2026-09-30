@@ -234,6 +234,10 @@ name, and the Phase 3 verification above applies to it unchanged.
 
 ## Simplification Targets
 
+The target state is `.claude/agents/_shared/CODE_QUALITY_STANDARD.md`. A simplification
+must not introduce a new violation while removing another; report before/after numbers
+(length / complexity / params) for every function you touch.
+
 ### 1. Unnecessary Abstractions
 
 Remove abstractions that aren't earning their complexity:

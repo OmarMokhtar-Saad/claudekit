@@ -216,8 +216,14 @@ These penalties are applied to the TOTAL score after weighted calculation:
 | Missing error handling                 | -10     | Functions that can fail but don't handle errors|
 | Overly broad type assertions           | -5      | Using `any`, `Object`, etc. when specific types exist |
 | Test assertions without messages       | -3      | Assertions that don't explain what's expected  |
+| New code over quality limits           | -10 each| Breach of `_shared/CODE_QUALITY_STANDARD.md` limits in changed code (max -20) |
 
 Maximum total penalty: -30 points (floor, not cumulative beyond this)
+
+**Code quality gate:** run the diff-scoped measurement in
+`.claude/agents/_shared/CODE_QUALITY_STANDARD.md` alongside the linter and report the
+numbers. Any new-code limit breach without an accepted site justification is a FAIL
+regardless of score. Pre-existing violations are reported as INFO and never penalised.
 
 ---
 

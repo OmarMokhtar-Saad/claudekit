@@ -225,7 +225,13 @@ POST-IMPLEMENTATION CHECKLIST:
   [ ] No unintended file modifications
   [ ] No debug/temporary code left behind
   [ ] No TODO comments added (unless specified in plan)
+  [ ] Changed functions measured against CODE_QUALITY_STANDARD.md limits
 ```
+
+**Code quality measurement:** run the diff-scoped measurement from
+`.claude/agents/_shared/CODE_QUALITY_STANDARD.md` on the changed files and put the numbers
+(length / complexity / params of each changed function) in your output. A new-code breach
+is STOP-and-report to the orchestrator — never fix it with a manual edit, never pass silently.
 
 ---
 

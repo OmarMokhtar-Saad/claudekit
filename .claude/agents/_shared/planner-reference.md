@@ -46,7 +46,18 @@ compose plan.md and ops.json.
 - **Low Risk:** <items>
 - **Medium Risk:** <items>
 - **High Risk:** <items>
+
+## Code Quality
+- <unit> — single responsibility: <one sentence>
+- New cases are added by: <registry entry / strategy / table row, not an if/elif edit>
+- Limits: no new code exceeds ≤50-line functions, complexity ≤10, ≤5 params, nesting ≤4
+- Over-limit functions touched: <none | split step N | justification>
 ```
+
+**Code Quality section is mandatory** in every plan that changes code. Rules, limits and
+severity: `.claude/agents/_shared/CODE_QUALITY_STANDARD.md` (new code only; pre-existing
+violations are grandfathered). Adding logic to a function already over a limit needs a
+split step or a written justification.
 
 ---
 
