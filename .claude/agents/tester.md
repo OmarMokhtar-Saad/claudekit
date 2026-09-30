@@ -53,6 +53,8 @@ Follow this strict four-phase process for every test generation task:
 - Include at least 2 assertions per test case
 - Mock external dependencies; never mock the unit under test
 - Cover: happy path, error path, boundary values, null/undefined, concurrency (if applicable)
+- Test code follows `.claude/agents/_shared/CODE_QUALITY_STANDARD.md`: one behaviour per
+  test, no loops/branches in a test body (use parametrisation), shared setup in fixtures
 
 ### Phase 4: Verify
 - Run all generated tests and confirm they pass

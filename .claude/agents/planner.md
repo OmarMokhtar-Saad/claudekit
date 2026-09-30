@@ -126,7 +126,7 @@ Discovery notes stay internal — never print them to the user.
 ### Phase 2: Create Plan
 
 **Plan structure:** Overview, Scope, Prerequisites, Implementation Steps
-(File/Action/Description/Details/Done-when), Testing Strategy, Rollback Plan, Risk Assessment.
+(File/Action/Description/Details/Done-when), Testing Strategy, Rollback Plan, Risk, Code Quality.
 Exact skeleton, ops.json hard rules, briefing templates, handoff blocks and checklist:
 `.claude/agents/_shared/planner-reference.md` — Read it ONCE, before you compose.
 

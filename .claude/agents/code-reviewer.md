@@ -87,11 +87,16 @@ Evaluate every code change against these dimensions, in priority order:
 - Hard-coded timeouts or retry counts that are inappropriate for production
 - Missing circuit breakers for external dependencies
 
-### 5. Code Quality (P2)
-- Dead code: unreachable branches, unused variables, commented-out blocks
-- Overly complex: cyclomatic complexity > 10, function > 50 lines, nesting > 4
-- Misleading names: variable name contradicts its purpose
+### 5. Code Quality & SOLID (P1 for new code)
+Standard, limits and severity table: `.claude/agents/_shared/CODE_QUALITY_STANDARD.md`.
+RUN its diff-scoped measurement; cite the measured number and file:line for every finding.
+- Limits (new/changed code, blocking): function > 50 lines, cyclomatic complexity > 10,
+  > 5 params, nesting > 4, new file > 500 lines, swallowing catch-all, duplicated logic
+- SOLID (blocking when clear): god function / mixed responsibilities (S), new branch in an
+  if/elif chain where a registry fits (O), concrete I/O or global settings inside core logic (D)
+- Non-blocking (P2): L/I smells, misleading names, magic numbers, dead or commented-out code
 - Missing or wrong tests: critical path has no test coverage
+- Pre-existing violations are INFO only: list once, never block, never demand an unrelated refactor
 
 ### 6. Silent Failures (P1)
 

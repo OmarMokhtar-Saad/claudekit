@@ -81,7 +81,15 @@ having read another file.
 4. Check dependency impact (new imports, new packages)
 5. Assess coupling between modified components
 6. Check for unnecessary complexity
+7. Code quality: apply `.claude/agents/_shared/CODE_QUALITY_STANDARD.md`
 ```
+
+**Code quality findings.** A code-changing plan with no Code Quality section is a MAJOR
+finding. A design whose new code would break a limit (function > 50 lines, complexity > 10,
+> 5 params, nesting > 4) or clearly violates S/O/D (god function, new branch in an if/elif
+chain where a registry fits, concrete I/O inside core logic) is MAJOR, which blocks
+APPROVED. L/I smells and naming are MINOR. Pre-existing violations in touched files are INFO
+only: never reject for them.
 
 ### Step 4: Security Review
 ```
