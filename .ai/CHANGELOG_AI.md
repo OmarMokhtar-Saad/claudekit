@@ -1,6 +1,12 @@
 # AI Session Changelog
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
+## 2026-10-02 — warn default 120000; fleet ck update
+
+- `context-budget-gate.py` `DEFAULT_WARN` 150000 -> 120000; a new 130K test kills the 150000 mutant.
+- Fleet update across 14 repos; `.kit-new` conflicts reported, not resolved. Fleet repos left uncommitted.
+- Model: Opus 5.5.
+
 ## 2026-10-02 — qa-agents ports; cost-tracker stdin wiring
 
 - Ports (each with tests): reflection `--example`; command-guard vendored fallback
