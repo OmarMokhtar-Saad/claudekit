@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **The context-budget warning now defaults to 120,000 tokens** (was 150,000), matching the
+  fleet's `CK_CONTEXT_WARN=120000` and its 120K handoff. `CK_CONTEXT_WARN` still overrides it.
+
 - **The reflection session token no longer reaches the transcript.** SessionStart used to
   print it. `reflection.py receipt` now reads the token from its 0600 file when
   `--session-token` is omitted, and the receipt instructions leave the flag out. An explicit

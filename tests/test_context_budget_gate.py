@@ -217,6 +217,15 @@ def test_warns_once_at_the_warn_threshold(tmp_path):
     assert result.stderr == "", "the advisory is the JSON on stdout; stderr never reaches the model"
 
 
+def test_the_shipped_warn_default_is_120k(tmp_path):
+    """130K is above the 120K default and below the old 150K one, so it warns only under
+    the new default (no CK_CONTEXT_WARN set)."""
+    path = transcript(tmp_path, usage_line(130000))
+    result = run_hook(tmp_path, path, args=ADVISE)
+    assert result.returncode == 0
+    assert "130K" in advice(result)
+
+
 def test_the_pretooluse_path_never_warns(tmp_path):
     """Exit-0 stderr from a PreToolUse hook is a transcript attachment, not model context
     (measured 2026-09-19: 18,345 attachments, 0 in context). The warn band must therefore be
@@ -845,7 +854,7 @@ def test_thresholds_come_from_the_environment(tmp_path):
     assert raised.returncode == 0, "CK_CONTEXT_BLOCK=400000 must let a 180K session through"
     assert raised.stderr == "", "the PreToolUse path never warns"
     advised = run_hook(tmp_path, path, extra_env={"CK_CONTEXT_BLOCK": "400000"}, args=ADVISE)
-    assert "180K" in advice(advised), "and the 150K warning still fires below the raised line"
+    assert "180K" in advice(advised), "and the 120K warning still fires below the raised line"
 
 
 def test_a_missing_transcript_allows(tmp_path):

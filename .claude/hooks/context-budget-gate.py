@@ -18,7 +18,7 @@ THE TWO DECISIONS
 1. CONTEXT BUDGET. The payload names the caller's OWN transcript. Each assistant line in that
    JSONL carries `message.usage`; input_tokens + cache_read_input_tokens +
    cache_creation_input_tokens on the LAST assistant line is the context in force right now.
-   At or above CK_CONTEXT_WARN (150,000) the call is allowed and `--advise` (PostToolUse) delivers one advisory,
+   At or above CK_CONTEXT_WARN (120,000) the call is allowed and `--advise` (PostToolUse) delivers one advisory,
    at most once per 20 guarded calls per session. At or above CK_CONTEXT_BLOCK (200,000) the
    call is refused: past that size every further tool call re-reads the whole window, so the
    cheapest correct move is /compact, then /save-session, or a fresh session.
@@ -124,7 +124,7 @@ import sys
 # seek + one read regardless of how large the file has grown.
 TAIL_BYTES = 65536
 
-DEFAULT_WARN = 150000
+DEFAULT_WARN = 120000
 DEFAULT_BLOCK = 200000
 
 # One advisory line per this many guarded calls, per session.
