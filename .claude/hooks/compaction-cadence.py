@@ -58,7 +58,7 @@ def read_rows(path, session):
                     row = json.loads(line)
                 except ValueError:
                     continue
-                if row.get("session") == session:
+                if isinstance(row, dict) and row.get("session") == session:
                     rows.append(row)
     except OSError:
         pass
