@@ -12,6 +12,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **The reflection session token no longer reaches the transcript.** SessionStart used to
+  print it. `reflection.py receipt` now reads the token from its 0600 file when
+  `--session-token` is omitted, and the receipt instructions leave the flag out. An explicit
+  `--session-token` still works and is still checked.
+
+- **The planner writes as it goes.** `planner.md`'s "compose in memory, at most two Write
+  calls" rule is replaced: write the plan file first, re-Write it as findings are verified,
+  and resume from it when relaunched, so a context overflow or a restart keeps the partial
+  plan.
+
+- **`reflection.py receipt --example` prints a fillable receipt template** (ported from
+  qa-agents). The receipt instructions gained a step 0 that points to it, so agents stop
+  spending tokens on the receipt's shape. `--example` has no side effects and needs no token.
+
+- **Fixed in qa-agents: the reflection gate was silently disabled.** `reflection-gate.py`
+  passes `include_inbox=` to `duty_summary()`, which qa-agents' older `reflection.py` did
+  not accept, so the Stop and SubagentStop gate raised `TypeError`. Both copies of
+  `reflection.py` are now the same union (ClaudeKit's MEMORY INBOX duty plus qa-agents'
+  `--example`).
+
+- **command-guard has an offline fallback** (ported from qa-agents). `install.sh` now vendors
+  `claudekit.security` into `.claude/hooks/vendor/claudekit_security/` with a `PROVENANCE.json`
+  (`operations/scripts/vendor_security.py`), and the hook tries that copy last. When every
+  live route is broken, Bash is now checked by the vendored rules instead of let through
+  unchecked.
+
+- **Gate bypasses leave a durable record** (ported from qa-agents). `--no-approval`,
+  `--no-parse-check` and `--skip-validation` each append a JSON line to `backups/bypass.log`
+  (flag, absolute config, tree, pid, time). A failed write warns and is never reported as
+  recorded.
+
+- **cost-tracker logs `agents=` and `max_ctx=` per Stop** (ported from qa-agents): the
+  subagent count and the peak context over the transcript's last 64 KB. The Stop wiring now
+  reads the payload before backgrounding (`P=$(cat); printf %s "$P" | bash ... &`); under
+  the old `bash ... &` form both values were 0 on 1,117 of 1,121 qa-agents rows.
+
+- **pre-commit validates all ops configs in one `python3`** (ported from qa-agents), instead
+  of two per file: commits had taken 100-135s over ~1,300 plans. Same checks, same messages.
+
+- **compaction-cadence skips non-object JSON rows** instead of crashing on `row.get`.
+
 - **The command guard now allows `ssh` (owner decision).** `ssh` is no longer in the
   validator's `BLOCKLIST`. `scp`, `rsync`, `curl`, `wget`, `kill`, `rm`, `chmod` and `sudo`
   are still refused. The widening is recorded in `scripts/check-validator-differential.py`.
