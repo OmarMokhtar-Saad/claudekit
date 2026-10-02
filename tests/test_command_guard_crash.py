@@ -193,3 +193,65 @@ class TestMutationControls:
         )
         rc, out = run_hook(tmp_path, CRASHING, "git status", hook=mutated)
         assert rc == 2, "crash detection is not load-bearing"
+
+
+class TestVendoredFallback:
+    """When every live route is gone, the copy install.sh vendors still checks the command
+    (ported from qa-agents). Without it the same setup lets the command through unchecked."""
+
+    @staticmethod
+    def no_live_route(tmp_path: Path, vendored: bool):
+        import shutil
+        import sys
+        root = tmp_path / "proj"
+        shutil.copytree(HOOKS, root / ".claude" / "hooks",
+                        ignore=shutil.ignore_patterns("vendor", "*.log", ".state"))
+        if vendored:
+            subprocess.run([sys.executable, str(REPO / ".claude" / "operations" / "scripts"
+                                                / "vendor_security.py"),
+                            str(root / ".claude" / "hooks")], check=True)
+        # A `claudekit` package that cannot be imported, and no console script on PATH.
+        poison = tmp_path / "poison" / "claudekit"
+        poison.mkdir(parents=True)
+        (poison / "__init__.py").write_text("raise ImportError('gone')\n", encoding="utf-8")
+        env = dict(os.environ, CLAUDE_PROJECT_DIR=str(root), ECC_HOOK_PROFILE="standard",
+                   PYTHONPATH=str(poison.parent))
+        env["PATH"] = os.pathsep.join(
+            d for d in env["PATH"].split(os.pathsep)
+            if d and not os.path.exists(os.path.join(d, "claudekit")))
+        return root / ".claude" / "hooks" / "command-guard.sh", env
+
+    @staticmethod
+    def run(hook: Path, env: dict, command: str):
+        payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": command}})
+        proc = subprocess.run(["bash", str(hook)], input=payload, env=env,
+                              capture_output=True, text=True,
+                              cwd=str(hook.parents[2]))
+        return proc.returncode, proc.stdout + proc.stderr
+
+    def test_without_the_copy_the_command_goes_unchecked(self, tmp_path):
+        hook, env = self.no_live_route(tmp_path, vendored=False)
+        rc, out = self.run(hook, env, "rm -rf /tmp/zzz")
+        assert rc == 0 and "NOT checked" in out, out
+
+    def test_the_vendored_copy_refuses(self, tmp_path):
+        hook, env = self.no_live_route(tmp_path, vendored=True)
+        rc, out = self.run(hook, env, "rm -rf /tmp/zzz")
+        assert rc == 2 and "NOT checked" not in out, out
+
+    def test_the_vendored_copy_allows(self, tmp_path):
+        hook, env = self.no_live_route(tmp_path, vendored=True)
+        rc, out = self.run(hook, env, "ls -la")
+        assert rc == 0 and "NOT checked" not in out, out
+
+    def test_provenance_matches_the_copy(self, tmp_path):
+        import hashlib
+        hook, _ = self.no_live_route(tmp_path, vendored=True)
+        vendor = hook.parent / "vendor"
+        prov = json.loads((vendor / "PROVENANCE.json").read_text(encoding="utf-8"))
+        src = REPO / "src" / "claudekit" / "security"
+        assert set(prov["files"]) == {p.name for p in src.glob("*.py")}
+        for name, digest in prov["files"].items():
+            data = (vendor / "claudekit_security" / name).read_bytes()
+            assert hashlib.sha256(data).hexdigest() == digest
+            assert data == (src / name).read_bytes()

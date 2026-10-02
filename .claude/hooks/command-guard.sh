@@ -60,6 +60,15 @@ run_validator() {
         # pip-installed package without the console script on PATH
         python3 -m claudekit.security check-command "$1"
         return $?
+    elif [ -f "$SCRIPT_DIR/vendor/claudekit_security/cli.py" ]; then
+        # LAST RESORT: the byte-for-byte copy install.sh vendors beside the hooks
+        # (operations/scripts/vendor_security.py). A live install stays authoritative;
+        # this only turns "command NOT checked" into "checked by the vendored rules"
+        # when every route above is broken. Ported from qa-agents, where an editable
+        # install rewritten by work in another repo unguarded Bash for ~17 minutes.
+        PYTHONPATH="$SCRIPT_DIR/vendor${PYTHONPATH:+:$PYTHONPATH}" \
+            python3 -m claudekit_security check-command "$1"
+        return $?
     fi
     return 127
 }
