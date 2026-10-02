@@ -38,11 +38,101 @@ TOOL_CALLS=$(grep "$TODAY.*\[INFO\].*Tool:" "$LOG_FILE" 2>/dev/null | wc -l | tr
 GIT_OPS=$(grep "$TODAY.*\[INFO\].*Git operation" "$LOG_FILE" 2>/dev/null | wc -l | tr -d ' ')
 HOOK_ERRORS=$(grep "$TODAY.*\[ERROR\]" "$LOG_FILE" 2>/dev/null | wc -l | tr -d ' ')
 
+# ---------------------------------------------------------------- turn telemetry
+# Tool-call counts said nothing about the thing that actually spends: how large the
+# window got and how many subagents were paid for. An audit of two qa-agents sessions
+# (89.9M tokens) had to be reconstructed by hand from raw transcripts because no hook
+# recorded either number. These two are written on every Stop so the next audit is a
+# `grep` of cost-tracker.log.
+#
+# max_ctx is the largest input + cache_read + cache_creation on any assistant record in
+# the LAST 64 KB of the transcript, read with one seek + one bounded read exactly as
+# context-budget-gate.py does: a Stop hook must not read a 40 MB file. It is therefore
+# the peak over the tail, not over the whole session - which is the number that matters
+# anyway, because the tail is where a long session sits.
+#
+# agents is a directory listing of <session>/subagents/, never a file read.
+#
+# The payload only arrives because settings.json pipes it in: a backgrounded command in
+# a non-interactive shell gets stdin from /dev/null (see tests/test_hook_stdin_wiring.py).
+PAYLOAD=""
+if [ ! -t 0 ]; then
+    PAYLOAD=$(cat 2>/dev/null)
+fi
+
+TELEMETRY_PY=$(cat <<'PYEOF'
+import json, os, sys
+
+TAIL_BYTES = 65536
+USAGE_KEYS = ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens")
+
+
+def context_of(record):
+    message = record.get("message")
+    if not isinstance(message, dict):
+        return 0
+    usage = message.get("usage")
+    if not isinstance(usage, dict):
+        return 0
+    total = 0
+    for key in USAGE_KEYS:
+        value = usage.get(key)
+        if isinstance(value, int) and not isinstance(value, bool):
+            total += value
+    return total
+
+
+try:
+    payload = json.load(sys.stdin)
+except Exception:
+    payload = {}
+path = payload.get("transcript_path") if isinstance(payload, dict) else None
+
+peak = 0
+if isinstance(path, str) and os.path.isfile(path):
+    try:
+        size = os.path.getsize(path)
+        with open(path, "rb") as handle:
+            if size > TAIL_BYTES:
+                handle.seek(size - TAIL_BYTES)
+            blob = handle.read(TAIL_BYTES)
+        lines = blob.decode("utf-8", errors="replace").split("\n")
+        if size > TAIL_BYTES and lines:
+            lines = lines[1:]
+        for line in lines:
+            line = line.strip()
+            if not line or "usage" not in line:
+                continue
+            try:
+                record = json.loads(line)
+            except Exception:
+                continue
+            if isinstance(record, dict):
+                peak = max(peak, context_of(record))
+    except Exception:
+        pass
+
+agents = 0
+if isinstance(path, str) and path.strip():
+    folder = os.path.join(os.path.splitext(path)[0], "subagents")
+    try:
+        agents = len([n for n in os.listdir(folder)
+                      if n.startswith("agent-") and n.endswith(".jsonl")])
+    except Exception:
+        agents = 0
+
+sys.stdout.write("%d %d\n" % (agents, peak))
+PYEOF
+)
+TELEMETRY=$(printf '%s' "$PAYLOAD" | python3 -c "$TELEMETRY_PY" 2>/dev/null)
+AGENTS=$(printf '%s' "$TELEMETRY" | awk 'NR==1 {print $1+0; found=1} END {if (!found) print 0}')
+MAX_CTX=$(printf '%s' "$TELEMETRY" | awk 'NR==1 {print $2+0; found=1} END {if (!found) print 0}')
+
 # Append to cost log
 mkdir -p "$(dirname "$COST_LOG")"
-echo "[${SESSION_DATE}T${SESSION_TIME}] project=$PROJECT session=$SESSION_ID tool_calls=$TOOL_CALLS git_ops=$GIT_OPS hook_errors=$HOOK_ERRORS" >> "$COST_LOG" 2>/dev/null
+echo "[${SESSION_DATE}T${SESSION_TIME}] project=$PROJECT session=$SESSION_ID tool_calls=$TOOL_CALLS git_ops=$GIT_OPS hook_errors=$HOOK_ERRORS agents=$AGENTS max_ctx=$MAX_CTX" >> "$COST_LOG" 2>/dev/null
 
-log "INFO" "Session tracked: tool_calls=$TOOL_CALLS git_ops=$GIT_OPS hook_errors=$HOOK_ERRORS"
+log "INFO" "Session tracked: tool_calls=$TOOL_CALLS git_ops=$GIT_OPS hook_errors=$HOOK_ERRORS agents=$AGENTS max_ctx=$MAX_CTX"
 
 # Print session summary if significant activity
 if [ "$TOOL_CALLS" -gt 0 ] 2>/dev/null; then

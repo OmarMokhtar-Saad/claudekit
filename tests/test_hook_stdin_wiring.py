@@ -161,3 +161,24 @@ def test_minimal_profile_still_prompts_the_stop_duty(tmp_path):
     assert "LEARNING LOOP" in emitted["systemMessage"], (
         "the advisory did not name the seeded duty: %r" % emitted
     )
+
+
+def test_wired_cost_tracker_records_turn_telemetry(tmp_path):
+    """cost-tracker.sh logs `agents=` and `max_ctx=` from the Stop payload's transcript.
+    Under the old `bash hook.sh &` wiring both were 0 on every row (1,117 of 1,121 in
+    qa-agents), because the backgrounded hook never saw the payload."""
+    root = hook_sandbox(tmp_path)
+    env = sandbox_env(root, tmp_path, "standard")
+    transcript = tmp_path / "sess.jsonl"
+    usage = {"input_tokens": 1000, "cache_read_input_tokens": 50000,
+             "cache_creation_input_tokens": 4321}
+    transcript.write_text(json.dumps({"type": "assistant", "message": {"usage": usage}}) + "\n")
+    subagents = tmp_path / "sess" / "subagents"
+    subagents.mkdir(parents=True)
+    for n in ("agent-a.jsonl", "agent-b.jsonl", "notes.txt"):
+        (subagents / n).write_text("{}\n")
+    payload = json.dumps({"session_id": "s1", "transcript_path": str(transcript)})
+    run_hook(wired_command("Stop", "cost-tracker.sh"), root, payload, env)
+    log = root / ".claude" / "hooks" / "cost-tracker.log"
+    assert wait_for_marker(log, "agents=2 max_ctx=55321"), (
+        log.read_text() if log.exists() else "no cost-tracker.log")
