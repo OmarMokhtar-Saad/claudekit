@@ -470,12 +470,15 @@ class TestPreCompact:
         assert "survived compaction" in first.stdout
         assert not ref.carryover_path(SESSION).is_file()
 
-    def test_session_start_emits_the_session_token(self, env):
+    def test_session_start_does_not_print_the_session_token(self, env, ref):
+        # stdout lands in the transcript; receipts read the 0600 token file instead.
         proc = run("SessionStart", {
             "hook_event_name": "SessionStart", "session_id": SESSION, "source": "startup",
         }, env)
         assert proc.returncode == 0
         assert "Reflection session token" in proc.stdout
+        token = ref.read_session_token(SESSION)
+        assert token and token not in proc.stdout
 
     def test_pending_duty_is_still_pending_after_compaction(self, env, ref):
         seed_two_failures(env)

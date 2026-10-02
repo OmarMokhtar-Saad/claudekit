@@ -473,6 +473,31 @@ class TestCli:
         assert ref.pending_checkpoint(SESSION) is None, receipt_diagnostic(
             ref, proc, env, argv, token)
 
+    def test_receipt_without_token_flag_reads_the_token_file(self, ref):
+        """2026-10-02: SessionStart no longer prints the token, so the CLI reads it."""
+        fail(ref, target="a")
+        fail(ref, target="b")
+        inbox = ref.inbox_path(SESSION)
+        inbox.parent.mkdir(parents=True, exist_ok=True)
+        inbox.write_text(json.dumps(valid_receipt(ref)), encoding="utf-8")
+        proc = self.run("receipt", "--session-id", SESSION, "--inbox")
+        assert proc.returncode == 0, proc.stderr
+        assert ref.pending_checkpoint(SESSION) is None
+
+    def test_example_is_a_template_the_validator_accepts(self, ref):
+        """Ported from qa-agents: `--example` prints a passing shape and writes nothing."""
+        fail(ref, target="a")
+        fail(ref, target="b")
+        proc = self.run("receipt", "--session-id", SESSION, "--example")
+        assert proc.returncode == 0, proc.stderr
+        assert not ref.inbox_path(SESSION).exists()
+        assert ref.pending_checkpoint(SESSION) is not None
+        payload = json.loads(proc.stdout)
+        assert payload["failureFingerprints"] == ref.pending_checkpoint(SESSION)["failureFingerprints"]
+        proc = self.run("receipt", "--session-id", SESSION, "--json", json.dumps(payload))
+        assert proc.returncode == 0, proc.stderr
+        assert ref.pending_checkpoint(SESSION) is None
+
     def test_cli_refuses_a_bad_receipt_with_exit_2(self, ref):
         fail(ref, target="a")
         fail(ref, target="b")

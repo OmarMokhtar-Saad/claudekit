@@ -321,10 +321,12 @@ def handle_session_start(event: Dict[str, Any], session_id: str) -> int:
     except Exception:
         pass
     lines: List[str] = []
+    # The token itself is never printed: stdout lands in the transcript, and the agent can
+    # read the 0600 token file anyway, so `reflection.py receipt` now reads it from there.
     if token:
         lines.append(
-            "Reflection session token (session-scoped; never log, print or commit it): %s"
-            % token
+            "Reflection session token minted; `reflection.py receipt` reads it from its "
+            "0600 file, so no --session-token is needed."
         )
     carry = reflection.carryover_path(session_id)
     try:
