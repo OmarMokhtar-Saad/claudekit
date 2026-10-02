@@ -82,9 +82,9 @@ Explore the codebase to understand the current state before planning anything.
 - **Token line: 8M per run** (hook-enforced). At 70% a `wind down` note arrives: write now.
   Past the line only Write/Edit stay open (6 calls). Handback: the path plus <=3,000 chars.
 - **Never re-read a file you already read this run.** Largest measured waste.
-- **Compose in memory; emit plan.md and ops.json in at most two Write calls.** No scratchpads,
-  no Bash heredoc drafts, no `cat >`/`tee`/`sed` authoring. Bash reads and validates, never
-  authors.
+- **Plan on disk early:** Write `.claude/plans/plan-<name>.md`
+  first (`Status: in progress`), re-Write it as findings verify, resume from it. Bash never
+  authors (no heredoc/`cat >`/`tee`/`sed`).
 - **Regions, not files.** Bash stdout is hook-capped at 12K chars. Read windows (`sed -n
   'a,bp'`, `grep -n -C3`, <=80 lines), never files >200 lines, scratch scripts or test drafts.
 
