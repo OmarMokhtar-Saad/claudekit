@@ -239,6 +239,48 @@ class ExecutionLock:
         return False
 
 
+BYPASS_LOG = Path("backups") / "bypass.log"
+
+
+def audit_bypass(flag: str, config_file: str, detail: str = "") -> bool:
+    """Append one DURABLE line for a gate that was deliberately stepped around.
+
+    Every bypass this engine offers announced itself on stdout and nowhere else.
+    Inside a subagent that stdout dies with the transcript, so "who turned the
+    validator off, on which config, in which tree" was unanswerable an hour
+    later -- the same reasoning that produced `OperationTransaction._audit` for
+    rollback, applied to the gates themselves. Raised twice in review of the
+    batch that restored those gates.
+
+    One line per bypass, beside the backups so it lives with the other durable
+    record of what a run did. Never raises: a bypass that fails to log must
+    still run, or the audit becomes a new way to break the engine.
+    """
+    try:
+        BYPASS_LOG.parent.mkdir(parents=True, exist_ok=True)
+        line = json.dumps({
+            "ts": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+            "action": "bypass",
+            "flag": flag,
+            "config": os.path.abspath(config_file) if config_file else "",
+            "tree": os.path.realpath(os.getcwd()),
+            "pid": os.getpid(),
+            "detail": detail,
+        }, sort_keys=True)
+        with open(BYPASS_LOG, "a", encoding="utf-8") as fh:
+            fh.write(line + "\n")
+        return True
+    except Exception as exc:  # noqa: BLE001 - an audit failure must not break the run
+        # Never raises -- a bypass that cannot log must still run, or the audit
+        # becomes a new way to break the engine. But it must not be SILENT
+        # either: the caller printed "Recorded in ..." unconditionally, so a
+        # failed write claimed a durable record that did not exist. That is the
+        # same lie as the gate reporting a verdict it never checked.
+        print(f"  WARNING: could not record the {flag} bypass in {BYPASS_LOG}: {exc}",
+              file=sys.stderr)
+        return False
+
+
 class OperationTransaction:
     """Track executed operations for transactional rollback."""
 
@@ -1137,6 +1179,8 @@ def execute_json_config(config_file: str, dry_run: bool = False,
         print("Approval: BYPASSED (--no-approval)")
         print("!!! APPROVAL GATE BYPASSED (--no-approval): executing an ops.json that no "
               "reviewer verdict authorises.", file=sys.stderr)
+        if audit_bypass("--no-approval", config_file, plan_name):
+            print(f"  Recorded in {BYPASS_LOG}")
     elif dry_run:
         print("Approval: not required for --dry-run (nothing is written)")
     else:
@@ -1203,6 +1247,8 @@ def execute_json_config(config_file: str, dry_run: bool = False,
     # terms as the approval bypass.
     if not check_parse:
         print("Parse: BYPASSED (--no-parse-check)")
+        if audit_bypass("--no-parse-check", config_file, plan_name):
+            print(f"  Recorded in {BYPASS_LOG}")
         print("!!! PARSE GATE BYPASSED (--no-parse-check): executing an ops.json without "
               "proving the Python it leaves behind still compiles. This exists to repair a "
               "broken ops_precompile.py and for nothing else.", file=sys.stderr)
@@ -1607,6 +1653,8 @@ Safety:
     if args.skip_validation:
         print("WARNING: --skip-validation -- executing WITHOUT the validator's verdict.",
               file=sys.stderr)
+        if audit_bypass("--skip-validation", args.config):
+            print(f"Recorded in {BYPASS_LOG}")
     else:
         ok, errors = _preflight_validate(args.config)
         if not ok:
