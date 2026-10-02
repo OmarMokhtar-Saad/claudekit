@@ -1,6 +1,16 @@
 # Session State
 
 > Update this file at the end of every significant AI working session. It is the resume point.
+**2026-10-02 (later) -- `DEFAULT_WARN` 120000; fleet `ck update` (branch `feat/subagent-spend-line`).**
+Warn default now matches the fleet env (`test_the_shipped_warn_default_is_120k`, mutation-checked).
+Suite with `/usr/local/bin/python3.12` (editable `claudekit`): 11871 passed, 21 failed. 20 of them
+are environmental: the session exported `ECC_OPS_ENFORCEMENT=off` and the ops-enforcement
+tests inherit it (all 200 pass with it unset). The 21st is the `$TMPDIR` flake in
+`test_validator_vs_bash`. Fleet `ck update` ran on 14 repos (snapshots in
+`~/IdeaProjects/.fleet-snap-2026-10-02/`), excluding qa-agents-release and shsmartassistant-agent.
+11 repos kept an identical non-kit `context-budget-gate.py` (200K/400K) and `dispatch-registry.json`,
+each with a `.kit-new` beside it. **Open, owner:** resolve those `.kit-new`s; ops-enforcement tests
+should scrub `ECC_OPS_ENFORCEMENT`; projects don't gitignore `.claude/runtime/`.
 **2026-10-02 -- qa-agents ports, cost-tracker wiring bug (branch `feat/subagent-spend-line`).**
 Ported from qa-agents: `reflection.py receipt --example`, command-guard's vendored offline
 fallback (`operations/scripts/vendor_security.py`, run by install.sh, PROVENANCE schema = qa's
