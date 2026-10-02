@@ -1151,6 +1151,43 @@ _TEXT_RULES = (
 )
 
 
+def example_receipt(session_id: Optional[str] = None) -> Dict[str, Any]:
+    """A receipt payload the validator ACCEPTS as it stands, with placeholder prose.
+
+    WHY THIS EXISTS: the demand above names every rule, and a session still cannot obey it
+    without seeing one. Two audited sessions in this repo read this file six times and
+    rewrote the inbox four times to get a single receipt past the validator - roughly 1.8M
+    tokens spent on the SHAPE of a receipt, not on its content. `receipt --example` is the
+    shape, printed; the rules are then something to check a filled-in template against
+    rather than something to reconstruct the template from.
+
+    `trigger` and `failureFingerprints` are the two fields whose only correct value comes
+    from the pending checkpoint, so they are read from it whenever the session is known -
+    a template whose trigger is wrong is another refusal round, which is the thing this is
+    for. Every other value is a placeholder: it passes `_safe_text` so the template can be
+    piped straight back and PROVED valid, and it says nothing true, so a receipt filed
+    unedited is worthless on its face rather than quietly plausible.
+    """
+    checkpoint = (pending_checkpoint(session_id)
+                  if session_id and valid_session(session_id) else None)
+    return {
+        "schemaVersion": SCHEMA_VERSION,
+        "taskId": "REPLACE - short slug for the task this checkpoint interrupted",
+        "trigger": checkpoint["trigger"] if checkpoint else "learning-loop",
+        "failureFingerprints": (list(checkpoint["failureFingerprints"])
+                                if checkpoint else []),
+        "failedAssumption": "REPLACE - the belief the run refuted, in one sentence",
+        "approachesCompared": [
+            "REPLACE - approach A, and why it was rejected",
+            "REPLACE - approach B, and why it was chosen instead",
+        ],
+        "chosenExperiment": "REPLACE - the one change made to test the corrected belief",
+        "proofCommandOrCheck": "REPLACE - the command run, e.g. python3 -m pytest tests -q",
+        "proofOutcome": "REPLACE - what that command actually printed, not what it should",
+        "durableDisposition": "nothing-durable",
+    }
+
+
 def receipt_instructions(session_id: Optional[str] = None) -> str:
     """The demand, SELF-DESCRIBING when the session is known.
 
@@ -1176,11 +1213,16 @@ def receipt_instructions(session_id: Optional[str] = None) -> str:
             path = ".claude/reflection/inbox-<session-key>.json"
         return (
             steps
+            + "  0. Get a fillable template - DO NOT read this file to work one out:\n"
+            + "     python3 .claude/hooks/reflection.py receipt --session-id %s --example\n"
+              % session_id
+            + "     It prints a payload this checkpoint already accepts (correct trigger\n"
+            + "     and fingerprints); replace every REPLACE line with the truth.\n"
             + "  1. Write the JSON payload to EXACTLY this path with the Write tool\n"
             + "     (it stays writable while a checkpoint is pending):\n"
             + "     %s\n" % path
             + "  2. python3 .claude/hooks/reflection.py receipt --session-id %s "
-              "--session-token <token> --inbox\n" % session_id
+              "--inbox\n" % session_id
             + "Required fields and the values THIS checkpoint requires:\n"
             + "  schemaVersion: %d\n" % SCHEMA_VERSION
             + "  trigger: %r  (the only value accepted right now)\n" % trigger
@@ -1200,7 +1242,7 @@ def receipt_instructions(session_id: Optional[str] = None) -> str:
         "     using the Write tool (this exact path stays writable while a checkpoint\n"
         "     is pending).\n"
         "  2. python3 .claude/hooks/reflection.py receipt --session-id <id> "
-        "--session-token <token> --inbox\n"
+        "--inbox\n"
         "Required receipt fields: schemaVersion, taskId, trigger, failureFingerprints, "
         "failedAssumption, approachesCompared (>=2), chosenExperiment, "
         "proofCommandOrCheck, proofOutcome, durableDisposition. "
@@ -1279,8 +1321,16 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     rec = sub.add_parser("receipt", help="append a validated reflection receipt")
     rec.add_argument("--session-id", required=True)
-    rec.add_argument("--session-token", required=True)
+    # Optional: when omitted the CLI reads the 0600 token file itself, so the token never
+    # has to pass through the transcript (2026-10-02). Never needed for --example: the
+    # template is printed and nothing is appended.
+    rec.add_argument("--session-token", default=None)
     group = rec.add_mutually_exclusive_group(required=True)
+    group.add_argument(
+        "--example", action="store_true",
+        help="print a complete receipt payload this checkpoint would accept, with "
+             "placeholder prose to replace. Writes nothing - not the ledger, not the inbox.",
+    )
     group.add_argument("--json", dest="receipt_json")
     group.add_argument("--file", type=Path)
     group.add_argument(
@@ -1329,6 +1379,18 @@ def main(argv: Optional[List[str]] = None) -> int:
             return 2
         return _emit({"recorded": ok, "failureId": args.failure_id})
 
+    if args.example:
+        # Before every side effect below, including the inbox mkdir: printing a template
+        # must never create state a later `--inbox` run could pick up.
+        print(json.dumps(example_receipt(args.session_id), indent=2))
+        return 0
+    # Omitted: read the 0600 token file, so the token never passes through the
+    # transcript (2026-10-02; SessionStart no longer prints it).
+    token = args.session_token or read_session_token(args.session_id)
+    if not token:
+        print("reflection: no session token for this session (none minted yet)", file=sys.stderr)
+        return 2
+
     inbox = inbox_path(args.session_id)
     try:
         # The CLI - never the PreToolUse gate - owns creating this directory. A blocking
@@ -1345,7 +1407,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         payload = json.loads(rendered)
         if not isinstance(payload, dict):
             raise ValueError("receipt payload must be a JSON object")
-        entry = record_receipt(args.session_id, payload, args.session_token)
+        entry = record_receipt(args.session_id, payload, token)
     except (OSError, TypeError, ValueError) as err:
         print("reflection: receipt refused - %s" % err, file=sys.stderr)
         return 2
