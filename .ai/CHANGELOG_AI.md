@@ -1,7 +1,18 @@
 # AI Session Changelog
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
-## 2026-09-24 (latest) — install.sh / setup.py stop shipping gitignored runtime state
+## 2026-10-02 — qa-agents ports; cost-tracker stdin wiring
+
+- Ports (each with tests): reflection `--example`; command-guard vendored fallback
+  (install-time copy, idempotent on reinstall: `vendored_at` kept when nothing changed, else
+  `test_install_overrides` sees a modified tracked file); `audit_bypass` for the three bypass
+  flags; cost-tracker telemetry; pre-commit in one python3; compaction-cadence guard.
+- Bug: `bash cost-tracker.sh &` in the Stop wiring got no stdin. Test
+  `test_wired_cost_tracker_records_turn_telemetry` fails under the old wiring (mutation-checked).
+- Planner: write-as-you-go merged into the discovery-budget bullet (size ceiling 10,000 B).
+- Model: Opus 5.5.
+
+## 2026-09-24 — install.sh / setup.py stop shipping gitignored runtime state
 
 - `install.sh` `_copy_hook_assets`: skips `git check-ignore` hits when `rev-parse --show-toplevel`
   is the kit itself. `|| true` inside the `$()` matters: `set -E` hands the ERR trap to command

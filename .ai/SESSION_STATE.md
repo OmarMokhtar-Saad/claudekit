@@ -1,6 +1,18 @@
 # Session State
 
 > Update this file at the end of every significant AI working session. It is the resume point.
+**2026-10-02 -- qa-agents ports, cost-tracker wiring bug (branch `feat/subagent-spend-line`).**
+Ported from qa-agents: `reflection.py receipt --example`, command-guard's vendored offline
+fallback (`operations/scripts/vendor_security.py`, run by install.sh, PROVENANCE schema = qa's
+`sync-vendor.py`), `audit_bypass()` in execute-json-ops.py, cost-tracker `agents=`/`max_ctx=`,
+single-python pre-commit, compaction-cadence non-dict rows. Bug: the Stop wiring `bash ... &`
+starved cost-tracker of stdin (0 on 1,117 of 1,121 qa rows); now `P=$(cat); printf %s "$P" | ...`.
+SessionStart no longer prints the reflection token. Planner: write-as-you-go replaced the
+two-Write rule (they contradicted). Suite: 22 failures also fail at HEAD (hermes venv lacks
+`claudekit`: ops-enforcement scope, pipeline_e2e, profiles, gate_scope doctor, ...), none new.
+**Open, owner:** qa-agents `reviewer.md.kit-new`/`code-reviewer.md.kit-new` unapplied;
+scratchpad allow and `flow-diagram` not ported.
+
 **2026-09-24 (later) -- `.gitignore` decides runtime state for install.sh and setup.py.**
 `compaction-cadence.jsonl`, the kit's own gitignored session log, reached hermes-agent as a `.kit-new`, and a wheel
 built from this checkout bundled 9,150 files instead of 1,491. Both paths now skip ignored files, but only in the kit's own
