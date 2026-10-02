@@ -361,6 +361,16 @@ if [[ "$MODE" == "full" ]]; then
         done
     }
     _copy_hook_assets "$CLAUDE_SRC/hooks"
+    # command-guard.sh's last-resort validator: a copy of the security rules beside the
+    # hooks, so a broken claudekit install no longer leaves Bash unchecked.
+    if _ck_skipped "hooks/vendor"; then
+        :
+    elif python3 "$CLAUDE_SRC/operations/scripts/vendor_security.py" "$DEST/hooks" \
+            "$FINAL_DEST/hooks" 2>/dev/null; then
+        print_ok "Security rules vendored for command-guard's fallback"
+    else
+        print_warn "Could not vendor the security rules; command-guard has no offline fallback"
+    fi
     # Executability follows the file's own shebang, not its extension, so a hook
     # written in any language is handled without another list to keep in sync.
     HOOK_COUNT=0
