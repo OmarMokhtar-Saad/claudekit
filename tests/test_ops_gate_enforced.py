@@ -209,3 +209,67 @@ class TestWorktreeIsolationIsReal:
         assert (repo / "target.txt").read_text(encoding="utf-8") == "ORIGINAL\n"
         shutil.rmtree(str(wt), ignore_errors=True)
         git(repo, "worktree", "prune")
+
+
+# ---------------------------------------------------------------- bypass audit
+# Ported from qa-agents 2026-10-02. Announcing a bypass on stdout is not a record: inside a
+# subagent that stdout dies with the transcript, so nobody can later say which gate was
+# stepped around, on which config, in which tree.
+
+def _load_executor_module():
+    """Import the executor by path -- its filename is not an identifier. Every call site
+    hands `audit_bypass` an absolute config path, so only a direct call reaches the
+    normalisation."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("_executor_under_test", str(EXE))
+    module = importlib.util.module_from_spec(spec)
+    sys.path.insert(0, str(EXE.parent))
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        sys.path.pop(0)
+    return module
+
+
+def test_the_bypass_record_normalises_what_it_is_handed(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    module = _load_executor_module()
+    module.audit_bypass("--skip-validation", "ops.json", "relative on purpose")
+    entry = json.loads((tmp_path / "backups" / "bypass.log").read_text(encoding="utf-8"))
+    assert entry["config"] == str((tmp_path / "ops.json").resolve())
+    assert os.path.realpath(entry["tree"]) == os.path.realpath(str(tmp_path))
+
+
+def test_the_bypass_record_never_raises_but_says_so(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    module = _load_executor_module()
+    (tmp_path / "backups").write_text("not a directory\n", encoding="utf-8")
+    assert module.audit_bypass("--no-approval", str(tmp_path / "ops.json")) is False
+    assert "could not record" in capsys.readouterr().err
+
+
+def test_a_failed_bypass_record_is_not_reported_as_recorded(tmp_path):
+    repo = make_repo(tmp_path / "r")
+    cfg = write_cfg(repo, "ops.json")
+    (repo / "backups").write_text("not a directory\n", encoding="utf-8")
+    _, out = run_exe(cfg, repo, "--skip-validation")
+    assert "could not record" in out
+    assert "Recorded in" not in out, out
+
+
+@pytest.mark.parametrize("flag", ["--skip-validation", "--no-approval", "--no-parse-check"])
+def test_every_gate_bypass_leaves_a_durable_record(tmp_path, flag):
+    repo = make_repo(tmp_path / "r")
+    cfg = write_cfg(repo, "ops.json")
+    rc, out = run_exe(cfg, repo, *([] if flag == "--no-approval" else [flag]))
+    assert rc == 0, out
+    log = repo / "backups" / "bypass.log"
+    assert log.is_file(), "%s left nothing durable behind:\n%s" % (flag, out)
+    mine = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
+    mine = [e for e in mine if e["flag"] == flag]
+    assert len(mine) == 1, mine
+    entry = mine[0]
+    assert entry["action"] == "bypass" and entry["pid"] > 0 and entry["ts"].endswith("Z")
+    assert entry["config"] == str(cfg.resolve())
+    assert os.path.realpath(entry["tree"]) == os.path.realpath(str(repo))
+    assert "bypass.log" in out
