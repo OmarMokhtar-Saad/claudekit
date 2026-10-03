@@ -20,10 +20,12 @@ hook command resolves the project root with git, then runs the same file the reg
 so the hook scripts are shared, not copied.
 
 Mapping limits (honest, not hidden; see --skipped):
-  * Codex has no PreCompact, SubagentStop or PostToolUseFailure event: those rows are skipped.
-  * Cursor has only beforeShellExecution (Bash), beforeReadFile (Read), afterFileEdit
-    (Edit/Write/MultiEdit/NotebookEdit), beforeSubmitPrompt and stop. A row maps to every one
-    of those whose tool names its matcher matches; everything else is skipped.
+  * Codex has no PostToolUseFailure or Notification event: those rows are skipped.
+  * Cursor tool rows map to beforeShellExecution (Bash), beforeReadFile (Read) and afterFileEdit
+    (Edit/Write/MultiEdit/NotebookEdit): a row maps to every one whose tool its matcher matches.
+    Cursor's generic preToolUse/postToolUse are not used: their tool names are not ours, and a
+    row on both would run twice. Session, subagent, compact, prompt and stop rows map 1:1.
+  Event lists checked against the Codex and Cursor hook docs on 2026-10-03.
   * Hook payloads differ between hosts; hooks that read `tool_input` see what the host sends.
     Registry tiers (blocking/advisory) are not expressed: each host decides on exit codes.
 Stdlib only.
@@ -40,7 +42,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 REGISTRY = ROOT / ".claude" / "hooks" / "dispatch-registry.json"
 
-CODEX_EVENTS = ("PreToolUse", "PostToolUse", "SessionStart", "UserPromptSubmit", "Stop")
+CODEX_EVENTS = ("PreToolUse", "PostToolUse", "SessionStart", "SessionEnd", "UserPromptSubmit",
+                "Stop", "PreCompact", "SubagentStart", "SubagentStop")
 
 # (registry event, cursor event, tool names the cursor event covers; None = no tool)
 CURSOR_EVENTS = (
@@ -49,6 +52,11 @@ CURSOR_EVENTS = (
     ("PostToolUse", "afterFileEdit", ("Edit", "Write", "MultiEdit", "NotebookEdit")),
     ("UserPromptSubmit", "beforeSubmitPrompt", None),
     ("Stop", "stop", None),
+    ("SessionStart", "sessionStart", None),
+    ("SessionEnd", "sessionEnd", None),
+    ("SubagentStart", "subagentStart", None),
+    ("SubagentStop", "subagentStop", None),
+    ("PreCompact", "preCompact", None),
 )
 
 OUT_FILES = {"codex": Path(".codex") / "hooks.json", "cursor": Path(".cursor") / "hooks.json"}
@@ -74,10 +82,10 @@ def codex_config(registry: dict) -> dict:
     hooks: dict = {}
     for event in CODEX_EVENTS:
         for row in registry["events"].get(event, []):
-            hooks.setdefault(event, []).append({
-                "matcher": row.get("matcher", ""),
-                "hooks": [{"type": "command", "command": command(row)}],
-            })
+            entry: dict = {"hooks": [{"type": "command", "command": command(row)}]}
+            if row.get("matcher"):
+                entry = {"matcher": row["matcher"], **entry}
+            hooks.setdefault(event, []).append(entry)
     return {"hooks": hooks}
 
 
