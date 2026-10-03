@@ -60,7 +60,8 @@
       {"id": "security-reminder", "file": "security-reminder.sh", "runner": "bash", "tier": "advisory", "matcher": "str_replace_based_edit_tool|write_file|Write|Edit"},
       {"id": "pre-commit", "file": "pre-commit.sh", "runner": "bash", "tier": "advisory", "matcher": "Bash", "command_matcher": "^\\s*git\\s+commit"},
       {"id": "pre-push", "file": "pre-push.sh", "runner": "bash", "tier": "advisory", "matcher": "Bash", "command_matcher": "^\\s*git\\s+push"},
-      {"id": "delegate-nudge", "file": "delegate-nudge.py", "runner": "python3", "tier": "advisory", "matcher": "Read|Grep|Glob|Bash", "args": ["--dispatched"]}
+      {"id": "delegate-nudge", "file": "delegate-nudge.py", "runner": "python3", "tier": "advisory", "matcher": "Read|Grep|Glob|Bash", "args": ["--dispatched"]},
+      {"id": "memory-first", "file": "memory-first.py", "runner": "python3", "tier": "advisory", "matcher": "Read|Grep|Glob|Bash|Edit|Write|MultiEdit|NotebookEdit", "args": ["--dispatched"]}
     ],
     "PostToolUse": [
       {"id": "reflection-gate", "file": "reflection-gate.py", "runner": "python3", "tier": "advisory", "matcher": "", "args": ["--event", "PostToolUse"]},
