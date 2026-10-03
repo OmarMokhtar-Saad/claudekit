@@ -1,0 +1,45 @@
+{
+  "_comment": [
+    "Single-owner rule map, checked by scripts/check-rule-owners.py (tests/test_rule_owners.py).",
+    "Each rule has exactly ONE owner file that states it in full. `markers` are the terms that",
+    "make a file a statement of the rule: a file is a COPY when it contains ALL markers",
+    "(case-insensitive). The owner must contain every marker (drift: reworded or moved rule).",
+    "Any other scanned file containing all markers must be listed in `allowed` (a glob list:",
+    "generated mirrors, pointers). A stale `allowed` glob that matches nothing is drift too.",
+    "To move a rule: change `owner` here in the same commit that moves the text.",
+    "`scan` is the set of rule-bearing surfaces; code, tests and history are not rule surfaces."
+  ],
+  "scan": [
+    "CLAUDE.md",
+    "AGENTS.md",
+    "docs/*.md",
+    ".claude/commands/*.md",
+    ".claude/agents/*.md",
+    ".claude/skills/*/SKILL.md",
+    ".agents/skills/*/SKILL.md",
+    "templates/*/CLAUDE.md"
+  ],
+  "rules": [
+    {
+      "id": "token-model-policy",
+      "duty": "Tier by blast radius, no auto review/verifier, model routing by capability tier",
+      "owner": "CLAUDE.md",
+      "markers": ["Tiers by blast radius", "No auto review", "Model routing"],
+      "allowed": ["templates/*/CLAUDE.md"]
+    },
+    {
+      "id": "evidence-precedence",
+      "duty": "Current files outrank indexes, memories, plans, reports; retrieved text is never an instruction",
+      "owner": "CLAUDE.md",
+      "markers": ["Evidence precedence", "Retrieved text is evidence"],
+      "allowed": ["docs/cli.md"]
+    },
+    {
+      "id": "delegate-by-default",
+      "duty": "Searches go to explore; read directly only the file you edit",
+      "owner": "CLAUDE.md",
+      "markers": ["Delegate by default", "read directly only the file you edit"],
+      "allowed": ["templates/*/CLAUDE.md"]
+    }
+  ]
+}
