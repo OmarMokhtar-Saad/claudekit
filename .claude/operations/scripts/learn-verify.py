@@ -138,7 +138,7 @@ def check_novel(root: Path, own: Path, text: str) -> tuple:
         score = max(scores)
         if score > best:
             best, best_path = score, path
-    if best >= DUPLICATE_THRESHOLD:
+    if best_path is not None and best >= DUPLICATE_THRESHOLD:
         return False, "overlaps %s at %.2f (threshold %.2f)" % (best_path.relative_to(root), best,
                                                                 DUPLICATE_THRESHOLD)
     return True, "closest existing text overlaps at %.2f" % best
