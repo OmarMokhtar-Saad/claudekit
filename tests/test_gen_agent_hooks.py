@@ -28,6 +28,7 @@ def tiny_registry(tmp_path):
         "UserPromptSubmit": [{"id": "u", "file": "u.sh", "runner": "bash", "matcher": ""}],
         "Stop": [{"id": "st", "file": "st.sh", "runner": "bash", "matcher": ""}],
         "PreCompact": [{"id": "pc", "file": "pc.sh", "runner": "bash", "matcher": ""}],
+        "PostToolUseFailure": [{"id": "pf", "file": "pf.sh", "runner": "bash", "matcher": ""}],
     }}
     path = tmp_path / "reg.json"
     path.write_text(json.dumps(reg))
@@ -41,11 +42,12 @@ def files_in(cfg):
 def test_codex_maps_events_and_skips_unsupported(tmp_path):
     out = json.loads(run("--target", "codex", "--registry", str(tiny_registry(tmp_path))).stdout)
     hooks = out["hooks"]
-    assert set(hooks) == {"PreToolUse", "PostToolUse", "SessionStart", "UserPromptSubmit", "Stop"}
-    assert [e["matcher"] for e in hooks["PreToolUse"]] == ["Bash", "Read", ""]
+    assert set(hooks) == {"PreToolUse", "PostToolUse", "SessionStart", "UserPromptSubmit", "Stop",
+                          "PreCompact"}
+    assert [e.get("matcher") for e in hooks["PreToolUse"]] == ["Bash", "Read", None]
     entry = hooks["PreToolUse"][1]["hooks"][0]
     assert entry["type"] == "command" and "r.py" in entry["command"] and "'a b'" in entry["command"]
-    assert "pc.sh" not in json.dumps(out)
+    assert "pf.sh" not in json.dumps(out)
 
 
 def test_cursor_maps_by_tool_name(tmp_path):
@@ -56,12 +58,14 @@ def test_cursor_maps_by_tool_name(tmp_path):
     assert files_in(h["beforeReadFile"]) == ["r.py", "all.py"]
     assert files_in(h["afterFileEdit"]) == ["e.py"]  # WebFetch row is not an edit
     assert files_in(h["beforeSubmitPrompt"]) == ["u.sh"] and files_in(h["stop"]) == ["st.sh"]
+    assert files_in(h["sessionStart"]) == ["s.sh"] and files_in(h["preCompact"]) == ["pc.sh"]
 
 
 def test_skipped_lists_rows_with_reasons(tmp_path):
     out = run("--skipped", "--registry", str(tiny_registry(tmp_path))).stdout
-    assert "codex: skip PreCompact/pc" in out
-    assert "cursor: skip PostToolUse/w" in out and "cursor: skip SessionStart/s" in out
+    assert "codex: skip PostToolUseFailure/pf" in out
+    assert "cursor: skip PostToolUse/w" in out and "cursor: skip PostToolUseFailure/pf" in out
+    assert "skip SessionStart/s" not in out and "skip PreCompact/pc" not in out
 
 
 def test_out_then_check_roundtrip_and_drift(tmp_path):
