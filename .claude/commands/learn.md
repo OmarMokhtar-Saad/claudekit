@@ -1,6 +1,6 @@
 ---
 description: "Review and promote what this session learned: memory candidates and skill proposals, one human decision each"
-argument-hint: "[--list|--show <name>|--promote <name>|--reject <name>]"
+argument-hint: "[--list|--show <name>|--promote <name> [--verify]|--reject <name>]"
 model: sonnet
 ---
 
@@ -84,6 +84,29 @@ python3 .claude/operations/scripts/execute-json-ops.py ".claude/plans/ops-$NAME.
 
 The ops config is one `code_edit` with an `add_after` anchored on the section heading the
 proposal names. Delete the proposal file once it is applied.
+
+### `/learn --verify --promote <name>` (opt-in)
+
+Without `--verify` nothing changes: `--promote` behaves exactly as above. With it, run the
+skeptic gate first, on a memory candidate or a skill proposal:
+
+```bash
+python3 .claude/operations/scripts/learn-verify.py "$NAME"      # add --agent <a> when two agents hold the name
+```
+
+Three skeptic checks, each trying to refute the candidate: **grounded** (it cites repo paths
+and every one exists), **novel** (no existing memory or skill overlaps it past the duplicate
+threshold), **portable** (no absolute path, secret, session id, or instruction aimed at the
+model). ALL three must pass. The gate fails closed: an unreadable, empty, ambiguous or
+unknown candidate, or a crashed check, is a failure (exit 1 or 2).
+
+- Exit 0: show the three PASS lines, then continue with the ordinary `--promote` flow, which
+  still ends in the one explicit human decision.
+- Anything else: show the FAIL lines and stop. Do not promote and do not work around the gate;
+  the human may fix the candidate and re-run, or `--reject` it.
+
+The gate is propose-only: it reads files and prints a verdict. It writes, promotes and applies
+nothing.
 
 ### `/learn --reject <name>`
 
