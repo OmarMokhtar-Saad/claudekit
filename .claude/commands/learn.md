@@ -1,6 +1,6 @@
 ---
 description: "Review and promote what this session learned: memory candidates and skill proposals, one human decision each"
-argument-hint: "[--list|--show <name>|--promote <name>|--reject <name>]"
+argument-hint: "[--list|--show <name>|--promote <name> [--verify]|--reject <name>]"
 model: sonnet
 ---
 
@@ -84,6 +84,14 @@ python3 .claude/operations/scripts/execute-json-ops.py ".claude/plans/ops-$NAME.
 
 The ops config is one `code_edit` with an `add_after` anchored on the section heading the
 proposal names. Delete the proposal file once it is applied.
+
+### `/learn --verify --promote <name>` (opt-in)
+
+Before `--promote`, run `python3 .claude/operations/scripts/learn-verify.py "$NAME"` (add
+`--agent <a>` when two agents hold the name). Its three skeptic checks (grounded, novel,
+portable; see the script) must ALL pass, and any error is a fail. It writes nothing. Exit 0:
+show the PASS lines, then the ordinary `--promote` flow. Otherwise show the FAIL lines and
+stop; the human fixes and re-runs, or `--reject`s. Without `--verify` nothing changes.
 
 ### `/learn --reject <name>`
 
