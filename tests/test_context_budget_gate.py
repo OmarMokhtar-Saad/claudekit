@@ -1068,3 +1068,32 @@ def test_dispatch_blocks_a_general_purpose_spawn(tmp_path):
 def test_dispatch_allows_a_scoped_spawn(tmp_path):
     result = run_dispatch(tmp_path, subagent_type="planner")
     assert result.returncode == 0, result.stderr
+
+
+def test_a_planner_may_write_and_edit_only_under_claude_plans(tmp_path):
+    """A planner's deliverable lives in .claude/plans/; revising it after review needs Edit.
+    The carve-out does not reach source, directly or through a traversal."""
+    contract(tmp_path, "planner", tools=PLANNER_TOOLS, memory="project")
+    parent, extra = spawned(tmp_path, agent_type="planner")
+    plan = tmp_path / ".claude" / "plans" / "feature" / "plan.md"
+    for tool in ("Edit", "Write"):
+        ok = run_hook(tmp_path, parent, tool_name=tool, tool_input={"file_path": str(plan)},
+                      extra_payload=extra)
+        assert ok.returncode == 0, "%s on the plan must pass (stderr=%r)" % (tool, ok.stderr)
+    escape = tmp_path / ".claude" / "plans" / ".." / ".." / "src" / "x.py"
+    traversal = run_hook(tmp_path, parent, tool_name="Edit",
+                         tool_input={"file_path": str(escape)}, extra_payload=extra)
+    assert traversal.returncode == 2, "a traversal out of .claude/plans/ is a source edit"
+    source = run_hook(tmp_path, parent, tool_name="Edit",
+                      tool_input={"file_path": str(tmp_path / "src" / "x.py")},
+                      extra_payload=extra)
+    assert source.returncode == 2, "a planner still may not Edit source"
+
+
+def test_the_plan_carve_out_is_for_planners_only(tmp_path):
+    contract(tmp_path, "reviewer", tools=["Read", "Grep", "Glob"], memory="project")
+    parent, extra = spawned(tmp_path, agent_type="reviewer")
+    plan = tmp_path / ".claude" / "plans" / "plan.md"
+    result = run_hook(tmp_path, parent, tool_name="Edit", tool_input={"file_path": str(plan)},
+                      extra_payload=extra)
+    assert result.returncode == 2, "a reviewer must not edit the plan it scores"
