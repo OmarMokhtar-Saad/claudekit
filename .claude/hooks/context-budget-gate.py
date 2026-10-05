@@ -176,6 +176,12 @@ HANDBACK_MAX_READER = 8000
 # directory here, so memory keeps working and the frontmatter contract means what it says.
 MEMORY_DIR_PARTS = (".claude", "agent-memory")
 
+# A planner's deliverable IS a file under .claude/plans/, and revising it after review needs
+# Edit. Scoping Write/Edit to that directory lets it fix its own plan while source stays
+# out of reach; without this a review round could only be applied by the parent session.
+PLAN_DIR_PARTS = (".claude", "plans")
+PLAN_WRITERS = ("planner",)
+
 # Frontmatter `model:` values and Agent-call `model` params both name a capability tier by
 # substring; anything unrecognised is not judged.
 MODEL_TIERS = (("haiku", 0), ("sonnet", 1), ("opus", 2))
@@ -522,6 +528,19 @@ def _is_memory_write(tool_name, tool_input, agent_type):
     return False
 
 
+def _is_plan_write(tool_name, tool_input, agent_type):
+    """True when a plan-writing agent's Write/Edit targets a file under .claude/plans/."""
+    if tool_name not in ("Write", "Edit") or agent_type not in PLAN_WRITERS:
+        return False
+    if not isinstance(tool_input, dict):
+        return False
+    path = tool_input.get("file_path")
+    if not isinstance(path, str) or not path.strip():
+        return False
+    parts = os.path.normpath(path).replace("\\", "/").split("/")
+    return any(tuple(parts[i:i + 2]) == PLAN_DIR_PARTS for i in range(len(parts) - 2))
+
+
 def _model_tier(name):
     if not isinstance(name, str):
         return None
@@ -595,7 +614,9 @@ def _subagent_verdict(tool_name, tool_input, payload, transcript_path, size, mes
     if contract is not None and tool_name not in CONTRACT_EXEMPT:
         allowed = contract.get("tools")
         if allowed is not None and tool_name not in allowed:
-            if not (contract.get("memory") and _is_memory_write(tool_name, tool_input, agent_type)):
+            scoped = ((contract.get("memory") and _is_memory_write(tool_name, tool_input, agent_type))
+                      or _is_plan_write(tool_name, tool_input, agent_type))
+            if not scoped:
                 memory_note = (
                     " `memory:` is declared, so Write/Edit are allowed ONLY under "
                     ".claude/agent-memory/%s/." % agent_type if contract.get("memory") else "")
