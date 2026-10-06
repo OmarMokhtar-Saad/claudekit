@@ -15,7 +15,7 @@ import os
 import shutil
 import subprocess
 
-from _worktree_fixtures import WtEnv, git, seam_script, wt_env  # noqa: F401  (fixture)
+from _worktree_fixtures import WtEnv, git, seam_script
 
 
 def kept_reason(proc, name):
@@ -289,13 +289,13 @@ class TestNegativeAndSafety:
         assert wt_env.snapshot() == before
         assert wt_env.mgr("reap", "--yes", "--max-deletions", "3").returncode == 0
 
-    def test_V21_default_cap_is_25(self, wt_env):
-        for i in range(26):
+    def test_V21_default_cap_is_10(self, wt_env):
+        for i in range(11):
             wt_env.make_raw_wt(f"agent-{i:02d}")
         before = wt_env.snapshot()
         proc = wt_env.mgr("reap", "--yes")
         assert proc.returncode == 2
-        assert "25" in proc.stderr
+        assert "10" in proc.stderr
         assert wt_env.snapshot() == before
 
     def test_N17_detached_head_with_unreferenced_commits_is_kept(self, wt_env):
@@ -581,7 +581,10 @@ class TestRepoShapes:
         env.make_raw_wt("agent-m", commits=1)
         env.merge_ff("agent-m")
         env.git("push", "-q", "origin", "master:main")
+        # git >= 2.48 recreates origin/HEAD on fetch; the ambiguity needs it absent
+        env.git("config", "remote.origin.followRemoteHEAD", "never")
         env.git("fetch", "-q", "origin")
+        env.git("remote", "set-head", "origin", "-d", check=False)
         proc = env.mgr("reap", "--yes")
         assert proc.returncode == 0, proc.stderr
         assert "unproven" in (kept_reason(proc, "agent-m") or "")
