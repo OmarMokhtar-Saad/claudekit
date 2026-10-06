@@ -50,3 +50,6 @@ def reflection_env(tmp_path):
     }
     with scoped_env(**overrides) as active:
         yield active
+
+# the lifecycle fixture shared by tests/test_worktree_*.py
+from _worktree_fixtures import wt_env  # noqa: E402,F401

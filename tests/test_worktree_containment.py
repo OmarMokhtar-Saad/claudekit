@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from _worktree_fixtures import SEAM_ANCHOR, WtEnv, mutate_script
 
 REPO = Path(__file__).resolve().parents[1]
 WTM = REPO / ".claude" / "operations" / "scripts" / "worktree-manager.py"
@@ -151,3 +152,107 @@ class TestMutationControls:
         proc = run(["remove", "feat"], project, script=mutated)
         assert proc.returncode == 0 and not (project / ".worktrees" / "feat").exists(), (
             "the cannot-answer guard is not load-bearing")
+
+
+class TestLifecycleContainment:
+    """TEST-CASES C-group cases on the lifecycle fixtures (real origin, real worktrees)."""
+
+    def test_N04_unmerged_commits_are_refused_naming_ref_and_commits(self, wt_env):
+        path = wt_env.make_wt("a", commits=2)
+        proc = wt_env.mgr("remove", "a")
+        assert proc.returncode == 2
+        assert "main" in proc.stderr
+        assert "a change 0" in proc.stderr and "a change 1" in proc.stderr
+        assert path.exists() and wt_env.branch_exists("agent/a")
+
+    def test_E06_unknown_base_is_cannot_answer_not_yes(self, wt_env):
+        path = wt_env.make_wt("a", commits=1)
+        reg_path = wt_env.root / ".claude" / "state" / "worktrees.json"
+        reg = json.loads(reg_path.read_text())
+        reg["worktrees"][0]["base_branch"] = ""
+        reg["worktrees"][0]["base"] = "HEAD"
+        reg_path.write_text(json.dumps(reg), encoding="utf-8")
+        wt_env.git("checkout", "-q", "--detach", "HEAD")
+        proc = wt_env.mgr("remove", "a")
+        assert proc.returncode == 2
+        assert "cannot tell" in proc.stderr
+        assert path.exists() and wt_env.branch_exists("agent/a")
+
+    def test_E07_base_origin_main_resolves_to_the_default_branch_and_origin_ref(self, wt_env):
+        path = wt_env.make_wt("a", commits=1, base="origin/main")
+        reg = json.loads((wt_env.root / ".claude" / "state" / "worktrees.json").read_text())
+        assert reg["worktrees"][0]["base_branch"] == "main"
+        wt_env.merge_ff("a")
+        proc = wt_env.mgr("reap", "--yes")
+        assert proc.returncode == 0, proc.stderr
+        assert wt_env.reaped(proc, "a")
+        assert not path.exists() and not wt_env.branch_exists("agent/a")
+
+
+class TestLifecycleMutationControls:
+    """X11: break each safety rule the way it could regress and require the
+    behaviour the real script shows to flip."""
+
+    @staticmethod
+    def _mutant(env, find, replace, tag, seam=""):
+        out = mutate_script(env.tmp, find, replace, tag)
+        if seam:
+            text = out.read_text(encoding="utf-8")
+            assert text.count(SEAM_ANCHOR) == 1
+            out.write_text(text.replace(SEAM_ANCHOR, seam + SEAM_ANCHOR), encoding="utf-8")
+        return out
+
+    def test_X11a_not_on_origin_read_as_merged_deletes_local_only_work(self, wt_env):
+        path = wt_env.make_wt("a", commits=1)
+        wt_env.git("merge", "-q", "--no-ff", "-m", "local only", "agent/a")
+        mutant = self._mutant(wt_env, '        return "not-on-origin", ""\n',
+                              '        return "merged", ""\n', "notonorigin")
+        assert wt_env.mgr("reap", "--yes").returncode == 0 and path.exists()  # control
+        wt_env.mgr("reap", "--yes", script=mutant)
+        assert not path.exists(), "the not-on-origin rule is not load-bearing"
+
+    def test_X11a_unproven_read_as_merged_deletes_unprovable_work(self, tmp_path):
+        env = WtEnv(tmp_path, default_branch="master", set_head=False)
+        path = env.make_raw_wt("agent-m", commits=1)
+        env.merge_ff("agent-m")
+        env.git("push", "-q", "origin", "master:main")
+        env.git("config", "remote.origin.followRemoteHEAD", "never")
+        env.git("fetch", "-q", "origin")
+        env.git("remote", "set-head", "origin", "-d", check=False)
+        mutant = self._mutant(env, '        return "unproven", base.problem or "no baseline"\n',
+                              '        return "merged", ""\n', "unproven")
+        assert env.mgr("reap", "--yes").returncode == 0 and path.exists()  # control
+        env.mgr("reap", "--yes", script=mutant)
+        assert not path.exists(), "the unproven-is-not-merged rule is not load-bearing"
+
+    def test_X11b_ignoring_a_fetch_failure_reaps_against_stale_refs(self, wt_env):
+        path = wt_env.make_wt("a", commits=1)
+        wt_env.merge_ff("a")
+        wt_env.git("remote", "set-url", "origin", str(wt_env.tmp / "does-not-exist.git"))
+        mutant = self._mutant(wt_env, "    if fetch.returncode != 0:\n",
+                              "    if False:\n", "fetchguard")
+        assert wt_env.mgr("reap", "--yes").returncode == 1 and path.exists()  # control
+        wt_env.mgr("reap", "--yes", script=mutant)
+        assert not path.exists(), "the fetch-failure guard is not load-bearing"
+
+    def test_X11c_skipping_bundle_verification_deletes_after_a_corrupt_bundle(self, wt_env):
+        path = wt_env.make_wt("a", commits=1)
+        seam = ('    if name == "after-bundle":\n'
+                '        open(str(ctx["path"]), "wb").write(b"corrupt")\n')
+        mutant = self._mutant(wt_env, "\n    if verify.returncode != 0:\n        bundle.unlink",
+                              "\n    if False:\n        bundle.unlink", "verify", seam=seam)
+        proc = wt_env.mgr("remove", "a", "--delete-branch", "--archive", "--force",
+                          script=mutant)
+        assert proc.returncode == 0 and not path.exists(), (
+            "the bundle verification check is not load-bearing")
+
+    def test_X11d_ignoring_worktree_locks_lets_reap_try_a_locked_worktree(self, wt_env):
+        path = wt_env.make_wt("a", commits=1)
+        wt_env.merge_ff("a")
+        wt_env.git("worktree", "unlock", str(path), check=False)
+        wt_env.git("worktree", "lock", "--reason", "in-use", str(path))
+        mutant = self._mutant(wt_env, '    if not row.locked:\n        return "none", ""\n',
+                              '    if True:\n        return "none", ""\n', "locks")
+        assert "kept a: locked: in-use" in wt_env.mgr("reap", "--yes").stdout  # control
+        proc = wt_env.mgr("reap", "--yes", script=mutant)
+        assert "locked: in-use" not in proc.stdout, "the lock check is not load-bearing"
