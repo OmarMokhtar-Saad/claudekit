@@ -14,7 +14,7 @@ import os
 import subprocess
 import time
 
-from _worktree_fixtures import git, seam_script, wt_env  # noqa: F401  (fixture)
+from _worktree_fixtures import git, seam_script
 
 
 def kept_reason(proc, name):
@@ -230,6 +230,18 @@ class TestWorktreeLocks:
         assert broken.returncode == 0, broken.stderr
         assert wt_env.reaped(broken, "a")
         assert not path.exists() and not wt_env.branch_exists("agent/a")
+
+    def test_mq_worktree_lock_goes_stale_after_30_minutes(self, wt_env):
+        import time
+        old = int(time.time()) - 45 * 60
+        for slug in ("mq-1", "plain"):
+            wt_env.make_wt(slug, commits=1)
+            wt_env.merge_ff(slug)
+            relock(wt_env, slug, f"claudekit agent slug={slug} ts={old}")
+        proc = wt_env.mgr("reap", "--yes", "--break-stale-locks")
+        assert proc.returncode == 0, proc.stderr
+        assert wt_env.reaped(proc, "mq-1")
+        assert kept_reason(proc, "plain") == "locked"
 
     def test_V02_dirty_or_unmerged_stale_locks_are_still_kept(self, wt_env):
         dirty = wt_env.make_wt("d", commits=1, dirty=True)

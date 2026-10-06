@@ -63,7 +63,7 @@ SEAM_ANCHOR = "    del name, ctx\n"
 def seam_script(dst: Path, body: str, tag: str = "seam") -> Path:
     """A manager copy whose `_checkpoint` runs *body* (may use `name` and `ctx`)."""
     indented = "".join("    " + line + "\n" for line in body.strip("\n").splitlines())
-    return mutate_script(dst, SEAM_ANCHOR, SEAM_ANCHOR + indented, tag)
+    return mutate_script(dst, SEAM_ANCHOR, indented + SEAM_ANCHOR, tag)
 
 
 class WtEnv:

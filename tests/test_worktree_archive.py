@@ -18,7 +18,7 @@ import os
 import stat
 import subprocess
 
-from _worktree_fixtures import git, seam_script, wt_env  # noqa: F401  (fixture)
+from _worktree_fixtures import git, seam_script
 
 
 def archive_dir(env):

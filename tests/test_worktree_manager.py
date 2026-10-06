@@ -27,7 +27,6 @@ import sys
 from pathlib import Path
 
 import pytest
-from _worktree_fixtures import wt_env  # noqa: F401  (fixture)
 
 REPO = Path(__file__).resolve().parent.parent
 SCRIPT = REPO / ".claude" / "operations" / "scripts" / "worktree-manager.py"
