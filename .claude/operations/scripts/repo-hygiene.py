@@ -16,6 +16,10 @@ oriented itself in the wreckage and added one more branch and one more tree.
   * is bounded by --max-deletions (default 25) -- a runaway cleanup is worse
     than the sprawl it reclaims.
 
+Squash/rebase-aware cleanup of agent worktrees and `agent/*` branches (lock-aware,
+merged proof against the fetched origin default) is `worktree-manager.py reap`;
+this script's merged test is ancestry only.
+
 Exit codes: 0 ok, 1 operational error, 2 refusal/threshold breach (--strict).
 """
 
