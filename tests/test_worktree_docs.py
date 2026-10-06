@@ -1,7 +1,7 @@
 """Docs contract for the worktree lifecycle (X04-X08): the command doc, the
 skill (and its Codex mirror) and the CHANGELOG describe `reap`, the merged-proof
 rules, locks, the deletion cap and stray Claude Code agent dirs, and no longer
-advertise the removed --delete-branch / --archive flags or hand `git branch -D`.
+document remove --delete-branch / --archive and do not hand `git branch -D`.
 """
 
 import re
@@ -31,15 +31,22 @@ def unreleased():
 def test_x04_command_documents_reap_and_keeps_clean_delegation():
     t = text(CMD)
     assert "reap" in t
-    assert "--yes" in t and "--max-deletions" in t and "25" in t
+    assert "--yes" in t and "--max-deletions" in t and "default 10" in t
     assert "repo-hygiene.py" in t and "/worktree clean" in t
 
 
-def test_removed_flags_not_advertised():
+def test_remove_flags_and_archive_documented():
     for p in (CMD, SKILL, MIRROR):
         t = text(p)
-        assert "--delete-branch" not in t, p
-        assert "--archive" not in t, p
+        assert "--delete-branch" in t, p
+        assert "--archive" in t, p
+        assert ".claude/state/worktree-archive/" in t, p
+        assert "refs/archive/" in t, p
+        assert "KEEPS the branch" in t, p
+        assert "summary: reaped=" in t, p
+        assert "1 operational error" in t and "2 validation refusal" in t, p
+        assert "default 10" in t or "defaults to 10" in t, p
+        assert "25" not in re.findall(r"max-deletions[^\n]*", t)[-1], p
 
 
 def test_command_documents_semantics():
@@ -77,6 +84,8 @@ def test_x06_mirror_identical_and_no_drift():
 def test_x08_changelog_mentions_reap():
     u = unreleased()
     assert "reap" in u and "worktree" in u.lower()
+    assert "--delete-branch" in u and "--archive" in u and "refs/archive/" in u
+    assert "default 10" in u
 
 
 def test_hygiene_points_to_reap():
