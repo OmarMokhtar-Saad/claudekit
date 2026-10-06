@@ -29,8 +29,8 @@ All lifecycle operations go through the manager script — never improvise raw
 ```text
 python3 .claude/operations/scripts/worktree-manager.py create <slug> [--base <ref>] [--copy <path>] [--json]
 python3 .claude/operations/scripts/worktree-manager.py list [--json]
-python3 .claude/operations/scripts/worktree-manager.py remove <slug> [--force]
-python3 .claude/operations/scripts/worktree-manager.py reap [--yes] [--max-deletions N] [--min-age 24h] [--no-fetch] [--break-stale-locks]
+python3 .claude/operations/scripts/worktree-manager.py remove <slug> [--force] [--delete-branch] [--archive]
+python3 .claude/operations/scripts/worktree-manager.py reap [--yes] [--max-deletions N] [--min-age H] [--no-fetch] [--break-stale-locks]
 python3 .claude/operations/scripts/worktree-manager.py prune
 ```
 
@@ -41,7 +41,7 @@ What the manager guarantees:
 - Max 5 concurrent worktrees — returns collapse past 4-5 parallel agents.
 - `.claude/settings.local.json` copied into new worktrees (mode preserved). **`.env` and other secrets are never copied by default** — only with an explicit `--copy .env`.
 - `.worktree-env` written per worktree with `WORKTREE_SLUG`, `WORKTREE_INDEX`, `WORKTREE_PORT_OFFSET` (index x 10) for port/device assignment.
-- `remove` refuses dirty trees, commits not contained in the base, and the primary worktree; `--force` overrides the first two only. When the branch is proven merged it deletes the worktree and its branch together; otherwise the branch is kept and the message says why.
+- `remove` refuses dirty trees, commits not contained in the base, and the primary worktree; `--force` overrides the first two only. A plain `remove` deletes the worktree and KEEPS the branch. `remove --delete-branch` also deletes the branch, only when it is proven merged into the fetched `origin/<default>`; unmerged work is refused (exit 2) unless `--force --archive`. `--archive` writes a verified git bundle to `.claude/state/worktree-archive/<slug>-<tip8>-<UTC stamp>.bundle` (uncommitted work is included as a WIP commit) before anything is deleted; if the branch has no commits beyond the default branch, git refuses an empty bundle and the tip is pinned as `refs/archive/<slug>/<stamp>` instead (WIP: `refs/archive/<slug>/wip-<stamp>`).
 - `create` locks the worktree (`git worktree lock`, reason `claudekit agent slug=<slug> ts=<epoch>`). `remove`/`reap` unlock only their own locks, after every check passed; foreign locks are respected and the item is skipped. Lock liveness is never inferred from a pid. `reap --break-stale-locks` breaks a claudekit lock only when it is older than `--min-age` AND the worktree is merged AND clean.
 - `prune` runs `git worktree prune --expire now` (also drops trees on unmounted volumes; locked trees are spared).
 
@@ -51,8 +51,10 @@ What the manager guarantees:
 
 - **Merged proof**, measured only against the freshly fetched `refs/remotes/origin/<default>` (default from `origin/HEAD`, else main/master/develop/trunk; more than one candidate = `unproven`): (1) branch is an ancestor; (2) `git cherry` shows no unapplied commit (rebase merge, single-commit squash); (3) squash of N commits via `git merge-tree --write-tree` when git supports it (>= 2.38). Anything that cannot be answered is `unproven` and is never deleted.
 - **Fetch failure means no deletions** (exit 1). `--no-fetch` measures the existing remote ref only, deletes only what that ref proves, and prints the ref's age.
-- Reapable = not the primary worktree, not locked, clean, merged, branch not protected and not checked out elsewhere. It removes the worktree and deletes the branch together.
-- `--max-deletions N` (default 25, same as `repo-hygiene.py`) is checked before any change; exceeding it exits 2 and deletes nothing.
+- Reapable = not the primary worktree, not locked, clean, merged, branch not protected and not checked out elsewhere. `reap --yes` removes the worktree and deletes the branch together (only reap does this by default).
+- `--max-deletions N` (default 10) is checked before any change; exceeding it exits 2 and deletes nothing. `--min-age H` (hours, default 24) is how old an own lock must be to count as stale; `mq-*` worktrees use 30 minutes. `reap` never pushes.
+- Output: `would reap <name>` (dry run), `reaped <name> (branch <b> deleted)`, `kept <name>: <reason>`, `orphan-dir <path> size= age= agent-owned= too-new=` (report only), `nothing to reclaim`, and with `--yes` `summary: reaped=N failed=N kept=N`. With `--no-fetch`: `no-fetch: measuring against <ref> at <sha> (age Nh)`.
+- Exit codes: 0 ok, 1 operational error (fetch failed, an item failed), 2 validation refusal.
 - Run it from the main worktree (exit 2 from a linked worktree or a bare repo). Classification and fetch happen without the registry lock; each item is re-verified under the lock before deletion.
 - Orphan directories (below) are only reported, never deleted by `reap`.
 
@@ -90,7 +92,7 @@ directories behind. Triage:
 4. Never `rm -rf` a live worktree and never remove `.claude/worktrees` as a whole.
 
 Recovering a removed branch: the tip stays reachable from `git reflog` and, when a
-bundle was written under `.claude/state/worktree-archive/`,
+bundle was written under `.claude/state/worktree-archive/` (or a `refs/archive/<slug>/*` ref was pinned),
 `git fetch <bundle> 'refs/heads/*:refs/recovered/*'`, then
 `worktree-manager.py create <slug> --base refs/recovered/agent/<slug>`.
 

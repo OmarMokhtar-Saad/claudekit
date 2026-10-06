@@ -220,7 +220,7 @@ lifecycle manager — never improvise raw `git worktree` commands for agent work
 ```bash
 python3 .claude/operations/scripts/worktree-manager.py create <slug> [--base <ref>] [--json]
 python3 .claude/operations/scripts/worktree-manager.py list [--json]
-python3 .claude/operations/scripts/worktree-manager.py remove <slug> [--force]
+python3 .claude/operations/scripts/worktree-manager.py remove <slug> [--force] [--delete-branch] [--archive]
 python3 .claude/operations/scripts/worktree-manager.py reap [--yes] [--max-deletions N] [--no-fetch]
 python3 .claude/operations/scripts/worktree-manager.py prune
 ```
@@ -234,19 +234,23 @@ foreign locks are respected and a lock is never judged stale from a pid.
 
 ### Cleaning up agent worktrees: `reap`
 
-`remove <slug>` deletes the worktree and its branch together when the branch is
-proven merged; otherwise the branch is kept and the message says why. There are
-no `remove` flags that delete a branch or archive; use `reap` for bulk cleanup.
+`remove <slug>` deletes the worktree and KEEPS the branch. `remove <slug> --delete-branch`
+also deletes the branch, only when proven merged (unmerged: refused, exit 2, unless
+`--force --archive`). `--archive` writes a verified bundle to
+`.claude/state/worktree-archive/<slug>-<tip8>-<UTC stamp>.bundle` first (or pins
+`refs/archive/<slug>/<stamp>` when the branch has nothing beyond the default branch). Use
+`reap` for bulk cleanup.
 
 `reap` (alias `cleanup`) is a reconciler and a **dry run unless `--yes`**:
 
 - Merged proof only against the freshly fetched `origin/<default>`: ancestor, then `git cherry` (rebase, single-commit squash), then `git merge-tree --write-tree` (squash of N commits, git >= 2.38). A question git cannot answer is `unproven` and is never deleted.
 - Fetch failure: no deletions (exit 1). `--no-fetch` trusts the existing ref, deletes only what it proves, and prints its age.
-- Keeps locked, dirty, unmerged, unproven, too-new, primary and branch-held items, each with a reason. `--break-stale-locks` only for claudekit locks older than `--min-age` (24h) that are merged and clean.
-- `--max-deletions` defaults to 25 and is checked before any change (exit 2 if exceeded, nothing deleted). Run from the main worktree.
+- Keeps locked, dirty, unmerged, unproven, too-new, primary and branch-held items, each with a reason. `--break-stale-locks` only for claudekit locks older than `--min-age H` (hours, default 24; `mq-*` worktrees 30 minutes) that are merged and clean.
+- `--max-deletions` defaults to 10 and is checked before any change (exit 2 if exceeded, nothing deleted). Run from the main worktree. `reap` never pushes.
+- Output: `would reap`/`reaped <name>`, `kept <name>: <reason>`, `orphan-dir ...` (report only), `summary: reaped=N failed=N kept=N`. Exit codes: 0 ok, 1 operational error, 2 validation refusal.
 
 Recovery after a mistaken removal: `git fetch <bundle> 'refs/heads/*:refs/recovered/*'`
-(bundles live under `.claude/state/worktree-archive/`), then
+(bundles live under `.claude/state/worktree-archive/`; empty-branch archives are `refs/archive/<slug>/*` refs), then
 `worktree-manager.py create <slug> --base refs/recovered/agent/<slug>`; otherwise
 `git reflog`.
 
