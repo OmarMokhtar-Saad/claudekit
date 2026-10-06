@@ -173,7 +173,7 @@ All worktrees have separate:
 | Never check out the same branch in two worktrees | Git prevents this - each branch can only be checked out once |
 | Commit or stash before removing a worktree | Uncommitted changes will be lost |
 | Fetch from the main worktree | All worktrees see the fetched refs |
-| Do not delete worktree directories manually | Use `git worktree remove` instead |
+| Do not delete worktree directories manually | Use `git worktree remove` (or the manager's `remove`/`reap`); NEVER `rm -rf` a worktree |
 
 ---
 
@@ -192,12 +192,12 @@ git log origin/feature/auth..HEAD  # Check unpushed commits
 # 2. Return to main repo
 cd /path/to/main-repo
 
-# 3. Remove the worktree properly
+# 3. Remove the worktree properly, and its branch together once the merge is confirmed
 git worktree remove ../project-worktrees/feature-auth
-
-# 4. Optionally delete the branch if merged
-git branch -d feature/auth
+git branch -d feature/auth   # -d refuses unmerged work; never -D without the user's say-so
 ```
+
+Delete the worktree and its branch together, and only after the merge is confirmed against the fetched remote default branch. Never `rm -rf` a worktree directory.
 
 ### Cleaning Up
 
@@ -220,14 +220,49 @@ lifecycle manager — never improvise raw `git worktree` commands for agent work
 ```bash
 python3 .claude/operations/scripts/worktree-manager.py create <slug> [--base <ref>] [--json]
 python3 .claude/operations/scripts/worktree-manager.py list [--json]
-python3 .claude/operations/scripts/worktree-manager.py remove <slug> [--force]
+python3 .claude/operations/scripts/worktree-manager.py remove <slug> [--force] [--delete-branch] [--archive]
+python3 .claude/operations/scripts/worktree-manager.py reap [--yes] [--max-deletions N] [--no-fetch]
 python3 .claude/operations/scripts/worktree-manager.py prune
 ```
 
 The manager creates `.worktrees/<slug>` on branch `agent/<slug>`, tracks it in
 a git-ignored registry (`.claude/state/worktrees.json`), copies
 `.claude/settings.local.json` into the worktree (mode preserved), and caps
-concurrency at 5 (returns collapse past 4-5 parallel agents).
+concurrency at 5 (returns collapse past 4-5 parallel agents). It locks each
+worktree (`git worktree lock`, reason `claudekit agent slug=<slug> ts=<epoch>`);
+foreign locks are respected and a lock is never judged stale from a pid.
+
+### Cleaning up agent worktrees: `reap`
+
+`remove <slug>` deletes the worktree and KEEPS the branch. `remove <slug> --delete-branch`
+also deletes the branch, only when proven merged (unmerged: refused, exit 2, unless
+`--force --archive`). `--archive` writes a verified bundle to
+`.claude/state/worktree-archive/<slug>-<tip8>-<UTC stamp>.bundle` first (or pins
+`refs/archive/<slug>/<stamp>` when the branch has nothing beyond the default branch). Use
+`reap` for bulk cleanup.
+
+`reap` (alias `cleanup`) is a reconciler and a **dry run unless `--yes`**:
+
+- Merged proof only against the freshly fetched `origin/<default>`: ancestor, then `git cherry` (rebase, single-commit squash), then `git merge-tree --write-tree` (squash of N commits, git >= 2.38). A question git cannot answer is `unproven` and is never deleted.
+- Fetch failure: no deletions (exit 1). `--no-fetch` trusts the existing ref, deletes only what it proves, and prints its age.
+- Keeps locked, dirty, unmerged, unproven, too-new, primary and branch-held items, each with a reason. `--break-stale-locks` only for claudekit locks older than `--min-age H` (hours, default 24; `mq-*` worktrees 30 minutes) that are merged and clean.
+- `--max-deletions` defaults to 10 and is checked before any change (exit 2 if exceeded, nothing deleted). Run from the main worktree. `reap` never pushes.
+- Output: `would reap`/`reaped <name>`, `kept <name>: <reason>`, `orphan-dir ...` (report only), `summary: reaped=N failed=N kept=N`. Exit codes: 0 ok, 1 operational error, 2 validation refusal.
+
+Recovery after a mistaken removal: `git fetch <bundle> 'refs/heads/*:refs/recovered/*'`
+(bundles live under `.claude/state/worktree-archive/`; empty-branch archives are `refs/archive/<slug>/*` refs), then
+`worktree-manager.py create <slug> --base refs/recovered/agent/<slug>`; otherwise
+`git reflog`.
+
+### Stray Claude Code `.claude/worktrees/agent-*` directories
+
+Claude Code's own `isolation: "worktree"` leaves `.claude/worktrees/agent-<id>`
+behind. If `git worktree list` shows it, `reap` then `reap --yes`. If it is not
+listed and has no `.git`, it is an orphan copy that git cannot reclaim: `reap`
+reports it (size, age); run `diff -rq <orphan> .` to confirm nothing unique,
+then delete by hand. Non-`agent-*` dirs there (e.g. `skill-profiles`) are not
+agent-owned: check manually. Never `rm -rf` a live worktree or the whole
+`.claude/worktrees` directory.
 
 ### Rules for agent worktrees
 
