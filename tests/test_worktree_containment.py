@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from _worktree_fixtures import wt_env  # noqa: F401  (fixture)
 
 REPO = Path(__file__).resolve().parents[1]
 WTM = REPO / ".claude" / "operations" / "scripts" / "worktree-manager.py"
@@ -151,3 +152,38 @@ class TestMutationControls:
         proc = run(["remove", "feat"], project, script=mutated)
         assert proc.returncode == 0 and not (project / ".worktrees" / "feat").exists(), (
             "the cannot-answer guard is not load-bearing")
+
+
+class TestLifecycleContainment:
+    """TEST-CASES C-group cases on the lifecycle fixtures (real origin, real worktrees)."""
+
+    def test_N04_unmerged_commits_are_refused_naming_ref_and_commits(self, wt_env):
+        path = wt_env.make_wt("a", commits=2)
+        proc = wt_env.mgr("remove", "a")
+        assert proc.returncode == 2
+        assert "main" in proc.stderr
+        assert "a change 0" in proc.stderr and "a change 1" in proc.stderr
+        assert path.exists() and wt_env.branch_exists("agent/a")
+
+    def test_E06_unknown_base_is_cannot_answer_not_yes(self, wt_env):
+        path = wt_env.make_wt("a", commits=1)
+        reg_path = wt_env.root / ".claude" / "state" / "worktrees.json"
+        reg = json.loads(reg_path.read_text())
+        reg["worktrees"][0]["base_branch"] = ""
+        reg["worktrees"][0]["base"] = "HEAD"
+        reg_path.write_text(json.dumps(reg), encoding="utf-8")
+        wt_env.git("checkout", "-q", "--detach", "HEAD")
+        proc = wt_env.mgr("remove", "a")
+        assert proc.returncode == 2
+        assert "cannot tell" in proc.stderr
+        assert path.exists() and wt_env.branch_exists("agent/a")
+
+    def test_E07_base_origin_main_resolves_to_the_default_branch_and_origin_ref(self, wt_env):
+        path = wt_env.make_wt("a", commits=1, base="origin/main")
+        reg = json.loads((wt_env.root / ".claude" / "state" / "worktrees.json").read_text())
+        assert reg["worktrees"][0]["base_branch"] == "main"
+        wt_env.merge_ff("a")
+        proc = wt_env.mgr("reap", "--yes")
+        assert proc.returncode == 0, proc.stderr
+        assert wt_env.reaped(proc, "a")
+        assert not path.exists() and not wt_env.branch_exists("agent/a")
