@@ -12,6 +12,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Worktree lifecycle docs: `reap`, merged proof, locks, stray agent dirs.** `/worktree`
+  and the `using-git-worktrees` skill now document `worktree-manager.py reap` (dry run by
+  default, `--yes` to execute, `--max-deletions` default 25, lock-aware, deletes
+  worktree and branch together only when merged into the freshly fetched
+  `origin/<default>`, squash and rebase merges recognised, fetch failure means no
+  deletions) and how to triage stray Claude Code `.claude/worktrees/agent-*`
+  directories. The removed `--delete-branch`/`--archive` flags are not advertised and
+  the manual `git branch -D` cleanup advice is gone.
+
 - **The context-budget warning now defaults to 120,000 tokens** (was 150,000), matching the
   fleet's `CK_CONTEXT_WARN=120000` and its 120K handoff. `CK_CONTEXT_WARN` still overrides it.
 
