@@ -202,16 +202,16 @@ class RegistryLock:
                     os.kill(pid, 0)
                 except ProcessLookupError:
                     stale = True
-                except OSError:
-                    pass
+                except OSError as exc:  # e.g. EPERM: process exists, keep the lock
+                    print(f"warning: lock owner probe failed: {exc}", file=sys.stderr)
         if not stale:
             return False
         try:
             now = self.path.stat()
             if (now.st_ino, now.st_mtime_ns) == (before.st_ino, before.st_mtime_ns):
                 self.path.unlink()
-        except OSError:
-            pass
+        except OSError as exc:
+            print(f"warning: cannot remove stale lock: {exc}", file=sys.stderr)
         return True
 
     def __enter__(self) -> "RegistryLock":
@@ -269,8 +269,8 @@ def save_registry(root: Path, registry: Dict[str, Any]) -> None:
     except BaseException:
         try:
             os.unlink(tmp)
-        except OSError:
-            pass
+        except OSError as exc:
+            print(f"warning: cannot remove temp file: {exc}", file=sys.stderr)
         raise
 
 
@@ -1188,8 +1188,8 @@ def classify(root: Path, base: Baseline, rows: List[WtRow], registry: Dict[str, 
                 for fname in files:
                     try:
                         size += os.lstat(os.path.join(dirpath, fname)).st_size
-                    except OSError:
-                        pass
+                    except OSError as exc:
+                        print(f"warning: cannot stat file for orphan size: {exc}", file=sys.stderr)
             try:
                 age = max(0.0, now - os.stat(full).st_mtime) / 3600.0
             except OSError:
@@ -1387,12 +1387,58 @@ def cmd_prune(args: argparse.Namespace) -> int:
     return 0
 
 
+REFERENCE = """Reference detail (moved from .claude/commands/worktree.md):
+
+Guarantees
+  * .claude/state/worktrees.json: repo-relative paths, atomic writes under a lock.
+  * Max 5 concurrent worktrees (returns collapse past 4-5 parallel agents).
+  * settings.local.json is copied with its mode; .env and other secrets are
+    never copied unless named with --copy.
+  * .worktree-env: WORKTREE_PORT_OFFSET = index x 10, for port/device assignment.
+  * create locks the worktree (reason: claudekit agent slug=<slug> ts=<epoch>).
+    Lock liveness is never inferred from a pid. reap --break-stale-locks breaks
+    a claudekit lock only when older than --min-age AND merged AND clean.
+  * prune also drops trees on unmounted volumes; locked trees are spared.
+
+reap
+  Merged proof is measured only against the freshly fetched
+  refs/remotes/origin/<default> (default from origin/HEAD, else
+  main/master/develop/trunk; more than one candidate = unproven):
+    1. branch is an ancestor; 2. git cherry shows no unapplied commit (rebase
+    merge, single-commit squash); 3. squash of N commits via
+    git merge-tree --write-tree (git >= 2.38).
+  Reapable = not primary, not locked, clean, merged, branch not protected and
+  not checked out elsewhere. reap --yes removes worktree and branch together.
+  --min-age H (default 24) is how old an own lock must be to count as stale;
+  mq-* worktrees use 30 minutes. reap never pushes. Classification and fetch
+  run without the registry lock; each item is re-verified under it.
+  Output: would reap <name>; reaped <name> (branch <b> deleted); kept <name>:
+  <reason> (unmerged, unproven, dirty, locked, too-new, branch-held);
+  orphan-dir <path> size= age= agent-owned= too-new= (report only);
+  nothing to reclaim; with --no-fetch: no-fetch: measuring against <ref>.
+
+Stray Claude Code agent directories (.claude/worktrees/agent-*)
+  1. git worktree list: if listed it is real; use reap, then reap --yes.
+  2. Not listed and no .git file: an orphan full copy; git cannot reclaim it.
+     Run diff -rq <orphan> . (ignore ignored files) before deleting by hand.
+  3. Directories that are not agent-* are not agent-owned: check by hand.
+  4. Never rm -rf a live worktree or .claude/worktrees as a whole.
+
+Recovering a removed branch: the tip stays in git reflog and in the bundle under
+.claude/state/worktree-archive/ (or refs/archive/<slug>/*):
+  git fetch <bundle> 'refs/heads/*:refs/recovered/*'
+  worktree-manager.py create <slug> --base refs/recovered/agent/<slug>
+"""
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     problem = check_git_version()
     if problem:
         return fail(problem, 1)
     os.environ.setdefault("GIT_TERMINAL_PROMPT", "0")
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(
+        description=__doc__.splitlines()[0], epilog=REFERENCE,
+        formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command", required=True)
 
     p_create = sub.add_parser("create", help="create .worktrees/<slug> + branch agent/<slug>")
