@@ -23,12 +23,12 @@ index never outranks the current files.
 | State | Plans |
 |---|---:|
 | `drifted` | 12 |
-| `approved` | 65 |
+| `approved` | 66 |
 | `planned` | 37 |
 | `executed` | 30 |
 | `not_started` | 27 |
 | `legacy` | 5 |
-| **total** | **176** |
+| **total** | **177** |
 
 ## Plans
 
@@ -184,6 +184,7 @@ index never outranks the current files.
 | `.claude/plans/plan-skill-fit-automation.md` | `approved` | 1 |  |
 | `.claude/plans/plan-skill-fit.md` | `drifted` | 9 |  |
 | `.claude/plans/plan-skill-loading-contract.md` | `approved` | 1 |  |
+| `.claude/plans/plan-skill-slim-wave1.md` | `approved` | 8 |  |
 | `.claude/plans/plan-subagent-spend-wind-down.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-task-014-supply-chain-hardening.md` | `planned` | 1 |  |
 | `.claude/plans/plan-token-dash.md` | `executed` | 6 |  |

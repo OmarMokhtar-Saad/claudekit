@@ -1,0 +1,15 @@
+{
+  "plan": ".claude/plans/plan-skill-slim-wave1.md",
+  "slug": "skill-slim-wave1-3-incident-response",
+  "ops_path": ".claude/plans/ops-skill-slim-wave1-3-incident-response.json",
+  "ops_sha256": "6f2650070beee73003b7e9c89ab7cfd620707089072b8f0375f6b0aba6ffa98f",
+  "score": 93,
+  "decision": "APPROVED",
+  "findings": [],
+  "verdict_origin": "rubric",
+  "recorded_utc": "2026-09-13T20:36:47Z",
+  "operations": 7,
+  "edits": 18,
+  "rounds": [],
+  "round": 1
+}

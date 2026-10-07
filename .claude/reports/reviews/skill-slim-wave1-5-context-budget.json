@@ -1,0 +1,15 @@
+{
+  "plan": ".claude/plans/plan-skill-slim-wave1.md",
+  "slug": "skill-slim-wave1-5-context-budget",
+  "ops_path": ".claude/plans/ops-skill-slim-wave1-5-context-budget.json",
+  "ops_sha256": "e48054f7deff30d6e4c36103fcb9027edd798d80a8e4e43da14fd34c02db7a82",
+  "score": 93,
+  "decision": "APPROVED",
+  "findings": [],
+  "verdict_origin": "rubric",
+  "recorded_utc": "2026-09-13T20:36:48Z",
+  "operations": 4,
+  "edits": 8,
+  "rounds": [],
+  "round": 1
+}

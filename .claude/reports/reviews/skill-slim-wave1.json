@@ -1,0 +1,37 @@
+{
+  "plan": ".claude/plans/plan-skill-slim-wave1.md",
+  "ops": [
+    ".claude/plans/ops-skill-slim-wave1-0-harness.json",
+    ".claude/plans/ops-skill-slim-wave1-1-verification.json",
+    ".claude/plans/ops-skill-slim-wave1-2-context-keeper.json",
+    ".claude/plans/ops-skill-slim-wave1-3-incident-response.json",
+    ".claude/plans/ops-skill-slim-wave1-4-autonomous-loop.json",
+    ".claude/plans/ops-skill-slim-wave1-5-context-budget.json",
+    ".claude/plans/ops-skill-slim-wave1-6-supply-chain-audit.json",
+    ".claude/plans/ops-skill-slim-wave1-7-test-changelog.json"
+  ],
+  "reviewed_in": "/Users/omarmokhtar/IdeaProjects/claudekit/.claude/worktrees/agent-a013570fc91bf082b (task-assigned path; this report file itself had to be written to the skill-profiles worktree because the harness sandboxes Write to it)",
+  "verdict": "APPROVED",
+  "score": 93,
+  "findings": {
+    "critical": [],
+    "major": [],
+    "minor": [
+      "Stale position words ('below'/'above') survive verbatim in moved text (autonomous-loop, incident-response/references/phases.md, references/communication.md) - disclosed by the plan itself under Risk Assessment; harmless but imprecise.",
+      "Installed projects that sync only SKILL.md (not via ck update/install.sh/fleet-sync) will point at missing references/ until reinstalled - disclosed in plan, no code fix proposed (acceptable given fleet-sync.py already walks recursively)."
+    ]
+  },
+  "verified": [
+    "Ops-0: install.sh anchor at line 234 exact match; bash 3.2-safe [[ -d ]] guarded copy, adds only a references/ subcopy, does not alter top-level *.md semantics.",
+    "Ops-0: main.py _stale_alias_references exemption widening verified against both call sites (skill-rename and agent-rename paths, lines 566-567 and 583-585); own_refs only activates when own_path.name == 'SKILL.md', correctly excluding agent-kind renames from a references/ exemption they cannot have. Scope is exactly 'this replacement's own references/', matching the plan's claim, not laundered wider.",
+    "Ops-0: test_008_batch2_merges.py _skill_text() and OWN_SEAM allowance for own references/ verified via SKILLS_DIR definition and read of surrounding OWN_SEAM/test_no_bare_reference_in_a_live_document code - anchors unique and correct.",
+    "Ops-0: test_008_b3c7_harness_fold.py REFERENCES/union read verified against ROOT/SKILL definitions - anchors correct.",
+    "Ops-1 (PROTECTED verification-before-completion): full byte-for-byte diff of original 462-line SKILL.md against the two new reference files (gate-and-traps.md, runbook.md) and the code_edit replacements. Every hard rule (Iron Law, Steps 1-6 including REFUTE, Common Failures, Red Flags, When Verification Is Not Possible) is kept verbatim in the SKILL.md body; only the gate diagram, the 4 rationalization-trap prose blocks, the report template, and the full 6-phase runbook commands moved to references/. The new phase/pass-criteria table in the body is a faithful compression (no criteria dropped: build exit 0, zero type errors, zero lint errors, 0 test failures + coverage thresholds, secrets/debug/audit findings, diff-review checklist items all present). Two explicit 'Read references/X when...' pointers exist and target the created files.",
+    "Ops-2 (context-keeper): read the pre-slim SKILL.md (485 lines) and confirmed the three declared line ranges (11-170 save protocol, 173-336 structured state, 339-490 priming) correspond to real section boundaries (Save Protocol ends before 'Structured State (merged from session-continuity)' at line 173; that section ends before 'Priming a Session (merged from context-priming)' at line 339). Kept-verbatim claims (freshness gate, File Location, command table, anti-patterns, save/load rules, refresh triggers, performance) are present in the source at the cited locations.",
+    "Ops-3 (incident-response) and ops-6 (supply-chain-audit): spot-checked 'find' anchors (Phase 1/Phase 5/Postmortem Template for incident-response; Dependency Tree Analysis/Step 1 for supply-chain-audit) against current SKILL.md files - all found, unique, line numbers consistent with plan's structural description.",
+    "Ops-7: CHANGELOG.md anchor '## [Unreleased]\\n- **`ck skill match`...' verified present and unique at lines 13-14. New test_skill_references.py correctly forces ECC_HOOK_PROFILE=minimal, checks link-reachability, ck skill audit budget compliance, doctor exemption scope (own vs. other references/), and full install.sh byte-identical copy + manifest registration - closes the loop on the install.sh defect ops-0 fixes.",
+    "MANIFEST.in already has 'recursive-include .claude *' (line 15) - references/ ships in the wheel with no additional packaging change needed; plan's Out of Scope note is consistent with this.",
+    "No hardcoded secrets, no destructive/delete operations (all file_create + code_edit), no orphaned ops or phantom plan steps - manifest-level check of all 8 configs' type/path fields maps 1:1 onto the 8 plan steps."
+  ],
+  "not_executed_yet": "This worktree holds only the ops.json configs; none had been applied at review time (references/ dirs and slimmed SKILL.md do not yet exist on disk). Review was therefore performed against ops.json content and cross-referenced anchors in the current (pre-slim) source tree, per the plan's own coverage-diff/replay proof methodology. A post-execution behavioral run (pytest, ruff, gen-docs/gen-registry/gen-model-policy/check-context-floor, shellcheck) was NOT performed by this review - reviewer has no Bash. Route the post-apply mutation proof to code-reviewer or run the Testing Strategy commands before merge."
+}

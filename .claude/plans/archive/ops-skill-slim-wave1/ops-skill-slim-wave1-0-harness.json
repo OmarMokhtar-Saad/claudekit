@@ -1,0 +1,79 @@
+{
+  "plan": "skill-slim-wave1-0-harness",
+  "operations": [
+    {
+      "type": "code_edit",
+      "path": "install.sh",
+      "edits": [
+        {
+          "find": "            cp \"$skill_dir\"*.md \"$DEST/skills/$skill_name/\" 2>/dev/null || true\n        fi\n",
+          "replace": "            cp \"$skill_dir\"*.md \"$DEST/skills/$skill_name/\" 2>/dev/null || true\n            # Progressive disclosure: SKILL.md links references/*.md it loads on\n            # demand. The *.md glob above is one level deep, so without this the\n            # directory was dropped and every \"Read references/X.md\" pointed at nothing.\n            if [[ -d \"${skill_dir}references\" ]]; then\n                mkdir -p \"$DEST/skills/$skill_name/references\"\n                cp \"${skill_dir}references/\"*.md \"$DEST/skills/$skill_name/references/\" \\\n                    2>/dev/null || true\n            fi\n        fi\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "src/claudekit/cli/main.py",
+      "edits": [
+        {
+          "find": "    stale = []\n    for sub in (\"agents\", \"commands\", \"skills\"):\n",
+          "replace": "    stale = []\n    # A skill is its directory: SKILL.md plus the on-demand `references/*.md` it links.\n    # The seam prose (\"merged from X\") moves into references/ with its section, so the\n    # replacement's own references/ is the same asset -- and still nothing wider.\n    own_refs = (own_path.parent / \"references\"\n                if own_path is not None and own_path.name == \"SKILL.md\" else None)\n    for sub in (\"agents\", \"commands\", \"skills\"):\n"
+        },
+        {
+          "find": "            if path == own_path:\n",
+          "replace": "            if path == own_path or (own_refs is not None and path.parent == own_refs):\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_008_batch2_merges.py",
+      "edits": [
+        {
+          "find": "\nclass TestTheMergedNamesAreGone:\n",
+          "replace": "\ndef _skill_text(skill):\n    \"\"\"SKILL.md plus its on-demand `references/*.md`.\n\n    The union has to survive in what the skill SHIPS, not in one file: the skill-slim\n    waves moved templates and runbooks into references/ that SKILL.md links. Tests that\n    need a rule in the always-loaded body keep using `_body`.\"\"\"\n    parts = [_body(skill)]\n    ref_dir = os.path.join(SKILLS_DIR, skill, \"references\")\n    if os.path.isdir(ref_dir):\n        for name in sorted(os.listdir(ref_dir)):\n            if name.endswith(\".md\"):\n                with open(os.path.join(ref_dir, name), encoding=\"utf-8\") as fh:\n                    parts.append(fh.read())\n    return \"\\n\".join(parts)\n\n\nclass TestTheMergedNamesAreGone:\n"
+        },
+        {
+          "find": "        assert fragment in _body(\"autonomous-loop\"), (\n",
+          "replace": "        assert fragment in _skill_text(\"autonomous-loop\"), (\n"
+        },
+        {
+          "find": "        assert fragment in _body(\"verification-before-completion\"), (\n",
+          "replace": "        assert fragment in _skill_text(\"verification-before-completion\"), (\n"
+        },
+        {
+          "find": "        assert fragment in _body(\"supply-chain-audit\"), (\n",
+          "replace": "        assert fragment in _skill_text(\"supply-chain-audit\"), (\n"
+        },
+        {
+          "find": "        assert fragment in _body(\"context-keeper\"), (\n",
+          "replace": "        assert fragment in _skill_text(\"context-keeper\"), (\n"
+        },
+        {
+          "find": "            os.path.join(SKILLS_DIR, self.OWN_SEAM[old], \"SKILL.md\"))}\n        allowed |= {os.path.abspath(os.path.join(ROOT, rel))\n",
+          "replace": "            os.path.join(SKILLS_DIR, self.OWN_SEAM[old], \"SKILL.md\"))}\n        # The seam prose moved with its section into the survivor's own references/;\n        # it is still the survivor naming its source, not a consumer of the old id.\n        ref_dir = os.path.join(SKILLS_DIR, self.OWN_SEAM[old], \"references\")\n        if os.path.isdir(ref_dir):\n            allowed |= {os.path.abspath(os.path.join(ref_dir, n))\n                        for n in os.listdir(ref_dir)}\n        allowed |= {os.path.abspath(os.path.join(ROOT, rel))\n"
+        }
+      ]
+    },
+    {
+      "type": "code_edit",
+      "path": "tests/test_008_b3c7_harness_fold.py",
+      "edits": [
+        {
+          "find": "SKILL = \".claude/skills/context-budget/SKILL.md\"\n\n",
+          "replace": "SKILL = \".claude/skills/context-budget/SKILL.md\"\n#: The skill-slim wave moved the harness workflow into references/ that SKILL.md links;\n#: the union must survive in what the skill ships, so both are read.\nREFERENCES = \".claude/skills/context-budget/references\"\n\n"
+        },
+        {
+          "find": "        assert fragment in _read(SKILL), fragment\n",
+          "replace": "        refs = sorted(os.listdir(os.path.join(ROOT, REFERENCES)))\n        text = \"\\n\".join([_read(SKILL)] + [_read(REFERENCES + \"/\" + n) for n in refs])\n        assert fragment in text, fragment\n"
+        }
+      ]
+    }
+  ],
+  "baseline": {
+    "install.sh": "sha256:be0a30addafda3484724d73f4d1e80faa7c2080ead4bc6bf610434bf477bc893",
+    "src/claudekit/cli/main.py": "sha256:a6c03a4d41b21a5e63e7efaa9ba380b116e3d0e8d83e913c8927c040267c927f",
+    "tests/test_008_b3c7_harness_fold.py": "sha256:bab571191e6226293badcacdb6fedd832983d9b4ba3d45257fffe3bb61e2af8c",
+    "tests/test_008_batch2_merges.py": "sha256:ab4656d9b8fe1f0cfa8ca93d67d9fc1a72a6666f2ef9cab5a0ebe6422b543100"
+  }
+}
