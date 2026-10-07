@@ -209,6 +209,44 @@ class TestPlainUserProjectIsUnchanged:
         assert p2.returncode == 0, p2.stderr
 
 
+class TestInProjectScratchpadIsWritable:
+    """bash-payload-gate tells an agent to write long scripts to $CLAUDE_SCRATCHPAD;
+    a Hermes card worker's scratchpad is <worktree>/.hermes/scratch/. Both sit inside
+    the project, and denying them sent a worker in circles between the two hooks."""
+
+    def test_claude_scratchpad_inside_the_project_is_exempt(self, user_project):
+        scratch = Path(user_project) / "work" / "scratch"
+        p = run_hook(user_project, scratch / "gen.py",
+                     env_extra={"CLAUDE_SCRATCHPAD": str(scratch)})
+        assert p.returncode == 0, p.stderr
+
+    def test_hermes_scratch_is_exempt(self, user_project, monkeypatch):
+        monkeypatch.delenv("CLAUDE_SCRATCHPAD", raising=False)
+        p = run_hook(user_project, ".hermes/scratch/gen.py")
+        assert p.returncode == 0, p.stderr
+
+    def test_source_is_still_blocked_with_a_scratchpad_set(self, user_project):
+        scratch = Path(user_project) / "work" / "scratch"
+        p = run_hook(user_project, "src/pkg/mod.py",
+                     env_extra={"CLAUDE_SCRATCHPAD": str(scratch)})
+        assert p.returncode == 2, p.stderr
+
+    def test_a_scratchpad_that_is_the_project_root_exempts_nothing(self, user_project):
+        p = run_hook(user_project, "src/pkg/mod.py",
+                     env_extra={"CLAUDE_SCRATCHPAD": str(user_project)})
+        assert p.returncode == 2, p.stderr
+
+    def test_a_scratchpad_above_the_project_root_exempts_nothing(self, user_project):
+        p = run_hook(user_project, "src/pkg/mod.py",
+                     env_extra={"CLAUDE_SCRATCHPAD": str(Path(user_project).parent)})
+        assert p.returncode == 2, p.stderr
+
+    def test_a_sibling_named_like_the_scratch_dir_is_still_blocked(self, user_project, monkeypatch):
+        monkeypatch.delenv("CLAUDE_SCRATCHPAD", raising=False)
+        p = run_hook(user_project, ".hermes/scratch-src/mod.py")
+        assert p.returncode == 2, p.stderr
+
+
 class TestOpsSourceGlobsManifest:
     def test_file_is_not_git_ignored(self):
         """It must travel with a fresh clone -- unlike settings.local.json, which
