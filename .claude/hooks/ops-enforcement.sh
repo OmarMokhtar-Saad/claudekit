@@ -45,6 +45,20 @@ case "$ABS_TARGET" in
     /private/tmp/claude-*|/tmp/claude-*|/private/var/folders/*|/var/folders/*) exit 0 ;;
 esac
 
+# Allow: the scratchpad bash-payload-gate tells agents to write long scripts to --
+# $CLAUDE_SCRATCHPAD when set, and a Hermes worker's <worktree>/.hermes/scratch/, which
+# live INSIDE the project. Denying them sent a card worker in circles between the two
+# hooks. A scratchpad that is, or contains, the project root is ignored: it would
+# otherwise exempt every source file.
+if [ -n "${CLAUDE_SCRATCHPAD:-}" ]; then
+    ABS_SCRATCH=$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$CLAUDE_SCRATCHPAD" 2>/dev/null || echo "$CLAUDE_SCRATCHPAD")
+    case "$ABS_ROOT/" in
+        "$ABS_SCRATCH"/*) : ;;
+        *) case "$ABS_TARGET" in "$ABS_SCRATCH"/*) exit 0 ;; esac ;;
+    esac
+fi
+case "$ABS_TARGET" in "$ABS_ROOT/.hermes/scratch/"*) exit 0 ;; esac
+
 # Repo-local source override (opt-in, absent by default).
 OPS_SOURCE_MATCH=0
 OPS_GLOBS_FILE="$ABS_ROOT/.ops-source-globs"
