@@ -586,6 +586,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   model-invisible skills, and skills the profile disables are refused before any write.
   The install receipt is re-stamped so `ck diff` stays clean; `ck update`/`init`
   re-apply; `ck doctor` fails an unresolvable binding and warns on drift.
+- **The skill-fit loop runs itself.** A new background Stop hook,
+  `skill-fit-refresh.sh`, refreshes `ck skill audit --save` and `ck skill card --publish`
+  at most once a day with a per-step timeout; it never blocks, prints nothing, and is off
+  under `ECC_HOOK_PROFILE=minimal` (opt out: `CLAUDEKIT_SKILL_REFRESH=0`). `ck doctor`
+  now notes how many skills other projects' cards suggest, as information that cannot
+  fail `--strict`. `docs/cli.md` shows how to schedule a weekly fleet refresh.
 - **`ck skill match` ignores language-only overlap.** A card that shares only a base
   language with the project is no longer suggested (`--include-language-only` keeps it).
 - **`ck skill card` / `match` -- less noise.** Cards and matching now use only the
