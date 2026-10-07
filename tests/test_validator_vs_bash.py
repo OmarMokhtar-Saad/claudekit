@@ -276,11 +276,23 @@ class TestContainment:
         for name in ("rm", "sudo", "chmod", "curl", "dd"):
             assert f'{name}() {{ echo "MARKER:{name}"; }}' in script
 
-    def test_the_sandbox_is_removed(self):
-        before = set(Path(tempfile.gettempdir()).glob("validator-oracle-*"))
+    def test_the_sandbox_is_removed(self, tmp_path, monkeypatch):
+        """Only this run's sandbox is checked. Diffing the shared $TMPDIR raced with
+        other xdist workers creating and removing their own sandboxes."""
+        created = []
+        real_mkdtemp = tempfile.mkdtemp
+
+        def spy(*args, **kwargs):
+            path = real_mkdtemp(*args, **kwargs)
+            created.append(Path(path))
+            return path
+
+        monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
+        monkeypatch.setattr(tempfile, "mkdtemp", spy)
         oracle.run(FAST, REPO_ROOT, 5.0)
-        after = set(Path(tempfile.gettempdir()).glob("validator-oracle-*"))
-        assert after == before
+        sandboxes = [p for p in created if p.name.startswith("validator-oracle-")]
+        assert sandboxes, "the oracle made no sandbox; this test would pass vacuously"
+        assert not [p for p in sandboxes if p.exists()]
 
 
 class TestTheScriptRuns:
