@@ -24,8 +24,8 @@ index never outranks the current files.
 |---|---:|
 | `drifted` | 12 |
 | `approved` | 66 |
-| `planned` | 38 |
-| `executed` | 30 |
+| `planned` | 37 |
+| `executed` | 31 |
 | `not_started` | 27 |
 | `legacy` | 5 |
 | **total** | **178** |
@@ -62,7 +62,7 @@ index never outranks the current files.
 | `.claude/plans/plan-ck-implement.md` | `planned` | 3 |  |
 | `.claude/plans/plan-cli-live-findings.md` | `executed` | 4 |  |
 | `.claude/plans/plan-close2.md` | `executed` | 2 |  |
-| `.claude/plans/plan-code-review-on-request.md` | `planned` | 1 |  |
+| `.claude/plans/plan-code-review-on-request.md` | `executed` | 1 |  |
 | `.claude/plans/plan-code-review-triage.md` | `approved` | 1 |  |
 | `.claude/plans/plan-command-bash-parse-gate.md` | `executed` | 1 |  |
 | `.claude/plans/plan-command-bash-placeholders.md` | `executed` | 2 |  |
