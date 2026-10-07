@@ -32,14 +32,14 @@ LIB = REPO / ".claude" / "hooks" / "lib.sh"
 GLOBS_FILE = REPO / ".ops-source-globs"
 
 
-def _make_project(opted_in):
+def _make_project(opted_in, parent=None, prefix=".ck-scope-"):
     """Build a throwaway git project that installs the hook.
 
     NOTE: the temp dir deliberately lives beside the repo, not under $TMPDIR.
     On macOS `tempfile` returns `/var/folders/...`, which the hook exempts as an
     OS scratch path -- every assertion would pass vacuously there.
     """
-    root = Path(tempfile.mkdtemp(prefix=".ck-scope-", dir=str(REPO.parent)))
+    root = Path(tempfile.mkdtemp(prefix=prefix, dir=str(parent or REPO.parent)))
     (root / ".claude" / "hooks").mkdir(parents=True)
     (root / ".claude" / "operations" / "scripts").mkdir(parents=True)
     shutil.copy(LIB, root / ".claude" / "hooks" / "lib.sh")
@@ -163,6 +163,33 @@ class TestOptedInProjectTreatsClaudeAsSource:
         toggle, not this mechanism's business."""
         p = run_hook(opted_project, ".claude/agents/planner.md", profile="minimal")
         assert p.returncode == 0, p.stderr
+
+
+@pytest.fixture(scope="module")
+def temp_dir_project():
+    """A project that itself lives under an OS scratch path, as a worktree in a
+    session scratchpad does. `/tmp/claude-*` is exempt on macOS and Linux alike."""
+    root = _make_project(opted_in=False, parent="/tmp", prefix="claude-ck-root-")
+    yield root
+    shutil.rmtree(root, ignore_errors=True)
+
+
+class TestProjectInsideOsTempDir:
+    """The OS scratch exemption is for files OUTSIDE the project. It used to match
+    first, so every source file of a project checked out under a scratchpad was
+    writable, and `test_direct_source_edit_blocked` passed only from a normal path."""
+
+    def test_source_is_blocked(self, temp_dir_project):
+        p = run_hook(temp_dir_project, "src/pkg/mod.py")
+        assert p.returncode == 2, p.stderr
+
+    def test_scratch_outside_the_project_stays_exempt(self, temp_dir_project):
+        sibling = Path(tempfile.mkdtemp(prefix="claude-ck-scratch-", dir="/tmp"))
+        try:
+            p = run_hook(temp_dir_project, sibling / "x.py")
+            assert p.returncode == 0, p.stderr
+        finally:
+            shutil.rmtree(sibling, ignore_errors=True)
 
 
 class TestPlainUserProjectIsUnchanged:
