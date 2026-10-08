@@ -40,9 +40,13 @@ STACKS = {
     "MobileUIAutomator":   ["java"],
     "qa-agents":           ["python"],
     "qaforge-ai":          ["java", "python"],
-    "SehhatyApp":          ["java"],
-    "shsmartassistant-qa": ["kotlin"],
 }
+
+# Work repos are kept out of this repo: list them in ~/.claude/fleet-private.json
+# as {"<repo>": ["<stack>", ...]}. The file is machine-local and optional.
+_PRIVATE = os.path.expanduser("~/.claude/fleet-private.json")
+PRIVATE_STACKS = json.load(open(_PRIVATE)) if os.path.isfile(_PRIVATE) else {}
+STACKS.update(PRIVATE_STACKS)
 
 SUPERSEDED = {
     "autonomous-loops": "autonomous-loop",

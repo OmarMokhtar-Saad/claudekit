@@ -10,14 +10,19 @@ Two shapes, and conflating them is the trap: a file that already loads the succe
 have the old line REMOVED, not renamed, or it ends up loading the same skill twice.
 """
 import argparse
+import json
 import os
 import re
 import sys
 
 ROOT = os.path.expanduser("~/IdeaProjects")
 PROJECTS = ["ai-agent-system", "ApiForge", "AppiumLens", "AutomationApp", "Eatizaz", "Lean",
-            "LeanApis", "MobileUIAutomator", "qa-agents", "qaforge-ai", "SehhatyApp",
-            "shsmartassistant-qa"]
+            "LeanApis", "MobileUIAutomator", "qa-agents", "qaforge-ai"]
+# Work repos are kept out of this repo: list them in ~/.claude/fleet-private.json
+# as {"<repo>": ["<stack>", ...]}. The file is machine-local and optional.
+_PRIVATE = os.path.expanduser("~/.claude/fleet-private.json")
+PRIVATE_STACKS = json.load(open(_PRIVATE)) if os.path.isfile(_PRIVATE) else {}
+PROJECTS += sorted(PRIVATE_STACKS)
 PAIRS = {"session-continuity": "context-keeper",
          "dependency-audit": "supply-chain-audit",
          "verification-loop": "verification-before-completion"}

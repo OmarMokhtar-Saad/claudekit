@@ -34,7 +34,12 @@ ROOT = os.path.expanduser("~/IdeaProjects")
 KIT = os.path.join(ROOT, "claudekit", ".claude")
 PROJECTS = ["ai-agent-system", "ApiForge", "AppiumLens", "AutomationApp", "Eatizaz",
             "Lean", "LeanApis", "MobileUIAutomator", "qa-agents", "qaforge-ai",
-            "rest-framework", "SehhatyApp", "shsmartassistant-qa"]
+            "rest-framework"]
+# Work repos are kept out of this repo: list them in ~/.claude/fleet-private.json
+# as {"<repo>": ["<stack>", ...]}. The file is machine-local and optional.
+_PRIVATE = os.path.expanduser("~/.claude/fleet-private.json")
+PRIVATE_STACKS = json.load(open(_PRIVATE)) if os.path.isfile(_PRIVATE) else {}
+PROJECTS += sorted(PRIVATE_STACKS)
 
 # Directories the kit owns. `plans/`, `reports/`, `knowledge/`, `state/`, `locks/`
 # are deliberately ABSENT: they are project working data, not corpus.
