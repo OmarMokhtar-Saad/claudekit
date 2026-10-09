@@ -153,7 +153,10 @@
     },
     "web-researcher": {
       "accountable_for": "The only agent that calls WebSearch/WebFetch; returns a distilled answer.",
-      "tier": "fast"
+      "tier": "fast",
+      "model": "claude-haiku-5-5",
+      "effort": "medium",
+      "_why_model": "User 2026-10-09: research runs on Haiku 5.5 at medium effort. A full id, not the `haiku` alias, because the account env maps the alias to Sonnet."
     }
   },
   "callsite_overrides": {

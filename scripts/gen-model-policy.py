@@ -106,6 +106,8 @@ def load_policy(path):
             raise ValueError(
                 "model-policy.json: role %r declares effort %r, not one of %s"
                 % (name, role["effort"], ", ".join(ALLOWED_EFFORTS)))
+        if "model" in role and (not isinstance(role["model"], str) or not role["model"]):
+            raise ValueError("model-policy.json: role %r declares an empty model" % name)
         if not role.get("accountable_for"):
             raise ValueError("model-policy.json: role %r declares no accountability" % name)
     for site in policy.get("callsite_overrides", {}).get("sites", []):
@@ -133,12 +135,12 @@ def agent_files(agents_dir):
 def resolve(policy):
     """role -> (concrete model id, effort) for its declared tier.
 
-    Effort resolves as: the role's own override if it declares one, else its tier's
-    default. Role and capability are chosen separately, and so are role and budget -
+    Model and effort each resolve as: the role's own override if it declares one, else
+    its tier's default. Role and capability are chosen separately, and so are role and budget -
     `reviewer` is balanced tier but reviews adversarially, so it overrides upward.
     """
     tiers = policy["capability_tiers"]
-    return {name: (tiers[role["tier"]]["model"],
+    return {name: (role.get("model", tiers[role["tier"]]["model"]),
                    role.get("effort", tiers[role["tier"]]["effort"]))
             for name, role in policy["roles"].items()}
 
