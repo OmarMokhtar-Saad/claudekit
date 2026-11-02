@@ -11,7 +11,7 @@
 # raising these floors past the 3.9 wall, each of which would have broken that leg.
 # Verified 2026-09-05 by resolving this file on python3.9 and by reading requires_python
 # from PyPI. Lift each cap in the same change that drops 3.9, not before.
-pytest>=7.0,<9
+pytest>=9.2.0,<10
 jsonschema>=4.0,<4.26
 # Python 3.12+ venvs no longer bundle setuptools; test_packaging execs setup.py
 # (the wheel-bundling shim), which imports it.
