@@ -30,7 +30,7 @@ Return To: <agent to return to, usually coordinator>
 1. **Always use the structured format** -- No free-form handoffs
 2. **Include all required fields** -- Missing fields cause ambiguity
 3. **Reference files by path, never embed file content** -- a handoff, subagent response,
-   or echoed Bash output that reprints a plan/ops.json/artifact body pins that payload in
+   or echoed Bash output that reprints a plan/artifact body pins that payload in
    context for every subsequent turn (see `.claude/agents/_shared/INVOCATION.md`'s
    "Delivery contract" section). Interactive spawns write their own artifacts and return
    only the path; headless spawns' stdout is redirected straight to disk by the invoking
@@ -64,21 +64,19 @@ Return To: coordinator
 HANDOFF TO: reviewer
 ---
 Plan File: <path to plan.md>
-Ops Config: <path to ops.json>
 Complexity: <Simple|Medium|Complex>
 Files Affected: <count>
 Steps: <count>
 Risk Level: <Low|Medium|High>
 ```
 
-### Reviewer to Implementer (Approved)
+### Reviewer to main session (Approved)
 ```
-HANDOFF TO: implementer
+HANDOFF TO: main session
 ---
 Status: APPROVED
 Score: <total>/100
 Plan File: <path>
-Ops Config: <path>
 Notes:
   - <non-blocking suggestions>
 ```
@@ -91,7 +89,6 @@ Status: REVISION REQUIRED
 Score: <total>/100
 Revision Number: <N> of 3
 Plan File: <path>
-Ops Config: <path>
 
 Critical Issues (must fix):
   1. <issue with specific location and fix suggestion>
@@ -100,13 +97,12 @@ Warnings (should fix):
   1. <issue with specific location and fix suggestion>
 ```
 
-### Implementer to Verifier
+### Main session to Verifier
 ```
 HANDOFF TO: verifier
 ---
 Status: IMPLEMENTATION COMPLETE
 Plan: <path>
-Method: <Script|Manual>
 Files Modified: <list>
 Files Created: <list>
 Build Status: PASS
@@ -126,9 +122,9 @@ Notes:
   - <informational items>
 ```
 
-### Verifier to Implementer (Retry)
+### Verifier to main session (Retry)
 ```
-HANDOFF TO: implementer
+HANDOFF TO: main session
 ---
 Status: RETRY REQUIRED
 Score: <total>/100
@@ -192,11 +188,11 @@ second** — a score cannot approve past an open blocker:
 | `APPROVED` | score >= 90 **and** zero open CRITICAL or MAJOR | Proceed. Open MINORs are suggestions; record them, do not gate on them. |
 | `CONDITIONAL` | score >= 70, only MINOR findings open | Proceed **after** fixing the named MINORs. No new review round — the fixes are mechanical and need no re-verification. |
 | `REVISE` | >= 1 open CRITICAL or MAJOR that is fixable in place, **at any score** | Fix, then a new round reads **only the diff** since this verdict. This is the verdict for "the approach is right, the execution has a hole". |
-| `REJECTED` | score < 70, **or** a finding that invalidates the approach itself, **or** any AUTO-REJECT trigger: no `ops.json`, invalid `ops.json`, or destructive operations with no rollback | Re-plan. Not a fix-and-resubmit; the artifact goes back to the planner. |
+| `REJECTED` | score < 70, **or** a finding that invalidates the approach itself, **or** any AUTO-REJECT trigger: a Tier 3 plan with no `Files:` list, or destructive operations with no rollback | Re-plan. Not a fix-and-resubmit; the artifact goes back to the planner. |
 
 `review-record.py` enforces exactly these four spellings (`VALID_DECISIONS`), and only
-`APPROVED` authorises `execute-json-ops.py` to run. A verdict the parser cannot read
-cannot gate execution, so the anchored block is mandatory:
+`APPROVED` lets `plan-gate` admit Tier 3 edits. A verdict the parser cannot read
+cannot gate the edits, so the anchored block is mandatory:
 
 ```
 === REVIEW ===
@@ -214,14 +210,14 @@ opening a fourth round.
 
 ### Feature Pipeline
 ```
-Coordinator → Planner → Reviewer → Implementer → Verifier → GitOps
+Coordinator → Planner → Reviewer → Main session → Verifier → GitOps
                   ↑          |
                   └──────────┘  (revision loop, max 3)
 ```
 
 ### Bug Pipeline
 ```
-Coordinator → Debugger → Planner → Reviewer → Implementer → Verifier → GitOps
+Coordinator → Debugger → Planner → Reviewer → Main session → Verifier → GitOps
 ```
 
 ### Quality Pipeline
@@ -261,17 +257,17 @@ Coordinator → RefactorCleaner → Verifier → GitOps
 
 ### Performance Pipeline
 ```
-Coordinator → [Explore + PerformanceOptimizer] (parallel analysis) → Planner → Implementer → Verifier
+Coordinator → [Explore + PerformanceOptimizer] (parallel analysis) → Planner → Main session → Verifier
 ```
 
 ### Security Audit Pipeline
 ```
-Coordinator → [SilentFailureHunter + SecurityScanner] (parallel, read-only) → Planner → Implementer → Verifier
+Coordinator → [SilentFailureHunter + SecurityScanner] (parallel, read-only) → Planner → Main session → Verifier
 ```
 
 ### Code Quality Audit Pipeline
 ```
-Coordinator → [TypeScriptReviewer | PythonReviewer] → Implementer (if fixes needed) → Verifier
+Coordinator → [TypeScriptReviewer | PythonReviewer] → Main session (if fixes needed) → Verifier
 ```
 
 ### EPIC / Blueprint Pipeline
@@ -279,9 +275,9 @@ Coordinator → [TypeScriptReviewer | PythonReviewer] → Implementer (if fixes 
 Coordinator → Blueprint skill → Plan review → per-step execution pipelines
 ```
 
-### TDDGuide to Implementer (Tests Written)
+### TDDGuide to main session (Tests Written)
 ```
-HANDOFF TO: implementer
+HANDOFF TO: main session
 ---
 Status: TESTS WRITTEN — RED PHASE COMPLETE
 Test Files: <list of test files>
