@@ -16,7 +16,6 @@
     "format-typecheck": "off",
     "injection-scan-gate": "off",
     "iron-law-gate": "off",
-    "ops-enforcement": "off",
     "reflection-gate": "advisory",
     "security-reminder": "off",
     "skill-fit-refresh": "off"

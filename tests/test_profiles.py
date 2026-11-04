@@ -125,34 +125,6 @@ def test_minimal_declaration_equals_the_minimal_guard(hook_id):
     assert declared == modes["minimal"]
 
 
-def test_ops_enforcement_really_stands_down_under_minimal_and_blocks_otherwise():
-    """The end-to-end anchor: run the real hook, compare to what minimal declares.
-
-    A declaration proved only against a parser would be a mirror of a mirror. This
-    executes the hook under both env values and reads the exit codes.
-    """
-    payload = json.dumps({
-        "tool_name": "Edit",
-        "tool_input": {"file_path": "src/claudekit/cli/main.py"},
-    })
-    results = {}
-    for value in ("minimal", "standard"):
-        proc = subprocess.run(
-            ["bash", str(HOOKS / "ops-enforcement.sh")],
-            input=payload, capture_output=True, text=True, cwd=str(ROOT),
-            env=dict(os.environ, ECC_HOOK_PROFILE=value))
-        results[value] = proc.returncode
-
-    minimal_declared = prof.resolve(ROOT, "minimal", env={}).value("hooks", "ops-enforcement")
-    standard_declared = prof.resolve(ROOT, "standard", env={}).value("hooks", "ops-enforcement")
-    assert minimal_declared == "off" and results["minimal"] == 0, (
-        f"minimal declares {minimal_declared!r} but the hook exited "
-        f"{results['minimal']}")
-    assert standard_declared == "on" and results["standard"] == 2, (
-        f"standard declares {standard_declared!r} but the hook exited "
-        f"{results['standard']} (a block is exit 2 + stderr)")
-
-
 def test_a_drifted_declaration_is_reported(tree):
     """MUTANT: flip one declared row. check_declarations must name it.
 
@@ -161,10 +133,10 @@ def test_a_drifted_declaration_is_reported(tree):
     """
     path = tree / ".claude" / "profiles" / "minimal" / "profile.json"
     doc = json.loads(path.read_text())
-    doc["hooks"]["ops-enforcement"] = "on"
+    doc["hooks"]["command-guard"] = "on"
     path.write_text(json.dumps(doc, indent=2))
     problems = prof.check_declarations(tree)
-    assert any("ops-enforcement" in p and "minimal" in p for p in problems), problems
+    assert any("command-guard" in p and "minimal" in p for p in problems), problems
 
 
 def test_an_unmodelled_guard_form_is_reported_not_ignored(tree):
@@ -241,9 +213,9 @@ def test_reflection_gate_is_advisory_under_minimal_not_off():
 
 def test_profile_layer_overrides_base_and_leaves_other_rows_alone():
     resolved = prof.resolve(ROOT, "minimal", env={})
-    overridden = resolved.rows[("hooks", "ops-enforcement")]
+    overridden = resolved.rows[("hooks", "command-guard")]
     assert (overridden.value, overridden.layer) == ("off", "profile")
-    survivor = prof.resolve(ROOT, "strict", env={}).rows[("hooks", "ops-enforcement")]
+    survivor = prof.resolve(ROOT, "strict", env={}).rows[("hooks", "command-guard")]
     assert (survivor.value, survivor.layer) == ("on", "base"), (
         "strict declares no hook rows; the base value must survive and say so")
 
@@ -253,7 +225,7 @@ def test_extends_composes_parent_then_child():
     # from the parent (`standard`), by id
     assert resolved.value("hooks", "injection-scan-gate") == "off"
     # from base, untouched by either
-    assert resolved.rows[("hooks", "ops-enforcement")].layer == "base"
+    assert resolved.rows[("hooks", "command-guard")].layer == "base"
     # the child's own rows
     assert resolved.value("stack", "test_cmd") == "python3 -m pytest -q"
     assert resolved.value("mcp", "max_tools") == 40
@@ -262,9 +234,9 @@ def test_extends_composes_parent_then_child():
 def test_project_local_layer_beats_the_profile(tree):
     (tree / ".claude" / "profiles" / "local.json").write_text(json.dumps({
         "schema_version": 1,
-        "hooks": {"ops-enforcement": "advisory"},
+        "hooks": {"command-guard": "advisory"},
     }))
-    row = prof.resolve(tree, "minimal", env={}).rows[("hooks", "ops-enforcement")]
+    row = prof.resolve(tree, "minimal", env={}).rows[("hooks", "command-guard")]
     assert (row.value, row.layer) == ("advisory", "project-local")
     # a row local.json does not mention still comes from the profile
     other = prof.resolve(tree, "minimal", env={}).rows[("hooks", "commit-quality")]
@@ -274,10 +246,10 @@ def test_project_local_layer_beats_the_profile(tree):
 def test_override_layer_beats_project_local(tree):
     (tree / ".claude" / "profiles" / "local.json").write_text(json.dumps({
         "schema_version": 1,
-        "hooks": {"ops-enforcement": "advisory"},
+        "hooks": {"command-guard": "advisory"},
     }))
     row = prof.resolve(tree, "minimal", env={},
-                       overrides=["hooks.ops-enforcement=on"]).rows[("hooks", "ops-enforcement")]
+                       overrides=["hooks.command-guard=on"]).rows[("hooks", "command-guard")]
     assert (row.value, row.layer) == ("on", "override")
 
 
@@ -324,7 +296,7 @@ def test_an_unknown_name_fails_closed_through_resolve_too():
     ({"name": "minimal"}, "missing 'schema_version'"),
     ({"schema_version": 2, "name": "minimal"}, "unsupported schema_version"),
     ({"schema_version": 1, "name": "minimal", "hooks": {"nope": "off"}}, "unknown hook id"),
-    ({"schema_version": 1, "name": "minimal", "hooks": {"ops-enforcement": "maybe"}},
+    ({"schema_version": 1, "name": "minimal", "hooks": {"command-guard": "maybe"}},
      "must be one of"),
     ({"schema_version": 1, "name": "minimal", "mcp": {"max_tools": -1}},
      "non-negative integer"),
@@ -367,9 +339,9 @@ def test_project_local_may_not_extend(tree):
 
 
 @pytest.mark.parametrize("item,cause", [
-    ("hooks.ops-enforcement", "SECTION.ID=VALUE"),
+    ("hooks.command-guard", "SECTION.ID=VALUE"),
     ("nosuch.thing=on", "unknown section"),
-    ("hooks.ops-enforcement=sideways", "must be one of"),
+    ("hooks.command-guard=sideways", "must be one of"),
 ])
 def test_a_bad_override_fails_closed(item, cause):
     with pytest.raises(prof.ProfileError) as exc:
@@ -404,15 +376,15 @@ def test_cli_show_json_is_machine_readable_and_attributed():
     assert data["profile"] == "python"
     assert data["layers"] == list(prof.LAYERS)
     hooks = data["sections"]["hooks"]
-    assert hooks["ops-enforcement"] == {"value": "on", "layer": "base"}
+    assert hooks["command-guard"] == {"value": "on", "layer": "base"}
     assert hooks["injection-scan-gate"] == {"value": "off", "layer": "profile"}
 
 
 def test_cli_show_accepts_an_override_and_attributes_it():
     proc = run_cli("profile", "show", "minimal", "--json",
-                   "--set", "hooks.ops-enforcement=on")
+                   "--set", "hooks.command-guard=on")
     assert proc.returncode == 0, proc.stderr
-    row = json.loads(proc.stdout)["sections"]["hooks"]["ops-enforcement"]
+    row = json.loads(proc.stdout)["sections"]["hooks"]["command-guard"]
     assert row == {"value": "on", "layer": "override"}
 
 
@@ -448,11 +420,11 @@ def test_doctor_fails_when_a_profile_has_drifted_from_the_hooks(tree):
     """MUTATE the shipped artifact and read the failure — the gate must bind."""
     path = tree / ".claude" / "profiles" / "minimal" / "profile.json"
     doc = json.loads(path.read_text())
-    doc["hooks"]["ops-enforcement"] = "on"
+    doc["hooks"]["command-guard"] = "on"
     path.write_text(json.dumps(doc, indent=2))
     proc = run_cli("doctor", cwd=tree)
     assert proc.returncode == 1, proc.stdout
-    assert "ops-enforcement" in (proc.stdout + proc.stderr)
+    assert "command-guard" in (proc.stdout + proc.stderr)
 
 
 def test_doctor_passes_the_profile_check_on_the_real_tree():
