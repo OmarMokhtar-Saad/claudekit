@@ -8,7 +8,7 @@ Prompt corpus in `.claude/` + enforcement layer (`src/claudekit/security/`, hook
 
 ## Session setup gotcha (read first)
 
-This repo runs its hooks on itself. If `ops-enforcement` blocks Edit/Write, the gitignored `.claude/settings.local.json` (`ECC_HOOK_PROFILE=minimal`) is missing; session start rebuilds it. Never bypass hooks.
+This repo runs its hooks on itself. If `plan-gate` blocks Edit/Write on Tier 3 source, write a plan.md naming the file in `Files:`, get it reviewed and recorded; it binds under every `ECC_HOOK_PROFILE`. Settings and hook-registration edits are owner-only (`! <command>`). Never bypass hooks.
 
 ## Commands
 
@@ -42,11 +42,11 @@ ck doctor --strict # installed-tree health
 
 ## Hard rules (never violate — reasoning in .ai/KNOWLEDGE_BASE.md)
 
-1. Iron Law: implementation flows through ops.json + the operations engine; the implementer agent never gets Edit/Write.
+1. Iron Law: Tier 3 source is edited only after a reviewed, recorded plan.md names the file in its `Files:` list (plan-gate); the main session edits directly, subagents only explore, review, test and verify.
 2. Blocking hooks: `exit 2` + stderr + fail closed. Never exit 1/stdout for a block.
 3. No `--dangerously-skip-permissions` anywhere (CI-gated); agent spawning per `.claude/agents/_shared/INVOCATION.md` with scoped `--allowedTools`.
 4. Protected files stay protected; MAX_DELETIONS=3/plan stays.
-5. Golden Rule: no code changes without explicit user approval.
+5. Golden Rule: no code changes without explicit user approval (for Tier 3, an approved plan.md).
 6. Security framing stays honest: "denylist speed bump, not a sandbox."
 7. Versions bump everywhere `test_single_version_source_of_truth` derives (pyproject is the truth) and stay monotonic.
 8. Never hand-edit component counts; never add Python runtime dependencies; never break bash-3.2/macOS.
@@ -57,21 +57,21 @@ Every command above passes · behavioral coverage for the change · CHANGELOG + 
 
 ## Quality gates (the product's own)
 
-Single source is the enforcing agent: reviewer.md (plans ≥90/100; no ops.json = AUTO-REJECT) · verifier.md (≥80/100) · security coverage ≥85% (CI). Prompt-enforced — don't overstate in docs.
+Single source is the enforcing agent: reviewer.md (plans ≥90/100; a Tier 3 plan without a `Files:` list = AUTO-REJECT) · verifier.md (≥80/100) · security coverage ≥85% (CI). Prompt-enforced — don't overstate in docs.
 
 ## Current state & priorities
 
 Release tag + PyPI publish are **user-gated**. [STATUS](.ai/STATUS.md) · [SESSION_STATE](.ai/SESSION_STATE.md) · [BACKLOG](.ai/BACKLOG.md).
 
-<!-- CLAUDEKIT:TOKEN-MODEL-POLICY v7 START -->
+<!-- CLAUDEKIT:TOKEN-MODEL-POLICY v8 START -->
 ## Token & Model Policy (ClaudeKit)
 
 Cost = context × turns; both are capped. Full text and the measurements behind it: `.ai/TOKEN_MODEL_POLICY.md` in the ClaudeKit repo.
-- **Tiers by blast radius**: Tier 1 (one file, no API/security/schema surface) -> the parent applies it directly where the hook profile allows, else one single-op ops.json; no planner, no reviewer. Tier 2 (several files, no security/schema) -> the parent writes plan + ops.json itself; planner only above 5 files. Tier 3 (security, migrations, >15 ops) -> planner -> reviewer -> implementer.
+- **Tiers by blast radius**: Tier 1 (one file, no API/security/schema surface) -> the parent edits directly; no plan, no planner, no reviewer. Tier 2 (several files, no security/schema) -> the parent writes plan.md itself, then edits; planner only above 5 files. Tier 3 (security, migrations, >15 files) -> planner -> reviewer -> recorded approval -> the parent edits (plan-gate enforces it).
 - **No auto review, no auto verifier**: reviewer, code-reviewer and verifier run only when the user asks; 3 rounds is the ceiling (hook-enforced).
 - **Turns**: batch independent commands in one call; read files in windows, never whole; no "wait for OK" on Tier 1 (backups exist); one task per session, then /clear; never bridge peer sessions.
 - **Delegate by default**: searches go to `explore` (fast tier);
   read directly only the file you edit; past 60k, tests too.
   Hooks nudge; the Stop report prices it.
 - **Model routing**: capability tiers from `.claude/model-policy.json` (most-capable/balanced/fast, each role with `escalate_to`/`escalate_when`), never vendor names; the most-capable tier for implementation, fast tier for scans and probes; WebSearch/WebFetch only via `web-researcher`.
-<!-- CLAUDEKIT:TOKEN-MODEL-POLICY v7 END -->
+<!-- CLAUDEKIT:TOKEN-MODEL-POLICY v8 END -->

@@ -38,18 +38,18 @@ Use the plan-then-edit flow for code changes: `/plan <task>` writes a plan with 
 
 Scripts: `.claude/operations/scripts/`
 
-<!-- CLAUDEKIT:TOKEN-MODEL-POLICY v7 START -->
+<!-- CLAUDEKIT:TOKEN-MODEL-POLICY v8 START -->
 ## Token & Model Policy (ClaudeKit)
 
 Cost = context × turns; both are capped. Full text and the measurements behind it: `.ai/TOKEN_MODEL_POLICY.md` in the ClaudeKit repo.
-- **Tiers by blast radius**: Tier 1 (one file, no API/security/schema surface) -> the parent applies it directly where the hook profile allows, else one single-op ops.json; no planner, no reviewer. Tier 2 (several files, no security/schema) -> the parent writes plan + ops.json itself; planner only above 5 files. Tier 3 (security, migrations, >15 ops) -> planner -> reviewer -> implementer.
+- **Tiers by blast radius**: Tier 1 (one file, no API/security/schema surface) -> the parent edits directly; no plan, no planner, no reviewer. Tier 2 (several files, no security/schema) -> the parent writes plan.md itself, then edits; planner only above 5 files. Tier 3 (security, migrations, >15 files) -> planner -> reviewer -> recorded approval -> the parent edits (plan-gate enforces it).
 - **No auto review, no auto verifier**: reviewer, code-reviewer and verifier run only when the user asks; 3 rounds is the ceiling (hook-enforced).
 - **Turns**: batch independent commands in one call; read files in windows, never whole; no "wait for OK" on Tier 1 (backups exist); one task per session, then /clear; never bridge peer sessions.
 - **Delegate by default**: searches go to `explore` (fast tier);
   read directly only the file you edit; past 60k, tests too.
   Hooks nudge; the Stop report prices it.
 - **Model routing**: capability tiers from `.claude/model-policy.json` (most-capable/balanced/fast, each role with `escalate_to`/`escalate_when`), never vendor names; the most-capable tier for implementation, fast tier for scans and probes; WebSearch/WebFetch only via `web-researcher`.
-<!-- CLAUDEKIT:TOKEN-MODEL-POLICY v7 END -->
+<!-- CLAUDEKIT:TOKEN-MODEL-POLICY v8 END -->
 
 <!-- CLAUDEKIT:PARALLEL-AGENTS-POLICY v3 -->
 ## Parallel Agents Policy

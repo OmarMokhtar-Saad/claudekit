@@ -8,7 +8,7 @@ Prompt corpus (22 agents · 53 commands · 79 skills in `.claude/`) + enforcemen
 
 ## Session setup gotcha (read first)
 
-This repo runs its own enforcement hooks on itself. If Edit/Write gets blocked by `ops-enforcement`, the gitignored `.claude/settings.local.json` with `ECC_HOOK_PROFILE=minimal` is missing — restore it (see CONTRIBUTING.md "Working on ClaudeKit itself"). Never bypass hooks by other means.
+This repo runs its own enforcement hooks on itself. If Edit/Write gets blocked by `plan-gate` on Tier 3 source, write a plan.md naming the file in `Files:` and get it reviewed and recorded; it binds under every `ECC_HOOK_PROFILE`. Settings and hook-registration edits are owner-only (`! <command>`). Never bypass hooks by other means.
 
 ## Commands
 
@@ -37,11 +37,11 @@ ck doctor --strict                        # installed-tree health
 
 ## Hard rules (never violate — reasoning in .ai/KNOWLEDGE_BASE.md)
 
-1. Iron Law: implementation flows through ops.json + the operations engine; the implementer agent never gets Edit/Write.
+1. Iron Law: Tier 3 source is edited only after a reviewed, recorded plan.md names the file in its `Files:` list (plan-gate); the main session edits directly, subagents only explore, review, test and verify.
 2. Blocking hooks: `exit 2` + stderr + fail closed. Never exit 1/stdout for a block.
 3. No `--dangerously-skip-permissions` anywhere (CI-gated); agent spawning per `.claude/agents/_shared/INVOCATION.md` with scoped `--allowedTools`.
 4. Protected files stay protected; MAX_DELETIONS=3/plan stays.
-5. Golden Rule: no code changes without explicit user approval.
+5. Golden Rule: no code changes without explicit user approval (for Tier 3, an approved plan.md).
 6. Security framing stays honest: "denylist speed bump, not a sandbox."
 7. Versions bump in three places together (pyproject, `src/claudekit/__init__.py`, `.claude/operations/scripts/shared.py`) and stay monotonic.
 8. Never hand-edit component counts; never add Python runtime dependencies; never break bash-3.2/macOS.
@@ -52,7 +52,7 @@ All six commands above pass · behavioral test coverage for the change · CHANGE
 
 ## Quality gates (the product's own)
 
-Plan review ≥90/100 (Plan 40 / Architecture 30 / Security 30; missing ops.json = AUTO-REJECT) · verification ≥80/100 (Static 30 / Tests 40 / Coverage 30) · security-module coverage ≥85% (CI). These gates are currently prompt-enforced; task 010 makes them mechanical — don't overstate them in docs until then.
+Plan review ≥90/100 (Plan 40 / Architecture 30 / Security 30; a Tier 3 plan without a `Files:` list = AUTO-REJECT) · verification ≥80/100 (Static 30 / Tests 40 / Coverage 30) · security-module coverage ≥85% (CI). These gates are currently prompt-enforced; task 010 makes them mechanical — don't overstate them in docs until then.
 
 ## Current state & priorities
 

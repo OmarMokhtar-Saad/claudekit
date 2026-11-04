@@ -36,7 +36,7 @@ ROOT_VERSION, ROOT_BODY = region((ROOT / "CLAUDE.md").read_text(encoding="utf-8"
 
 
 def test_the_kit_root_carries_the_current_policy():
-    assert ROOT_VERSION == 7
+    assert ROOT_VERSION == 8
     text = "\n".join(bullets(ROOT_BODY))
     assert "searches go to `explore` (fast tier)" in text, "v7 is the delegate clause"
     assert "batch independent commands in one call" in text
