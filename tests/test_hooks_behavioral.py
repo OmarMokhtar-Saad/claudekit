@@ -122,48 +122,6 @@ class TestOwnerApprovedIsHumanOnly:
         assert p.returncode == 0, p.stderr
 
 
-class TestOpsEnforcement:
-    def test_direct_source_edit_blocked(self):
-        p = run_hook("ops-enforcement.sh", {
-            "tool_name": "Edit",
-            "tool_input": {"file_path": "src/claudekit/cli/main.py"},
-        })
-        assert p.returncode == 2, p.stderr
-        assert "OPS ENFORCEMENT" in p.stderr
-
-    def test_claude_config_edit_allowed(self):
-        p = run_hook("ops-enforcement.sh", {
-            "tool_name": "Edit",
-            "tool_input": {"file_path": ".claude/settings.json"},
-        })
-        assert p.returncode == 0, p.stderr
-
-    def test_docs_edit_allowed(self):
-        p = run_hook("ops-enforcement.sh", {
-            "tool_name": "Write",
-            "tool_input": {"file_path": "README.md"},
-        })
-        assert p.returncode == 0, p.stderr
-
-    def test_ops_json_edit_allowed(self):
-        p = run_hook("ops-enforcement.sh", {
-            "tool_name": "Write",
-            "tool_input": {"file_path": ".claude/plans/foo.ops.json"},
-        })
-        assert p.returncode == 0, p.stderr
-
-    def test_malformed_json_fails_closed(self):
-        p = run_hook("ops-enforcement.sh", "}{ garbage")
-        assert p.returncode == 2, p.stderr
-
-    def test_minimal_profile_disables(self):
-        env = dict(os.environ, ECC_HOOK_PROFILE="minimal")
-        p = run_hook("ops-enforcement.sh", {
-            "tool_name": "Edit", "tool_input": {"file_path": "src/claudekit/cli/main.py"},
-        }, env=env)
-        assert p.returncode == 0, p.stderr
-
-
 class TestConfigProtection:
     def test_eslint_config_blocked(self):
         p = run_hook("config-protection.sh", {

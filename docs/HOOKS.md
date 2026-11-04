@@ -1,16 +1,15 @@
 # Hooks
 
-ClaudeKit ships 43 hook scripts (plus `lib.sh`, a shared helper library).
+ClaudeKit ships 42 hook scripts (plus `lib.sh`, a shared helper library).
 39 are reachable: wired into Claude Code through `.claude/settings.json`, or resolved
 by a gate wrapper. They enforce guardrails, capture telemetry, and automate housekeeping
 around the agent workflow.
 
-**Four ship unwired**, and the count must not be read as saying otherwise:
+**Three ship unwired**, and the count must not be read as saying otherwise:
 `auto-checkpoint.sh` and `check-comment-replacement.sh`, promoted out of
 `templates/hooks/` in task 008 batch 1 where nothing invoked them either -- promotion
 changed where they live, not whether they run -- and `post-implement.sh`, which has
-shipped unwired for far longer and is described as such further down this very file -- and `checkpoint-gate.sh`, built
-for the plan-gate flow and registered only when that flow is switched on.
+shipped unwired for far longer and is described as such further down this very file.
 This page opened by claiming all of them were wired while contradicting itself at the
 `post-implement.sh` entry below, so the sentence was wrong before batch 1 and the
 promotion only widened the gap.

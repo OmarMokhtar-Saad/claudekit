@@ -4,10 +4,8 @@ Every test drives the REAL script against a real temp tree and asserts an outcom
 none inspects source text. ECC_HOOK_PROFILE is forced explicitly on every subprocess so
 a maintainer's own session profile can never change a result.
 
-The load-bearing test is `test_healed_file_actually_unblocks_edit`: it runs the real
-`ops-enforcement.sh` twice and requires the enforcing run to BLOCK (exit 2). A check that
-has only ever been seen green measures nothing, so the negative control is asserted, not
-assumed.
+The "healed value unblocks Edit" test went with ops-enforcement.sh: plan-gate ignores
+ECC_HOOK_PROFILE by design, so the pin no longer unblocks anything.
 """
 
 import json
@@ -21,7 +19,6 @@ import unittest
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 HEALER = os.path.join(REPO_ROOT, '.claude', 'operations', 'scripts',
                       'heal_local_settings.py')
-OPS_ENFORCEMENT = os.path.join(REPO_ROOT, '.claude', 'hooks', 'ops-enforcement.sh')
 SESSION_START = os.path.join(REPO_ROOT, '.claude', 'hooks', 'session-start.sh')
 
 CLAUDEKIT_PYPROJECT = '[project]\nname = "claudekit-agents"\nversion = "0.0.0"\n'
@@ -182,41 +179,6 @@ class TestFleetSafety(_TempRepo):
         proc = run_healer(self.root)
         self.assertEqual(proc.stdout.strip(), 'not-claudekit', proc.stdout + proc.stderr)
         self.assertFalse(os.path.exists(self.settings))
-
-
-class TestHealedFileHasEffect(_TempRepo):
-    """The healed VALUE must be the one that actually unblocks Edit/Write.
-
-    Asserting only that a file appeared would pass with any key name. This runs the real
-    hook both ways, and requires the enforcing direction to BLOCK.
-    """
-
-    def _run_enforcement(self, profile):
-        payload = json.dumps({
-            'tool_name': 'Edit',
-            'tool_input': {'file_path': 'src/claudekit/cli/main.py'},
-        })
-        return subprocess.run(
-            ['bash', OPS_ENFORCEMENT], input=payload, cwd=REPO_ROOT,
-            capture_output=True, text=True,
-            env=dict(os.environ, ECC_HOOK_PROFILE=profile),
-        )
-
-    def test_healed_file_actually_unblocks_edit(self):
-        run_healer(self.root)
-        healed = self.read_settings()['env']['ECC_HOOK_PROFILE']
-
-        blocked = self._run_enforcement('standard')
-        self.assertEqual(blocked.returncode, 2,
-                         'NEGATIVE CONTROL FAILED: enforcement did not block, so this '
-                         'test could not have detected a bad healed value:\n'
-                         + blocked.stdout + blocked.stderr)
-        self.assertIn('OPS ENFORCEMENT', blocked.stderr)
-
-        allowed = self._run_enforcement(healed)
-        self.assertEqual(allowed.returncode, 0,
-                         'the healed profile does not unblock Edit/Write:\n'
-                         + allowed.stdout + allowed.stderr)
 
 
 class TestSessionStartWiring(unittest.TestCase):

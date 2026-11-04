@@ -360,31 +360,22 @@ def test_wired_edit_chain_blocks_a_source_edit_under_standard(project, tmp_path)
     hook, so "blocked" can never be satisfied by some unrelated hook in the chain."""
     results = run_chain(project, "Edit", {"file_path": str(project / "src" / "app.py")},
                         "standard", tmp_path)
-    assert "ops-enforcement.sh" in results, \
-        "ops-enforcement.sh is not wired for Edit in settings.json - it never fires"
-    gate = results["ops-enforcement.sh"]
+    assert "plan-gate.sh" in results, \
+        "plan-gate.sh is not wired for Edit in settings.json - it never fires"
+    gate = results["plan-gate.sh"]
     assert gate.returncode == 2, gate.stdout + gate.stderr
     assert gate.stderr.strip(), "a block with no stderr gives the agent nothing to act on"
-    assert "OPS ENFORCEMENT" in gate.stderr
+    assert "PLAN GATE" in gate.stderr
     assert gate.stdout == "", "a PreToolUse decision must never travel on stdout"
-    assert blockers(results) == ["ops-enforcement.sh"], blockers(results)
+    # No checkpoint tag exists in the fixture either, so checkpoint-gate also blocks.
+    assert blockers(results) == ["checkpoint-gate.sh", "plan-gate.sh"], blockers(results)
 
 
-def test_wired_edit_chain_is_inert_under_minimal(project, tmp_path):
-    """E2E-14: `minimal` (this repo's maintainer default) must be genuinely inert -
-    partial bypass would make maintainer sessions behave unlike anything documented."""
+def test_wired_edit_chain_still_blocks_under_minimal(project, tmp_path):
+    """`minimal` (the maintainer default) must NOT disable the Tier-3 plan gate."""
     results = run_chain(project, "Edit", {"file_path": str(project / "src" / "app.py")},
                         "minimal", tmp_path)
-    noisy = {name: (p.returncode, p.stderr) for name, p in results.items()
-             if p.returncode != 0}
-    assert not noisy, noisy
-    # ...and the sanctioned path still works under the same profile.
-    (project / "src" / "app.py").write_text(ORIGINAL, encoding="utf-8")
-    ops = project / "ops.json"
-    ops.write_text(json.dumps(_ops_payload(plan="inert-check")), encoding="utf-8")
-    execute = run_script(EXECUTOR, [str(ops)], project,
-                         env_for(project, "minimal", tmp_path))
-    assert execute.returncode == 0, execute.stdout + execute.stderr
+    assert results["plan-gate.sh"].returncode == 2, results["plan-gate.sh"].stderr
 
 
 def test_wired_edit_chain_defaults_to_enforcing_when_profile_is_unset(project, tmp_path):
@@ -392,8 +383,8 @@ def test_wired_edit_chain_defaults_to_enforcing_when_profile_is_unset(project, t
     not read the setup gotcha. `${ECC_HOOK_PROFILE:-standard}` is the whole guard."""
     results = run_chain(project, "Edit", {"file_path": str(project / "src" / "app.py")},
                         None, tmp_path)
-    assert results["ops-enforcement.sh"].returncode == 2, \
-        "an unset ECC_HOOK_PROFILE left the Iron Law dormant"
+    assert results["plan-gate.sh"].returncode == 2, \
+        "an unset ECC_HOOK_PROFILE left the plan gate dormant"
 
 
 def test_wired_bash_chain_permits_the_ops_path_and_blocks_direct_mutation(project,
@@ -547,25 +538,6 @@ def test_executor_lock_refuses_a_second_run_and_does_not_block_the_next(project,
     assert lock.read_text(encoding="utf-8").strip().isdigit(), \
         "the retained lock file must carry the holder pid, or it is litter rather than " \
         "a diagnostic"
-
-
-def test_wired_edit_chain_blocks_a_cross_project_edit(project, tmp_path):
-    """E2E-34's HOOK half. `test_worktree_manager.py` and `test_security.py` cover the
-    EXECUTOR's path guard; `ops-enforcement.sh`'s cross-project deny branch is referenced
-    by no test in the suite (`CROSS-PROJECT` appears nowhere under tests/). Same
-    unit-vs-composition distinction as Group A, applied to the hook."""
-    other = Path(tempfile.mkdtemp(prefix=".ck-e2e-other-", dir=str(REPO.parent)))
-    try:
-        (other / "src").mkdir(parents=True)
-        (other / "src" / "app.py").write_text(ORIGINAL, encoding="utf-8")
-        escape = f"../{other.name}/src/app.py"
-        results = run_chain(project, "Edit", {"file_path": escape}, "standard", tmp_path)
-        gate = results["ops-enforcement.sh"]
-        assert gate.returncode == 2, gate.stdout + gate.stderr
-        assert "CROSS-PROJECT" in gate.stderr, gate.stderr
-        assert (other / "src" / "app.py").read_text(encoding="utf-8") == ORIGINAL
-    finally:
-        shutil.rmtree(other, ignore_errors=True)
 
 
 def test_sigint_mid_batch_reports_exactly_once_and_rolls_back(project, tmp_path):

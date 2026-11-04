@@ -89,7 +89,7 @@ class TestLargePayloadIsNotRefused(unittest.TestCase):
             proc.returncode, 2,
             'a 2 MB direct write to a guarded source file was not blocked:\n%s\n%s'
             % (proc.stdout, proc.stderr))
-        self.assertIn('OPS ENFORCEMENT', proc.stdout + proc.stderr,
+        self.assertIn('PLAN GATE', proc.stdout + proc.stderr,
                       'blocked, but not for the guard\'s own reason -- a transport '
                       'refusal would satisfy the exit code alone:\n%s\n%s'
                       % (proc.stdout, proc.stderr))
