@@ -15,7 +15,11 @@ Canonical spawn contract: see `.claude/agents/_shared/INVOCATION.md` (single sou
 
 ## Task
 
-Validate the most recent plan. TIER 3 ROUTE: if the plan is Tier 3, or its ops touch hooks, tests, or executable scripts, this `reviewer` verdict is STATIC-ONLY (no Bash — it executed nothing) and may NOT be the last review before execution; follow it with `/code-review` on the plan + ops, where `code-reviewer` has Bash and runs the plan's own Validation commands against a dry-run or scratch copy.
+Validate the most recent plan. The reviewer is STATIC-ONLY (no Bash — it executed nothing).
+If the plan touches hooks, tests or executable scripts, its verdict may NOT be the last
+review before implementation; follow it with `/code-review` on the plan, where
+`code-reviewer` has Bash and runs the plan's own Validation commands against a scratch copy.
+Reviews are on request: Tier 3 plans need one, Tier 1/2 do not.
 
 ## Invocation
 
@@ -31,43 +35,14 @@ if [ -z "$PLAN_FILE" ]; then
 fi
 
 echo "Reviewing: $PLAN_FILE"
-# Resolve the ops.json this plan owns (all naming forms; ambiguity is an error).
-OPS_FILE=$(python3 .claude/operations/scripts/review-record.py resolve "$PLAN_FILE")
-if [ $? -ne 0 ] || [ -z "$OPS_FILE" ]; then
-  echo "ERROR: could not resolve a unique ops.json for $PLAN_FILE (missing or ambiguous)."
-  exit 1
-fi
 
-# DELTA MODE: if this plan already has a recorded verdict and only the ops.json moved,
-# hand the reviewer the diff instead of a full re-read. review-record.py diff prints
-# "(no changes since approval)" and "# FULL REVIEW REQUIRED" with exit 0 too — both mean
-# NO delta block (normal/full review runs unmodified). Only a real diff qualifies.
-DELTA_BLOCK=""
-DIFF_OUT=$(python3 .claude/operations/scripts/review-record.py diff "$PLAN_FILE" "$OPS_FILE" 2>/dev/null)
-DIFF_EXIT=$?
-if [ $DIFF_EXIT -eq 0 ] && [ -n "$DIFF_OUT" ]; then
-  case "$DIFF_OUT" in
-    "(no changes since approval)"*|"# FULL REVIEW REQUIRED"*) : ;;
-    *)
-      echo "Delta review: ops.json changed since the last recorded verdict."
-      DELTA_BLOCK="
-
-DELTA REVIEW MODE — a prior review already recorded a verdict for a different version of
-this ops.json. Changed content (approved -> current) and the prior findings are below,
-deliberately WITHOUT the prior score, so you re-judge rather than reaffirm. You MUST still
-verify the CHANGED anchors against the filesystem. Re-score the plan as a whole.
-
-$DIFF_OUT"
-      ;;
-  esac
-fi
-
-REVIEWER_MSG="Review the implementation plan at $PLAN_FILE and the ops config at $OPS_FILE.
-Read them yourself with your Read tool — do not expect the contents pasted here.
+REVIEWER_MSG="Review the implementation plan at $PLAN_FILE.
+Read it yourself with your Read tool — do not expect the contents pasted here.
 
 Before scoring, attempt to REFUTE the plan: verify via Read/Grep that the files, paths, and
-anchors referenced in ops.json actually exist in the repo. A plan claim contradicted by the
-filesystem is a CRITICAL issue. Ask: what repo state or edge case makes this ops.json fail?
+anchors the plan references actually exist in the repo, and that its Files: list covers every
+path its steps write. A plan claim contradicted by the filesystem is a CRITICAL issue. Ask:
+what repo state or edge case makes this plan fail when it is implemented?
 
 Respond in EXACTLY this format — no deviations:
 
@@ -84,7 +59,7 @@ ISSUES:
 
 DECISION RULES:
 **Decision values and score bands: [HANDOFF_PROTOCOL.md](../agents/HANDOFF_PROTOCOL.md#reviewer-decision-taxonomy) is the single definition — findings gate before score.**
-REJECTED = no ops.json, invalid ops.json, destructive ops without rollback$DELTA_BLOCK"
+REJECTED = no Files: list, a Files: list that omits a path the steps write, destructive steps without a rollback"
 
 review_output=$(echo "$REVIEWER_MSG" | claude -p --agent reviewer --model sonnet --allowedTools "Read,Grep,Glob")
 EXIT_CODE=$?
@@ -96,30 +71,33 @@ fi
 
 echo "$review_output"
 
-# Bind this verdict to the exact ops.json that was scored. Parsing happens inside the
+# Bind this verdict to the exact plan bytes that were scored. Parsing happens inside the
 # script (strict anchored patterns), so an echoed format template cannot be mistaken
 # for a real verdict. A failed write is reported, never swallowed.
 printf '%s' "$review_output" | \
-  python3 .claude/operations/scripts/review-record.py write "$PLAN_FILE" "$OPS_FILE" --from-review - --session-id "${CLAUDE_SESSION_ID:-}" --reviewer-role reviewer \
-  || echo "WARNING: verdict NOT recorded — /implement will report NO RECORD until /review succeeds." >&2
+  python3 .claude/operations/scripts/review-record.py plan-write "$PLAN_FILE" --from-review - --reviewer-role reviewer \
+  || echo "WARNING: verdict NOT recorded — plan-gate will report NO RECORD until /review succeeds." >&2
 ```
 
 2. **Record the verdict (Task-tool path).** The bash block above only runs on the
    scripted `claude -p` path. When the reviewer ran via the Task tool (the interactive
-   default), record from the reviewer's own transcript by the `agentId` the Task tool returned (the script reads the last `=== REVIEW ===` block and the harness-recorded role, and keeps the text beside the record).
-   Never copy, rewrite or summarise the reply by hand; no block records nothing (re-ask, never compose one):
+   default), record from the reviewer's own transcript by the `agentId` the Task tool
+   returned (the script reads the last `=== REVIEW ===` block and the harness-recorded
+   role, and keeps the text beside the record). Never copy, rewrite or summarise the reply
+   by hand; no block records nothing (re-ask, never compose one):
    ```bash
-   python3 .claude/operations/scripts/review-record.py resolve "$PLAN_FILE"
+   python3 .claude/operations/scripts/review-record.py plan-write "$PLAN_FILE" --from-task "<agentId>"
    ```
-   ```bash
-   python3 .claude/operations/scripts/review-record.py write "$PLAN_FILE" "<resolved-ops-path>" --from-task "<agentId>" --session-id "${CLAUDE_SESSION_ID:-}"
-   ```
-   Skipping this step means `/implement`'s STEP 0 gate refuses with exit 3 (no record) —
-   it fails closed, not silently. A review that exists only as a file: `--from-review "<file>" --reviewer-role reviewer`.
+   Skipping this step means `plan-gate` and `/implement` STEP 0 refuse with exit 3 (no
+   record) — they fail closed, not silently. A review that exists only as a file:
+   `--from-review "<file>" --reviewer-role reviewer`.
 
-   **Record REJECTING rounds too — not optional.** Both write calls above are unconditional on purpose: REVISE, REJECTED and CONDITIONAL are recorded exactly like APPROVED (`rounds[]` is a verdict's only durable history), and recording a non-approving verdict authorises nothing — `check` still exits 4.
+   **Record REJECTING rounds too — not optional.** The write call is unconditional on
+   purpose: REVISE, REJECTED and CONDITIONAL are recorded exactly like APPROVED, and
+   recording a non-approving verdict authorises nothing — `plan-check` still exits 4.
+   A bare `--score/--decision` approval is owner-only (`--owner-approved`); never mint one.
 
 3. After output, suggest:
-   - If APPROVED (score ≥ 90): run `/implement` — from a compacted or fresh context whose only input is the plan path (run `/compact` first if `suggest-compact` has fired); do not continue implementing inside this review conversation
-   - If CONDITIONAL/REVISE: address issues and re-run `/plan`
+   - If APPROVED (score ≥ 90): ask the user to approve, then run `/implement` — from a compacted or fresh context whose only input is the plan path (run `/compact` first if `suggest-compact` has fired); do not continue implementing inside this review conversation
+   - If CONDITIONAL/REVISE: address issues, edit the plan and re-run `/review` (it scores the whole plan again)
    - If REJECTED: restate the task more narrowly and re-run `/plan`

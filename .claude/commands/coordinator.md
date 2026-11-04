@@ -56,7 +56,7 @@ route by mode — the one `docs` agent, `mode: create` for new documentation and
 Read-only agents with independent inputs (explore, debugger, security-scanner,
 code-reviewer, verifier-as-reader) MUST be spawned together in ONE message — never
 one per turn. Two independent read-only tasks already justify a parallel group. Only
-implementer and gitOps are strictly serialized (they write). Spawn mechanism per routing
+gitOps is a writing agent; code edits stay in the main session. Spawn mechanism per routing
 row: slash commands where one exists (e.g. `/plan`, `/debug`), otherwise
 `claude -p --agent <name>` with the scoped tool row from
 `.claude/agents/_shared/INVOCATION.md`.
@@ -94,10 +94,10 @@ Maintain a workflow state throughout the orchestration:
 
 | From Agent   | Condition                | Hand Off To   |
 |--------------|--------------------------|---------------|
-| reviewer     | APPROVED (score >= 90)   | implementer   |
+| reviewer     | APPROVED (score >= 90)   | main session (/implement, after user approval) |
 | reviewer     | ESCALATED (3 rounds)     | human review  |
-| implementer  | Implementation complete  | verifier      |
-| implementer  | Implementation failed    | debugger      |
+| main session | Implementation complete  | verifier      |
+| main session | Implementation failed    | debugger      |
 | verifier     | Score >= 90 (PASS)       | git (commit)  |
 | verifier     | Score < 90 (FAIL)        | debugger      |
 | debugger     | Diagnosis complete       | planner (fix plan) |
