@@ -19,7 +19,7 @@ sequenceDiagram
     participant T as Tool
     participant Post as PostToolUse hooks
     U->>CC: UserPromptSubmit → injection-scan-gate, pre-plan
-    CC->>Pre: Edit/Write → ops-enforcement, config-protection,<br/>security-reminder, file-guard-gate
+    CC->>Pre: Edit/Write → plan-gate, checkpoint-gate, config-protection,<br/>security-reminder, file-guard-gate
     CC->>Pre: Bash → command-guard, block-no-verify, commit-quality,<br/>pre-commit (git commit), pre-push (git push)
     alt any exits 2
         Pre-->>CC: BLOCKED (stderr reason)
@@ -34,7 +34,8 @@ sequenceDiagram
 
 | Hook | Matcher | Blocks when |
 |------|---------|-------------|
-| `ops-enforcement.sh` | Edit/Write | Editing source files outside `.claude/`+docs without an approved ops.json (the Iron Law's mechanical teeth). Bypass hints were removed in v2.1. |
+| `plan-gate.sh` | Edit/Write | Tier 3 source edited without an approved, unchanged plan.md listing the path in `Files:` (the Iron Law's mechanical teeth). Binds under every profile. |
+| `checkpoint-gate.sh` | Edit/Write | Tier 3 edit with no `ck-checkpoint/<epoch>` tag. |
 | `config-protection.sh` | Edit/Write | Modifying protected configs (package.json, pyproject.toml, tsconfig…). Anchored patterns; creating a **new** pyproject.toml is allowed (was a false-positive bug). |
 | `file-guard-gate.sh` | Edit/Write | Touching sensitive paths (`.env`, keys, `.git/config`) — delegates to PathGuard semantics. |
 | `command-guard.sh` | Bash | Command fails `claudekit.security` validation. `strict`=block, `standard`=warn, `minimal`=off. |

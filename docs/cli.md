@@ -515,7 +515,7 @@ claudekit profile list                     # installed profiles, and which is ac
 claudekit profile show python              # the raw profile document
 claudekit profile show python --resolved   # composed, with each row's winning layer
 claudekit profile show python --json       # same, machine-readable
-claudekit profile show minimal --set hooks.ops-enforcement=on   # override layer
+claudekit profile show minimal --set hooks.command-guard=on   # override layer
 ```
 
 Layers compose `base -> profile -> project-local -> override`, each replacing rows by id.

@@ -272,7 +272,7 @@ ClaudeKit includes 79 reusable skills that agents load on-demand:
 | **pre-push** | Before `git push` | Yes | Full validation: tests, lint, build must all pass |
 | **post-tool-use** | After Edit/Write/Bash | No | Tracks modifications, validates ops.json on edit |
 
-Other wired hooks include `ops-enforcement` (blocks source edits without an approved ops.json), `command-guard` (runs Bash commands through the security validator), `config-protection`, `block-no-verify`, `commit-quality`, `injection-scan-gate`, and session/telemetry hooks. Project commands (build/test/lint/coverage) are configured once in `.claude/hooks/config.json` — no hardcoded values. Full reference: [docs/HOOKS.md](docs/HOOKS.md).
+Other wired hooks include `plan-gate` (blocks Tier 3 source edits without an approved plan.md that lists the file) and `checkpoint-gate` (requires a git checkpoint first), `command-guard` (runs Bash commands through the security validator), `config-protection`, `block-no-verify`, `commit-quality`, `injection-scan-gate`, and session/telemetry hooks. Project commands (build/test/lint/coverage) are configured once in `.claude/hooks/config.json` — no hardcoded values. Full reference: [docs/HOOKS.md](docs/HOOKS.md).
 
 ---
 

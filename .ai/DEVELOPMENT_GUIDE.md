@@ -13,7 +13,7 @@ mkdir -p .claude && cat > .claude/settings.local.json <<'EOF'
 EOF
 ```
 
-The local settings file (gitignored, preserved across reinstalls) disables the kit's own enforcement hooks so you can edit source normally. Without it, `ops-enforcement.sh` blocks Edit/Write outside `.claude/`+docs. See CONTRIBUTING.md "Working on ClaudeKit itself".
+The local settings file (gitignored, preserved across reinstalls) relaxes the profile-gated hooks. It does not relax `plan-gate`, which binds under every profile: Tier 3 edits need an approved plan.md. See CONTRIBUTING.md "Working on ClaudeKit itself".
 
 ## Daily commands
 

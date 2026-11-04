@@ -56,7 +56,7 @@ Feature promise (README) → enforcing mechanism (hook/guard/CI job) → proving
 
 | Promise | Mechanism | Test | Doc |
 |---------|-----------|------|-----|
-| "Plans before code" | ops-enforcement.sh + Iron Law | test_hooks_behavioral | HOOKS/DOMAIN |
+| "Plans before code" | plan-gate.sh + Iron Law | test_hooks_behavioral | HOOKS/DOMAIN |
 | "29 safety guards" | validate-config-json.py | test_validator | SKILLS §ops |
 | "Safe execution, rollback" | execute-json-ops / restore-backup | test_validator, behavioral | SKILLS §ops |
 | "Hooks block" | exit-2 contract + settings.json | test_hooks_behavioral | HOOKS |

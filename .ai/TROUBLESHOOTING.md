@@ -4,7 +4,7 @@ Symptom → cause → fix. Maintainer-focused; user-facing variants belong in do
 
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
-| Edit/Write blocked while developing the kit ("ops-enforcement") | No `ECC_HOOK_PROFILE=minimal` override | Create `.claude/settings.local.json` per [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md); don't bypass hooks ad hoc |
+| Edit/Write blocked on Tier 3 source ("PLAN GATE") | No approved plan.md names the file | Write `.claude/plans/plan-<slug>.md` with `Tier:` and `Files:`, get it reviewed, record it with `review-record.py plan-write`; no profile bypasses it |
 | Hooks never fire in a user project | Old install without settings.json (pre-v2.1 installer bug) | Re-run installer / `ck update`; verify with `ck doctor` |
 | "Blocking" hook doesn't block | exit 1 or message on stdout; or profile=minimal | exit 2 + stderr via `deny`; check profile |
 | Hook blocks everything unexpectedly | Fail-closed on payload parse failure | Check hooks.log for the parse error; payload shape changed? |

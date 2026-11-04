@@ -89,9 +89,9 @@ Set it in your shell or in `.claude/settings.local.json` (git-ignored):
 
 Unset defaults to `standard`.
 
-### `ECC_OPS_ENFORCEMENT=off` — keep the profile, drop one gate
+### `ECC_PLAN_GATE=off` — silence the advisory nudge
 
-Sets only the `ops-enforcement` hook (the Edit/Write source-file gate) to pass-through while every other `standard` hook keeps binding. Put it in the same `env` object. Only the literal `off` opts out; any other value leaves the gate on.
+`plan-gate` and `checkpoint-gate` bind under every `ECC_HOOK_PROFILE`, `minimal` included. `ECC_PLAN_GATE=off` silences only the advisory nudge for source outside the Tier 3 list; it never loosens a Tier 3 block. Tier 3 opt-outs are read only from the user-level `~/.claude/settings.json`, never from the project or the process environment. Settings and hook-registration edits are owner-only (`! <command>`).
 
 ## Hook catalog
 
@@ -99,7 +99,8 @@ Sets only the `ops-enforcement` hook (the Edit/Write source-file gate) to pass-t
 
 | Hook | Trigger | Profile | Purpose |
 |------|---------|---------|---------|
-| `ops-enforcement.sh` | Edit/Write | off in `minimal` | Enforces the plan→ops.json→execute flow; blocks ad-hoc edits outside allowed areas |
+| `plan-gate.sh` | Edit/Write | on in every profile | Tier 3 source is editable only when a reviewed, recorded plan.md lists the path in `Files:`; fails closed |
+| `checkpoint-gate.sh` | Edit/Write | on in every profile | Tier 3 edits need a `ck-checkpoint/<epoch>` tag first |
 | `config-protection.sh` | Edit/Write | off in `minimal` | Blocks edits to protected config files |
 | `block-no-verify.sh` | Bash | off in `minimal` | Blocks `git commit/push --no-verify` (which would skip hooks) |
 | `commit-quality.sh` | Bash | off in `minimal` | Enforces commit-message quality |
