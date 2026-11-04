@@ -1,13 +1,16 @@
 ---
 name: subagent-driven-development
-description: "Use when executing a plan by dispatching fresh subagent per task with two-stage review"
+description: "Use when executing a plan task by task — the main session edits, fresh review-only subagents check each task"
 ---
 
 # Subagent-Driven Development
 
 ## Core Principle
 
-**Each task gets a fresh agent with a focused context window.** This prevents context pollution, ensures consistent quality, and enables two-stage review (specification review + code quality review).
+**The main session writes the code; fresh subagents only look at it.** Each finished task is
+checked by a read-only subagent with a focused context (specification review, then code
+quality review if the user asked). Subagents never get Edit/Write on source: edits stay in the
+main session, where `plan-gate` and `checkpoint-gate` apply.
 
 ---
 
@@ -17,19 +20,17 @@ description: "Use when executing a plan by dispatching fresh subagent per task w
 
 | Scenario | Why |
 |---|---|
-| Executing a multi-task plan | Each task is independent enough for a fresh agent |
-| Tasks that follow established patterns | Subagent can follow patterns without full history |
-| Repetitive but non-trivial tasks | Fresh context prevents fatigue and drift |
-| Work that benefits from review | Two-stage review catches more issues |
+| Executing a multi-task plan | Each task ends at a checkable boundary |
+| Tasks that follow established patterns | A reviewer can judge them from the spec alone |
+| Work where the main context is large | A fresh reviewer has no authoring bias |
 
 ### Poor Fit
 
 | Scenario | Why |
 |---|---|
-| Tightly coupled tasks requiring shared context | Handoff cost exceeds benefit |
-| Exploratory work with unclear direction | Subagent needs clear instructions |
-| Single quick fix | Dispatch overhead not worth it |
-| Tasks requiring real-time user interaction | Subagent cannot ask the user questions |
+| Single quick fix | Dispatch overhead is not worth it |
+| Exploratory work with unclear direction | A reviewer needs a spec to review against |
+| Tightly coupled tasks | The review needs the whole diff, not one task |
 
 ---
 
@@ -38,96 +39,70 @@ description: "Use when executing a plan by dispatching fresh subagent per task w
 For each task in the plan:
 
 ```
-[DISPATCH IMPLEMENTER] Fresh agent implements the task
+[IMPLEMENT] Main session edits the files the task names (plan Files: list)
     |
     v
-[SPEC REVIEW] Review: Does implementation match the specification?
+[SPEC REVIEW] Fresh read-only subagent: does the diff match the specification?
     |
     v
-[CODE QUALITY REVIEW] Only if the user asked: Is the code clean, tested, secure?
+[CODE QUALITY REVIEW] Only if the user asked: is the code clean, tested, secure?
     |
     v
-[ACCEPT or REWORK] Decide if task is complete
+[ACCEPT or REWORK] Main session fixes findings, or accepts the task
     |
     v
-[NEXT TASK] Move to the next task in the plan
+[NEXT TASK]
 ```
+
+Independent read-only checks (spec review, tests, security scan) run in ONE batched message.
 
 ---
 
-## Stage 1: Dispatch Implementer
+## Stage 1: Implement (main session)
 
-### The Implementer Prompt
-
-```markdown
-## Task: [Task Name from Plan]
-
-### Context
-You are implementing task [N] of [M] in a development plan.
-
-### What to Implement
-[Exact specification from the plan]
-
-### Files to Modify
-- [file 1]: [what to change]
-- [file 2]: [what to change]
-
-### Files to Create
-- [file 1]: [purpose]
-
-### Patterns to Follow
-[Reference existing code that demonstrates the pattern]
-- See: [file path] for the pattern to follow
-- Naming convention: [convention]
-- Test pattern: [how tests should be structured]
-
-### Acceptance Criteria
-- [ ] [criterion 1]
-- [ ] [criterion 2]
-- [ ] [criterion 3]
-
-### Constraints
-- Do not modify files outside your scope
-- Follow existing patterns in the codebase
-- Write tests for all new functionality
-- Do not introduce new dependencies without noting them
-
-### When Done
-Report:
-- Files created/modified
-- Tests written
-- Any concerns or deviations from spec
-```
+Edit directly, one task at a time, in the plan's order. Stay inside the plan's `Files:` list;
+a path outside it is a plan change, not a quiet extra. Read each file before editing it.
 
 ---
 
 ## Stage 2: Spec Review
 
-After the implementer completes, review against the specification:
+Dispatch a fresh `code-reviewer` (or `explore`) subagent. It has no Write grant for source;
+give it the task spec and the diff scope, and ask for findings with file:line.
 
-### Spec Review Checklist
+### The Review Prompt
 
-| Check | Question |
-|---|---|
-| **Completeness** | Does the implementation cover all acceptance criteria? |
-| **Correctness** | Does it match what was specified, not just something that works? |
-| **Scope** | Did the implementer stay within the specified scope? |
-| **Contracts** | Do interfaces/APIs match the plan's design? |
-| **Integration** | Will this integrate with the rest of the system as planned? |
+```markdown
+## Review: [Task Name from Plan]
+
+### Specification
+[Exact specification from the plan, with acceptance criteria]
+
+### Scope
+Changed files: [list]. Review `git diff` for these files only.
+
+### Check
+- Completeness: every acceptance criterion covered?
+- Correctness: matches what was specified, not just something that works?
+- Scope: nothing changed outside the listed files?
+- Contracts: interfaces/APIs match the plan's design?
+
+### Report
+At most 300 words: PASS / MINOR ISSUES / REWORK NEEDED, then findings as
+[severity] file:line - issue - suggested fix. Do not edit anything.
+```
 
 ### Spec Review Outcomes
 
-- **PASS**: Implementation matches specification. Proceed to code review if the user asked for it; otherwise accept.
+- **PASS**: Matches the specification. Proceed to code review if the user asked; else accept.
 - **MINOR ISSUES**: Small deviations that can be noted and accepted. Proceed.
-- **REWORK NEEDED**: Significant deviation from spec. Send back to implementer.
+- **REWORK NEEDED**: Significant deviation. The main session fixes it and re-requests review.
 
 ---
 
 ## Stage 3: Code Quality Review
 
-Runs only when the user asked for code review — never on its own. After spec review passes, review code quality:
-
-### Code Quality Checklist
+Runs only when the user asked for code review — never on its own. After spec review passes:
 
 | Area | What to Check |
 |---|---|
@@ -140,97 +115,42 @@ Runs only when the user asked for code review — never on its own. After spec r
 | **Readability** | Can another developer understand this easily? |
 | **Duplication** | No copy-paste code that should be abstracted? |
 
-### Code Quality Outcomes
-
-- **PASS**: Code is clean and well-structured. Task complete.
-- **MINOR ISSUES**: Small improvements needed. Fix and accept.
-- **REWORK NEEDED**: Significant quality issues. Send back to implementer with specific feedback.
+Outcomes: **PASS** (task complete), **MINOR ISSUES** (fix and accept), **REWORK NEEDED**
+(main session fixes with the specific feedback, then re-review).
 
 ---
 
 ## Rework Protocol
 
-When rework is needed:
-
-1. **Provide specific feedback** - not "make it better" but "change X to Y because Z"
-2. **Dispatch a fresh agent** (or the same one if context is still valid)
-3. **Include the feedback** in the new dispatch prompt
-4. **Re-review** after rework
+1. Apply the reviewer's specific findings yourself ("change X to Y because Z").
+2. Re-run the checks that failed; request a fresh review of the new diff.
 
 ### Maximum Rework Cycles
 
-- **Limit: 2 rework cycles** per task
-- If still not passing after 2 reworks, escalate to the coordinator/user
-- Possible issues: unclear spec, wrong pattern, or task too complex for subagent
-
----
-
-## Prompt Templates
-
-### Rework Prompt
-
-```markdown
-## Rework: [Task Name]
-
-### Previous Implementation
-[Summary of what was implemented]
-
-### Feedback
-The following issues need to be addressed:
-
-1. [Specific issue 1]
-   - Current: [what was done]
-   - Expected: [what should be done]
-   - Why: [explanation]
-
-2. [Specific issue 2]
-   - Current: [what was done]
-   - Expected: [what should be done]
-   - Why: [explanation]
-
-### Files to Modify
-[Same file list, updated with rework targets]
-
-### Updated Acceptance Criteria
-[Original criteria plus rework-specific criteria]
-```
-
----
-
-## Advantages of Subagent-Driven Development
-
-| Advantage | Explanation |
-|---|---|
-| **Fresh context** | No context pollution from previous tasks |
-| **Consistent quality** | Each task gets full attention, no fatigue |
-| **Two-stage review** | Catches both spec and quality issues |
-| **Parallelizable** | Independent tasks can use parallel subagents |
-| **Auditable** | Clear record of what each agent did |
-| **Replaceable** | Failed agents can be easily re-dispatched |
+- **Limit: 2 rework cycles** per task (3 review rounds is the hook-enforced ceiling).
+- If still not passing, escalate to the coordinator/user. Likely causes: unclear spec, wrong
+  pattern, or a task too large for one pass.
 
 ---
 
 ## Progress Tracking
 
-Maintain a task tracker during execution:
-
 ```markdown
 ## Plan Execution Progress
 
-| # | Task | Implementer | Spec Review | Code Review | Status |
+| # | Task | Edited | Spec Review | Code Review | Status |
 |---|---|---|---|---|---|
 | 1 | Create User entity | DONE | PASS | PASS | COMPLETE |
 | 2 | Add validation | DONE | PASS | REWORK | IN REVIEW |
 | 3 | Implement repository | IN PROGRESS | - | - | IN PROGRESS |
 | 4 | Add API endpoint | NOT STARTED | - | - | PENDING |
-| 5 | Write integration tests | NOT STARTED | - | - | PENDING |
 ```
 
 ---
 
 ## Integration with Other Skills
 
-- **writing-plans**: Plans provide the task list for subagent execution
-- **multi-agent-coordination**: File scope rules apply to parallel subagents
-- **verification-before-completion**: Each subagent must verify before reporting
-- **golden-rule**: Coordinator must have user approval for the overall plan
+- **writing-plans**: Plans provide the task list and the `Files:` scope
+- **multi-agent-coordination**: Read-only subagents may run in parallel; edits never do
+- **verification-before-completion**: Verify before reporting each task done
+- **golden-rule**: Edits need an approved plan (Tier 3) or the user's go-ahead
