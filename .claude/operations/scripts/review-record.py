@@ -362,9 +362,8 @@ def _records_root(ops=None) -> Path:
     verdict under MAIN, and `execute-json-ops.py --root <worktree>` then refused with
     "no review record exists" (measured in qa-agents). write, check, diff, author and
     the executor's gate all call this with the ops file and nothing else. There is
-    deliberately no plan fallback: the executor holds only the config, so a
-    plan-rooted answer for an ops file outside git would put the record where the
-    executor never looks. Outside git every caller gets the cwd walk, as before.
+    no plan fallback HERE (ops-keyed): the executor holds only the config.
+    Plan-keyed records use _main_root() instead. Outside git every caller gets the cwd walk, as before.
     """
     if ops:
         top = _git_toplevel(Path(ops).resolve().parent)
@@ -1940,6 +1939,185 @@ def _stats_core(args) -> int:
     return 0
 
 
+# --------------------------------------------------------------------------- plan records
+#
+# Plan-keyed approval (additive to the ops-keyed records above, which stay valid):
+# a record `<plan_slug>.plan.json` binds an APPROVED verdict to plan.md's sha256 and the
+# paths its `Files:` header names. plan-gate.sh asks `plan-check <plan> --path P`.
+# Honest limit: this is a speed bump, not a sandbox (kit hard rule 6).
+PLAN_RECORD_SUFFIX = ".plan.json"
+EXIT_PLAN_DRIFT = 2
+EXIT_PLAN_NO_RECORD = 3
+EXIT_PLAN_NOT_AUTHORISING = 4
+EXIT_PLAN_BAD_FILES = 8
+_FILES_RE = re.compile(r"^\s*(?:[-*]\s*)?\*{0,2}Files:?\*{0,2}:?\s*(.*)$")
+_BARE_GLOBS = ("*", "**", "**/*", "./*", "./**", "/**", "")
+
+
+def _main_root(start=None) -> Path:
+    """Root for plan records: the MAIN worktree (git common dir's parent) in git, else the
+    cwd walk. A linked worktree therefore cannot mint its own approval. write and check
+    both call this, so they cannot disagree. This deliberately reverses the old 'no plan
+    fallback' rule for plan-keyed records, which are looked up by plan, not by ops file."""
+    where = Path(start).resolve() if start is not None else Path.cwd()
+    if where.is_file():
+        where = where.parent
+    try:
+        proc = subprocess.run(["git", "rev-parse", "--path-format=absolute",
+                               "--git-common-dir"], cwd=str(where), capture_output=True,
+                              text=True, timeout=10)
+        common = proc.stdout.strip() if proc.returncode == 0 else ""
+    except (OSError, subprocess.SubprocessError):
+        common = ""
+    if common:
+        return Path(os.path.realpath(common)).parent
+    return _project_root(where)
+
+
+def parse_plan_files(text: str) -> list:
+    """Path/glob tokens from the plan's `Files:` header (backticked, or comma separated);
+    indented or backtick-led continuation lines belong to the header."""
+    out, active = [], False
+    for line in text.splitlines():
+        m = _FILES_RE.match(line)
+        if m:
+            active, chunk = True, m.group(1)
+        elif active and line.strip() and line[:1] in " \t`" and not re.match(
+                r"^\s*[-*]\s*\*\*", line):
+            chunk = line
+        else:
+            active = False
+            continue
+        ticks = re.findall(r"`([^`]+)`", chunk)
+        out.extend(ticks if ticks else [t.strip() for t in chunk.split(",") if t.strip()])
+    seen = []
+    for tok in out:
+        tok = tok.strip().rstrip(",;")
+        if tok and tok not in seen:
+            seen.append(tok)
+    return seen
+
+
+def _plan_record_path(plan: Path) -> Path:
+    safe = re.sub(r"[^A-Za-z0-9._-]", "_", plan_slug(str(plan))).lstrip(".") or "_"
+    return _records_dir(_main_root(plan)) / (safe + PLAN_RECORD_SUFFIX)
+
+
+def _rel_to_root(path: str, root: Path) -> str:
+    p = Path(path)
+    if p.is_absolute():
+        try:
+            p = p.resolve().relative_to(root)
+        except ValueError:
+            return str(p)
+    return str(p).replace(os.sep, "/").lstrip("./") if str(p).startswith("./") \
+        else str(p).replace(os.sep, "/")
+
+
+def _path_matches(path: str, globs: list, root: Path) -> bool:
+    import fnmatch
+    rel = _rel_to_root(path, root)
+    for g in globs:
+        g = g[2:] if g.startswith("./") else g
+        if rel == g or fnmatch.fnmatchcase(rel, g) or \
+                (g.endswith("/") and rel.startswith(g)) or \
+                (g.endswith("/**") and rel.startswith(g[:-2])):
+            return True
+    return False
+
+
+def cmd_plan_write(args) -> int:
+    plan = Path(args.plan)
+    if not plan.is_file():
+        print("Error: plan not found: %s" % plan, file=sys.stderr)
+        return 1
+    files = parse_plan_files(plan.read_text(encoding="utf-8"))
+    bare = [g for g in files if g.strip() in _BARE_GLOBS]
+    if not files or bare:
+        print("REFUSED: plan `Files:` header is %s; name concrete paths or narrow globs. "
+              "Nothing recorded." % ("empty" if not files else "too broad: %r" % bare),
+              file=sys.stderr)
+        return EXIT_PLAN_BAD_FILES
+    raw = None
+    role, role_source = args.reviewer_role, "asserted"
+    if args.from_task and args.from_review:
+        print("Error: --from-task and --from-review are exclusive", file=sys.stderr)
+        return 1
+    if args.from_task:
+        transcript = _task_transcript(args.from_task)
+        if transcript is None:
+            print("Error: no subagent transcript for %r" % args.from_task, file=sys.stderr)
+            return 1
+        raw, task_role = _task_review(transcript)
+        if raw is None:
+            print("Error: %s holds no parseable === REVIEW === block." % transcript,
+                  file=sys.stderr)
+            return 1
+        if task_role is not None:
+            role, role_source = task_role, "transcript"
+    elif args.from_review:
+        raw = sys.stdin.read() if args.from_review == "-" else \
+            Path(args.from_review).read_text(encoding="utf-8")
+    if raw is not None:
+        score, decision, _ = parse_verdict(raw)
+        if score is None:
+            print("Error: could not parse SCORE/DECISION. Nothing recorded.", file=sys.stderr)
+            return 1
+        origin = "rubric"
+    else:
+        score, decision = args.score, args.decision
+        if score is None or decision is None or not 0 <= score <= 100:
+            print("Error: provide --from-task/--from-review, or --score and --decision",
+                  file=sys.stderr)
+            return 1
+        if decision in NON_RECORDABLE_DECISIONS and not args.owner_approved:
+            print("REFUSED: a bare --decision %s is not a review; nothing recorded."
+                  % decision, file=sys.stderr)
+            return EXIT_UNATTESTED_APPROVAL
+        origin = "owner" if args.owner_approved else "rubric"
+    rec_path = _plan_record_path(plan)
+    rec_path.parent.mkdir(parents=True, exist_ok=True)
+    record = {
+        "plan_path": _rel_to_root(str(plan.resolve()), _main_root(plan)),
+        "plan_sha256": sha256_of(plan), "files": files, "score": score,
+        "decision": decision, "reviewer_role": role, "role_source": role_source,
+        "verdict_origin": origin,
+        "recorded_utc": datetime.now(timezone.utc).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"),
+    }
+    if not _safe_write(rec_path, json.dumps(record, indent=2) + "\n"):
+        return 1
+    print("Recorded %s %s for %s (%d path(s))" % (decision, score, plan, len(files)))
+    return 0
+
+
+def cmd_plan_check(args) -> int:
+    plan = Path(args.plan)
+    rec_path = _plan_record_path(plan)
+    if not plan.is_file() or not rec_path.is_file():
+        print("NO RECORD: no plan approval for %s" % plan, file=sys.stderr)
+        return EXIT_PLAN_NO_RECORD
+    try:
+        rec = json.loads(rec_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        print("NO RECORD: unreadable %s" % rec_path, file=sys.stderr)
+        return EXIT_PLAN_NO_RECORD
+    if rec.get("plan_sha256") != sha256_of(plan):
+        print("DRIFT: plan changed since review; re-review it.", file=sys.stderr)
+        return EXIT_PLAN_DRIFT
+    score = rec.get("score")
+    if rec.get("decision") != "APPROVED" or not isinstance(score, int) \
+            or score < APPROVAL_THRESHOLD:
+        print("NOT AUTHORISING: %s %s (need APPROVED >= %d)"
+              % (rec.get("decision"), score, APPROVAL_THRESHOLD), file=sys.stderr)
+        return EXIT_PLAN_NOT_AUTHORISING
+    if args.path and not _path_matches(args.path, rec.get("files") or [], _main_root(plan)):
+        print("NOT COVERED: %s is not in the plan's Files:" % args.path, file=sys.stderr)
+        return EXIT_PLAN_NOT_AUTHORISING
+    print("OK: approved %s (%s)" % (score, rec_path.name))
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Bind a review verdict to an ops.json")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -2041,6 +2219,21 @@ def main() -> int:
     rej_bf.add_argument("--write", action="store_true",
                         help="actually write; without it this reports and writes NOTHING")
     rej_bf.set_defaults(func=cmd_rejections_backfill)
+    pw = sub.add_parser("plan-write", help="Record a verdict against plan.md (plan-keyed)")
+    pw.add_argument("plan")
+    pw.add_argument("--from-task", dest="from_task", default=None)
+    pw.add_argument("--from-review", dest="from_review", default=None)
+    pw.add_argument("--score", type=int)
+    pw.add_argument("--decision", choices=VALID_DECISIONS)
+    pw.add_argument("--reviewer-role", dest="reviewer_role", default=None)
+    pw.add_argument("--owner-approved", dest="owner_approved", action="store_true",
+                    help="HUMAN OWNER ONLY: bare approving --decision")
+    pw.set_defaults(func=cmd_plan_write)
+    pc = sub.add_parser("plan-check", help="Exit 0 only for an unchanged APPROVED plan")
+    pc.add_argument("plan")
+    pc.add_argument("--path", default=None, help="Also require this path in Files:")
+    pc.set_defaults(func=cmd_plan_check)
+
     d = sub.add_parser("diff", help="Unified diff: approved snapshot -> current ops.json")
     d.add_argument("plan")
     d.add_argument("ops")
