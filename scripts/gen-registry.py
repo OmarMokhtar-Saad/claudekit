@@ -269,8 +269,8 @@ def main():
     used_by = derive_used_by(registry, derived)
     for skill in registry.get("skills", []):
         skill["usedBy"] = used_by[skill["id"]]
-    with open(REGISTRY, "w") as fh:
-        json.dump(registry, fh, indent=2)
+    with open(REGISTRY, "w", encoding="utf-8") as fh:
+        json.dump(registry, fh, indent=2, ensure_ascii=False)
         fh.write("\n")
     print(f"Rewrote registry from the filesystem ({len(derived)} mapped agents, "
           f"{len(unmapped)} without skills, {len(unregistered)} newly registered skills).")
