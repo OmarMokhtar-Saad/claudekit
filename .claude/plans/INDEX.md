@@ -24,11 +24,11 @@ index never outranks the current files.
 |---|---:|
 | `drifted` | 12 |
 | `approved` | 66 |
-| `planned` | 37 |
-| `executed` | 31 |
-| `not_started` | 27 |
+| `planned` | 38 |
+| `executed` | 30 |
+| `not_started` | 28 |
 | `legacy` | 5 |
-| **total** | **178** |
+| **total** | **179** |
 
 ## Plans
 
@@ -153,13 +153,14 @@ index never outranks the current files.
 | `.claude/plans/plan-rejection-retro-loop.md` | `planned` | 7 |  |
 | `.claude/plans/plan-remaining-fixes-2026-07-31.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-remove-codex-mirror.md` | `approved` | 1 |  |
+| `.claude/plans/plan-remove-ops-main-session.md` | `not_started` | 0 |  |
 | `.claude/plans/plan-repo-hygiene-gates.md` | `drifted` | 1 |  |
 | `.claude/plans/plan-request-shaping.md` | `planned` | 5 |  |
 | `.claude/plans/plan-residuals.md` | `approved` | 1 |  |
 | `.claude/plans/plan-residue-cleanup.md` | `approved` | 1 |  |
 | `.claude/plans/plan-retro-completion.md` | `planned` | 9 |  |
 | `.claude/plans/plan-review-approval-binding.md` | `planned` | 1 |  |
-| `.claude/plans/plan-review-d945278.md` | `executed` | 9 |  |
+| `.claude/plans/plan-review-d945278.md` | `planned` | 9 |  |
 | `.claude/plans/plan-review-discipline.md` | `approved` | 1 |  |
 | `.claude/plans/plan-review-floor-and-iron-law-scope.md` | `approved` | 1 |  |
 | `.claude/plans/plan-review-identity-fix.md` | `planned` | 1 |  |
