@@ -5,7 +5,7 @@ output_filter.py - PostToolUse stdout filter for noisy Bash commands (adoption i
 WHY IT LIVES HERE AND NOT IN .claude/hooks/: scripts/gen-docs.py:75 sets
 HOOK_GLOBS = ("*.sh", "*.py") and counts every matching file in .claude/hooks/, so a new
 hook script there would move the published component count and redden the docs-drift gate.
-heal_local_settings.py set the precedent for hook-shaped scripts that live in
+The retired settings healer set the precedent for hook-shaped scripts that live in
 .claude/operations/scripts/ instead; this follows it. install.sh:222-223 already copies
 *.py AND *.json out of this directory, so the engine and its filter file reach every kitted
 project with no installer change and no new entry in the mkdir list at install.sh:204.
