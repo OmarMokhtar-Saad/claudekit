@@ -248,6 +248,8 @@ class TestHookWiringIsHonest:
         # Ships deliberately unwired and said so at docs/HOOKS.md long before this test
         # existed -- which is how that file came to contradict its own opening sentence.
         "post-implement.sh",
+        # Phase 1a of plan-remove-ops-main-session: built and tested, registered in 1c.
+        "checkpoint-gate.sh",
     }
 
     @staticmethod

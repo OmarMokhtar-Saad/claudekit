@@ -57,6 +57,9 @@ TOGGLE_MODES: Tuple[str, ...] = ("on", "off")
 #: hook grows a guard without this table being updated.
 GUARDED_HOOKS: Dict[str, str] = {
     "block-no-verify": "block-no-verify.sh",
+    "checkpoint-gate": "checkpoint-gate.sh",
+    "plan-gate": "plan-gate.sh",
+    "shell-write-gate": "shell-write-gate.py",
     "command-guard": "command-guard.sh",
     "commit-quality": "commit-quality.sh",
     "concurrency-guard": "concurrency-guard.py",
