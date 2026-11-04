@@ -36,7 +36,6 @@ DOC_ROOTS = (
 # corpus kept teaching an unchecked schema.
 MIN_EXAMPLES = {
     os.path.join('.claude', 'agents', '_shared', 'WORKFLOW_FILE_TEMPLATES.md'): 1,
-    os.path.join('.claude', 'agents', 'planner.md'): 1,
     os.path.join('.claude', 'skills', 'generate-operations-config', 'SKILL.md'): 3,
 }
 

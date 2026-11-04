@@ -93,4 +93,4 @@ class TestTheRouteStillReachesTheDiscipline:
 
     def test_the_ordering_constraint_survives_in_the_coordinator_too(self):
         body = _read(".claude/agents/coordinator.md")
-        assert "MUST produce failing tests before implementer" in body
+        assert "MUST produce failing tests before the main session" in body

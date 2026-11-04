@@ -338,5 +338,4 @@ class TestContractConsistency:
         # Verified 2026-07-08: claude -p cannot write into .claude/** (platform
         # sensitive-path gate) — stdout is the delivery contract, commands save.
         assert "Headless fallback" in _read(AGENTS, "planner.md")
-        assert "extract-json-from-plan.py" in _read(COMMANDS, "plan.md")
         assert "verification pending" in _read(AGENTS, "implementer.md")

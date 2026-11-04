@@ -31,19 +31,19 @@ SPLIT = {
 # companion) -- this is what makes the split a move and not a deletion.
 MOVED_RULES = {
     'planner.md': (
-        'Max 3 `file_delete` operations per config (GUARD 26)',
+        '## Plan Metadata Hard Rules',
         'PLAN BRIEF (Complex)',
         'HANDOFF TO: reviewer',
         'PLANNER COMPLETE',
-        '**Every ops.json MUST pass `validate-config-json.py`**',
+        '## Plan Content Rules',
         '## Risk Assessment',
     ),
     'reviewer.md': (
         'Separation of concerns',
         'Configuration security',
         'Step 4: Security Review',
-        'NEVER approve a plan without ops.json',
-        'HANDOFF TO: implementer',
+        'NEVER approve a Tier 3 plan without a Files: list',
+        'HANDOFF TO: main session',
         'Bar width: 25 characters',
     ),
 }
@@ -53,7 +53,6 @@ PINNED_IN_AGENT_FILE = {
     'planner.md': (
         'Headless fallback',          # tests/test_behavior_spec.py
         'Silence is NOT evidence',    # tests/test_rejection_briefs.py (exit-code contract)
-        '"operations"',               # tests/test_agent_doc_ops_examples.py MIN_EXAMPLES >= 1
     ),
     'reviewer.md': (
         '=== REVIEW ===',             # review-record.py --from-review parser contract

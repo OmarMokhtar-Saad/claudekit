@@ -41,10 +41,9 @@ def _fake_plan_doc():
     # non-blank lines to stdout as the summary -- that's the spec, not a leak. The
     # marker goes in the padded body (line 5+), which must NEVER reach stdout.
     body = (
-        "# Implementation Plan: Toy Task\n\n"
+        "# Implementation Plan: Toy Task\n\nTier: 3\nFiles:\n- `src/toy.py`\n\n"
         "## Overview\nThis is a fake planner response used only to test transport.\n\n"
         + (f"Filler prose line ({FAKE_PAYLOAD_MARKER}) padding the plan body.\n" * 400)
-        + "\n```json\n" + json.dumps(FAKE_OPS) + "\n```\n"
     )
     return body
 
@@ -104,12 +103,9 @@ def test_plan_scripted_path_keeps_stdout_small_and_files_valid(tmp_path):
     plans_dir = repo / ".claude" / "plans"
     plan_files = list(plans_dir.glob("plan-*.md"))
     assert len(plan_files) == 1, list(plans_dir.iterdir())
-    ops_files = list(plans_dir.glob("*.ops.json"))
-    assert len(ops_files) == 1, list(plans_dir.iterdir())
 
     # The fake ~40KB payload landed on disk...
     assert FAKE_PAYLOAD_MARKER in plan_files[0].read_text()
-    assert json.loads(ops_files[0].read_text())["plan"] == "toy-smoke-test"
 
     # ...but never reached stdout: the marker and the padded body are absent, and
     # total stdout stays near the plan's documented ≤15-line / small-summary limit,
