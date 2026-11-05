@@ -15,7 +15,7 @@ Canonical spawn contract: see `.claude/agents/_shared/INVOCATION.md` (single sou
 
 ## Task
 
-Validate the most recent plan. TIER 3 ROUTE: if the plan is Tier 3, or its ops touch hooks, tests, or executable scripts, this `reviewer` verdict is STATIC-ONLY (no Bash — it executed nothing) and may NOT be the last review before execution; follow it with `/code-review` on the plan + ops, where `code-reviewer` has Bash and runs the plan's own Validation commands against a dry-run or scratch copy.
+Validate the most recent plan. TIER 3 ROUTE: if the plan is Tier 3, or its ops touch hooks, tests, or executable scripts, this `reviewer` verdict is STATIC-ONLY (no Bash — it executed nothing) and may NOT be the last review before execution; follow it with `/code-review` on the plan + ops, where `code-reviewer` has Bash and runs the plan's own Validation commands against a dry-run or scratch copy. PANEL: unless `--no-panel`, also run `plan-design-critic` and `plan-readiness-critic` as in `.claude/agents/_shared/REVIEW_PANEL.md` (advisory; only `reviewer`'s block is recorded).
 
 ## Invocation
 
