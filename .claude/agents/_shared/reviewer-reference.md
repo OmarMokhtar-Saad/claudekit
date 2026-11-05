@@ -68,7 +68,10 @@ having read another file.
    a. Are content strings exact (not pseudocode)?
    b. Are search patterns unique within target files?
    c. Are dependencies correctly specified?
-4. Evaluate testing strategy
+4. Evaluate testing strategy. **Can this test fail?** For every test or validation step, ask
+   whether it would still pass if the change were wrong or missing (exit 0 with no assertion,
+   a grep that always matches, a check of a constant, `|| true`). Each such step is a [MAJOR]
+   issue. A 2026-11-05 seeded-defect benchmark found every reviewer arm missed this class.
 5. Evaluate rollback plan
 6. Assess risk identification
 ```

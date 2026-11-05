@@ -12,6 +12,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **`/review` runs a two-critic panel beside `reviewer`.** New read-only agents
+  `plan-design-critic` and `plan-readiness-critic` (persona and standard text adapted from
+  google/elephant-goldfish-model, Apache-2.0; notice in `.claude/agents/_shared/EGM-NOTICE.md`)
+  see only the plan path, with no CLAUDE.md and no conversation. They run in parallel with
+  `reviewer`; their uncovered Blocker/Major findings print as `=== PANEL ===`. The panel is
+  advisory: only reviewer's verdict is recorded, so the `/implement` gate is unchanged.
+  `--no-panel` skips it. On a 12-seeded-defect benchmark, reviewer alone found 5, reviewer +
+  panel found 8. `reviewer` also gains a "can this test fail?" check (vacuous assertions are
+  [MAJOR]); every arm missed that class in the benchmark. Review still runs only on request.
+
 - **Worktree lifecycle docs: `reap`, merged proof, locks, stray agent dirs.** `/worktree`
   and the `using-git-worktrees` skill now document `worktree-manager.py reap` (dry run by
   default, `--yes` to execute, `--max-deletions` default 10, lock-aware, deletes

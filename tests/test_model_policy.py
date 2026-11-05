@@ -125,6 +125,8 @@ class ModelPolicyIsTheSourceOfTruth(unittest.TestCase):
         "opensource-sanitizer": "sonnet", "performance-optimizer": "sonnet",
         "refactor-cleaner": "sonnet",
         "reviewer": "sonnet",
+        # plan critics (2026-11-05): same tier as reviewer, which they run beside in /review.
+        "plan-design-critic": "sonnet", "plan-readiness-critic": "sonnet",
         "tester": "sonnet",
         "verifier": "sonnet",
         "docs": "haiku", "explore": "haiku",
