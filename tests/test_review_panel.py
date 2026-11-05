@@ -65,8 +65,11 @@ def test_review_command_runs_panel_but_records_only_reviewer():
     for name in CRITICS:
         assert "`%s`" % name in text
     assert "--no-panel" in text
-    assert "Only `reviewer`'s `=== REVIEW ===` block is recorded" in text
-    assert "never paste critic text into that block" in text
+    assert "_shared/REVIEW_PANEL.md" in text
+    panel = (AGENTS / "_shared" / "REVIEW_PANEL.md").read_text(encoding="utf-8")
+    assert "Only `reviewer`'s `=== REVIEW ===` block is recorded" in panel
+    assert "never paste critic text into that block" in panel
+    assert "uncovered Blocker" in panel
     # the recording call still names reviewer, never a critic
     for line in text.splitlines():
         if "review-record.py write" in line:
