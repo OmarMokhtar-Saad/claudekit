@@ -147,7 +147,6 @@ DEFAULT_AGENT_BUDGET = 15000000
 # all subagent tokens. A role missing here gets DEFAULT_AGENT_BUDGET.
 ROLE_BUDGETS = {
     "planner": 8000000,
-    "implementer": 10000000,
     "code-reviewer": 6000000,
     "reviewer": 3000000,
     "explore": 3000000,

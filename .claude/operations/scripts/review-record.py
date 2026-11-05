@@ -56,7 +56,7 @@ SELF_REVIEW_EXIT = 6
 # WHICH ROLE, not which session. The first version of this gate compared session ids
 # and could never pass: _session_id refuses `agent-` transcripts, so a subagent resolves
 # to its PARENT session, and one pipeline (main agent stamps, reviewer subagent scores,
-# implementer subagent executes) is one session. Author and reviewer always collided.
+# main session edits) is one session. Author and reviewer always collided.
 #
 # ATTESTATION, NOT ENFORCEMENT -- say it here because it must never be overstated
 # elsewhere. The recording commands are run by the caller, not by the reviewer subagent

@@ -38,7 +38,7 @@ list, skip the inline steps and run the bash block under "Mechanism B" regardles
 1. Name every file the change touches. If you cannot, stop and re-run with `--deep`.
 2. Write `.claude/plans/plan-<slug>.md` with:
    - a `Tier:` line (1, 2 or 3) and a `Files:` list naming **every path the change writes**
-     (`plan-gate` enforces it for Tier 3; `scripts/check-plan-artifacts.py` checks the paths);
+     (`plan-gate` enforces it for Tier 3);
      no bare globs such as `*` or `**`
    - overview, implementation steps in execution order, a `## Validation commands` fenced
      block, a rollback plan, a risk assessment

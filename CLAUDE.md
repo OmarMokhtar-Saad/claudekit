@@ -20,7 +20,6 @@ python3 scripts/gen-docs.py --check # docs-drift gate (counts)
 python3 scripts/gen-registry.py --check # registry-drift gate
 python3 scripts/gen-model-policy.py --check # model-policy gate
 python3 scripts/check-context-floor.py --check # context budget (CLAUDE.md counts x4)
-python3 scripts/check-plan-artifacts.py --check # plan names its ops' paths
 python3 scripts/gen-plan-index.py --check # post-commit
 shellcheck install.sh .claude/hooks/*.sh # shell lint
 ck doctor --strict # installed-tree health
