@@ -120,7 +120,7 @@ Plan a safe data transformation or migration.
 - [migration files, adapters, codemods]
 
 ### Next Steps
-- Run `/plan` to generate ops.json for execution
+- Run `/plan` to write the plan, then `/implement`
 - Run `/verify` after migration completes
 ```
 

@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Phase B of plan-fleet-skill-enhancement: distribute Phase A across the kitted fleet.
 
-Runs OUTSIDE the operations engine by necessity -- execute-json-ops.py refuses paths
-outside the repo root, and every target here is a different repository. So the safety
-properties the engine would have given us are rebuilt explicitly: --dry-run first, a
+Writes OUTSIDE the repo root by necessity -- every target here is a different
+repository. So the safety properties are built explicitly: --dry-run first, a
 per-project skip-and-log rule instead of a force, a diff-guard before any delete, and
 every downstream repo left UNCOMMITTED for the owner.
 

@@ -15,7 +15,6 @@
     "file-guard-gate": "off",
     "format-typecheck": "off",
     "injection-scan-gate": "off",
-    "iron-law-gate": "off",
     "reflection-gate": "advisory",
     "security-reminder": "off",
     "skill-fit-refresh": "off"

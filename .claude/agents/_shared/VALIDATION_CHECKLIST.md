@@ -56,17 +56,15 @@ If any check fails, report it and do not proceed.
 ### Reviewer Pre-Flight
 ```
   [ ] plan.md exists at the specified path
-  [ ] ops.json exists at the specified path
-  [ ] ops.json is valid JSON
+  [ ] plan.md has a Tier line and a Files: list
   [ ] Both files are complete (not truncated)
   [ ] Scoring criteria are loaded
 ```
 
-### Implementer Pre-Flight
+### Pre-Edit (main session)
 ```
   [ ] Plan was APPROVED by Reviewer (check status)
-  [ ] ops.json path is correct (if using script execution)
-  [ ] execute-json-ops.py script is available (if using ops.json)
+  [ ] plan-check prints OK for the plan (Tier 3)
   [ ] Target files exist (for modify operations)
   [ ] Target directories exist (for create operations)
   [ ] Build tools are available

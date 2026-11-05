@@ -126,12 +126,12 @@ def test_replay_is_a_pure_projection(tmp_path):
     assert [e["handler"] for e in first["errored"]] == ["command-guard"]
 
 
-def test_ops_execution_kind_is_typed_too():
+def test_delegation_report_kind_is_typed_too():
     record = eventlog.new_event(
-        "ops_execution", "sess-1", plan="demo", config_path="a.ops.json",
-        operation_index=0, operation_type="code_edit", target_path="src/x.py",
-        status="applied", duration_ms=3, detail_preview="1 edit")
-    assert set(eventlog.required_fields("ops_execution")) <= set(record)
+        "delegation_report", "sess-1", direct_calls=1, agent_calls=2, test_runs=0,
+        peak_context=100, main_tokens=10, subagent_tokens=5, cost_by_tier={})
+    assert set(eventlog.required_fields("delegation_report")) <= set(record)
+    assert "ops_execution" not in eventlog.KINDS
 
 
 def test_dispatcher_actually_emits_a_conforming_record(tmp_path):

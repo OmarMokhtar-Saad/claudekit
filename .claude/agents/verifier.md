@@ -336,9 +336,9 @@ Notes:
   - <any informational items>
 ```
 
-### To Implementer (Retry)
+### To Main Session (Retry)
 ```
-HANDOFF TO: implementer
+HANDOFF TO: main session
 ---
 Status: RETRY REQUIRED
 Score: <total>/100

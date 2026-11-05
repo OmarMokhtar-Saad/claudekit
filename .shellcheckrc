@@ -11,7 +11,7 @@ source-path=.claude/hooks
 #
 #   SC1091  Dynamic `. "$SCRIPT_DIR/lib.sh"` path can't be statically followed.
 #   SC2034  "Unused" var — false-positive for config vars and vars consumed by
-#           the sourced lib.sh (OPS_REGEX, ERE_QUOTE_CLASS, HOOK_NAME, …).
+#           the sourced lib.sh (ERE_QUOTE_CLASS, HOOK_NAME, …).
 #   SC2154  "Referenced but not assigned" — false-positive where a `local` var
 #           defaults from a lib.sh-provided value (e.g. nq in pre-commit.sh).
 #   SC2010  `ls | grep` — deliberate simple filename counting.

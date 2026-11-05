@@ -45,7 +45,7 @@ BUDGETS: Dict[str, int] = {
 }
 
 CLAUDE_MD_MULTIPLIER = 4  # main context + 3 pipeline subagent injections
-PIPELINE_AGENTS = ("planner.md", "reviewer.md", "implementer.md")
+PIPELINE_AGENTS = ("planner.md", "reviewer.md")
 
 #: The category `ck skill new` charges a new skill's description against.
 SKILL_CATEGORY = "skill descriptions"

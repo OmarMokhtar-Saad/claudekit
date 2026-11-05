@@ -256,7 +256,6 @@ print_ok "$CMD_COUNT commands installed"
 # Copy operations scripts
 print_step "Installing operations scripts..."
 cp "$CLAUDE_SRC"/operations/scripts/*.py "$DEST/operations/scripts/"
-cp "$CLAUDE_SRC"/operations/scripts/*.json "$DEST/operations/scripts/"
 print_ok "Operations scripts installed"
 
 # Full mode: copy skills and hooks

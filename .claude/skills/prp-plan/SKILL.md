@@ -12,7 +12,7 @@ The first phase of the Product Requirements Process (PRP). Unlike a standard pla
 
 > A fresh agent with this plan should be able to implement the feature correctly without reading a single file beyond what the plan references.
 
-If the plan requires the implementer to "figure out" anything, the plan is incomplete.
+If the plan requires the editor to "figure out" anything, the plan is incomplete.
 
 ---
 
@@ -68,7 +68,7 @@ PATTERN: <name>
 File: <path:line>
 Example:
   <3-5 lines of actual code showing the pattern>
-Apply when: <condition — when should the implementer follow this pattern>
+Apply when: <condition — when should the editor follow this pattern>
 ```
 
 Extract patterns for:
@@ -113,7 +113,7 @@ Output to `.claude/plans/prp-<feature>.md`:
 In scope: <what to build>
 Out of scope: <explicit boundaries>
 
-## Existing Patterns (implementer must follow these)
+## Existing Patterns (the editor must follow these)
 
 ### Error Handling
 File: src/utils/errors.ts:23
@@ -186,6 +186,6 @@ A plan that fails any of these is sent back for revision before `/prp-implement`
 
 - NEVER write "follow existing patterns" without showing the actual pattern
 - NEVER write "add tests" without specifying which edge cases
-- NEVER leave ambiguities for the implementer to resolve
+- NEVER leave ambiguities for the editor to resolve
 - NEVER list files without specifying the exact change type
 - NEVER include files that don't need to change (scope creep)

@@ -588,7 +588,7 @@ def _handback_verdict(tool_input, contract):
     if len(message) <= limit:
         return None
     if writer:
-        move = ("Put the detail in the file you own (the plan, ops.json, the report) and hand "
+        move = ("Put the detail in the file you own (the plan, the report) and hand "
                 "back its path plus a summary of at most %d chars." % limit)
     else:
         move = ("Cut it to the verdict and the findings that change what your caller does "
@@ -622,8 +622,8 @@ def _subagent_verdict(tool_name, tool_input, payload, transcript_path, size, mes
                     ".claude/agent-memory/%s/." % agent_type if contract.get("memory") else "")
                 return (2,
                         "BLOCKED context-budget-gate: `%s` is not in %s's contract (tools: %s).%s "
-                        "Changes ship as ops.json for the implementer, never as this agent's "
-                        "edits. Override for one process tree with CK_RAW_CONTEXT=1.\n"
+                        "Changes are made by the main session after an approved plan, never as this "
+                        "agent's edits. Override for one process tree with CK_RAW_CONTEXT=1.\n"
                         % (tool_name, agent_type, ", ".join(sorted(allowed)), memory_note))
 
     if state is None or state["spend"] < budget:
@@ -779,7 +779,7 @@ def _wind_down_note(payload, transcript_path):
     turns_note = (" and %d turn(s) short of its maxTurns %d, where the harness stops it mid-work"
                   % (max(turns_left, 0), cap) if near_turns else "")
     return ("context-budget-gate: wind down. This subagent has spent about %.1fM of its %gM "
-            "token line (%d%%)%s. Stop exploring: write your deliverable now (the plan, ops.json "
+            "token line (%d%%)%s. Stop exploring: write your deliverable now (the plan "
             "or report file), then hand back a short summary that names it. Past the line Read, "
             "Grep, Glob and Bash close and only Write/Edit stay open, for %d calls."
             % (state["spend"] / 1e6, budget / 1e6, 100 * state["spend"] // budget,

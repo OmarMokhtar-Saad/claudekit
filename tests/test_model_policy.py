@@ -128,7 +128,7 @@ class ModelPolicyIsTheSourceOfTruth(unittest.TestCase):
         "tester": "sonnet",
         "verifier": "sonnet",
         "docs": "haiku", "explore": "haiku",
-        "gitOps": "haiku", "implementer": "haiku",
+        "gitOps": "haiku",
         "opensource-packager": "haiku", "web-researcher": "haiku",
     }
 
@@ -142,7 +142,7 @@ class ModelPolicyIsTheSourceOfTruth(unittest.TestCase):
 
 
 class ChangingAModelIsAOneLineEdit(unittest.TestCase):
-    AGENTS = ["planner", "reviewer", "implementer"]
+    AGENTS = ["planner", "reviewer", "docs"]
 
     def setUp(self):
         self.tree = TempTree(self.AGENTS)
@@ -166,7 +166,7 @@ class ChangingAModelIsAOneLineEdit(unittest.TestCase):
         self.tree.write_policy(subset_policy(self.AGENTS))
         self.assertEqual(run(self.tree.script, "--check").returncode, 0)
 
-        path = self.tree.agent("implementer")
+        path = self.tree.agent("docs")
         with open(path, encoding="utf-8") as handle:
             text = handle.read()
         with open(path, "w", encoding="utf-8") as handle:
@@ -174,7 +174,7 @@ class ChangingAModelIsAOneLineEdit(unittest.TestCase):
 
         result = run(self.tree.script, "--check")
         self.assertEqual(result.returncode, 1)
-        self.assertIn("implementer", result.stderr)
+        self.assertIn("docs", result.stderr)
 
     def test_check_does_not_mutate(self):
         self.tree.write_policy(subset_policy(self.AGENTS))
@@ -187,7 +187,7 @@ class ChangingAModelIsAOneLineEdit(unittest.TestCase):
 
 
 class MalformedPolicyFailsClosed(unittest.TestCase):
-    AGENTS = ["planner", "reviewer", "implementer"]
+    AGENTS = ["planner", "reviewer", "docs"]
 
     def setUp(self):
         self.tree = TempTree(self.AGENTS)
@@ -268,13 +268,13 @@ class MalformedPolicyFailsClosed(unittest.TestCase):
     def test_a_late_malformed_agent_does_not_leave_earlier_agents_rewritten(self):
         """The partial-write regression: fail closed means NOTHING was written.
 
-        Agents are processed in sorted order, so `implementer` (genuinely drifted,
+        Agents are processed in sorted order, so `docs` (genuinely drifted,
         would be rewritten) is reached before `reviewer` (malformed, aborts the run).
-        A single-pass generator rewrites implementer and then returns 1.
+        A single-pass generator rewrites docs and then returns 1.
         """
         self.tree.write_policy(subset_policy(self.AGENTS))
 
-        drifted = self.tree.agent("implementer")
+        drifted = self.tree.agent("docs")
         with open(drifted, encoding="utf-8") as handle:
             text = handle.read()
         with open(drifted, "w", encoding="utf-8") as handle:
@@ -316,7 +316,7 @@ class EffortIsProjectedPerRole(unittest.TestCase):
     generator against a temp tree and assert on the files it wrote.
     """
 
-    AGENTS = ["planner", "reviewer", "implementer"]
+    AGENTS = ["planner", "reviewer", "docs"]
 
     def setUp(self):
         self.tree = TempTree(self.AGENTS)
@@ -332,23 +332,23 @@ class EffortIsProjectedPerRole(unittest.TestCase):
         self.tree.write_policy(self.policy)
         result = run(self.tree.script)
         self.assertEqual(result.returncode, 0, result.stderr)
-        with open(self.tree.agent("implementer"), encoding="utf-8") as handle:
+        with open(self.tree.agent("docs"), encoding="utf-8") as handle:
             body = handle.read()
         self.assertRegex(body, r"(?m)^model: \S+\neffort: \S+$")
-        tier = self.policy["roles"]["implementer"]["tier"]
-        self.assertNotIn("effort", self.policy["roles"]["implementer"],
+        tier = self.policy["roles"]["docs"]["tier"]
+        self.assertNotIn("effort", self.policy["roles"]["docs"],
                          "this role must have NO override, or it proves the wrong thing")
-        self.assertEqual(self.effort_of("implementer"),
+        self.assertEqual(self.effort_of("docs"),
                          self.policy["capability_tiers"][tier]["effort"])
 
     def test_a_role_override_beats_its_tier_default(self):
-        tier = self.policy["roles"]["implementer"]["tier"]
+        tier = self.policy["roles"]["docs"]["tier"]
         self.policy["capability_tiers"][tier]["effort"] = "low"
-        self.policy["roles"]["implementer"]["effort"] = "max"
+        self.policy["roles"]["docs"]["effort"] = "max"
         self.tree.write_policy(self.policy)
         result = run(self.tree.script)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(self.effort_of("implementer"), "max")
+        self.assertEqual(self.effort_of("docs"), "max")
 
     def test_check_is_red_when_only_the_effort_drifted(self):
         self.tree.write_policy(self.policy)
@@ -386,7 +386,7 @@ class EffortIsProjectedPerRole(unittest.TestCase):
                          "a rejected policy must not have written anything")
 
     def test_an_invalid_role_override_is_rejected(self):
-        self.policy["roles"]["implementer"]["effort"] = "turbo"
+        self.policy["roles"]["docs"]["effort"] = "turbo"
         self.tree.write_policy(self.policy)
         before = self.snapshot()
         result = run(self.tree.script)

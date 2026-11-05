@@ -29,8 +29,8 @@ FOUR SAFETY PROPERTIES, strongest first:
    output stands. Independently the host validates updatedToolOutput against the tool's
    output schema and logs "using original output" on a mismatch.
 4. NEVER_FILTER denies filtering for commands whose stdout a gate or a reviewer reads
-   verbatim (the generator --check gates, validate-config-json.py, review-record.py,
-   execute-json-ops.py, ck doctor, the linters). It is applied AFTER the local-override
+   verbatim (the generator --check gates, review-record.py,
+   ck doctor, the linters). It is applied AFTER the local-override
    merge, so a project-local filter file can never re-enable them.
 
 ESCAPE HATCH: prefix the command with CK_RAW_OUTPUT=1, e.g.
@@ -72,9 +72,6 @@ NEVER_FILTER: Tuple[str, ...] = (
     r"gen-model-policy\.py",
     r"gen-plan-index\.py",
     r"check-context-floor\.py",
-    r"check-plan-artifacts\.py",
-    r"validate-config-json\.py",
-    r"execute-json-ops\.py",
     r"review-record\.py",
     r"\bck\s+doctor\b",
     r"\bclaudekit\s+doctor\b",

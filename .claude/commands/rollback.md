@@ -27,9 +27,7 @@ Rollback operation: $ARGUMENTS
 - `git tag -l 'ck-checkpoint/*' --sort=-creatordate` (newest first), with each tag's
   message (`git tag -n1 -l 'ck-checkpoint/*'`). The tag message lists untracked files the
   snapshot could not contain.
-- If none exist, say so and stop. Legacy `backups/<plan>-<timestamp>/` directories from the
-  old operations engine can still be restored with
-  `python3 .claude/operations/scripts/restore-backup.py --list` (same dry-run-first rule).
+- If none exist, say so and stop.
 
 ### Phase 2: Select
 - Use the tag named in $ARGUMENTS, else the newest. Confirm the selection with the user.

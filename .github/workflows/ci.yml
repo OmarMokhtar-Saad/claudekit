@@ -144,8 +144,6 @@ jobs:
         run: python3 scripts/check-rule-owners.py --check
       - name: Plan lifecycle index matches derived state
         run: python3 scripts/gen-plan-index.py --check
-      - name: Every path an ops config writes is named in its plan
-        run: python3 scripts/check-plan-artifacts.py --check
       - name: Prompt corpus lint (command budget, skill tool grants, triggers)
         run: PYTHONPATH=src python3 -m claudekit.cli.main lint
 
@@ -211,11 +209,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Verify operations scripts
         run: |
-          test -f .claude/operations/scripts/validate-config-json.py
-          test -f .claude/operations/scripts/execute-json-ops.py
-          test -f .claude/operations/scripts/restore-backup.py
+          test -f .claude/operations/scripts/review-record.py
           test -f .claude/operations/scripts/shared.py
-          test -f .claude/operations/scripts/operations-schema.json
           echo "All operations scripts present"
       - name: Test install script help
         run: bash install.sh --help

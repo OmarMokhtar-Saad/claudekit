@@ -107,7 +107,7 @@ def _is_helper_module(path, siblings) -> bool:
         #
         # Two false-positive shapes were measured before this settled, both of which
         # silently took the count 22 -> 21 while every test stayed green:
-        #   1. matching the bare filename anywhere -- `iron-law-gate.py` discusses
+        #   1. matching the bare filename anywhere -- a neighbouring hook discusses
         #      `reflection-gate.py` in five comments, so a real hook became a helper;
         #   2. requiring an interpreter on the same line -- still matched PROSE, in a
         #      comment or docstring, that happened to write `python3 <name>.py`.

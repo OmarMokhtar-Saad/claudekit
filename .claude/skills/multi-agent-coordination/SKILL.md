@@ -199,7 +199,7 @@ Merge authority: <who> (workers NEVER merge)
 | # | Task | Owner (agent/tool/account) | Branch | Worktree | Status |
 |---|------|----------------------------|--------|----------|--------|
 | 1 | <task> | claude-a (planner/reviewer) | - | main tree | - |
-| 2 | <task> | claude-b (implementer) | agent/<slug> | .worktrees/<slug> | IN PROGRESS |
+| 2 | <task> | claude-b (editor) | agent/<slug> | .worktrees/<slug> | IN PROGRESS |
 | 3 | <task> | cursor (cross-reviewer) | agent/<slug> | .worktrees/<slug> | PENDING |
 
 ## File Ownership

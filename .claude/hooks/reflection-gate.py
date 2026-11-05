@@ -79,7 +79,6 @@ MUTATING_TOOLS = {"Write", "Edit", "MultiEdit", "NotebookEdit", "str_replace_bas
 _MUTATING_SHELL = re.compile(
     r"\b(?:rm|mv|cp|ln|touch|truncate|install|sed\s+-i|tee)\b"
     r"|\bgit\s+(?:add|commit|push|merge|rebase|reset|revert|checkout|switch|clean|stash)\b"
-    r"|\bexecute-json-ops\.py\b"
 )
 _TEST_MARKERS = ("pytest", "-m unittest", "npm test", "yarn test", "go test",
                  "mvn test", "mvn verify", "gradle test", "cargo test")
@@ -457,16 +456,6 @@ def advisory_warnings(root: Path) -> List[str]:
     warnings: List[str] = []
     if git_porcelain(root):
         warnings.append("Uncommitted changes remain in the working tree (git status).")
-    plans = root / ".claude" / "plans"
-    if plans.is_dir():
-        for path in sorted(plans.glob("*.json")):
-            name = path.name
-            if not (name.endswith(".ops.json") or name.startswith("ops-")):
-                continue
-            try:
-                json.loads(path.read_text(encoding="utf-8"))
-            except (OSError, ValueError):
-                warnings.append("Invalid ops config JSON: %s" % name)
     return warnings
 
 

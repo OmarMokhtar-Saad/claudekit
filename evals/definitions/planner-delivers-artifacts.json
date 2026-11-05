@@ -1,14 +1,21 @@
 {
   "id": "planner-delivers-artifacts",
-  "description": "Planner produces a plan whose ops.json is extractable and validator-APPROVED (headless stdout delivery contract).",
+  "description": "Planner produces a plan with a Tier line and a Files: header naming concrete paths (headless stdout delivery contract).",
   "agent": "planner",
   "tier": "most-capable",
-  "allowed_tools": "Read,Grep,Glob,Write,Bash(python3 .claude/operations/scripts/validate-config-json.py *)",
+  "allowed_tools": "Read,Grep,Glob,Write",
   "fixture": "calc",
-  "prompt": "Create a complete implementation plan for the following task.\n\nTask: Add src/calc/stats.py with mean(values) and median(values) (empty list -> ValueError) plus tests in tests/test_stats.py matching the existing test style.\n\nBefore writing anything, explore the codebase with BATCHED parallel Read/Grep/Glob calls.\nReturn the complete plan document and ops.json in your final response.\n\nIRON LAW: The plan MUST include a valid ops.json.",
+  "prompt": "Create a complete implementation plan for the following task.\n\nTask: Add src/calc/stats.py with mean(values) and median(values) (empty list -> ValueError) plus tests in tests/test_stats.py matching the existing test style.\n\nBefore writing anything, explore the codebase with BATCHED parallel Read/Grep/Glob calls.\nReturn the complete plan document in your final response.\n\nThe plan MUST state its Tier and a `Files:` header listing every path it will touch.",
   "checks": [
     {
-      "type": "ops_extractable_and_valid"
+      "type": "regex_present",
+      "pattern": "(?m)^\\**Tier\\**:?\\s*\\**\\s*[0-3]",
+      "why": "plan must state its Tier"
+    },
+    {
+      "type": "regex_present",
+      "pattern": "(?m)^\\**Files:\\**\\s*$\\n(?:\\s+[`\\-*].*\\n?)+",
+      "why": "plan must carry a Files: header naming paths"
     },
     {
       "type": "regex_present",

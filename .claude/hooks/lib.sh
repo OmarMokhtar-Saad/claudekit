@@ -20,12 +20,6 @@ resolve_root() {
     printf '%s' "$root"
 }
 
-# Ops-config filename patterns. The repo ships plans as `<name>.ops.json`, while
-# older tooling searched `ops-*.json`. Match BOTH everywhere so validation never
-# silently matches zero files again.
-OPS_FIND_EXPR=('(' -name '*.ops.json' -o -name 'ops-*.json' ')')
-# ERE that accepts both `foo.ops.json` and `ops-foo.json` (basename or path).
-OPS_REGEX='(^|/)([^/]+\.ops\.json|ops(-[^/]+)?\.json)$'
 
 # Structured logger. Usage: hlog LEVEL "message"
 # HOOK_NAME and LOG_FILE should be set by the caller; sane defaults otherwise.

@@ -95,19 +95,6 @@ def test_from_review_binds_parsed_block(tmp_path):
     assert _run(tmp_path, 'plan-check', str(plan)).returncode == 0
 
 
-def test_dual_key_ops_record_still_valid(tmp_path):
-    plan = _plan(tmp_path)
-    ops = plan.parent / 'ops-demo.json'
-    ops.write_text(json.dumps({'plan': 'demo', 'operations': [{
-        'type': 'code_edit', 'path': 'app.py', 'reason': 'r',
-        'edits': [{'find': 'a', 'replace': 'b'}]}]}), encoding='utf-8')
-    assert _run(tmp_path, 'write', str(plan), str(ops), '--score', '97',
-                '--decision', 'APPROVED', '--owner-approved').returncode == 0
-    assert _approve(tmp_path, plan).returncode == 0
-    assert _run(tmp_path, 'check', str(plan), str(ops)).returncode == 0
-    assert _run(tmp_path, 'plan-check', str(plan)).returncode == 0
-
-
 def test_worktree_uses_main_records(tmp_path):
     main = tmp_path / 'main'
     main.mkdir()
@@ -127,3 +114,13 @@ def test_worktree_uses_main_records(tmp_path):
     assert _approve(wt, plan).returncode == 0
     assert list((main / '.claude/reports/reviews').glob('*.plan.json'))
     assert _run(wt, 'plan-check', str(plan)).returncode == 0
+
+
+def test_reviewer_role_is_recorded_and_rounds_accumulate(tmp_path):
+    plan = _plan(tmp_path)
+    assert _run(tmp_path, 'plan-write', str(plan), '--score', '60', '--decision', 'REVISE',
+                '--reviewer-role', 'reviewer', '--owner-approved').returncode == 0
+    assert _approve(tmp_path, plan).returncode == 0
+    rec = json.loads((tmp_path / '.claude' / 'reports' / 'reviews'
+                      / 'demo.plan.json').read_text(encoding='utf-8'))
+    assert rec['round'] == 2 and rec['rounds'][0]['decision'] == 'REVISE'

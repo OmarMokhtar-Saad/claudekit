@@ -38,9 +38,6 @@ git fetch origin main --quiet 2>/dev/null
 FILES="
 .claude/hooks/session-start.sh
 .claude/hooks/command-guard.sh
-.claude/operations/scripts/execute-json-ops.py
-.claude/operations/scripts/restore-backup.py
-.claude/operations/scripts/ops_precompile.py
 .claude/profiles/minimal/profile.json
 .claude/skills/release-integrity/SKILL.md
 .claude/knowledge/heldout/MANIFEST.json

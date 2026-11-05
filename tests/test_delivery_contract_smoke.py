@@ -9,7 +9,6 @@ the originally observed leak.
 `/plan`'s scripted bash block is extracted from the real command file and
 executed, so it exercises the literal current text.
 """
-import json
 import os
 import re
 import shutil
@@ -174,32 +173,6 @@ def test_the_queued_ops_scan_reaches_subdirectories(tmp_path):
     assert archived not in found, "archive/ must stay pruned, or every spent config reports"
     assert not any(p.endswith(".md") for p in found)
 
-
-def test_queued_ops_configs_validate_against_head():
-    """Every queued (non-archived) ops config in .claude/plans/ must validate against
-    the current tree. A stale config -- authored against files that have since changed --
-    fails at execution time at best, or silently re-applies superseded text at worst
-    (found live 2026-07-31: an archived config's replacement text would have reintroduced
-    the `PLAN TO REVIEW: $PLAN_CONTENT` payload leak). Spent or stale configs belong in
-    .claude/plans/archive/ (see its README), which this test deliberately skips.
-
-    See `_queued_ops_configs` for why this once scanned nothing at all."""
-    plans_dir = os.path.join(REPO_ROOT, ".claude", "plans")
-    failures = []
-    for path in _queued_ops_configs(plans_dir):
-        result = subprocess.run(
-            [sys.executable, os.path.join(SCRIPTS_DIR, "validate-config-json.py"), path],
-            capture_output=True, text=True, cwd=REPO_ROOT,
-        )
-        if result.returncode != 0:
-            rel = os.path.relpath(path, plans_dir)
-            detail = (result.stdout.strip().splitlines()[-1] if result.stdout.strip()
-                      else result.stderr.strip())
-            failures.append(f"{rel}: {detail}")
-    assert not failures, (
-        "queued ops config(s) no longer validate against HEAD -- regenerate via /plan "
-        "or move to .claude/plans/archive/ with a README entry:\n" + "\n".join(failures)
-    )
 
 def test_the_protected_guard_has_a_differential_gate_and_it_is_wired():
     """The REJECT->ALLOW banner covered only ONE of the repo's two deny-decisions.

@@ -69,13 +69,12 @@ This means you configure your commands once in `config.json` and all hooks use t
 Runs before every `git commit`. Blocking -- a failure prevents the commit.
 
 **Steps:**
-1. Validates `ops.json` files in `operations/` (valid JSON, required fields)
-2. Scans staged file diffs for secret patterns (`api_key`, `password`, `secret`, `token`, `private_key`, PEM headers)
-3. Runs `build_cmd` if source files changed (skips for docs-only changes)
+1. Scans staged file diffs for secret patterns (`api_key`, `password`, `secret`, `token`, `private_key`, PEM headers)
+2. Runs `build_cmd` if source files changed (skips for docs-only changes)
 
 **Exit codes:**
 - `0` -- All checks passed
-- `1` -- Validation failed (invalid ops.json, secrets detected, or build failure)
+- `1` -- Validation failed (secrets detected, or build failure)
 
 ### Post-Implement (`post-implement.sh`)
 
@@ -116,8 +115,7 @@ Tracks tool usage after Edit, Write, NotebookEdit, and Bash invocations. Non-blo
 
 **Steps:**
 1. Logs the tool name and target file to `hooks.log`
-2. If an `ops.json` file was modified, validates its structure
-3. If a Bash command involves git, logs the git operation
+2. If a Bash command involves git, logs the git operation
 
 ## Configuration
 

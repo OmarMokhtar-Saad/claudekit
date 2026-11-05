@@ -111,8 +111,8 @@ CODE_REVIEW_REPORT
 ```
 ### Step 5c: Record a NON-APPROVING verdict
 
-**Only rejections are recorded**, and `--only-non-approving` enforces it: an APPROVE from a *diff* review must never authorise execution of an ops.json it never scored.
-This step derives no verdict of its own — one parser owns that. `REVIEW_OUT` is Step 5b's file; `PLAN_FILE` is the plan whose ops.json produced the code (newest plan by default, as in `/review`). Skip it for a `CANNOT REVIEW` round; skips are announced, never silent.
+**Only rejections are recorded**, and `--only-non-approving` enforces it: an APPROVE from a *diff* review must never approve a plan it never scored.
+This step derives no verdict of its own — one parser owns that. `REVIEW_OUT` is Step 5b's file; `PLAN_FILE` is the plan that produced the code (newest plan by default, as in `/review`). Skip it for a `CANNOT REVIEW` round; skips are announced, never silent.
 Contract: `.claude/knowledge/rejections/README.md`.
 
 ```bash

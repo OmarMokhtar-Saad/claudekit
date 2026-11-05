@@ -68,9 +68,8 @@ Demonstration technique, and the mutation proof. Do not restate either inside th
 
 ### Planner
 - Plan file exists at specified path
-- ops.json exists and is valid JSON
-- ops.json operations count matches plan steps
-- All file paths in ops.json are valid (existing files exist, new files have valid directories)
+- The plan has a Tier line and a Files: list
+- Every path in Files: is valid (existing files exist, new files have valid directories)
 
 ### Reviewer
 - All scoring criteria were evaluated (no skipped dimensions)
@@ -78,12 +77,11 @@ Demonstration technique, and the mutation proof. Do not restate either inside th
 - Pre-validation checklist was completed
 - Findings include specific file paths and line references
 
-### Implementer
+### Main session (after editing)
 - Build command succeeds (include exit code)
 - Lint command passes (or only pre-existing warnings)
 - Test suite passes (include pass/fail counts)
 - All plan steps were executed (include checklist)
-- Dry run was performed before execution (for ops.json)
 
 ### Verifier
 - Static analysis tool was run (include tool name and output summary)
@@ -126,13 +124,13 @@ For simple tasks, a single verification step may suffice. For complex tasks, use
 Verified: <one-line evidence statement>
 ```
 
-Example: `Verified: plan.md and ops.json created at .claude/plans/, ops.json has 4 operations matching 4 plan steps.`
+Example: `Verified: plan.md created at .claude/plans/ with a Tier line and a Files: list naming 4 paths.`
 
 ### Full Verification (complex tasks)
 ```
 VERIFICATION GATE
 =================
-Agent: implementer
+Agent: main session
 Task: Implement user authentication feature
 
 Evidence:

@@ -53,9 +53,9 @@ treats `.claude/**` as sensitive and requires interactive approval for Write/Edi
 bare `Write` in `--allowedTools`, path-scoped `Write(.claude/plans/**)`, and settings-file
 allow rules were ALL tested and none bypass it. Consequence: headless agents deliver
 `.claude/`-destined artifacts via **stdout**, and the invoking command saves them
-(`tee` + `extract-json-from-plan.py` for plans). Full E2E pipeline validated the same day:
-plan ($0.68/opus) → review ($0.18/opus, refutation ran) → implement ($0.36/sonnet, ops
-engine) → verify ($0.64/sonnet, scores matched ground truth) ≈ $1.86 total on a small task.
+(`tee`/`printf` into the plan file). Measured the same day: plan ($0.68/opus) → review
+($0.18/opus, refutation ran) → verify ($0.64/sonnet, scores matched ground truth); the
+main session now edits directly, so there is no implement phase to bill.
 
 ---
 
@@ -63,14 +63,14 @@ engine) → verify ($0.64/sonnet, scores matched ground truth) ≈ $1.86 total o
 
 Handoffs between agents (and between an agent and the main session) pass **file paths and
 short summaries — never full file bodies.** A subagent response, an Agent-tool result, or a
-Bash `echo`/`tee` that reprints a plan, ops.json, or other artifact's full contents is a
+Bash `echo`/`tee` that reprints a plan or other artifact's full contents is a
 **contract violation**: that payload gets pinned in context for every subsequent turn,
 which is exactly what caused a measured 80.3M-token session burn (`.claude/plans/
 plan-token-waste-workflow-fixes.md`).
 
 - **Interactive spawns** (Task tool) write their own artifacts with their own Write access
   and return only the path(s) plus a ≤10-line summary. Never instruct an interactive
-  subagent to "return the complete plan" or "print the full ops.json."
+  subagent to "return the complete plan" or "print the full plan."
 - **Headless spawns** (`claude -p`) cannot Write into `.claude/**` (see the write-gate note
   above), so they legitimately deliver via stdout — but the invoking command's wrapper must
   capture that stdout and redirect it straight to disk (`printf '%s\n' "$out" > "$FILE"`)
@@ -101,12 +101,11 @@ lands. It is not present today.
 
 | Agent                 | `--allowedTools`                                                | Rationale                                             |
 |-----------------------|-----------------------------------------------------------------|------------------------------------------------------|
-| planner               | `Read,Grep,Glob,Write` | Explore; write `plan.md` + `ops.json`. **No Bash since 2026-09-19** (token remediation): the caller runs `validate-config-json.py` on its behalf. Spawned only by `/plan --deep` — the default `/plan` writes both files in the parent session. |
-| reviewer              | `Read,Grep,Glob`                                                | Read-only: analyze the plan/ops.json, emit a verdict.|
+| planner               | `Read,Grep,Glob,Write` | Explore; write `plan.md`. **No Bash since 2026-09-19** (token remediation). Spawned only by `/plan --deep` — the default `/plan` writes the file in the parent session. |
+| reviewer              | `Read,Grep,Glob`                                                | Read-only: analyze the plan, emit a verdict.|
 | explore               | `Read,Grep,Glob`                                                | Read-only codebase search.                           |
 | debugger              | `Read,Grep,Glob,Bash(git log *),Bash(git diff *)`               | Read-only diagnosis; history inspection.             |
 | verifier              | `Read,Grep,Glob,Bash`                                           | Must execute build/test/lint to produce evidence.    |
-| implementer           | `Read,Grep,Glob,Bash(python3 .claude/operations/scripts/*)`     | Iron Law: changes flow through the ops engine only — never Edit/Write. **(headless only — see "Frontmatter `tools:` CANNOT scope Bash" below; the interactive Task path grants unscoped Bash and this scoping is NOT applied there.)** |
 | security-scanner      | `Read,Grep,Glob`                                                | Read-only scanning.                                  |
 | code-reviewer         | `Read,Grep,Glob,Bash(git show *),Bash(git diff *),Bash(git rev-parse *),Bash(git ls-files *),Bash(git worktree *),Bash(gh pr *)` | Phase 0 must pin the revision under review before any finding: `gh pr diff/view`, `git diff <base>...<ref>`, `git show <ref>:<path>`, `git rev-parse HEAD`, `git ls-files --others` for untracked files, and a detached `git worktree` for whole-tree search. Non-mutating with respect to the repository under review — `git worktree` writes only to a detached tmpdir; no commit, no checkout of the shared tree. (Space-form specifiers verified honoured on this path, 2026-08-19.) |
 | gitOps                | `Read,Bash(git *)`                                              | Git operations only.                                 |
@@ -154,7 +153,7 @@ falsifiable: trust a fixture workspace, put `Bash(python3 *)` in `.claude/settin
 hypothesis holds. (Attempted 2026-08-19, blocked by the workspace trust dialog.)
 
 **The operational conclusion is unaffected and keeps high confidence:** frontmatter cannot
-scope Bash, so the interactive implementer effectively holds unscoped Bash. Every hypothesis
+scope Bash, so an interactive subagent holding Bash effectively holds it unscoped. Every hypothesis
 above predicts that.
 
 **Control.** Under `--allowedTools "Read,Bash(python3 *)"`, a `perl` write **required
@@ -182,30 +181,11 @@ subagent.
 - **Never write a `Tool(specifier)` form in frontmatter `tools:`.** It reads as enforcement
   and is not — it is silently discarded, leaving the bare, unrestricted tool. A test gates
   this (`tests/test_agent_tool_grant_drift.py`).
-- **On the interactive path the implementer holds UNSCOPED Bash, so the frontmatter grant
-  enforces nothing.** Removing `Bash` is not an option: the ops engine is invoked *through*
-  Bash (`python3 .claude/operations/scripts/execute-json-ops.py`), so dropping it would break
-  `/implement` outright. **The Iron Law is now harness-enforced by
-  [`.claude/hooks/iron-law-gate.py`](../../hooks/iron-law-gate.py)**, a `PreToolUse` hook keyed
-  on `agent_type == "implementer"` that allowlists the ops engine plus a small verification set
-  and rejects everything else with `exit 2` + stderr. It passes through untouched when
-  `agent_type` is absent or is not `implementer`, so the main agent and every other subagent are
-  unaffected.
-
-  Two design points are load-bearing and should not be "simplified" away. **Flags are
-  default-deny, not denylisted:** an unknown flag is refused, so a future `ruff`/`pytest`
-  release cannot add a writer that slips through. Five review rounds of flag enumeration failed
-  to converge — `pytest --log-file`, `-o`, `-c`, `--override-ini`, then `ruff --add-noqa`,
-  `pytest --debug`, then `mypy --install-types` and `@argfile` — because a denylist inside an
-  allowlist is still a denylist. **Positionals are checked too:** `git remote add origin <url>`
-  mutates through arguments, not flags, and survived three rounds of flag auditing.
-  The verb must also name a PATH-resolved program, and that check sits ABOVE the interpreter
-  dispatch — resolving the *script* is not resolving the *interpreter*.
-
-  Honest residual (hard rule 6): the SAFE tables are audited enumerations of *permitted*
-  arguments, which is a smaller and more stable surface than enumerating forbidden ones, but
-  not a proof. `pytest` is permitted and executes `conftest.py`, i.e. repo code already trusted.
-  See the plan's R7 for the measured surface.
+- **On the interactive path any subagent granted `Bash` holds it UNSCOPED**, so the
+  frontmatter grant enforces nothing. Scope Bash by keeping the grant to roles that need
+  evidence (verifier, explorers) and by `--allowedTools` on headless spawns. The main
+  session edits directly after an approved plan; `plan-gate` binds Tier 3 edits to the
+  plan's `Files:` list.
 
 ### Actual frontmatter grants (bare names — the interactive Task path)
 
@@ -219,7 +199,6 @@ the wide rows is owned by each agent's maintainer.
 | explore | `Read, Grep, Glob, Bash` |
 | debugger | `Read, Grep, Glob, Bash` |
 | verifier | `Read, Bash, Grep, Glob` |
-| implementer | `Read, Bash, Grep, Glob` |
 | security-scanner | `Read, Bash, Grep, Glob` |
 | code-reviewer | `Read, Grep, Glob, Bash` |
 | gitOps | `Read, Bash, Grep, Glob` |

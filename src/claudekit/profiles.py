@@ -67,7 +67,6 @@ GUARDED_HOOKS: Dict[str, str] = {
     "file-guard-gate": "file-guard-gate.sh",
     "format-typecheck": "format-typecheck.sh",
     "injection-scan-gate": "injection-scan-gate.sh",
-    "iron-law-gate": "iron-law-gate.py",
     "reflection-gate": "reflection-gate.py",
     "security-reminder": "security-reminder.sh",
     "skill-fit-refresh": "skill-fit-refresh.sh",

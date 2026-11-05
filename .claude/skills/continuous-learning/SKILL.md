@@ -78,7 +78,7 @@ subcommand precisely so trigger A's write gate has no bypass.
 **D. When a cluster repeats (skill proposals).** `propose` writes a candidate *skill* to
 `.claude/knowledge/proposals/`; `propose --patch <skill> --section Pitfalls|Verification
 --text "..."` writes a candidate *patch* to an existing skill. Both are proposals only.
-`/learn --promote` applies a patch through an ops.json after the user confirms in chat -
+`/learn --promote` applies a patch with Edit after the user confirms in chat -
 nothing ever writes into `.claude/skills/` on a machine's own initiative (hard rule 5).
 
 ### NOT Extractable

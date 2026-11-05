@@ -30,7 +30,7 @@ Start autonomous loop: $ARGUMENTS
 ARGS="$ARGUMENTS"
 MAX_ITER=10
 STALL_AFTER=3
-AGENT="implementer"
+AGENT="claude"
 
 if echo "$ARGS" | grep -q '\-\-max-iter'; then
     MAX_ITER=$(echo "$ARGS" | grep -oE '\-\-max-iter\s+[0-9]+' | grep -oE '[0-9]+')
@@ -206,7 +206,7 @@ Human approval required to continue. Reply with:
 
 ## Usage Examples
 
-- `/loop-start "implement the rate limiter from the prp plan"` — default implementer agent, 10 iterations
+- `/loop-start "implement the rate limiter from the prp plan"` — default claude agent, 10 iterations
 - `/loop-start "fix all TypeScript errors" --agent build-error-resolver --max-iter 7` — dedicated resolver
 - `/loop-start "refactor the auth module" --stall-after 2` — aggressive stagnation detection
 - `/loop-start "add tests for the payment module" --max-iter 5` — bounded test-writing loop

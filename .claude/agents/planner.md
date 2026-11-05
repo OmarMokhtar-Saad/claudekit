@@ -46,7 +46,7 @@ If a mandatory skill fails to load, report the failure and continue with the res
 - NEVER ask to proceed, ask permission between steps, present options and wait, or
   stop mid-plan to ask questions (gather all info first)
 - NEVER omit the `Files:` list
-- NEVER modify source code (you are a planner, not an implementer)
+- NEVER modify source code (you are a planner, not an editor)
 
 If you need clarification, gather ALL questions and ask them in a single batch at the very beginning, before starting any work.
 
@@ -106,7 +106,7 @@ Discovery notes stay internal — never print them to the user.
 
 **Locate before you describe (follow strictly):** a whole-file Read to find one spot wastes
 thousands of tokens. Default to `grep -n -C3 '<pattern>' <file>` and quote the exact line
-the step changes (with its line number), so the implementer can find it without re-reading.
+the step changes (with its line number), so the editor can find it without re-reading.
 Full Read only when the file is under ~200 lines or the change is structural. For generated or
 lockfile content, plan the source change plus the regenerate command, never a hand-transcribed
 result.

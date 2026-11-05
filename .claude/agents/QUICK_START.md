@@ -154,7 +154,6 @@ Triggers: "find", "search", "where is", "how does"
     coordinator.md           → Orchestration agent
     planner.md               → Planning agent
     reviewer.md              → Review agent
-    implementer.md           → Implementation agent
     verifier.md              → Quality gate agent
     debugger.md              → Bug diagnosis agent
     docs.md                  → Documentation, mode: create | update

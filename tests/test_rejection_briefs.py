@@ -13,7 +13,6 @@ not because review always passes but because only the passing round was ever wri
 import json
 import os
 import re
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -39,6 +38,8 @@ DECISION: REVISE
 
 
 def run_record(cwd, *argv, stdin=None, env=None):
+    if argv and argv[0] == "write":      # plan-keyed: `write <plan> <ops> ...` -> `plan-write <plan> ...`
+        argv = ("plan-write", argv[1]) + tuple(argv[3:])
     environ = dict(os.environ)
     environ["ECC_HOOK_PROFILE"] = "minimal"
     if env:
@@ -57,7 +58,7 @@ def make_tree(tmp_path, ops_name="ops-demo.json"):
     plans.mkdir(parents=True, exist_ok=True)
     (tmp_path / ".claude" / "reports" / "reviews").mkdir(parents=True, exist_ok=True)
     plan = plans / "plan-demo.md"
-    plan.write_text("# Plan: demo\n", encoding="utf-8")
+    plan.write_text("# Plan: demo\n\nFiles: `app.py`\n", encoding="utf-8")
     ops = plans / ops_name
     ops.write_text(
         '{"plan": "demo", "operations": [{"type": "code_edit", "path": "app.py",'
@@ -72,7 +73,7 @@ def _json_load(path):
 
 
 def record_json(tmp_path, slug="demo"):
-    return _json_load(tmp_path / ".claude" / "reports" / "reviews" / ("%s.json" % slug))
+    return _json_load(tmp_path / ".claude" / "reports" / "reviews" / ("%s.plan.json" % slug))
 
 
 class TestRejectionRoundIsRecorded:
@@ -97,7 +98,7 @@ class TestRejectionRoundIsRecorded:
         """Writing a rejection must never be mistaken for authorising one."""
         plan, ops = make_tree(tmp_path)
         run_record(tmp_path, "write", plan, ops, "--from-review", "-", stdin=REVISE_BLOCK)
-        check = run_record(tmp_path, "check", plan, ops)
+        check = run_record(tmp_path, "plan-check", plan)
         assert check.returncode == 4, check.stdout + check.stderr
 
     def test_rejection_then_approval_keeps_the_rejection_in_history(self, tmp_path):
@@ -272,7 +273,7 @@ class TestIdempotency:
         plan, ops = make_tree(tmp_path)
         run_record(tmp_path, "write", plan, ops, "--from-review", "-",
                    "--session-id", SESSION, stdin=revise_block(62))
-        after_round_1 = (tmp_path / ".claude" / "reports" / "reviews" / "demo.json"
+        after_round_1 = (tmp_path / ".claude" / "reports" / "reviews" / "demo.plan.json"
                          ).read_text(encoding="utf-8")
         run_record(tmp_path, "write", plan, ops, "--from-review", "-",
                    "--session-id", SESSION, stdin=revise_block(71))
@@ -281,7 +282,7 @@ class TestIdempotency:
         assert [r["round"] for r in rows_before] == [2]
 
         # rewind, then replay the identical round-2 write
-        (tmp_path / ".claude" / "reports" / "reviews" / "demo.json").write_text(
+        (tmp_path / ".claude" / "reports" / "reviews" / "demo.plan.json").write_text(
             after_round_1, encoding="utf-8")
         result = run_record(tmp_path, "write", plan, ops, "--from-review", "-",
                             "--session-id", SESSION, stdin=revise_block(71))
@@ -321,16 +322,6 @@ class TestVerdictProvenance:
         reject_twice(tmp_path)
         assert index_rows(tmp_path)[0]["verdict_origin"] == "rubric"
         assert record_json(tmp_path)["verdict_origin"] == "rubric"
-
-    def test_gate_token_origin_is_recorded_and_survives_into_history(self, tmp_path):
-        plan, ops = make_tree(tmp_path)
-        for score in (60, 60):
-            run_record(tmp_path, "write", plan, ops, "--from-review", "-",
-                       "--session-id", SESSION, "--verdict-origin", "gate-token",
-                       stdin=revise_block(score))
-        assert index_rows(tmp_path)[0]["verdict_origin"] == "gate-token"
-        record = record_json(tmp_path)
-        assert record["rounds"][0]["verdict_origin"] == "gate-token"
 
     def test_analyst_is_told_to_exclude_gate_token_scores_from_trends(self):
         agent = AGENTS / "flow-analyst.md"
@@ -650,313 +641,9 @@ class TestCodeReviewVerdictHasAConsumer:
                 "verdict parsing is creeping back into the shell: %r" % token)
 
 
-class TestCodeReviewFilterSharesTheParsersScope:
-    """The shipped snippet is executed here, not read.
-
-    The shell filter and review-record.py's parser must agree about WHERE a decision
-    lives. parse_verdict reads only the last `=== REVIEW ===` block; a filter with a
-    wider scope lets prose decide whether an APPROVED verdict gets written to the top
-    level of a record that gates execution.
-    """
-
-    @staticmethod
-    def extract_fence(step):
-        """The shipped fence for a step, or a NAMED failure.
-
-        A missing step used to surface as IndexError. The point of these tests is that a
-        dead path is diagnosable, so the absence of the path says so in words.
-        """
-        text = (REPO / ".claude" / "commands" / "code-review.md").read_text(encoding="utf-8")
-        marker = "### %s" % step
-        assert marker in text, "code-review.md has no %s -- the recording path is dead" % step
-        section = text.split(marker, 1)[1].split("\n### ", 1)[0]
-        assert "```bash" in section, "%s has no runnable bash fence" % step
-        return section.split("```bash", 1)[1].split("```", 1)[0]
-
-    @staticmethod
-    def extract_snippet():
-        return TestCodeReviewFilterSharesTheParsersScope.extract_fence("Step 5c")
-
-    PLACEHOLDER = "REPLACE THIS LINE WITH THE REPORT ABOVE, VERBATIM, INCLUDING ITS VERDICT BLOCK"
-
-    @classmethod
-    def run_snippet(cls, tmp_path, review_output):
-        """Run every Step-5x fence IN THE ORDER THE DOCUMENT LISTS THEM.
-
-        The order is DISCOVERED from the shipped file, never hardcoded here. An earlier
-        harness ran producer-then-recorder while the document said recorder-then-producer
-        (the recorder was Step 3b, before Step 4) -- so in production the recorder ran
-        first, found no report and skipped, while the suite stayed green. Three earlier
-        rounds were the same shape: the harness supplying what production lacked. Here
-        the harness cannot express an order the document does not have.
-        """
-        scripts = tmp_path / ".claude" / "operations" / "scripts"
-        scripts.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(str(RECORD), str(scripts / "review-record.py"))
-        make_tree(tmp_path)
-        env = dict(os.environ)
-        env["ECC_HOOK_PROFILE"] = "minimal"
-        for leaked in ("PLAN_FILE", "REVIEW_OUT", "OPS_FILE", "review_output"):
-            env.pop(leaked, None)
-
-        text = (REPO / ".claude" / "commands" / "code-review.md").read_text(encoding="utf-8")
-        steps = re.findall(r"(?m)^### (Step 5[a-z])\b", text)
-        assert steps == ["Step 5b", "Step 5c"], (
-            "document order changed: %s -- the producer must precede the recorder" % steps)
-
-        result = None
-        for step in steps:
-            fence = cls.extract_fence(step)
-            if cls.PLACEHOLDER in fence:
-                fence = fence.replace(cls.PLACEHOLDER, review_output)
-            result = subprocess.run(["bash", "-c", fence], cwd=str(tmp_path),
-                                    capture_output=True, text=True, timeout=60, env=env)
-            assert result.returncode == 0, (step, result.stderr)
-            if step == "Step 5b":
-                assert (tmp_path / ".claude" / "reports" / "last-code-review.txt").is_file(), (
-                    "Step 5b did not produce the report Step 5c reads -- the recording "
-                    "path is inert in production")
-        record = tmp_path / ".claude" / "reports" / "reviews" / "demo.json"
-        return result, record
-
-    def test_the_producer_precedes_the_recorder_in_the_document(self):
-        """An agent executes this command top to bottom.
-
-        The recorder used to be Step 3b, anchored before Step 4, while its producer was
-        Step 5b -- shipped order 3b, 4, 5, 5b, so the recorder ran BEFORE anything wrote
-        the report, found nothing, and skipped. The suite passed because the harness ran
-        producer-then-recorder, an order the DOCUMENT did not have. Same end-to-end gap
-        as rounds 3-5, expressed as ordering. Document order is now the contract.
-        """
-        text = (REPO / ".claude" / "commands" / "code-review.md").read_text(encoding="utf-8")
-        assert "### Step 3b" not in text, "the recorder must not reappear before its producer"
-        assert text.index("### Step 5b") < text.index("### Step 5c"),             "the recorder is documented before the producer that feeds it"
-        assert text.index("### Step 5c") < text.index("## Usage Examples")
-
-    def test_step_5b_writes_exactly_the_path_step_5c_reads(self):
-        """A static cross-check, so the two steps cannot drift apart silently even if
-        both keep working in isolation."""
-        producer = self.extract_fence("Step 5b")
-        recorder = self.extract_snippet()
-        pattern = r'REVIEW_OUT="\$\{REVIEW_OUT:-([^}"]+)\}"'
-        produced = re.search(pattern, producer)
-        recorded = re.search(pattern, recorder)
-        assert produced and recorded, "REVIEW_OUT default missing from one of the steps"
-        assert produced.group(1) == recorded.group(1), (
-            "Step 5b writes %r but Step 5c reads %r"
-            % (produced.group(1), recorded.group(1)))
-
-    def test_a_missing_report_is_announced_not_skipped_in_silence(self, tmp_path):
-        """Every defect in this chain survived by skipping quietly."""
-        scripts = tmp_path / ".claude" / "operations" / "scripts"
-        scripts.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(str(RECORD), str(scripts / "review-record.py"))
-        make_tree(tmp_path)
-        env = dict(os.environ)
-        env["ECC_HOOK_PROFILE"] = "minimal"
-        for leaked in ("PLAN_FILE", "REVIEW_OUT", "OPS_FILE", "review_output"):
-            env.pop(leaked, None)
-        result = subprocess.run(["bash", "-c", self.extract_snippet()], cwd=str(tmp_path),
-                                capture_output=True, text=True, timeout=60, env=env)
-        assert "nothing recorded" in result.stderr
-        assert not (tmp_path / ".claude" / "reports" / "reviews" / "demo.json").exists()
-
-    def test_the_resolved_plan_is_echoed(self, tmp_path):
-        result, _record = self.run_snippet(
-            tmp_path, "=== REVIEW ===\nSCORE: 62\nDECISION: REVISE\n=== END REVIEW ===\n")
-        assert "plan-demo.md" in result.stderr
-        assert "ops-demo.json" in result.stderr
-
-    def test_the_fence_binds_every_variable_it_uses(self):
-        """The inert-in-production regression.
-
-        A fence that reads $PLAN_FILE without ever assigning it does nothing at all, and
-        does it silently. This asserts on the shipped text, so no test fixture can hide it.
-        """
-        fence = self.extract_snippet()
-        used = set(re.findall(r"\$\{?([A-Za-z_][A-Za-z0-9_]*)", fence))
-        assigned = set(re.findall(r"(?m)^\s*([A-Za-z_][A-Za-z0-9_]*)=", fence))
-        assigned |= set(re.findall(r"\$\{([A-Za-z_][A-Za-z0-9_]*):-", fence))
-        assigned |= {"ARGUMENTS"}  # supplied by the command harness itself
-        unbound = used - assigned
-        assert not unbound, "Step 5c reads unbound variable(s): %s" % sorted(unbound)
-
-    def test_the_fence_passes_the_inputs_it_documents(self):
-        """Replaces an assertion that the PROSE named REVIEW_OUT and PLAN_FILE. Prose
-        naming two inputs the invocation never passes is exactly the shape of defect this
-        step already shipped twice -- documented, and inert. So the assertion moved to the
-        invocation: the recorder must actually hand the script the two files the prose
-        promises, or the step records nothing while reading as if it does."""
-        text = (REPO / ".claude" / "commands" / "code-review.md").read_text(encoding="utf-8")
-        step = text.split("### Step 5c", 1)[1].split("\n### ", 1)[0]
-        fence = step.split("```bash", 1)[1].split("```", 1)[0]
-        call = fence.split("record-code-review", 1)[1]
-        assert '--report "$REVIEW_OUT"' in call, call
-        assert '--plan "$PLAN_FILE"' in call, call
-        prose = step.split("```bash", 1)[0]
-        for name in ("REVIEW_OUT", "PLAN_FILE"):
-            assert name in prose, "%s is passed but never explained to the reader" % name
-
-    def test_the_verdict_writer_has_a_keyword_api_and_no_namespace_is_built(self):
-        """The recorded nit: cmd_record_code_review hand-built an argparse.Namespace, so
-        cmd_write's contract was enforced by inspection. A weaker test would assert the
-        new function exists; this one asserts the OLD construction is gone, which is the
-        thing that could silently come back."""
-        source = RECORD.read_text(encoding="utf-8")
-        assert "argparse.Namespace(" not in source
-        out = subprocess.run(
-            [sys.executable, "-c",
-             "import importlib.util,sys;"
-             "spec=importlib.util.spec_from_file_location('rr', sys.argv[1]);"
-             "m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m);"
-             "import inspect;p=inspect.signature(m.write_verdict).parameters;"
-             "print(','.join(p))", str(RECORD)],
-            capture_output=True, text=True, timeout=60)
-        assert out.returncode == 0, out.stderr
-        for name in ("plan", "ops", "from_review", "score", "decision", "session_id",
-                     "verdict_origin", "only_non_approving"):
-            assert name in out.stdout, (name, out.stdout)
-
-    def test_cannot_review_rounds_are_told_to_skip_the_step(self):
-        """CANNOT REVIEW emits no block by design, so parse_verdict fails and the write
-        exits 1. The fix is prose telling the round to skip -- NOT widening the case arm,
-        which would swallow real errors."""
-        text = (REPO / ".claude" / "commands" / "code-review.md").read_text(encoding="utf-8")
-        step = text.split("### Step 5c", 1)[1].split("\n### ", 1)[0]
-        assert "CANNOT REVIEW" in step
-        # Stronger than the old "no 1) arm inside the case": the recording step no
-        # longer branches on an exit code in shell AT ALL -- review-record.py owns the
-        # outcome, including which outcomes are quiet.
-        fence = self.extract_snippet()
-        for smell in ("case $status", "$?", "exit 5"):
-            assert smell not in fence, smell
-
-    def test_prose_rejection_with_an_approving_block_records_nothing(self, tmp_path):
-        """The whole point of the fix: a re-review quoting a prior verdict must not be
-        able to smuggle an APPROVED verdict onto the execution gate."""
-        review = (
-            "Round 2. The previous round said DECISION: REJECTED and I have re-checked it.\n"
-            "\n=== REVIEW ===\nSCORE: 95\nDECISION: APPROVED\n=== END REVIEW ===\n"
-        )
-        result, record = self.run_snippet(tmp_path, review)
-        assert result.returncode == 0, result.stderr
-        assert not record.exists(), (
-            "an APPROVED block was recorded because prose outside it said REJECTED — "
-            "the shell filter's scope is wider than parse_verdict's")
-
-    def test_a_rejecting_block_is_recorded(self, tmp_path):
-        review = "prose\n\n=== REVIEW ===\nSCORE: 62\nDECISION: REVISE\n=== END REVIEW ===\n"
-        result, record = self.run_snippet(tmp_path, review)
-        assert result.returncode == 0, result.stderr
-        assert record.exists(), result.stdout + result.stderr
-        assert _json_load(record)["decision"] == "REVISE"
-
-    def test_the_last_block_wins_just_like_the_parser(self, tmp_path):
-        """Two blocks, approving last: parse_verdict would record APPROVED, so the
-        filter must refuse the write rather than let it through."""
-        review = (
-            "=== REVIEW ===\nSCORE: 60\nDECISION: REJECTED\n=== END REVIEW ===\n"
-            "\nafter the fix:\n"
-            "=== REVIEW ===\nSCORE: 95\nDECISION: APPROVED\n=== END REVIEW ===\n"
-        )
-        result, record = self.run_snippet(tmp_path, review)
-        assert result.returncode == 0, result.stderr
-        assert not record.exists()
-
-    def test_two_blocks_with_different_anchor_whitespace_record_nothing(self, tmp_path):
-        """THE regression for round 4.
-
-        `_BLOCK_RE` uses `\\s*`, so `===<TAB>REVIEW<TAB>===` is a real block to the
-        parser and parse_verdict takes it as blocks[-1] -> APPROVED. The shell filter
-        this step used to carry matched only space-separated anchors, so its range closed
-        on block 1 and it saw REJECTED -- filter and parser reading DIFFERENT blocks, with
-        the approval landing at the top level of the record that gates execution. There is
-        no verdict logic in the shell any more; this proves it stays that way.
-        """
-        review = (
-            "=== REVIEW ===\nSCORE: 40\nDECISION: REJECTED\n=== END REVIEW ===\n"
-            "\nlater round:\n"
-            "===\tREVIEW\t===\nSCORE: 96\nDECISION: APPROVED\n===\tEND REVIEW\t===\n"
-        )
-        result, record = self.run_snippet(tmp_path, review)
-        assert result.returncode == 0, result.stderr
-        assert not record.exists(), (
-            "an APPROVED verdict was recorded from a tab-anchored block: the shell and "
-            "the parser are reading different blocks again")
-
-    def test_an_approving_verdict_is_refused_quietly_not_loudly(self, tmp_path):
-        """A passing code review is the common case; it must not look like a failure."""
-        review = "=== REVIEW ===\nSCORE: 95\nDECISION: APPROVED\n=== END REVIEW ===\n"
-        result, record = self.run_snippet(tmp_path, review)
-        assert not record.exists()
-        assert "WARNING" not in result.stderr, result.stderr
-
-
-class TestOnlyNonApprovingGate:
-    """The gate itself, independent of any caller."""
-
-    def test_approved_is_refused_with_exit_5(self, tmp_path):
-        plan, ops = make_tree(tmp_path)
-        result = run_record(tmp_path, "write", plan, ops, "--from-review", "-",
-                            "--only-non-approving",
-                            stdin="=== REVIEW ===\nSCORE: 95\nDECISION: APPROVED\n"
-                                  "=== END REVIEW ===\n")
-        assert result.returncode == 5, result.stdout + result.stderr
-        assert "EXPECTED outcome" in result.stderr
-        assert not (tmp_path / ".claude" / "reports" / "reviews" / "demo.json").exists()
-
-    def test_conditional_is_recorded_not_refused(self, tmp_path):
-        """CONDITIONAL cannot authorise execution (cmd_check needs the literal APPROVED),
-        so refusing it would protect nothing and would drop a genuinely non-approving
-        round out of the rejection corpus. The predicate means one thing: could this
-        verdict authorise execution?"""
-        plan, ops = make_tree(tmp_path)
-        result = run_record(tmp_path, "write", plan, ops, "--from-review", "-",
-                            "--only-non-approving",
-                            stdin="=== REVIEW ===\nSCORE: 85\nDECISION: CONDITIONAL\n"
-                                  "=== END REVIEW ===\n")
-        assert result.returncode == 0, result.stdout + result.stderr
-        assert record_json(tmp_path)["decision"] == "CONDITIONAL"
-        check = run_record(tmp_path, "check", plan, ops)
-        assert check.returncode == 4, "a recorded CONDITIONAL must still not authorise"
-
-    def test_rejecting_verdicts_still_record(self, tmp_path):
-        plan, ops = make_tree(tmp_path)
-        result = run_record(tmp_path, "write", plan, ops, "--from-review", "-",
-                            "--only-non-approving", stdin=REVISE_BLOCK)
-        assert result.returncode == 0, result.stderr
-        assert record_json(tmp_path)["decision"] == "REVISE"
-
-    def test_the_gate_reads_the_same_block_the_writer_does(self, tmp_path):
-        """Two blocks, approving LAST: parse_verdict records blocks[-1], so the gate
-        must refuse -- whatever whitespace the anchors use."""
-        plan, ops = make_tree(tmp_path)
-        for anchors in (("=== REVIEW ===", "=== END REVIEW ==="),
-                        ("===\tREVIEW\t===", "===\tEND REVIEW\t===")):
-            stdin = ("=== REVIEW ===\nSCORE: 40\nDECISION: REJECTED\n=== END REVIEW ===\n"
-                     "\n%s\nSCORE: 96\nDECISION: APPROVED\n%s\n" % anchors)
-            result = run_record(tmp_path, "write", plan, ops, "--from-review", "-",
-                                "--only-non-approving", stdin=stdin)
-            assert result.returncode == 5, (anchors, result.stdout + result.stderr)
-
-    def test_without_the_flag_nothing_changes(self, tmp_path):
-        plan, ops = make_tree(tmp_path)
-        result = run_record(tmp_path, "write", plan, ops, "--score", "95",
-                            "--decision", "APPROVED", "--owner-approved")
-        assert result.returncode == 0
-        assert record_json(tmp_path)["decision"] == "APPROVED"
-
-
-# --------------------------------------------------------------------------- item D
-#
-# Backfill. The fixture below is written in the shapes the REAL corpus uses -- entries with
-# `message.content` as a LIST of typed blocks, a tool_result, an attachment record -- because
-# the miner has already been bitten once by a fixture shaped to the code instead of to
-# reality. CLAUDEKIT_TRANSCRIPT_ROOT only relocates the scan; it supplies no data.
-
-VERDICT_TEXT = ("Reviewing ops-legacy-thing.json now.\n\n"
+VERDICT_TEXT = ("Reviewing plan-legacy-thing.md now.\n\n"
                 "=== REVIEW ===\nSCORE: 55\nDECISION: REJECTED\n"
-                "- [CRITICAL] the anchor in ops-legacy-thing.json does not exist\n"
+                "- [CRITICAL] the anchor in plan-legacy-thing.md does not exist\n"
                 "=== END REVIEW ===\n")
 
 
@@ -1018,8 +705,8 @@ class TestBackfillReconstructsWithoutPretending:
         """Two candidate slugs in the window. Assigning the likeliest is the same
         fabrication the session-id resolver refuses, in a second place."""
         root = _corpus_tree(tmp_path)
-        text = VERDICT_TEXT.replace("Reviewing ops-legacy-thing.json now.",
-                                    "Reviewing ops-legacy-thing.json and ops-other-thing.json")
+        text = VERDICT_TEXT.replace("Reviewing plan-legacy-thing.md now.",
+                                    "Reviewing plan-legacy-thing.md and plan-other-thing.md")
         _transcript(root, "22222222-2222-3333-4444-555555555555.jsonl", [text])
         out = run_record(tmp_path, "rejections", "backfill", "--write",
                          env=_backfill_env(tmp_path))
@@ -1028,7 +715,7 @@ class TestBackfillReconstructsWithoutPretending:
 
     def test_an_approving_verdict_is_never_backfilled(self, tmp_path):
         root = _corpus_tree(tmp_path)
-        approving = ("About ops-legacy-thing.json\n\n=== REVIEW ===\nSCORE: 95\n"
+        approving = ("About plan-legacy-thing.md\n\n=== REVIEW ===\nSCORE: 95\n"
                      "DECISION: APPROVED\n=== END REVIEW ===\n")
         _transcript(root, "33333333-2222-3333-4444-555555555555.jsonl", [approving])
         out = run_record(tmp_path, "rejections", "backfill", "--write",
@@ -1053,18 +740,6 @@ class TestBackfillReconstructsWithoutPretending:
         for path in store.rglob("*"):
             if path.is_file():
                 assert secret not in path.read_text(encoding="utf-8"), path
-
-    def test_a_dotted_ops_filename_keys_under_the_slug_the_live_record_uses(self, tmp_path):
-        """ops-<x>.ops.json must key as <x>, exactly as ops_slug() keys the live record.
-        A backfilled row under "<x>.ops" can never join its own history, and the trend
-        folding it exists for silently never happens -- with nothing failing."""
-        root = _corpus_tree(tmp_path)
-        text = VERDICT_TEXT.replace("ops-legacy-thing.json", "ops-legacy-thing.ops.json")
-        _transcript(root, "55555555-2222-3333-4444-555555555555.jsonl", [text])
-        assert run_record(tmp_path, "rejections", "backfill", "--write",
-                          env=_backfill_env(tmp_path)).returncode == 0
-        rows = _index_rows(tmp_path)
-        assert rows and rows[0]["slug"] == "legacy-thing", rows
 
     def test_the_report_names_the_scope_before_anything_is_written(self, tmp_path):
         """The unscoped version read 99 projects and proposed rows from two unrelated

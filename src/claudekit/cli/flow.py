@@ -1,4 +1,4 @@
-"""``ck flow "<task>"``: the headless plan -> review -> record -> implement -> verify chain.
+"""``ck flow "<task>"``: the headless plan -> review -> record chain.
 
 Each agent phase is one ``claude -p --agent <role>`` run with the role's scoped
 ``--allowedTools`` (``.claude/agents/_shared/INVOCATION.md``) and ``--output-format json``;
@@ -6,14 +6,11 @@ the usage block of that JSON is what the per-phase table reports (turns, average
 per turn, rebilled input tokens, cost). Headless agents cannot write under ``.claude/``
 (platform gate), so every artifact is saved here from the agent's stdout.
 
-Local phases (record, implementer) run the operations scripts with ``--python``; that
-defaults to the main checkout's ``.venv`` interpreter (the first entry of ``git worktree
-list``), because worktrees do not carry a venv of their own. ``ck flow`` prints which one.
+The record phase runs ``review-record.py plan-write`` with ``--python``; that defaults to
+the main checkout's ``.venv`` interpreter (the first entry of ``git worktree list``),
+because worktrees do not carry a venv of their own. ``ck flow`` prints which one.
 
-The plan's validation commands run shell-free (see ``_shell_free_argv`` in main.py): a
-``validate-config-json.py`` line runs BEFORE the executor, since after it a file_create
-target already exists; the rest run after. A line that needs a shell is a "skipped" row in
-the usage table, and a missing binary is exit 127, never a traceback.
+The chain stops once the plan is approved: the main session then edits directly.
 """
 
 import json
@@ -32,10 +29,8 @@ PLANS = Path(".claude") / "plans"
 AGENTS = {
     "planner": ("opus", "Read,Grep,Glob,Write"),
     "reviewer": ("sonnet", "Read,Grep,Glob"),
-    "verifier": ("sonnet", "Read,Grep,Glob,Bash"),
 }
-PHASE_ORDER = ("planner", "reviewer", "record", "implementer", "verifier")
-IMPL_OUTPUT_CAP = 20000  # chars of implementer output handed to the verifier
+PHASE_ORDER = ("planner", "reviewer", "record")
 
 
 class Phase:
@@ -137,18 +132,6 @@ def run_script(python, script, args, root):
     return proc.returncode, proc.stdout + proc.stderr
 
 
-def run_check(cmd, root, shell_free_argv):
-    """(exit code, transcript) for one plan validation line; None when it needs a shell."""
-    argv = shell_free_argv(cmd)
-    if argv is None:
-        return None, f"\n$ {cmd}\n(skipped: needs a shell)\n"
-    try:
-        proc = subprocess.run(argv, capture_output=True, text=True, cwd=str(root))
-    except OSError as exc:
-        return 127, f"\n$ {cmd}\n{argv[0]}: {exc}\n(exit 127)\n"
-    return proc.returncode, f"\n$ {cmd}\n{proc.stdout}{proc.stderr}(exit {proc.returncode})\n"
-
-
 def save(path, text):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text if text.endswith("\n") else text + "\n", encoding="utf-8")
@@ -182,44 +165,29 @@ def usage_table(phases):
     return "\n".join(out)
 
 
-def planner_prompt(task, plan_md, ops):
+def planner_prompt(task, plan_md):
     return (
         "Create an implementation plan for the task below and deliver it on stdout: the plan "
-        "document (Task, Files, Operations, a `## Validation commands` section holding one "
-        "fenced bash block, Risks) followed by the operations config for "
-        ".claude/operations/scripts/execute-json-ops.py in exactly ONE fenced ```json block. "
+        "document (Task, a Tier line, a `Files:` list naming every path to change, steps, a "
+        "`## Validation commands` section holding one fenced bash block, Risks). "
         "Do not try to write under .claude/ (blocked in headless mode); stdout is the "
-        f"delivery. The wrapper saves the plan as {plan_md} and the config as {ops}.\n\n"
+        f"delivery. The wrapper saves the plan as {plan_md}.\n\n"
         f"Task: {task}\n")
 
 
-def reviewer_prompt(plan_md, ops):
+def reviewer_prompt(plan_md):
     return (
-        f"Review the plan at {plan_md} and its operations config at {ops} per your rubric "
+        f"Review the plan at {plan_md} per your rubric "
         "(plans need 90/100). End your output with exactly two lines, an integer and one "
         "of APPROVED, CONDITIONAL, REVISE, REJECTED:\nSCORE: <n>\nDECISION: <d>\n")
 
 
-def verifier_prompt(plan_md, ops, impl_output):
-    tail = impl_output[-IMPL_OUTPUT_CAP:]
-    return (
-        f"Verify the implementation of plan {plan_md} (operations config {ops}). The "
-        "implementer already ran the executor and the plan's validation commands; their "
-        "captured output follows. Verify against it: read the changed files and this "
-        "output, and rerun a command only when its output below is missing or ambiguous. "
-        "Score per your rubric and report PASS, RETRY or FAIL.\n\n"
-        f"--- implementer output ---\n{tail}\n")
-
-
-def run_flow(task, root, python, claude_bin, models, slug, validation_commands,
-             shell_free_argv, out=sys.stdout):
-    """Returns the process exit code: 0 all phases done, 1 a phase failed, 2 the review
-    did not authorise execution (nothing was written to the tree)."""
+def run_flow(task, root, python, claude_bin, models, slug, out=sys.stdout):
+    """Returns the process exit code: 0 plan approved and recorded, 1 a phase failed,
+    2 the review did not approve the plan. Only the plan and review files are written."""
     root = Path(root)
     plan_md = PLANS / f"plan-{slug}.md"
-    ops = PLANS / f"plan-{slug}.ops.json"
     review = PLANS / f"plan-{slug}.review.md"
-    verify = PLANS / f"plan-{slug}.verify.md"
     phases: List[Phase] = []
 
     def finish(code, msg):
@@ -235,79 +203,31 @@ def run_flow(task, root, python, claude_bin, models, slug, validation_commands,
             print(ph.stderr.rstrip(), file=sys.stderr)
         return ph
 
-    def local(name, rc, text):
-        phases.append(Phase(name, rc, text))
-        return rc
-
-    # 1. planner -> plan.md + ops.json (extracted, baseline-stamped)
-    ph = agent("planner", planner_prompt(task, plan_md, ops))
+    # 1. planner -> plan.md
+    ph = agent("planner", planner_prompt(task, plan_md))
     if ph.rc != 0:
         return finish(1, f"planner exited {ph.rc}")
     save(root / plan_md, ph.text)
-    rc, text = run_script(python, "extract-json-from-plan.py", [plan_md, "--output", ops], root)
-    if rc != 0:
-        print(text, file=out)
-        return finish(1, f"no ops.json in the planner output (saved at {plan_md})")
-    rc, text = run_script(python, "validate-config-json.py", [ops, "--stamp-baseline"], root)
-    if rc != 0:
-        print(text, file=out)
-        return finish(1, f"{ops} failed validation")
-    print(f"[flow] plan {plan_md}, ops {ops}", file=out)
+    print(f"[flow] plan {plan_md}", file=out)
 
-    # 2. reviewer -> review file; 3. record the verdict (this is the approval gate's input)
-    ph = agent("reviewer", reviewer_prompt(plan_md, ops))
+    # 2. reviewer -> review file; 3. record the verdict (the plan-gate's input)
+    ph = agent("reviewer", reviewer_prompt(plan_md))
     save(root / review, ph.text)
     if ph.rc != 0:
         return finish(1, f"reviewer exited {ph.rc} (output at {review})")
     rc, text = run_script(python, "review-record.py",
-                          ["write", "--from-review", review, "--reviewer-role", "reviewer",
-                           plan_md, ops], root)
+                          ["plan-write", "--from-review", review, "--reviewer-role",
+                           "reviewer", plan_md], root)
+    if rc == 0:
+        # plan-write also records non-approving verdicts with exit 0; plan-check is the gate
+        rc, check = run_script(python, "review-record.py", ["plan-check", plan_md], root)
+        text += check
+    phases.append(Phase("record", rc, text))
     print(text.rstrip(), file=out)
-    if rc == 0:
-        # `write` succeeds for any verdict; `check` is the gate's own question
-        rc, text = run_script(python, "review-record.py", ["check", plan_md, ops], root)
-    local("record", rc, text)
     if rc != 0:
-        print(text.rstrip(), file=out)
-        return finish(2, f"review did not authorise execution (review-record exit {rc}; "
+        return finish(2, f"review did not approve the plan (review-record exit {rc}; "
                          f"see {review})")
-
-    # 4. implementer: the plan's config check (before: after the executor a file_create
-    # target exists and the validator refuses it), the executor with the gate on, then the
-    # plan's other checks
-    checks = validation_commands(root / plan_md)
-    before = [c for c in checks if "validate-config-json.py" in c]
-    after = [c for c in checks if c not in before]
-    impl_output, rc = "", 0
-
-    def run_checks(cmds):
-        nonlocal impl_output
-        for cmd in cmds:
-            code, text = run_check(cmd, root, shell_free_argv)
-            impl_output += text
-            if code is None:
-                local(f"check: {cmd[:40]}", "skipped: needs shell", text)
-            elif code != 0:
-                return code
-        return 0
-
-    rc = run_checks(before)
-    if rc == 0:
-        rc, text = run_script(python, "execute-json-ops.py", [ops], root)
-        impl_output += text
-    if rc == 0:
-        rc = run_checks(after)
-    local("implementer", rc, impl_output)
-    if rc != 0:
-        print(impl_output.rstrip(), file=out)
-        return finish(1, f"implementer exited {rc}")
-
-    # 5. verifier, fed the captured output so it verifies instead of rerunning
-    ph = agent("verifier", verifier_prompt(plan_md, ops, impl_output))
-    save(root / verify, ph.text)
-    if ph.rc != 0:
-        return finish(1, f"verifier exited {ph.rc} (output at {verify})")
-    return finish(0, f"done: {plan_md} {ops} {review} {verify}")
+    return finish(0, f"approved: {plan_md} ({review}); the main session implements it")
 
 
 def parse_models(items):
@@ -320,9 +240,9 @@ def parse_models(items):
     return models
 
 
-def cmd_flow(args, validation_commands, shell_free_argv):
+def cmd_flow(args):
     root = Path.cwd()
-    if not (root / SCRIPTS / "execute-json-ops.py").exists():
+    if not (root / SCRIPTS / "review-record.py").exists():
         print(f"ERROR: {SCRIPTS} not found under {root}; run ck flow from a project with "
               "ClaudeKit installed", file=sys.stderr)
         return 1
@@ -337,5 +257,4 @@ def cmd_flow(args, validation_commands, shell_free_argv):
     if (root / PLANS / f"plan-{slug}.md").exists() and not args.slug:
         slug = f"{slug}-{time.strftime('%H%M%S')}"
     print(f"[flow] python {python} ({source}); claude {claude_bin}; slug {slug}")
-    return run_flow(args.task, root, python, claude_bin, models, slug,
-                    validation_commands, shell_free_argv)
+    return run_flow(args.task, root, python, claude_bin, models, slug)

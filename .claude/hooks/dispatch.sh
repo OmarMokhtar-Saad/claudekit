@@ -13,7 +13,7 @@
 # differently — the outcome fell out of registration order. Worse, a handler that
 # BROKE failed open. Re-measured at 5f3e322, in a clean environment so the outer
 # shell's interpreter lookup cannot be mistaken for the hook's own exit code:
-#   echo '' | env -i PATH=/nonexistent /bin/bash ops-enforcement.sh; echo $?  ->  0
+#   echo '' | env -i PATH=/nonexistent /bin/bash command-guard.sh; echo $?  ->  0
 # 0 is ALLOW: with no dirname/cat and no lib.sh `deny`, the guard emits nothing
 # and ends successfully. (An earlier `PATH=/nonexistent bash ...` reading of 127
 # was the interpreter not being found -- the hook had not run at all.) Under this
@@ -121,7 +121,7 @@ esac
 # boundary below -- an unset variable under `set -u`, a signal, a `set -e` abort
 # inside a sourced helper, an interpreter that died -- lands here and blocks on a
 # blocking event. Re-measured baseline this fixes, at 5f3e322:
-#     echo '' | env -i PATH=/nonexistent /bin/bash ops-enforcement.sh; echo $?  ->  0
+#     echo '' | env -i PATH=/nonexistent /bin/bash command-guard.sh; echo $?  ->  0
 # `CK_RENDERED` is set to 1 immediately before every deliberate exit, so the trap
 # can tell "decided, then exited" from "died on the way there". EXIT (not ERR) is
 # the trigger on purpose: an ERR trap would also fire on a handler that merely
@@ -239,11 +239,11 @@ TOOL_NAME=$(extract_json_field "$PAYLOAD" tool_name) || TOOL_NAME=""
 # test_command_matcher_asymmetry_on_an_unreadable_payload (revision 2 shipped
 # it under a name that asserted the opposite): with a
 # malformed payload the tool name resolved to "", so every matcher-scoped
-# guard -- ops-enforcement, command-guard, config-protection -- was filtered
+# guard -- plan-gate, command-guard, config-protection -- was filtered
 # OUT and the dispatch returned 0. That is the same fail-open class this
 # phase exists to remove, reintroduced one layer up. When we cannot read the
 # payload we cannot prove a guard is irrelevant, so every guard runs and
-# decides for itself; ops-enforcement.sh already exits 2 on unparseable
+# decides for itself; command-guard.sh already exits 2 on unparseable
 # input, so the block is preserved end to end. The command_matcher below is
 # the ONE deliberate exception, for the reason spelled out there.
 #

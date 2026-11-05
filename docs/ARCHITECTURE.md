@@ -30,7 +30,7 @@ ClaudeKit is a multi-agent orchestration framework for Claude Code. It provides 
 ```
 claudekit/
 ├── .claude/
-│   ├── agents/           # 22 specialized agent definitions
+│   ├── agents/           # 21 specialized agent definitions
 │   │   ├── _shared/      # Shared agent configuration
 │   │   ├── coordinator.md
 │   │   ├── planner.md
@@ -46,7 +46,7 @@ claudekit/
 │   │   ├── devops.md
 │   │   └── database-architect.md
 │   ├── commands/         # 53 slash commands
-│   ├── skills/           # 79 skill modules + registry
+│   ├── skills/           # 76 skill modules + registry
 │   │   ├── skills-registry.json
 │   │   └── <skill-name>/SKILL.md
 │   ├── hooks/            # Lifecycle hooks
@@ -472,7 +472,7 @@ Skills are markdown documents with YAML frontmatter, organized as self-contained
 ├── golden-rule/SKILL.md          # Mandatory: no code changes without approval
 ├── writing-plans/SKILL.md        # Planner: plan structure and ops.json
 ├── systematic-debugging/SKILL.md # Debugger: 4-phase investigation
-├── ...                           # 79 skills total
+├── ...                           # 76 skills total
 ```
 
 ### Registry Structure
@@ -480,7 +480,7 @@ Skills are markdown documents with YAML frontmatter, organized as self-contained
 The `skills-registry.json` contains:
 
 - **skills array**: Every skill with id, name, path, mandatory flag, usedBy agents, description
-- **agentMapping**: Maps each of the 22 agents to its ordered list of skill IDs
+- **agentMapping**: Maps each of the 21 agents to its ordered list of skill IDs
 - **version**: Registry format version for compatibility checks
 
 ### Skill Loading Protocol

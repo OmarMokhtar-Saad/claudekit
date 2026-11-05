@@ -144,4 +144,4 @@ Options:
 - NEVER add `any` type as a fix (fix the actual type)
 - NEVER refactor unrelated code
 - NEVER make "improvements" beyond fixing the error
-- NEVER run `git commit` — the implementer or GitOps agent commits
+- NEVER run `git commit` — the main session or GitOps agent commits

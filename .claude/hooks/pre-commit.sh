@@ -62,78 +62,6 @@ validate_configured_cmd() {
 }
 
 # ---------------------------------------------------------------------------
-# Step 1: Validate ops.json files in .claude/plans/
-# ---------------------------------------------------------------------------
-validate_ops_configs() {
-    log "INFO" "Validating operations configs..."
-    local has_errors=0 checked=0 kind ops_file msg
-
-    # One python3 for every file: two per file made each commit take 100-135s over ~1,300 plans.
-    # It prints one tab-separated line per file: OK, JSON (unparseable) or BAD with the reason.
-    while IFS=$'\t' read -r kind ops_file msg; do
-        case "$kind" in
-            OK) checked=$((checked + 1)) ;;
-            JSON)
-                log "ERROR" "Invalid JSON: $ops_file"
-                echo "ERROR: Invalid JSON in $ops_file"
-                has_errors=1 ;;
-            BAD)
-                log "ERROR" "Validation failed for $ops_file: $msg"
-                echo "ERROR: $ops_file - $msg"
-                has_errors=1 ;;
-            *)
-                log "ERROR" "ops config check failed: $kind $ops_file $msg"
-                has_errors=1 ;;
-        esac
-    done < <(find "$CK_ROOT/.claude/plans/" "${OPS_FIND_EXPR[@]}" -print0 2>/dev/null | python3 -c '
-import json, sys
-
-def check(data):
-    """The reason a parsed config is invalid, or "ok" (supports legacy and modern formats)."""
-    if "plan" not in data:
-        return "missing plan field"
-    if "operations" in data:
-        if not isinstance(data["operations"], list):
-            return "operations must be array"
-        for i, op in enumerate(data["operations"]):
-            if "type" not in op:
-                return "operation %d missing type" % i
-            if "path" not in op:
-                return "operation %d missing path" % i
-        return "ok"
-    if "files" in data:
-        if not isinstance(data["files"], list):
-            return "files must be array"
-        for i, f in enumerate(data["files"]):
-            if "path" not in f:
-                return "file %d missing path" % i
-            if "edits" not in f:
-                return "file %d missing edits" % i
-        return "ok"
-    return "missing operations or files field"
-
-for raw in sys.stdin.buffer.read().split(b"\0"):
-    if not raw:
-        continue
-    path = raw.decode("utf-8", "replace")
-    try:
-        with open(raw) as fh:
-            data = json.load(fh)
-    except Exception:
-        print("JSON\t%s\t" % path)
-        continue
-    try:
-        why = check(data)
-    except Exception as e:
-        why = "parse error: %s" % e
-    print("OK\t%s\t" % path if why == "ok" else "BAD\t%s\t%s" % (path, why.replace("\t", " ")))
-' 2>/dev/null || echo "CRASH")
-
-    log "INFO" "Valid ops configs: $checked"
-    return $has_errors
-}
-
-# ---------------------------------------------------------------------------
 # Step 2: Check staged files for secrets
 # ---------------------------------------------------------------------------
 check_secrets() {
@@ -300,11 +228,6 @@ main() {
     log "INFO" "Starting pre-commit hook"
 
     local exit_code=0
-
-    # Validate ops configs
-    if ! validate_ops_configs; then
-        exit_code=1
-    fi
 
     # Check for secrets
     if ! check_secrets; then

@@ -31,8 +31,7 @@ Shape this request: $ARGUMENTS
    specification -- say so and point at `/specify`.
 4. **Emit** the Shaped Request block exactly as **request-shaping** defines it. Every
    field present; `none` or `nothing` where there is nothing to say.
-5. **Name** the next step and stop: Tier 1 -> `ops.json` -> `validate-config-json.py`
-   -> `/implement`; Tier 2 -> `/plan`; Tier 3 -> `/plan` then `/review`. Do not run it.
+5. **Name** the next step and stop: Tier 1 -> edit directly (`/implement`); Tier 2 -> `/plan`; Tier 3 -> `/plan` then `/review`. Do not run it.
 
 ## Flags
 

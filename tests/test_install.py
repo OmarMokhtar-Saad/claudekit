@@ -48,7 +48,7 @@ class TestInstallScript:
             agents_dir = os.path.join(tmpdir, '.claude', 'agents')
             expected_agents = [
                 'coordinator.md', 'planner.md', 'reviewer.md',
-                'implementer.md', 'verifier.md', 'debugger.md',
+                'verifier.md', 'debugger.md',
                 'docs.md', 'gitOps.md', 'explore.md'
             ]
             for agent in expected_agents:
@@ -80,8 +80,7 @@ class TestInstallScript:
             assert result.returncode == 0, f"Install failed: {result.stderr}"
             scripts_dir = os.path.join(tmpdir, '.claude', 'operations', 'scripts')
             expected_scripts = [
-                'validate-config-json.py', 'execute-json-ops.py',
-                'restore-backup.py', 'shared.py', 'operations-schema.json'
+                'review-record.py', 'shared.py'
             ]
             for script in expected_scripts:
                 assert os.path.exists(os.path.join(scripts_dir, script)), f"Missing script: {script}"

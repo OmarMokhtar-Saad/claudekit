@@ -21,22 +21,6 @@ def _read(*parts):
         return fh.read()
 
 
-class TestImplementerCannotRepairARedGate:
-    def test_implementer_forbids_baseline_mutation(self):
-        text = _read(".claude", "agents", "implementer.md")
-        assert "--update-baseline" in text, (
-            "implementer.md no longer forbids `ck lint --update-baseline`. An implementer "
-            "that may re-record a ratchet can turn any red gate green without a fix.")
-        assert "--no-verify" in text
-        assert "reported, never repaired" in text, (
-            "implementer.md no longer states that a red gate is reported, not repaired.")
-
-    def test_completion_requires_an_exited_command(self):
-        text = _read(".claude", "agents", "implementer.md")
-        assert "a running suite is not a PASS" in text, (
-            "implementer.md no longer forbids reporting a result before the command exited.")
-
-
 class TestTierThreeReviewCanExecute:
     def test_review_command_names_the_execution_capable_route(self):
         text = _read(".claude", "commands", "review.md")

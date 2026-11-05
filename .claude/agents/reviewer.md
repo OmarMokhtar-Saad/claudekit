@@ -232,7 +232,7 @@ The plan has significant issues.
 
 ## Handoff Formats, Principles and Anti-Patterns
 
-The three handoff blocks (implementer / planner / coordinator), the seven Review Principles
+The three handoff blocks (main session / planner / coordinator), the seven Review Principles
 and the full Anti-Patterns list are in `.claude/agents/_shared/reviewer-reference.md`. They
 are binding. The ones that most often decide a round: never approve a Tier 3 plan without a Files: list,
 never approve below 90, never skip the security review, never omit the `=== REVIEW ===`

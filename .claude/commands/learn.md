@@ -74,16 +74,9 @@ Never run it on your own initiative. Creating a skill spends always-on context b
 hard rule 5 puts every write into `.claude/skills/` behind a human.
 
 **3. A skill patch proposal** (`patch-<skill>-<hash>.md`). Never edit the SKILL.md
-directly. Show the proposal, ask the user to confirm, then write an ops config that
-appends the proposed text to the named section and run the operations engine:
-
-```bash
-python3 .claude/operations/scripts/validate-config-json.py ".claude/plans/ops-$NAME.json"
-python3 .claude/operations/scripts/execute-json-ops.py ".claude/plans/ops-$NAME.json"
-```
-
-The ops config is one `code_edit` with an `add_after` anchored on the section heading the
-proposal names. Delete the proposal file once it is applied.
+directly. Show the proposal, ask the user to confirm, then append the proposed text to the
+named section with Edit (after the plan naming that SKILL.md in `Files:` is approved).
+Delete the proposal file once it is applied.
 
 ### `/learn --verify --promote <name>` (opt-in)
 

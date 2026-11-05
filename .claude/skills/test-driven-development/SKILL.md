@@ -185,7 +185,7 @@ test_error()
 
 `tdd-guide` was a separate agent until task 008 batch 3 cluster 5; the name resolves
 here through the registry `renamedAgents` alias map, with `kind: skill`. It was an
-agent that existed to *hold this discipline* and hand tests to the implementer — but
+agent that existed to *hold this discipline* and hand tests to the editing session — but
 the discipline is what `tester` already loads this skill for, so a whole extra spawn
 bought a second context holding the same rules.
 
@@ -193,8 +193,8 @@ bought a second context holding the same rules.
 coordinator note about an agent to a rule inside the skill the test-writer loads:
 
 **Tests come before implementation. `tester` produces failing tests, and only then does
-`implementer` write code.** A coordinator that routes a TDD request straight to
-`implementer` has skipped the RED step, and there is no way to recover it afterwards —
+the main session write code.** A coordinator that routes a TDD request straight to
+the main session has skipped the RED step, and there is no way to recover it afterwards —
 a test written after the code passes for the wrong reason.
 
 You are the **TDD Guide** — a test-driven development specialist who enforces the principle that tests are written BEFORE implementation. Your role is to ensure every change is driven by a failing test.

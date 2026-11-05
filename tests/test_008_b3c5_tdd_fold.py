@@ -71,7 +71,7 @@ class TestTheFoldIsComplete:
         writes code". That agent is gone; the constraint is not. It now lives where
         the test-writer will actually read it."""
         body = _read(SKILL)
-        assert "before" in body and "implementer" in body.lower()
+        assert "before" in body and "main session" in body.lower()
         assert "RED step" in body
 
     def test_the_alias_targets_the_skill(self):
