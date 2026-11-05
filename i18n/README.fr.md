@@ -81,7 +81,7 @@ Ouvrez votre projet dans Claude Code et executez :
 /plan Ajouter l'authentification utilisateur avec des jetons JWT
 ```
 
-ClaudeKit prend le relais -- le Planificateur explore la base de code, redige un plan avec une configuration ops.json, le Reviseur le valide, l'Implementeur l'execute avec sauvegarde automatique, et le Verificateur controle le resultat.
+ClaudeKit prend le relais -- le Planificateur explore la base de code, redige un plan.md approuve, le Reviseur le note, la session principale edite directement, et le Verificateur controle le resultat.
 
 ---
 
@@ -89,7 +89,7 @@ ClaudeKit prend le relais -- le Planificateur explore la base de code, redige un
 
 | Commande | Description | Exemple |
 |----------|-------------|---------|
-| `/plan` | Creer un plan d'implementation avec ops.json | `/plan Ajouter la limitation de debit a l'API` |
+| `/plan` | Creer un plan d'implementation | `/plan Ajouter la limitation de debit a l'API` |
 | `/review` | Valider un plan (seuil 90/100) | `/review` |
 | `/implement` | Executer un plan approuve | `/implement` |
 | `/verify` | Executer les controles qualite (seuil 80/100) | `/verify` |
@@ -109,7 +109,7 @@ ClaudeKit prend le relais -- le Planificateur explore la base de code, redige un
 | Agent | Responsabilite | Modele |
 |-------|---------------|--------|
 | **Coordinateur** | Classe les taches, orchestre les workflows, gere les transferts d'agents | Sonnet |
-| **Planificateur** | Explore la base de code, redige les plans + configs ops.json | Sonnet |
+| **Planificateur** | Explore la base de code, redige les plans | Sonnet |
 | **Reviseur** | Validation multidimensionnelle -- Qualite du plan (40%), Architecture (30%), Securite (30%) | Opus |
 | **Implementeur** | Execute les plans approuves via scripts d'operations avec sauvegarde auto | Sonnet |
 | **Verificateur** | Validation qualite -- Analyse statique (30%), Tests (40%), Couverture (30%) | Haiku |

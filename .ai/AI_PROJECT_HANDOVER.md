@@ -6,7 +6,7 @@ This is the narrative companion to [STATUS.md](STATUS.md) (snapshot) and [SESSIO
 
 ## What you are inheriting
 
-A conceptually excellent, recently-repaired system. The 2026-07-05 external audit (`review/FINAL-REPORT.md`) called it "conceptually top-decile, executionally bottom-decile" (49/100) — the ideas (ops.json transaction engine, scored review gates, anti-anchoring dual review, file-based handoffs) were sound, but packaging never installed, hooks never blocked, security was dead code, and versioning was incoherent. Phase 1 (tasks 001–006 + 011) fixed all of that in 14 commits merged 2026-07-06. Today: the wheel builds and self-checks, hooks demonstrably block, the security layer runs, CI is honest, 516 tests pass.
+A conceptually excellent, recently-repaired system. The 2026-07-05 external audit (`review/FINAL-REPORT.md`) called it "conceptually top-decile, executionally bottom-decile" (49/100) — the ideas (scored review gates, anti-anchoring dual review, file-based handoffs) were sound, but packaging never installed, hooks never blocked, security was dead code, and versioning was incoherent. Phase 1 (tasks 001–006 + 011) fixed all of that in 14 commits merged 2026-07-06. Today: the wheel builds and self-checks, hooks demonstrably block, the security layer runs, CI is honest, 516 tests pass.
 
 ## The three documents that were my "plan of record"
 
@@ -22,7 +22,7 @@ A conceptually excellent, recently-repaired system. The 2026-07-05 external audi
 
 ## Where the bodies are buried
 
-- **The prompt corpus has 16 cataloged internal inconsistencies** — see [AGENTS.md](AGENTS_KNOWN_ISSUES.md). The worst is `_shared/WORKFLOW_FILE_TEMPLATES.md` shipping the *legacy* ops.json schema that the validator rejects (issue #9). Fix that one before it causes a field failure.
+- **The prompt corpus has 16 cataloged internal inconsistencies** — see [AGENTS.md](AGENTS_KNOWN_ISSUES.md). Issue #9 (the legacy ops-config template) is resolved: the ops.json pipeline has been removed.
 - **`hooks/config.json`** looks deprecated but its `project.*` command section feeds 6+ hooks. Don't delete it.
 - **Version fallbacks** in `src/claudekit/__init__.py` and `.claude/operations/scripts/shared.py` must bump with pyproject; tests catch it, but only if you run them.
 - **macOS/bash-3.2 compatibility** is where shell regressions hide; CI has a macOS matrix, trust it.

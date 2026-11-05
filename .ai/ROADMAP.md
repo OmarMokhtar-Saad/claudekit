@@ -12,7 +12,7 @@ Tag + PyPI publish (user-gated; recipe in [PLAYBOOK.md](PLAYBOOK.md)). Everythin
 |-------|------|---------|
 | Plugin packaging | 007 | `.claude-plugin/plugin.json` + marketplace.json; `/plugin install` becomes the primary channel; optional sub-plugin split (security/prp/opensource). **The strategic bet.** |
 | Manifest-driven everything | 005/007 | Repo-root `claudekit.manifest.json` drives installer, doctor, CI counts, docs; `ck update` becomes a true three-way merge; managed (`.claude/claudekit/`) vs user (`.claude/local/`) split on disk. |
-| Eval framework | 010 | Fixture repos + golden ops.json, `ck eval`, structured review/verify verdicts, hook-gated thresholds — the 90/100 gate stops being prompt theater; benchmark the token-reduction claim. |
+| Eval framework | 010 | Fixture repos + golden plan.md, `ck eval`, structured review/verify verdicts, hook-gated thresholds — the 90/100 gate stops being prompt theater; benchmark the token-reduction claim. |
 | Corpus consolidation | 008 | Agents 28→~20, skills 73→~60, delete templates/skills dupes, commands ≤40 lines, registry-generated skill sections. |
 | Context budget | 009 | ≤2 mandatory skill loads w/ digests; kill registry double-loading (~7K/session); one hook dispatcher per event (~100 ms/call). |
 | Security completion | 002-rest/014 | Hook-enforced loop block-list; sandbox profile pack (interactive/gated/autonomous presets); signed releases, SHA256SUMS, SLSA, pinned MCP servers. |

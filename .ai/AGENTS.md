@@ -6,7 +6,7 @@ Split into focused files so no single onboarding read exceeds ~10 KB (plan-remai
 
 - [Agent Interaction Model](AGENTS_INTERACTION_MODEL.md)
 - [Core Pipeline Agents: coordinator, planner, reviewer](AGENTS_PIPELINE_1.md)
-- [Core Pipeline Agents: implementer, verifier, debugger](AGENTS_PIPELINE_2.md)
+- [Core Pipeline Agents: verifier, debugger](AGENTS_PIPELINE_2.md)
 - [Core Pipeline Agents: documenter, doc-updater, gitOps](AGENTS_PIPELINE_3.md)
 - [Core Pipeline Agents: explore](AGENTS_PIPELINE_4.md)
 - [Specialist Agents: tester, security-scanner, devops](AGENTS_SPECIALISTS_1.md)
@@ -26,9 +26,8 @@ flowchart TB
     subgraph CORE["Core Pipeline Agents (10)"]
         direction TB
         COORD[coordinator<br/>sonnet - routes and orchestrates]
-        PLAN[planner<br/>opus - plan.md + ops.json]
+        PLAN[planner<br/>opus - approved plan.md]
         REV[reviewer<br/>opus - plan gate 90/100]
-        IMPL[implementer<br/>sonnet - executes ops.json]
         VER[verifier<br/>sonnet - quality gate 80/100]
         DBG[debugger<br/>sonnet - read-only root cause]
         DOC[documenter<br/>haiku - new docs]
@@ -76,13 +75,12 @@ flowchart TB
 ```mermaid
 flowchart TD
     U[User request] --> C[coordinator<br/>classify + route]
-    C --> P[planner<br/>plan.md + ops.json]
-    P -->|handoff: plan + ops| R[reviewer<br/>threshold 90/100]
-    R -->|score >= 90: APPROVED| I[implementer<br/>execute-json-ops.py only]
+    C --> P[planner<br/>plan.md]
+    P -->|handoff: plan| R[reviewer<br/>threshold 90/100]
+    R -->|score >= 90: APPROVED| I[main session<br/>edits directly after plan-gate]
     R -->|score < 90: REVISION REQUIRED<br/>revision loop, max 3| P
     R -->|revision 3/3 still failing| ESC[Escalate to human<br/>via coordinator]
-    I -->|IMPLEMENTATION COMPLETE| V[verifier<br/>threshold 80/100]
-    I -->|IMPLEMENTATION FAILED| C
+    I -->|edits done| V[verifier<br/>threshold 80/100]
     V -->|score >= 80: PASS| G[gitOps<br/>secret scan, commit, push, PR]
     V -->|score 60-79: RETRY<br/>retry loop, max 2| I
     V -->|score < 60: FAIL or retry 2/2 exceeded| ESC

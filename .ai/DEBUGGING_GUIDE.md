@@ -49,9 +49,6 @@ CLAUDEKIT_HOME=$PWD ck init /tmp/proj --full --yes             # asset-resolutio
 ## Debugging the ops engine
 
 ```bash
-python3 .claude/operations/scripts/validate-config-json.py <ops.json>   # names the failing GUARD
-python3 .claude/operations/scripts/execute-json-ops.py <ops.json>       # verbose apply
-python3 .claude/operations/scripts/restore-backup.py                    # recovery
 ```
 GUARD 10/11 failures = your `find` text doesn't match or matches twice — fix the plan, don't loosen the guard.
 

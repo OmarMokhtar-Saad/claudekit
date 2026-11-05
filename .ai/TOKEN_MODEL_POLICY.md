@@ -9,7 +9,7 @@ full plus the evidence. Maintainers only.
 |---|---|
 | Input tokens in 2 days | 1.88 B (97 % cache re-reads), 8,728 API turns |
 | Boot context per turn, qa-agents / claudekit | 66 K / 58 K tokens before any work |
-| A 4-op Tier 1 task | 47 turns, 4.0 M tokens; ~15 turns spent scripting an ops.json with exact anchors |
+| A 4-op Tier 1 task | 47 turns, 4.0 M tokens; ~15 turns spent scripting a JSON operations file with exact anchors (pipeline since removed) |
 | Planner runs | avg 98 turns; `maxTurns` in frontmatter never bound (corrected 2026-09-24: native maxTurns does bind, 16+ hits; see below) |
 | Reflection Stop gate | 4 extra full-context turns per stop; 135 issue files, 164 proposals, 0 reads |
 | Skills | 83 shipped, 3 ever invoked in qa-agents, 0 in claudekit |
@@ -18,11 +18,10 @@ full plus the evidence. Maintainers only.
 ## Rules
 
 1. **Blast-radius tiers.** Tier 1: one file, no public API / security / schema / architecture surface
-   -> the parent applies it directly where the hook profile allows, otherwise one single-op ops.json;
-   no planner, no reviewer. Tier 2: several files, no security or schema surface -> the parent writes
-   plan.md + ops.json itself and executes; spawn the planner only above 5 files. Tier 3:
-   security-relevant, DB migrations, >15 ops or >2 phases -> planner -> reviewer -> implementer. The
-   Iron Law binds the implementer agent (it never holds Edit/Write).
+   -> the parent edits it directly; no planner, no reviewer. Tier 2: several files, no security or
+   schema surface -> the parent writes plan.md itself and then edits; spawn the planner only above 5
+   files. Tier 3: security-relevant, DB migrations, >15 ops or >2 phases -> planner -> reviewer ->
+   plan recorded -> the main session edits (plan-gate binds Tier 3 source edits).
 2. **Review and verification are on request.** No agent, command, skill or phase runs reviewer,
    code-reviewer or verifier on its own. When asked: fresh instance, never the author, told to refute;
    stop at the first round with zero blocking findings; 3 rounds is a hook-enforced ceiling.
@@ -49,9 +48,9 @@ full plus the evidence. Maintainers only.
 
 - **Web research**: main agent and planner MUST NOT call WebSearch/WebFetch directly. Check `.claude/reports/research/` first. Library/API docs -> call context7 YOURSELF (`web-researcher` has no MCP access, so delegating wastes a search); else delegate to `web-researcher`.
 - **Blast-radius tiering** (route by risk surface, not line count):
-  - **Tier 1** — single file, no public API/security/schema/architecture surface (any size: docs, tests, prompts, cosmetic, internal logic) -> create minimal ops.json -> validate -> execute -> compile-verify. SKIP planner/reviewer. Execution fails -> escalate to Tier 2.
-  - **Tier 2** — multi-file, no security/schema surface -> planner + ops.json; reviewer ONLY if architecture is touched (new module boundaries, public API, cross-layer changes).
-  - **Tier 3** — security-relevant, DB migrations, >15 ops, or >2 phases -> full pipeline (planner -> reviewer -> implementer), unchanged.
+  - **Tier 1** — single file, no public API/security/schema/architecture surface (any size: docs, tests, prompts, cosmetic, internal logic) -> edit directly -> compile-verify. SKIP planner/reviewer. Verification fails -> escalate to Tier 2.
+  - **Tier 2** — multi-file, no security/schema surface -> plan.md (planner above 5 files); reviewer ONLY if architecture is touched (new module boundaries, public API, cross-layer changes).
+  - **Tier 3** — security-relevant, DB migrations, >15 ops, or >2 phases -> full pipeline (planner -> reviewer -> main-session edits), unchanged.
   - **Review floor (all tiers)**: every PR gets >=1 adversarial diff review before it merges — fresh `code-reviewer` instance, never the author, prompted to REFUTE not approve. Stop at the first round with zero blocking findings; ceiling 3 rounds; rounds 2+ read only the diff since the last verdict.
   - **Review routing**: plans -> `reviewer`; code + mutation proofs -> `code-reviewer`. See .ai/REVIEW_GUIDE.md
 - **Verifier gate**: the verifier agent NEVER auto-runs after implementation. Stop, ask the user, run only on explicit approval.
@@ -69,6 +68,6 @@ full plus the evidence. Maintainers only.
   spend per role (`ROLE_BUDGETS`) and warns at 70%. Past the line it refuses exploration, not
   the deliverable Write.
 - Native `maxTurns` binds and stops the agent mid-work. That makes it a runaway backstop (planner 60,
-  code-reviewer 60, implementer 40, explore 40, reviewer 30), not a budget.
+  code-reviewer 60, explore 40, reviewer 30), not a budget.
 - PostToolUse `additionalContext` reaches subagents (41 advisories found in subagent transcripts),
   which is what makes the wind-down note possible.

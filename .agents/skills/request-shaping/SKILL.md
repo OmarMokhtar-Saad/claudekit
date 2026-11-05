@@ -27,7 +27,7 @@ prompt-quality checklist.
 | # | Dimension | Question it answers | Feeds |
 |---|---|---|---|
 | 1 | **Task verb** | add / fix / refactor / explain / audit / release? | agent selection |
-| 2 | **Scope** | which concrete files, dirs, globs? | `ops.json` targets |
+| 2 | **Scope** | which concrete files, dirs, globs? | plan `Files:` list |
 | 3 | **Constraints** | stdlib-only, bash 3.2, no new deps, protected files? | planner guardrails |
 | 4 | **Success criteria** | which command proves it worked? | DoD gate, verifier |
 | 5 | **Blast-radius tier** | 1, 2 or 3 per CLAUDE.md? | pipeline routing |
@@ -91,8 +91,8 @@ Shaping produces the block and **names** the next step. It never takes it.
 
 | Tier | Next step to name |
 |---|---|
-| 1 | minimal `ops.json` -> validate -> execute -> compile-verify |
-| 2 | `/plan` (planner + `ops.json`) |
+| 1 | direct edit of the named files -> compile-verify |
+| 2 | `/plan` (approved plan.md with `Files:`) |
 | 3 | `/plan` then `/review` -- full pipeline |
 
 Stopping here is what keeps the Golden Rule intact: shaping a request is never itself a

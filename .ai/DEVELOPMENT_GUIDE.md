@@ -40,7 +40,7 @@ ck doctor --strict                               # installed-tree health (19 che
 
 ## Editing safety-critical code
 
-`src/claudekit/security/` — coverage gate ≥85%; add bypass-corpus cases to `test_security.py` for any validator change. `.claude/operations/scripts/` — never weaken a guard without an explicit decision-log entry; `operations-schema.json` and `generate-operations-config` skill must change together. `install.sh` — preserve staging/backup/atomic-swap; test with `tests/test_install.py` including the mid-failure byte-identical assertion.
+`src/claudekit/security/` — coverage gate ≥85%; add bypass-corpus cases to `test_security.py` for any validator change. `install.sh` — preserve staging/backup/atomic-swap; test with `tests/test_install.py` including the mid-failure byte-identical assertion.
 
 ## Version bump procedure
 

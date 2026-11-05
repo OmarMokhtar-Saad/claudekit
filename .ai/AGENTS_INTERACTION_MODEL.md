@@ -49,7 +49,7 @@ Handoff rules: include all required fields, reference files by path (never embed
 
 | Gate | Threshold | Formula | Outcomes |
 |---|---|---|---|
-| **Reviewer** (plan gate) | **90/100** | Plan Quality × 0.40 + Architecture × 0.30 + Security × 0.30 | ≥90 APPROVED → Implementer; 70–89 CONDITIONAL → back to Planner; <70 REJECTED → back to Planner. Each return counts as one revision cycle; revision 3 of 3 failing → escalate to Coordinator/human. Mandatory rejections (missing ops.json, invalid JSON, missing rollback, hardcoded secrets, destructive ops without safeguards, missing test strategy, orphaned operations, phantom steps) bypass scoring entirely. |
+| **Reviewer** (plan gate) | **90/100** | Plan Quality × 0.40 + Architecture × 0.30 + Security × 0.30 | ≥90 APPROVED → `review-record.py plan-write` records it, plan-gate allows edits, main session edits; 70–89 CONDITIONAL → back to Planner; <70 REJECTED → back to Planner. Each return counts as one revision cycle; revision 3 of 3 failing → escalate to Coordinator/human. Mandatory rejections (missing `Files:` list, missing rollback, hardcoded secrets, destructive ops without safeguards, missing test strategy, orphaned operations, phantom steps) bypass scoring entirely. |
 | **Verifier** (implementation gate) | **80/100** | Static Analysis × 0.30 + Tests × 0.40 + Coverage × 0.30, then anti-pattern penalties (max −30) | ≥80 PASS → GitOps; 60–79 RETRY → back to Implementer (max 2 retries); <60 FAIL → escalate to Coordinator immediately (do not return to Implementer). |
 
 ### Escalation rules (coordinator.md)

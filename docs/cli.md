@@ -204,76 +204,28 @@ claudekit check-command "rm -rf /"       # exit 2, reason on stderr
 claudekit check-path /etc/passwd         # exit 2
 ```
 
-### `claudekit validate <ops.json>`
-
-Validate an operations config file.
-
-```bash
-claudekit validate operations/my-plan/ops.json
-claudekit validate ops.json --verbose
-```
-
-### `claudekit execute <ops.json>`
-
-Execute an operations config with automatic backup.
-
-```bash
-claudekit execute ops.json --dry-run    # Preview changes
-claudekit execute ops.json              # Apply changes
-claudekit execute ops.json --verbose    # Debug output
-```
-
-### `claudekit implement <ops.json>`
-
-Run the whole implementation path for one operations config: validate -> dry-run ->
-execute -> the validation commands the owning plan names for itself. It stops at the
-first stage that does not exit 0 and prints exactly one `RESULT:` line.
-
-```bash
-claudekit implement .claude/plans/ops-my-change.json
-claudekit implement ops.json --no-approval      # skip the review-record gate
-claudekit implement ops.json --plan PLAN.md     # name the plan explicitly
-```
-
-The plan is resolved from the config name (`ops-<slug>.json` -> `plan-<slug>.md`,
-beside the config and then in `.claude/plans/`). Its validation commands are the first
-fenced block under a `## Validation commands`, `## Testing Strategy`, `## Tests` or
-`## Verification` heading. They run **without a shell**, so a command carrying a pipe,
-redirect or chain is reported as skipped rather than reinterpreted.
-
 ### `claudekit flow "<task>"`
 
-The whole pipeline, headless, in one command: `claude -p --agent planner` writes the
-plan and its ops.json (saved under `.claude/plans/` from the agent's stdout, since
-headless agents cannot write there), `--agent reviewer` scores it, `review-record.py
-write --from-review` records the verdict, `execute-json-ops.py` applies it with the
-approval gate on and runs the plan's validation commands, and `--agent verifier` gets
-that captured output so it verifies instead of rerunning. Every agent runs with its
+The plan -> review -> record chain, headless, in one command: `claude -p --agent planner` writes the
+plan (saved under `.claude/plans/` from the agent's stdout, since headless agents
+cannot write there), `--agent reviewer` scores it, and `review-record.py plan-write`
+records the verdict. The chain stops once the plan is approved; the main session then
+edits directly. Every agent runs with its
 scoped `--allowedTools` and `--output-format json`; the usage block of each run is the
 table printed at the end (turns, average context per turn, rebilled input tokens,
-cost). A review that does not authorise execution stops the chain with exit 2 and no
+cost). A review that does not approve the plan stops the chain with exit 2 and no
 edit to the tree.
 
 ```bash
 ck flow "add a --json flag to ck doctor"
-ck flow "..." --python /path/to/.venv/bin/python   # interpreter for the ops scripts
-ck flow "..." --model reviewer=sonnet --model verifier=haiku
+ck flow "..." --python /path/to/.venv/bin/python   # interpreter for review-record.py
+ck flow "..." --model reviewer=sonnet
 ck flow "..." --slug doctor-json --claude /opt/bin/claude   # or $CK_CLAUDE_BIN
 ```
 
 In a git worktree `--python` defaults to the main checkout's `.venv/bin/python` when it
-exists. Artifacts: `plan-<slug>.md`, `.ops.json`, `.review.md`, `.verify.md` under
+exists. Artifacts: `plan-<slug>.md` and `.review.md` under
 `.claude/plans/`.
-
-### `claudekit rollback`
-
-Rollback from a previous backup.
-
-```bash
-claudekit rollback --list               # List available backups
-claudekit rollback --backup backups/my-plan-20260316-120000  # Restore
-claudekit rollback --backup <dir> --dry-run  # Preview restore
-```
 
 ### `claudekit agents`
 

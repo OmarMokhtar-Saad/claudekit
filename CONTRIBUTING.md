@@ -31,9 +31,10 @@ python3 -m pytest tests/ -v
 #### Working on ClaudeKit itself (hook enforcement)
 
 ClaudeKit's own `.claude/settings.json` ships enforcement hooks that block direct
-`Edit`/`Write` to source files outside `.claude/` and docs (so consumer agents must route
-changes through `ops.json`). When developing the kit *itself* you are the maintainer, not a
-constrained agent, so relax enforcement with a **local, un-committed** override:
+`Edit`/`Write` to source files outside `.claude/` and docs (so consumer edits need an
+approved plan.md). When developing the kit *itself* you are the maintainer, not a
+constrained agent, so relax enforcement with a **local, un-committed** override (`plan-gate` and
+`checkpoint-gate` still bind under every profile, so edits to Tier 3 source still need a recorded plan.md):
 
 ```jsonc
 // .claude/settings.local.json   (gitignored — never shipped)

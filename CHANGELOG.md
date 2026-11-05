@@ -12,6 +12,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Removed: the ops.json pipeline (Phase 2).** No `ops-*.json` payloads, `execute-json-ops.py`,
+  `validate-config-json.py`, `iron-law-gate`, `check-plan-artifacts.py`, `implementer` agent,
+  `*-operations-config` skills, or `ck rollback`/restore-backup. The flow is now: an approved
+  `plan.md` (Tier + `Files:`), reviewer score, `review-record.py plan-write`, `plan-gate` allows
+  edits, and the main session edits directly; subagents only explore, review, test and verify.
+  README, `docs/`, translations and examples updated to match.
+
 - **Main session edits directly after an approved plan; ops.json pipeline removal begins (Phase 1).**
   `plan-gate` and `checkpoint-gate` replace `ops-enforcement` as the Edit/Write gates: Tier 3
   source is editable only when a reviewed, recorded `plan.md` lists the path in `Files:`, and

@@ -16,9 +16,9 @@ ClaudeKit **is** a prompt library — the production prompts are the product. Th
 ## Conventions (follow when authoring)
 
 1. **Frontmatter examples are load-bearing.** The `<example>` blocks teach Claude Code when to auto-select the agent. Two per agent is the standard (some newer ones have one — flagged in AGENTS_KNOWN_ISSUES.md #14).
-2. **Imperative, checklist-driven bodies.** Numbered phases, explicit STOP conditions ("no ops.json → STOP"), hard constraints stated as IRON LAW / NEVER / ALWAYS.
-3. **Single source of truth over duplication.** Schemas and invocation rules are *referenced* (e.g., planner → `generate-operations-config` skill), never embedded — embedded copies drift (the planner schema once failed the kit's own validator).
-4. **Tools = permissions.** Read-only agents omit Write/Edit from `tools`; implementer deliberately lacks Edit/Write to force the ops engine.
+2. **Imperative, checklist-driven bodies.** Numbered phases, explicit STOP conditions ("no approved plan → STOP"), hard constraints stated as IRON LAW / NEVER / ALWAYS.
+3. **Single source of truth over duplication.** Schemas and invocation rules are *referenced* (e.g., INVOCATION.md), never embedded — embedded copies drift (the planner schema once failed the kit's own validator).
+4. **Tools = permissions.** Read-only agents omit Write/Edit from `tools`; subagents that only explore, review, test or verify do not get Edit/Write.
 5. **Model choice by task shape.** Opus for judgment (reviewer, debugger, code-reviewer, security-scanner); Sonnet for generation/execution; Haiku for mechanical steps (verifier, gitOps, documenter, model-router). model-router codifies the scoring.
 6. **Output contracts.** Agents end with a defined report format (OUTPUT_TEMPLATE.md) and handoff block (HANDOFF_PROTOCOL.md) so downstream agents can parse deterministically.
 7. **Scoring gates are explicit** (90/100 plan, 80/100 verify, weights spelled out) — but note the audit's criticism: thresholds are currently uncalibrated "precision theater" until the eval framework (task 010) grounds them.

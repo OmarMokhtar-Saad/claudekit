@@ -7,22 +7,10 @@
 ## By category
 
 ### Planning & process
-`writing-plans` (plan structure + ops.json), `executing-plans` (batch execution with checkpoints), `brainstorming`, `context-first-workflow` (explore before modifying), `spec-driven-development`, `prp-plan` (deep-recon PRP phase 1), `blueprint` (EPIC → multi-PR construction plans), `clarify` (reverse-question protocol), `search-first` (check npm/PyPI/MCP/GitHub before writing custom code), `refactoring-patterns`.
+`writing-plans` (plan structure: Tier + `Files:` list), `executing-plans` (batch execution with checkpoints), `brainstorming`, `context-first-workflow` (explore before modifying), `spec-driven-development`, `prp-plan` (deep-recon PRP phase 1), `blueprint` (EPIC → multi-PR construction plans), `clarify` (reverse-question protocol), `search-first` (check npm/PyPI/MCP/GitHub before writing custom code), `refactoring-patterns`.
 
-### Operations pipeline (the safety-critical trio)
-- `generate-operations-config` — **the canonical ops.json schema source** (planner must reference it, never embed a copy).
-- `validate-operations-config` — reviewer-side validation against the 29 guards.
-- `execute-operations-config` — implementer-side; **script-only** execution through `execute-json-ops.py` (rewritten in v2.1; previously instructed manual Edit usage that the Iron Law forbids).
-
-Python backend in `.claude/operations/scripts/`:
-| Script | Role |
-|--------|------|
-| `validate-config-json.py` | 29 guards: JSON syntax + schema (`operations-schema.json`, types `file_create`/`file_delete`/`code_edit`, `additionalProperties: false`), file existence, protected-file refusal, deletion reason ≥10 chars, unique/unambiguous `find` matches, null-byte checks, MAX_DELETIONS=3/plan (GUARD 26), parent-dir checks, overwrite protection. |
-| `execute-json-ops.py` | Applies operations: per-file backup first, atomic writes, transactional rollback on failure, signal handling. |
-| `restore-backup.py` | Manual/`ck rollback` restore from the backup set. |
-| `shared.py` | PROTECTED_PATTERNS, path normalization, version constant (bump with releases!). |
-
-Safety model in five bullets: (1) plans are data, not actions; (2) validation is deterministic and fail-closed; (3) every execution is preceded by backups and is atomic; (4) protected files can never be deleted; (5) rollback is always available (`/rollback`, `ck rollback`).
+### Plan-gated editing
+The JSON-operations pipeline (operations skills, validator and executor scripts) has been removed. Plans are `plan.md` files with a `Tier:` line and a `Files:` list; once the reviewer approves and `review-record.py plan-write` records it, `plan-gate` lets the main session edit the listed files directly. See [DOMAIN.md](DOMAIN.md) and [HOOKS.md](HOOKS.md).
 
 ### Verification & testing
 `verification-before-completion` (evidence before claims **and** the 6-phase QA runbook: build/types/lint/tests/security/diff — `verification-loop` merged in), `test-driven-development`, `property-based-testing`, `eval-harness`, `requesting-code-review` / `receiving-code-review`.

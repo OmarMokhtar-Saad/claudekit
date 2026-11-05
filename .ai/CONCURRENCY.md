@@ -380,7 +380,7 @@ every one of them failed OPEN by silently deleting commands.
   still computed and written to `hooks.log` as `WOULD-BLOCK`. This repo
   develops under `minimal` (CLAUDE.md "Session setup gotcha"), so a wholesale
   `exit 0` would leave zero dogfood signal in the very tree where the incident
-  is recorded. Same posture as `iron-law-gate.py` and `reflection-gate.py`.
+  is recorded. Same posture as `reflection-gate.py`.
   **Consequence to be honest about: inside ClaudeKit itself the guard does not
   block — it only records.** It blocks in the 13 downstream projects, which run
   `standard`.

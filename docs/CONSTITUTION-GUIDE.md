@@ -79,7 +79,7 @@ Presentation → Business Logic → Data Access
 
 | Level | Trigger | Effect |
 |-------|---------|--------|
-| AUTO-REJECT | Architecture violation, missing ops.json | Score = 0, plan rejected |
+| AUTO-REJECT | Architecture violation, Tier 3 plan without a `Files:` list | Score = 0, plan rejected |
 | Major (-20 pts) | Missing tests, security issue | Score reduction |
 | Minor (-5 pts) | Style violation, missing docs | Score reduction |
 | Warning | Non-blocking observation | Logged, no score impact |

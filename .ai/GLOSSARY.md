@@ -5,7 +5,7 @@
 | **Agent** | A single-responsibility role prompt in `.claude/agents/` with model + tools frontmatter. 28 shipped. |
 | **Anti-anchoring** | Preventing bias from a first opinion by spawning evaluators with fresh, unshared context (council, dual review). |
 | **Auto-checkpoint** | Template hook stashing periodic checkpoints (stable stash SHAs). |
-| **AUTO-REJECT** | Reviewer verdict scoring a plan 0 for a hard violation (e.g., missing ops.json). |
+| **AUTO-REJECT** | Reviewer verdict scoring a plan 0 for a hard violation (e.g., missing `Files:` list on a Tier 3 plan). |
 | **Blueprint** | Multi-session construction plan for EPIC-scope (3+ PR) objectives (`/blueprint`). |
 | **ck** | Short CLI alias for `claudekit`. |
 | **Command** | Slash-command workflow entry point in `.claude/commands/`. 40 shipped. |
@@ -17,21 +17,17 @@
 | **Docs-drift** | CI job failing when any doc hard-codes a count that disagrees with the filesystem (`gen-docs.py --check`). |
 | **ECC_HOOK_PROFILE** | Enforcement level env var: `minimal` / `standard` (default) / `strict`. |
 | **Fail closed** | Blocking hook behavior on parse failure: block, don't allow. |
-| **File-based handoff** | Agents exchange artifacts (plan.md, ops.json), not conversation context. |
+| **File-based handoff** | Agents exchange artifacts (plan.md, review reports), not conversation context. |
 | **Golden Rule** | No code changes without explicit user approval. Mandatory skill for all agents. |
-| **Guard** | One of 29 numbered validation rules in `validate-config-json.py`. |
 | **Handoff Protocol** | The exact block format for agent-to-agent transitions (`HANDOFF_PROTOCOL.md`). |
-| **Iron Law** | Implementer executes only via ops.json/engine; no ops.json → STOP. |
 | **Manifest** | `.claude/.claudekit-manifest.json` — installed files + sha256, powering diff/update/uninstall/doctor. |
-| **MAX_DELETIONS** | GUARD 26: ≤3 file deletions per plan. |
 | **Mode** | Behavioral overlay (default/brainstorm/token-efficient/deep-research/implementation/review/orchestration). |
 | **Model routing** | Scoring a task (reasoning depth, output complexity, error cost, novelty) → haiku/sonnet/opus (`/model-route`). |
 | **Operations engine** | validate → execute (backup/atomic/rollback) → restore Python trio in `.claude/operations/scripts/`. |
-| **ops.json** | Declarative operations config (`file_create`/`file_delete`/`code_edit`) accompanying every plan. Names: `*.ops.json` or `ops-*.json`. |
 | **PathGuard** | Python path validator: protected patterns per component, symlink resolution, depth limit. |
 | **Phase 1** | The v2.1 "Fix What's Broken" remediation (audit tasks 001–006, 011), completed 2026-07-06. |
 | **Pipeline** | Ordered agent sequence chosen by task classification. |
-| **Plan** | `plan-*.md` + ops.json pair in `.claude/plans/`. |
+| **Plan** | `plan-*.md` in `.claude/plans/`, with a `Tier:` line and a `Files:` list. |
 | **PRP** | Product Requirements Process — 4-phase deep-context workflow (`/prp-plan → /prp-implement → /prp-commit → /prp-pr`). |
 | **Protected files** | Patterns that ops can never delete (canonical set: `shared.py` PROTECTED_PATTERNS / PathGuard). |
 | **Quality gates** | Plan ≥90/100 (40/30/30); verification ≥80/100 (30/40/30). |

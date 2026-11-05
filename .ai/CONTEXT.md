@@ -30,7 +30,6 @@ v1.0.0 and v1.1.0 shipped 2026-03-16, v2.0.0 on 2026-03-17 — a rapid, ambitiou
 - Commit messages end with a `Co-Authored-By:` line crediting the AI model used (repo convention).
 - `find_claudekit_root()` in the CLI walks up looking for `.claude/agents` — it broke once by resolving to `src/`; there's a regression test.
 - `CLAUDEKIT_HOME` env var is honored for locating the asset tree (works from wheel installs via `<prefix>/share/claudekit`, bundled by `setup.py`).
-- Ops filenames: **both** `*.ops.json` and `ops-*.json` are valid; `lib.sh` defines `OPS_FIND_EXPR`/`OPS_REGEX` as the single matching pattern. Never match only one form (the historic split-brain meant pre-commit validated zero files, ever).
 - The secret-scan regex historically failed on single-quoted secrets (`\x27` bug) — fixed; there's a test proving staged secrets block commits (`4ef8d38`).
 - macOS compatibility is a hard requirement: bash 3.2 (no `${VAR,,}`), BSD date (no `date -r` GNU semantics). CI runs a macOS matrix.
 

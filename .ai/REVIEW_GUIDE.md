@@ -6,9 +6,9 @@
 |---|------------|-------------|
 | Agent | `reviewer` (opus, read-only) | `code-reviewer` (opus, read-only) |
 | Command | `/review` | `/code-review` |
-| Object | `plan-*.md` + ops.json | diffs, files, PRs |
+| Object | `plan-*.md` (Tier + `Files:`) | diffs, files, PRs |
 | Gate | ≥90/100: Plan Quality 40% + Architecture 30% + Security 30% | findings ranked by severity; APPROVE/REQUEST_CHANGES/BLOCK |
-| Auto-reject | plan without ops.json → score 0 | — |
+| Auto-reject | Tier 3 plan without a `Files:` list → score 0 | — |
 | Tools | Read/Grep/Glob — **no Bash**, cannot execute | Read/Grep/Glob/**Bash** — can run a mutation proof |
 | Ends when | score ≥90 | Critical + High both zero; Medium/Low become follow-ups |
 | Rounds 2+ | re-score the delta | read only `git diff <last-verdict-sha>`, inherit prior findings with a status |
@@ -44,14 +44,14 @@ the plan's own Validation commands would have surfaced before execution.
 
 So: for a **Tier 3** plan, or any plan whose ops touch hooks, tests, or executable scripts, a
 static-only verdict may NOT be the last review before execution. Follow it with `/code-review` on
-the plan + ops.json -- `code-reviewer` has Bash -- prompted to run the plan's own Validation
+the plan -- `code-reviewer` has Bash -- prompted to run the plan's own Validation
 commands against a dry-run or scratch copy and to report the exit codes it actually saw. The
 `reviewer` score still gates the approval record; the code review gates the decision to execute.
 
 
 ## Pre-ops design precheck (Tier 2/3)
 
-Before authoring ops.json, write one paragraph naming **the ownership/data model the change
+Before authoring the plan, write one paragraph naming **the ownership/data model the change
 assumes** and **the files that actually carry its value**. If those files fall outside the model,
 the design is wrong, and implementation review will only surface it after a whole build cycle has
 been spent — which is exactly how the Phase 1a sidecar and the Phase 2 ownership model failed.
@@ -66,7 +66,7 @@ been spent — which is exactly how the Phase 1a sidecar and the Phase 2 ownersh
 
 **Prompt changes (agents/commands/skills):**
 - [ ] Registry, coordinator routing, QUICK_START, INVOCATION rows updated for renames/merges.
-- [ ] No schema/rule duplication — reference the single source (generate-operations-config, INVOCATION.md).
+- [ ] No schema/rule duplication — reference the single source (INVOCATION.md).
 - [ ] Frontmatter examples intact; tools list still minimal.
 - [ ] Every review finding carries a `Class` (see the recurrence table below).
 - [ ] Doesn't contradict HANDOFF_PROTOCOL / VERIFICATION_PROTOCOL / the Iron Law.
@@ -183,7 +183,7 @@ generalises past patterns to anything built from variables: allowlists, `find` e
 control you have not reviewed.**
 
 One caveat on everything above: the `reviewer` agent holds Read, Grep and Glob and cannot execute,
-so it cannot write a mutant, apply an ops.json, or run the DoD commands. Until that is resolved
+so it cannot write a mutant, apply a plan's edits, or run the DoD commands. Until that is resolved
 (BACKLOG P0.75) the mutation discipline in this section is the ORCHESTRATOR's to run, and a plan
 review should be read as a static read-through, not as evidence that anything was executed.
 
@@ -276,7 +276,7 @@ classes cannot be resolved and is reported rather than skipped. Read a clean run
 The script exits non-zero on findings but is **not** wired into `.github/workflows/ci.yml`.
 Precision is not the blocker; ownership is: the 16 residual findings (as of 2026-08-20; the live
 number is whatever `python3 scripts/check-silent-failure.py .` reports) live in `install.sh` (10),
-`.claude/hooks/` (4), `src/claudekit/cli/main.py` (1) and `execute-json-ops.py` (1). Until they
+`.claude/hooks/` (4), and `src/claudekit/cli/main.py` (1). Until they
 are annotated or fixed, the ratchet is
 `tests/test_silent_failure_lint.py::test_repo_residue_is_confined_to_known_paths`, which pins
 PATHS (not counts or line numbers) and asserts the exit code first, so deleting or breaking the

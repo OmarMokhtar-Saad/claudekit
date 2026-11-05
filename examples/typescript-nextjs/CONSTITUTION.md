@@ -29,7 +29,7 @@ Components → Domain → Data. No direct UI→Data imports. Server components b
 
 ## Article V: Operations
 
-- All plans require ops.json
+- All Tier 3 plans require a `Files:` list
 - Protected files: package.json, tsconfig.json, *.md
 
 ## Article VI: Review

@@ -106,7 +106,7 @@ Unset defaults to `standard`.
 | `commit-quality.sh` | Bash | off in `minimal` | Enforces commit-message quality |
 | `command-guard.sh` | Bash | **`strict` blocks**, `standard` warns, `minimal` off | Denylist speed bump over shell commands (`CommandValidator`). A flagged command blocks under `standard` too; only a validator that is **missing or crashed** takes the permissive path (and `strict` closes that). See `SECURITY.md`. |
 | `concurrency-guard.py` | Bash | **`minimal` is advisory** (records `WOULD-BLOCK`), else blocks | Blocks tree-wide git that clobbers a concurrent session in a shared tree: `add`/`stage` with `-A|-u|.`, `commit -a`, `reset --hard|--merge|--keep` or bare `reset`, `checkout|restore|switch` with a tree-wide pathspec, `checkout -f`/`switch -f`, `clean -f`, `stash`/`stash push` unscoped, `rm .`, `worktree remove -f`. Tokenises with `shlex`, so flag order, `--`, clusters, `git -C`, `bash -lc` and multi-line scripts are all handled. Scoped and restorative forms (`add -A -- <path>`, `stash push <path>`, `stash pop`) stay allowed. `CK_ALLOW_BROAD_GIT=1` downgrades to a warning. See `.ai/CONCURRENCY.md`. |
-| `pre-commit.sh` | Bash (`git commit`) | always | Validates ops.json configs and scans staged files for secrets |
+| `pre-commit.sh` | Bash (`git commit`) | always | Scans staged files for secrets |
 | `pre-push.sh` | Bash (`git push`) | always | Full validation suite before a push to remote |
 
 ### Advisory — `PreToolUse` / `UserPromptSubmit`
@@ -122,7 +122,7 @@ Unset defaults to `standard`.
 
 | Hook | Event | Purpose |
 |------|-------|---------|
-| `post-tool-use.sh` | PostToolUse (Edit/Write/Bash) | Records file modifications; re-validates ops.json if changed |
+| `post-tool-use.sh` | PostToolUse (Edit/Write/Bash) | Records file modifications |
 | `command-log-audit.sh` | PostToolUse (Bash) | Appends an audit log of executed commands (background) |
 | `operations/scripts/output_filter.py` | PostToolUse (Bash) | Rewrites noisy command **stdout** before Claude sees it (see below) |
 
@@ -141,8 +141,8 @@ It is deliberately conservative:
   rewritten; every other field of the tool response is passed through unchanged.
 - **It fails soft.** Any error and the original output stands, untruncated.
 - **Gate-bearing commands are on a denylist** the project-local filter file cannot override:
-  the `--check` generators, `validate-config-json.py`, `review-record.py`,
-  `execute-json-ops.py`, `ck doctor`, `ruff`, `mypy`, `shellcheck`.
+  the `--check` generators, `review-record.py`,
+  `ck doctor`, `ruff`, `mypy`, `shellcheck`.
 
 **Escape hatch — raw output on demand.** Prefix the command with `CK_RAW_OUTPUT=1`:
 
@@ -175,8 +175,7 @@ is available for teams that want a post-implementation build/test gate.
 
 Not a hook. Sourced by the others; provides `resolve_root`,
 `extract_json_field` (fail-closed JSON parsing), `hlog` (structured logging to
-`.claude/hooks/hooks.log`), `deny` (stderr + `exit 2`), and the `*.ops.json` /
-`ops-*.json` matching expressions.
+`.claude/hooks/hooks.log`), `deny` (stderr + `exit 2`), and the plan-file matching expressions.
 
 ## Project commands (`config.json`)
 

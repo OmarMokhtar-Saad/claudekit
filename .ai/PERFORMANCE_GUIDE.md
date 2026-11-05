@@ -16,7 +16,7 @@ ClaudeKit's scarce resources are **tokens** and **hook latency**, not CPU/memory
 
 ## Ops engine
 
-Atomic writes + per-file backups are I/O-bound and fine at normal plan sizes; MAX_DELETIONS and single-file granularity keep transactions small by design. Don't batch-optimize at the cost of rollback granularity.
+Installer writes (staging + backup + atomic swap) are I/O-bound and fine at normal sizes.
 
 ## CI
 

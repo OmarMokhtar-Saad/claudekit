@@ -1,31 +1,5 @@
 # Knowledge Base — Philosophies, Patterns, Lessons
 
-## The ops parse gate is DIFFERENTIAL, and ambiguity outranks it
-
-`execute-json-ops.py` refuses a config whose edits would leave a `.py` file unparseable
-(`ops_precompile.check`, added 2026-09-07). Two properties are load-bearing and both were
-learned the hard way, so do not "simplify" either one:
-
-1. **It judges the DIFFERENCE, not the absolute state.** `_parsed_before` reads the file from
-   disk first, and a break that was already there is reported as `PRE` and does not fail the
-   run. An absolute check looked correct and was not: it refused any config editing a file that
-   was already broken, which means **the Iron Law path could not be used to repair a syntax
-   error** — exactly when it is most wanted. It also broke
-   `test_validator_sequence_mode.py::test_projected_verdict_agrees_with_the_executor`, whose
-   fixture writes deliberately-unparseable text, and that failure was originally misdiagnosed
-   as a check-ordering bug. The shadow check (`_new_shadows`) was already differential; the
-   parse check being absolute was the inconsistency.
-2. **A precise verdict outranks a generic one.** An ambiguous anchor goes to `misses`, which
-   populates `unresolved` and is excluded from the parse loop, so `bad` is never incremented
-   and the executor's own `Pattern appears N times (ambiguous match)` is what the operator
-   sees. Before this was pinned it was an emergent property of `bad` arithmetic with no test
-   guarding it. `test_ops_parse_gate.py::test_an_ambiguous_anchor_alone_does_not_fail_the_gate`
-   now reds if ambiguity is made to refuse (proven by planting `bad += 1` in that branch: 3
-   tests fail).
-
-`--no-parse-check` is break-glass, mirroring `--no-approval`: an argparse flag reachable only
-from an explicit human CLI invocation, never settable from ops.json content.
-
 ## Hard rule 7 names four version sites, not three
 
 `cli/main.py`'s `_resolve_version` fallback is the fourth and went unnamed until 2026-08-29.
@@ -65,7 +39,7 @@ The distilled judgment of everyone (human and AI) who has worked on ClaudeKit. C
 
 ## Preferred patterns
 
-Staging + backup + atomic swap for anything that overwrites user data · manifest + sha256 for anything updatable · `lib.sh`-style shared helpers over copy-paste (10+ hook variants were consolidated) · deterministic Python for safety-critical paths, prompts only for judgment · hard gates between pipeline stages (opensource Stage 2 only if Stage 1 PASSES) · iteration caps on all loops (build-fix 7, refine/gan configurable) · single-source-of-truth documents (INVOCATION.md, generate-operations-config).
+Staging + backup + atomic swap for anything that overwrites user data · manifest + sha256 for anything updatable · `lib.sh`-style shared helpers over copy-paste (10+ hook variants were consolidated) · deterministic Python for safety-critical paths, prompts only for judgment · hard gates between pipeline stages (opensource Stage 2 only if Stage 1 PASSES) · iteration caps on all loops (build-fix 7, refine/gan configurable) · single-source-of-truth documents (INVOCATION.md).
 
 ## Anti-patterns (all observed in this repo's history)
 
@@ -80,7 +54,7 @@ Existence-theater tests · exit-1 "blocking" hooks · embedded schema copies tha
 
 ## Important edge cases
 
-Single-quoted secrets in diffs (`\x27` regex class) · commit messages via `-m` vs editor (commit-quality parses both) · `git commit --no-verify` disguised with quotes (`--no-ver"ify"`) · relative symlinks resolved against link dir, not cwd · `my.envelope.txt` must not match the `.env` protected pattern (component-level matching) · creating a *new* protected-type file (allowed) vs modifying (guarded) · ops.json with multiple `find` matches (GUARD 11 ambiguity rejection) · macOS BSD vs GNU tool differences.
+Single-quoted secrets in diffs (`\x27` regex class) · commit messages via `-m` vs editor (commit-quality parses both) · `git commit --no-verify` disguised with quotes (`--no-ver"ify"`) · relative symlinks resolved against link dir, not cwd · `my.envelope.txt` must not match the `.env` protected pattern (component-level matching) · creating a *new* protected-type file (allowed) vs modifying (guarded) · macOS BSD vs GNU tool differences.
 
 ## Recurring bug classes (watch for)
 
@@ -91,11 +65,10 @@ Path resolution after layout moves (`find_claudekit_root` → `src/` bug) · reg
 Eight review rounds on one change produced four defects of one shape, and it is worth naming
 because reading never catches it — only mutating the artifact does.
 
-- **A gate that passes because it isn't checking.** `check-plan-artifacts.py` matched a
-  target path by SUBSTRING, so `scripts/gen-docs.py` was satisfied by a plan naming
-  `templates/scripts/gen-docs.py` — a different file. A declared `plan` value was joined to
-  the config's parent, so `../x` aimed the gate at any file that mentioned the paths. One of
-  two slug prefixes was stripped, so `"plan": "ops-foo"` resolved to nothing and passed.
+- **A gate that passes because it isn't checking.** A plan-artifact drift check (since
+  removed with the ops pipeline) matched a target path by SUBSTRING, so `scripts/gen-docs.py`
+  was satisfied by a plan naming `templates/scripts/gen-docs.py` — a different file. Match
+  whole path components, never substrings.
 - **A green test certifying a property it does not check.** The worst of the four:
   `test_a_basename_inside_a_longer_filename_does_not_count` passed while the sibling branch
   stayed open, so the suite became *evidence against a defect it did not cover*. A test like
@@ -119,7 +92,7 @@ surfaced by review-by-reading.
 
 ## Things future models must NEVER change
 
-1. The Iron Law (ops.json mandatory; implementer has no Edit/Write).
+1. The plan gate (Tier 3 source is edited only after a reviewed, recorded plan.md names the file in `Files:`; subagents never edit).
 2. Fail-closed blocking hooks (exit 2 + stderr).
 3. Permission gating (no `--dangerously-skip-permissions`, scoped tools).
 4. Protected-file guards and MAX_DELETIONS cap.

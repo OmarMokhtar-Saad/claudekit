@@ -89,11 +89,11 @@ All code must be checked against relevant OWASP Top 10 items:
 
 ---
 
-## Article V: Operations Config System
+## Article V: Plan Gate
 
-### Section 1: Mandatory Configuration
-- All plans MUST include `ops.json`
-- **Violation**: AUTO-REJECT without ops.json
+### Section 1: Mandatory Plan
+- All edits MUST follow an approved plan.md with a Tier and a `Files:` list
+- **Violation**: AUTO-REJECT a plan without a `Files:` list
 
 ### Section 2: Protected Files
 The following files cannot be deleted via operations config:
@@ -132,7 +132,7 @@ All implementation plans must include:
 - Problem statement
 - Proposed solution
 - Affected files
-- Operations config (ops.json)
+- Tier and `Files:` list
 - Verification steps
 
 ---
@@ -151,8 +151,7 @@ All implementation plans must include:
 - Security: 30%
 
 ### Section 3: Automatic Rejections
-- Missing operations config folder
-- Missing ops.json file
+- Missing `Files:` list
 - Architecture violations
 
 ### Section 4: Escalation

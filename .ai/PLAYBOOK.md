@@ -27,15 +27,15 @@ Check `review/tasks/` first (it's probably specced) → for surface changes get 
 
 ## Build the eval framework (task 010)
 
-`evals/` with 2–3 fixture repos → golden ops.json snapshots for planner on fixed prompts → `ck eval` runner via `claude -p --output-format json` → reviewer/verifier output schemas (`review.json`) → hook gates `/implement` on `score ≥ threshold` → nightly CI job + trend report → benchmark the 85% token-reduction claim.
+`evals/` with 2–3 fixture repos → golden plan.md snapshots for planner on fixed prompts → `ck eval` runner via `claude -p --output-format json` → reviewer/verifier output schemas (`review.json`) → hook gates `/implement` on `score ≥ threshold` → nightly CI job + trend report → benchmark the 85% token-reduction claim.
 
 ## Update documentation after any asset change
 
 `python3 scripts/gen-docs.py` (regen counts) → `--check` green → grep docs for the old asset name → update README tables + docs/ page + `.ai/` catalog entry → CHANGELOG if user-visible.
 
-## Recover from a bad ops execution (in any ClaudeKit-enabled project)
+## Recover from a bad edit session (in any ClaudeKit-enabled project)
 
-`/rollback` (or `python3 .claude/operations/scripts/restore-backup.py`) → verify working tree (`git status`, tests) → diagnose which guard should have caught it → if a guard gap: bypass-corpus test + guard fix in the kit.
+`/rollback` (restores the pre-edit git checkpoint) → verify working tree (`git status`, tests) → diagnose which guard should have caught it → if a guard gap: bypass-corpus test + guard fix in the kit.
 
 ## Hand over to the next AI
 

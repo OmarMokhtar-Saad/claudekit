@@ -11,7 +11,7 @@ graph LR
     AGENTS -->|load via registry| SKILLS[Skills /73/]
     REG[skills-registry.json] -.maps.- SKILLS
     REG -.maps.- AGENTS
-    AGENTS -->|write| PLANS[plans/*.md + ops.json]
+    AGENTS -->|write| PLANS[plans/*.md]
     PLANS -->|validated by 29 guards| OPS[Operations engine]
     OPS -->|atomic + backup| CODE[(User codebase)]
     OPS -->|rollback| BACKUPS[(Backups)]
@@ -47,7 +47,7 @@ graph TD
     LOOP[/loop-start/] --> LO[loop-operator<br/>Warn→Pause→Stop]
     OSSP[/opensource/] --> S1[sanitizer PASS/FAIL] -->|hard gate| S3[packager]
     GOLDEN[Golden Rule] -.governs.-> PLANNER & I & G
-    IRON[Iron Law: ops.json only] -.governs.-> I
+    IRON[Plan gate: approved plan.md Files: only] -.governs.-> I
 ```
 
 ## Traceability spine
@@ -57,8 +57,6 @@ Feature promise (README) → enforcing mechanism (hook/guard/CI job) → proving
 | Promise | Mechanism | Test | Doc |
 |---------|-----------|------|-----|
 | "Plans before code" | plan-gate.sh + Iron Law | test_hooks_behavioral | HOOKS/DOMAIN |
-| "29 safety guards" | validate-config-json.py | test_validator | SKILLS §ops |
-| "Safe execution, rollback" | execute-json-ops / restore-backup | test_validator, behavioral | SKILLS §ops |
 | "Hooks block" | exit-2 contract + settings.json | test_hooks_behavioral | HOOKS |
 | "Command safety" | CommandValidator + command-guard | test_security(+hooks) | SECURITY_GUIDE |
 | "Self-contained install" | wheel share/claudekit + manifest | test_packaging, test_install | ARCHITECTURE §8 |

@@ -9,9 +9,6 @@ Both. The product is the prompt/hook corpus; `src/claudekit/` is the delivery sh
 **Why does the repo block my edits when I work on it?**
 It runs its own enforcement hooks. Set `ECC_HOOK_PROFILE=minimal` via `.claude/settings.local.json` ([DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md)).
 
-**Why do both `*.ops.json` and `ops-*.json` exist?**
-Historic split-brain that once made validation match zero files. Both are now valid; `lib.sh` OPS_FIND_EXPR is the single pattern. Don't standardize one away without migrating everything.
-
 **Why 2.1.0 when CHANGELOG shows a 1.3.0 dated after 2.0.0?**
 Versioning mistake, corrected: that entry was renumbered 2.1.0 with a note. Versions are monotonic from now on.
 
@@ -40,7 +37,7 @@ Product feature: installs are copy-not-link, self-contained, supply-chain-minima
 macOS/bash-3.2 shell issues, path resolution after layout moves, registry dangling refs after renames, docs-count drift. All CI-gated now.
 
 **What's the single most dangerous file to edit carelessly?**
-`.claude/operations/scripts/validate-config-json.py` (weakened guards silently remove user-facing safety), followed by `.claude/settings.json` (mis-wired hooks = enforcement vanishes) and `install.sh` (user-data destruction history).
+`.claude/settings.json` (mis-wired hooks = enforcement vanishes) and `install.sh` (user-data destruction history).
 
 **Who is the human in the loop?**
 Omar Mokhtar (owner). Release timing, asset deletions/renames, and the plugin-packaging bet are his calls.

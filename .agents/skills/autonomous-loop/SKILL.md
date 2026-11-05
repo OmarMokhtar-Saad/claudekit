@@ -63,7 +63,7 @@ Implement the autonomous development loop (Ralph pattern) that allows Codex to t
 - Each step must be independently testable
 - Estimate complexity (low/medium/high) per step
 - Identify which files will be created/modified/deleted
-- Generate ops.json config if using the operations system
+- List the exact `Files:` the plan will touch (plan-gate allows edits only to these)
 - Output: numbered step list with file manifest
 
 ### Phase 3: Implement
@@ -193,7 +193,7 @@ Result: SUCCESS -- all acceptance criteria met
 ## Integration
 
 - Uses **planner** agent for Phase 2
-- Uses **implementer** agent for Phase 3
+- Phase 3: the main session edits directly per the approved plan
 - Uses **tester** agent for Phase 4
 - Uses **reviewer** scoring logic for Phase 5
 - Respects all **operations system** safety guards

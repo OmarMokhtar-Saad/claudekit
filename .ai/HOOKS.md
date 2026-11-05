@@ -7,7 +7,7 @@
 - Hook receives the tool-call payload as **JSON on stdin** (never env vars — the historic env-var assumption meant telemetry was dead until v2.1).
 - Exit codes: `0` allow · `2` **block** (message on **stderr**) · anything else = non-blocking error. Blocking hooks **fail closed**: if they can't parse the payload they block rather than allow.
 - Enforcement gated by `ECC_HOOK_PROFILE`: `minimal` (enforcement off — kit development), `standard` (default; command-guard BLOCKS — warn-only was a fail-open default, fixed 2026-07-30), `strict` (also blocks when the validator is unavailable).
-- Shared helpers in `lib.sh`: `resolve_root` (git toplevel with fallback), `hlog` (append to hooks.log, logs parse failures), `deny` (stderr + exit 2), `OPS_FIND_EXPR`/`OPS_REGEX` (matches **both** `*.ops.json` and `ops-*.json` — never reintroduce the split-brain).
+- Shared helpers in `lib.sh`: `resolve_root` (git toplevel with fallback), `hlog` (append to hooks.log, logs parse failures), `deny` (stderr + exit 2), `plan-lib.sh` (plan parsing for `plan-gate.sh`).
 
 ## Lifecycle
 
@@ -34,14 +34,14 @@ sequenceDiagram
 
 | Hook | Matcher | Blocks when |
 |------|---------|-------------|
-| `plan-gate.sh` | Edit/Write | Tier 3 source edited without an approved, unchanged plan.md listing the path in `Files:` (the Iron Law's mechanical teeth). Binds under every profile. |
+| `plan-gate.sh` | Edit/Write | Tier 3 source edited without an approved, unchanged plan.md listing the path in `Files:` (the plan gate). Binds under every profile. |
 | `checkpoint-gate.sh` | Edit/Write | Tier 3 edit with no `ck-checkpoint/<epoch>` tag. |
 | `config-protection.sh` | Edit/Write | Modifying protected configs (package.json, pyproject.toml, tsconfig…). Anchored patterns; creating a **new** pyproject.toml is allowed (was a false-positive bug). |
 | `file-guard-gate.sh` | Edit/Write | Touching sensitive paths (`.env`, keys, `.git/config`) — delegates to PathGuard semantics. |
 | `command-guard.sh` | Bash | Command fails `claudekit.security` validation. `strict`=block, `standard`=warn, `minimal`=off. |
 | `block-no-verify.sh` | Bash | `git commit/push --no-verify` (git-scoped, quote-stripped matching — not a naive substring). |
 | `commit-quality.sh` | Bash | Non-conventional commit message; also blocks staged secrets (proven by test `4ef8d38`). bash-3.2 safe (`tr`, not `${VAR,,}`). |
-| `pre-commit.sh` | Bash (`git commit`) | Invalid ops.json in `.claude/plans/`, staged secret patterns (incl. single-quoted — `\x27` fix), build failure on source changes. |
+| `pre-commit.sh` | Bash (`git commit`) | Staged secret patterns (incl. single-quoted — `\x27` fix), build failure on source changes. |
 | `pre-push.sh` | Bash (`git push`) | Test/lint/build failures (commands from config.json `project.*`). |
 | `security-reminder.sh` | Edit/Write | Non-blocking advisory: prints security notes for sensitive-looking edits. |
 | `suggest-compact.sh` | (all PreToolUse, async) | Never blocks; suggests `/compact` based on `compact-counter.txt`. Stale-lock and macOS `date` bugs fixed. |
@@ -75,7 +75,7 @@ overclaimed.
 | Hook | Purpose |
 |------|---------|
 | `session-start.sh` | Detects language, loads config, prints startup summary, auto-loads recent `.claude/session-context.md`. |
-| Stop inline script (settings.json) | Warns on uncommitted changes; validates all ops.json files in `.claude/plans/`; logs session end. |
+| Stop inline script (settings.json) | Warns on uncommitted changes; logs session end. |
 | `cost-tracker.sh` | Aggregates usage into `cost-tracker.log` (async). |
 | `desktop-notify.sh` | OS notification that the session ended (async). |
 | `format-typecheck.sh` | Runs formatter/typechecker from config.json commands (async). |

@@ -349,6 +349,6 @@ Every command decision is logged to `.Codex/command-audit.log`:
 ## Integration
 
 - **coordinator** invokes this skill before executing any bash command
-- **implementer** uses it during plan execution
+- The main session uses it during plan execution
 - **autonomous-loop** relies on it for unattended command execution
-- Works alongside the **operations system** safety guards
+- Works alongside the plan-gate and other hook guards
