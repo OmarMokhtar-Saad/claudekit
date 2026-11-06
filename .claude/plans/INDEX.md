@@ -18,10 +18,10 @@ current files. Approval is local: ask `review-record.py plan-check <plan>`.
 
 | State | Plans |
 |---|---:|
-| `open` | 144 |
+| `open` | 145 |
 | `executed` | 30 |
 | `legacy` | 5 |
-| **total** | **179** |
+| **total** | **180** |
 
 ## Plans
 
@@ -147,6 +147,7 @@ current files. Approval is local: ask `review-record.py plan-check <plan>`.
 | `.claude/plans/plan-remaining-fixes-2026-07-31.md` | `open` |
 | `.claude/plans/plan-remove-codex-mirror.md` | `open` |
 | `.claude/plans/plan-remove-ops-main-session.md` | `open` |
+| `.claude/plans/plan-remove-ops-phase2.md` | `open` |
 | `.claude/plans/plan-repo-hygiene-gates.md` | `open` |
 | `.claude/plans/plan-request-shaping.md` | `open` |
 | `.claude/plans/plan-residuals.md` | `open` |
