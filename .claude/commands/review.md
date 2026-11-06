@@ -20,6 +20,7 @@ If the plan touches hooks, tests or executable scripts, its verdict may NOT be t
 review before implementation; follow it with `/code-review` on the plan, where
 `code-reviewer` has Bash and runs the plan's own Validation commands against a scratch copy.
 Reviews are on request: Tier 3 plans need one, Tier 1/2 do not.
+PANEL: unless `--no-panel`, also run `plan-design-critic` and `plan-readiness-critic` as in `.claude/agents/_shared/REVIEW_PANEL.md` (advisory; only `reviewer`'s block is recorded).
 
 ## Invocation
 

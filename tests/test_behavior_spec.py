@@ -189,9 +189,11 @@ class TestAgentRegistration:
     scalar. Structural check (no pyyaml dependency): every frontmatter line is
     a known key, blank, or an indented block-scalar continuation."""
 
-    # `memory` is a documented sub-agent key: code.claude.com/docs/en/sub-agents
+    # `memory` and `omitClaudeMd` are documented sub-agent keys:
+    # code.claude.com/docs/en/sub-agents (omitClaudeMd: no CLAUDE.md in a subagent's context;
+    # ignored under `claude -p --agent`).
     KNOWN_KEYS = ("name", "description", "model", "effort", "color", "tools", "memory",
-                  "maxTurns")
+                  "maxTurns", "omitClaudeMd")
 
     def _frontmatters(self):
         for fname in sorted(os.listdir(AGENTS)):

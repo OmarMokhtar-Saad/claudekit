@@ -278,7 +278,7 @@ Each project gets a `CONSTITUTION.md` — a governance document that agents enfo
 <!-- BEGIN GENERATED:inventory -->
 | Component | Count |
 |-----------|------:|
-| Agents    | 21 |
+| Agents    | 23 |
 | Commands  | 53 |
 | Skills    | 76 |
 | Hooks     | 41 |
@@ -293,7 +293,7 @@ Each project gets a `CONSTITUTION.md` — a governance document that agents enfo
 ```
 claudekit/
 ├── .claude/                          # Core system (copied to your project)
-│   ├── agents/                       # 21 specialized agents
+│   ├── agents/                       # 23 specialized agents
 │   │   ├── coordinator.md
 │   │   ├── planner.md
 │   │   ├── reviewer.md

@@ -792,6 +792,8 @@
   ],
   "agentsWithoutSkills": [
     "performance-optimizer",
+    "plan-design-critic",
+    "plan-readiness-critic",
     "refactor-cleaner",
     "web-researcher"
   ],

@@ -55,7 +55,7 @@ __version__ = _resolve_version()
 
 # BEGIN GENERATED:counts - owned by scripts/gen-docs.py; never hand-edit.
 # Regenerate with: python3 scripts/gen-docs.py
-EXPECTED_AGENTS = 21
+EXPECTED_AGENTS = 23
 EXPECTED_COMMANDS = 53
 EXPECTED_SKILLS = 76
 # END GENERATED:counts

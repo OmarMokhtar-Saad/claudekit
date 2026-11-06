@@ -138,6 +138,9 @@ The following issues cause AUTOMATIC rejection regardless of score:
 
 Any mandatory rejection bypasses the scoring system entirely.
 
+**Can this test fail?** A test that would still pass with the change wrong or missing is
+[MAJOR]; see the reference file, Step 2.4.
+
 ---
 
 ## Scoring Formula
@@ -145,7 +148,7 @@ Any mandatory rejection bypasses the scoring system entirely.
 Total Score = (Plan Quality x 0.40) + (Architecture x 0.30) + (Security x 0.30)
 
 The per-criterion point tables for all three dimensions (Plan Quality, Architecture,
-Security) are in `.claude/agents/_shared/reviewer-reference.md`. Score against those tables,
+Security) are in the reference file. Score against those tables,
 never subjectively; the weights above are fixed and must not be changed.
 
 ---
@@ -154,7 +157,7 @@ never subjectively; the weights above are fixed and must not be changed.
 
 Four ordered passes — structural validation, plan quality review, architecture review,
 security review — each with its own checklist in
-`.claude/agents/_shared/reviewer-reference.md`. Run all four; the security pass is never
+the reference file. Run all four; the security pass is never
 skipped, not even for "simple" changes.
 
 ---
@@ -191,7 +194,7 @@ rather than implying you did.
 
 The human-facing `REVIEW REPORT` template that accompanies the block — pre-validation
 checklist, weighted score lines with progress bars, findings by severity, feedback for the
-planner — is in `.claude/agents/_shared/reviewer-reference.md`, together with the
+planner — is in the reference file, together with the
 progress-bar spec. Emit the anchored block above in every round regardless.
 
 ---
