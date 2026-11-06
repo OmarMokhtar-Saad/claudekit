@@ -32,7 +32,7 @@ INDEX summary, the brief paths and any miner output. **Never hand it a raw trans
 
 ## Step 4 — hand the owner a decision
 
-Report the analyst's `.claude/reports/retro/<date>.md`, its paired ops.json, the guardrails
+Report the analyst's `.claude/reports/retro/<date>.md`, its paired plan.md, the guardrails
 that blocked proposals, and the external anchor metric each proposal is measured on.
 **Nothing is applied here.** Never propose a cron, never treat the reviewer score as ground
 truth (it is another LLM), never tune planner and reviewer in the same cycle.

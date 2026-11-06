@@ -1,6 +1,15 @@
 # AI Session Changelog
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
+## 2026-11-06 — `(delete)` marker; `impact --ops` removed (branch `feat/remove-ops`)
+Claude Sonnet 5.5. Plan `plan-delete-marker-and-impact.md` (approved 91). Finding: no deletion
+detection existed before; `rm`, `git rm`, `unlink` and Write-to-empty reached no plan check.
+Added `(delete)` parsing and the cap of 3 (`review-record.py`), `pg_authorised_delete`,
+a Write-to-empty branch in `plan-gate.sh`, and `_tier3_delete_violation` in
+`shell-write-gate.py` (tracked files only, one batched bash call). Removed `impact --ops`.
+Limits: Edit-to-empty, `find -delete`, `git clean`, `mv`, scripted deletes, `$(...)`.
+Follow-up: `plan-remove-ops-phase2.md` can no longer be re-recorded (more than 3 marks).
+
 ## 2026-10-02 — warn default 120000; fleet ck update
 
 - `context-budget-gate.py` `DEFAULT_WARN` 150000 -> 120000; a new 130K test kills the 150000 mutant.

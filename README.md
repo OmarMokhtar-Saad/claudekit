@@ -30,7 +30,7 @@ Claude Code is powerful on its own. ClaudeKit makes it **structured, safe, and a
 
 Without ClaudeKit, an AI assistant makes changes directly — no plan, no review, no rollback. With ClaudeKit, every change follows a pipeline: plan it, review it, execute it safely, verify the result.
 
-- **Plans before code** — Every task produces a structured plan with an operations config before any file is touched.
+- **Plans before code** — Every task produces a reviewed plan with a `Files:` list before any file is touched.
 - **Quality gates** — Plans must score 90/100 to proceed. Implementations must score 80/100 to pass.
 - **Safe execution** — All file operations are atomic, backed up, and rollback-capable. 29 safety guards validate every config.
 - **Any language** — Auto-detects Python, TypeScript, Java, Go, Kotlin, Swift, Rust, C#, Ruby, PHP. Extensible to any stack.
@@ -62,7 +62,7 @@ Open your project in Claude Code and run:
 /plan Add user authentication with JWT tokens
 ```
 
-ClaudeKit takes over — the Planner explores your codebase, writes a plan with an ops.json config, the Reviewer validates it, the Implementer executes it with automatic backup, and the Verifier checks the result.
+ClaudeKit takes over — the Planner explores your codebase, writes an approved plan.md, the Reviewer scores it, the main session makes the edits once plan-gate allows them, and the Verifier checks the result.
 
 > **Tip:** in your first session, run `/adapt` — it fits ClaudeKit to your project (any language, even without a dedicated template), configures build/test/lint commands, and verifies the setup with evidence.
 
@@ -97,7 +97,7 @@ ClaudeKit takes over — the Planner explores your codebase, writes a plan with 
                     └──────┬──────┘
                            │
               ┌────────────▼────────────┐
-              │        Planner          │  Explores codebase → writes plan + ops.json
+              │        Planner          │  Explores codebase → writes plan.md
               └────────────┬────────────┘
                            │
               ┌────────────▼────────────┐
@@ -106,7 +106,7 @@ ClaudeKit takes over — the Planner explores your codebase, writes a plan with 
               └────────────┬────────────┘
                            │ ✓ Approved
               ┌────────────▼────────────┐
-              │      Implementer        │  Executes ops.json with backup + rollback
+              │  Main session edits     │  Only files listed in plan.md Files:
               └────────────┬────────────┘
                            │
               ┌────────────▼────────────┐
@@ -130,9 +130,9 @@ ClaudeKit takes over — the Planner explores your codebase, writes a plan with 
 | Principle | Description |
 |-----------|-------------|
 | **Single responsibility** | Each agent has exactly one job. The Planner plans. The Reviewer reviews. No overlap. |
-| **File-based handoffs** | Agents communicate through files (`plan.md`, `ops.json`, `reviewer.md`), not context passing. 85% token reduction. |
+| **File-based handoffs** | Agents communicate through files (`plan.md`, `reviewer.md`), not context passing. 85% token reduction. |
 | **Config-driven** | No hardcoded build commands. Everything reads from `config.json`. |
-| **Safe by default** | Atomic writes, automatic backups, execution locks, rollback on failure. |
+| **Safe by default** | Plan-gate and checkpoint-gate block unplanned edits to Tier 3 source. |
 | **Copy, not link** | Your project is fully self-contained after installation. No external dependencies. |
 
 ---
@@ -141,7 +141,7 @@ ClaudeKit takes over — the Planner explores your codebase, writes a plan with 
 
 | Command | Description | Example |
 |---------|-------------|---------|
-| `/plan` | Create an implementation plan with ops.json | `/plan Add rate limiting to API` |
+| `/plan` | Create an implementation plan | `/plan Add rate limiting to API` |
 | `/review` | Validate a plan (90/100 threshold) | `/review` |
 | `/implement` | Execute an approved plan | `/implement` |
 | `/verify` | Run quality checks (80/100 threshold) | `/verify` |
@@ -167,9 +167,8 @@ ClaudeKit takes over — the Planner explores your codebase, writes a plan with 
 | Agent | Responsibility | Model | Color |
 |-------|---------------|-------|-------|
 | **Coordinator** | Classifies tasks, orchestrates workflows, manages agent handoffs | Sonnet | Gray |
-| **Planner** | Explores codebase, writes implementation plans + ops.json configs | Sonnet | Cyan |
+| **Planner** | Explores codebase, writes implementation plans | Sonnet | Cyan |
 | **Reviewer** | Multi-dimensional plan validation — Plan Quality (40%), Architecture (30%), Security (30%) | Opus | Blue |
-| **Implementer** | Executes approved plans via operations scripts with automatic backup | Sonnet | Green |
 | **Verifier** | Quality validation — Static Analysis (30%), Tests (40%), Coverage (30%) | Haiku | Purple |
 | **Debugger** | Read-only root cause analysis using 4-phase systematic debugging | Opus | Red |
 | **Documenter** | Creates and maintains technical documentation | Haiku | Teal |
@@ -184,70 +183,33 @@ ClaudeKit takes over — the Planner explores your codebase, writes a plan with 
 
 ---
 
-## Operations System
+## Plan Gate
 
-The operations system is the safety layer between "plan" and "code change." Every modification goes through a validated JSON config.
+The plan gate is the safety layer between "plan" and "code change." Tier 3 source is editable only after an approved plan exists.
 
-### Pipeline
+### Flow
 
 ```
-ops.json  →  validate-config-json.py  →  execute-json-ops.py  →  backups/
-                 (29 guards)               (atomic + rollback)     (manifest)
+plan.md (Tier + Files:)  →  Reviewer score  →  review-record.py plan-write  →  plan-gate allows edits  →  main session edits
 ```
 
-### Operations Config Format
+- The Planner (or the main session) writes `plan.md` with a Tier and a `Files:` list.
+- The Reviewer scores it; a Tier 3 plan without a `Files:` list is auto-rejected.
+- `review-record.py plan-write` records the verdict (rejections return a brief).
+- `plan-gate` then allows edits to the listed files, and `checkpoint-gate` requires a git checkpoint first.
+- The main session edits directly; subagents only explore, review, test and verify.
 
-```json
-{
-  "plan": "add-error-handling",
-  "operations": [
-    {
-      "type": "code_edit",
-      "path": "src/auth.py",
-      "edits": [
-        { "find": "def login():", "replace": "def login() -> Result:" }
-      ]
-    },
-    {
-      "type": "file_create",
-      "path": "src/errors.py",
-      "content": "class AuthError(Exception):\n    pass\n"
-    },
-    {
-      "type": "file_delete",
-      "path": "src/old_auth.py",
-      "reason": "Replaced by new auth module with proper error handling"
-    }
-  ]
-}
-```
-
-### Safety Guards (29 Total)
-
-| Category | Examples |
-|----------|----------|
-| **Structure & schema** | Valid JSON, schema conformance, required fields, non-empty operations |
-| **Code editing** | Pattern exists in file, no ambiguous matches, action type validation |
-| **File operations** | Protected-file check, deletion reason required, existence/overwrite checks, MAX_DELETIONS (max 3 per plan) |
-| **Security** | Null-byte rejection on paths and content, operation type validation |
-
-The authoritative list is the numbered guards in [`validate-config-json.py`](.claude/operations/scripts/validate-config-json.py).
-
-### Protected Files
-
-These files cannot be deleted via operations config:
-
-`.gitignore` · `*.md` · `Makefile` · `Dockerfile` · `docker-compose.*` · `requirements.txt` · `package.json` · `package-lock.json` · `yarn.lock` · `pyproject.toml` · `tsconfig.json` · `setup.py` · `Pipfile` — canonical, extensible list: `PROTECTED_PATTERNS` in [`shared.py`](.claude/operations/scripts/shared.py).
+Protected files stay protected; see `CLAUDE.md` for the deletion limit.
 
 ---
 
 ## Skills
 
-ClaudeKit includes 79 reusable skills that agents load on-demand:
+ClaudeKit includes 76 reusable skills that agents load on-demand:
 
 | Category | Skills |
 |----------|--------|
-| **Workflow** | writing-plans, executing-plans, brainstorming, generate-operations-config, validate-operations-config, execute-operations-config |
+| **Workflow** | writing-plans, executing-plans, brainstorming |
 | **Quality** | clean-architecture, test-driven-development, verification-before-completion, systematic-debugging, refactoring-patterns, error-handling |
 | **Adversarial testing** | whitebox-invariant-testing, defect-pinning, ai-agent-testing, prompt-evaluation |
 | **Security** | security-checklist, golden-rule (no changes without approval) |
@@ -262,17 +224,17 @@ ClaudeKit includes 79 reusable skills that agents load on-demand:
 
 ## Hooks
 
-40 hooks ship in `.claude/hooks/`; 37 are reachable — wired through `.claude/settings.json` (PreToolUse, PostToolUse, UserPromptSubmit, SessionStart, Stop), gated by `ECC_HOOK_PROFILE` (`minimal` / `standard` / `strict`). `PreToolUse` handlers -- and, of the eight events, only those -- are invoked by `dispatch.sh`, which merges their verdicts most-restrictive-first; the other seven events still invoke their hooks directly (see [docs/HOOKS.md](docs/HOOKS.md)). Blocking hooks fail closed: `exit 2` + reason on stderr. **Three ship UNWIRED** — `auto-checkpoint.sh`, `check-comment-replacement.sh` and `post-implement.sh`. Nothing invokes them; they are opt-in material you wire yourself. A count that implied otherwise would advertise inert scripts as active guardrails, which is the honesty rule this project holds itself to. Highlights:
+41 hooks ship in `.claude/hooks/`; 38 are reachable — wired through `.claude/settings.json` (PreToolUse, PostToolUse, UserPromptSubmit, SessionStart, Stop), gated by `ECC_HOOK_PROFILE` (`minimal` / `standard` / `strict`). `PreToolUse` handlers -- and, of the eight events, only those -- are invoked by `dispatch.sh`, which merges their verdicts most-restrictive-first; the other seven events still invoke their hooks directly (see [docs/HOOKS.md](docs/HOOKS.md)). Blocking hooks fail closed: `exit 2` + reason on stderr. **Three ship UNWIRED** — `auto-checkpoint.sh`, `check-comment-replacement.sh` and `post-implement.sh`. Nothing invokes them; they are opt-in material you wire yourself. A count that implied otherwise would advertise inert scripts as active guardrails, which is the honesty rule this project holds itself to. Highlights:
 
 | Hook | Trigger | Blocking | Purpose |
 |------|---------|----------|---------|
-| **pre-commit** | Before `git commit` | Yes | Validates ops.json configs, scans for hardcoded secrets |
+| **pre-commit** | Before `git commit` | Yes | Scans for hardcoded secrets |
 | **post-implement** | After implementation | No | Runs build, test suite, coverage report |
 | **pre-plan** | Before plan creation | No | Detects duplicate plans using string similarity |
 | **pre-push** | Before `git push` | Yes | Full validation: tests, lint, build must all pass |
-| **post-tool-use** | After Edit/Write/Bash | No | Tracks modifications, validates ops.json on edit |
+| **post-tool-use** | After Edit/Write/Bash | No | Tracks modifications |
 
-Other wired hooks include `ops-enforcement` (blocks source edits without an approved ops.json), `command-guard` (runs Bash commands through the security validator), `config-protection`, `block-no-verify`, `commit-quality`, `injection-scan-gate`, and session/telemetry hooks. Project commands (build/test/lint/coverage) are configured once in `.claude/hooks/config.json` — no hardcoded values. Full reference: [docs/HOOKS.md](docs/HOOKS.md).
+Other wired hooks include `plan-gate` (blocks Tier 3 source edits without an approved plan.md that lists the file) and `checkpoint-gate` (requires a git checkpoint first), `command-guard` (runs Bash commands through the security validator), `config-protection`, `block-no-verify`, `commit-quality`, `injection-scan-gate`, and session/telemetry hooks. Project commands (build/test/lint/coverage) are configured once in `.claude/hooks/config.json` — no hardcoded values. Full reference: [docs/HOOKS.md](docs/HOOKS.md).
 
 ---
 
@@ -304,7 +266,7 @@ Each project gets a `CONSTITUTION.md` — a governance document that agents enfo
 | II. Code Quality | Style guide, naming, error handling | Major (-20 pts) |
 | III. Testing | 80% new code, 90% critical paths, 70% overall | Major (-20 pts) |
 | IV. Security | OWASP Top 10, no hardcoded secrets | AUTO-REJECT |
-| V. Operations | ops.json mandatory, protected files, safety limits | AUTO-REJECT |
+| V. Operations | approved plan.md before Tier 3 edits, protected files, safety limits | AUTO-REJECT |
 | VI. Performance | Response times, resource constraints | Minor (-5 pts) |
 | VII. Documentation | Public APIs documented, plans include verification | Minor (-5 pts) |
 | VIII. Review | 90/100 plan threshold, 80/100 quality threshold | Enforced automatically |
@@ -316,10 +278,10 @@ Each project gets a `CONSTITUTION.md` — a governance document that agents enfo
 <!-- BEGIN GENERATED:inventory -->
 | Component | Count |
 |-----------|------:|
-| Agents    | 24 |
+| Agents    | 23 |
 | Commands  | 53 |
-| Skills    | 79 |
-| Hooks     | 40 |
+| Skills    | 76 |
+| Hooks     | 41 |
 <!-- END GENERATED:inventory -->
 
 > Counts above are generated by `scripts/gen-docs.py` from the filesystem and
@@ -331,11 +293,10 @@ Each project gets a `CONSTITUTION.md` — a governance document that agents enfo
 ```
 claudekit/
 ├── .claude/                          # Core system (copied to your project)
-│   ├── agents/                       # 24 specialized agents
+│   ├── agents/                       # 23 specialized agents
 │   │   ├── coordinator.md
 │   │   ├── planner.md
 │   │   ├── reviewer.md
-│   │   ├── implementer.md
 │   │   ├── verifier.md
 │   │   ├── debugger.md
 │   │   ├── documenter.md
@@ -343,8 +304,8 @@ claudekit/
 │   │   ├── explore.md
 │   │   └── _shared/                  # Templates and protocols
 │   ├── commands/                     # 53 slash commands
-│   ├── skills/                       # 79 domain skills + registry
-│   ├── hooks/                        # 40 workflow hooks + lib.sh
+│   ├── skills/                       # 76 domain skills + registry
+│   ├── hooks/                        # 41 workflow hooks + lib.sh
 │   ├── operations/scripts/           # Validate, execute, restore
 │   └── local/                        # CLAUDE.md + CONSTITUTION.md templates
 ├── templates/                        # 11 language-specific templates
@@ -443,9 +404,9 @@ Yes. Use `--minimal` to install only agents, commands, and operations scripts (n
 </details>
 
 <details>
-<summary><strong>What happens if an operation fails?</strong></summary>
+<summary><strong>What if an edit goes wrong?</strong></summary>
 
-The executor creates a full backup before any operation runs. If any operation fails, all changes are automatically rolled back to the pre-execution state. You can also manually restore from any backup using `restore-backup.py`.
+A git checkpoint is taken before the main session edits. Run `/rollback` to restore the working tree to it.
 </details>
 
 <details>

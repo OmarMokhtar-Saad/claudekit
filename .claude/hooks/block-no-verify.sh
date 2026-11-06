@@ -15,8 +15,8 @@ TOOL_INPUT=$(cat)
 
 # --- Agent self-approval: review-record.py --owner-approved -------------------
 # Checked BEFORE the profile guard below, so it binds under every profile. The
-# approval gate this flag bypasses (execute-json-ops.py -> review-record.py
-# check) is profile-independent, so the guard on its escape hatch is too; this
+# approval gate this flag bypasses (plan-gate.sh -> review-record.py
+# plan-check) is profile-independent, so the guard on its escape hatch is too; this
 # repo runs its own sessions on the lightest profile, where a guard that stood
 # down would never bind.
 #

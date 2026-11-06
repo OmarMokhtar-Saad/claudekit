@@ -39,13 +39,11 @@ def good_planner_payload(definition):
         "result": (
             "## Plan: add a subtract function\n\n"
             "### Problem\nThe calculator has no subtraction.\n\n"
-            "### Operations\n\n```json\n"
-            + json.dumps({"plan": "add-subtract", "operations": [
-                {"type": "code_edit", "path": "src/calc/basic.py",
-                 "edits": [{"find": "def add(a: float, b: float) -> float:",
-                            "replace": "def add(a: float, b: float) -> float:"}]}]},
-                indent=2)
-            + "\n```\n\n### Rollback\n`git revert` the commit.\n"),
+            "Tier: 3\n\n"
+            "Files:\n"
+            "  - `src/calc/basic.py`\n"
+            "  - `tests/test_basic.py`\n\n"
+            "### Rollback\n`git revert` the commit.\n"),
         "total_cost_usd": 0.11,
     }
 
@@ -201,15 +199,13 @@ class StaleCassettesFailClosed(unittest.TestCase):
     def test_editing_an_operations_script_the_agent_can_run_invalidates_it(self):
         """The gap the first review round found.
 
-        `planner-delivers-artifacts` grants
-        `Bash(python3 .claude/operations/scripts/validate-config-json.py *)` and
-        tells the agent to self-validate, so that script's output is read by the
-        model before it answers. Excluding it from the fingerprint left a live
-        false-PASS path: change the validator, and replay keeps serving a
-        recording made against the old behaviour.
+        Scripts under `.claude/operations/scripts/` can be run by the agent,
+        so their output is read by the model. Excluding them from the
+        fingerprint left a live false-PASS path: change the script, and replay
+        keeps serving a recording made against the old behaviour.
         """
         self._edit(os.path.join(ROOT, ".claude", "operations", "scripts",
-                                "validate-config-json.py"),
+                                "review-record.py"),
                    suffix="\n# eval staleness probe\n")
         self.assert_stale("operations_scripts")
 

@@ -14,7 +14,6 @@ Subcommands:
   hubs     fan-in/fan-out ranking; flags god-node candidates
   path     BFS route between two nodes with per-hop confidence
   stale    re-hash file-backed nodes; report what changed since mapping
-  impact   blast radius of a plan's ops.json; exit 1 = route to reviewer
   diff     structural delta between the stored graph and another graph JSON
   render   mermaid or self-contained HTML view of the (verified) graph
   verify   check the stored graph against the working tree (anti-hallucination)
@@ -32,9 +31,6 @@ actionable, 2 = bad input, 3 = no graph to work from):
   render   1 = the graph fails verify; pass --allow-unverified to override
   diff     0 = identical, 1 = differences found (informational, like diff(1) -
            not an error), 2 = unreadable --against, 3 = no stored graph
-  impact   1 = a touched node is a hub/god-node, the touched set crosses a
-           top-level package boundary, or a path is absent from the graph
-           -> route to the reviewer; 2 = unreadable ops.json
 
 Edge confidence tiers: `extracted` (explicit statement observed in source),
 `inferred` (deduced from naming/convention/framework wiring), `ambiguous`
@@ -536,156 +532,13 @@ def cmd_stale(args: argparse.Namespace) -> int:
     print("Re-map the listed files and run: project-graph.py build --merge --input -")
     return 1
 # ---------------------------------------------------------------------------
-# impact
+# god-node rule
 # ---------------------------------------------------------------------------
 
 def is_god_node(fan_in: int, fan_out: int, loc: int,
                 threshold: int = DEFAULT_THRESHOLD) -> bool:
-    """The one god-node rule, shared by `hubs` and `impact` so they cannot disagree."""
+    """The one god-node rule, shared by `hubs` and `render` so they cannot disagree."""
     return (fan_in + fan_out) >= threshold or (fan_in >= GOD_FAN_IN and loc >= GOD_LOC)
-
-
-def top_package(rel: str) -> str:
-    """Top-level package of a path (`src/cli/main.py` -> `src`)."""
-    head = rel.split("/", 1)[0]
-    return head or rel
-
-
-def read_ops(source: str, root: Path) -> Tuple[Optional[dict], Optional[str]]:
-    """Read a plan's ops.json under the same guards `build` applies to its input."""
-    # realpath, not normpath: normpath is textual, so a symlink *inside* the root
-    # pointing outside it passes a startswith() test and turns --ops into a
-    # read-and-echo primitive for arbitrary files.
-    real_root = os.path.realpath(str(root))
-    resolved = os.path.realpath(os.path.join(str(root), source))
-    if not (resolved == real_root or resolved.startswith(real_root + os.sep)):
-        return None, "impact: --ops path escapes the project root: %s" % source
-    target = Path(resolved)
-    if not target.is_file():
-        return None, "impact: ops file not found: %s" % source
-    try:
-        if target.stat().st_size > MAX_INPUT_BYTES:
-            return None, ("impact: ops file exceeds %d MB - split the plan"
-                          % (MAX_INPUT_BYTES // (1024 * 1024)))
-        raw = target.read_text(encoding="utf-8")
-    except OSError as exc:
-        return None, "impact: cannot read ops file: %s" % exc
-    if len(raw.encode("utf-8", errors="ignore")) > MAX_INPUT_BYTES:
-        return None, ("impact: ops file exceeds %d MB - split the plan"
-                      % (MAX_INPUT_BYTES // (1024 * 1024)))
-    try:
-        data = json.loads(raw)
-    except ValueError as exc:
-        return None, "impact: invalid JSON: %s" % exc
-    if not isinstance(data, dict):
-        return None, "impact: top level must be a JSON object"
-    return data, None
-
-
-def ops_paths(data: dict) -> Tuple[List[str], Optional[str]]:
-    """Ordered, de-duplicated `path` values. Operations without one (run_command) are skipped."""
-    operations = data.get("operations")
-    if not isinstance(operations, list):
-        return [], "impact: 'operations' must be a list"
-    paths: List[str] = []
-    for i, operation in enumerate(operations):
-        if not isinstance(operation, dict):
-            return [], "impact: operations[%d]: must be an object" % i
-        value = operation.get("path")
-        if value is None:
-            continue
-        if not isinstance(value, str) or not value:
-            return [], "impact: operations[%d].path: must be a non-empty string" % i
-        if value not in paths:
-            paths.append(value)
-    return paths, None
-
-
-def cmd_impact(args: argparse.Namespace) -> int:
-    root = project_root()
-    data, error = read_ops(args.ops, root)
-    if error or data is None:
-        err(error or "impact: ops file produced no data")
-        return 2
-    paths, path_error = ops_paths(data)
-    if path_error:
-        err(path_error)
-        return 2
-    for rel in paths:
-        reason = invalid_path_reason(rel, root)
-        if reason:
-            err("impact: operations path %s (%r)" % (reason, rel))
-            return 2
-    if not paths:
-        print("IMPACT: no file operations in %s - nothing to score" % args.ops)
-        return 0
-
-    graph = load_graph()
-    if graph is None:
-        print("GRAPH: no graph at %s - impact is unknown; route to reviewer" % graph_path())
-        return 3
-    nodes = node_index(graph)
-    by_path: Dict[str, str] = {}
-    for node_id in nodes:
-        by_path.setdefault(path_part(node_id), node_id)
-    fan_in, fan_out = fan_counts(graph)
-
-    rows: List[Dict[str, Any]] = []
-    packages: List[str] = []
-    flagged: List[str] = []
-    unknown: List[str] = []
-    for rel in paths:
-        package = top_package(rel)
-        if package not in packages:
-            packages.append(package)
-        mapped = by_path.get(rel)
-        if mapped is None:
-            # An unmapped path is NOT a leaf: the graph simply does not know this file.
-            # Reporting it as zero-coupling would launder ignorance into a pass, so it
-            # is surfaced as UNKNOWN and escalates on its own.
-            unknown.append(rel)
-            rows.append({"path": rel, "node": None, "fan_in": None, "fan_out": None,
-                         "loc": None, "god_node": None, "status": "UNKNOWN"})
-            continue
-        loc = nodes[mapped].get("loc") or 0
-        god = is_god_node(fan_in[mapped], fan_out[mapped], loc, args.threshold)
-        if god:
-            flagged.append(mapped)
-        rows.append({"path": rel, "node": mapped, "fan_in": fan_in[mapped],
-                     "fan_out": fan_out[mapped], "loc": loc, "god_node": god,
-                     "status": "GOD-NODE" if god else "OK"})
-
-    cross_package = len(packages) > 1
-    escalate = bool(flagged or unknown or cross_package)
-    reasons: List[str] = []
-    if flagged:
-        reasons.append("%d god-node(s): %s" % (len(flagged), ", ".join(flagged)))
-    if unknown:
-        reasons.append("%d path(s) absent from the graph: %s" % (len(unknown), ", ".join(unknown)))
-    if cross_package:
-        reasons.append("touched set spans %d top-level packages" % len(packages))
-
-    if args.format == "json":
-        print(json.dumps({"touched": rows, "packages": packages,
-                          "cross_package": cross_package, "god_nodes": flagged,
-                          "unknown": unknown, "escalate": escalate,
-                          "reasons": reasons}, indent=1))
-        return 1 if escalate else 0
-
-    print("%-55s %6s %7s %6s  %s" % ("path", "fan_in", "fan_out", "loc", "flag"))
-    for row in rows:
-        if row["status"] == "UNKNOWN":
-            print("%-55s %6s %7s %6s  %s" % (row["path"], "-", "-", "-", "UNKNOWN"))
-        else:
-            print("%-55s %6d %7d %6d  %s"
-                  % (row["path"], row["fan_in"], row["fan_out"], row["loc"],
-                     "GOD-NODE" if row["god_node"] else ""))
-    print("packages touched (%d): %s" % (len(packages), ", ".join(packages)))
-    if escalate:
-        print("IMPACT: architecture touched - route to reviewer (%s)" % "; ".join(reasons))
-        return 1
-    print("IMPACT: local change - no hub, single package, every path mapped")
-    return 0
 
 
 # ---------------------------------------------------------------------------
@@ -715,7 +568,7 @@ def resolve_against(source: str, root: Path) -> Tuple[Optional[Path], Optional[s
     resolved = os.path.realpath(str(root / rel))
     if not (resolved == real_root or resolved.startswith(real_root + os.sep)):
         return None, "diff: --against resolves outside the project root: %s" % source
-    # Return the RESOLVED path, as read_ops does: handing back `root / rel` would
+    # Return the RESOLVED path, as resolve_against does: handing back `root / rel` would
     # traverse the symlink a second time at open, so re-pointing it after the
     # check wins the race. Check and open must name the same inode.
     return Path(resolved), None
@@ -970,7 +823,7 @@ def god_nodes(graph: dict, threshold: int = DEFAULT_THRESHOLD) -> Set[str]:
     flagged: Set[str] = set()
     for node_id, node in nodes.items():
         loc = node.get("loc") or 0
-        # One predicate, three call sites (hubs, impact, render): change the rule
+        # One predicate, call sites in hubs and render: change the rule
         # in is_god_node and every view moves with it.
         if is_god_node(fan_in[node_id], fan_out[node_id], loc, threshold):
             flagged.add(node_id)
@@ -1106,12 +959,6 @@ def build_parser() -> argparse.ArgumentParser:
     stale = sub.add_parser("stale", help="re-hash nodes; report changes since mapping")
     stale.add_argument("--format", choices=("text", "json"), default="text")
     stale.set_defaults(func=cmd_stale)
-    impact = sub.add_parser("impact", help="blast radius of a plan's ops.json")
-    impact.add_argument("--ops", required=True, help="path to a plan's ops.json")
-    impact.add_argument("--threshold", type=int, default=DEFAULT_THRESHOLD,
-                        help="GOD-NODE when fan_in+fan_out >= threshold")
-    impact.add_argument("--format", choices=("text", "json"), default="text")
-    impact.set_defaults(func=cmd_impact)
 
     diff = sub.add_parser("diff", help="compare the stored graph with another graph JSON")
     diff.add_argument("--against", required=True,

@@ -48,7 +48,7 @@ Under `ECC_HOOK_PROFILE=minimal` this hook does NOT short-circuit. This repo dev
 with `minimal` set (CLAUDE.md "Session setup gotcha"), so a wholesale `exit 0` would give
 ZERO dogfood signal in the very tree where the incident is recorded. Under `minimal` the
 decision is still computed and logged as `WOULD-BLOCK`, then exit 0. Blocking is
-suppressed; measurement is not. Same posture as `iron-law-gate.py` and `reflection-gate.py`.
+suppressed; measurement is not. Same posture as `plan-gate.sh` and `reflection-gate.py`.
 
 LOGGING (project hard rule 6)
 -----------------------------
@@ -248,7 +248,7 @@ def blocking_enabled() -> bool:
     is still computed and logged as WOULD-BLOCK. This repo develops with `minimal` set
     (CLAUDE.md "Session setup gotcha"), so a wholesale exit 0 would give zero dogfood
     signal in the very tree where the incident is recorded. Same posture as
-    `iron-law-gate.py` and `reflection-gate.py`.
+    `plan-gate.sh` and `reflection-gate.py`.
     """
     return os.environ.get("ECC_HOOK_PROFILE", DEFAULT_PROFILE) != "minimal"
 

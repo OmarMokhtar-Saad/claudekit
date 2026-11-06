@@ -11,9 +11,8 @@ Fast reference for using the multi-agent workflow system.
 | Agent | Role | Permissions | Model |
 |-------|------|-------------|-------|
 | **Coordinator** | Routes tasks, manages pipelines | Read, Spawn | Sonnet |
-| **Planner** | Creates plans + ops.json | Read, Write (plans) | Sonnet |
+| **Planner** | Creates plans (Tier + Files:) | Read, Write (plans) | Sonnet |
 | **Reviewer** | Scores plans (90/100 threshold) | Read | Opus |
-| **Implementer** | Executes approved plans | Read, Write, Execute | Sonnet |
 | **Verifier** | Quality gate (80/100 threshold) | Read, Execute | Haiku |
 | **Debugger** | Root cause analysis | Read | Opus |
 | **Documenter** | Creates new documentation | Read, Write (docs) | Haiku |
@@ -50,13 +49,13 @@ Fast reference for using the multi-agent workflow system.
 
 ### "Build a feature"
 ```
-You → Coordinator → Planner → Reviewer → Implementer → Verifier → GitOps
+You → Coordinator → Planner → Reviewer → Main session edits → Verifier → GitOps
 ```
 Triggers: "add", "create", "implement", "build", "new"
 
 ### "Fix a bug"
 ```
-You → Coordinator → Debugger → Planner → Reviewer → Implementer → Verifier → GitOps
+You → Coordinator → Debugger → Planner → Reviewer → Main session edits → Verifier → GitOps
 ```
 Triggers: "fix", "broken", "error", "crash"
 
@@ -118,7 +117,7 @@ Triggers: "find", "search", "where is", "how does"
 
 ## Key Rules
 
-1. **Plans always need ops.json** -- The Planner must produce both plan.md and ops.json. The Reviewer will reject plans without ops.json.
+1. **Plans carry a Tier and a Files: list** -- Tier 3 plans are gated on the list; the Reviewer rejects a Tier 3 plan without one.
 
 2. **90/100 to approve a plan** -- The Reviewer scores Plan Quality (40%), Architecture (30%), and Security (30%). Below 90 means revision.
 
@@ -126,7 +125,7 @@ Triggers: "find", "search", "where is", "how does"
 
 4. **Max 3 plan revisions** -- If the Planner cannot satisfy the Reviewer in 3 attempts, the Coordinator escalates to you.
 
-5. **Max 2 implementation retries** -- If the Implementer cannot pass the Verifier in 2 attempts, the Coordinator escalates to you.
+5. **Max 2 implementation retries** -- If the main session cannot pass the Verifier in 2 attempts, the Coordinator escalates to you.
 
 6. **Agents are silent** -- No narration, no permission requests, no options menus. Work happens quietly; you get structured output.
 
@@ -155,7 +154,6 @@ Triggers: "find", "search", "where is", "how does"
     coordinator.md           → Orchestration agent
     planner.md               → Planning agent
     reviewer.md              → Review agent
-    implementer.md           → Implementation agent
     verifier.md              → Quality gate agent
     debugger.md              → Bug diagnosis agent
     docs.md                  → Documentation, mode: create | update
@@ -183,7 +181,7 @@ Triggers: "find", "search", "where is", "how does"
     post-tool-use.sh      → Tracks tool usage
   commands/               → Slash commands
   skills/                 → Skill definitions
-  operations/             → Plans and ops.json files
+  operations/             → Plans
   state/                  → Workflow state (created at runtime)
   reports/                → Agent reports (created at runtime)
   plans/                  → Plan files (created at runtime)

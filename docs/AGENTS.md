@@ -1,6 +1,6 @@
 # Agents
 
-ClaudeKit ships 24 specialized agents, each with a single responsibility. The
+ClaudeKit ships 23 specialized agents, each with a single responsibility. The
 core orchestration agents are documented in detail below; run `ck agents` (or
 `claudekit agents`) to list every installed agent, including the extended suite.
 
@@ -11,7 +11,6 @@ core orchestration agents are documented in detail below; run `ck agents` (or
 | Coordinator | `coordinator.md` | Gray | Sonnet | READ, SPAWN |
 | Planner | `planner.md` | Cyan | Sonnet | READ, WRITE (plans only) |
 | Reviewer | `reviewer.md` | Blue | Opus | READ |
-| Implementer | `implementer.md` | Green | Sonnet | READ, WRITE, EXECUTE |
 | Verifier | `verifier.md` | Purple | Haiku | READ, EXECUTE |
 | Debugger | `debugger.md` | Red | Opus | READ |
 | Docs | `docs.md` | Teal | Haiku | READ, WRITE (docs only) |
@@ -39,40 +38,28 @@ core orchestration agents are documented in detail below; run `ck agents` (or
 
 ## Planner
 
-**Purpose**: Create implementation plans with operations configs.
+**Purpose**: Create implementation plans.
 
 **Workflow**:
 1. Explore codebase for target files
 2. Create plan with approach, affected files, risk assessment
-3. Generate `ops.json` operations config
-4. Auto-trigger Reviewer
+3. List the files to change in a `Files:` list with a Tier
+4. Hand the plan to the Reviewer
 
-**Output**: `operations/{task-name}/plan.md` + `ops.json`
+**Output**: `plan.md`
 
-**Key rule**: ALL plans MUST include ops.json. No exceptions.
+**Key rule**: Tier 3 plans MUST include a `Files:` list. The main session edits only those files after approval.
 
 ## Reviewer
 
 **Purpose**: Validate plans against quality, architecture, and security.
 
 **Scoring** (90/100 threshold):
-- Plan Quality: 40% — Config valid, paths correct, patterns accurate
+- Plan Quality: 40% — Files list present, paths correct, steps accurate
 - Architecture: 30% — Layer compliance, dependency direction
 - Security: 30% — No secrets, input validation, safe operations
 
-**Auto-reject triggers**: Missing ops.json, architecture violations.
-
-## Implementer
-
-**Purpose**: Execute approved plans.
-
-**Iron Law**: When `ops.json` exists, MUST use the execution script. Manual edits FORBIDDEN.
-
-```bash
-python3 .claude/operations/scripts/execute-json-ops.py operations/{plan}/ops.json
-```
-
-**Fallback**: Manual implementation only when no ops.json exists.
+**Auto-reject triggers**: Tier 3 plan without a `Files:` list, architecture violations.
 
 ## Verifier
 
@@ -85,7 +72,7 @@ python3 .claude/operations/scripts/execute-json-ops.py operations/{plan}/ops.jso
 
 **Actions by score**:
 - ≥80%: PASS → proceed to GitOps
-- 60-79%: RETRY → return to Implementer (max 2x)
+- 60-79%: RETRY → main session fixes, then re-verify (max 2x)
 - <60%: FAIL → escalate to user
 
 ## Debugger

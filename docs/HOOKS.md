@@ -1,7 +1,7 @@
 # Hooks
 
-ClaudeKit ships 40 hook scripts (plus `lib.sh`, a shared helper library).
-37 are reachable: wired into Claude Code through `.claude/settings.json`, or resolved
+ClaudeKit ships 41 hook scripts (plus `lib.sh`, a shared helper library).
+38 are reachable: wired into Claude Code through `.claude/settings.json`, or resolved
 by a gate wrapper. They enforce guardrails, capture telemetry, and automate housekeeping
 around the agent workflow.
 
@@ -89,9 +89,9 @@ Set it in your shell or in `.claude/settings.local.json` (git-ignored):
 
 Unset defaults to `standard`.
 
-### `ECC_OPS_ENFORCEMENT=off` — keep the profile, drop one gate
+### `ECC_PLAN_GATE=off` — silence the advisory nudge
 
-Sets only the `ops-enforcement` hook (the Edit/Write source-file gate) to pass-through while every other `standard` hook keeps binding. Put it in the same `env` object. Only the literal `off` opts out; any other value leaves the gate on.
+`plan-gate` and `checkpoint-gate` bind under every `ECC_HOOK_PROFILE`, `minimal` included. `ECC_PLAN_GATE=off` silences only the advisory nudge for source outside the Tier 3 list; it never loosens a Tier 3 block. Tier 3 opt-outs are read only from the user-level `~/.claude/settings.json`, never from the project or the process environment. Settings and hook-registration edits are owner-only (`! <command>`).
 
 ## Hook catalog
 
@@ -99,13 +99,14 @@ Sets only the `ops-enforcement` hook (the Edit/Write source-file gate) to pass-t
 
 | Hook | Trigger | Profile | Purpose |
 |------|---------|---------|---------|
-| `ops-enforcement.sh` | Edit/Write | off in `minimal` | Enforces the plan→ops.json→execute flow; blocks ad-hoc edits outside allowed areas |
+| `plan-gate.sh` | Edit/Write | on in every profile | Tier 3 source is editable only when a reviewed, recorded plan.md lists the path in `Files:`; fails closed |
+| `checkpoint-gate.sh` | Edit/Write | on in every profile | Tier 3 edits need a `ck-checkpoint/<epoch>` tag first |
 | `config-protection.sh` | Edit/Write | off in `minimal` | Blocks edits to protected config files |
 | `block-no-verify.sh` | Bash | off in `minimal` | Blocks `git commit/push --no-verify` (which would skip hooks) |
 | `commit-quality.sh` | Bash | off in `minimal` | Enforces commit-message quality |
 | `command-guard.sh` | Bash | **`strict` blocks**, `standard` warns, `minimal` off | Denylist speed bump over shell commands (`CommandValidator`). A flagged command blocks under `standard` too; only a validator that is **missing or crashed** takes the permissive path (and `strict` closes that). See `SECURITY.md`. |
 | `concurrency-guard.py` | Bash | **`minimal` is advisory** (records `WOULD-BLOCK`), else blocks | Blocks tree-wide git that clobbers a concurrent session in a shared tree: `add`/`stage` with `-A|-u|.`, `commit -a`, `reset --hard|--merge|--keep` or bare `reset`, `checkout|restore|switch` with a tree-wide pathspec, `checkout -f`/`switch -f`, `clean -f`, `stash`/`stash push` unscoped, `rm .`, `worktree remove -f`. Tokenises with `shlex`, so flag order, `--`, clusters, `git -C`, `bash -lc` and multi-line scripts are all handled. Scoped and restorative forms (`add -A -- <path>`, `stash push <path>`, `stash pop`) stay allowed. `CK_ALLOW_BROAD_GIT=1` downgrades to a warning. See `.ai/CONCURRENCY.md`. |
-| `pre-commit.sh` | Bash (`git commit`) | always | Validates ops.json configs and scans staged files for secrets |
+| `pre-commit.sh` | Bash (`git commit`) | always | Scans staged files for secrets |
 | `pre-push.sh` | Bash (`git push`) | always | Full validation suite before a push to remote |
 
 ### Advisory — `PreToolUse` / `UserPromptSubmit`
@@ -121,7 +122,7 @@ Sets only the `ops-enforcement` hook (the Edit/Write source-file gate) to pass-t
 
 | Hook | Event | Purpose |
 |------|-------|---------|
-| `post-tool-use.sh` | PostToolUse (Edit/Write/Bash) | Records file modifications; re-validates ops.json if changed |
+| `post-tool-use.sh` | PostToolUse (Edit/Write/Bash) | Records file modifications |
 | `command-log-audit.sh` | PostToolUse (Bash) | Appends an audit log of executed commands (background) |
 | `operations/scripts/output_filter.py` | PostToolUse (Bash) | Rewrites noisy command **stdout** before Claude sees it (see below) |
 
@@ -140,8 +141,8 @@ It is deliberately conservative:
   rewritten; every other field of the tool response is passed through unchanged.
 - **It fails soft.** Any error and the original output stands, untruncated.
 - **Gate-bearing commands are on a denylist** the project-local filter file cannot override:
-  the `--check` generators, `validate-config-json.py`, `review-record.py`,
-  `execute-json-ops.py`, `ck doctor`, `ruff`, `mypy`, `shellcheck`.
+  the `--check` generators, `review-record.py`,
+  `ck doctor`, `ruff`, `mypy`, `shellcheck`.
 
 **Escape hatch — raw output on demand.** Prefix the command with `CK_RAW_OUTPUT=1`:
 
@@ -174,8 +175,7 @@ is available for teams that want a post-implementation build/test gate.
 
 Not a hook. Sourced by the others; provides `resolve_root`,
 `extract_json_field` (fail-closed JSON parsing), `hlog` (structured logging to
-`.claude/hooks/hooks.log`), `deny` (stderr + `exit 2`), and the `*.ops.json` /
-`ops-*.json` matching expressions.
+`.claude/hooks/hooks.log`), `deny` (stderr + `exit 2`), and the plan-file matching expressions.
 
 ## Project commands (`config.json`)
 

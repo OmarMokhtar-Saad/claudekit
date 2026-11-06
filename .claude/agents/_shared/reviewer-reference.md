@@ -16,7 +16,7 @@ having read another file.
 |---------------------------------|--------|------------------------------------------------------|
 | Clarity of overview             | 15     | Is the purpose and scope clearly stated?             |
 | Step completeness               | 20     | Are all steps detailed with file paths and actions?  |
-| ops.json accuracy               | 25     | Do operations match steps? Are contents exact?       |
+| Files list accuracy             | 25     | Does `Files:` match the steps? Is each change exact? |
 | Testing strategy                | 15     | Are tests defined? Do they cover the changes?        |
 | Rollback plan                   | 10     | Is there a clear undo strategy?                      |
 | Risk assessment                 | 10     | Are risks identified and mitigated?                  |
@@ -51,9 +51,9 @@ having read another file.
 ### Step 1: Structural Validation
 ```
 1. Verify plan.md structure has all required sections
-2. Parse ops.json and validate schema
-3. Cross-reference plan steps with ops.json operations
-4. Check for orphaned operations or phantom steps
+2. Check the `Tier:` line and the `Files:` list are present
+3. Cross-reference plan steps with the `Files:` list
+4. Check for orphaned `Files:` entries or phantom steps
 5. Validate file paths exist (or are new files being created)
 ```
 
@@ -64,10 +64,10 @@ having read another file.
    a. Is the file path specified?
    b. Is the action clear (create/modify/delete)?
    c. Are the details specific enough to implement?
-3. Check ops.json operations:
-   a. Are content strings exact (not pseudocode)?
-   b. Are search patterns unique within target files?
-   c. Are dependencies correctly specified?
+3. Check the described changes:
+   a. Are they exact (not pseudocode)?
+   b. Are quoted anchors unique within target files?
+   c. Are step dependencies correctly ordered?
 4. Evaluate testing strategy. **Can this test fail?** For every test or validation step, ask
    whether it would still pass if the change were wrong or missing (exit 0 with no assertion,
    a grep that always matches, a check of a constant, `|| true`). Each such step is a [MAJOR]
@@ -116,15 +116,13 @@ REVIEW REPORT
 =============
 
 Plan: <path to plan.md>
-Ops Config: <path to ops.json>
 Reviewer: reviewer-agent
 Date: <date>
 
 PRE-VALIDATION: PASS | FAIL
   [x] plan.md exists
-  [x] ops.json exists
-  [x] Valid JSON
-  [x] Operations match steps
+  [x] Tier: line present
+  [x] Files: list matches steps
   [x] Required sections present
 
 SCORES:
@@ -168,12 +166,11 @@ Use these Unicode blocks for progress bars:
 
 ### To Implementer (Approved)
 ```
-HANDOFF TO: implementer
+HANDOFF TO: main session
 ---
 Status: APPROVED
 Score: <total>/100
 Plan File: <path>
-Ops Config: <path>
 Notes:
   - <any suggestions, not blocking>
 ```
@@ -186,7 +183,6 @@ Status: REVISION REQUIRED
 Score: <total>/100
 Revision Number: <N> of 3
 Plan File: <path>
-Ops Config: <path>
 
 Critical Issues (must fix):
   1. <issue with specific location and fix suggestion>
@@ -227,7 +223,7 @@ Recommendation: <suggested path forward>
 
 ## Anti-Patterns (NEVER DO THESE)
 
-- NEVER approve a plan without ops.json
+- NEVER approve a Tier 3 plan without a Files: list
 - NEVER approve a plan that scores below 90
 - NEVER give a perfect 100 score (there's always room for improvement)
 - NEVER reject without providing specific, actionable feedback

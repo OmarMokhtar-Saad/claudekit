@@ -153,20 +153,5 @@ class TestDocumentedContractsSurviveEdits(unittest.TestCase):
                 "must emit CANNOT REVIEW instead of a confidently wrong clean report."
                 % verb)
 
-    def test_implementer_iron_law_covers_all_bash_mutation(self):
-        text = _read(os.path.join(AGENTS, "implementer.md"))
-        self.assertIn(
-            "any command that writes, creates, deletes, moves, or otherwise mutates ANY",
-            text,
-            "implementer.md's IRON LAW no longer states the general rule. Banning only "
-            "Edit/Write, or only an enumerated list of commands, is insufficient: the agent "
-            "holds unrestricted Bash and any list can be evaded (sh -c, heredocs, perl -pi, "
-            "git apply).")
-        self.assertIn(
-            "illustrative, NOT exhaustive", text,
-            "implementer.md no longer marks its mutation examples as non-exhaustive, "
-            "inviting the list to be read as a denylist to work around.")
-
-
 if __name__ == "__main__":
     unittest.main()

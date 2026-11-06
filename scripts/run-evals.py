@@ -45,8 +45,7 @@ FIXTURES_DIR = os.path.join(ROOT, "evals", "fixtures")
 
 REQUIRED_KEYS = ("id", "description", "agent", "tier", "allowed_tools",
                  "fixture", "prompt", "checks")
-CHECK_TYPES = ("regex_present", "regex_absent", "ops_extractable_and_valid",
-               "workspace_file_contains")
+CHECK_TYPES = ("regex_present", "regex_absent", "workspace_file_contains")
 
 
 # ---------------------------------------------------------------------------
@@ -334,24 +333,6 @@ def apply_checks(definition, result_text, workspace):
                 failures.append(f"missing workspace file {check['path']} — {why}")
             elif not re.search(check["pattern"], open(path).read()):
                 failures.append(f"{check['path']} lacks {check['pattern']!r} — {why}")
-        elif ctype == "ops_extractable_and_valid":
-            out_txt = os.path.join(workspace, "_eval_agent_output.md")
-            with open(out_txt, "w") as fh:
-                fh.write(result_text)
-            ops = os.path.join(workspace, "_eval_extracted_ops.json")
-            scripts = os.path.join(workspace, ".claude", "operations", "scripts")
-            ext = subprocess.run(
-                [sys.executable, os.path.join(scripts, "extract-json-from-plan.py"),
-                 out_txt, "--output", ops],
-                capture_output=True, text=True, cwd=workspace)
-            if ext.returncode != 0:
-                failures.append(f"ops not extractable — {ext.stderr.strip()[-150:]}")
-                continue
-            val = subprocess.run(
-                [sys.executable, os.path.join(scripts, "validate-config-json.py"), ops],
-                capture_output=True, text=True, cwd=workspace)
-            if val.returncode != 0 or "APPROVED" not in val.stdout:
-                failures.append(f"extracted ops not APPROVED — {val.stdout.strip()[-150:]}")
     return failures
 
 

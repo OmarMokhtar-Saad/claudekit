@@ -30,7 +30,7 @@
 
 ## Naming conventions
 
-`cmd_*` CLI handlers · `test_*.py` mirrors the surface it tests (`test_hooks_behavioral`, `test_packaging`) · hooks named for what they guard (`block-no-verify`, `config-protection`) · plans `plan-<slug>.md` + `<slug>.ops.json` (or `ops-*.json`) · guards numbered (GUARD 1–29) with comments at use sites.
+`cmd_*` CLI handlers · `test_*.py` mirrors the surface it tests (`test_hooks_behavioral`, `test_packaging`) · hooks named for what they guard (`block-no-verify`, `config-protection`) · plans `plan-<slug>.md` (Tier + `Files:` list).
 
 ## Documentation
 

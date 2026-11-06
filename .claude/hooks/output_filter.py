@@ -5,7 +5,7 @@ output_filter.py - PostToolUse stdout filter for noisy Bash commands (adoption i
 WHY IT LIVES HERE AND NOT IN .claude/hooks/: scripts/gen-docs.py:75 sets
 HOOK_GLOBS = ("*.sh", "*.py") and counts every matching file in .claude/hooks/, so a new
 hook script there would move the published component count and redden the docs-drift gate.
-heal_local_settings.py set the precedent for hook-shaped scripts that live in
+The retired settings healer set the precedent for hook-shaped scripts that live in
 .claude/operations/scripts/ instead; this follows it. install.sh:222-223 already copies
 *.py AND *.json out of this directory, so the engine and its filter file reach every kitted
 project with no installer change and no new entry in the mkdir list at install.sh:204.
@@ -29,8 +29,8 @@ FOUR SAFETY PROPERTIES, strongest first:
    output stands. Independently the host validates updatedToolOutput against the tool's
    output schema and logs "using original output" on a mismatch.
 4. NEVER_FILTER denies filtering for commands whose stdout a gate or a reviewer reads
-   verbatim (the generator --check gates, validate-config-json.py, review-record.py,
-   execute-json-ops.py, ck doctor, the linters). It is applied AFTER the local-override
+   verbatim (the generator --check gates, review-record.py,
+   ck doctor, the linters). It is applied AFTER the local-override
    merge, so a project-local filter file can never re-enable them.
 
 ESCAPE HATCH: prefix the command with CK_RAW_OUTPUT=1, e.g.
@@ -72,9 +72,6 @@ NEVER_FILTER: Tuple[str, ...] = (
     r"gen-model-policy\.py",
     r"gen-plan-index\.py",
     r"check-context-floor\.py",
-    r"check-plan-artifacts\.py",
-    r"validate-config-json\.py",
-    r"execute-json-ops\.py",
     r"review-record\.py",
     r"\bck\s+doctor\b",
     r"\bclaudekit\s+doctor\b",

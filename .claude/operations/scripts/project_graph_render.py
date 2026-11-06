@@ -3,8 +3,7 @@
 
 Split out of `project-graph.py` deliberately: that script's job is validating and
 querying an agent-emitted graph, and an HTML/SVG emitter is a different concern
-that was doubling the file. `impact` exists to flag exactly this kind of
-coupling, so leaving the two fused would have been the tool failing its own test.
+that was doubling the file.
 
 Everything here is a pure function of an already-selected node/edge list: no I/O,
 no argparse, no graph loading. That is the boundary - callers decide *what* to

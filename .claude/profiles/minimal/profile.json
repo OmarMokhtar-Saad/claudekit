@@ -5,6 +5,9 @@
   "extends": null,
   "hooks": {
     "block-no-verify": "off",
+    "checkpoint-gate": "on",
+    "plan-gate": "on",
+    "shell-write-gate": "on",
     "command-guard": "off",
     "commit-quality": "off",
     "concurrency-guard": "advisory",
@@ -12,8 +15,6 @@
     "file-guard-gate": "off",
     "format-typecheck": "off",
     "injection-scan-gate": "off",
-    "iron-law-gate": "off",
-    "ops-enforcement": "off",
     "reflection-gate": "advisory",
     "security-reminder": "off",
     "skill-fit-refresh": "off"

@@ -3,7 +3,7 @@
 Two zero-context critics run beside `reviewer`, in the SAME message as the reviewer spawn so all
 three run in parallel: `plan-design-critic` (contradictions, unmitigated risks, security, scope) and
 `plan-readiness-critic` (choices left to the implementer, failure paths, missing files/tests). Each
-gets only `Plan: <plan path>. Review it.` — no conversation context, no reviewer output, no ops.json
+gets only `Plan: <plan path>. Review it.` — no conversation context, no reviewer output, no plan-writer prose
 summary. Scripted path: `claude -p --agent <critic> --allowedTools "Read,Grep"` with the same
 one-line prompt, run after the reviewer call (there `omitClaudeMd` is ignored, so CLAUDE.md
 still loads). Measured (2026-11-05, 12 seeded defects): reviewer alone

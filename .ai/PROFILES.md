@@ -23,8 +23,8 @@ all, so every one of its eleven rows must resolve from `base` and say `base`.
 `profiles.py::scan_hook_guards` re-derives each hook's per-profile mode from the
 hook's own text: shell guards by regex over non-comment lines that actually
 dereference the variable, Python guards through `ast` (so comments and docstrings
-that merely name `ECC_HOOK_PROFILE` cannot be mistaken for guards — `iron-law-gate`
-and `reflection-gate` both have such docstrings). `check_declarations()` compares
+that merely name `ECC_HOOK_PROFILE` cannot be mistaken for guards — `reflection-gate`
+and other Python gates have such docstrings). `check_declarations()` compares
 that to what each profile declares; `ck doctor` runs it.
 
 The load-bearing half is the **`unrecognised` return value**. A guard written in a

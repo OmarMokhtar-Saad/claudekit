@@ -54,7 +54,6 @@ Moved verbatim from SKILL.md, which keeps exit conditions and safety controls.
 - Each step must be independently testable
 - Estimate complexity (low/medium/high) per step
 - Identify which files will be created/modified/deleted
-- Generate ops.json config if using the operations system
 - Output: numbered step list with file manifest
 
 ### Phase 3: Implement

@@ -59,10 +59,9 @@ DISCLOSED_WIDENINGS: List[Dict[str, str]] = [
     {
         "path": "*.md that is not a named identity document",
         "why": "2026-08-23: the `*.md` glob froze every paragraph of prose in the tree, so "
-               "the ops engine could not retire a component and the kit's own corpus (all "
-               "markdown) was unmaintainable -- across 97 archived configs, zero deletions of "
-               "any kind. Narrowed to the named identity documents. Ordinary prose is now "
-               "deletable behind MAX_DELETIONS=3, a mandatory reason and a pre-delete backup; "
+               "the old ops engine could not retire a component and the kit's own corpus (all "
+               "markdown) was unmaintainable. Narrowed to the named identity documents. "
+               "Ordinary prose is deletable behind the plan gate's Files: list; "
                "a project restores the old behaviour with CLAUDEKIT_EXTRA_PROTECTED='*.md'.",
     },
 ]

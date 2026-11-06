@@ -28,7 +28,7 @@ Clean Architecture: API → Domain → Data. No direct API→Data imports.
 
 ## Article V: Operations
 
-- All plans require ops.json
+- All Tier 3 plans require a `Files:` list
 - Protected files: requirements.txt, pyproject.toml, *.md
 
 ## Article VI: Review

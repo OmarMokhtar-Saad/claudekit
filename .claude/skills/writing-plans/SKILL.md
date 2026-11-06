@@ -1,6 +1,6 @@
 ---
 name: writing-plans
-description: "Use when creating implementation plans - ensures bite-sized tasks, operations config, and structured approach"
+description: "Use when creating implementation plans - ensures bite-sized tasks, a Files: list, and structured approach"
 argument-hint: "<task-description>"
 ---
 
@@ -19,7 +19,7 @@ Every plan MUST contain:
 1. **Goal Statement** - One sentence describing what the plan achieves
 2. **Context Summary** - What you explored and learned (from context-first-workflow)
 3. **Task List** - Numbered, bite-sized tasks grouped into phases; every phase has a rough time estimate `(~N min)` and a `Done when:` line
-4. **Operations Config** - ops.json for structured execution (see generate-operations-config)
+4. **Tier and Files** - a `Tier:` line (1/2/3) and a `Files:` list naming every path the plan writes (no bare globs); `plan-gate` binds Tier 3 edits to it
 5. **Verification Strategy** - How to confirm the plan succeeded
 6. **Risk Notes** - What could go wrong and how to mitigate
 
@@ -62,15 +62,15 @@ Task 3: Implement the entire user management system
 
 ---
 
-## The ops.json Requirement
+## The Files: Requirement
 
-Every plan MUST include or reference an ops.json file. This config:
-- Defines every file operation the plan will perform
-- Makes the plan machine-executable
-- Enables validation before execution
-- Provides rollback capability
+Every plan that changes files MUST carry a `Files:` list. It:
+- Names every path the plan writes, so the reviewer can check the scope
+- Is what `plan-gate` enforces for Tier 3: an edit to a path not listed is blocked
+- Is frozen once the plan is approved (editing it invalidates the approval)
 
-If the plan is exploratory or purely conceptual, note "No ops.json needed - exploration only."
+The main session then implements the approved plan directly; there is no ops.json.
+If the plan is exploratory or purely conceptual, note "No Files: needed - exploration only."
 
 ---
 
@@ -189,7 +189,7 @@ Before presenting a plan to the user:
 - [ ] Verification steps exist for each phase
 - [ ] Every phase has a rough time estimate and a `Done when:` line
 - [ ] Risks are identified with mitigations
-- [ ] The plan references or includes ops.json
+- [ ] The plan has a `Tier:` line and a `Files:` list covering every path its steps write
 - [ ] Total plan scope matches the original request (no scope creep)
 - [ ] Another agent could execute this plan without additional context
 

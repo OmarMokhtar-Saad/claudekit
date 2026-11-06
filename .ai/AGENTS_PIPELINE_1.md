@@ -42,7 +42,7 @@ TaskCreate:
     Pipeline Position: Step 1 of 5
     Prior Agent Output: Initial task, no prior output
     Files Modified: None yet
-    Expected Output: plan.md + ops.json in .claude/plans/
+    Expected Output: plan.md (Tier + Files: list) in .claude/plans/
     Return To: coordinator
   agent: planner
 ```
@@ -53,30 +53,30 @@ TaskCreate:
 
 ## planner
 
-**Purpose.** Produces implementation plans: a human-readable `plan.md` plus a machine-executable `ops.json` for every task. "Every plan MUST include an ops.json file" is its Iron Law.
+**Purpose.** Produces implementation plans: a human-readable `plan.md` (with a `Tier:` line and a `Files:` list) for every task. It writes only this one artifact; the main session implements the approved plan directly.
 
-**Responsibilities.** Codebase discovery, plan authoring, ops.json generation against the canonical schema, self-validation, revision handling from Reviewer feedback.
+**Responsibilities.** Codebase discovery, plan authoring, Tier and `Files:` list declaration, self-validation, revision handling from Reviewer feedback.
 
-**Inputs.** Task description and codebase context (optionally an Explore or Debugger report). **Outputs.** `.claude/plans/plan-<name>.md` and `.claude/plans/ops-<name>.json`, a tiered plan brief (Simple/Medium/Complex), and a `HANDOFF TO: reviewer` block.
+**Inputs.** Task description and codebase context (optionally an Explore or Debugger report). **Outputs.** `.claude/plans/plan-<name>.md` with a `Tier:` line and `Files:` list, a tiered plan brief (Simple/Medium/Complex), and a `HANDOFF TO: reviewer` block.
 
 **Frontmatter (verbatim).**
 - `name: planner`
-- `description: Creates implementation plans with JSON operations configs. Explores codebase, generates plan.md and ops.json. Use when a task needs an implementation plan before coding begins.`
-- `model: sonnet` | `color: cyan`
-- `tools: ["Read", "Grep", "Glob", "Bash", "Agent"]`
+- `description: Creates implementation plans (plan.md with Tier and Files:). Explores codebase, writes the plan the main session then implements. Use when a task needs an implementation plan before coding begins.`
+- `model: opus` | `color: cyan`
+- `tools: ["Read", "Grep", "Glob", "Write"]`
 
-**Internal workflow.** Phase 1 Discovery (structure, tech stack, relevant files, tests, conventions) → Phase 2 Create Plan (Overview, Scope, Prerequisites, Steps with File/Action/Details, Testing Strategy, Rollback Plan, Risk Assessment) → Phase 3 Generate ops.json (modern schema: top-level `plan` key; operation types exactly `file_create`/`file_delete`/`code_edit`; `path` key; `edits` array with `find` + one of `replace`/`add_after`/`add_before`/`delete: true`; `additionalProperties: false`; max 3 `file_delete` per config per GUARD 26; validate with `python3 .claude/operations/scripts/validate-config-json.py`) → Phase 4 Save both files and emit handoff.
+**Internal workflow.** Phase 1 Discovery (structure, tech stack, relevant files, tests, conventions) → Phase 2 Create Plan (Overview, Scope, Prerequisites, Steps with File/Action/Details, Testing Strategy, Rollback Plan, Risk Assessment) → Phase 3 Declare `Tier:` and the `Files:` list (every file a step touches) → Phase 4 Save the plan and emit handoff.
 
-**Dependencies.** Skills: `using-superpowers`, `golden-rule`, `context-first-workflow`, `brainstorming`, `writing-plans`, `generate-operations-config` (declared "single source of truth for the ops.json schema"). Script: `validate-config-json.py`. Downstream: reviewer.
+**Dependencies.** Skills: `using-superpowers`, `golden-rule`, `context-first-workflow`, `brainstorming`, `writing-plans`. Downstream: reviewer.
 
-**Memory/context.** Writes to `.claude/plans/`. Reads the codebase freely. On revision, overwrites the original plan and ops.json and re-triggers the Reviewer without asking permission.
+**Memory/context.** Writes to `.claude/plans/`. Reads the codebase freely. On revision, overwrites the original plan and re-triggers the Reviewer without asking permission.
 
-**Failure recovery.** Forbidden from asking mid-plan questions — batches all clarifications up front. Revision feedback loop: read all Reviewer feedback, update both files, re-save, re-trigger Reviewer. Includes a self-review quality checklist before handoff.
+**Failure recovery.** Forbidden from asking mid-plan questions — batches all clarifications up front. Revision feedback loop: read all Reviewer feedback, update the plan, re-save, re-trigger Reviewer. Includes a self-review quality checklist before handoff.
 
 **Example invocation.**
 ```bash
-echo "Create a plan for adding a caching layer. Write plan.md and ops.json to .claude/plans/" | \
-  claude -p --agent planner --model opus --allowedTools "Read,Grep,Glob,Write,Bash(python3 .claude/operations/scripts/validate-config-json.py *)"
+echo "Create a plan for adding a caching layer. Write plan.md to .claude/plans/" | \
+  claude -p --agent planner --model opus --allowedTools "Read,Grep,Glob,Write"
 ```
 (Per `_shared/INVOCATION.md`, planner's scoped tool list is `Read,Grep,Glob,Write` — never Bash.)
 
@@ -86,23 +86,23 @@ echo "Create a plan for adding a caching layer. Write plan.md and ops.json to .c
 
 ## reviewer
 
-**Purpose.** Plan validation gate. Scores `plan.md` + `ops.json` across three weighted dimensions against a **90/100** threshold before anything reaches the Implementer. This is explicitly the plan reviewer, distinct from `code-reviewer.md`.
+**Purpose.** Plan validation gate. Scores `plan.md` across three weighted dimensions against a **90/100** threshold before plan-gate allows edits. This is explicitly the plan reviewer, distinct from `code-reviewer.md`.
 
 **Responsibilities.** Pre-validation checks, mandatory rejection rules, weighted scoring, structured findings, revision routing, escalation after 3 revisions.
 
-**Inputs.** `plan.md` and `ops.json` paths (Planner handoff). **Outputs.** `REVIEW REPORT` with score bars, decision (APPROVED / CONDITIONAL / REJECTED), findings by severity, and one of three handoffs (implementer / planner / coordinator).
+**Inputs.** `plan.md` path (Planner handoff). **Outputs.** `REVIEW REPORT` with score bars, decision (APPROVED / CONDITIONAL / REJECTED), findings by severity, and one of three handoffs (approved for editing / planner / coordinator).
 
 **Frontmatter (verbatim).**
 - `name: reviewer`
-- `description: Multi-specialist plan validation with 90/100 approval threshold. Scores Plan Quality (40%), Architecture (30%), Security (30%). Use when a plan.md and ops.json need validation before implementation.`
-- `model: opus` | `color: blue`
+- `description: Multi-specialist plan validation with 90/100 approval threshold. Scores Plan Quality (40%), Architecture (30%), Security (30%). Use when a plan.md needs validation before implementation.`
+- `model: sonnet` | `color: blue`
 - `tools: ["Read", "Grep", "Glob"]`
 
-**Internal workflow.** Pre-validation checklist (both files exist, valid JSON, operations match steps, required sections) → mandatory rejection rules (8 automatic rejections that bypass scoring, including missing ops.json and hardcoded secrets) → Step 1 structural validation → Step 2 Plan Quality review (criteria table, 40%) → Step 3 Architecture review (30%) → Step 4 Security review (30%) → decision logic (≥90 approve, 70–89 conditional, <70 reject; revision 3 → escalate).
+**Internal workflow.** Pre-validation checklist (plan exists, `Tier:` and `Files:` present, steps match `Files:`, required sections) → mandatory rejection rules (8 automatic rejections that bypass scoring, including missing `Files:` list and hardcoded secrets) → Step 1 structural validation → Step 2 Plan Quality review (criteria table, 40%) → Step 3 Architecture review (30%) → Step 4 Security review (30%) → decision logic (≥90 approve, 70–89 conditional, <70 reject; revision 3 → escalate).
 
 **Dual Review Mode.** With `--dual` (for security-sensitive plans, DB migrations, public API or auth changes) it loads the `santa-method` skill and spawns two independent sub-reviewers — Reviewer A (Skeptic/Opus, threshold 95) and Reviewer B (Pragmatist/Sonnet, threshold 90) — with anti-anchoring isolation; approval requires both.
 
-**Dependencies.** Skills: `using-superpowers`, `golden-rule`, `validate-operations-config`, `clean-architecture`, `security-checklist`, plus `santa-method` in dual mode. Upstream: planner. Downstream: implementer or planner (revision) or coordinator (escalation).
+**Dependencies.** Skills: `using-superpowers`, `golden-rule`, `clean-architecture`, `security-checklist`, plus `santa-method` in dual mode. Upstream: planner. Downstream: `review-record.py plan-write` then main-session edits, or planner (revision) or coordinator (escalation).
 
 **Memory/context.** Reads `.claude/plans/`. Read-only (no Write/Edit/Bash in tools). Tracks revision number in its handoffs (`Revision Number: <N> of 3`).
 
@@ -110,7 +110,7 @@ echo "Create a plan for adding a caching layer. Write plan.md and ops.json to .c
 
 **Example invocation.**
 ```bash
-echo "Review the plan at .claude/plans/plan-add-caching.md with ops at .claude/plans/ops-add-caching.json" | \
+echo "Review the plan at .claude/plans/plan-add-caching.md" | \
   claude -p --agent reviewer --model opus --allowedTools "Read,Grep,Glob"
 ```
 

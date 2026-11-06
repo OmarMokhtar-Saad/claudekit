@@ -71,7 +71,7 @@ class TestTheFoldIsComplete:
         writes code". That agent is gone; the constraint is not. It now lives where
         the test-writer will actually read it."""
         body = _read(SKILL)
-        assert "before" in body and "implementer" in body.lower()
+        assert "before" in body and "main session" in body.lower()
         assert "RED step" in body
 
     def test_the_alias_targets_the_skill(self):
@@ -93,4 +93,4 @@ class TestTheRouteStillReachesTheDiscipline:
 
     def test_the_ordering_constraint_survives_in_the_coordinator_too(self):
         body = _read(".claude/agents/coordinator.md")
-        assert "MUST produce failing tests before implementer" in body
+        assert "MUST produce failing tests before the main session" in body

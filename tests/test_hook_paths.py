@@ -100,7 +100,7 @@ def test_hook_owned_files_resolve_through_the_script_directory(hook, var):
 
 # `lib.sh` is SOURCED, not executed: it inherits `$SCRIPT_DIR` from whichever hook sources
 # it, and defining its own would shadow the caller's. Exempt by nature, not by convenience.
-SOURCED_LIBRARIES = {"lib.sh"}
+SOURCED_LIBRARIES = {"lib.sh", "plan-lib.sh"}
 
 
 def _code_only(body):
@@ -135,8 +135,9 @@ def test_every_hook_that_uses_script_dir_defines_it():
 def test_the_sourced_library_exemption_is_still_accurate():
     """If `lib.sh` ever defines its own `SCRIPT_DIR`, the exemption above stops being a
     statement about how sourcing works and becomes a hole."""
-    body = (HOOKS / "lib.sh").read_text()
-    assert not re.search(r'^SCRIPT_DIR=', body, re.M), (
-        "lib.sh now defines SCRIPT_DIR, which shadows its caller's -- remove it from "
-        "SOURCED_LIBRARIES and fix the shadowing"
-    )
+    for name in sorted(SOURCED_LIBRARIES):
+        body = (HOOKS / name).read_text()
+        assert not re.search(r'^SCRIPT_DIR=', body, re.M), (
+            f"{name} now defines SCRIPT_DIR, which shadows its caller's -- remove it from "
+            "SOURCED_LIBRARIES and fix the shadowing"
+        )

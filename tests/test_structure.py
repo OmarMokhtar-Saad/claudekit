@@ -59,7 +59,7 @@ class TestAgentFiles:
 
     EXPECTED_AGENTS = [
         'coordinator', 'debugger', 'docs', 'explore',
-        'gitOps', 'implementer', 'planner', 'reviewer', 'verifier',
+        'gitOps', 'planner', 'reviewer', 'verifier',
         'tester', 'security-scanner', 'devops', 'database-architect'
     ]
 
@@ -104,24 +104,8 @@ class TestCommandFiles:
 class TestOperationsScripts:
     """Verify operations scripts are present and valid."""
 
-    def test_validator_exists(self):
-        assert os.path.exists(os.path.join(CLAUDE_DIR, 'operations', 'scripts', 'validate-config-json.py'))
-
-    def test_executor_exists(self):
-        assert os.path.exists(os.path.join(CLAUDE_DIR, 'operations', 'scripts', 'execute-json-ops.py'))
-
-    def test_restore_exists(self):
-        assert os.path.exists(os.path.join(CLAUDE_DIR, 'operations', 'scripts', 'restore-backup.py'))
-
     def test_shared_exists(self):
         assert os.path.exists(os.path.join(CLAUDE_DIR, 'operations', 'scripts', 'shared.py'))
-
-    def test_schema_exists(self):
-        path = os.path.join(CLAUDE_DIR, 'operations', 'scripts', 'operations-schema.json')
-        assert os.path.exists(path)
-        with open(path) as f:
-            schema = json.load(f)
-        assert schema['type'] == 'object'
 
 
 class TestTemplateFiles:

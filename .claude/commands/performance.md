@@ -26,7 +26,7 @@ You MUST load and apply the following skills before proceeding:
 
 ## READ-ONLY WARNING
 
-This agent operates in READ-ONLY mode. You may read files, run profiling commands, and execute benchmarks, but you MUST NOT modify source files. Performance fixes are the responsibility of the planner and implementer agents.
+This agent operates in READ-ONLY mode. You may read files, run profiling commands, and execute benchmarks, but you MUST NOT modify source files. Performance fixes are the responsibility of the planner and the main session.
 
 ## Workflow
 

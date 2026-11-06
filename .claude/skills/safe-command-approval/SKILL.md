@@ -349,6 +349,6 @@ Every command decision is logged to `.claude/command-audit.log`:
 ## Integration
 
 - **coordinator** invokes this skill before executing any bash command
-- **implementer** uses it during plan execution
+- the **main session** uses it while executing a plan
 - **autonomous-loop** relies on it for unattended command execution
 - Works alongside the **operations system** safety guards

@@ -55,7 +55,7 @@ reviewer accepting it. Generated code, migrations and test data tables are exemp
 
 - **planner** — the plan names the units each change creates, states each one's single responsibility, and says how new cases will be added (O). A plan that puts new logic into a function already over the limits must split it or justify why not.
 - **reviewer** (plans) — reject (MAJOR) a plan whose design implies a limit breach or an S/O/D violation; check the planner's quality statement exists.
-- **implementer** — after applying, measure the changed functions; report the numbers in the output. A breach is a STOP-and-report, not a silent pass.
+- **main session** — after editing, measure the changed functions; report the numbers in the output. A breach is a STOP-and-report, not a silent pass.
 - **code-reviewer** — run the measurement on the diff, cite numbers and file:line, apply the severity table above; a MAJOR quality finding means REVISE.
 - **verifier** — include the diff-scoped measurement in the quality score; any new blocking violation fails the quality dimension.
 - **tester** — tests follow the same limits; one behaviour per test, Arrange/Act/Assert, no logic (loops/branches) in test bodies beyond parametrisation.

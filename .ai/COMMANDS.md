@@ -6,9 +6,9 @@
 
 | Command | Does | Dispatches |
 |---------|------|-----------|
-| `/plan <task>` | Create implementation plan + ops.json in `.claude/plans/` | planner |
+| `/plan <task>` | Create implementation plan (Tier + Files:) in `.claude/plans/` | planner |
 | `/review <plan>` | Score plan vs 90/100 threshold | reviewer |
-| `/implement <plan>` | Execute approved ops.json (dry-run → execute → verify build/lint/test) | implementer |
+| `/implement <plan>` | Execute an approved plan.md in the main session with direct edits | main session |
 | `/verify` | Unified quality validation vs 80/100 | verifier |
 | `/coordinator <task>` | Full multi-agent orchestration for complex tasks | coordinator |
 | `/git <op>` | Branch/commit/push/PR | gitOps |
@@ -70,7 +70,7 @@
 
 - Commands stay thin: classify → dispatch → relay agent output. Roadmap target ≤40 lines each (§2.4).
 - Agent spawning always uses scoped `--allowedTools` per INVOCATION.md; `permission-gate` CI job rejects any `--dangerously-skip-permissions`.
-- Failure paths: `/review` rejection returns a scored report with required fixes; `/implement` aborts (with rollback) if validation fails or ops.json is missing; `/refine` and `/gan-build` have max-iteration caps to prevent infinite loops.
+- Failure paths: `/review` rejection returns a scored report with required fixes; `/implement` stops if the plan is not approved; `/refine` and `/gan-build` have max-iteration caps to prevent infinite loops.
 
 ## Known issues
 

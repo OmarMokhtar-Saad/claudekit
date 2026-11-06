@@ -1,35 +1,10 @@
-"""LANE A of task 015: end-to-end PIPELINE COMPOSITION, deterministic and offline.
+"""End-to-end pipeline composition, deterministic and offline.
 
-What this module is for, and what it deliberately is not. Every stage of the pipeline
-already has a unit suite that is stronger than anything written here: the approval-gate
-matrix lives in `test_ops_approval_gate.py`, the Iron Law command allowlist in
-`test_iron_law_hook.py` (174 cases), rollback and forward recovery in
-`test_ops_hardening.py` / `test_work_loss_protection.py`, the reflection checkpoint in
-`test_reflection_gate.py`. Re-asserting any of that here would inflate the count and slow
-CI without adding signal.
-
-What no unit test can see is the SEAM:
-
-  * the artifact of stage N being consumed as the input of stage N+1 (extract -> validate
-    -> record -> execute -> the project's own suite), rather than each script being fed a
-    hand-built input;
-  * the hooks running as `settings.json` actually WIRES them - through the `bash -c`
-    wrapper with its `ROOT=` resolution - instead of being invoked by file path, which is
-    what every existing hook test does. A hook unwired from settings.json passes every
-    existing test and protects nothing;
-  * two independently-correct gates composing on one tool call: `iron-law-gate.py` permits
-    the implementer's ops command, and the reflection checkpoint must still be able to
-    stop it. Each gate is proven alone; their PRECEDENCE is proven only here.
-
-Hermeticity rules (all load-bearing):
-  * `ECC_HOOK_PROFILE` is passed explicitly to every subprocess. The maintainer default is
-    `minimal`, under which `ops-enforcement.sh` returns at line 13 of its body and this
-    whole module would go vacuously green.
-  * The fixture project is created BESIDE the repo, never under `$TMPDIR`: on macOS
-    `tempfile` returns `/var/folders/...`, which `ops-enforcement.sh` exempts outright as
-    OS scratch (same reasoning as `test_ops_enforcement_scope.py`).
-  * The reflection ledger and hook log are redirected per test; the real tree is never
-    written to, and no test creates `<repo>/.claude/**`.
+Covers the SEAM no unit test sees: the hooks running as `settings.json` actually wires
+them (through the `bash -c` wrapper with its `ROOT=` resolution), so plan-gate blocks a
+source edit end to end, and no shipped agent or command tells the model to reprint a plan
+payload. `ECC_HOOK_PROFILE` is passed explicitly to every subprocess, and the fixture
+project is created BESIDE the repo, never under `$TMPDIR` (OS scratch is exempted).
 """
 
 import hashlib
@@ -44,7 +19,6 @@ import tempfile
 from pathlib import Path
 
 import pytest
-from conftest import scoped_env
 
 REPO = Path(__file__).resolve().parents[1]
 CLAUDE = REPO / ".claude"
@@ -54,7 +28,6 @@ SETTINGS = CLAUDE / "settings.json"
 EXTRACTOR = SCRIPTS / "extract-json-from-plan.py"
 VALIDATOR = SCRIPTS / "validate-config-json.py"
 RECORDER = SCRIPTS / "review-record.py"
-EXECUTOR = SCRIPTS / "execute-json-ops.py"
 
 ORIGINAL = "VALUE = 1\n"
 PATCHED = "VALUE = 99\n"
@@ -62,17 +35,6 @@ REVISED = "VALUE = 123\n"
 
 
 # --------------------------------------------------------------------------- fixtures
-
-def _ops_payload(plan="fixture", replace="VALUE = 99"):
-    return {
-        "plan": plan,
-        "operations": [{
-            "type": "code_edit",
-            "path": "src/app.py",
-            "edits": [{"find": "VALUE = 1", "replace": replace}],
-        }],
-    }
-
 
 def _plan_doc(payload):
     return (
@@ -258,133 +220,28 @@ def blockers(results):
 
 # ------------------------------------------------------------------- Group A: the spine
 
-def test_plan_artifacts_flow_through_extract_validate_record_execute(project, tmp_path):
-    """E2E-01+02+03 composed: the ONLY test in the suite where each stage's real output
-    is the next stage's real input. Unit tests feed every one of these scripts a
-    hand-built input, so a seam that changes shape (extractor output the validator
-    rejects, a record the executor cannot resolve from the plan path) is invisible to
-    them."""
-    env = env_for(project, "minimal", tmp_path)
-    plan = project / ".claude" / "plans" / "plan-fixture.md"
-    plan.write_text(_plan_doc(_ops_payload()), encoding="utf-8")
-    ops = project / ".claude" / "plans" / "plan-fixture.ops.json"
-
-    extract = run_script(EXTRACTOR, [str(plan), "--output", str(ops)], project, env)
-    assert extract.returncode == 0, extract.stderr
-    assert ops.exists(), "extractor reported success but wrote no ops file"
-
-    validate = run_script(VALIDATOR, [str(ops)], project, env)
-    assert validate.returncode == 0, validate.stdout + validate.stderr
-
-    write = run_script(RECORDER, ["write", str(plan), str(ops), "--score", "95",
-                                  "--decision", "APPROVED", "--owner-approved"],
-                       project, env)
-    assert write.returncode == 0, write.stderr
-    reviews = project / ".claude" / "reports" / "reviews"
-    record, snapshot = reviews / "fixture.json", reviews / "fixture.ops.json"
-    assert record.exists() and snapshot.exists(), sorted(reviews.iterdir())
-    # The verdict is bound to CONTENT, not to a name: recompute the digest here rather
-    # than trusting the recorder's own report of it.
-    assert sha256_of(ops) in record.read_text(encoding="utf-8")
-
-    check = run_script(RECORDER, ["check", str(plan), str(ops)], project, env)
-    assert check.returncode == 0, check.stdout + check.stderr
-
-    execute = run_script(EXECUTOR, [str(ops)], project, env)
-    assert execute.returncode == 0, execute.stdout + execute.stderr
-    assert (project / "src" / "app.py").read_text(encoding="utf-8") == PATCHED
-    verdict = result_json(execute.stdout)
-    assert verdict["status"] == "success", verdict
-    assert verdict["backup_dir"], "a successful run must leave a restorable backup"
-
-    # The seam that matters to a human: the project's own suite now passes.
-    suite = subprocess.run([sys.executable, "-m", "pytest", "-q", "tests/"],
-                           cwd=str(project), capture_output=True, text=True,
-                           timeout=300, env=env)
-    assert suite.returncode == 0, suite.stdout + suite.stderr
-
-
-def test_conditional_revise_reapprove_roundtrip(project, tmp_path):
-    """E2E-41: the daily workflow, end to end, with the two failure directions that
-    matter. A CONDITIONAL verdict must not authorise execution; revising the ops file to
-    address the finding must not be smugglable through the stale verdict (it drifts);
-    and re-approval must re-bind to the REVISED digest and then execute.
-
-    Both directions are asserted because a gate can fail either way: approval laundering
-    (get CONDITIONAL, edit freely, execute) or a dead end (no forward path, so the gate
-    gets disabled in practice)."""
-    env = env_for(project, "minimal", tmp_path)
-    plan = project / ".claude" / "plans" / "plan-fixture.md"
-    plan.write_text(_plan_doc(_ops_payload()), encoding="utf-8")
-    ops = project / ".claude" / "plans" / "plan-fixture.ops.json"
-    ops.write_text(json.dumps(_ops_payload(), indent=2) + "\n", encoding="utf-8")
-
-    run_script(RECORDER, ["write", str(plan), str(ops), "--score", "88",
-                          "--decision", "CONDITIONAL"], project, env)
-    refused = run_script(EXECUTOR, [str(ops)], project, env)
-    assert refused.returncode != 0
-    assert (project / "src" / "app.py").read_text(encoding="utf-8") == ORIGINAL
-    verdict_reason = result_json(refused.stdout)["reason"]
-    assert verdict_reason.startswith("approval-gate:"), verdict_reason
-
-    # Revise to address the finding: the digest changes, so the stale CONDITIONAL record
-    # now ALSO drifts. The refusal reason must change with it - an operator who cannot
-    # tell "wrong verdict" from "stale artifact" cannot act.
-    ops.write_text(json.dumps(_ops_payload(replace="VALUE = 123"), indent=2) + "\n",
-                   encoding="utf-8")
-    still_refused = run_script(EXECUTOR, [str(ops)], project, env)
-    assert still_refused.returncode != 0
-    drift_reason = result_json(still_refused.stdout)["reason"]
-    assert drift_reason != verdict_reason, (
-        "verdict-refusal and drift-refusal are indistinguishable: %r" % drift_reason)
-    assert (project / "src" / "app.py").read_text(encoding="utf-8") == ORIGINAL
-
-    reapprove = run_script(RECORDER, ["write", str(plan), str(ops), "--score", "92",
-                                      "--decision", "APPROVED", "--owner-approved"],
-                           project, env)
-    assert reapprove.returncode == 0, reapprove.stderr
-    record = project / ".claude" / "reports" / "reviews" / "fixture.json"
-    assert sha256_of(ops) in record.read_text(encoding="utf-8"), \
-        "re-approval did not re-bind to the revised digest"
-
-    executed = run_script(EXECUTOR, [str(ops)], project, env)
-    assert executed.returncode == 0, executed.stdout + executed.stderr
-    assert (project / "src" / "app.py").read_text(encoding="utf-8") == REVISED
-
-
-# ------------------------------------------------------- Group C/D: the chain AS WIRED
-
 def test_wired_edit_chain_blocks_a_source_edit_under_standard(project, tmp_path):
     """E2E-13/17 as composition: the hooks are run through settings.json's own `bash -c`
     wrapper (ROOT resolution included), not by file path. Attribution is asserted per
     hook, so "blocked" can never be satisfied by some unrelated hook in the chain."""
     results = run_chain(project, "Edit", {"file_path": str(project / "src" / "app.py")},
                         "standard", tmp_path)
-    assert "ops-enforcement.sh" in results, \
-        "ops-enforcement.sh is not wired for Edit in settings.json - it never fires"
-    gate = results["ops-enforcement.sh"]
+    assert "plan-gate.sh" in results, \
+        "plan-gate.sh is not wired for Edit in settings.json - it never fires"
+    gate = results["plan-gate.sh"]
     assert gate.returncode == 2, gate.stdout + gate.stderr
     assert gate.stderr.strip(), "a block with no stderr gives the agent nothing to act on"
-    assert "OPS ENFORCEMENT" in gate.stderr
+    assert "PLAN GATE" in gate.stderr
     assert gate.stdout == "", "a PreToolUse decision must never travel on stdout"
-    assert blockers(results) == ["ops-enforcement.sh"], blockers(results)
+    # No checkpoint tag exists in the fixture either, so checkpoint-gate also blocks.
+    assert blockers(results) == ["checkpoint-gate.sh", "plan-gate.sh"], blockers(results)
 
 
-def test_wired_edit_chain_is_inert_under_minimal(project, tmp_path):
-    """E2E-14: `minimal` (this repo's maintainer default) must be genuinely inert -
-    partial bypass would make maintainer sessions behave unlike anything documented."""
+def test_wired_edit_chain_still_blocks_under_minimal(project, tmp_path):
+    """`minimal` (the maintainer default) must NOT disable the Tier-3 plan gate."""
     results = run_chain(project, "Edit", {"file_path": str(project / "src" / "app.py")},
                         "minimal", tmp_path)
-    noisy = {name: (p.returncode, p.stderr) for name, p in results.items()
-             if p.returncode != 0}
-    assert not noisy, noisy
-    # ...and the sanctioned path still works under the same profile.
-    (project / "src" / "app.py").write_text(ORIGINAL, encoding="utf-8")
-    ops = project / "ops.json"
-    ops.write_text(json.dumps(_ops_payload(plan="inert-check")), encoding="utf-8")
-    execute = run_script(EXECUTOR, [str(ops)], project,
-                         env_for(project, "minimal", tmp_path))
-    assert execute.returncode == 0, execute.stdout + execute.stderr
+    assert results["plan-gate.sh"].returncode == 2, results["plan-gate.sh"].stderr
 
 
 def test_wired_edit_chain_defaults_to_enforcing_when_profile_is_unset(project, tmp_path):
@@ -392,78 +249,9 @@ def test_wired_edit_chain_defaults_to_enforcing_when_profile_is_unset(project, t
     not read the setup gotcha. `${ECC_HOOK_PROFILE:-standard}` is the whole guard."""
     results = run_chain(project, "Edit", {"file_path": str(project / "src" / "app.py")},
                         None, tmp_path)
-    assert results["ops-enforcement.sh"].returncode == 2, \
-        "an unset ECC_HOOK_PROFILE left the Iron Law dormant"
+    assert results["plan-gate.sh"].returncode == 2, \
+        "an unset ECC_HOOK_PROFILE left the plan gate dormant"
 
-
-def test_wired_bash_chain_permits_the_ops_path_and_blocks_direct_mutation(project,
-                                                                         tmp_path):
-    """Iron Law composition, both directions in ONE test so that "blocked" can never be
-    satisfied by "nothing works": for agent_type=implementer the wired Bash chain must
-    let the ops executor through and must stop an equivalent direct mutation.
-
-    Attribution is per hook: the block has to come from iron-law-gate.py specifically,
-    not from any other hook that happens to dislike the command."""
-    sanctioned = ("python3 .claude/operations/scripts/execute-json-ops.py "
-                  ".claude/plans/plan-fixture.ops.json")
-    allowed = run_chain(project, "Bash", {"command": sanctioned}, "standard", tmp_path,
-                        agent_type="implementer")
-    assert blockers(allowed) == [], (
-        "the implementer's own documented command was blocked, leaving it no possible "
-        "action: %s" % {n: p.stderr for n, p in allowed.items() if p.returncode == 2})
-
-    denied = run_chain(project, "Bash", {"command": "sed -i '' s/1/99/ src/app.py"},
-                       "standard", tmp_path, agent_type="implementer")
-    assert "iron-law-gate.py" in blockers(denied), \
-        {n: (p.returncode, p.stderr) for n, p in denied.items()}
-    assert denied["iron-law-gate.py"].stdout == ""
-    assert (project / "src" / "app.py").read_text(encoding="utf-8") == ORIGINAL
-
-
-def test_reflection_checkpoint_does_not_gate_the_ops_path(project, tmp_path):
-    """Gate PRECEDENCE after the 2026-09-19 token remediation.
-
-    reflection-gate.py is no longer wired on PreToolUse (the checkpoint forced
-    full-context turns and the ledger was never read), so a pending checkpoint must NOT
-    stop the sanctioned ops path. The checkpoint is still seeded through the real
-    PostToolUseFailure path, which stays wired, so this proves the ledger RECORDS
-    without GATING. The precondition assert is what keeps it honest: a run where no
-    checkpoint was recorded would pass the release asserts vacuously."""
-    env = env_for(project, "standard", tmp_path)
-    gate = project / ".claude" / "hooks" / "reflection-gate.py"
-    command = ("python3 .claude/operations/scripts/execute-json-ops.py "
-               ".claude/plans/plan-fixture.ops.json")
-
-    # Seed the checkpoint through the real failure path, never by hand-writing state.
-    for _ in range(3):
-        failure = {"hook_event_name": "PostToolUseFailure", "session_id": "e2e-session-0001",
-                   "cwd": str(project), "tool_name": "Bash",
-                   "tool_input": {"command": "pytest -q tests/test_app.py"},
-                   "tool_response": {"stderr": "AssertionError"}}
-        subprocess.run([sys.executable, str(gate), "--event", "PostToolUseFailure"],
-                       input=json.dumps(failure), capture_output=True, text=True,
-                       cwd=str(project), env=env, timeout=60)
-
-    with scoped_env(CLAUDEKIT_REFLECTION_DIR=str(tmp_path / "ledger"),
-                    CLAUDEKIT_REFLECTION_INBOX=str(tmp_path / "inbox"),
-                    ECC_HOOK_PROFILE="standard"):
-        reflection = _load_reflection()
-        assert reflection.pending_checkpoint("e2e-session-0001"), \
-            "precondition lost: PostToolUseFailure recorded no checkpoint, so a passing " \
-            "release assert below would prove nothing about the PreToolUse wiring"
-
-    pending = run_chain(project, "Bash", {"command": command}, "standard", tmp_path,
-                        agent_type="implementer")
-    assert "iron-law-gate.py" not in blockers(pending), \
-        "precondition lost: the Iron Law gate blocked, so this proves nothing about the " \
-        "reflection checkpoint"
-    assert "reflection-gate.py" not in blockers(pending), (
-        "reflection-gate.py gated PreToolUse again; its registry row was removed "
-        "2026-09-19: %s"
-        % {n: (p.returncode, p.stderr[:200]) for n, p in pending.items()})
-
-
-# ------------------------------------ Group F/G: the executor lock and the hook's root
 
 def _lock_holder(project, ready, hold):
     """A child that takes the executor's own lock and holds it until `hold` disappears.
@@ -482,145 +270,6 @@ def _lock_holder(project, ready, hold):
     return subprocess.Popen([sys.executable, "-c", code, str(project / ".codemanifest.lock"),
                              str(ready), str(hold)], cwd=str(project))
 
-
-def test_executor_lock_refuses_a_second_run_and_does_not_block_the_next(project, tmp_path):
-    """E2E-31/33, reconciled to the property the design actually has.
-
-    `ExecutionLock` (execute-json-ops.py) is project-wide and non-blocking, and NOTHING
-    in tests/ references it: `ExecutionLock` and `.codemanifest.lock` appear in no test
-    file. Two halves matter and neither is timing-dependent: a run that meets a held lock
-    must refuse rather than interleave, and a refused run must not poison the next one
-    (E2E-31's "no stale lock left behind that blocks the next run").
-
-    Renamed 2026-08-24: the old name said "leaves no stale lock", which is a stronger and
-    different claim than E2E-31's "no stale lock that BLOCKS the next run". `release()` now
-    keeps the file on purpose -- see the comment at the final assertion."""
-    env = env_for(project, "minimal", tmp_path)
-    config = project / "ops.json"
-    config.write_text(json.dumps(_ops_payload(plan="locked")), encoding="utf-8")
-
-    ready, hold = tmp_path / "held", tmp_path / "hold"
-    hold.write_text("x", encoding="utf-8")
-    child = _lock_holder(project, ready, hold)
-    try:
-        for _ in range(500):
-            if ready.exists():
-                break
-            child.poll()
-            assert child.returncode is None, "lock holder died before taking the lock"
-            __import__("time").sleep(0.02)
-        assert ready.exists(), "lock holder never acquired the lock"
-
-        blocked = run_script(EXECUTOR, [str(config)], project, env)
-        assert blocked.returncode != 0, blocked.stdout + blocked.stderr
-        # The exact shipped string, quoted from execute-json-ops.py - a paraphrase would
-        # let the message drift out from under the operator who has to act on it.
-        assert "Another CodeManifest executor is running" in blocked.stdout + blocked.stderr
-        assert (project / "src" / "app.py").read_text(encoding="utf-8") == ORIGINAL, \
-            "a run that could not take the lock still mutated the tree"
-    finally:
-        hold.unlink()
-        child.wait(timeout=30)
-
-    # The refused run must not have poisoned the next one.
-    recovered = run_script(EXECUTOR, [str(config)], project, env)
-    assert recovered.returncode == 0, recovered.stdout + recovered.stderr
-    assert (project / "src" / "app.py").read_text(encoding="utf-8") == PATCHED
-    # E2E-31's original wording was "no stale lock left behind that BLOCKS the next run",
-    # and this assertion had shortened that to "no lock file left behind" -- two different
-    # properties. The design falsifies the short one: mutual exclusion is `fcntl.flock`,
-    # so a leftover path is inert, and the two assertions immediately above already prove
-    # it by running the executor to success with the file present. `release()` deliberately
-    # stopped unlinking (2026-08-24) because the unlink WAS a race: a process blocked on
-    # flock against the inode could have it removed from under it while a third created a
-    # fresh path and acquired that, leaving two executors live. So the property asserted
-    # here is the one E2E-31 asked for -- the next run is not blocked -- plus the reason
-    # the file is worth keeping.
-    # UNCONDITIONAL, both halves. This was `if lock.exists(): assert ...isdigit()` --
-    # guarded by exactly the property it should have been asserting, so restoring the
-    # `os.unlink` in `release()` made the branch dead and left this test green. An
-    # assertion whose guard is the condition under test cannot fail.
-    lock = project / ".codemanifest.lock"
-    assert lock.exists(), \
-        "release() must LEAVE the lock file: unlinking it is the race (a contender can " \
-        "hold an flock on the unlinked inode while a third process acquires a fresh path)"
-    assert lock.read_text(encoding="utf-8").strip().isdigit(), \
-        "the retained lock file must carry the holder pid, or it is litter rather than " \
-        "a diagnostic"
-
-
-def test_wired_edit_chain_blocks_a_cross_project_edit(project, tmp_path):
-    """E2E-34's HOOK half. `test_worktree_manager.py` and `test_security.py` cover the
-    EXECUTOR's path guard; `ops-enforcement.sh`'s cross-project deny branch is referenced
-    by no test in the suite (`CROSS-PROJECT` appears nowhere under tests/). Same
-    unit-vs-composition distinction as Group A, applied to the hook."""
-    other = Path(tempfile.mkdtemp(prefix=".ck-e2e-other-", dir=str(REPO.parent)))
-    try:
-        (other / "src").mkdir(parents=True)
-        (other / "src" / "app.py").write_text(ORIGINAL, encoding="utf-8")
-        escape = f"../{other.name}/src/app.py"
-        results = run_chain(project, "Edit", {"file_path": escape}, "standard", tmp_path)
-        gate = results["ops-enforcement.sh"]
-        assert gate.returncode == 2, gate.stdout + gate.stderr
-        assert "CROSS-PROJECT" in gate.stderr, gate.stderr
-        assert (other / "src" / "app.py").read_text(encoding="utf-8") == ORIGINAL
-    finally:
-        shutil.rmtree(other, ignore_errors=True)
-
-
-def test_sigint_mid_batch_reports_exactly_once_and_rolls_back(project, tmp_path):
-    """E2E-28, narrowed to the timing-INDEPENDENT invariants.
-
-    The interrupt is aimed at a `run_command` sleep that sits after the file operations,
-    so "mid-batch" is guaranteed rather than raced. What is asserted is the part no unit
-    test reaches: an interrupt rolls the batch back and reports exit 130 with a single
-    `interrupted` verdict.
-
-    Honest limit, measured rather than assumed: the `len(verdicts) == 1` assertion is a
-    consistency check, NOT a proof of the `_result_emitted` latch. Neutering that latch
-    leaves this test green (the handler exits via SystemExit, so no second emit is
-    reachable on this path). The guard this case is bound to is the handler's rollback -
-    disabling it turns the case red. The broader "consistent at an arbitrary instant"
-    property is out of scope until the executor grows a deterministic injection point.
-    """
-    env = env_for(project, "minimal", tmp_path,
-                  CLAUDEKIT_RUN_COMMAND_EXTRA_ALLOW="sleep")
-    created = [f"src/gen_{index}.py" for index in range(5)]
-    config = project / "ops.json"
-    config.write_text(json.dumps({
-        "plan": "interrupted-batch",
-        "operations": [{"type": "file_create", "path": path, "content": "X = 1\n"}
-                       for path in created]
-        + [{"type": "run_command", "command": ["sleep", "10"],
-            "reason": "hold the batch open so the signal lands mid-run"}],
-    }), encoding="utf-8")
-
-    proc = subprocess.Popen([sys.executable, str(EXECUTOR), str(config)], cwd=str(project),
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
-                            env=env)
-    try:
-        for _ in range(1500):
-            if all((project / path).exists() for path in created):
-                break
-            assert proc.poll() is None, "executor exited before the file ops were applied"
-            __import__("time").sleep(0.02)
-        else:
-            raise AssertionError("file operations never landed; nothing to interrupt")
-        proc.send_signal(__import__("signal").SIGINT)
-        stdout, stderr = proc.communicate(timeout=120)
-    finally:
-        if proc.poll() is None:
-            proc.kill()
-
-    assert proc.returncode == 130, (proc.returncode, stdout, stderr)
-    verdicts = [line for line in stdout.splitlines() if line.startswith("RESULT-JSON:")]
-    assert len(verdicts) == 1, "the _result_emitted latch let a second verdict out:\n" + stdout
-    assert json.loads(verdicts[0][len("RESULT-JSON:"):])["status"] == "interrupted"
-    leftover = [path for path in created if (project / path).exists()]
-    assert not leftover, f"interrupt left half a plan on disk: {leftover}"
-
-
-# ------------------------------------------------------ Group H: the delivery contract
 
 REPRINT_PATTERNS = (
     "return the complete plan", "return the entire plan", "return the full plan",

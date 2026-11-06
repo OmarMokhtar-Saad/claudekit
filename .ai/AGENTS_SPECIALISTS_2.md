@@ -49,7 +49,7 @@ echo "Design the schema for the multi-tenant billing system, with migration plan
 
 **Internal workflow.** RED (write failing test, run, verify proper failure — a test that passes immediately is wrong) → GREEN (minimum code to pass, rerun) → REFACTOR (dedupe, rename, extract; full suite must stay green; commit). Requires unit + integration tests always, E2E for critical paths. Includes an "Eval-Driven TDD" extension for agent features (baseline eval, pass@1/pass@3 rates, pass^3 stability for release-critical paths via the `eval-harness` skill).
 
-**Dependencies.** Skill referenced: `eval-harness`. Pipeline: Coordinator → TDDGuide → Verifier → GitOps (coordinator.md); HANDOFF_PROTOCOL.md additionally defines a TDDGuide→Implementer handoff (`Status: TESTS WRITTEN — RED PHASE COMPLETE`, constraint: do NOT modify test files).
+**Dependencies.** Skill referenced: `eval-harness`. Pipeline: Coordinator → TDDGuide → Verifier → GitOps (coordinator.md); HANDOFF_PROTOCOL.md additionally defines a TDDGuide→main-session handoff (`Status: TESTS WRITTEN — RED PHASE COMPLETE`, constraint: do NOT modify test files).
 
 **Memory/context.** None documented.
 
@@ -69,7 +69,7 @@ TaskCreate:
   agent: tdd-guide
 ```
 
-**Improvement notes.** No Mandatory Skill Loading section. The two docs disagree on its pipeline shape: coordinator's TDD pipeline has no Implementer, but HANDOFF_PROTOCOL.md defines a TDDGuide→Implementer handoff and the coordinator's own hard rule says "TDD Guide MUST produce tests before Implementer writes code." Overlaps tester (both write tests) — differentiator is ordering discipline, and tdd-guide also writes implementation, which tester never does.
+**Improvement notes.** No Mandatory Skill Loading section. The two docs disagree on its pipeline shape: coordinator's TDD pipeline and HANDOFF_PROTOCOL.md may differ on the TDDGuide handoff target; the coordinator's own hard rule says tests must be produced before implementation code is written. Overlaps tester (both write tests) — differentiator is ordering discipline, and tdd-guide also writes implementation, which tester never does.
 
 ---
 
@@ -99,7 +99,7 @@ echo "Clean up dead code from the auth refactor. Classify SAFE/CAREFUL/RISKY and
   claude -p --agent refactor-cleaner --model sonnet --allowedTools "Read,Write,Edit,Bash,Grep,Glob"
 ```
 
-**Improvement notes.** Its Phase 4 runs `git commit` after every batch, directly conflicting with the system-wide convention that only GitOps commits (stated in implementer.md, build-error-resolver.md, documenter.md, opensource-packager.md) and with its own pipeline routing through GitOps afterwards. No skill-loading section.
+**Improvement notes.** Its Phase 4 runs `git commit` after every batch, directly conflicting with the system-wide convention that only GitOps commits (stated in build-error-resolver.md, documenter.md, opensource-packager.md) and with its own pipeline routing through GitOps afterwards. No skill-loading section.
 
 ---
 

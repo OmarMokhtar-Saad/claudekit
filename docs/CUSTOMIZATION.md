@@ -49,7 +49,7 @@ model: opus    # Change from sonnet to opus for more thorough analysis
 
 Model recommendations:
 - **Opus**: Best for Reviewer and Debugger (deep analysis)
-- **Sonnet**: Best for Planner, Implementer, Coordinator (balanced)
+- **Sonnet**: Best for Planner, Coordinator (balanced)
 - **Haiku**: Best for Verifier, Documenter, GitOps (fast, focused)
 
 ### Changing Review Thresholds
@@ -125,10 +125,6 @@ PROTECTED_PATTERNS = [
     "infrastructure/*",
 ]
 ```
-
-### Operation Limits
-
-There are no count or size limits on operations. The validator enforces structural correctness (valid types, existing paths, non-empty content) but not quantity. Split ops.json into sequenced files only when it aids review clarity.
 
 ## Customizing Hooks
 

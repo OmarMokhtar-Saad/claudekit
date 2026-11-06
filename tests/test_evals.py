@@ -2,7 +2,6 @@
 API money and run via `ck eval` / scripts/run-evals.py — pytest only covers
 the framework: definition validity, workspace building, and check logic."""
 import importlib.util
-import json
 import os
 import subprocess
 import sys
@@ -21,11 +20,10 @@ def _load_runner():
 def test_all_definitions_load_and_reference_real_assets():
     mod = _load_runner()
     defs = mod.load_definitions()
-    assert len(defs) >= 4
+    assert len(defs) >= 3
     ids = {d["id"] for d in defs}
-    # The four pipeline-stage evals derived from the 2026-07-08 E2E run.
     for expected in ("planner-delivers-artifacts", "reviewer-refutes-and-formats",
-                     "implementer-no-fabrication", "verifier-ground-truth"):
+                     "verifier-ground-truth"):
         assert expected in ids
 
 
@@ -40,16 +38,13 @@ def test_dry_run_builds_all_workspaces():
 def test_workspace_isolates_fixture_with_kit_assets(tmp_path):
     mod = _load_runner()
     d = next(x for x in mod.load_definitions()
-             if x["id"] == "implementer-no-fabrication")
+             if x["id"] == "planner-delivers-artifacts")
     ws = mod.build_workspace(d)
     try:
         assert os.path.isfile(os.path.join(ws, "src", "calc", "basic.py"))
-        assert os.path.isfile(os.path.join(ws, ".claude", "agents", "implementer.md"))
+        assert os.path.isfile(os.path.join(ws, ".claude", "agents", "planner.md"))
         assert os.path.isfile(os.path.join(
-            ws, ".claude", "operations", "scripts", "execute-json-ops.py"))
-        # setup_files landed and parse
-        ops = os.path.join(ws, ".claude", "plans", "ops-negate.json")
-        assert json.load(open(ops))["plan"] == "add-negate"
+            ws, ".claude", "operations", "scripts", "review-record.py"))
         # no hooks/settings — evals judge prompts, not hooks
         assert not os.path.exists(os.path.join(ws, ".claude", "settings.json"))
     finally:

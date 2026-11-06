@@ -48,9 +48,9 @@ allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 | 1. Specify | `/specify {name}` | User's feature idea | `.specify/features/{name}/spec.md` |
 | 2. Clarify | `/clarify {name}` | spec.md | Ambiguity Report, updated spec.md |
 | 3. Checklist | `/checklist {name}` | spec.md | `.specify/features/{name}/checklist.md` |
-| 4. Plan | `/plan {name}` | spec.md | Implementation plan + ops.json |
+| 4. Plan | `/plan {name}` | spec.md | Implementation plan (plan.md) |
 | 5. Analyze | `/analyze {name}` | spec.md + plan | Completeness Matrix + Gap Report |
-| 6. Implement | `/implement {name}` | plan + ops.json | Source code + tests |
+| 6. Implement | `/implement {name}` | approved plan | Source code + tests |
 | 7. Verify | Manual or `/verify` | checklist.md + code | Filled checklist with pass/fail |
 | 8. Analyze | `/analyze {name}` | All artifacts | Final consistency report |
 

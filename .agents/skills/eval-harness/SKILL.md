@@ -209,7 +209,7 @@ description: Ensure existing features still work after changes
 
 tasks:
   - id: plan-generation
-    description: "Planner generates valid ops.json"
+    description: "Planner generates a valid plan.md (Tier + Files list)"
     ...
   - id: code-review-scoring
     description: "Reviewer produces score 0-100"

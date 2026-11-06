@@ -19,8 +19,8 @@ concurrent hook processes interleave whole lines rather than corrupting each
 other. Every record carries ``schema_version``, ``ts``, ``session_id``, ``kind``,
 plus the fields required for its kind.
 
-Two kinds ship in v1, matching the two things that currently reach a model
-without a record: hook decisions and ops.json execution.
+Kinds shipped: hook decisions and the Stop-time delegation report -- the things that
+reach a model without any other record.
 
 The runtime assertion
 ---------------------
@@ -63,11 +63,6 @@ KIND_FIELDS: Dict[str, Tuple[str, ...]] = {
     "hook_decision": (
         "event", "handler", "tier", "exit_code", "decision", "merged_decision",
         "tool_name", "duration_ms", "stderr_preview",
-    ),
-    # One ops.json execution, as the operations engine applied it.
-    "ops_execution": (
-        "plan", "config_path", "operation_index", "operation_type", "target_path",
-        "status", "duration_ms", "detail_preview",
     ),
     # One session's delegation split at Stop: who did the reading, and what it cost.
     "delegation_report": (

@@ -86,7 +86,6 @@
         "explore",
         "flow-analyst",
         "gitOps",
-        "implementer",
         "loop-operator",
         "opensource-packager",
         "opensource-sanitizer",
@@ -113,7 +112,6 @@
         "documenter",
         "explore",
         "gitOps",
-        "implementer",
         "planner",
         "reviewer",
         "security-scanner",
@@ -140,9 +138,10 @@
       "path": "skills/writing-plans/SKILL.md",
       "mandatory": false,
       "usedBy": [
-        "planner"
+        "planner",
+        "reviewer"
       ],
-      "description": "Plan structure and ops.json"
+      "description": "Plan structure: Tier line and Files: list"
     },
     {
       "id": "executing-plans",
@@ -163,43 +162,12 @@
       "description": "Creative design exploration"
     },
     {
-      "id": "generate-operations-config",
-      "name": "Generate Operations Config",
-      "path": "skills/generate-operations-config/SKILL.md",
-      "mandatory": false,
-      "usedBy": [
-        "planner"
-      ],
-      "description": "Create ops.json for code changes"
-    },
-    {
-      "id": "validate-operations-config",
-      "name": "Validate Operations Config",
-      "path": "skills/validate-operations-config/SKILL.md",
-      "mandatory": false,
-      "usedBy": [
-        "reviewer"
-      ],
-      "description": "Validate ops.json with 29 guards"
-    },
-    {
-      "id": "execute-operations-config",
-      "name": "Execute Operations Config",
-      "path": "skills/execute-operations-config/SKILL.md",
-      "mandatory": false,
-      "usedBy": [
-        "implementer"
-      ],
-      "description": "Execute ops.json with backup"
-    },
-    {
       "id": "verification-before-completion",
       "name": "Verification Before Completion",
       "path": "skills/verification-before-completion/SKILL.md",
       "mandatory": false,
       "usedBy": [
         "coordinator",
-        "implementer",
         "tester",
         "verifier"
       ],
@@ -224,7 +192,6 @@
       "mandatory": false,
       "usedBy": [
         "database-architect",
-        "implementer",
         "reviewer"
       ],
       "description": "Layer boundaries and dependency rules"
@@ -910,13 +877,6 @@
       "using-git-worktrees",
       "using-superpowers"
     ],
-    "implementer": [
-      "clean-architecture",
-      "execute-operations-config",
-      "golden-rule",
-      "using-superpowers",
-      "verification-before-completion"
-    ],
     "loop-operator": [
       "autonomous-loop",
       "using-superpowers"
@@ -933,7 +893,6 @@
     "planner": [
       "brainstorming",
       "context-first-workflow",
-      "generate-operations-config",
       "golden-rule",
       "using-superpowers",
       "writing-plans"
@@ -943,7 +902,7 @@
       "golden-rule",
       "security-checklist",
       "using-superpowers",
-      "validate-operations-config"
+      "writing-plans"
     ],
     "security-scanner": [
       "ci-cd-pipeline",
@@ -968,5 +927,8 @@
       "verification-before-completion",
       "verification-gap-lens"
     ]
+  },
+  "removedAgents": {
+    "implementer": "removed; the main session edits directly after an approved plan.md"
   }
 }

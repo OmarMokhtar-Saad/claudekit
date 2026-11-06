@@ -9,23 +9,20 @@ Skills are markdown documents that provide domain expertise, workflow patterns, 
 |-------|-------------|---------|
 | using-superpowers | Skill discovery protocol — ensures agents load relevant skills | All |
 | golden-rule | Never modify code without explicit approval | All |
-| context-first-workflow | Explore codebase before making changes | Planner, Implementer |
+| context-first-workflow | Explore codebase before making changes | Planner |
 
 ### Planning & Execution
 | Skill | Description | Used By |
 |-------|-------------|---------|
-| writing-plans | Plan structure, bite-sized tasks, ops.json | Planner |
-| executing-plans | Batch execution with review checkpoints | Implementer |
+| writing-plans | Plan structure, bite-sized tasks | Planner |
+| executing-plans | Batch execution with review checkpoints | Main session |
 | brainstorming | Creative design exploration before planning | Planner |
-| generate-operations-config | Create ops.json for code changes | Planner, Implementer |
-| validate-operations-config | Run validator + dry-run on ops.json | Reviewer |
-| execute-operations-config | Execute ops.json with backup | Implementer |
 
 ### Quality & Testing
 | Skill | Description | Used By |
 |-------|-------------|---------|
 | verification-before-completion | Evidence before claims, always | Verifier, All |
-| test-driven-development | RED/GREEN/REFACTOR workflow | Implementer |
+| test-driven-development | RED/GREEN/REFACTOR workflow | Main session |
 | clean-architecture | Layer boundaries and dependency rules | Reviewer, Planner |
 | security-checklist | OWASP Top 10 validation | Reviewer, GitOps |
 | performance-guidelines | Response times, resource management | Verifier |
@@ -40,13 +37,13 @@ Skills are markdown documents that provide domain expertise, workflow patterns, 
 | Skill | Description | Used By |
 |-------|-------------|---------|
 | requesting-code-review | Prepare and dispatch code reviews | GitOps |
-| receiving-code-review | Technical evaluation of feedback | Implementer |
+| receiving-code-review | Technical evaluation of feedback | Main session |
 
 ### Refactoring & Patterns
 | Skill | Description | Used By |
 |-------|-------------|---------|
 | refactoring-patterns | Proven refactoring patterns catalog | Planner |
-| error-handling | Exception hierarchy, logging, recovery | Implementer |
+| error-handling | Exception hierarchy, logging, recovery | Main session |
 | documentation-standards | Doc formatting and knowledge base | Documenter |
 
 ### Git & Collaboration
@@ -87,7 +84,7 @@ Skills are markdown documents that provide domain expertise, workflow patterns, 
 ### Testing
 | Skill | Description | Used By |
 |-------|-------------|---------|
-| property-based-testing | Hypothesis, fast-check, proptest, QuickCheck - property-driven test generation | Tester, Implementer |
+| property-based-testing | Hypothesis, fast-check, proptest, QuickCheck - property-driven test generation | Tester |
 
 ### DevOps
 | Skill | Description | Used By |
@@ -100,12 +97,12 @@ Skills are markdown documents that provide domain expertise, workflow patterns, 
 | Skill | Description | Used By |
 |-------|-------------|---------|
 | accessibility-standards | WCAG 2.1 AA compliance, ARIA patterns, keyboard navigation | Reviewer, Verifier |
-| i18n-patterns | Locale-aware formatting, translation keys, RTL layout, pluralization | Planner, Implementer |
+| i18n-patterns | Locale-aware formatting, translation keys, RTL layout, pluralization | Planner |
 
 ### Advanced Patterns
 | Skill | Description | Used By |
 |-------|-------------|---------|
-| spec-driven-development | Specification-first workflow where specs are the single source of truth | Planner, Implementer |
+| spec-driven-development | Specification-first workflow where specs are the single source of truth | Planner |
 | code-explanation | Analogy-first code explanation with visual diagrams and gotcha highlights | Explore, Debugger |
 | incident-response | Triage, war room coordination, post-mortem writing, runbook patterns | Debugger, Coordinator |
 

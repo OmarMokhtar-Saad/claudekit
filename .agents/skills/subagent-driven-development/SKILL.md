@@ -104,7 +104,7 @@ Report:
 
 ## Stage 2: Spec Review
 
-After the implementer completes, review against the specification:
+After the implementing agent completes, review against the specification:
 
 ### Spec Review Checklist
 
@@ -112,7 +112,7 @@ After the implementer completes, review against the specification:
 |---|---|
 | **Completeness** | Does the implementation cover all acceptance criteria? |
 | **Correctness** | Does it match what was specified, not just something that works? |
-| **Scope** | Did the implementer stay within the specified scope? |
+| **Scope** | Did the implementing agent stay within the specified scope? |
 | **Contracts** | Do interfaces/APIs match the plan's design? |
 | **Integration** | Will this integrate with the rest of the system as planned? |
 
@@ -120,7 +120,7 @@ After the implementer completes, review against the specification:
 
 - **PASS**: Implementation matches specification. Proceed to code review if the user asked for it; otherwise accept.
 - **MINOR ISSUES**: Small deviations that can be noted and accepted. Proceed.
-- **REWORK NEEDED**: Significant deviation from spec. Send back to implementer.
+- **REWORK NEEDED**: Significant deviation from spec. Send back to the implementing agent.
 
 ---
 
@@ -145,7 +145,7 @@ Runs only when the user asked for code review — never on its own. After spec r
 
 - **PASS**: Code is clean and well-structured. Task complete.
 - **MINOR ISSUES**: Small improvements needed. Fix and accept.
-- **REWORK NEEDED**: Significant quality issues. Send back to implementer with specific feedback.
+- **REWORK NEEDED**: Significant quality issues. Send back to the implementing agent with specific feedback.
 
 ---
 

@@ -29,10 +29,10 @@ Break every task into **3-10 work units**. Each unit must be:
 
 | # | Unit | Depends On | Effort | Agent | Status |
 |---|------|------------|--------|-------|--------|
-| 1 | [description] | -- | S | implementer | ⬜ pending |
-| 2 | [description] | -- | M | implementer | ⬜ pending |
+| 1 | [description] | -- | S | main session | ⬜ pending |
+| 2 | [description] | -- | M | main session | ⬜ pending |
 | 3 | [description] | 1 | S | tester | ⬜ pending |
-| 4 | [description] | 1, 2 | M | implementer | ⬜ pending |
+| 4 | [description] | 1, 2 | M | main session | ⬜ pending |
 | 5 | [description] | 3, 4 | S | reviewer | ⬜ pending |
 ```
 
@@ -86,7 +86,7 @@ Assign each work unit to the appropriate agent based on the task type:
 
 | Task Type | Agent | When to Use |
 |-----------|-------|-------------|
-| Code writing | implementer | New features, refactoring |
+| Code writing | main session | New features, refactoring |
 | Testing | tester | Test creation, test fixes |
 | Code review | reviewer | Quality checks, PR review |
 | Investigation | explore | Codebase analysis, research |

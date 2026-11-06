@@ -1,48 +1,7 @@
-# Core Pipeline Agents: implementer, verifier, debugger
+# Core Pipeline Agents: verifier, debugger
 
 <!-- split-from-AGENTS.md -->
 > Part of the agent reference. Index: [AGENTS.md](AGENTS.md)
-
-## implementer
-
-**Purpose.** Execution engine that turns approved plans into code — exclusively via `python3 .claude/operations/scripts/execute-json-ops.py <ops.json>`. Its Iron Law: direct Edit/Write use is permanently forbidden; no ops.json means STOP and request one from the Planner.
-
-**Responsibilities.** Pre-flight verification of approval and ops.json presence, dry-run, script execution, build/lint/test verification, failure handling, handoff to Verifier.
-
-**Inputs.** Approved `plan.md` + `ops.json` (Reviewer handoff with `Status: APPROVED`). **Outputs.** Modified/created source files (via script), `IMPLEMENTATION COMPLETE`/`FAILED` report, handoff to verifier (success) or coordinator (failure).
-
-**Frontmatter (verbatim).**
-- `name: implementer`
-- `description: Executes approved plans exclusively via execute-json-ops.py. No ops.json = STOP and request one. Never falls back to manual edits. Use when a plan has been approved by the Reviewer and code changes need to be applied.`
-- `model: sonnet` | `color: green`
-- `tools: ["Read", "Bash", "Grep", "Glob"]`
-
-**Internal workflow.** Step 0 pre-flight (plan approved, ops.json present, targets exist, build tools available, backups) → Step 1 dry-run (`--dry-run`, stop if unexpected targets) → Step 2 execute → Step 3 verify build/lint/tests using validation commands → Step 4 handle failures (minor fix → new ops.json patch file and re-run script; significant → report to Coordinator; never rewrite large sections manually).
-
-**Dependencies.** Skills: `using-superpowers`, `golden-rule`, `execute-operations-config`, `clean-architecture`, `verification-before-completion`. Script: `.claude/operations/scripts/execute-json-ops.py`. Upstream: reviewer. Downstream: verifier (success), coordinator (failure). Never commits — that is GitOps's job.
-
-**Memory/context.** Reads `.claude/plans/`; relies on git or script-created backups for rollback. Edge cases documented: empty operations array (verify with Coordinator), missing referenced files, missing build tool, pre-existing test failures (report but not its problem), ambiguous plan step (never guess — ask Coordinator).
-
-**Failure recovery.** Script rollback on operation failure; correction patch ops.json for minor issues; escalate to Coordinator with error details, rollback status, and recommendation for anything significant. Never continues after a critical failure, never modifies test expectations, never suppresses linter errors.
-
-**Example invocation.**
-```
-TaskCreate:
-  prompt: |
-    You are the implementer agent.
-    Read your agent definition: .claude/agents/implementer.md
-    HANDOFF FROM: reviewer
-    ---
-    Status: APPROVED
-    Score: 92/100
-    Plan File: .claude/plans/plan-add-caching.md
-    Ops Config: .claude/plans/ops-add-caching.json
-  agent: implementer
-```
-
-**Improvement notes.** QUICK_START.md lists its permissions as "Read, Write, Execute" — misleading, since Edit/Write tools are explicitly forbidden and its frontmatter has neither (all writes go through the Bash-invoked script). Its handoff template still offers `Method: <Script|Manual>` despite Manual being banned.
-
----
 
 ## verifier
 
@@ -50,21 +9,21 @@ TaskCreate:
 
 **Responsibilities.** Environment check, linter/formatter/type-checker runs, full test suite execution, coverage measurement, anti-pattern penalty application, scoring, retry/escalation routing.
 
-**Inputs.** Implementer handoff with modified file list. **Outputs.** `VERIFICATION REPORT` with per-dimension score bars, penalties, decision; handoff to gitOps (pass), implementer (retry, max 2), or coordinator (fail / retry limit).
+**Inputs.** Main-session handoff with modified file list. **Outputs.** `VERIFICATION REPORT` with per-dimension score bars, penalties, decision; handoff to gitOps (pass), the main session (retry, max 2), or coordinator (fail / retry limit).
 
 **Frontmatter (verbatim).**
 - `name: verifier`
 - `description: Quality validation agent. Runs static analysis, tests, and coverage checks with 80/100 approval threshold. Use after implementation to validate code quality before committing.`
-- `model: haiku` | `color: purple`
+- `model: sonnet` | `color: purple`
 - `tools: ["Read", "Bash", "Grep", "Glob"]`
 
 **Internal workflow.** Phase 1 environment check + baseline (pre-existing failures, current coverage) → Phase 2 static analysis (score NEW issues only; 30% weight) → Phase 3 test execution (40% weight — highest, "passing tests are the strongest signal of correctness") → Phase 4 coverage analysis (30% weight) → Phase 5 scoring with 10 anti-pattern penalties (suppressed lint warnings −10, skipped tests −5 each max −15, empty catch −10, debug output −5, commented-out code −5, magic numbers −3, duplicate blocks −10, missing error handling −10, broad type assertions −5, assertion without message −3; floor −30) → decision.
 
-**Dependencies.** Skills: `using-superpowers`, `golden-rule`, `test-driven-development`, `verification-before-completion`, `performance-guidelines`. Downstream: gitOps, implementer, coordinator.
+**Dependencies.** Skills: `using-superpowers`, `golden-rule`, `test-driven-development`, `verification-before-completion`, `performance-guidelines`. Downstream: gitOps, main session, coordinator.
 
 **Memory/context.** Read-only regarding code ("NEVER modify code yourself"). Compares against baseline; never counts pre-existing failures as new.
 
-**Failure recovery.** 60–79 → RETRY to Implementer with exact file:line issues ("Fix ONLY the listed issues"), max 2 retries; <60 → FAIL, escalate to Coordinator immediately and recommend re-planning; retry 2/2 exceeded → escalate. Never lowers the threshold, never estimates scores without running tools.
+**Failure recovery.** 60–79 → RETRY to the main session with exact file:line issues ("Fix ONLY the listed issues"), max 2 retries; <60 → FAIL, escalate to Coordinator immediately and recommend re-planning; retry 2/2 exceeded → escalate. Never lowers the threshold, never estimates scores without running tools.
 
 **Example invocation.**
 ```
@@ -72,9 +31,9 @@ TaskCreate:
   prompt: |
     You are the verifier agent.
     Read your agent definition: .claude/agents/verifier.md
-    HANDOFF FROM: implementer
+    HANDOFF FROM: main session
     ---
-    Status: IMPLEMENTATION COMPLETE
+    Status: EDITS COMPLETE
     Files Modified: src/services/cache.ts, src/models/entry.ts
     Build Status: PASS
   agent: verifier

@@ -114,16 +114,6 @@ class TestPreToolUseGate:
         assert "REFLECTION CHECKPOINT PENDING" in proc.stderr
         assert proc.stdout.strip() == ""
 
-    def test_ops_executor_counts_as_mutation(self, env):
-        seed_two_failures(env)
-        proc = run("PreToolUse", {
-            "hook_event_name": "PreToolUse", "session_id": SESSION, "tool_name": "Bash",
-            "tool_input": {
-                "command": "python3 .claude/operations/scripts/execute-json-ops.py p.json"
-            },
-        }, env)
-        assert proc.returncode == 2
-
     def test_read_only_diagnosis_stays_available(self, env):
         seed_two_failures(env)
         for tool, tool_input in (
@@ -576,4 +566,3 @@ class TestUntrustedLedgerRootInTheGate:
         }, fallback_env)
         assert proc.returncode == 0, proc.stderr
         assert not carry.exists(), carry.read_text(encoding="utf-8")
-

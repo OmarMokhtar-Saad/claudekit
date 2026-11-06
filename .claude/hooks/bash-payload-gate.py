@@ -32,8 +32,8 @@ starts catching genuine one-liners. 1,500 is the knee.
 NOT A SANDBOX (project hard rule 6)
 -----------------------------------
 This is a budget, not a security control. It bounds the SIZE of a command, never its
-meaning, and `iron-law-gate.py` remains the thing that decides whether a Bash call may
-write at all. A caller who wants the bytes through can split them across two calls. The
+meaning, and `plan-gate.sh` remains the thing that decides whether an edit may
+happen at all. A caller who wants the bytes through can split them across two calls. The
 point is to make the cheap path the default one, not to make the expensive path impossible.
 
 FAIL DIRECTION

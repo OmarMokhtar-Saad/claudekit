@@ -12,6 +12,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Added: `(delete)` marker for Tier 3 deletions.** A plan lists a path it deletes as
+  `` `path` (delete) `` in `Files:`; `plan-write` refuses more than 3 marked paths or a globbed
+  one (exit 8); `plan-check --delete` checks the marker. `plan-gate` blocks a Write-to-empty
+  over an unmarked Tier 3 file and `shell-write-gate` blocks `rm`, `git rm` and `unlink` of
+  unmarked git-tracked Tier 3 files (untracked build output is never blocked). Speed bump, not
+  a sandbox: `find -delete`, `git clean`, `mv` and scripted deletes are not seen.
+- **Removed: `project-graph.py impact`** (read an ops.json that no longer exists). Use `hubs`
+  and `query <file> --direction in`.
+- **Changed: hard rule 4** now describes the `(delete)` marker instead of `MAX_DELETIONS`.
+
+- **Removed: the ops.json pipeline (Phase 2).** No `ops-*.json` payloads, `execute-json-ops.py`,
+  `validate-config-json.py`, `iron-law-gate`, `check-plan-artifacts.py`, `implementer` agent,
+  `*-operations-config` skills, or `ck rollback`/restore-backup. The flow is now: an approved
+  `plan.md` (Tier + `Files:`), reviewer score, `review-record.py plan-write`, `plan-gate` allows
+  edits, and the main session edits directly; subagents only explore, review, test and verify.
+  README, `docs/`, translations and examples updated to match.
+
+- **Main session edits directly after an approved plan; ops.json pipeline removal begins (Phase 1).**
+  `plan-gate` and `checkpoint-gate` replace `ops-enforcement` as the Edit/Write gates: Tier 3
+  source is editable only when a reviewed, recorded `plan.md` lists the path in `Files:`, and
+  only after a `ck-checkpoint/<epoch>` tag exists. Both bind under `ECC_HOOK_PROFILE=minimal`.
+  `ECC_OPS_ENFORCEMENT` is replaced by `ECC_PLAN_GATE=off` (advisory nudge only). `shell-write-gate`
+  closes shell-redirect writes. `/implement`, `/plan`, `/review`, `/rollback`, the planner,
+  reviewer and coordinator agents and the plan skills no longer mention ops.json; subagents only
+  explore, review, test and verify. Token & Model Policy region is v8 (root and 11 templates;
+  `ck adapt` carries it). `execute-json-ops.py`, `implementer` and `iron-law-gate` remain until Phase 2.
 - **`/review` runs a two-critic panel beside `reviewer`.** New read-only agents
   `plan-design-critic` and `plan-readiness-critic` (persona and standard text adapted from
   google/elephant-goldfish-model, Apache-2.0; notice in `.claude/agents/_shared/EGM-NOTICE.md`)

@@ -38,7 +38,7 @@ both stay logged in simultaneously with independent rate-limit quotas:
 
 ```bash
 alias claude-a='CLAUDE_CONFIG_DIR=~/.claude-acct-a claude'   # planner/reviewer
-alias claude-b='CLAUDE_CONFIG_DIR=~/.claude-acct-b claude'   # implementer
+alias claude-b='CLAUDE_CONFIG_DIR=~/.claude-acct-b claude'   # builder
 ```
 
 Hardening (non-negotiable):

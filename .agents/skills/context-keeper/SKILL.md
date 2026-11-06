@@ -67,7 +67,7 @@ When `/save-session` is invoked, serialize this state:
 ```markdown
 ## Active Plan
 <Path to plan file if one is in progress>
-.Codex/plans/ops-add-auth.json — Step 3 of 5 complete
+.Codex/plans/add-auth.md — Step 3 of 5 complete
 
 ## Build Status
 <Last known build/test status>

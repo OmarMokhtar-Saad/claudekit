@@ -312,13 +312,8 @@ class TestContractConsistency:
     def test_invocation_table_covers_spawned_roles(self):
         text = _read(SHARED, "INVOCATION.md")
         for role in ("planner", "reviewer", "explore", "debugger", "verifier",
-                     "implementer", "security-scanner"):
+                     "security-scanner"):
             assert f"| {role}" in text, f"INVOCATION.md tool table missing row: {role}"
-
-    def test_implementer_reads_validation_from_plan_not_opsjson(self):
-        text = _read(AGENTS, "implementer.md")
-        assert "from ops.json validation section" not in text
-        assert "plan.md" in text
 
     def test_hook_wrappers_survive_non_git_projects(self):
         # Regression (qa-agents, 2026-07-08): ROOT=$(git rev-parse ...) with no
@@ -340,5 +335,3 @@ class TestContractConsistency:
         # Verified 2026-07-08: claude -p cannot write into .claude/** (platform
         # sensitive-path gate) — stdout is the delivery contract, commands save.
         assert "Headless fallback" in _read(AGENTS, "planner.md")
-        assert "extract-json-from-plan.py" in _read(COMMANDS, "plan.md")
-        assert "verification pending" in _read(AGENTS, "implementer.md")

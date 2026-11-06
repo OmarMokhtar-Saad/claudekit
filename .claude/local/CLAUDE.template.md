@@ -47,11 +47,11 @@ This project uses [ClaudeKit](https://github.com/OmarMokhtar-Saad/claudekit) for
 
 ### AI-Assisted Code Changes (MANDATORY)
 
-When making ANY code change, use the ops.json pipeline:
+When making ANY code change, follow the plan flow:
 
-1. `/generate-ops <task>` — Create ops.json
-2. `/validate-ops <path>` — Run validator + dry-run
-3. `/execute-ops <path>` — Execute with backup
+1. `/plan <task>` — Write plan.md (Tier + `Files:` list)
+2. `/review` — Reviewer scores it; `review-record.py plan-write` records the approved plan
+3. Edit directly in the main session; plan-gate allows only the listed files
 
 ### Skills (slash commands)
 
@@ -59,37 +59,13 @@ When making ANY code change, use the ops.json pipeline:
 |---------|---------|
 | `/plan <task>` | Create implementation plan |
 | `/review` | Validate plan (90% threshold) |
-| `/implement` | Execute approved plan |
+| `/implement` | Execute approved plan (main session edits) |
 | `/verify` | Run quality checks |
 | `/debug <issue>` | Diagnose bugs (read-only) |
 | `/docs <target>` | Generate documentation |
 | `/git <operation>` | Git operations |
 | `/coordinator <task>` | Multi-agent orchestration |
 
-### Operations Config Format
-
-```json
-{
-  "plan": "plan-name",
-  "operations": [
-    {
-      "type": "code_edit",
-      "path": "{{EXAMPLE_FILE_PATH}}",
-      "edits": [{ "find": "exact text", "replace": "new text" }]
-    }
-  ]
-}
-```
-
 ### Governance
 
 See `.claude/local/CONSTITUTION.md` for project-specific rules and quality gates.
-
-## Scripts Directory
-
-Operations scripts are located in `.claude/operations/scripts/`:
-- `validate-config-json.py` — Validate ops.json (29 safety guards)
-- `execute-json-ops.py` — Execute operations with backup
-- `restore-backup.py` — Restore from backup
-
-Scripts are auto-discovered from `.claude/operations/scripts/`.

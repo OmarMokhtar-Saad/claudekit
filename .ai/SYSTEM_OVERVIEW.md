@@ -6,15 +6,15 @@ ClaudeKit is a **multi-agent orchestration system for Claude Code**. It turns an
 
 Users install it into their own project (`pip install claudekit-agents && ck init <project> --full`, or `./install.sh`), which copies the `.claude/` asset tree, generates a `CLAUDE.md` and `CONSTITUTION.md` from templates for their language, and wires 19 lifecycle hooks through `.claude/settings.json`.
 
-**What makes it differentiated** (per the 2026-07 external audit): no comparable Claude Code kit has a deterministic transactional execution engine (ops.json + 29 guards + backup/rollback), scored review gates, or the anti-anchoring adversarial-review designs (Santa dual review, GAN evaluator loops with fresh context per iteration).
+**What makes it differentiated** (per the 2026-07 external audit): no comparable Claude Code kit has a hook-enforced plan gate (approved plan.md `Files:` list), scored review gates, or the anti-anchoring adversarial-review designs (Santa dual review, GAN evaluator loops with fresh context per iteration).
 
 ## The five subsystems
 
-1. **Agent corpus** (`.claude/agents/`, 28 Markdown agents + `_shared/` protocols) — role prompts with frontmatter (name, description, model, tools). Core pipeline: coordinator, planner, reviewer, implementer, verifier, gitOps; plus specialists (debugger, tester, security-scanner, code-reviewer, …). See [AGENTS.md](AGENTS.md).
+1. **Agent corpus** (`.claude/agents/`, 28 Markdown agents + `_shared/` protocols) — role prompts with frontmatter (name, description, model, tools). Core pipeline: coordinator, planner, reviewer, verifier, gitOps; plus specialists (debugger, tester, security-scanner, code-reviewer, …). See [AGENTS.md](AGENTS.md).
 2. **Command layer** (`.claude/commands/`, 42 slash commands) — user entry points that dispatch agents and workflows (`/plan`, `/review`, `/implement`, `/santa`, `/gan-build`, `/prp-*`, …). See [COMMANDS.md](COMMANDS.md).
 3. **Skill library** (`.claude/skills/`, 75 skills + `skills-registry.json`) — reusable procedure modules agents load on demand; the registry maps skills to agents, with `using-superpowers` and `golden-rule` mandatory for all. See [SKILLS.md](SKILLS.md).
 4. **Enforcement layer** (`.claude/hooks/`, 19 shell hooks wired in `.claude/settings.json`; `src/claudekit/security/` Python validator) — blocks unsafe edits, bad commits, dangerous commands; profiles via `ECC_HOOK_PROFILE`. See [HOOKS.md](HOOKS.md) and [SECURITY_GUIDE.md](SECURITY_GUIDE.md).
-5. **Operations engine** (`.claude/operations/scripts/`) — `validate-config-json.py` (29 guards), `execute-json-ops.py` (backups, atomic writes, rollback), `restore-backup.py`, `operations-schema.json`. The only sanctioned way agents change user code. See [SKILLS.md](SKILLS.md#operations-pipeline) and [DOMAIN.md](DOMAIN.md).
+5. **Plan gate** (`.claude/hooks/plan-gate.sh`) — blocks Tier 3 source edits unless an approved, unchanged `plan.md` names the file in `Files:`; the main session edits directly. See [DOMAIN.md](DOMAIN.md).
 
 Delivery shell around them: the Python CLI (`src/claudekit/cli/main.py` — init/doctor/diff/update/uninstall/validate/execute/rollback/agents/config/check-command/check-path), `install.sh` (staging + backup + atomic swap), and CI (11 GitHub Actions jobs).
 
@@ -26,8 +26,7 @@ Delivery shell around them: the Python CLI (`src/claudekit/cli/main.py` — init
 | `.claude/commands/` | 42 slash-command prompts |
 | `.claude/skills/` | 75 skills (one dir each, `SKILL.md`) + `skills-registry.json` |
 | `.claude/hooks/` | 19 hook scripts + `lib.sh` + `config.json` (project cmds) + logs |
-| `.claude/operations/scripts/` | ops.json validator/executor/restore + schema |
-| `.claude/plans/` | Plan artifacts (`*.md`, `*.ops.json`) incl. `phase-1-HANDOFF.md` |
+| `.claude/plans/` | Plan artifacts (`*.md`) incl. `phase-1-HANDOFF.md` |
 | `.claude/local/` | `CLAUDE.template.md`, `CONSTITUTION.template.md` (install-time templates) |
 | `.claude/settings.json` | Hook wiring (the enforcement truth) |
 | `src/claudekit/` | Python package: `cli/main.py`, `security/{command_validator,path_guard,cli}.py` |

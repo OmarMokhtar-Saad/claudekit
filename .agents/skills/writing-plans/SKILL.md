@@ -20,7 +20,7 @@ Every plan MUST contain:
 1. **Goal Statement** - One sentence describing what the plan achieves
 2. **Context Summary** - What you explored and learned (from context-first-workflow)
 3. **Task List** - Numbered, bite-sized tasks with clear completion criteria
-4. **Operations Config** - ops.json for structured execution (see generate-operations-config)
+4. **Tier and Files list** - the plan's Tier and the exact `Files:` it will edit
 5. **Verification Strategy** - How to confirm the plan succeeded
 6. **Risk Notes** - What could go wrong and how to mitigate
 
@@ -62,15 +62,14 @@ Task 3: Implement the entire user management system
 
 ---
 
-## The ops.json Requirement
+## The Files List Requirement
 
-Every plan MUST include or reference an ops.json file. This config:
-- Defines every file operation the plan will perform
-- Makes the plan machine-executable
-- Enables validation before execution
-- Provides rollback capability
+Every plan MUST carry a `Files:` list. It:
+- Names every file the plan will edit
+- Is what plan-gate checks once `review-record.py plan-write` records the approved plan
+- Lets the reviewer score scope
 
-If the plan is exploratory or purely conceptual, note "No ops.json needed - exploration only."
+If the plan is exploratory or purely conceptual, note "No Files needed - exploration only."
 
 ---
 
@@ -182,7 +181,7 @@ Before presenting a plan to the user:
 - [ ] Tasks are ordered correctly (dependencies respected)
 - [ ] Verification steps exist for each phase
 - [ ] Risks are identified with mitigations
-- [ ] The plan references or includes ops.json
+- [ ] The plan has a Tier and a `Files:` list
 - [ ] Total plan scope matches the original request (no scope creep)
 - [ ] Another agent could execute this plan without additional context
 

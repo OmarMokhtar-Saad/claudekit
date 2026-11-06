@@ -80,7 +80,7 @@ Components (UI) → Domain (business logic) → Data (API/DB)
 
 | Command | Purpose |
 |---------|---------|
-| `/plan <task>` | Create implementation plan with ops.json |
+| `/plan <task>` | Create implementation plan |
 | `/review` | Validate plan (90% threshold) |
 | `/implement` | Execute approved plan |
 | `/verify` | Run quality checks (80% threshold) |

@@ -236,19 +236,6 @@ class TestIsolationProof:
         }), encoding="utf-8")
         return config
 
-    def test_ops_execute_inside_worktree(self, project):
-        run(["create", "feature-x"], project)
-        wt = project / ".worktrees" / "feature-x"
-        config = self._ops(wt, "src/app.py")
-        proc = subprocess.run(
-            [sys.executable, str(OPS_SCRIPT), str(config)],
-            capture_output=True, text=True, cwd=str(wt), timeout=60,
-        )
-        assert proc.returncode == 0, proc.stderr + proc.stdout
-        assert "VALUE = 99" in (wt / "src" / "app.py").read_text()
-        # main tree untouched
-        assert "VALUE = 1" in (project / "src" / "app.py").read_text()
-
     def test_ops_cannot_escape_worktree(self, project):
         run(["create", "feature-x"], project)
         wt = project / ".worktrees" / "feature-x"

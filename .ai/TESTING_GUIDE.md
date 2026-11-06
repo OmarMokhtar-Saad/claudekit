@@ -13,7 +13,6 @@ Behavioral over structural — earned the hard way: the pre-audit suite was ~85%
 | `test_hooks_behavioral.py` (33) | Blocking hooks exit 2 with stderr under `ECC_HOOK_PROFILE=standard`; allow-paths exit 0; fail-closed on malformed payloads. **The enforcement truth suite.** |
 | `test_security.py` (35) | CommandValidator bypass corpus (chaining, substitution, IFS evasion, interpreter smuggling), PathGuard (symlinks, component matching, depth). Coverage gate ≥85% on this module. |
 | `test_security_hooks.py` (12) | command-guard wiring: profile behavior (strict block / standard warn / minimal off). |
-| `test_validator.py` (19) | Ops guards incl. MAX_DELETIONS, protected files, ambiguous find, schema rejection. |
 | `test_install.py` (17) | Installer: staging/backup/atomic swap, byte-identical on mid-failure, settings.json installed, manifest written, sed-escaping, `--yes`. |
 | `test_packaging.py` (7) | Wheel builds, entry points, version single-sourcing, assets bundled (share/claudekit). |
 | `test_cli.py` (17) | `ck` subcommands incl. doctor, diff/update/uninstall manifest flows, CLAUDEKIT_HOME, find_claudekit_root regression. |
@@ -35,4 +34,4 @@ Behavioral over structural — earned the hard way: the pre-audit suite was ~85%
 
 ## Gaps (task 012)
 
-CLI in-process coverage thin (subprocess tests dominate) · prompt/eval coverage = 0 until task 010 (`evals/` with fixture repos + golden ops.json) · v2.0 asset suites need behavioral upgrades · no mutation/property testing on the validator yet (`property-based-testing` skill exists; kit doesn't apply it to itself).
+CLI in-process coverage thin (subprocess tests dominate) · prompt/eval coverage = 0 until task 010 (`evals/` with fixture repos + golden plan.md) · v2.0 asset suites need behavioral upgrades · no mutation/property testing on the validator yet (`property-based-testing` skill exists; kit doesn't apply it to itself).

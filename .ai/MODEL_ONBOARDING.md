@@ -14,7 +14,7 @@ Read on demand: [ARCHITECTURE.md](ARCHITECTURE.md) before structural changes; th
 
 ## 2. The 60-second mental model
 
-ClaudeKit is **not a library you import** — it is a corpus of Markdown prompts (29 agents, 42 commands, 75 skills), shell hooks (19), and Python safety tooling that gets **copied into a user's project** (`ck init` / `install.sh`). Its core promise: every AI code change flows through **plan → scored review (≥90/100) → validated ops.json execution (29 guards, atomic, rollback) → verification (≥80/100)**, enforced by hooks, not politeness.
+ClaudeKit is **not a library you import** — it is a corpus of Markdown prompts (29 agents, 42 commands, 75 skills), shell hooks (19), and Python safety tooling that gets **copied into a user's project** (`ck init` / `install.sh`). Its core promise: every AI code change flows through **plan → scored review (≥90/100) → plan-gated direct edits by the main session → verification (≥80/100)**, enforced by hooks, not politeness.
 
 Two codebases live here:
 
@@ -33,7 +33,7 @@ Two codebases live here:
 
 ## 4. Working in this repo without fighting its own hooks
 
-This repo ships enforcement hooks *and runs them on itself*. `ops-enforcement.sh` blocks direct Edit/Write to source files outside `.claude/` and docs unless an approved ops.json exists.
+This repo ships enforcement hooks *and runs them on itself*. `plan-gate.sh` blocks Edit/Write to Tier 3 source unless an approved plan.md lists the file in `Files:`.
 
 - `.claude/settings.local.json` (gitignored) sets `ECC_HOOK_PROFILE=minimal` to disable enforcement for kit development. If your session is being blocked, that override is missing — see `CONTRIBUTING.md` "Working on ClaudeKit itself".
 - Profiles: `minimal` = enforcement off · `standard` = default (command-guard blocks; warns only if the validator itself is missing) · `strict` = also blocks a missing validator.

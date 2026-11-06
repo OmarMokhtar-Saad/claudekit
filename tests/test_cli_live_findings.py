@@ -99,33 +99,6 @@ class TestDoctorDoesNotHangOnAWedgedBinary:
             + combined)
 
 
-class TestRollbackDefaultsToListing:
-    """The `elif args.list` / `else` branches were byte-identical."""
-
-    def _project_with_echoing_restore(self, tmp_path):
-        scripts = tmp_path / ".claude" / "operations" / "scripts"
-        scripts.mkdir(parents=True)
-        (scripts / "restore-backup.py").write_text(
-            "import sys\nprint('ARGV:' + ' '.join(sys.argv[1:]))\n", encoding="utf-8")
-        return tmp_path
-
-    def test_no_backup_and_no_list_flag_still_lists(self, tmp_path):
-        proj = self._project_with_echoing_restore(tmp_path)
-        proc = _run(["rollback"], cwd=str(proj))
-        assert "ARGV:--list" in proc.stdout, proc.stdout + proc.stderr
-
-    def test_explicit_list_is_unchanged(self, tmp_path):
-        proj = self._project_with_echoing_restore(tmp_path)
-        proc = _run(["rollback", "--list"], cwd=str(proj))
-        assert "ARGV:--list" in proc.stdout, proc.stdout + proc.stderr
-
-    def test_a_named_backup_does_not_get_list(self, tmp_path):
-        proj = self._project_with_echoing_restore(tmp_path)
-        proc = _run(["rollback", "--backup", "backups/x"], cwd=str(proj))
-        assert "ARGV:--backup backups/x" in proc.stdout, proc.stdout + proc.stderr
-        assert "--list" not in proc.stdout, proc.stdout
-
-
 ESC = "\033"
 
 

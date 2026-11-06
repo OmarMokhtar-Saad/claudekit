@@ -411,7 +411,7 @@ def inbox_path(session_id: str) -> Path:
     the payload with the Write tool and passing `--inbox` removes that coupling: the
     command line then carries flags only, never free text.
 
-    Lives under `.claude/reflection/` (Write-allowed by ops-enforcement, gitignored).
+    Lives under `.claude/reflection/` (gitignored).
     """
     override = os.environ.get(_ENV_INBOX)
     base = Path(override) if override and os.path.isabs(override) else (

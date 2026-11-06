@@ -5,9 +5,9 @@ Reverse-engineered from the tree on 2026-07-08 (v2.1.0). Companion user-facing d
 ## 1. Design philosophy
 
 - **Enforcement over exhortation.** Rules live in hooks (exit 2 = block) and validators, not just prompt text.
-- **Plan/execute separation.** Agents *propose* changes as data (ops.json); a deterministic Python engine *applies* them. Auditable, reviewable, rollback-capable.
-- **File-based handoffs.** Agents communicate through artifacts (`plan.md`, `*.ops.json`, review reports), not shared context. Fresh subagents avoid anchoring and cut tokens (~85% claimed; benchmark pending, task 010).
-- **Single responsibility per agent.** Planner plans, Reviewer reviews, Implementer executes. No overlap.
+- **Plan/execute separation.** Planner and Reviewer produce and score an approved `plan.md` (Tier + `Files:` list); `plan-gate` lets the main session edit only the files that plan names. Subagents explore, review, test and verify; they do not apply changes.
+- **File-based handoffs.** Agents communicate through artifacts (`plan.md`, review reports), not shared context. Fresh subagents avoid anchoring and cut tokens (~85% claimed; benchmark pending, task 010).
+- **Single responsibility per agent.** Planner plans, Reviewer reviews, the main session edits. No overlap.
 - **Config-driven.** Build/test/lint commands come from `.claude/hooks/config.json` (`project` section); nothing hardcoded per language.
 - **Copy, not link.** Installed projects are self-contained; zero runtime dependencies.
 - **Honest safety framing.** The security layer is a "denylist speed bump, not a sandbox" (SECURITY.md). Never oversell it.
@@ -19,8 +19,7 @@ graph TD
     subgraph User["User's project (after ck init)"]
         CMD[".claude/commands/ (39)"] --> AG[".claude/agents/ (28)"]
         AG --> SK[".claude/skills/ (73) + registry"]
-        AG --> PLANS[".claude/plans/*.md + *.ops.json"]
-        PLANS --> OPS["operations/scripts:<br/>validate (29 guards) → execute (atomic+backup) → restore"]
+        AG --> PLANS[".claude/plans/*.md"]
         HK[".claude/hooks/ (19) + lib.sh"] -. "PreToolUse blocks" .-> AG
         SETTINGS[".claude/settings.json"] --> HK
         HK --> SEC["claudekit.security<br/>CommandValidator + PathGuard"]
@@ -46,33 +45,33 @@ sequenceDiagram
     participant C as Coordinator (sonnet)
     participant P as Planner (sonnet)
     participant R as Reviewer (opus)
-    participant I as Implementer (sonnet)
+    participant I as Main session
     participant V as Verifier (haiku)
     participant G as GitOps (haiku)
     U->>C: /plan Add JWT auth
     C->>P: HANDOFF (task, classification, constraints)
-    P->>P: explore codebase; load writing-plans,<br/>generate-operations-config skills
-    P-->>C: .claude/plans/plan-X.md + X.ops.json
+    P->>P: explore codebase; load writing-plans skill
+    P-->>C: .claude/plans/plan-X.md (Tier + Files:)
     C->>R: review plan
     R->>R: score: Plan 40% + Architecture 30% + Security 30%
     alt score < 90
         R-->>P: rejection report → re-plan (or /refine loop)
     else score ≥ 90
-        R-->>C: APPROVED
+        R-->>C: APPROVED (review-record.py plan-write)
         C->>I: implement
-        I->>I: validate-config-json.py (29 guards)<br/>execute-json-ops.py (backup → atomic apply)
-        I-->>C: execution report
+        I->>I: plan-gate allows edits to Files:<br/>main session edits directly
+        I-->>C: edits done
         C->>V: verify
         V->>V: score: static 30% + tests 40% + coverage 30%
         alt score < 80
-            V-->>I: fix or flag
+            V-->>I: fix or flag (main session)
         else score ≥ 80
             C->>G: commit / PR (secret scan, conventional commit)
         end
     end
 ```
 
-The Implementer's **Iron Law**: no ops.json → STOP and request one; never manual Edit/Write fallback. This is double-enforced by `ops-enforcement.sh` (PreToolUse hook).
+`plan-gate.sh` (PreToolUse on Edit/Write) enforces the gate: Tier-3 source may be edited only when an approved, unchanged `plan.md` names the path in its `Files:` header.
 
 Alternative pipelines (see [WORKFLOW.md](WORKFLOW.md)): PRP 4-phase (`/prp-plan → /prp-implement → /prp-commit → /prp-pr`), adversarial review (`/santa` dual Opus+Sonnet, `/gan-build` generator/evaluator loop), autonomous loops (`/loop-start` + loop-operator), open-source pipeline (`/opensource`, hard-gated 3 stages), audit fan-out (`/audit` = explore + silent-failure-hunter + security-scanner in parallel).
 
@@ -109,9 +108,8 @@ Event map (full detail in [HOOKS.md](HOOKS.md)): PreToolUse on Edit/Write → op
 
 | State | Location | Written by | Read by |
 |-------|----------|-----------|---------|
-| Plans + ops configs | `.claude/plans/` | planner | reviewer, implementer, hooks |
+| Plans | `.claude/plans/` | planner | reviewer, main session, hooks |
 | Session context | `.claude/session-context.md` | /save-session, context-keeper | /resume-session, session-start hook |
-| Backups | ops engine backup dir | execute-json-ops.py | restore-backup.py, `ck rollback` |
 | Install manifest | `.claude/.claudekit-manifest.json` (version + per-file sha256) | install.sh | `ck diff/update/uninstall/doctor` |
 | Hook telemetry | `.claude/hooks/{hooks.log,cost-tracker.log,edited-files.log,compact-counter.txt}` | hooks | humans, harness-optimizer, cost-tracker |
 | Project commands | `.claude/hooks/config.json` (`project.build_cmd` etc.) | installer/user | all hooks, format-typecheck |
@@ -125,7 +123,7 @@ Layers (details in [SECURITY_GUIDE.md](SECURITY_GUIDE.md)):
 2. PreToolUse hooks (fail-closed blocking, `ECC_HOOK_PROFILE`-gated).
 3. `CommandValidator` — blocklist + dangerous patterns; splits chained commands (`; && || |`) and inspects `$(...)`/backtick payloads; no bash/sh/env/xargs on the allowlist; detects `find -delete/-exec`, `${IFS}` evasion, Python interpreter smuggling. Exposed as `ck check-command`, `python3 -m claudekit.security`, and `command-guard.sh`.
 4. `PathGuard` — protected patterns (`.env`, `.git/config`, …) matched per path component; symlinks resolved against the link's directory; `MAX_DIRECTORY_DEPTH`.
-5. Ops engine guards (29) — protected files can't be deleted, MAX_DELETIONS=3/plan, null-byte checks, ambiguous-match rejection, schema validation.
+5. Plan gate — `plan-gate.sh` blocks Tier-3 edits unless an approved, unchanged plan names the file; fails closed on parse errors.
 6. Supply chain: SHA-pinned GitHub Actions, Dependabot, secret scans in pre-commit/gitOps.
 
 Threat-model honesty: this is defense-in-depth against *accidents and casual misuse*, not a sandbox against a determined adversary. SECURITY.md discloses this plus the prompt-injection reality.

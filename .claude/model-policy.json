@@ -51,7 +51,7 @@
       "effort": "low",
       "usd_per_mtok": {"input": 1, "output": 5, "cache_read": 0.1, "cache_write": 1.25},
       "degrade_to": null,
-      "use_when": "Mechanical or retrieval work with a checkable output: executing an approved ops.json, searching, summarising, formatting."
+      "use_when": "Mechanical or retrieval work with a checkable output: searching, summarising, formatting."
     }
   },
   "roles": {
@@ -101,10 +101,6 @@
       "accountable_for": "Branching, committing, pushing, and PR mechanics.",
       "tier": "fast"
     },
-    "implementer": {
-      "accountable_for": "Executing an approved ops.json through the operations engine. Never edits.",
-      "tier": "fast"
-    },
     "loop-operator": {
       "accountable_for": "Supervising autonomous loops; pause on stagnation or error spirals.",
       "tier": "balanced"
@@ -132,7 +128,7 @@
       "tier": "balanced"
     },
     "planner": {
-      "accountable_for": "Implementation plans plus a machine-executable ops.json.",
+      "accountable_for": "Implementation plans (Tier and Files:) that the main session then implements.",
       "tier": "most-capable",
       "effort": "high"
     },
@@ -141,7 +137,7 @@
       "tier": "balanced"
     },
     "reviewer": {
-      "accountable_for": "Scoring a plan + ops.json against the 90/100 threshold.",
+      "accountable_for": "Scoring a plan against the 90/100 threshold.",
       "tier": "balanced",
       "effort": "high",
       "escalate_to": "most-capable",

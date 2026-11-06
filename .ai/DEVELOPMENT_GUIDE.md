@@ -13,7 +13,7 @@ mkdir -p .claude && cat > .claude/settings.local.json <<'EOF'
 EOF
 ```
 
-The local settings file (gitignored, preserved across reinstalls) disables the kit's own enforcement hooks so you can edit source normally. Without it, `ops-enforcement.sh` blocks Edit/Write outside `.claude/`+docs. See CONTRIBUTING.md "Working on ClaudeKit itself".
+The local settings file (gitignored, preserved across reinstalls) relaxes the profile-gated hooks. It does not relax `plan-gate`, which binds under every profile: Tier 3 edits need an approved plan.md. See CONTRIBUTING.md "Working on ClaudeKit itself".
 
 ## Daily commands
 
@@ -40,7 +40,7 @@ ck doctor --strict                               # installed-tree health (19 che
 
 ## Editing safety-critical code
 
-`src/claudekit/security/` — coverage gate ≥85%; add bypass-corpus cases to `test_security.py` for any validator change. `.claude/operations/scripts/` — never weaken a guard without an explicit decision-log entry; `operations-schema.json` and `generate-operations-config` skill must change together. `install.sh` — preserve staging/backup/atomic-swap; test with `tests/test_install.py` including the mid-failure byte-identical assertion.
+`src/claudekit/security/` — coverage gate ≥85%; add bypass-corpus cases to `test_security.py` for any validator change. `install.sh` — preserve staging/backup/atomic-swap; test with `tests/test_install.py` including the mid-failure byte-identical assertion.
 
 ## Version bump procedure
 

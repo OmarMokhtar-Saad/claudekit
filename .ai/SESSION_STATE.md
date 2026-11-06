@@ -1,6 +1,12 @@
 # Session State
 
 > Update this file at the end of every significant AI working session. It is the resume point.
+**2026-11-06 -- `(delete)` marker + `impact --ops` removal (branch `feat/remove-ops`, unpushed).**
+Phase 2 slices A-C done; plan `plan-delete-marker-and-impact.md` implemented (rule 4 rewritten,
+Tier 3 deletions need `(delete)` in `Files:`, max 3/plan; `project-graph impact` removed).
+**Open, owner:** Phase 3 (fleet rollout) go/no-go; drop the `minimal` pin and the three
+`*-operations-config` skillOverrides in `.claude/settings.local.json`.
+
 **2026-10-02 (later) -- `DEFAULT_WARN` 120000; fleet `ck update` (branch `feat/subagent-spend-line`).**
 Warn default now matches the fleet env (`test_the_shipped_warn_default_is_120k`, mutation-checked).
 Suite with `/usr/local/bin/python3.12` (editable `claudekit`): 11871 passed, 21 failed. 20 of them

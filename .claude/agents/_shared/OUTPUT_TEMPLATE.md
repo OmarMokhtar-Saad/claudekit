@@ -47,8 +47,8 @@ PLANNER COMPLETE
 Task: Add user authentication
 Status: Complete
 Files: 6 affected
-Deliverables: plan.md, ops.json at .claude/plans/
-Verified: ops.json valid, 6 operations match 6 plan steps
+Deliverables: plan.md at .claude/plans/
+Verified: plan has a Files: list naming all 6 affected paths
 ```
 
 ---

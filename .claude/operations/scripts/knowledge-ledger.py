@@ -1194,7 +1194,7 @@ def _propose_patch(skill: str, section: str, text: str) -> int:
         "",
         "## Next step (human)",
         "",
-        "`/learn --promote patch-%s-%s` builds an ops.json that appends the text above to"
+        "`/learn --promote patch-%s-%s` appends the text above to"
         % (skill, digest),
         "the named section, and runs it only after you confirm. Delete this file to reject.",
         "",

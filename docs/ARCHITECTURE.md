@@ -30,12 +30,11 @@ ClaudeKit is a multi-agent orchestration framework for Claude Code. It provides 
 ```
 claudekit/
 ├── .claude/
-│   ├── agents/           # 24 specialized agent definitions
+│   ├── agents/           # 23 specialized agent definitions
 │   │   ├── _shared/      # Shared agent configuration
 │   │   ├── coordinator.md
 │   │   ├── planner.md
 │   │   ├── reviewer.md
-│   │   ├── implementer.md
 │   │   ├── verifier.md
 │   │   ├── debugger.md
 │   │   ├── documenter.md
@@ -46,7 +45,7 @@ claudekit/
 │   │   ├── devops.md
 │   │   └── database-architect.md
 │   ├── commands/         # 53 slash commands
-│   ├── skills/           # 79 skill modules + registry
+│   ├── skills/           # 76 skill modules + registry
 │   │   ├── skills-registry.json
 │   │   └── <skill-name>/SKILL.md
 │   ├── hooks/            # Lifecycle hooks
@@ -56,13 +55,11 @@ claudekit/
 │   │   ├── pre-plan.sh
 │   │   ├── pre-push.sh
 │   │   └── post-tool-use.sh
-│   ├── operations/       # Operations engine
+│   ├── operations/       # Maintenance scripts
 │   │   └── scripts/
-│   │       ├── validate-config-json.py
-│   │       ├── execute-json-ops.py
-│   │       ├── restore-backup.py
-│   │       ├── shared.py
-│   │       └── operations-schema.json
+│   │       ├── review-record.py
+│   │       ├── worktree-manager.py
+│   │       └── shared.py
 │   ├── settings.json     # Official Claude Code hooks configuration
 │   └── local/            # Templates for CLAUDE.md and CONSTITUTION.md
 ├── src/
@@ -97,7 +94,7 @@ The workflow engine drives tasks through a defined sequence of agents. Every tas
         |
         v
   +------------+
-  |  Planner   |  (3) Create plan + ops.json
+  |  Planner   |  (3) Create plan.md (Tier + Files:)
   +-----+------+
         |
         v
@@ -107,7 +104,7 @@ The workflow engine drives tasks through a defined sequence of agents. Every tas
         | PASS (>= 90)                   |
         v                                |
   +------------+              +----------v---------+
-  |Implementer |  (5)        | Planner (revision)  |
+  | Main edits |  (5)        | Planner (revision)  |
   +-----+------+              +--------------------+
         |                     (max 3 iterations)
         v
@@ -116,7 +113,7 @@ The workflow engine drives tasks through a defined sequence of agents. Every tas
   +-----+------+                          |
         | PASS (>= 80)                    |
         v                     +-----------v--------+
-  +------------+              |Implementer (retry)  |
+  +------------+              |Main session (fix)   |
   |   GitOps   |  (7)        +--------------------+
   +------------+              (max 3 iterations)
 ```
@@ -141,7 +138,7 @@ For tasks requiring 3 or more agents, the Coordinator provides active orchestrat
 
 1. Spawns each agent as a fresh subagent (clean context window)
 2. Manages file-based handoffs between agents using the Handoff Protocol
-3. Tracks state in `operations/{task-name}/state.json`
+3. Tracks state in `state.json` in the task directory
 4. Handles revision loops with a maximum of 3 iterations per gate
 5. Escalates to the user when stuck (after 3 failed iterations)
 
@@ -203,9 +200,8 @@ Return To: <agent to return to, usually coordinator>
 |-------|------|-------|------------|
 | coordinator | Orchestration hub | Read, Grep, Glob, Bash, Agent | multi-agent-coordination, dispatching-parallel-agents |
 | explore | Read-only codebase analysis | Read, Grep, Glob | using-superpowers |
-| planner | Implementation planning | Read, Grep, Glob, Bash | writing-plans, generate-operations-config |
-| reviewer | Plan and code validation | Read, Grep, Glob | validate-operations-config, clean-architecture |
-| implementer | Code execution | Read, Grep, Glob, Bash, Edit, Write | execute-operations-config, test-driven-development |
+| planner | Implementation planning | Read, Grep, Glob, Bash | writing-plans |
+| reviewer | Plan and code validation | Read, Grep, Glob | clean-architecture |
 | verifier | Quality assurance | Read, Grep, Glob, Bash | verification-before-completion, performance-guidelines |
 | debugger | Root cause analysis | Read, Grep, Glob, Bash | systematic-debugging |
 | tester | Test creation and execution | Read, Grep, Glob, Bash, Edit, Write | test-driven-development, property-based-testing |
@@ -229,7 +225,7 @@ The skills registry (`skills-registry.json`) maps each agent to its skill set:
 agentMapping:
   coordinator -> [using-superpowers, golden-rule, multi-agent-coordination, ...]
   planner     -> [using-superpowers, golden-rule, writing-plans, brainstorming, ...]
-  reviewer    -> [using-superpowers, golden-rule, validate-operations-config, ...]
+  reviewer    -> [using-superpowers, golden-rule, ...]
   ...
 ```
 
@@ -287,7 +283,7 @@ ClaudeKit hooks into Claude Code's official hook system via `.claude/settings.js
 
 | Hook Point | Matcher | Script | Purpose |
 |------------|---------|--------|---------|
-| PreToolUse | Bash (git commit) | pre-commit.sh | Validate ops configs, check for secrets before commit |
+| PreToolUse | Bash (git commit) | pre-commit.sh | Check for secrets before commit |
 | PreToolUse | Bash (git push) | pre-push.sh | Full validation suite before pushing to remote |
 | PostToolUse | Edit\|Write\|Bash | post-tool-use.sh | Track file modifications, validate tool output |
 | UserPromptSubmit | (all) | pre-plan.sh | Detect plan-related prompts, check for duplicate plans |
@@ -306,90 +302,27 @@ Hook scripts read project-specific commands (build, test, lint, coverage) from `
 
 ---
 
-## Operations Pipeline
+## Plan Gate Pipeline
 
-The operations engine provides safe, auditable, and reversible code modifications through a structured pipeline.
+Code changes follow an approved plan; the main session edits directly and subagents only explore, review, test and verify.
 
 ### Pipeline Flow
 
 ```
-                    +------------------+
-                    |   ops.json       |  Declarative operations config
-                    +--------+---------+
-                             |
-                             v
-                    +------------------+
-                    | validate-config  |  29 validation guards
-                    | -json.py         |  Schema, paths, conflicts,
-                    +--------+---------+  protected files, sizes
-                             |
-                        PASS | FAIL -> abort with detailed errors
-                             v
-                    +------------------+
-                    | execute-json     |  Atomic execution engine
-                    | -ops.py          |
-                    +--------+---------+
-                             |
-                    +--------+---------+
-                    |                  |
-                    v                  v
-           +---------------+  +---------------+
-           | Backup every  |  | Execute ops   |
-           | target file   |  | (temp + rename)|
-           +-------+-------+  +-------+-------+
-                   |                   |
-                   v                   v
-           +---------------+  +---------------+
-           | backups/      |  | Success       |
-           | {plan}-{ts}/  |  | report        |
-           | manifest.json |  +---------------+
-           +---------------+          |
-                                 FAIL | -> automatic rollback
-                                      v
-                              +---------------+
-                              | restore-      |
-                              | backup.py     |
-                              +---------------+
+  plan.md (Tier + Files:)
+        |
+        v
+  Reviewer scores it (>= 90 to pass; Tier 3 without Files: = auto-reject)
+        |
+        v
+  review-record.py plan-write   (records the verdict; rejections return a brief)
+        |
+        v
+  plan-gate allows edits to the listed files; checkpoint-gate needs a ck-checkpoint tag
+        |
+        v
+  Main session edits
 ```
-
-### Validation Guards (29 checks)
-
-The validator (`validate-config-json.py`) enforces:
-
-- **Schema compliance**: JSON structure matches `operations-schema.json`
-- **Path safety**: No traversal (`../`), no null bytes, no absolute paths outside project
-- **Protected files**: Blocks modification of `.git/`, `node_modules/`, lock files
-- **File size limits**: Prevents creation of excessively large files
-- **Conflict detection**: No duplicate targets across operations
-- **Operation type validation**: Only allowed operation types (create, modify, delete, rename)
-- **Content validation**: Required fields present for each operation type
-- **Backup feasibility**: Target files exist for modify/delete operations
-
-### Execution Safety
-
-The executor (`execute-json-ops.py`) guarantees:
-
-- **Pre-execution backup**: Every target file copied to `backups/{plan}-{timestamp}/`,
-  first-write-wins per run so a second operation on the same file cannot overwrite the
-  pristine copy that rollback depends on
-- **Fail-closed anchor matching**: An edit whose `find` pattern is missing or ambiguous in
-  the current (already-mutated) content aborts before any write, and the batch rolls back
-- **Run evidence**: A unified diff per edited file plus a machine-readable `RESULT-JSON:`
-  summary line on config load/normalize error, lock contention, manifest failure, operation failure, crash, and signal
-- **Manifest tracking**: `manifest.json` records original paths, checksums, and timestamps
-- **Atomic writes**: Operations use temp file + rename to prevent partial writes
-- **Execution lock**: Prevents concurrent execution of operations
-- **Automatic rollback**: On any failure mid-execution, all changes are reverted from backup
-- **Dry-run mode**: Preview all changes without applying them
-
-### Rollback
-
-The restore script (`restore-backup.py`) can:
-
-- List all available backups with timestamps and metadata
-- Restore from any specific backup directory
-- Preview restore operations in dry-run mode
-- Verify backup integrity before restoration
 
 ---
 
@@ -407,9 +340,6 @@ The CLI (`src/cli/main.py`) provides the `claudekit` (and `ck` shorthand) comman
            |
            +-- init     -> Copy .claude/ to target, apply templates
            +-- doctor   -> Run 9+ health checks, report status
-           +-- validate -> Invoke validate-config-json.py
-           +-- execute  -> Invoke execute-json-ops.py with backup
-           +-- rollback -> Invoke restore-backup.py
            +-- agents   -> Read agents/*.md, display metadata
            +-- config   -> Read hooks/config.json, query keys
 ```
@@ -470,9 +400,9 @@ Skills are markdown documents with YAML frontmatter, organized as self-contained
 ├── skills-registry.json          # Central index
 ├── using-superpowers/SKILL.md    # Mandatory: skill discovery protocol
 ├── golden-rule/SKILL.md          # Mandatory: no code changes without approval
-├── writing-plans/SKILL.md        # Planner: plan structure and ops.json
+├── writing-plans/SKILL.md        # Planner: plan structure
 ├── systematic-debugging/SKILL.md # Debugger: 4-phase investigation
-├── ...                           # 79 skills total
+├── ...                           # 76 skills total
 ```
 
 ### Registry Structure
@@ -480,7 +410,7 @@ Skills are markdown documents with YAML frontmatter, organized as self-contained
 The `skills-registry.json` contains:
 
 - **skills array**: Every skill with id, name, path, mandatory flag, usedBy agents, description
-- **agentMapping**: Maps each of the 24 agents to its ordered list of skill IDs
+- **agentMapping**: Maps each of the 23 agents to its ordered list of skill IDs
 - **version**: Registry format version for compatibility checks
 
 ### Skill Loading Protocol
@@ -511,8 +441,7 @@ The `skills-registry.json` contains:
 |----------|--------|---------|
 | Governance | using-superpowers, golden-rule, constitution, clarify | All agents |
 | Planning | writing-plans, brainstorming, refactoring-patterns, spec-driven-development | Planner |
-| Operations | generate-operations-config, validate-operations-config, execute-operations-config | Planner, Reviewer, Implementer |
-| Quality | test-driven-development, verification-before-completion, property-based-testing | Implementer, Verifier, Tester |
+| Quality | test-driven-development, verification-before-completion, property-based-testing | Verifier, Tester |
 | Security | security-checklist, supply-chain-audit, insecure-defaults, differential-security-review, static-analysis-integration | Reviewer, Verifier, Security-Scanner |
 | Architecture | clean-architecture, api-design-patterns, database-migration-patterns, performance-guidelines | Planner, Reviewer, Database-Architect |
 | DevOps | git-workflow, using-git-worktrees, finishing-a-development-branch, ci-cd-pipeline, containerization-patterns, monitoring-observability | GitOps, DevOps |
@@ -602,19 +531,17 @@ granularity (so `my.envelope.txt` is not mistaken for `.env`):
 - **Directory depth limits**: Prevents excessively deep directory creation (> 20 levels)
 - **Empty path rejection**: Blank paths are rejected
 
-### Layer 3: Operations Safety
+### Layer 3: Plan Gate
 
-The operations engine provides:
+The plan gate provides:
 
-- 29 validation guards before any code modification
-- Atomic writes preventing partial file corruption
-- Automatic backup before every modification
-- Execution locks preventing concurrent operations
-- Automatic rollback on any failure
+- `plan-gate`: Tier 3 source is editable only when a reviewed, recorded plan.md lists the path in `Files:`
+- `checkpoint-gate`: a git checkpoint tag must exist before edits
+- `shell-write-gate`: closes shell-redirect writes
 
 ### Layer 4: Hook-Based Enforcement
 
-- **Pre-commit hook**: Validates operations configs, scans for secrets
+- **Pre-commit hook**: Scans for secrets
 - **Pre-push hook**: Full validation suite before remote push
 - **Post-tool-use hook**: Tracks all file modifications for audit
 - **Pre-plan hook**: Detects and prevents duplicate plans
@@ -638,7 +565,6 @@ Agents communicate exclusively through files, not shared memory or context windo
 operations/{task-name}/
 ├── explore.md          # Phase 1: Codebase analysis and pattern discovery
 ├── plan.md             # Phase 2: Implementation plan (human-readable)
-├── ops.json            # Phase 2: Machine-executable operations config
 ├── reviewer.md         # Phase 2: Review feedback with score
 ├── implementation.md   # Phase 3: Execution results (on success)
 ├── issues.md           # Phase 3: Error details (on failure)
@@ -653,17 +579,17 @@ operations/{task-name}/
        |
        v
   Planner reads      explore.md
-  Planner writes     plan.md + ops.json
+  Planner writes     plan.md
        |
        v
-  Reviewer reads     plan.md + ops.json
+  Reviewer reads     plan.md
   Reviewer writes    reviewer.md (score + feedback)
        |
        v
   [score >= 90?]
        |
-  YES: Implementer reads    plan.md (ops.json is passed by path to the engine)
-       Implementer writes   implementation.md (or issues.md)
+  YES: Main session reads   plan.md, edits the files in Files:
+       Main session writes  implementation.md (or issues.md)
        |
        v
   Verifier reads     implementation.md
@@ -706,11 +632,11 @@ This avoids accumulating the full conversation history across the entire pipelin
 ```
   Traditional approach:
   [User prompt + Explorer output + Planner output + Reviewer output]
-  = ~50,000 tokens in Implementer's context
+  = ~50,000 tokens in the editing context
 
   ClaudeKit approach:
-  [Implementer prompt + skills + ops.json content]
-  = ~8,000 tokens in Implementer's context
+  [Editor prompt + skills + plan.md content]
+  = ~8,000 tokens in the editing context
 ```
 
 ### Compact Skill Format
@@ -726,7 +652,7 @@ Skills are terse markdown documents focused on actionable rules, not explanation
 ```
 Score = Plan_Quality (40%) + Architecture (30%) + Security (30%)
 
-Plan_Quality:  Completeness, clarity, ops.json validity
+Plan_Quality:  Completeness, clarity, Files: list accuracy
 Architecture:  Layer boundaries, dependency direction, patterns
 Security:      Input validation, auth, data protection
 
@@ -744,7 +670,7 @@ Tests:            All tests pass, new tests for new code
 Coverage:         Meets project threshold (configurable)
 
 Gate: score >= 80 -> Passed
-      score <  80 -> Return to Implementer with issues (max 3 iterations)
+      score <  80 -> Return to the main session with issues (max 3 iterations)
 ```
 
 ### Escalation Protocol
@@ -775,11 +701,11 @@ Gate: score >= 80 -> Passed
 
 3. **File-based handoffs** -- Agents never share context windows. All communication flows through files on disk.
 
-4. **Fail-safe** -- Every file modification is backed up first. Failures trigger automatic rollback.
+4. **Fail-safe** -- Edits are gated on a checkpoint tag and an approved plan.
 
 5. **Governance as code** -- The Constitution and Golden Rule are enforced by agents as mandatory skills, not by convention.
 
-6. **Defense in depth** -- Security operates at five layers: command validation, path guarding, operations safety, hook enforcement, and agent governance.
+6. **Defense in depth** -- Security operates at five layers: command validation, path guarding, plan gating, hook enforcement, and agent governance.
 
 7. **Token efficiency** -- Fresh subagents with file-based handoffs reduce context window usage by approximately 85%.
 

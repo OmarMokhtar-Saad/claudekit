@@ -78,13 +78,11 @@ echo '{"tool_name":"Bash","tool_input":{"command":"git commit --no-verify -m x"}
   | ECC_HOOK_PROFILE=standard bash .claude/hooks/block-no-verify.sh; echo "exit=$? (want 2)"
 # The four commands actually run — the verb never executes what it discovers:
 <build_cmd> && <test_cmd> && <lint_cmd>                       # each as configured
-# Ops engine round-trip on a scratch file:
-python3 .claude/operations/scripts/validate-config-json.py <a-minimal-test-ops.json>
 command -v ck >/dev/null && ck doctor --strict                # when CLI installed
 ck adapt                                                      # second run: must change nothing
 ```
 
-Then run one real mini-pipeline: `/plan <tiny task>` → confirm plan + ops.json land in `.claude/plans/` → `/review` scores it. If any step fails, fix configuration — do not weaken hooks or guards.
+Then run one real mini-pipeline: `/plan <tiny task>` → confirm the plan lands in `.claude/plans/` → `/review` scores it. If any step fails, fix configuration — do not weaken hooks or guards.
 
 ## Phase 4: Enhance the Fit Over Time
 

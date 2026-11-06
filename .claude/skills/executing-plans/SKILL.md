@@ -42,7 +42,7 @@ Checkpointing to the plan file (silent) replaces mid-task check-ins (console).
 When starting plan execution:
 
 1. Read the plan file completely
-2. Read any referenced ops.json
+2. Confirm the plan's `Files:` list covers what you are about to edit (Tier 3: `review-record.py plan-check <plan>` must exit 0)
 3. Identify which tasks have already been completed (if resuming)
 4. Note the current task number
 

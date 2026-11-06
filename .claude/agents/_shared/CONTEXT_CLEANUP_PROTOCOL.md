@@ -18,7 +18,7 @@ Defines how agents manage context boundaries to prevent context pollution across
 
 ### What Crosses Boundaries (Explicit Handoff)
 - Structured handoff block (see AGENT_TEMPLATE.md)
-- File paths to deliverables (plan.md, ops.json, report files)
+- File paths to deliverables (plan.md, report files)
 - Score/status from the previous agent
 - Specific constraints or feedback items
 
@@ -103,7 +103,7 @@ For multi-phase workflows, use files to persist state across context boundaries:
   "history": [
     {"agent": "planner", "status": "complete", "output": ".claude/plans/plan-auth.md"},
     {"agent": "reviewer", "status": "complete", "output": "approved", "score": 92},
-    {"agent": "implementer", "status": "in_progress"}
+    {"agent": "verifier", "status": "in_progress"}
   ]
 }
 ```
@@ -137,7 +137,7 @@ When a workflow finishes (all agents complete), the coordinator should clean up:
 1. State files in .claude/state/ can be archived or deleted
 2. Handoff files are no longer needed
 3. Report files should be preserved for audit
-4. Plan and ops.json files should be preserved
+4. Plan files should be preserved
 ```
 
 The coordinator decides what to keep based on the workflow outcome:

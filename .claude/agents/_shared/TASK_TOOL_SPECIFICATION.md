@@ -171,7 +171,6 @@ Keep handoff blocks concise. Large context in the spawn prompt wastes tokens.
 | File paths (10+) | -- | Yes |
 | Scores and status | Yes | -- |
 | Full plan content | -- | Yes |
-| Full ops.json content | -- | Yes |
 | Error logs (> 20 lines) | -- | Yes |
 | Code snippets (> 10 lines) | -- | Yes |
 | Feedback items (< 5) | Yes | -- |
@@ -192,7 +191,7 @@ Step 1: Spawn Explore
 Step 2: Spawn Planner
   → prompt: "Read .claude/state/explore-auth.md. Create plan for user auth. Write to .claude/plans/"
   → wait for completion
-  → read plan.md and ops.json
+  → read plan.md
 
 Step 3: Spawn Reviewer
   → prompt: "Review plan at .claude/plans/plan-auth.md and .claude/plans/ops-auth.json"
