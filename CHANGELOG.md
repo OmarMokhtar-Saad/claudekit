@@ -17,7 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   one (exit 8); `plan-check --delete` checks the marker. `plan-gate` blocks a Write-to-empty
   over an unmarked Tier 3 file and `shell-write-gate` blocks `rm`, `git rm` and `unlink` of
   unmarked git-tracked Tier 3 files (untracked build output is never blocked). Speed bump, not
-  a sandbox: `find -delete`, `git clean`, `mv` and scripted deletes are not seen.
+  a sandbox: `git clean`, `mv` and scripted deletes are not seen. Variable, `xargs`, `find -delete`
+  and `find -exec rm` operands cannot be enumerated, so inside a repo with plans they are blocked;
+  brace expansion, literal `[ ]` names and case-variant spellings are resolved before the check.
 - **Removed: `project-graph.py impact`** (read an ops.json that no longer exists). Use `hubs`
   and `query <file> --direction in`.
 - **Changed: hard rule 4** now describes the `(delete)` marker instead of `MAX_DELETIONS`.
