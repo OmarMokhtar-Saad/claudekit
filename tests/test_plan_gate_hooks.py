@@ -26,6 +26,9 @@ def _git(cwd, *a):
 def proj(tmp_path):
     """A git project with the kit's hooks + recorder copied in and a plans dir."""
     _git(tmp_path, 'init', '-q')
+    # the hooks run `git stash create` / `git tag -a`, which need an identity on a bare CI runner
+    _git(tmp_path, 'config', 'user.email', 't@t')
+    _git(tmp_path, 'config', 'user.name', 't')
     (tmp_path / '.claude' / 'plans').mkdir(parents=True)
     (tmp_path / '.claude' / 'hooks').mkdir()
     (tmp_path / '.claude' / 'operations' / 'scripts').mkdir(parents=True)
