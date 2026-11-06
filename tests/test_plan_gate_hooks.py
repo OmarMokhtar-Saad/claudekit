@@ -229,6 +229,30 @@ class TestDeleteMarker:
         (proj / 'build').mkdir()
         assert _hook(proj, 'shell-write-gate.py', _bash(proj, cmd), profile).returncode == 0
 
+    @pytest.mark.parametrize('cmd', ['rm $f', 'ls | xargs rm', 'find . -name "*.py" -delete',
+                                     'find . -exec rm {} +', 'rm {app,x}.py', 'rm f{1..3}'])
+    def test_unbounded_or_expanded_operands_blocked(self, proj, profile, cmd):
+        r = _hook(proj, 'shell-write-gate.py', _bash(proj, cmd), profile)
+        assert r.returncode == 2, r.stderr
+
+    def test_unbounded_allowed_without_plans_dir(self, proj, profile):
+        import shutil
+        shutil.rmtree(proj / '.claude' / 'plans')
+        r = _hook(proj, 'shell-write-gate.py', _bash(proj, 'rm $f; ls | xargs rm'), profile)
+        assert r.returncode == 0, r.stderr
+
+    def test_literal_bracket_name_blocked(self, proj, profile):
+        (proj / 'wild[1].py').write_text('x')
+        _git(proj, 'add', '.')
+        r = _hook(proj, 'shell-write-gate.py', _bash(proj, 'rm "wild[1].py"'), profile)
+        assert r.returncode == 2, r.stderr
+
+    def test_case_variant_name_blocked(self, proj, profile):
+        if not (proj / 'APP.PY').exists():
+            pytest.skip('case-sensitive filesystem')
+        r = _hook(proj, 'shell-write-gate.py', _bash(proj, 'rm APP.PY'), profile)
+        assert r.returncode == 2, r.stderr
+
     def test_non_t3_and_no_plans_dir_allowed(self, proj, profile):
         (proj / 'notes.md').write_text('n')
         _git(proj, 'add', '.')

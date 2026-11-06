@@ -94,12 +94,23 @@ _SHELLS = {"bash", "sh", "zsh", "dash"}
 def _find_delete(toks: list):
     """(args, is_git) for the first rm/unlink/git-rm in a segment, skipping wrappers, flags,
     flag values and VAR= prefixes; None when the segment deletes nothing."""
-    toks = [t.lstrip("({").rstrip(")}") for t in toks]
+    def _clean(t: str) -> str:  # strip subshell/group punctuation, keep `{a,b}` brace operands
+        t = t.lstrip("(")
+        if "(" not in t:
+            t = t.rstrip(")")
+        if "}" not in t:
+            t = t.lstrip("{")
+        if "{" not in t:
+            t = t.rstrip("}")
+        return t
+
+    toks = [_clean(t) for t in toks]
     toks = [t for t in toks if t and t not in ("then", "do", "else", "!")]
+    orig = toks
     for i, t in enumerate(toks):
         base = os.path.basename(t)
         if base in ("rm", "unlink"):
-            return toks[i + 1:], False
+            return orig[i + 1:], False
         if base == "git":
             j, chdir = i + 1, ""
             while j < len(toks) and toks[j].startswith("-"):
@@ -107,13 +118,52 @@ def _find_delete(toks: list):
                     chdir = toks[j + 1]
                 j += 2 if toks[j] in ("-C", "-c") else 1
             if j < len(toks) and toks[j] == "rm":
-                return toks[j + 1:], chdir or True
+                return orig[j + 1:], chdir or True
             return None
         ok = (t in _WRAPPERS or t.startswith("-") or re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", t)
               or (i > 0 and toks[i - 1].startswith("-")))
         if not ok:
             return None
     return None
+
+
+_UNBOUNDED = object()  # sentinel: an operand the gate cannot enumerate (variable, xargs, find)
+
+
+def _braces(op: str) -> list:
+    """Expand simple {a,b} brace groups."""
+    m = re.search(r"\{([^{}]*,[^{}]*)\}", op)
+    if not m:
+        return [op]
+    out: list = []
+    for alt in m.group(1).split(","):
+        out.extend(_braces(op[:m.start()] + alt + op[m.end():]))
+    return out
+
+
+def _true_case(path: str) -> str:
+    """On-disk spelling of an existing path (a case-insensitive filesystem accepts
+    `rm FILE.PY` for file.py, but git ls-files is case-sensitive)."""
+    parent, base = os.path.split(path)
+    try:
+        names = os.listdir(parent or ".")
+        if os.path.lexists(path) and base not in names:
+            for name in names:
+                if name.lower() == base.lower():
+                    return os.path.join(parent, name)
+    except OSError:
+        pass
+    return path
+
+
+def _find_deletes(toks: list) -> bool:
+    """`find ... -delete` / `find ... -exec rm`: operands come from the traversal."""
+    if not toks or os.path.basename(toks[0]) != "find":
+        return False
+    if "-delete" in toks:
+        return True
+    return any(t in ("-exec", "-execdir", "-ok") and i + 1 < len(toks)
+               and os.path.basename(toks[i + 1]) in ("rm", "unlink") for i, t in enumerate(toks))
 
 
 def _delete_operands(command: str, cwd: str, depth: int = 0):
@@ -138,8 +188,14 @@ def _delete_operands(command: str, cwd: str, depth: int = 0):
                     if sub is None:
                         return None
                     out.extend(sub)
+        if _find_deletes(toks):
+            out.append(_UNBOUNDED)
+            continue
         found = _find_delete(toks)
         if found is None:
+            continue
+        if any(os.path.basename(t) == "xargs" for t in toks):  # operands arrive on stdin
+            out.append(_UNBOUNDED)
             continue
         args, is_git = found
         if is_git and "--cached" in args:
@@ -152,9 +208,15 @@ def _delete_operands(command: str, cwd: str, depth: int = 0):
             elif dashdash or not t.startswith("-"):
                 ops.append(t)
         for op in ops:
-            if "$" in op or "`" in op:
+            if "$" in op or "`" in op or re.search(r"\{[^{}]*\.\.[^{}]*\}", op):
+                out.append(_UNBOUNDED)
                 continue
-            out.extend(glob.glob(os.path.join(base_cwd, op)))
+            for one in _braces(op):
+                full = os.path.join(base_cwd, one)
+                hits = set(glob.glob(full))
+                if os.path.lexists(full):  # `wild[1].py` is also a literal name
+                    hits.add(full)
+                out.extend(_true_case(h) for h in hits)
         if len(out) > _MAX_DELETE_OPERANDS:
             return None
     return out
@@ -170,12 +232,18 @@ def _git_root(path: str):
 def _tier3_delete_violation(command: str, cwd: str):
     """Tracked Tier-3 paths the command deletes without a `(delete)` marker ([] = fine),
     or None when the command cannot be bounded/checked (block)."""
-    if not re.search(r"\b(?:rm|unlink)\b", command):
+    if not re.search(r"\b(?:rm|unlink)\b|\s-delete\b", command):
         return []
     try:
         ops = _delete_operands(command, cwd)
         if ops is None:
             return None
+        if any(o is _UNBOUNDED for o in ops):
+            # Unenumerable operands only matter inside a repo that has plans (Tier 3).
+            croot = _git_root(os.path.abspath(cwd))
+            if croot and os.path.isdir(os.path.join(croot, ".claude", "plans")):
+                return None
+            ops = [o for o in ops if o is not _UNBOUNDED]
         by_root: dict = {}
         for o in ops:
             parent, base = os.path.split(os.path.abspath(o))
