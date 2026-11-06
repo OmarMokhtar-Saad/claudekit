@@ -18,10 +18,10 @@ current files. Approval is local: ask `review-record.py plan-check <plan>`.
 
 | State | Plans |
 |---|---:|
-| `open` | 147 |
+| `open` | 148 |
 | `executed` | 30 |
 | `legacy` | 5 |
-| **total** | **182** |
+| **total** | **183** |
 
 ## Plans
 
@@ -70,6 +70,7 @@ current files. Approval is local: ask `review-record.py plan-check <plan>`.
 | `.claude/plans/plan-contrib-governance-p4.md` | `open` |
 | `.claude/plans/plan-contrib-governance.md` | `open` |
 | `.claude/plans/plan-day-one-blockers.md` | `open` |
+| `.claude/plans/plan-delete-gate-unbounded.md` | `open` |
 | `.claude/plans/plan-delete-marker-and-impact.md` | `open` |
 | `.claude/plans/plan-dispatcher-payload.md` | `open` |
 | `.claude/plans/plan-doctor-gate.md` | `open` |
