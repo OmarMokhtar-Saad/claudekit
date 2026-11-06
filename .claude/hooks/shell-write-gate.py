@@ -87,24 +87,64 @@ def _token_segments(command: str) -> list:
     return out
 
 
-def _delete_operands(command: str, cwd: str):
-    """Paths named by rm / git rm / unlink segments, or None to block ('narrow the
-    command'). Unparseable or variable operands are skipped."""
+_WRAPPERS = {"sudo", "env", "nohup", "time", "exec", "command", "builtin", "xargs", "doas", "nice"}
+_SHELLS = {"bash", "sh", "zsh", "dash"}
+
+
+def _find_delete(toks: list):
+    """(args, is_git) for the first rm/unlink/git-rm in a segment, skipping wrappers, flags,
+    flag values and VAR= prefixes; None when the segment deletes nothing."""
+    toks = [t.lstrip("({").rstrip(")}") for t in toks]
+    toks = [t for t in toks if t and t not in ("then", "do", "else", "!")]
+    for i, t in enumerate(toks):
+        base = os.path.basename(t)
+        if base in ("rm", "unlink"):
+            return toks[i + 1:], False
+        if base == "git":
+            j, chdir = i + 1, ""
+            while j < len(toks) and toks[j].startswith("-"):
+                if toks[j] == "-C" and j + 1 < len(toks):
+                    chdir = toks[j + 1]
+                j += 2 if toks[j] in ("-C", "-c") else 1
+            if j < len(toks) and toks[j] == "rm":
+                return toks[j + 1:], chdir or True
+            return None
+        ok = (t in _WRAPPERS or t.startswith("-") or re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", t)
+              or (i > 0 and toks[i - 1].startswith("-")))
+        if not ok:
+            return None
+    return None
+
+
+def _delete_operands(command: str, cwd: str, depth: int = 0):
+    """Paths named by rm / git rm / unlink segments (directories as themselves), or None to
+    block ('narrow the command'). Variable operands are skipped."""
     out: list = []
+    if depth > 3:
+        return None
     try:
         segments = _token_segments(command)
     except ValueError:
-        return out
+        return None
     for toks in segments:
-        while toks and (toks[0] in ("sudo", "command", "builtin")
-                        or re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", toks[0])):
-            toks = toks[1:]
-        if toks[:2] == ["git", "rm"]:
-            args = toks[2:]
-        elif toks[:1] in (["rm"], ["unlink"]):
-            args = toks[1:]
-        else:
+        if toks[:1] == ["cd"] and len(toks) > 1:
+            cwd = os.path.normpath(os.path.join(cwd, os.path.expanduser(toks[1])))
             continue
+        for k, t in enumerate(toks):  # bash -c "rm x": recurse into the string
+            if os.path.basename(t) in _SHELLS and "-c" in toks[k + 1:]:
+                inner = toks[toks.index("-c", k) + 1:][:1]
+                if inner:
+                    sub = _delete_operands(inner[0], cwd, depth + 1)
+                    if sub is None:
+                        return None
+                    out.extend(sub)
+        found = _find_delete(toks)
+        if found is None:
+            continue
+        args, is_git = found
+        if is_git and "--cached" in args:
+            continue
+        base_cwd = os.path.join(cwd, is_git) if isinstance(is_git, str) else cwd
         ops, dashdash = [], False
         for t in args:
             if not dashdash and t == "--":
@@ -114,17 +154,17 @@ def _delete_operands(command: str, cwd: str):
         for op in ops:
             if "$" in op or "`" in op:
                 continue
-            for hit in glob.glob(os.path.join(cwd, op)):
-                if os.path.isdir(hit):
-                    for dp, _dn, fns in os.walk(hit):
-                        out.extend(os.path.join(dp, f) for f in fns)
-                        if len(out) > _MAX_DELETE_OPERANDS:
-                            return None
-                else:
-                    out.append(hit)
+            out.extend(glob.glob(os.path.join(base_cwd, op)))
         if len(out) > _MAX_DELETE_OPERANDS:
             return None
     return out
+
+
+def _git_root(path: str):
+    d = path if os.path.isdir(path) and not os.path.islink(path) else os.path.dirname(path)
+    top = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=d or ".",
+                         capture_output=True, text=True, timeout=10)
+    return os.path.realpath(top.stdout.strip()) if top.returncode == 0 and top.stdout.strip() else None
 
 
 def _tier3_delete_violation(command: str, cwd: str):
@@ -133,35 +173,36 @@ def _tier3_delete_violation(command: str, cwd: str):
     if not re.search(r"\b(?:rm|unlink)\b", command):
         return []
     try:
-        top = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=cwd,
-                             capture_output=True, text=True, timeout=10)
-        root = os.path.realpath(top.stdout.strip() or cwd)
-        if not os.path.isdir(os.path.join(root, ".claude", "plans")):
-            return []
         ops = _delete_operands(command, cwd)
         if ops is None:
             return None
-        rels = []
+        by_root: dict = {}
         for o in ops:
-            real = os.path.realpath(o)
-            if real.startswith(root + os.sep):
-                rels.append(real[len(root) + 1:])
-        if not rels:
-            return []
-        tracked = subprocess.run(["git", "ls-files", "-z", "--"] + rels, cwd=root,
-                                 capture_output=True, text=True, timeout=20)
-        if tracked.returncode != 0:
-            return None
-        targets = [r for r in tracked.stdout.split("\0") if r]
-        if not targets:
-            return []
-        hooks = os.path.dirname(os.path.abspath(__file__))
-        env = dict(os.environ, CK_SCRIPT_DIR=hooks, CK_ROOT=root)
-        proc = subprocess.run(["bash", "-c", _HELPER], input="".join(t + "\0" for t in targets),
-                              env=env, capture_output=True, text=True, timeout=60)
-        if proc.returncode != 0:
-            return None
-        return [ln for ln in proc.stdout.splitlines() if ln]
+            parent, base = os.path.split(os.path.abspath(o))
+            real = os.path.join(os.path.realpath(parent), base)  # a symlink operand is itself
+            root = _git_root(real)
+            if root and real.startswith(root + os.sep):
+                by_root.setdefault(root, []).append(real[len(root) + 1:])
+        bad: list = []
+        for root, rels in by_root.items():
+            if not os.path.isdir(os.path.join(root, ".claude", "plans")):
+                continue
+            tracked = subprocess.run(
+                ["git", "ls-files", "-z", "--"] + [":(literal)" + r for r in rels], cwd=root,
+                capture_output=True, text=True, timeout=20)
+            if tracked.returncode != 0:
+                return None
+            targets = [r for r in tracked.stdout.split("\0") if r]
+            if not targets:
+                continue
+            hooks = os.path.dirname(os.path.abspath(__file__))
+            env = dict(os.environ, CK_SCRIPT_DIR=hooks, CK_ROOT=root)
+            proc = subprocess.run(["bash", "-c", _HELPER], input="".join(t + "\0" for t in targets),
+                                  env=env, capture_output=True, text=True, timeout=60)
+            if proc.returncode != 0:
+                return None
+            bad += [ln for ln in proc.stdout.splitlines() if ln]
+        return bad
     except (OSError, subprocess.SubprocessError):
         return None
 

@@ -248,3 +248,20 @@ class TestDeleteMarker:
         r = _hook(proj, 'shell-write-gate.py', _bash(proj, "rm 'a;touch PWNED;.py'"), profile)
         assert r.returncode == 2
         assert not (proj / 'PWNED').exists()
+
+    @pytest.mark.parametrize('cmd', [
+        "echo don't; rm app.py", 'sudo -u root rm app.py', 'env rm app.py', '/bin/rm app.py',
+        'bash -c "rm app.py"', '(rm app.py)', '{ rm app.py; }', 'git -C . rm app.py',
+        'mkdir -p d && cd d && rm ../app.py'])
+    def test_review_bypass_forms_blocked(self, proj, profile, cmd):
+        (proj / 'd').mkdir(exist_ok=True)
+        _git(proj, 'add', '.')
+        assert _hook(proj, 'shell-write-gate.py', _bash(proj, cmd), profile).returncode == 2
+
+    def test_large_untracked_dir_and_cached_allowed(self, proj, profile):
+        (proj / 'build').mkdir()
+        for i in range(250):
+            (proj / 'build' / ('f%d.js' % i)).write_text('x')
+        _git(proj, 'add', 'app.py')
+        for cmd in ('rm -rf build', 'git rm --cached app.py'):
+            assert _hook(proj, 'shell-write-gate.py', _bash(proj, cmd), profile).returncode == 0
