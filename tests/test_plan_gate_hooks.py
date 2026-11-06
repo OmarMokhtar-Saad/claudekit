@@ -188,3 +188,63 @@ class TestShellWriteGate:
                            input='garbage', capture_output=True, text=True,
                            env={**os.environ, **({'ECC_HOOK_PROFILE': profile} if profile else {})})
         assert r.returncode == 2
+
+
+def _empty_write(proj, path='app.py'):
+    return {'tool_name': 'Write', 'tool_input': {'file_path': str(proj / path), 'content': ''}}
+
+
+def _bash(proj, cmd):
+    return {'tool_input': {'command': cmd}, 'cwd': str(proj)}
+
+
+@pytest.mark.parametrize('profile', PROFILES)
+class TestDeleteMarker:
+    def test_write_to_empty_needs_marker(self, proj, profile):
+        _approve(proj)
+        r = _hook(proj, 'plan-gate.sh', _empty_write(proj), profile)
+        assert r.returncode == 2 and '(delete)' in r.stderr
+        _approve(proj, '`app.py` (delete)')
+        assert _hook(proj, 'plan-gate.sh', _empty_write(proj), profile).returncode == 0
+
+    def test_nonempty_write_and_new_file_unchanged(self, proj, profile):
+        _approve(proj, '`app.py` `new.py`')
+        assert _hook(proj, 'plan-gate.sh', _write_payload(proj), profile).returncode == 0
+        assert _hook(proj, 'plan-gate.sh', _empty_write(proj, 'new.py'), profile).returncode == 0
+
+    @pytest.mark.parametrize('cmd', ['rm app.py', 'git rm app.py', 'unlink app.py',
+                                     'rm -f -- app.py', 'rm *.py'])
+    def test_shell_delete_blocked_then_allowed(self, proj, profile, cmd):
+        r = _hook(proj, 'shell-write-gate.py', _bash(proj, cmd), profile)
+        assert r.returncode == 2, r.stderr
+        _approve(proj, '`app.py` (delete)')
+        r = _hook(proj, 'shell-write-gate.py', _bash(proj, cmd), profile)
+        assert r.returncode == 0, r.stderr
+
+    @pytest.mark.parametrize('cmd', ['rm -rf build dist', 'rm src/x.pyc', 'rm -rf /tmp/ck-nope'])
+    def test_untracked_deletes_allowed(self, proj, profile, cmd):
+        (proj / 'build').mkdir()
+        assert _hook(proj, 'shell-write-gate.py', _bash(proj, cmd), profile).returncode == 0
+
+    def test_non_t3_and_no_plans_dir_allowed(self, proj, profile):
+        (proj / 'notes.md').write_text('n')
+        _git(proj, 'add', '.')
+        r = _hook(proj, 'shell-write-gate.py', _bash(proj, 'rm notes.md'), profile)
+        assert r.returncode == 0
+        import shutil
+        shutil.rmtree(proj / '.claude' / 'plans')
+        r = _hook(proj, 'shell-write-gate.py', _bash(proj, 'rm app.py'), profile)
+        assert r.returncode == 0
+
+    def test_protected_path_still_blocked_with_marker(self, proj, profile):
+        _approve(proj, '`app.py` (delete)')
+        r = _hook(proj, 'shell-write-gate.py',
+                  _bash(proj, 'rm .claude/settings.local.json'), profile)
+        assert r.returncode == 2
+
+    def test_hostile_filename_not_injected(self, proj, profile):
+        (proj / 'a;touch PWNED;.py').write_text('x')
+        _git(proj, 'add', '.')
+        r = _hook(proj, 'shell-write-gate.py', _bash(proj, "rm 'a;touch PWNED;.py'"), profile)
+        assert r.returncode == 2
+        assert not (proj / 'PWNED').exists()

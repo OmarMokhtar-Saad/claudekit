@@ -71,6 +71,20 @@ pg_authorised() {
     return 1
 }
 
+# Like pg_authorised, but the plan must also mark $1 with `(delete)` in its Files: header.
+pg_authorised_delete() {
+    local rel="$1" recorder plan
+    recorder="$SCRIPT_DIR/../operations/scripts/review-record.py"
+    [ -f "$recorder" ] || return 1
+    for plan in "$ABS_ROOT"/.claude/plans/plan-*.md; do
+        [ -f "$plan" ] || continue
+        if (cd "$ABS_ROOT" && python3 "$recorder" plan-check "$plan" --path "$rel" --delete >/dev/null 2>&1); then
+            return 0
+        fi
+    done
+    return 1
+}
+
 # Exit 0 when $1 is a plan file with a currently valid APPROVED record (its Files:/Tier
 # header lines are then frozen: editing them would only be drift, so refuse up front).
 pg_is_approved_plan() {

@@ -6,6 +6,8 @@
 # Active only where <root>/.claude/plans/ exists. Blocks with exit 2 + stderr and
 # FAILS CLOSED on any parse failure. NO ECC_HOOK_PROFILE early exit: it must bind
 # under `minimal` too (declared "on" in profiles/minimal/profile.json).
+# Deleting a Tier-3 file needs `(delete)` on its path in `Files:` (Write-to-empty here; rm /
+# git rm / unlink in shell-write-gate.py). An Edit that shrinks a file to nothing is not seen.
 # Honest limit: a denylist speed bump, not a sandbox (kit hard rule 6).
 # =============================================================================
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -98,6 +100,24 @@ ok = (isinstance(old, str) and isinstance(new, str) and old != ""
       and "\n" not in old and "\n" not in new and t.get("replace_all") is not True)
 sys.exit(0 if ok else 1)' 2>/dev/null; then
     exit 0
+fi
+
+# 3b. Write-to-empty over an existing non-empty file is a deletion: the plan must mark the
+#     path `(delete)`. (An Edit that shrinks a file to nothing is not detected.)
+if [ "$TOOL_NAME" = "Write" ] && [ -s "$ABS_TARGET" ] \
+   && printf '%s' "$TOOL_INPUT" | python3 -c '
+import json, sys
+t = json.load(sys.stdin).get("tool_input") or {}
+sys.exit(0 if t.get("content") == "" else 1)' 2>/dev/null; then
+    if pg_authorised_delete "$REL"; then
+        exit 0
+    fi
+    deny "PLAN GATE -- DELETION NOT MARKED
+Target: $TARGET_PATH
+
+Emptying a Tier-3 file is a deletion. List it in the approved plan's Files: header as
+  \`$REL\` (delete)
+(max 3 per plan), then re-review and record the plan."
 fi
 
 # 4. Plan binding.

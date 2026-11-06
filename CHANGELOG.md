@@ -12,6 +12,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Added: `(delete)` marker for Tier 3 deletions.** A plan lists a path it deletes as
+  `` `path` (delete) `` in `Files:`; `plan-write` refuses more than 3 marked paths or a globbed
+  one (exit 8); `plan-check --delete` checks the marker. `plan-gate` blocks a Write-to-empty
+  over an unmarked Tier 3 file and `shell-write-gate` blocks `rm`, `git rm` and `unlink` of
+  unmarked git-tracked Tier 3 files (untracked build output is never blocked). Speed bump, not
+  a sandbox: `find -delete`, `git clean`, `mv` and scripted deletes are not seen.
+- **Removed: `project-graph.py impact`** (read an ops.json that no longer exists). Use `hubs`
+  and `query <file> --direction in`.
+- **Changed: hard rule 4** now describes the `(delete)` marker instead of `MAX_DELETIONS`.
+
 - **Removed: the ops.json pipeline (Phase 2).** No `ops-*.json` payloads, `execute-json-ops.py`,
   `validate-config-json.py`, `iron-law-gate`, `check-plan-artifacts.py`, `implementer` agent,
   `*-operations-config` skills, or `ck rollback`/restore-backup. The flow is now: an approved

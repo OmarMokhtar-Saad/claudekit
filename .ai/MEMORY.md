@@ -11,7 +11,7 @@ Short, hard facts. If your context is tight, load this file plus [SESSION_STATE.
 29 agents · 42 commands · 75 skills · 19 hooks · 29 ops guards · 11 language templates · 516 tests · py ≥3.9 · 0 runtime deps.
 
 ## Invariants (never violate — full list in [KNOWLEDGE_BASE.md](KNOWLEDGE_BASE.md))
-Plan gate (Tier 3 edits only after an approved plan.md names the file in `Files:`; subagents never edit) · hooks block via exit 2+stderr, fail closed · no `--dangerously-skip-permissions` (CI-gated) · protected files + MAX_DELETIONS=3 · golden rule (no changes without approval) · "speed bump, not a sandbox" framing · 3 synced version locations (pyproject, `src/claudekit/__init__.py`, `operations/scripts/shared.py`) · counts generated, never typed · bash-3.2/macOS compatible · conventional commits + AI Co-Authored-By line.
+Plan gate (Tier 3 edits only after an approved plan.md names the file in `Files:`; subagents never edit) · hooks block via exit 2+stderr, fail closed · no `--dangerously-skip-permissions` (CI-gated) · protected files + `(delete)`-marked deletions (max 3/plan) · golden rule (no changes without approval) · "speed bump, not a sandbox" framing · 3 synced version locations (pyproject, `src/claudekit/__init__.py`, `operations/scripts/shared.py`) · counts generated, never typed · bash-3.2/macOS compatible · conventional commits + AI Co-Authored-By line.
 
 ## Quality gates (Definition of Done)
 `pytest -q` (516 pass) · `ruff check src/ tests/ scripts/` · `mypy` · `gen-docs.py --check` · `shellcheck install.sh .claude/hooks/*.sh` · CHANGELOG entry for user-visible changes.

@@ -95,7 +95,7 @@ surfaced by review-by-reading.
 1. The plan gate (Tier 3 source is edited only after a reviewed, recorded plan.md names the file in `Files:`; subagents never edit).
 2. Fail-closed blocking hooks (exit 2 + stderr).
 3. Permission gating (no `--dangerously-skip-permissions`, scoped tools).
-4. Protected-file guards and MAX_DELETIONS cap.
+4. Protected-file guards and the `(delete)` marker (max 3 deletions per plan, plan-gate).
 5. Golden rule: no code changes without explicit user approval.
 6. Honest security framing ("speed bump, not a sandbox").
 7. Monotonic versioning with the three synchronized version locations.

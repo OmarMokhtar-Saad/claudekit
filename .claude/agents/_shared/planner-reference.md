@@ -69,6 +69,8 @@ reads these fields, so they are not optional:
 - A `Files:` list of every path the plan will touch, one backticked repo-relative path per
   bullet. Tier 3 plans are gated on it, and it is frozen once the plan is approved: a new
   path means a revised plan and a new review.
+- A path the plan deletes is written `` `path` (delete) ``: concrete (no globs), at most 3 per
+  plan; plan-gate blocks a Tier 3 deletion that is not marked.
 - Every Implementation Step's `File:` appears in `Files:`, and every `Files:` entry is used
   by a step.
 - Rollback and validation notes live in plan.md (rollback = `/rollback` to the

@@ -221,7 +221,4 @@ A graph is agent-asserted, so treat it as a claim until it is checked.
 - **`diff --against <other.json>`** reports the structural delta — added/removed nodes
   and edges — so a review can see the shape of a change instead of its text.
   Exit 1 means "differences found", which is information, not an error.
-- **`impact --ops <plan.ops.json>`** reads a plan's operations config and reports the
-  blast radius of the files it touches. Exit 1 means a touched node is a hub/god-node,
-  the touched set crosses a package boundary, or a path is absent from the graph —
-  all of which mean the change earns a reviewer.
+To score a plan's blast radius, run `hubs` and `query <file> --direction in` for each file it touches (planner Discovery step 7); a GOD-NODE goes in the Risk Assessment.

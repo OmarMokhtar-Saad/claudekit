@@ -44,7 +44,7 @@ ck doctor --strict # installed-tree health
 1. Iron Law: Tier 3 source is edited only after a reviewed, recorded plan.md names the file in its `Files:` list (plan-gate); the main session edits directly, subagents only explore, review, test and verify.
 2. Blocking hooks: `exit 2` + stderr + fail closed. Never exit 1/stdout for a block.
 3. No `--dangerously-skip-permissions` anywhere (CI-gated); agent spawning per `.claude/agents/_shared/INVOCATION.md` with scoped `--allowedTools`.
-4. Protected files stay protected; MAX_DELETIONS=3/plan stays.
+4. Protected files stay protected (hooks); deleting a Tier 3 file needs `(delete)` on its path in the plan's `Files:` (plan-gate), max 3 per plan.
 5. Golden Rule: no code changes without explicit user approval (for Tier 3, an approved plan.md).
 6. Security framing stays honest: "denylist speed bump, not a sandbox."
 7. Versions bump everywhere `test_single_version_source_of_truth` derives (pyproject is the truth) and stay monotonic.

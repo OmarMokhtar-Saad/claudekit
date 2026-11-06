@@ -124,3 +124,49 @@ def test_reviewer_role_is_recorded_and_rounds_accumulate(tmp_path):
     rec = json.loads((tmp_path / '.claude' / 'reports' / 'reviews'
                       / 'demo.plan.json').read_text(encoding='utf-8'))
     assert rec['round'] == 2 and rec['rounds'][0]['decision'] == 'REVISE'
+
+
+
+def _dplan(root, files):
+    return _plan(root, "# P\n- **Files:** %s\n- **Tier:** 3\n" % files)
+
+
+def _load_recorder():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location('review_record_mod', RECORD)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_delete_marker_parsing():
+    rr = _load_recorder()
+    text = "Files:\n  `a.py` (delete)\n  `b.py`\n  c.py (DELETE), d.py\n"
+    assert rr.parse_plan_files(text) == ['a.py', 'b.py', 'c.py', 'd.py']
+    assert rr.parse_plan_deletions(text) == ['a.py', 'c.py']
+
+
+def test_delete_cap_and_glob_refused(tmp_path):
+    four = ' '.join('`f%d.py` (delete)' % i for i in range(4))
+    assert _approve(tmp_path, _dplan(tmp_path, four)).returncode == 8
+    three = ' '.join('`f%d.py` (delete)' % i for i in range(3))
+    assert _approve(tmp_path, _dplan(tmp_path, three)).returncode == 0
+    assert _approve(tmp_path, _dplan(tmp_path, '`src/*.py` (delete)')).returncode == 8
+
+
+def test_plan_check_delete(tmp_path):
+    plan = _dplan(tmp_path, '`gone.py` (delete) `keep.py`')
+    assert _approve(tmp_path, plan).returncode == 0
+    ok = _run(tmp_path, 'plan-check', str(plan), '--path', 'gone.py', '--delete')
+    assert ok.returncode == 0, ok.stderr
+    assert _run(tmp_path, 'plan-check', str(plan), '--path', 'keep.py', '--delete').returncode == 4
+    assert _run(tmp_path, 'plan-check', str(plan), '--path', 'other.py', '--delete').returncode == 4
+    assert _run(tmp_path, 'plan-check', str(plan), '--path', 'keep.py').returncode == 0
+    plan.write_text(plan.read_text() + '\nedit\n')
+    assert _run(tmp_path, 'plan-check', str(plan), '--path', 'gone.py', '--delete').returncode == 2
+
+
+def test_unmarked_record_still_authorises_path(tmp_path):
+    plan = _plan(tmp_path)
+    assert _approve(tmp_path, plan).returncode == 0
+    assert _run(tmp_path, 'plan-check', str(plan), '--path', 'app.py').returncode == 0

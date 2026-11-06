@@ -14,9 +14,18 @@ real control.
 FAILS CLOSED, unlike bash-payload-gate: a payload that cannot be parsed blocks. No
 ECC_HOOK_PROFILE early exit - it binds under `minimal` too.
 Blocking = exit 2 + stderr (kit hard rule 2).
+
+Also: `rm`, `git rm` and `unlink` of a git-tracked Tier-3 file (plan-lib.sh `pg_is_t3`) are
+denied unless the approved plan marks the path `(delete)` in `Files:`. Untracked files
+(`rm -rf build`, `.pyc`) are never blocked. Not detected: `find -delete`, `git clean`, `mv`,
+scripted `os.remove`, a delete inside `$(...)` (speed bump, not a sandbox).
 """
+import glob
 import json
+import os
 import re
+import shlex
+import subprocess
 import sys
 
 PROTECTED = (
@@ -54,6 +63,108 @@ def _violates(command: str) -> str:
         return "script open-for-write"
     return ""
 
+_MAX_DELETE_OPERANDS = 200
+_HELPER = r"""
+SCRIPT_DIR="$CK_SCRIPT_DIR"; ABS_ROOT="$CK_ROOT"
+. "$SCRIPT_DIR/plan-lib.sh" || exit 3
+while IFS= read -r -d '' rel; do
+    if pg_is_t3 "$rel" && ! pg_authorised_delete "$rel"; then printf '%s\n' "$rel"; fi
+done
+"""
+
+
+def _token_segments(command: str) -> list:
+    """Quote-aware token lists, split at ; & | and newlines (a `;` inside quotes stays)."""
+    lex = shlex.shlex(command, posix=True, punctuation_chars=";&|\n")
+    lex.whitespace_split = True
+    lex.whitespace = " \t\r"
+    out: list = [[]]
+    for tok in lex:
+        if set(tok) <= set(";&|\n"):
+            out.append([])
+        else:
+            out[-1].append(tok)
+    return out
+
+
+def _delete_operands(command: str, cwd: str):
+    """Paths named by rm / git rm / unlink segments, or None to block ('narrow the
+    command'). Unparseable or variable operands are skipped."""
+    out: list = []
+    try:
+        segments = _token_segments(command)
+    except ValueError:
+        return out
+    for toks in segments:
+        while toks and (toks[0] in ("sudo", "command", "builtin")
+                        or re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", toks[0])):
+            toks = toks[1:]
+        if toks[:2] == ["git", "rm"]:
+            args = toks[2:]
+        elif toks[:1] in (["rm"], ["unlink"]):
+            args = toks[1:]
+        else:
+            continue
+        ops, dashdash = [], False
+        for t in args:
+            if not dashdash and t == "--":
+                dashdash = True
+            elif dashdash or not t.startswith("-"):
+                ops.append(t)
+        for op in ops:
+            if "$" in op or "`" in op:
+                continue
+            for hit in glob.glob(os.path.join(cwd, op)):
+                if os.path.isdir(hit):
+                    for dp, _dn, fns in os.walk(hit):
+                        out.extend(os.path.join(dp, f) for f in fns)
+                        if len(out) > _MAX_DELETE_OPERANDS:
+                            return None
+                else:
+                    out.append(hit)
+        if len(out) > _MAX_DELETE_OPERANDS:
+            return None
+    return out
+
+
+def _tier3_delete_violation(command: str, cwd: str):
+    """Tracked Tier-3 paths the command deletes without a `(delete)` marker ([] = fine),
+    or None when the command cannot be bounded/checked (block)."""
+    if not re.search(r"\b(?:rm|unlink)\b", command):
+        return []
+    try:
+        top = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=cwd,
+                             capture_output=True, text=True, timeout=10)
+        root = os.path.realpath(top.stdout.strip() or cwd)
+        if not os.path.isdir(os.path.join(root, ".claude", "plans")):
+            return []
+        ops = _delete_operands(command, cwd)
+        if ops is None:
+            return None
+        rels = []
+        for o in ops:
+            real = os.path.realpath(o)
+            if real.startswith(root + os.sep):
+                rels.append(real[len(root) + 1:])
+        if not rels:
+            return []
+        tracked = subprocess.run(["git", "ls-files", "-z", "--"] + rels, cwd=root,
+                                 capture_output=True, text=True, timeout=20)
+        if tracked.returncode != 0:
+            return None
+        targets = [r for r in tracked.stdout.split("\0") if r]
+        if not targets:
+            return []
+        hooks = os.path.dirname(os.path.abspath(__file__))
+        env = dict(os.environ, CK_SCRIPT_DIR=hooks, CK_ROOT=root)
+        proc = subprocess.run(["bash", "-c", _HELPER], input="".join(t + "\0" for t in targets),
+                              env=env, capture_output=True, text=True, timeout=60)
+        if proc.returncode != 0:
+            return None
+        return [ln for ln in proc.stdout.splitlines() if ln]
+    except (OSError, subprocess.SubprocessError):
+        return None
+
 
 def main() -> int:
     try:
@@ -68,7 +179,19 @@ def main() -> int:
         return 2
     form = _violates(command)
     if not form:
-        return 0
+        cwd = payload.get("cwd") if isinstance(payload.get("cwd"), str) else os.getcwd()
+        bad = _tier3_delete_violation(command, cwd)
+        if bad == []:
+            return 0
+        if bad is None:
+            sys.stderr.write("BLOCKED shell-write-gate: could not verify this deletion "
+                             "(too many operands or helper failed); narrow the command.\n")
+            return 2
+        sys.stderr.write(
+            "BLOCKED shell-write-gate: deleting Tier-3 file(s) not marked in the approved plan: "
+            "%s. List each in the plan's `Files:` as `path` (delete) (max 3 per plan), then "
+            "re-review and record it.\n" % ", ".join(bad))
+        return 2
     sys.stderr.write(
         "BLOCKED shell-write-gate: %s targets a protected path (review records, settings "
         "files or plan-gate.globs). These are owner-only: ask the owner to run it with "

@@ -10,7 +10,7 @@ Usage:
   review-record.py plan-write <plan.md> --from-task <agentId|transcript.jsonl>
   review-record.py plan-write <plan.md> --from-review <file|->
   review-record.py plan-write <plan.md> --score N --decision D --owner-approved
-  review-record.py plan-check <plan.md> [--path P]
+  review-record.py plan-check <plan.md> [--path P [--delete]]
   review-record.py rejections search "<keywords>"
 
 Exit codes:
@@ -20,7 +20,7 @@ Exit codes:
   3  no approval record (rejections search: no match)
   4  record exists and matches, but the verdict does not authorise edits
   7  bare approving --decision without --owner-approved
-  8  plan `Files:` header empty or too broad
+  8  plan `Files:` header empty or too broad, or > 3 / globbed `(delete)` markers
 
 Verdict parsing lives here rather than in shell so it can be validated and tested:
 strict anchored patterns mean an echoed format template ('SCORE: <integer 0-100>')
@@ -1135,6 +1135,8 @@ EXIT_PLAN_NOT_AUTHORISING = 4
 EXIT_PLAN_BAD_FILES = 8
 _FILES_RE = re.compile(r"^\s*(?:[-*]\s*)?\*{0,2}Files:?\*{0,2}:?\s*(.*)$")
 _BARE_GLOBS = ("*", "**", "**/*", "./*", "./**", "/**", "")
+_DELETE_MARK_RE = re.compile(r"\(\s*delete\s*\)\s*$", re.I)
+MAX_PLAN_DELETIONS = 3
 
 
 def _main_root(start=None) -> Path:
@@ -1156,10 +1158,12 @@ def _main_root(start=None) -> Path:
     return _project_root(where)
 
 
-def parse_plan_files(text: str) -> list:
-    """Path/glob tokens from the plan's `Files:` header (backticked, or comma separated);
-    indented or backtick-led continuation lines belong to the header."""
-    out, active = [], False
+def _files_entries(text: str) -> list:
+    """(path, is_delete) pairs from the plan's `Files:` header (backticked, or comma
+    separated); indented or backtick-led continuation lines belong to the header. A trailing
+    `(delete)` after a token marks a planned deletion."""
+    out: list = []
+    active = False
     for line in text.splitlines():
         m = _FILES_RE.match(line)
         if m:
@@ -1170,14 +1174,38 @@ def parse_plan_files(text: str) -> list:
         else:
             active = False
             continue
-        ticks = re.findall(r"`([^`]+)`", chunk)
-        out.extend(ticks if ticks else [t.strip() for t in chunk.split(",") if t.strip()])
-    seen = []
-    for tok in out:
+        ticks = re.findall(r"`([^`]+)`(\s*\(delete\))?", chunk, re.I)
+        if ticks:
+            out.extend((t, bool(d)) for t, d in ticks)
+            continue
+        for tok in chunk.split(","):
+            tok = tok.strip()
+            m2 = _DELETE_MARK_RE.search(tok)
+            if m2:
+                tok = tok[:m2.start()].strip()
+            if tok:
+                out.append((tok, bool(m2)))
+    seen: list = []
+    for tok, is_del in out:
         tok = tok.strip().rstrip(",;")
-        if tok and tok not in seen:
-            seen.append(tok)
-    return seen
+        if not tok:
+            continue
+        hit = [e for e in seen if e[0] == tok]
+        if hit:
+            hit[0][1] = hit[0][1] or is_del
+        else:
+            seen.append([tok, is_del])
+    return [(p, d) for p, d in seen]
+
+
+def parse_plan_files(text: str) -> list:
+    """Paths/globs from the `Files:` header, `(delete)` markers stripped."""
+    return [p for p, _ in _files_entries(text)]
+
+
+def parse_plan_deletions(text: str) -> list:
+    """Paths the plan marks `(delete)`."""
+    return [p for p, d in _files_entries(text) if d]
 
 
 def _plan_record_path(plan: Path) -> Path:
@@ -1237,6 +1265,15 @@ def cmd_plan_write(args) -> int:
     if not files or bare:
         print("REFUSED: plan `Files:` header is %s; name concrete paths or narrow globs. "
               "Nothing recorded." % ("empty" if not files else "too broad: %r" % bare),
+              file=sys.stderr)
+        return EXIT_PLAN_BAD_FILES
+    dels = parse_plan_deletions(plan.read_text(encoding="utf-8"))
+    globbed = [p for p in dels if any(c in p for c in "*?[")]
+    if globbed or len(dels) > MAX_PLAN_DELETIONS:
+        print("REFUSED: %s. Mark concrete paths only, at most %d `(delete)` per plan; split "
+              "larger removals into several reviewed plans. Nothing recorded."
+              % (("globbed (delete) marker: %r" % globbed) if globbed
+                 else "%d paths marked (delete)" % len(dels), MAX_PLAN_DELETIONS),
               file=sys.stderr)
         return EXIT_PLAN_BAD_FILES
     raw = None
@@ -1327,6 +1364,17 @@ def cmd_plan_check(args) -> int:
     if args.path and not _path_matches(args.path, rec.get("files") or [], _main_root(plan)):
         print("NOT COVERED: %s is not in the plan's Files:" % args.path, file=sys.stderr)
         return EXIT_PLAN_NOT_AUTHORISING
+    if args.delete:
+        if not args.path:
+            print("Error: --delete requires --path", file=sys.stderr)
+            return 1
+        root = _main_root(plan)
+        rel = _rel_to_root(args.path, root)
+        marked = parse_plan_deletions(plan.read_text(encoding="utf-8"))
+        if rel not in marked and args.path not in marked:
+            print("NOT MARKED (delete): %s needs `(delete)` in the plan's Files:" % args.path,
+                  file=sys.stderr)
+            return EXIT_PLAN_NOT_AUTHORISING
     print("OK: approved %s (%s)" % (score, rec_path.name))
     return 0
 
@@ -1381,6 +1429,8 @@ def main() -> int:
     pc = sub.add_parser("plan-check", help="Exit 0 only for an unchanged APPROVED plan")
     pc.add_argument("plan")
     pc.add_argument("--path", default=None, help="Also require this path in Files:")
+    pc.add_argument("--delete", action="store_true",
+                    help="With --path: also require a `(delete)` marker on it")
     pc.set_defaults(func=cmd_plan_check)
 
     args = parser.parse_args()

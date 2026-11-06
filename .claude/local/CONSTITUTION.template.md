@@ -96,14 +96,17 @@ All code must be checked against relevant OWASP Top 10 items:
 - **Violation**: AUTO-REJECT a plan without a `Files:` list
 
 ### Section 2: Protected Files
-The following files cannot be deleted via operations config:
-- `.gitignore`, `*.md`, `Makefile`, `Dockerfile`
-- `requirements.txt`, `package.json`, `pyproject.toml`
-- `tsconfig.json`, `go.mod`, `Cargo.toml`
+Protected files stay protected by hooks, and a plan cannot unlock them:
+- plan-gate denies review records, settings files and `plan-gate.globs` (owner-only)
+- shell-write-gate closes the same paths against the shell forms
+- config-protection blocks edits to lint/type configs (`eslint`, `prettier`, `tsconfig*.json`,
+  `biome.json`, `.flake8`, `setup.cfg`, `pyproject.toml`, `.editorconfig`, and similar)
 
 ### Section 3: Safety Limits
-- Deletion reason minimum: 10 characters
-- Automatic backup before all operations
+- Backup = a git checkpoint: `checkpoint-gate` tags `ck-checkpoint/<epoch>` before the first
+  Tier 3 edit (restore with `git stash apply <tag>`); a deleted tracked file is also
+  recoverable from git
+- Deleting a Tier 3 file requires `(delete)` on its path in the plan's `Files:`, max 3 per plan
 
 ---
 
