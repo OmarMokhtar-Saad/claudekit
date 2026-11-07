@@ -39,7 +39,9 @@ HOTSPOTS = [
 DEFAULT_CONFIG = {"schema_version": SCHEMA, "stale_min": 20, "stages": False,
                   "hotspots": HOTSPOTS}
 SUBDIRS = ("sessions", "inbox", "notes", "archive")
-OPEN_STATES = ("open", "claimed", "blocked", "orphaned")
+STAGED = ("debugging", "planned", "reviewed", "implementing", "verifying")
+ACTIVE = ("claimed",) + STAGED  # a session owns the task and holds its files
+OPEN_STATES = ("open", "claimed", "blocked", "orphaned") + STAGED
 FREE_STATES = ("open", "orphaned")
 
 
@@ -357,14 +359,14 @@ def open_tasks(d: Path) -> list[dict]:
 
 def is_held_by_peer(d: Path, t: dict, me: str) -> bool:
     owner = t.get("owner")
-    return (t.get("state") in ("claimed", "blocked") and bool(owner) and owner != me
+    return (t.get("state") in ACTIVE + ("blocked",) and bool(owner) and owner != me
             and owner in {s.get("sid") for s in live_sessions(d)})
 
 
 def next_task(d: Path) -> dict | None:
     """Oldest open task whose files overlap no other claimed task; bug-linked first."""
     rows = open_tasks(d)
-    taken = {f.casefold() for t in rows if t.get("state") == "claimed"
+    taken = {f.casefold() for t in rows if t.get("state") in ACTIVE
              for f in t.get("files", [])}
     free = [t for t in rows if t.get("state") in FREE_STATES
             and not taken & {f.casefold() for f in t.get("files", [])}]
@@ -374,7 +376,7 @@ def next_task(d: Path) -> dict | None:
 
 def mine_open_lines(d: Path, sid: str) -> list[str]:
     rows = open_tasks(d)
-    mine = [t for t in rows if t.get("state") == "claimed" and t.get("owner") == sid]
+    mine = [t for t in rows if t.get("state") in ACTIVE and t.get("owner") == sid]
     free = [t for t in rows if t.get("state") in FREE_STATES]
     return (["team: MINE " + task_line(t) for t in mine[:2]]
             + ["team: OPEN " + task_line(t) for t in free[:2]])
@@ -485,7 +487,7 @@ def holder_of(d: Path, key: str, me: str, tasks: list[dict],
     if lease and lease.get("sid") != me and lease.get("sid") in live:
         return (str(lease["sid"]), str(lease.get("acct", "")), str(lease.get("task", "")))
     for t in tasks:
-        if (t.get("state") == "claimed" and t.get("owner") not in ("", me)
+        if (t.get("state") in ACTIVE and t.get("owner") not in ("", me)
                 and t.get("owner") in live
                 and key in {str(f).casefold() for f in t.get("files", [])}):
             return (str(t["owner"]), str(t.get("account", "")), str(t.get("id", "")))
@@ -495,6 +497,10 @@ def holder_of(d: Path, key: str, me: str, tasks: list[dict],
 def held_msg(rel: str, h: tuple[str, str, str]) -> str:
     return ("%s is held by %s@%s (task %s).\nAsk them: `team msg %s <text>`; "
             "see `team who %s`." % (rel, h[0][:8], h[1], h[2] or "-", h[0], rel))
+
+
+NEXT_STAGE = {"claimed": "debug", "debugging": "plan", "planned": "review",
+              "reviewed": "start", "verifying": "land"}
 
 
 def gate_decision(d: Path, sid: str, cwd: str, path: str) -> tuple[str | None, str]:
@@ -517,17 +523,29 @@ def gate_decision(d: Path, sid: str, cwd: str, path: str) -> tuple[str | None, s
         if peer:
             return held_msg(rel, peer), ""
         lease = read_lease(d, key)
-        if lease and lease.get("sid") == sid:
+        staged = bool(cfg.get("stages"))
+        hot = is_hotspot(rel, cfg.get("hotspots", HOTSPOTS))
+        if lease and lease.get("sid") == sid and (hot or not staged):
             return None, ""
-        mine = [t for t in tasks if t.get("state") == "claimed" and t.get("owner") == sid]
-        if is_hotspot(rel, cfg.get("hotspots", HOTSPOTS)):
+        mine = [t for t in tasks if t.get("state") in ACTIVE and t.get("owner") == sid]
+        if hot:
             return "%s is a hotspot: take a lease first: `team lease %s`." % (rel, rel), ""
         if not mine:
+            if staged:
+                return ("no claimed task (stages on): `team claim <id>` or "
+                        "`team quick \"<title>\" --file %s`." % rel), ""
             return None, "team: no claimed task; %s edited unleased (`team next` to pick one)." % rel
-        for t in mine:
-            if key in {str(f).casefold() for f in t.get("files", [])}:
+        hits = [t for t in mine if key in {str(f).casefold() for f in t.get("files", [])}]
+        for t in hits:
+            if not staged or t.get("state") == "implementing":
                 write_lease(d, rel, sid, str(t.get("id", "")), top)
                 return None, ""
+        if hits:
+            tid = str(hits[0].get("id", ""))
+            return ("task %s is %s; edits start at implementing.\n"
+                    "Next: `team %s %s`." % (tid, hits[0].get("state"),
+                                            NEXT_STAGE.get(str(hits[0].get("state")), "status"),
+                                            tid)), ""
         tid = str(mine[0].get("id", ""))
         return ("%s is outside task %s files.\nAdd it: `team plan %s --add-file %s`."
                 % (rel, tid, tid, rel)), ""
@@ -711,7 +729,7 @@ def cmd_gc(args) -> int:
                 freed += 1
         rows = read_lines(d / "tasks.jsonl")
         for t in rows:
-            if t.get("state") == "claimed" and t.get("owner") not in live:
+            if t.get("state") in ACTIVE and t.get("owner") not in live:
                 t.update(state="orphaned", owner="")
                 orphaned += 1
         if orphaned:
@@ -783,7 +801,7 @@ def cmd_task_show(args) -> int:
     if t is None:
         return refuse("no such task: " + args.id, 2)
     print(task_line(t))
-    for k in ("owner", "account", "files", "bugs", "plan"):
+    for k in ("owner", "account", "files", "bugs", "plan", "repro"):
         if t.get(k):
             print("  %s: %s" % (k, clean(", ".join(t[k]) if isinstance(t[k], list) else t[k])))
     return 0
@@ -813,6 +831,9 @@ def cmd_claim(args) -> int:
             return refuse("no such task: " + args.id, 2)
         if t.get("state") not in OPEN_STATES:
             return refuse("%s is %s, not claimable" % (args.id, t.get("state")), 4)
+        if t.get("state") in STAGED and t.get("owner") == me:
+            print("%s is already yours (%s)" % (args.id, t["state"]))
+            return 0
         if is_held_by_peer(d, t, me):
             return refuse("%s is claimed by %s@%s (live); `team msg %s ...`" % (
                 args.id, clean(t["owner"], 8), clean(t.get("account", ""), 30), t["owner"]), 4)
@@ -831,7 +852,7 @@ def cmd_release(args) -> int:
         t = find_row(rows, args.id)
         if t is None:
             return refuse("no such task: " + args.id, 2)
-        if t.get("state") != "claimed":
+        if t.get("state") not in ACTIVE:
             return refuse("%s is %s, nothing to release" % (args.id, t.get("state")), 4)
         if is_held_by_peer(d, t, me):
             return refuse("%s belongs to live session %s" % (args.id, clean(t["owner"], 8)), 4)
@@ -899,7 +920,7 @@ def cmd_bug_dup(args) -> int:
 
 def my_task_id(tasks: list[dict], me: str) -> str:
     return next((str(t["id"]) for t in tasks
-                 if t.get("state") == "claimed" and t.get("owner") == me), "")
+                 if t.get("state") in ACTIVE and t.get("owner") == me), "")
 
 
 def cmd_lease(args) -> int:
@@ -973,6 +994,7 @@ def cmd_plan(args) -> int:
     me = current_sid(d)
     if not (args.files or args.plan or args.add_file):
         return refuse("give --files, --plan or --add-file", 2)
+    stages = bool(load_config(d).get("stages"))
     wanted: list[str] = []
     if args.plan:
         pf = Path(worktree_top()) / args.plan
@@ -985,11 +1007,18 @@ def cmd_plan(args) -> int:
         t = find_row(rows, args.id)
         if t is None:
             return refuse("no such task: " + args.id, 2)
-        if t.get("state") not in ("claimed", "blocked") or t.get("owner") != me:
+        if t.get("state") not in ACTIVE + ("blocked",) or t.get("owner") != me:
             return refuse("%s is not yours; `team claim %s` first" % (args.id, args.id), 4)
+        if stages and t.get("state") == "claimed":
+            return refuse("stages on: `team debug %s` first" % args.id, 4)
+        if stages and not (t.get("repro") or t.get("bugs")):
+            return refuse("stages on: %s needs a repro (`team debug %s --repro ...`) or a "
+                          "linked bug" % (args.id, args.id), 4)
         files = [norm_rel(f) for f in wanted] if wanted else list(t.get("files", []))
         files += [norm_rel(f) for f in args.add_file or []]
         files = list(dict.fromkeys(files))
+        if stages and not files:
+            return refuse("stages on: %s needs files" % args.id, 4)
         live = live_map(d)
         for f in files:
             h = holder_of(d, f.casefold(), me, rows, live)
@@ -998,7 +1027,8 @@ def cmd_plan(args) -> int:
                 store_rows(d, "tasks.jsonl", rows)
                 print(held_msg(f, h) + "\n%s is now blocked." % args.id, file=sys.stderr)
                 return 4
-        t.update(state="claimed", files=files)
+        t.update(state="planned" if stages else "claimed", files=files, planner=me,
+                 reviewer="")
         if args.plan:
             t["plan"] = args.plan
         store_rows(d, "tasks.jsonl", rows)
@@ -1110,8 +1140,11 @@ def cmd_land(args) -> int:
         return refuse("set test_cmd in .team/config.json ({files} placeholder)", 3)
     if args.fmt and not cfg.get("fmt_cmd"):
         return refuse("set fmt_cmd in .team/config.json ({files} placeholder)", 3)
-    if t.get("state") != "claimed" or t.get("owner") != me:
-        return refuse("%s is not claimed by this session" % args.id, 4)
+    want = ("verifying",) if cfg.get("stages") else ACTIVE
+    if t.get("state") not in want or t.get("owner") != me:
+        return refuse("%s is not %s by this session%s" % (
+            args.id, "verified" if cfg.get("stages") else "claimed",
+            " (stages on: `team verify %s`)" % args.id if cfg.get("stages") else ""), 4)
     if not t.get("files"):
         return refuse("%s has no files; `team plan %s --files ...` first" % (args.id, args.id), 4)
     if Path(top) == root:
@@ -1121,6 +1154,178 @@ def cmd_land(args) -> int:
             return land_steps(args, d, cfg, t, me, root, top, base)
     except TimeoutError:
         return refuse("queue busy: another land is running", 4)
+
+
+def stage_task(d: Path, rows: list[dict], tid: str, me: str, frm: tuple,
+               own: bool = True) -> tuple[dict | None, str]:
+    """(task, error). Checks existence, current stage and (optionally) ownership."""
+    t = find_row(rows, tid)
+    if t is None:
+        return None, "no such task: " + tid
+    if t.get("state") not in frm:
+        return None, "%s is %s, expected %s" % (tid, t.get("state"), "|".join(frm))
+    if own and t.get("owner") != me:
+        return None, "%s belongs to %s" % (tid, clean(t.get("owner") or "nobody", 8))
+    return t, ""
+
+
+def need_stages(d: Path) -> int:
+    if not load_config(d).get("stages"):
+        return refuse("stages are off: set \"stages\": true in .team/config.json", 3)
+    return 0
+
+
+def cmd_debug(args) -> int:
+    d = need(args)
+    if need_stages(d):
+        return 3
+    me = current_sid(d)
+    with locked(d):
+        rows = read_lines(d / "tasks.jsonl")
+        t, err = stage_task(d, rows, args.id, me, ("claimed", "debugging"))
+        if t is None:
+            return refuse(err, 4)
+        t["state"] = "debugging"
+        if args.repro:
+            t["repro"] = clean(args.repro, 300)
+        store_rows(d, "tasks.jsonl", rows)
+    append_event(d, me, "task.debug", ref=args.id)
+    print("%s: debugging" % args.id)
+    return 0
+
+
+def cmd_review(args) -> int:
+    d = need(args)
+    if need_stages(d):
+        return 3
+    if bool(args.approve) == bool(args.reject):
+        return refuse("give exactly one of --approve or --reject \"<why>\"", 2)
+    me = current_sid(d)
+    heartbeat(d, me)
+    with locked(d):
+        rows = read_lines(d / "tasks.jsonl")
+        t, err = stage_task(d, rows, args.id, me, ("planned",), own=False)
+        if t is None:
+            return refuse(err, 4)
+        if args.approve:
+            if t.get("planner") == me:
+                return refuse("the planner cannot approve its own plan; ask another session", 4)
+            t.update(state="reviewed", reviewer=me)
+        store_rows(d, "tasks.jsonl", rows)
+    if args.approve:
+        append_event(d, me, "task.review", ref=args.id, msg="approved")
+        print("%s: reviewed" % args.id)
+    else:
+        append_event(d, me, "task.reject", ref=args.id, msg=clean(args.reject, 120))
+        print("%s: rejected, stays planned" % args.id)
+    return 0
+
+
+def cmd_start(args) -> int:
+    d = need(args)
+    if need_stages(d):
+        return 3
+    me = current_sid(d)
+    root = team_root()
+    assert root is not None
+    top = worktree_top()
+    base = base_branch(d, root)
+    with locked(d):
+        rows = read_lines(d / "tasks.jsonl")
+        t, err = stage_task(d, rows, args.id, me, ("reviewed",))
+        if t is None:
+            return refuse(err, 4)
+        head = git(["rev-parse", base], root)
+        if head.returncode != 0:
+            return refuse("base branch %s not found" % base, 2)
+        if git(["merge-base", "--is-ancestor", base, "HEAD"], top).returncode != 0:
+            return refuse("this worktree does not contain %s: rebase first" % base, 4)
+        t.update(state="implementing", base_sha=head.stdout.strip())
+        store_rows(d, "tasks.jsonl", rows)
+    append_event(d, me, "task.start", ref=args.id)
+    print("%s: implementing" % args.id)
+    return 0
+
+
+def cmd_verify(args) -> int:
+    d = need(args)
+    if need_stages(d):
+        return 3
+    cfg = load_config(d)
+    if not cfg.get("test_cmd"):
+        return refuse("set test_cmd in .team/config.json ({files} placeholder)", 3)
+    me = current_sid(d)
+    top = worktree_top()
+    with locked(d):
+        t, err = stage_task(d, read_lines(d / "tasks.jsonl"), args.id, me, ("implementing",))
+        if t is None:
+            return refuse(err, 4)
+        files = [str(f) for f in t.get("files", [])]
+    quoted = " ".join(shlex.quote(f) for f in files)
+    tr = subprocess.run(str(cfg["test_cmd"]).replace("{files}", quoted), shell=True, cwd=top,
+                        capture_output=True, text=True)
+    if tr.returncode != 0:
+        tail = "\n".join((tr.stdout + tr.stderr).strip().splitlines()[-15:])
+        return refuse("tests failed (rc=%d), %s stays implementing:\n%s" % (
+            tr.returncode, args.id, tail), 7)
+    with locked(d):
+        rows = read_lines(d / "tasks.jsonl")
+        t, err = stage_task(d, rows, args.id, me, ("implementing",))
+        if t is None:
+            return refuse(err, 4)
+        t["state"] = "verifying"
+        store_rows(d, "tasks.jsonl", rows)
+    append_event(d, me, "task.verify", ref=args.id)
+    print("%s: verifying" % args.id)
+    return 0
+
+
+def cmd_unblock(args) -> int:
+    d = need(args)
+    me = current_sid(d)
+    stages = bool(load_config(d).get("stages"))
+    with locked(d):
+        rows = read_lines(d / "tasks.jsonl")
+        t, err = stage_task(d, rows, args.id, me, ("blocked",))
+        if t is None:
+            return refuse(err, 4)
+        live = live_map(d)
+        for f in t.get("files", []):
+            h = holder_of(d, str(f).casefold(), me, rows, live)
+            if h and not args.force:
+                return refuse(held_msg(str(f), h) + "\n(--force to override)", 4)
+        t["state"] = "planned" if stages else "claimed"
+        store_rows(d, "tasks.jsonl", rows)
+    append_event(d, me, "task.unblock", ref=args.id, msg="force" if args.force else "")
+    print("%s: %s" % (args.id, "planned" if stages else "claimed"))
+    return 0
+
+
+def cmd_quick(args) -> int:
+    d = need(args)
+    me = current_sid(d)
+    heartbeat(d, me)
+    rel = norm_rel(args.file)
+    if rel.startswith("../") or os.path.isabs(rel):
+        return refuse("outside this checkout: " + args.file, 2)
+    cfg = load_config(d)
+    if is_hotspot(rel, cfg.get("hotspots", HOTSPOTS)):
+        return refuse("%s is a hotspot: use a full task and a lease" % rel, 4)
+    title = clean(" ".join(args.title), 120)
+    with locked(d):
+        rows = read_lines(d / "tasks.jsonl")
+        h = holder_of(d, rel.casefold(), me, rows, live_map(d))
+        if h:
+            return refuse(held_msg(rel, h), 4)
+        tid = next_id(rows, "T")
+        rows.append({"schema_version": SCHEMA, "id": tid, "title": title,
+                     "state": "implementing" if cfg.get("stages") else "claimed",
+                     "owner": me, "account": account(), "files": [rel], "bugs": [],
+                     "plan": "", "reviewer": "", "base_sha": "", "ts": now()})
+        store_rows(d, "tasks.jsonl", rows)
+    append_event(d, me, "quick", ref=tid, msg=title)
+    print(tid)
+    return 0
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -1194,6 +1399,27 @@ def build_parser() -> argparse.ArgumentParser:
     pl.add_argument("--plan", default="")
     pl.add_argument("--add-file", action="append")
     pl.set_defaults(fn=cmd_plan)
+    dg = sub.add_parser("debug")
+    dg.add_argument("id")
+    dg.add_argument("--repro", default="")
+    dg.set_defaults(fn=cmd_debug)
+    rv = sub.add_parser("review")
+    rv.add_argument("id")
+    rv.add_argument("--approve", action="store_true")
+    rv.add_argument("--reject", default="")
+    rv.set_defaults(fn=cmd_review)
+    for name, fn in (("start", cmd_start), ("verify", cmd_verify)):
+        sp2 = sub.add_parser(name)
+        sp2.add_argument("id")
+        sp2.set_defaults(fn=fn)
+    ub = sub.add_parser("unblock")
+    ub.add_argument("id")
+    ub.add_argument("--force", action="store_true")
+    ub.set_defaults(fn=cmd_unblock)
+    qk = sub.add_parser("quick")
+    qk.add_argument("title", nargs="+")
+    qk.add_argument("--file", required=True)
+    qk.set_defaults(fn=cmd_quick)
     ln = sub.add_parser("land")
     ln.add_argument("id")
     ln.add_argument("--fmt", action="store_true")
