@@ -18,6 +18,7 @@ import hashlib
 import json
 import os
 import re
+import shlex
 import subprocess
 import sys
 import time
@@ -38,7 +39,8 @@ HOTSPOTS = [
 DEFAULT_CONFIG = {"schema_version": SCHEMA, "stale_min": 20, "stages": False,
                   "hotspots": HOTSPOTS}
 SUBDIRS = ("sessions", "inbox", "notes", "archive")
-OPEN_STATES = ("open", "claimed")
+OPEN_STATES = ("open", "claimed", "blocked", "orphaned")
+FREE_STATES = ("open", "orphaned")
 
 
 # ---------------------------------------------------------------- locations
@@ -109,9 +111,9 @@ def current_sid(d: Path, cwd: str | None = None) -> str:
 
 # ------------------------------------------------------------------ storage
 @contextlib.contextmanager
-def locked(d: Path, timeout: float = 2.0):
+def locked(d: Path, timeout: float = 2.0, name: str = ".lock"):
     d.mkdir(parents=True, exist_ok=True)
-    fh = open(d / ".lock", "a+")
+    fh = open(d / name, "a+")
     end = time.monotonic() + timeout
     try:
         while True:
@@ -260,7 +262,8 @@ def clean(text: str, n: int = 160) -> str:
 
 def status_lines(d: Path, sid: str = "") -> list[str]:
     live = refresh_live(d)
-    lines = ["team: goal: " + (live["goal_line"] or "(none; `team goal <text>`)")]
+    lines = ["team: GATE OFF (.team/gate.off): edits are not checked"] if (d / "gate.off").exists() else []
+    lines.append("team: goal: " + (live["goal_line"] or "(none; `team goal <text>`)"))
     ses = live["sessions"]
     lines.append("team: %d live session(s): %s" % (
         len(ses), ", ".join("%s@%s" % (s["sid"], s["acct"]) for s in ses) or "-"))
@@ -354,7 +357,7 @@ def open_tasks(d: Path) -> list[dict]:
 
 def is_held_by_peer(d: Path, t: dict, me: str) -> bool:
     owner = t.get("owner")
-    return (t.get("state") == "claimed" and bool(owner) and owner != me
+    return (t.get("state") in ("claimed", "blocked") and bool(owner) and owner != me
             and owner in {s.get("sid") for s in live_sessions(d)})
 
 
@@ -363,7 +366,7 @@ def next_task(d: Path) -> dict | None:
     rows = open_tasks(d)
     taken = {f.casefold() for t in rows if t.get("state") == "claimed"
              for f in t.get("files", [])}
-    free = [t for t in rows if t.get("state") == "open"
+    free = [t for t in rows if t.get("state") in FREE_STATES
             and not taken & {f.casefold() for f in t.get("files", [])}]
     free.sort(key=lambda t: (0 if t.get("bugs") else 1, t.get("ts", 0), t.get("id", "")))
     return free[0] if free else None
@@ -372,9 +375,210 @@ def next_task(d: Path) -> dict | None:
 def mine_open_lines(d: Path, sid: str) -> list[str]:
     rows = open_tasks(d)
     mine = [t for t in rows if t.get("state") == "claimed" and t.get("owner") == sid]
-    free = [t for t in rows if t.get("state") == "open"]
+    free = [t for t in rows if t.get("state") in FREE_STATES]
     return (["team: MINE " + task_line(t) for t in mine[:2]]
             + ["team: OPEN " + task_line(t) for t in free[:2]])
+
+
+# ------------------------------------------------------- leases and the gate
+class StateCorrupt(Exception):
+    """A state file is unreadable or from a newer schema; run `team doctor`."""
+
+
+def check_rec(rec: object, name: str) -> dict:
+    ver = rec.get("schema_version", SCHEMA) if isinstance(rec, dict) else None
+    if not isinstance(rec, dict) or not isinstance(ver, int) or ver > SCHEMA:
+        raise StateCorrupt("%s has a record this team.py cannot read" % name)
+    return rec
+
+
+def read_strict(path: Path) -> list[dict]:
+    """Like read_lines but corrupt data raises StateCorrupt (the gate fails closed)."""
+    try:
+        text = path.read_text()
+    except FileNotFoundError:
+        return []
+    except OSError as e:
+        raise StateCorrupt("%s unreadable" % path.name) from e
+    rows = []
+    for ln in text.splitlines():
+        if ln.strip():
+            try:
+                rows.append(check_rec(json.loads(ln), path.name))
+            except ValueError as e:
+                raise StateCorrupt("%s has a corrupt line" % path.name) from e
+    return rows
+
+
+def strict_config(d: Path) -> dict:
+    try:
+        return check_rec(json.loads((d / "config.json").read_text()), "config.json")
+    except (OSError, ValueError) as e:
+        raise StateCorrupt("config.json unreadable") from e
+
+
+def glob_re(pat: str) -> re.Pattern:
+    out, i = "", 0
+    while i < len(pat):
+        if pat.startswith("**/", i):
+            out, i = out + "(?:.*/)?", i + 3
+        elif pat.startswith("**", i):
+            out, i = out + ".*", i + 2
+        elif pat[i] == "*":
+            out, i = out + "[^/]*", i + 1
+        elif pat[i] == "?":
+            out, i = out + "[^/]", i + 1
+        else:
+            out, i = out + re.escape(pat[i]), i + 1
+    return re.compile("^" + out + "$", re.I)
+
+
+def is_hotspot(rel: str, patterns: list) -> bool:
+    base = rel.rsplit("/", 1)[-1]
+    for pat in patterns:
+        rx = glob_re(str(pat))
+        if rx.match(rel) or ("/" not in str(pat) and rx.match(base)):
+            return True
+    return False
+
+
+def norm_rel(path: str, cwd: str | None = None) -> str:
+    """Repo-relative '/'-separated form of a path named in a plan or on the command line."""
+    p = path.strip().replace("\\", "/")
+    if os.path.isabs(p):
+        top = worktree_top(cwd)
+        real = os.path.realpath(p)
+        if real == top or real.startswith(top + os.sep):
+            p = os.path.relpath(real, top).replace(os.sep, "/")
+    while p.startswith("./"):
+        p = p[2:]
+    return p
+
+
+def lease_path(d: Path, key: str) -> Path:
+    return d / "leases" / (hashlib.sha256(key.encode()).hexdigest()[:16] + ".json")
+
+
+def read_lease(d: Path, key: str) -> dict | None:
+    try:
+        return check_rec(json.loads(lease_path(d, key).read_text()), "lease")
+    except FileNotFoundError:
+        return None
+    except (OSError, ValueError) as e:
+        raise StateCorrupt("a lease file is unreadable") from e
+
+
+def write_lease(d: Path, rel: str, sid: str, task: str, top: str) -> None:
+    atomic_write(lease_path(d, rel.casefold()), json.dumps(
+        {"schema_version": SCHEMA, "path": rel, "sid": sid, "acct": account(),
+         "task": task, "worktree": top, "hb": now()}))
+
+
+def live_map(d: Path) -> dict[str, dict]:
+    return {str(s.get("sid")): s for s in live_sessions(d)}
+
+
+def holder_of(d: Path, key: str, me: str, tasks: list[dict],
+              live: dict[str, dict]) -> tuple[str, str, str] | None:
+    """(sid, acct, task) of a LIVE peer holding `key` by lease or claimed task, else None."""
+    lease = read_lease(d, key)
+    if lease and lease.get("sid") != me and lease.get("sid") in live:
+        return (str(lease["sid"]), str(lease.get("acct", "")), str(lease.get("task", "")))
+    for t in tasks:
+        if (t.get("state") == "claimed" and t.get("owner") not in ("", me)
+                and t.get("owner") in live
+                and key in {str(f).casefold() for f in t.get("files", [])}):
+            return (str(t["owner"]), str(t.get("account", "")), str(t.get("id", "")))
+    return None
+
+
+def held_msg(rel: str, h: tuple[str, str, str]) -> str:
+    return ("%s is held by %s@%s (task %s).\nAsk them: `team msg %s <text>`; "
+            "see `team who %s`." % (rel, h[0][:8], h[1], h[2] or "-", h[0], rel))
+
+
+def gate_decision(d: Path, sid: str, cwd: str, path: str) -> tuple[str | None, str]:
+    """(block_reason or None, advisory note). Raises TimeoutError / StateCorrupt."""
+    top = worktree_top(cwd)
+    real = os.path.realpath(path if os.path.isabs(path) else os.path.join(cwd, path))
+    droot = os.path.realpath(str(d))
+    if real == droot or real.startswith(droot + os.sep):
+        return "direct edits of .team/ are blocked; use `team` (task, lease, msg).", ""
+    if real != top and not real.startswith(top + os.sep):
+        return None, ""  # not a file of this checkout
+    rel = os.path.relpath(real, top).replace(os.sep, "/")
+    key = rel.casefold()
+    with locked(d):
+        cfg = strict_config(d)
+        if (d / "gate.off").exists():
+            return None, ""
+        tasks = read_strict(d / "tasks.jsonl")
+        peer = holder_of(d, key, sid, tasks, live_map(d))
+        if peer:
+            return held_msg(rel, peer), ""
+        lease = read_lease(d, key)
+        if lease and lease.get("sid") == sid:
+            return None, ""
+        mine = [t for t in tasks if t.get("state") == "claimed" and t.get("owner") == sid]
+        if is_hotspot(rel, cfg.get("hotspots", HOTSPOTS)):
+            return "%s is a hotspot: take a lease first: `team lease %s`." % (rel, rel), ""
+        if not mine:
+            return None, "team: no claimed task; %s edited unleased (`team next` to pick one)." % rel
+        for t in mine:
+            if key in {str(f).casefold() for f in t.get("files", [])}:
+                write_lease(d, rel, sid, str(t.get("id", "")), top)
+                return None, ""
+        tid = str(mine[0].get("id", ""))
+        return ("%s is outside task %s files.\nAdd it: `team plan %s --add-file %s`."
+                % (rel, tid, tid, rel)), ""
+
+
+def plan_files(path: Path) -> list[str]:
+    """Paths listed under the `Files:` header of a plan.md (stops at the first blank line)."""
+    out: list[str] = []
+    on = False
+    for ln in path.read_text().splitlines():
+        if not on:
+            on = ln.strip() == "Files:"
+            continue
+        if not ln.strip() or ln.lstrip().startswith("#"):
+            break
+        m = re.match(r"^[-*\s]*`?([^`\s]+)`?", ln)
+        if m:
+            out.append(m.group(1))
+    return out
+
+
+def git(args: list[str], cwd: str | Path) -> subprocess.CompletedProcess:
+    return subprocess.run(["git", *args], cwd=str(cwd), capture_output=True, text=True,
+                          timeout=300)
+
+
+def base_branch(d: Path, root: Path) -> str:
+    r = git(["symbolic-ref", "--short", "refs/remotes/origin/HEAD"], root)
+    out = r.stdout.strip()
+    if r.returncode == 0 and "/" in out:
+        return out.split("/", 1)[1]
+    return str(load_config(d).get("base") or "main")
+
+
+def finish_land(d: Path, tid: str, sha: str, me: str) -> None:
+    """Step 7-8: compact the task to one line, archive details, free its leases. Idempotent."""
+    with locked(d):
+        rows = read_lines(d / "tasks.jsonl")
+        t = find_row(rows, tid)
+        if t is not None and t.get("state") != "landed":
+            append_line(d / "archive" / "landed.jsonl",
+                        dict(t, landed_sha=sha, landed_ts=now()))
+            rows[rows.index(t)] = {"schema_version": SCHEMA, "id": tid, "state": "landed",
+                                   "title": t.get("title", ""), "owner": "", "sha": sha,
+                                   "ts": now()}
+            store_rows(d, "tasks.jsonl", rows)
+        for lf in (d / "leases").glob("*.json"):
+            with contextlib.suppress(OSError, ValueError):
+                if json.loads(lf.read_text()).get("task") == tid:
+                    lf.unlink()
+    append_event(d, me, "landed", ref=tid, msg=sha[:10])
 
 
 # ------------------------------------------------------------------ commands
@@ -485,7 +689,7 @@ def cmd_history(args) -> int:
 
 def cmd_gc(args) -> int:
     d = need(args)
-    removed = 0
+    removed = freed = orphaned = 0
     with locked(d):
         rotated = rotate_events(d, force=args.force)
         for f in (d / "sessions").glob("*.json"):
@@ -496,8 +700,32 @@ def cmd_gc(args) -> int:
             if now() - hb > 24 * 3600:
                 f.unlink(missing_ok=True)
                 removed += 1
-    print("gc: rotated=%s stale_sessions_removed=%d" % (rotated, removed))
+        live = live_map(d)
+        for lf in (d / "leases").glob("*.json"):
+            try:
+                rec = json.loads(lf.read_text())
+            except (OSError, ValueError):
+                rec = {}
+            if rec.get("sid") not in live:
+                lf.unlink(missing_ok=True)
+                freed += 1
+        rows = read_lines(d / "tasks.jsonl")
+        for t in rows:
+            if t.get("state") == "claimed" and t.get("owner") not in live:
+                t.update(state="orphaned", owner="")
+                orphaned += 1
+        if orphaned:
+            store_rows(d, "tasks.jsonl", rows)
+    print("gc: rotated=%s stale_sessions_removed=%d leases_freed=%d orphaned=%d" % (
+        rotated, removed, freed, orphaned))
     return 0
+
+
+def lease_file_ok(f: Path) -> bool:
+    try:
+        return isinstance(json.loads(f.read_text()), dict)
+    except (OSError, ValueError):
+        return False
 
 
 def cmd_doctor(args) -> int:
@@ -511,6 +739,7 @@ def cmd_doctor(args) -> int:
 
     chk(isinstance(load_config(d).get("stale_min"), int), "config.json readable, stale_min int")
     chk(all((d / s).is_dir() for s in SUBDIRS), "subdirs present")
+    chk(all(lease_file_ok(f) for f in (d / "leases").glob("*.json")), "lease files parse")
     chk((d / "events.jsonl").is_file(), "events.jsonl present")
     live = d / "live.json"
     chk(not live.exists() or live.stat().st_size <= LIVE_CAP, "live.json <= 2 KB")
@@ -668,6 +897,232 @@ def cmd_bug_dup(args) -> int:
     return 0
 
 
+def my_task_id(tasks: list[dict], me: str) -> str:
+    return next((str(t["id"]) for t in tasks
+                 if t.get("state") == "claimed" and t.get("owner") == me), "")
+
+
+def cmd_lease(args) -> int:
+    d = need(args)
+    me = current_sid(d)
+    heartbeat(d, me)
+    top = worktree_top()
+    rels = []
+    for p in args.paths:
+        rel = norm_rel(p)
+        if rel.startswith("../") or os.path.isabs(rel):
+            return refuse("outside this checkout: " + p, 2)
+        rels.append(rel)
+    with locked(d):
+        tasks = read_lines(d / "tasks.jsonl")
+        live = live_map(d)
+        for rel in rels:
+            h = holder_of(d, rel.casefold(), me, tasks, live)
+            if h:
+                return refuse(held_msg(rel, h), 4)
+        for rel in rels:
+            write_lease(d, rel, me, my_task_id(tasks, me), top)
+    append_event(d, me, "lease", ref=rels[0], msg="%d path(s)" % len(rels))
+    print("leased " + ", ".join(rels))
+    return 0
+
+
+def cmd_unlease(args) -> int:
+    d = need(args)
+    me = current_sid(d)
+    if not args.paths and not args.all:
+        return refuse("name paths or pass --all", 2)
+    with locked(d):
+        live = live_map(d)
+        if args.all:
+            files = list((d / "leases").glob("*.json"))
+        else:
+            files = [lease_path(d, norm_rel(p).casefold()) for p in args.paths]
+        freed = 0
+        for lf in files:
+            try:
+                rec = json.loads(lf.read_text())
+            except (OSError, ValueError):
+                continue
+            if rec.get("sid") == me or rec.get("sid") not in live:
+                if args.all and rec.get("sid") != me:
+                    continue
+                lf.unlink(missing_ok=True)
+                freed += 1
+            elif not args.all:
+                return refuse("%s is leased by live session %s" % (
+                    rec.get("path"), clean(rec.get("sid", ""), 8)), 4)
+    append_event(d, me, "unlease", msg="%d freed" % freed)
+    print("freed %d lease(s)" % freed)
+    return 0
+
+
+def cmd_who(args) -> int:
+    d = need(args)
+    rel = norm_rel(args.path)
+    with locked(d):
+        h = holder_of(d, rel.casefold(), "", read_lines(d / "tasks.jsonl"), live_map(d))
+        hot = is_hotspot(rel, load_config(d).get("hotspots", HOTSPOTS))
+    head = ("held by %s@%s task %s" % (h[0][:8], h[1], h[2] or "-")) if h else "free"
+    print(head + (" (hotspot: lease required)" if hot else ""))
+    return 0
+
+
+def cmd_plan(args) -> int:
+    d = need(args)
+    me = current_sid(d)
+    if not (args.files or args.plan or args.add_file):
+        return refuse("give --files, --plan or --add-file", 2)
+    wanted: list[str] = []
+    if args.plan:
+        pf = Path(worktree_top()) / args.plan
+        if not pf.is_file():
+            return refuse("no such plan file: " + args.plan, 2)
+        wanted += plan_files(pf)
+    wanted += split_files(args.files)
+    with locked(d):
+        rows = read_lines(d / "tasks.jsonl")
+        t = find_row(rows, args.id)
+        if t is None:
+            return refuse("no such task: " + args.id, 2)
+        if t.get("state") not in ("claimed", "blocked") or t.get("owner") != me:
+            return refuse("%s is not yours; `team claim %s` first" % (args.id, args.id), 4)
+        files = [norm_rel(f) for f in wanted] if wanted else list(t.get("files", []))
+        files += [norm_rel(f) for f in args.add_file or []]
+        files = list(dict.fromkeys(files))
+        live = live_map(d)
+        for f in files:
+            h = holder_of(d, f.casefold(), me, rows, live)
+            if h:
+                t["state"] = "blocked"
+                store_rows(d, "tasks.jsonl", rows)
+                print(held_msg(f, h) + "\n%s is now blocked." % args.id, file=sys.stderr)
+                return 4
+        t.update(state="claimed", files=files)
+        if args.plan:
+            t["plan"] = args.plan
+        store_rows(d, "tasks.jsonl", rows)
+    append_event(d, me, "task.plan", ref=args.id, msg="%d file(s)" % len(files))
+    print("planned %s: %d file(s)" % (args.id, len(files)))
+    return 0
+
+
+def land_steps(args, d: Path, cfg: dict, t: dict, me: str, root: Path, top: str,
+               base: str) -> int:
+    files = [str(f) for f in t.get("files", [])]
+    pre = git(["rev-parse", base], root)
+    if pre.returncode != 0:
+        return refuse("base branch %s not found" % base, 2)
+    pre_base = pre.stdout.strip()
+    branch = git(["rev-parse", "--abbrev-ref", "HEAD"], top).stdout.strip()
+    r = git(["rebase", base], top)
+    if r.returncode != 0:
+        bad = git(["diff", "--name-only", "--diff-filter=U"], top).stdout.split()
+        git(["rebase", "--abort"], top)
+        with locked(d):
+            tasks, live = read_lines(d / "tasks.jsonl"), live_map(d)
+        for f in bad:
+            h = holder_of(d, f.casefold(), "", tasks, live)
+            print("conflict: %s (owner %s)" % (f, h[0][:8] if h else "none"), file=sys.stderr)
+        if not bad:
+            print("rebase failed: " + clean(r.stderr.strip().splitlines()[-1:] and
+                                            r.stderr.strip().splitlines()[-1], 200),
+                  file=sys.stderr)
+        return 5
+    quoted = " ".join(shlex.quote(f) for f in files)
+    if args.fmt:
+        fr = subprocess.run(str(cfg["fmt_cmd"]).replace("{files}", quoted), shell=True,
+                            cwd=top, capture_output=True, text=True)
+        if fr.returncode != 0:
+            return refuse("fmt_cmd failed:\n" + clean(fr.stdout + fr.stderr, 400), 7)
+        git(["add", "--", *files], top)
+        if git(["diff", "--cached", "--quiet"], top).returncode != 0:
+            git(["commit", "-q", "-m", "style: format %s files" % args.id], top)
+    extras = [f for f in git(["diff", "--name-only", base + "...HEAD"], top).stdout.split()
+              if f.casefold() not in {x.casefold() for x in files}]
+    if extras:
+        return refuse("changed paths outside task files: " + ", ".join(extras), 6)
+    tr = subprocess.run(str(cfg["test_cmd"]).replace("{files}", quoted), shell=True, cwd=top,
+                        capture_output=True, text=True)
+    if tr.returncode != 0:
+        tail = "\n".join((tr.stdout + tr.stderr).strip().splitlines()[-15:])
+        return refuse("tests failed (test_cmd rc=%d):\n%s" % (tr.returncode, tail), 7)
+    sha = git(["rev-parse", "HEAD"], top).stdout.strip()
+    if cfg["land"] == "gatekeeper":
+        append_event(d, me, "land.ready", ref=args.id, msg=sha[:10])
+        print("tests passed; base %s untouched. Request the merge through the repo's "
+              "gatekeeper for branch %s sha %s." % (base, branch, sha))
+        return 0
+    if git(["status", "--porcelain"], root).stdout.strip():
+        return refuse("main checkout is dirty; commit or stash there first", 8)
+    if git(["rev-parse", "--abbrev-ref", "HEAD"], root).stdout.strip() != base:
+        return refuse("main checkout is not on %s" % base, 8)
+    for s in live_sessions(d):
+        if s.get("sid") != me and os.path.realpath(str(s.get("worktree", ""))) == str(root):
+            return refuse("live session %s works in the main checkout" % clean(s["sid"], 8), 8)
+    for lf in (d / "leases").glob("*.json"):
+        with contextlib.suppress(OSError, ValueError):
+            rec = json.loads(lf.read_text())
+            if (rec.get("sid") != me and rec.get("sid") in live_map(d)
+                    and os.path.realpath(str(rec.get("worktree", ""))) == str(root)):
+                return refuse("live session %s holds a lease in the main checkout" % (
+                    clean(rec["sid"], 8)), 8)
+    if git(["rev-parse", base], root).stdout.strip() != pre_base:
+        return refuse("%s moved while landing; retry `team land %s`" % (base, args.id), 4)
+    mr = git(["merge", "--ff-only", branch], root)
+    if mr.returncode != 0:
+        return refuse("not a fast-forward; retry `team land %s`" % args.id, 4)
+    try:
+        finish_land(d, args.id, sha, me)
+    except Exception as e:  # bookkeeping failed after the merge: print the undo, never run it
+        print("landed on %s but bookkeeping failed (%s). Undo, if wanted:\n"
+              "  git -C %s reset --hard %s" % (base, clean(str(e), 100), root, pre_base),
+              file=sys.stderr)
+        return 1
+    print("landed %s at %s" % (args.id, sha[:10]))
+    return 0
+
+
+def cmd_land(args) -> int:
+    d = need(args)
+    cfg = load_config(d)
+    me = current_sid(d)
+    root = team_root()
+    assert root is not None
+    top = worktree_top()
+    if cfg.get("land") not in ("local", "gatekeeper"):
+        return refuse("set land: local|gatekeeper in .team/config.json", 3)
+    t = find_row(read_lines(d / "tasks.jsonl"), args.id)
+    if t is None:
+        return refuse("no such task: " + args.id, 2)
+    base = base_branch(d, root)
+    if args.resume:
+        if t.get("state") == "landed":
+            print("%s already landed" % args.id)
+            return 0
+        if git(["merge-base", "--is-ancestor", "HEAD", base], top).returncode != 0:
+            return refuse("this branch is not merged into %s; run `team land %s`" % (
+                base, args.id), 4)
+        finish_land(d, args.id, git(["rev-parse", "HEAD"], top).stdout.strip(), me)
+        print("resumed: %s landed" % args.id)
+        return 0
+    if not cfg.get("test_cmd"):
+        return refuse("set test_cmd in .team/config.json ({files} placeholder)", 3)
+    if args.fmt and not cfg.get("fmt_cmd"):
+        return refuse("set fmt_cmd in .team/config.json ({files} placeholder)", 3)
+    if t.get("state") != "claimed" or t.get("owner") != me:
+        return refuse("%s is not claimed by this session" % args.id, 4)
+    if not t.get("files"):
+        return refuse("%s has no files; `team plan %s --files ...` first" % (args.id, args.id), 4)
+    if Path(top) == root:
+        return refuse("run `team land` from the task's worktree, not the main checkout", 2)
+    try:
+        with locked(d, name="land.lock"):
+            return land_steps(args, d, cfg, t, me, root, top, base)
+    except TimeoutError:
+        return refuse("queue busy: another land is running", 4)
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="team", description=__doc__.splitlines()[0])
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -723,6 +1178,27 @@ def build_parser() -> argparse.ArgumentParser:
     bd.add_argument("id")
     bd.add_argument("of")
     bd.set_defaults(fn=cmd_bug_dup)
+    ls = sub.add_parser("lease")
+    ls.add_argument("paths", nargs="+")
+    ls.set_defaults(fn=cmd_lease)
+    ul = sub.add_parser("unlease")
+    ul.add_argument("paths", nargs="*")
+    ul.add_argument("--all", action="store_true")
+    ul.set_defaults(fn=cmd_unlease)
+    wh = sub.add_parser("who")
+    wh.add_argument("path")
+    wh.set_defaults(fn=cmd_who)
+    pl = sub.add_parser("plan")
+    pl.add_argument("id")
+    pl.add_argument("--files", default="")
+    pl.add_argument("--plan", default="")
+    pl.add_argument("--add-file", action="append")
+    pl.set_defaults(fn=cmd_plan)
+    ln = sub.add_parser("land")
+    ln.add_argument("id")
+    ln.add_argument("--fmt", action="store_true")
+    ln.add_argument("--resume", action="store_true")
+    ln.set_defaults(fn=cmd_land)
     return p
 
 

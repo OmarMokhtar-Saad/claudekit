@@ -22,6 +22,9 @@ def main() -> int:
         sid = str(payload.get("session_id") or "unknown")
         team.heartbeat(d, sid, cwd)
         team.append_event(d, sid, "session.start")
+        gate_off = d / "gate.off"
+        if gate_off.exists():
+            team.append_event(d, sid, "gate.off", msg="mtime=%d" % int(gate_off.stat().st_mtime))
         print("\n".join(team.session_start_lines(d, sid)))
     except Exception:  # advisory: never break a session
         return 0
