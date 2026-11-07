@@ -226,3 +226,11 @@ def test_stages_off_rollback(env):
     r = run(wt, "land", tid)
     assert r.returncode == 0, r.stderr
     assert run(wt, "debug", tid).returncode == 3
+
+
+def test_status_shows_stage_counts_only_when_on(env):
+    main, wt, tid = env
+    to_planned(wt, tid)
+    assert "stages on: planned 1" in run(wt, "status").stdout
+    set_cfg(main, stages=False)
+    assert "stages on" not in run(wt, "status").stdout

@@ -271,6 +271,14 @@ def status_lines(d: Path, sid: str = "") -> list[str]:
         len(ses), ", ".join("%s@%s" % (s["sid"], s["acct"]) for s in ses) or "-"))
     lines.append("team: open tasks %d, open bugs %d, leases %d" % (
         len(live["tasks_open"]), len(live["bugs_open"]), len(live["leases"])))
+    if load_config(d).get("stages"):
+        by: dict[str, int] = {}
+        for t in open_tasks(d):
+            st = str(t.get("state"))
+            if st in STAGED:
+                by[st] = by.get(st, 0) + 1
+        lines.append("team: stages on: " + (", ".join(
+            "%s %d" % (s, by[s]) for s in STAGED if s in by) or "no staged tasks"))
     lines.extend(mine_open_lines(d, sid))
     for e in live["recent"][-3:]:
         lines.append("team: %s %s %s" % (
