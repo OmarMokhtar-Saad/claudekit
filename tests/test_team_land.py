@@ -20,7 +20,8 @@ def git(cwd, *a):
 
 
 def run(cwd, *args, sid="me"):
-    env = {**os.environ, "CLAUDE_SESSION_ID": sid, "CLAUDE_CONFIG_DIR": "/x/.claude-acct-a"}
+    env = {**os.environ, **ENV_GIT, "CLAUDE_SESSION_ID": sid,
+           "CLAUDE_CONFIG_DIR": "/x/.claude-acct-a"}
     return subprocess.run([sys.executable, str(TEAM), *args], cwd=cwd, env=env,
                           capture_output=True, text=True)
 

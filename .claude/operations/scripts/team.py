@@ -1077,7 +1077,9 @@ def land_steps(args, d: Path, cfg: dict, t: dict, me: str, root: Path, top: str,
             return refuse("fmt_cmd failed:\n" + clean(fr.stdout + fr.stderr, 400), 7)
         git(["add", "--", *files], top)
         if git(["diff", "--cached", "--quiet"], top).returncode != 0:
-            git(["commit", "-q", "-m", "style: format %s files" % args.id], top)
+            cr = git(["commit", "-q", "-m", "style: format %s files" % args.id], top)
+            if cr.returncode != 0:
+                return refuse("fmt commit failed:\n" + clean(cr.stdout + cr.stderr, 400), 7)
     extras = [f for f in git(["diff", "--name-only", base + "...HEAD"], top).stdout.split()
               if f.casefold() not in {x.casefold() for x in files}]
     if extras:
