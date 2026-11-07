@@ -1,6 +1,13 @@
 # AI Session Changelog
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
+## 2026-11-07 — team coordination phases 1-4 (branch `feat/team-phase1`, PR #68)
+Claude Sonnet 5.5. Plan `plan-team-coordination.md` rev 5. Added `.team/` state, `team` CLI, edit gate,
+event log, handoff and stages, with tests. Live test with two real accounts exposed that no hook gave the
+CLI a session id; fixed via a PreToolUse heartbeat row and gate-side heartbeat, then wired the team
+SessionStart, PostToolUse and Stop hooks. Verified: full suite 11544 passed on `d0d99a8a`.
+Follow-up: Step 0.1 spike not run; no Phase 5 defined.
+
 ## 2026-11-06 — `(delete)` marker; `impact --ops` removed (branch `feat/remove-ops`)
 Claude Sonnet 5.5. Plan `plan-delete-marker-and-impact.md` (approved 91). Finding: no deletion
 detection existed before; `rm`, `git rm`, `unlink` and Write-to-empty reached no plan check.
