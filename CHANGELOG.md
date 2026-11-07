@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Added: `team` stages (Phase 4, opt-in `stages: true`).** `debug`, `review`, `start`,
+  `verify`, `unblock` and `quick`; the edit gate allows a task's files only at `implementing`
+  and `land` needs `verifying`. Off by default. See `.ai/CONCURRENCY.md`.
 - **Added: `team` tasks, bugs, leases and a blocking edit gate (Phases 2-3).** `team task`,
   `claim`, `next`, `bug`, `lease`, `plan`, `who`, `land`; `team gc` frees dead leases. The
   `team-edit-gate` PreToolUse hook blocks edits to a path a live peer holds, hotspots without a

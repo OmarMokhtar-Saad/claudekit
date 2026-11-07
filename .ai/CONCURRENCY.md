@@ -900,3 +900,18 @@ accounts. Until `.team/config.json` exists every team hook exits 0 silently.
   prints the undo and does not run it.
 - Rollback: the owner removes the `team-edit-gate` registry row (restores pre-gate behaviour)
   and its `profile.json` row, then `team unlease --all` and revert the commit.
+
+### Stages (Phase 4, opt-in `"stages": true` in `.team/config.json`)
+
+- States: `claimed → debugging → planned → reviewed → implementing → verifying → done`.
+  Commands: `debug <id> [--repro]`, `plan` (needs a repro or linked bug, and files),
+  `review <id> --approve | --reject "<why>"` (a second session; the planner cannot approve its
+  own plan), `start <id>` (base must be an ancestor of HEAD; records `base_sha`), `verify <id>`
+  (runs `test_cmd`; failure exits 7 and the task stays `implementing`), `land` (needs
+  `verifying`). `unblock <id> [--force]` returns a `blocked` task to `planned`.
+  `quick "<title>" --file f` creates a task straight at `implementing` (refused for hotspots
+  and peer-held paths).
+- The edit gate allows a task's files only at `implementing`; a session with no claimed task is
+  blocked and pointed to `team quick`. Stage commands exit 3 when stages are off.
+- Rollback: set `"stages": false`. The gate falls back to Phase 3 rules and `land` accepts any
+  active state; no data migration.
