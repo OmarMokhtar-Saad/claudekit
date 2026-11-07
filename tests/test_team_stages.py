@@ -234,3 +234,49 @@ def test_status_shows_stage_counts_only_when_on(env):
     assert "stages on: planned 1" in run(wt, "status").stdout
     set_cfg(main, stages=False)
     assert "stages on" not in run(wt, "status").stdout
+
+
+def hook(script, sid, cwd, *args):
+    payload = json.dumps({"session_id": sid, "cwd": str(cwd), "tool_name": "Bash",
+                          "tool_input": {}})
+    return subprocess.run([sys.executable, str(ROOT / ".claude" / "hooks" / script), *args],
+                          input=payload, cwd=cwd, capture_output=True, text=True,
+                          env={**os.environ, "ECC_HOOK_PROFILE": "standard"})
+
+
+def bare(cwd, *args):
+    env = {k: v for k, v in os.environ.items() if k != "CLAUDE_SESSION_ID"}
+    return subprocess.run([sys.executable, str(TEAM), *args], cwd=cwd, env=env,
+                          capture_output=True, text=True)
+
+
+def sess_dir(main):
+    return main / ".team" / "sessions"
+
+
+def test_heartbeat_flag_gives_cli_its_identity(env):
+    # live test 2026-11-07: with no SessionStart hook the CLI fell back to "unknown"
+    main, wt, tid = env
+    for f in sess_dir(main).glob("*.current"):
+        f.unlink()
+    assert hook("team-event-log.py", "sid-xyz", wt, "--heartbeat").returncode == 0
+    assert "sid-xyz" in bare(wt, "status").stdout
+    assert "sid-xyz" not in (main / ".team" / "events.jsonl").read_text()
+
+
+def test_cli_without_identity_never_registers_unknown(env):
+    main, wt, tid = env
+    for f in sess_dir(main).glob("*"):
+        f.unlink()
+    bare(wt, "status")
+    assert not (sess_dir(main) / "unknown.json").exists()
+    assert not list(sess_dir(main).glob("*.current"))
+
+
+def test_gate_call_registers_session_for_cli(env):
+    main, wt, tid = env
+    for f in sess_dir(main).glob("*.current"):
+        f.unlink()
+    gate(wt, wt / "free.txt", sid="sid-gate")
+    cur = list(sess_dir(main).glob("*.current"))
+    assert cur and cur[0].read_text() == "sid-gate"

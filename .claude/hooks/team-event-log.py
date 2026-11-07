@@ -22,6 +22,8 @@ def main() -> int:
             return 0
         sid = str(payload.get("session_id") or "unknown")
         team.heartbeat(d, sid, cwd)
+        if "--heartbeat" in sys.argv[1:]:
+            return 0  # PreToolUse: only record who this session is, before the tool runs
         if "--stop" in sys.argv[1:]:
             team.append_event(d, sid, "session.stop")
             team.write_handoff(d, sid)

@@ -203,6 +203,8 @@ def rotate_events(d: Path, force: bool = False) -> bool:
 
 # ------------------------------------------------------------------ sessions
 def heartbeat(d: Path, sid: str, cwd: str | None = None) -> None:
+    if sid == "unknown":
+        return  # never register (or overwrite .current with) an identity we do not have
     top = worktree_top(cwd)
     rec = {"schema_version": SCHEMA, "sid": sid, "acct": account(),
            "worktree": top, "hb": now()}

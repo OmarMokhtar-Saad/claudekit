@@ -67,6 +67,7 @@ def main() -> int:
         d = team.active_dir(cwd)
         if d is None:
             return 0
+        team.heartbeat(d, sid, cwd)  # the CLI reads who I am from this
         reason, note = team.gate_decision(d, sid, cwd, path)
     except TimeoutError:
         return block("team busy, retry the edit", path)
