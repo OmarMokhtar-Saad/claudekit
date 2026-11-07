@@ -12,6 +12,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Added: `team` stages (Phase 4, opt-in `stages: true`).** `debug`, `review`, `start`,
+  `verify`, `unblock` and `quick`; the edit gate allows a task's files only at `implementing`
+  and `land` needs `verifying`. Off by default. See `.ai/CONCURRENCY.md`.
+- **Added: `team` tasks, bugs, leases and a blocking edit gate (Phases 2-3).** `team task`,
+  `claim`, `next`, `bug`, `lease`, `plan`, `who`, `land`; `team gc` frees dead leases. The
+  `team-edit-gate` PreToolUse hook blocks edits to a path a live peer holds, hotspots without a
+  lease and paths outside the claimed task; it fails closed once `.team/` exists and goes
+  advisory under `ECC_HOOK_PROFILE=minimal`. Needs owner registration in
+  `dispatch-registry.json` and `profiles/minimal/profile.json`. See `.ai/CONCURRENCY.md`.
+- **Added: `team` CLI + advisory hooks for concurrent sessions (Phase 1).** Opt-in shared
+  `.team/` (created by `team init`, lives in the main checkout so every worktree and account
+  shares it): goal, event log, peer messages, per-session handoff notes. SessionStart prints
+  <=15 lines with peer text fenced as untrusted; nothing acts without `.team/config.json`.
+  Hooks `team-session-start` and `team-event-log` are advisory and need owner registration in
+  `dispatch-registry.json`. See `.ai/CONCURRENCY.md`.
 - **Added: `(delete)` marker for Tier 3 deletions.** A plan lists a path it deletes as
   `` `path` (delete) `` in `Files:`; `plan-write` refuses more than 3 marked paths or a globbed
   one (exit 8); `plan-check --delete` checks the marker. `plan-gate` blocks a Write-to-empty

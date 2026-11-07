@@ -160,6 +160,15 @@
             "command": "bash -c 'ROOT=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\"; python3 \"$ROOT/.claude/hooks/web-park.py\"'"
           }
         ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'ROOT=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\"; python3 \"$ROOT/.claude/hooks/team-event-log.py\"'"
+          }
+        ]
       }
     ],
     "UserPromptSubmit": [
@@ -227,6 +236,15 @@
             "command": "bash -c 'ROOT=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\"; python3 \"$ROOT/.claude/hooks/compaction-cadence.py\"'"
           }
         ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'ROOT=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\"; python3 \"$ROOT/.claude/hooks/team-session-start.py\"'"
+          }
+        ]
       }
     ],
     "PreCompact": [
@@ -283,6 +301,15 @@
           {
             "type": "command",
             "command": "bash -c 'ROOT=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\"; bash \"$ROOT/.claude/hooks/skill-fit-refresh.sh\" &'"
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'ROOT=\"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}\"; python3 \"$ROOT/.claude/hooks/team-event-log.py\" --stop'"
           }
         ]
       }

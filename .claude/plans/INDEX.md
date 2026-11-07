@@ -18,10 +18,10 @@ current files. Approval is local: ask `review-record.py plan-check <plan>`.
 
 | State | Plans |
 |---|---:|
-| `open` | 148 |
+| `open` | 149 |
 | `executed` | 30 |
 | `legacy` | 5 |
-| **total** | **183** |
+| **total** | **184** |
 
 ## Plans
 
@@ -186,6 +186,7 @@ current files. Approval is local: ask `review-record.py plan-check <plan>`.
 | `.claude/plans/plan-skill-slim-wave1.md` | `open` |
 | `.claude/plans/plan-subagent-spend-wind-down.md` | `open` |
 | `.claude/plans/plan-task-014-supply-chain-hardening.md` | `open` |
+| `.claude/plans/plan-team-coordination.md` | `open` |
 | `.claude/plans/plan-token-dash.md` | `executed` |
 | `.claude/plans/plan-token-efficiency.md` | `open` |
 | `.claude/plans/plan-token-remediation-ck.md` | `open` |

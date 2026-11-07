@@ -1,0 +1,70 @@
+{
+  "plan_path": ".claude/plans/plan-team-coordination.md",
+  "plan_sha256": "4119edc4f18aacf176a2b26e19f6efb730e9a32ee3176f2fb27926467e5b848a",
+  "files": [
+    ".claude/operations/scripts/team.py",
+    ".claude/hooks/team-session-start.py",
+    ".claude/hooks/team-event-log.py",
+    ".claude/hooks/team-edit-gate.py",
+    ".claude/hooks/dispatch-registry.json",
+    ".claude/profiles/minimal/profile.json",
+    "src/claudekit/profiles.py",
+    ".claude/skills/multi-agent-coordination/SKILL.md",
+    ".agents/skills/multi-agent-coordination/SKILL.md",
+    ".ai/CONCURRENCY.md",
+    "docs/HOOKS.md",
+    "README.md",
+    "CHANGELOG.md",
+    ".gitignore",
+    "tests/test_team_cli.py",
+    "tests/test_team_hooks.py",
+    "tests/test_team_edit_gate.py",
+    "tests/test_team_land.py",
+    "tests/test_team_concurrency.py",
+    "AGENTS.md"
+  ],
+  "score": 91,
+  "decision": "APPROVED",
+  "reviewer_role": "reviewer",
+  "role_source": "transcript",
+  "verdict_origin": "rubric",
+  "findings": [
+    "[MINOR] Rollback 3 does not say what to do with the `profiles.py` GUARDED_HOOKS entry or the `profile.json` minimal row. `profiles.py:193` raises ProfileError for a profile row whose id is not in GUARDED_HOOK",
+    "[MINOR] The \"1.2/1.3 note\" (hooks must not mention ECC_HOOK_PROFILE) sits inside the Phase 3 step list, out of order. Also, `test_no_unlisted_hook_carries_a_profile_guard` matches on `_SH_SIGIL_RE`, and I did",
+    "[MINOR] The plan says `pytest tests/test_hook_delivery.py` covers \"registry/profile rows\". That file is generic (install, doctor and wiring tests) and has no per-hook rows, so no new row is needed there. Runn"
+  ],
+  "recorded_utc": "2026-11-07T07:30:33Z",
+  "rounds": [
+    {
+      "score": 82,
+      "decision": "REVISE",
+      "findings": [
+        "[MAJOR] Phase 4 has no rollback. Rollbacks exist for Phases 1, 2 and 3 only. Phase 4 adds a blocking stage requirement to the gate, and `stages: true` leaves tasks in states such as `implementing`, `verifying",
+        "[MAJOR] The `Files:` list is frozen at approval (plan-gate), but the plan relies on amending it. Line 152 says \"If gen-docs.py rewrites a file not listed, the plan is amended before commit.\" Amending an appro",
+        "[MAJOR] `team land` defaults to a local fast-forward merge into the base branch from the main checkout (step 6). The gatekeeper path is chosen only when `config land: gatekeeper` is set. This conflicts with t",
+        "[MINOR] Step 1.4 says \"register both rows\", but the plan defines one SessionStart hook and one event-log hook that runs on PostToolUse and Stop. That is three registry entries (`dispatch-registry.json` has pe",
+        "[MINOR] The plan does not say how the new hooks and `profile.json` rows interact with the existing tests. Examples are `tests/test_profiles.py` and `tests/test_hook_delivery.py`, which scan hooks or profiles.",
+        "[MINOR] The session-id fallback (`$CLAUDE_SESSION_ID`, then a `.current` file) and the `reviewer sid != planner sid` rule are spoofable. Line 19 and the table label this honestly as \"honest-mistake guard\", so",
+        "[MINOR] The \"Files:\" header uses indented continuation lines with backticked comma lists. The word `Files:` also appears in prose earlier (lines 78, 152). I could not confirm plan-gate's header parser handles"
+      ],
+      "recorded_utc": "2026-11-07T07:22:44Z",
+      "verdict_origin": "rubric"
+    },
+    {
+      "score": 91,
+      "decision": "APPROVED",
+      "findings": [
+        "[MINOR] Rollback 1 says \"removes the two registry rows\" but step 1.4 adds three rows (SessionStart, PostToolUse, Stop) \u2014 Location: Rollback 1 vs step 1.4 \u2014 Fix: say \"three rows\".",
+        "[MINOR] Step 3.2 gate matcher is Edit|Write|MultiEdit but step 3.4 registry matcher adds NotebookEdit; existing blocking edit hooks also match str_replace_based_edit_tool|write_file (dispatch-registry.json:57",
+        "[MINOR] \"hand-fixed to the numbers gen-docs reports\" conflicts with hard rule 8 (never hand-edit counts); gen-docs.py rewrites DRIFT_FILES prose in place (gen-docs.py:267) \u2014 Location: per-phase paragraph unde",
+        "[MINOR] Case 8 says `team land --fmt` formats task files, but the Landing steps never mention `--fmt`, and no test covers it \u2014 Location: Same-file cases #8 vs Landing \u2014 Fix: add a step and a test.",
+        "[MINOR] Landing step 6 guards are not in the tests: main checkout not on base, and a live peer session or lease in main. Only dirty-main (exit 8) is tested \u2014 Location: Verification P3 \u2014 Fix: add two exit-8 te",
+        "[MINOR] Title line still says \"(rev 2)\" while the header says rev 3; \"undo printed if step 7 fails\" is odd, since step 7 is bookkeeping after a successful ff-merge \u2014 Location: lines 1 and 131 \u2014 Fix: retitle a",
+        "[MINOR] The P4 gate's `implementing` requirement has no mutation check like P3's \u2014 Location: Verification P4 \u2014 Fix: add a test that the gate refuses a `planned` task's file with stages on."
+      ],
+      "recorded_utc": "2026-11-07T07:25:10Z",
+      "verdict_origin": "rubric"
+    }
+  ],
+  "round": 3
+}
