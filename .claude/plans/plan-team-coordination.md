@@ -84,7 +84,7 @@ Steps:
 
 Gate rules (Phase 3 without stages): allow iff (a) path ∉ `.team/` (all direct edits of `.team/` blocked; use `team`), and (b) the path is leased by this session, or is free and inside the session's claimed task `files[]` (auto-lease). Otherwise exit 2 with ≤3 lines naming the holder and the fix command. Session with no claimed task and a free, non-hotspot path → allow + advisory note (keeps Tier 1 one-line fixes fast). Hotspot → always needs a lease.
 
-Rollback 3: owner removes the gate row (instantly restores pre-gate behaviour); `team unlease --all`; revert commit.
+Rollback 3: owner removes the gate row from `dispatch-registry.json` (instantly restores pre-gate behaviour) and the `team-edit-gate` row from `profiles/minimal/profile.json`; `team unlease --all`; revert commit.
 
 ## Phase 4 — Stages (blocking, opt-in `stages: true`)
 

@@ -875,3 +875,28 @@ accounts. Until `.team/config.json` exists every team hook exits 0 silently.
   delete the files, `rm -rf .team`.
 - Open spike (plan step 0.1): whether native agent teams share a task list across the two
   accounts is untested.
+
+### Tasks, bugs, leases and the edit gate (Phases 2-3)
+
+- Tasks and bugs: `team task new|show|list`, `claim|release|next`, `bug new|find|dup`.
+  `blocked` and `orphaned` tasks are claimable; a claimed or blocked task holds its `files[]`.
+- Leases: `team lease <paths>`, `unlease [paths|--all]`, `who <path>`,
+  `plan <id> [--files|--plan|--add-file]`. Identity is the sha256 of the casefolded
+  repo-relative path; a lease of a non-live session is free. `team gc` frees dead leases and
+  sets claimed tasks of dead owners to `orphaned`.
+- `team-edit-gate.py` (PreToolUse, blocking, `Edit|Write|MultiEdit|NotebookEdit`; logic in
+  `team.gate_decision`) blocks: any path under `.team/` (always, even with `.team/gate.off`),
+  a path held by a live peer, a hotspot without my lease, a path outside my claimed task's
+  files. Fails closed once `.team/config.json` exists: lock timeout ("team busy"), corrupt
+  state ("run team doctor") and any other exception exit 2. Under `ECC_HOOK_PROFILE=minimal`
+  it logs `WOULD-BLOCK` and exits 0 (same posture as `concurrency-guard`; there is no other
+  profile guard). `.team/gate.off` disables it except for `.team/`; session start logs a
+  `gate.off` event.
+- `team land <id> [--fmt] [--resume]` (needs `land` and `test_cmd` in config): rebase on base,
+  optional fmt, extra-path check, tests, then ff-merge from the main checkout (`land: local`)
+  or print the gatekeeper steps (`land: gatekeeper`). Never pushes. Exit codes: 3 unset,
+  4 held/queue busy/base moved, 5 rebase conflict, 6 extra paths, 7 fmt or tests failed,
+  8 main checkout dirty, off base or shared with a live peer. A failed bookkeeping step
+  prints the undo and does not run it.
+- Rollback: the owner removes the `team-edit-gate` registry row (restores pre-gate behaviour)
+  and its `profile.json` row, then `team unlease --all` and revert the commit.
