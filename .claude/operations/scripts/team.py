@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""team: shared view for concurrent Claude sessions (Phase 1).
+"""team: shared view, tasks and bugs for concurrent Claude sessions (Phases 1-2).
 
 State lives in `.team/` at the main checkout's root, shared by every worktree and
 account. Opt-in: nothing acts until `.team/config.json` exists (`team init`).
 Every gate here is a speed bump for honest mistakes, not a sandbox.
 
-Exit codes: 0 ok, 2 usage, 3 not a git checkout / not initialised.
+Exit codes: 0 ok, 1 lock busy, 2 usage / unknown id, 3 not a git checkout / not
+initialised, 4 refused (already claimed, not the owner, duplicate bug).
 """
 from __future__ import annotations
 
@@ -16,6 +17,7 @@ import gzip
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -36,6 +38,7 @@ HOTSPOTS = [
 DEFAULT_CONFIG = {"schema_version": SCHEMA, "stale_min": 20, "stages": False,
                   "hotspots": HOTSPOTS}
 SUBDIRS = ("sessions", "inbox", "notes", "archive")
+OPEN_STATES = ("open", "claimed")
 
 
 # ---------------------------------------------------------------- locations
@@ -228,10 +231,13 @@ def build_live(d: Path) -> dict:
     live: dict = {"schema_version": SCHEMA, "goal_line": goal_line(d),
             "sessions": [{"sid": s["sid"][:8], "acct": s.get("acct", "")}
                          for s in live_sessions(d)],
-            "tasks_open": [], "bugs_open": [], "leases": [],
+            "tasks_open": [t["id"] for t in open_tasks(d)],
+            "bugs_open": [b["id"] for b in read_lines(d / "bugs.jsonl")
+                          if b.get("state") == "open"],
+            "leases": [],
             "recent": [{"ts": e.get("ts"), "kind": e.get("kind"), "ref": e.get("ref", "")[:60]}
                        for e in read_lines(d / "events.jsonl")[-5:]]}
-    for key in ("sessions", "recent"):
+    for key in ("sessions", "recent", "tasks_open", "bugs_open"):
         dropped = 0
         while len(json.dumps(live)) > LIVE_CAP and live[key]:
             live[key].pop(0)
@@ -260,6 +266,7 @@ def status_lines(d: Path, sid: str = "") -> list[str]:
         len(ses), ", ".join("%s@%s" % (s["sid"], s["acct"]) for s in ses) or "-"))
     lines.append("team: open tasks %d, open bugs %d, leases %d" % (
         len(live["tasks_open"]), len(live["bugs_open"]), len(live["leases"])))
+    lines.extend(mine_open_lines(d, sid))
     for e in live["recent"][-3:]:
         lines.append("team: %s %s %s" % (
             time.strftime("%H:%M", time.localtime(e.get("ts") or 0)), e.get("kind"), e.get("ref")))
@@ -305,6 +312,71 @@ def write_handoff(d: Path, sid: str) -> None:
         atomic_write(d / "notes" / (sid + ".md"), "\n".join(lines[:10]) + "\n")
 
 
+# ----------------------------------------------------------- tasks and bugs
+def store_rows(d: Path, name: str, rows: list[dict]) -> None:
+    atomic_write(d / name, "".join(
+        json.dumps(r, separators=(",", ":"), ensure_ascii=False) + "\n" for r in rows))
+
+
+def next_id(rows: list[dict], prefix: str) -> str:
+    n = 0
+    for r in rows:
+        with contextlib.suppress(ValueError, TypeError):
+            n = max(n, int(str(r.get("id", ""))[1:]))
+    return "%s%d" % (prefix, n + 1)
+
+
+def find_row(rows: list[dict], rid: str) -> dict | None:
+    return next((r for r in rows if r.get("id") == rid), None)
+
+
+def normalize_err(text: str) -> str:
+    """Lowercase; abs paths -> basename; hex runs >=6 -> H; digit runs -> N."""
+    t = re.sub(r"(?<![\w.])/(?:[^\s/:'\"]+/)*([^\s/:'\"]+)", r"\1", str(text))
+    t = re.sub(r"0x[0-9a-f]+|\b[0-9a-f]{6,}\b", "H", t.lower())
+    return " ".join(re.sub(r"\d+", "N", t).split())
+
+
+def fingerprint(err: str, relpath: str, func: str) -> str:
+    rp = relpath.replace("\\", "/")
+    while rp.startswith("./"):
+        rp = rp[2:]
+    return hashlib.sha256(("%s|%s|%s" % (normalize_err(err), rp, func)).encode()).hexdigest()[:10]
+
+
+def task_line(t: dict) -> str:
+    return "%s [%s] %s" % (t.get("id"), t.get("state"), clean(t.get("title", ""), 100))
+
+
+def open_tasks(d: Path) -> list[dict]:
+    return [t for t in read_lines(d / "tasks.jsonl") if t.get("state") in OPEN_STATES]
+
+
+def is_held_by_peer(d: Path, t: dict, me: str) -> bool:
+    owner = t.get("owner")
+    return (t.get("state") == "claimed" and bool(owner) and owner != me
+            and owner in {s.get("sid") for s in live_sessions(d)})
+
+
+def next_task(d: Path) -> dict | None:
+    """Oldest open task whose files overlap no other claimed task; bug-linked first."""
+    rows = open_tasks(d)
+    taken = {f.casefold() for t in rows if t.get("state") == "claimed"
+             for f in t.get("files", [])}
+    free = [t for t in rows if t.get("state") == "open"
+            and not taken & {f.casefold() for f in t.get("files", [])}]
+    free.sort(key=lambda t: (0 if t.get("bugs") else 1, t.get("ts", 0), t.get("id", "")))
+    return free[0] if free else None
+
+
+def mine_open_lines(d: Path, sid: str) -> list[str]:
+    rows = open_tasks(d)
+    mine = [t for t in rows if t.get("state") == "claimed" and t.get("owner") == sid]
+    free = [t for t in rows if t.get("state") == "open"]
+    return (["team: MINE " + task_line(t) for t in mine[:2]]
+            + ["team: OPEN " + task_line(t) for t in free[:2]])
+
+
 # ------------------------------------------------------------------ commands
 def need(args: argparse.Namespace) -> Path:
     if team_root() is None:
@@ -329,7 +401,7 @@ def cmd_init(args) -> int:
     cfg = d / "config.json"
     if not cfg.exists():
         atomic_write(cfg, json.dumps(DEFAULT_CONFIG, indent=2) + "\n")
-    for name in ("events.jsonl",):
+    for name in ("events.jsonl", "tasks.jsonl", "bugs.jsonl"):
         (d / name).touch()
     print("team initialised at %s" % d)
     return 0
@@ -447,6 +519,155 @@ def cmd_doctor(args) -> int:
     return 1 if bad else 0
 
 
+def refuse(msg: str, code: int) -> int:
+    print(msg, file=sys.stderr)
+    return code
+
+
+def split_files(text: str) -> list[str]:
+    return [f.strip() for f in (text or "").split(",") if f.strip()]
+
+
+def cmd_task_new(args) -> int:
+    d = need(args)
+    title = clean(" ".join(args.title), 120)
+    with locked(d):
+        rows = read_lines(d / "tasks.jsonl")
+        bugs = read_lines(d / "bugs.jsonl")
+        missing = [b for b in args.bug or [] if find_row(bugs, b) is None]
+        if missing:
+            return refuse("unknown bug: " + ", ".join(missing), 2)
+        tid = next_id(rows, "T")
+        rows.append({"schema_version": SCHEMA, "id": tid, "title": title, "state": "open",
+                     "owner": "", "account": "", "files": split_files(args.files),
+                     "bugs": args.bug or [], "plan": "", "reviewer": "", "base_sha": "",
+                     "ts": now()})
+        store_rows(d, "tasks.jsonl", rows)
+    append_event(d, current_sid(d), "task.new", ref=tid, msg=title)
+    print(tid)
+    return 0
+
+
+def cmd_task_show(args) -> int:
+    d = need(args)
+    t = find_row(read_lines(d / "tasks.jsonl"), args.id)
+    if t is None:
+        return refuse("no such task: " + args.id, 2)
+    print(task_line(t))
+    for k in ("owner", "account", "files", "bugs", "plan"):
+        if t.get(k):
+            print("  %s: %s" % (k, clean(", ".join(t[k]) if isinstance(t[k], list) else t[k])))
+    return 0
+
+
+def cmd_task_list(args) -> int:
+    d = need(args)
+    rows = read_lines(d / "tasks.jsonl")
+    if not args.all:
+        rows = [t for t in rows if t.get("state") in OPEN_STATES]
+    for t in rows[:READ_CAP]:
+        print(task_line(t))
+    if len(rows) > READ_CAP:
+        print("+%d more (team task list --all shows the first %d)" % (
+            len(rows) - READ_CAP, READ_CAP))
+    return 0
+
+
+def cmd_claim(args) -> int:
+    d = need(args)
+    me = current_sid(d)
+    heartbeat(d, me)  # a claimer is live; peers must see that before they judge it
+    with locked(d):
+        rows = read_lines(d / "tasks.jsonl")
+        t = find_row(rows, args.id)
+        if t is None:
+            return refuse("no such task: " + args.id, 2)
+        if t.get("state") not in OPEN_STATES:
+            return refuse("%s is %s, not claimable" % (args.id, t.get("state")), 4)
+        if is_held_by_peer(d, t, me):
+            return refuse("%s is claimed by %s@%s (live); `team msg %s ...`" % (
+                args.id, clean(t["owner"], 8), clean(t.get("account", ""), 30), t["owner"]), 4)
+        t.update(state="claimed", owner=me, account=account())
+        store_rows(d, "tasks.jsonl", rows)
+    append_event(d, me, "task.claim", ref=args.id)
+    print("claimed " + args.id)
+    return 0
+
+
+def cmd_release(args) -> int:
+    d = need(args)
+    me = current_sid(d)
+    with locked(d):
+        rows = read_lines(d / "tasks.jsonl")
+        t = find_row(rows, args.id)
+        if t is None:
+            return refuse("no such task: " + args.id, 2)
+        if t.get("state") != "claimed":
+            return refuse("%s is %s, nothing to release" % (args.id, t.get("state")), 4)
+        if is_held_by_peer(d, t, me):
+            return refuse("%s belongs to live session %s" % (args.id, clean(t["owner"], 8)), 4)
+        t.update(state="open", owner="", account="")
+        store_rows(d, "tasks.jsonl", rows)
+    append_event(d, me, "task.release", ref=args.id)
+    print("released " + args.id)
+    return 0
+
+
+def cmd_next(args) -> int:
+    d = need(args)
+    t = next_task(d)
+    print(task_line(t) if t else "(nothing free)")
+    return 0
+
+
+def cmd_bug_new(args) -> int:
+    d = need(args)
+    fp = fingerprint(args.err, args.file, args.func)
+    title = clean(" ".join(args.title), 120)
+    with locked(d):
+        rows = read_lines(d / "bugs.jsonl")
+        old = next((b for b in rows if b.get("fp") == fp), None)
+        if old is not None:
+            return refuse("duplicate of %s [%s] %s" % (
+                old.get("id"), old.get("state"), clean(old.get("title", ""), 80)), 4)
+        bid = next_id(rows, "B")
+        rows.append({"schema_version": SCHEMA, "id": bid, "fp": fp, "title": title,
+                     "repro": clean(args.repro, 200), "state": "open", "dup_of": "",
+                     "task": "", "ts": now()})
+        store_rows(d, "bugs.jsonl", rows)
+    append_event(d, current_sid(d), "bug.new", ref=bid, msg=title)
+    print("%s fp=%s" % (bid, fp))
+    return 0
+
+
+def cmd_bug_find(args) -> int:
+    d = need(args)
+    q = args.query.casefold()
+    hits = [b for b in read_lines(d / "bugs.jsonl")
+            if q in b.get("fp", "") or q in b.get("title", "").casefold()
+            or q in b.get("id", "").casefold()]
+    for b in hits[:READ_CAP]:
+        print("%s [%s] fp=%s %s%s" % (b.get("id"), b.get("state"), b.get("fp"),
+              clean(b.get("title", ""), 80), " dup_of=" + b["dup_of"] if b.get("dup_of") else ""))
+    return 0
+
+
+def cmd_bug_dup(args) -> int:
+    d = need(args)
+    with locked(d):
+        rows = read_lines(d / "bugs.jsonl")
+        b, orig = find_row(rows, args.id), find_row(rows, args.of)
+        if b is None or orig is None:
+            return refuse("no such bug: " + (args.id if b is None else args.of), 2)
+        if b is orig:
+            return refuse("a bug cannot duplicate itself", 2)
+        b.update(state="dup", dup_of=args.of)
+        store_rows(d, "bugs.jsonl", rows)
+    append_event(d, current_sid(d), "bug.dup", ref=args.id, msg="of " + args.of)
+    print("%s dup of %s" % (args.id, args.of))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="team", description=__doc__.splitlines()[0])
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -470,6 +691,38 @@ def build_parser() -> argparse.ArgumentParser:
     gc.add_argument("--force", action="store_true")
     gc.set_defaults(fn=cmd_gc)
     sub.add_parser("doctor").set_defaults(fn=cmd_doctor)
+    tk = sub.add_parser("task").add_subparsers(dest="sub", required=True)
+    tn = tk.add_parser("new")
+    tn.add_argument("title", nargs="+")
+    tn.add_argument("--files", default="")
+    tn.add_argument("--bug", action="append")
+    tn.set_defaults(fn=cmd_task_new)
+    ts = tk.add_parser("show")
+    ts.add_argument("id")
+    ts.set_defaults(fn=cmd_task_show)
+    tl = tk.add_parser("list")
+    tl.add_argument("--all", action="store_true")
+    tl.set_defaults(fn=cmd_task_list)
+    for name, fn in (("claim", cmd_claim), ("release", cmd_release)):
+        sp = sub.add_parser(name)
+        sp.add_argument("id")
+        sp.set_defaults(fn=fn)
+    sub.add_parser("next").set_defaults(fn=cmd_next)
+    bg = sub.add_parser("bug").add_subparsers(dest="sub", required=True)
+    bn = bg.add_parser("new")
+    bn.add_argument("title", nargs="+")
+    bn.add_argument("--err", required=True)
+    bn.add_argument("--file", required=True)
+    bn.add_argument("--func", default="")
+    bn.add_argument("--repro", default="")
+    bn.set_defaults(fn=cmd_bug_new)
+    bf = bg.add_parser("find")
+    bf.add_argument("query")
+    bf.set_defaults(fn=cmd_bug_find)
+    bd = bg.add_parser("dup")
+    bd.add_argument("id")
+    bd.add_argument("of")
+    bd.set_defaults(fn=cmd_bug_dup)
     return p
 
 
