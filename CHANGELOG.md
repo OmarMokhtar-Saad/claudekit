@@ -12,6 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Added: `team` CLI + advisory hooks for concurrent sessions (Phase 1).** Opt-in shared
+  `.team/` (created by `team init`, lives in the main checkout so every worktree and account
+  shares it): goal, event log, peer messages, per-session handoff notes. SessionStart prints
+  <=15 lines with peer text fenced as untrusted; nothing acts without `.team/config.json`.
+  Hooks `team-session-start` and `team-event-log` are advisory and need owner registration in
+  `dispatch-registry.json`. See `.ai/CONCURRENCY.md`.
 - **Added: `(delete)` marker for Tier 3 deletions.** A plan lists a path it deletes as
   `` `path` (delete) `` in `Files:`; `plan-write` refuses more than 3 marked paths or a globbed
   one (exit 8); `plan-check --delete` checks the marker. `plan-gate` blocks a Write-to-empty
