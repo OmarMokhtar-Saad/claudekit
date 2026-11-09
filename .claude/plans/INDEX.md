@@ -18,10 +18,10 @@ current files. Approval is local: ask `review-record.py plan-check <plan>`.
 
 | State | Plans |
 |---|---:|
-| `open` | 149 |
+| `open` | 151 |
 | `executed` | 30 |
 | `legacy` | 5 |
-| **total** | **184** |
+| **total** | **186** |
 
 ## Plans
 
@@ -77,6 +77,8 @@ current files. Approval is local: ask `review-record.py plan-check <plan>`.
 | `.claude/plans/plan-doctor-score-eject.md` | `open` |
 | `.claude/plans/plan-e2e-lane-a.md` | `open` |
 | `.claude/plans/plan-e2e-pipeline-test-task.md` | `open` |
+| `.claude/plans/plan-egm-panel-audit-fixes.md` | `open` |
+| `.claude/plans/plan-egm-panel-followups.md` | `open` |
 | `.claude/plans/plan-egm-review-panel.md` | `open` |
 | `.claude/plans/plan-enforcement-runtime.md` | `open` |
 | `.claude/plans/plan-enforcement-trio.md` | `executed` |

@@ -79,24 +79,19 @@ printf '%s' "$review_output" | \
   python3 .claude/operations/scripts/review-record.py plan-write "$PLAN_FILE" --from-review - --reviewer-role reviewer \
   || echo "WARNING: verdict NOT recorded — plan-gate will report NO RECORD until /review succeeds." >&2
 # Advisory panel (_shared/REVIEW_PANEL.md): never recorded, never blocks; --no-panel skips it.
-# Args arrive as raw text; a quoted heredoc keeps quotes, $ and backticks literal.
-# Limit: an argument line that is exactly the delimiter ends it early.
-CK_ARGS=
+# Raw args via a quoted heredoc ($, quotes, backticks stay literal); a line equal to the delimiter ends it.
 IFS= read -r -d '' CK_ARGS <<'CK_REVIEW_ARGS_EOF_7f3a9c' || :
 $ARGUMENTS
 CK_REVIEW_ARGS_EOF_7f3a9c
 CK_ARGS=$(printf '%s' "$CK_ARGS" | tr '\n' ' ')
-case " $CK_ARGS " in *" --no-panel "*) ;; *)
-  echo "=== PANEL (scripted: raw counts, not deduplicated against reviewer) ==="
+case " $CK_ARGS " in *" --no-panel "*) ;; *) echo "=== PANEL (scripted: raw counts, not deduplicated against reviewer) ==="
   tag='^[[:space:]]*([-*+]|[0-9]+[.)])?[[:space:]]*\*\*'
   for c in plan-design-critic plan-readiness-critic; do
     out=$(echo "Plan: $PLAN_FILE. Review it." | claude -p --agent "$c" --allowedTools "Read,Grep") \
       || { echo "$c: claude exited $?"; out=""; }
-    printf '%s\n' "$out"
-    last=$(printf '%s\n' "$out" | awk 'NF{l=$0} END{print l}')
+    printf '%s\n' "$out"; last=$(printf '%s\n' "$out" | awk 'NF{l=$0} END{print l}')
     if printf '%s\n' "$last" | grep -Eq '^PANEL: [0-9]+ blocker, [0-9]+ major$'; then
-      b=$(printf '%s' "$last" | sed -E 's/^PANEL: ([0-9]+) blocker.*/\1/')
-      m=$(printf '%s' "$last" | sed -E 's/.* ([0-9]+) major$/\1/')
+      b=$(printf '%s' "$last" | sed -E 's/^PANEL: ([0-9]+) blocker.*/\1/'); m=$(printf '%s' "$last" | sed -E 's/.* ([0-9]+) major$/\1/')
       nb=$(printf '%s\n' "$out" | grep -cE "${tag}Blocker\*\*"); nm=$(printf '%s\n' "$out" | grep -cE "${tag}Major\*\*")
       [ "$nb" -gt "$b" ] && b=$nb; [ "$nm" -gt "$m" ] && m=$nm
       echo "$c: PANEL: $b blocker, $m major"
