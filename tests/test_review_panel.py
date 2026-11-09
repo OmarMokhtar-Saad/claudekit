@@ -44,6 +44,12 @@ def test_critic_contract(name):
     assert "- Start each finding with its severity in bold, **Blocker**, **Major** or **Nit**" in body
     assert "Write the final PANEL line as plain text, no backticks." in body
     assert "## Target Standard" in body
+    # the Output Format must write the severity as the leading tag the scripted count reads
+    assert "\n# Output Format\n" in body and "\n## Target Standard" in body
+    sec = body.split("\n# Output Format\n", 1)[1].split("\n## Target Standard", 1)[0]
+    assert "**Severity**" not in sec, name
+    for tag in ("`**Blocker**`", "`**Major**`", "`**Nit**`"):
+        assert tag in sec, (name, tag)
     # REVIEW only: no BRAINSTORM instructions survive outside the attribution comment
     after_comment = body.split("-->", 1)[1]
     assert "BRAINSTORM" not in after_comment
@@ -80,6 +86,14 @@ def test_review_command_runs_panel_but_records_only_reviewer():
     assert any("review-record.py plan-write" in line for line in calls)
     for line in calls:
         assert not any(c in line for c in CRITICS), line
+
+
+def test_review_command_reads_args_through_quoted_heredoc():
+    # structural guard only; case i of test_scripted_panel_parse is the behavioural test
+    text = (REPO / ".claude" / "commands" / "review.md").read_text(encoding="utf-8")
+    assert "<<'CK_REVIEW_ARGS_EOF_7f3a9c'" in text
+    assert 'case " $ARGUMENTS "' not in text
+    assert text.count("$ARGUMENTS") == 1
 
 
 def test_reviewer_asks_whether_each_test_can_fail():
@@ -125,7 +139,12 @@ def _panel_block():
 
 
 STUB = '#!/bin/sh\ncat >/dev/null\n: > "$STUB_DIR/called"\nprintf \'%s\\n\' "$STUB_REPLY"\nexit "${STUB_RC:-0}"\n'
-SHELLS = [["bash", "-c"]] + ([["zsh", "-f", "-c"]] if shutil.which("zsh") else [])
+SHELLS = [("bash", ["bash", "-c"])]
+if shutil.which("zsh"):
+    SHELLS.append(("zsh", ["zsh", "-f", "-c"]))
+if os.path.exists("/bin/bash") and shutil.which("bash") and \
+        os.path.realpath("/bin/bash") != os.path.realpath(shutil.which("bash")):
+    SHELLS.append(("sysbash", ["/bin/bash", "-c"]))  # macOS bash 3.2 (hard rule 8)
 # (id, args, reply, rc, want); replies carry real newlines
 CASES = [
     ("a", "", "x\nPANEL: 1 blocker, 2 major", 0, "PANEL: 1 blocker, 2 major"),
@@ -138,6 +157,12 @@ CASES = [
     ("g", "", "x\n`PANEL: 1 blocker, 0 major`", 0, "PANEL: incomplete"),
     ("h", "", "see **Blocker** above\na blocker in prose\n- **Major** c\nPANEL: 0 blocker, 0 major", 0,
      "PANEL: 0 blocker, 1 major"),
+    # args are substituted as raw text: quotes, $(...) and backticks must stay literal
+    ("i", 'x" $(touch pwned) `touch pwned2`', "PANEL: 0 blocker, 0 major", 0, "PANEL: 0 blocker, 0 major"),
+    # defensive: a line-end --no-panel still matches after the newline fold
+    ("l", "plan.md\n--no-panel", "PANEL: 9 blocker, 9 major", 0, None),
+    # documented limit: an arg line equal to the delimiter ends the heredoc early; the panel still runs
+    ("m", "CK_REVIEW_ARGS_EOF_7f3a9c", "PANEL: 0 blocker, 0 major", 0, "PANEL: 0 blocker, 0 major"),
 ]
 
 
@@ -151,10 +176,14 @@ def test_scripted_panel_parse(tmp_path, shell, case):
     stub.write_text(STUB)
     stub.chmod(0o755)
     # PATH in the script text too: a user ~/.zshenv can prepend to PATH and shadow the stub
-    script = "PATH='%s':$PATH\nPLAN_FILE=p.md\nARGUMENTS='%s'\n" % (bindir, args) + _panel_block()
+    # the harness substitutes $ARGUMENTS as raw text before any shell runs; mimic that
+    script = "PATH='%s':$PATH\nPLAN_FILE=p.md\n" % bindir + _panel_block().replace("$ARGUMENTS", args)
     env = dict(os.environ, PATH="%s:%s" % (bindir, os.environ.get("PATH", "")),
                STUB_DIR=str(tmp_path), STUB_REPLY=reply, STUB_RC=str(rc))
-    run = subprocess.run(shell + [script], env=env, capture_output=True, text=True, timeout=30)
+    _, argv = shell
+    run = subprocess.run(argv + [script], env=env, cwd=tmp_path, capture_output=True, text=True,
+                         timeout=30)
+    assert not (tmp_path / "pwned").exists() and not (tmp_path / "pwned2").exists(), run.stderr
     out = run.stdout.splitlines()
     if want is None:
         assert "=== PANEL" not in run.stdout and not (tmp_path / "called").exists(), run.stdout

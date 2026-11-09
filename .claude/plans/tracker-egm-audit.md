@@ -40,8 +40,8 @@ Hermes merge: pro/egm-panel-audit @ 5b4e9bec94 (FF over main be834cad0f), gateke
 
 ## Follow-ups
 
-- Align the critics' `## Output Format` with the tag line: claudekit plan-design-critic.md:~81, plan-readiness-critic.md:~80; Hermes persona design.md:69 (closes the rest of H3).
-- claudekit review.md: `$ARGUMENTS` is pasted as text into `case " $ARGUMENTS "`; a `"` in the args breaks the shell. Low risk.
-- No real-CLI smoke run yet of the scripted `claude -p --agent` critic call.
+- DONE (2026-11-09, plan-egm-panel-followups.md): Align the critics' `## Output Format` with the tag line: claudekit plan-design-critic.md:~81, plan-readiness-critic.md:~80; Hermes persona design.md:69 (closes the rest of H3).
+- DONE (2026-11-09; now read via a quoted heredoc into CK_ARGS): claudekit review.md: `$ARGUMENTS` is pasted as text into `case " $ARGUMENTS "`; a `"` in the args breaks the shell. Low risk.
+- DONE (2026-11-09): real-CLI smoke of the scripted `claude -p --agent` critic call. Both critics rc=0, PANEL line present, findings tag-led (7 and 6), no `**Severity**` field. Argecho byte probe of the review.md heredoc with `x" $(touch pwned) `z`` PASS: bytes intact, no command run.
 - Optional: name the fence id in Hermes skills/roles/role-plan-critic/BODY.md:12-13.
 - Full-suite note: test_gate_scope doctor tests fail under bare uvx (claudekit not installed); use `--with-editable .`.

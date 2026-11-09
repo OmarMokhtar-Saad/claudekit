@@ -16,7 +16,8 @@ Persona and standard text adapted from the Elephant-Goldfish Model
 Copyright Google LLC, licensed under the Apache License 2.0:
 https://www.apache.org/licenses/LICENSE-2.0
 Changes: kept REVIEW mode only (BRAINSTORM removed), inlined the Target Standard,
-added the claudekit run contract below. See .claude/agents/_shared/EGM-NOTICE.md.
+added the claudekit run contract below, Output Format writes the severity as the
+leading tag. See .claude/agents/_shared/EGM-NOTICE.md.
 -->
 
 # plan-design-critic
@@ -77,10 +78,11 @@ Audit the target document file and line range specified by the caller:
 Report your findings back to the orchestrator in plain, natural language.
 
 #### IF Mode: REVIEW
-For each finding, include:
-1. **Severity**: [Blocker | Major | Nit]
-2. **Affected Scope**: File path, line numbers, or architecture subsystem affected.
-3. **Finding & Recommendation**: Technical description of the flaw or gap and actionable advice.
+For each finding, write one block whose first line starts with the severity tag in bold, exactly
+`**Blocker**`, `**Major**` or `**Nit**` (a list number or bullet before it is fine), then:
+- **Affected Scope**: File path, line numbers, or architecture subsystem affected.
+- **Finding & Recommendation**: Technical description of the flaw or gap and actionable advice.
+Do not add a separate Severity field; the leading tag itself is what is counted.
 
 ## Target Standard
 

@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Fixed: /review critics and args.** The critics' Output Format now writes the severity as the leading tag (`**Blocker**`, `**Major**`, `**Nit**`), which the panel count reads; `$ARGUMENTS` is read through a quoted heredoc, so a `"`, `$(...)` or backtick in the args no longer breaks the shell or runs a command.
 - **Fixed: /review panel.** The scripted path now runs both critics; a critic without a valid last-line `PANEL:` is `incomplete` and never blocks; counts cannot be lower than the tagged finding lines; a vacuous test assertion now runs.
 - **Added: `team` stages (Phase 4, opt-in `stages: true`).** `debug`, `review`, `start`,
   `verify`, `unblock` and `quick`; the edit gate allows a task's files only at `implementing`

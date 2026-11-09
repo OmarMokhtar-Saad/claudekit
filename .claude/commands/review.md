@@ -79,7 +79,14 @@ printf '%s' "$review_output" | \
   python3 .claude/operations/scripts/review-record.py plan-write "$PLAN_FILE" --from-review - --reviewer-role reviewer \
   || echo "WARNING: verdict NOT recorded — plan-gate will report NO RECORD until /review succeeds." >&2
 # Advisory panel (_shared/REVIEW_PANEL.md): never recorded, never blocks; --no-panel skips it.
-case " $ARGUMENTS " in *" --no-panel "*) ;; *)
+# Args arrive as raw text; a quoted heredoc keeps quotes, $ and backticks literal.
+# Limit: an argument line that is exactly the delimiter ends it early.
+CK_ARGS=
+IFS= read -r -d '' CK_ARGS <<'CK_REVIEW_ARGS_EOF_7f3a9c' || :
+$ARGUMENTS
+CK_REVIEW_ARGS_EOF_7f3a9c
+CK_ARGS=$(printf '%s' "$CK_ARGS" | tr '\n' ' ')
+case " $CK_ARGS " in *" --no-panel "*) ;; *)
   echo "=== PANEL (scripted: raw counts, not deduplicated against reviewer) ==="
   tag='^[[:space:]]*([-*+]|[0-9]+[.)])?[[:space:]]*\*\*'
   for c in plan-design-critic plan-readiness-critic; do
