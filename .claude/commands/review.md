@@ -20,7 +20,7 @@ If the plan touches hooks, tests or executable scripts, its verdict may NOT be t
 review before implementation; follow it with `/code-review` on the plan, where
 `code-reviewer` has Bash and runs the plan's own Validation commands against a scratch copy.
 Reviews are on request: Tier 3 plans need one, Tier 1/2 do not.
-PANEL: unless `--no-panel`, also run `plan-design-critic` and `plan-readiness-critic` as in `.claude/agents/_shared/REVIEW_PANEL.md` (advisory; only `reviewer`'s block is recorded).
+PANEL: unless `--no-panel`, also run `plan-design-critic` and `plan-readiness-critic` as in `.claude/agents/_shared/REVIEW_PANEL.md` (advisory; only `reviewer`'s block is recorded). The scripted block below runs them itself.
 
 ## Invocation
 
@@ -78,6 +78,25 @@ echo "$review_output"
 printf '%s' "$review_output" | \
   python3 .claude/operations/scripts/review-record.py plan-write "$PLAN_FILE" --from-review - --reviewer-role reviewer \
   || echo "WARNING: verdict NOT recorded — plan-gate will report NO RECORD until /review succeeds." >&2
+# Advisory panel (_shared/REVIEW_PANEL.md): never recorded, never blocks; --no-panel skips it.
+case " $ARGUMENTS " in *" --no-panel "*) ;; *)
+  echo "=== PANEL (scripted: raw counts, not deduplicated against reviewer) ==="
+  tag='^[[:space:]]*([-*+]|[0-9]+[.)])?[[:space:]]*\*\*'
+  for c in plan-design-critic plan-readiness-critic; do
+    out=$(echo "Plan: $PLAN_FILE. Review it." | claude -p --agent "$c" --allowedTools "Read,Grep") \
+      || { echo "$c: claude exited $?"; out=""; }
+    printf '%s\n' "$out"
+    last=$(printf '%s\n' "$out" | awk 'NF{l=$0} END{print l}')
+    if printf '%s\n' "$last" | grep -Eq '^PANEL: [0-9]+ blocker, [0-9]+ major$'; then
+      b=$(printf '%s' "$last" | sed -E 's/^PANEL: ([0-9]+) blocker.*/\1/')
+      m=$(printf '%s' "$last" | sed -E 's/.* ([0-9]+) major$/\1/')
+      nb=$(printf '%s\n' "$out" | grep -cE "${tag}Blocker\*\*"); nm=$(printf '%s\n' "$out" | grep -cE "${tag}Major\*\*")
+      [ "$nb" -gt "$b" ] && b=$nb; [ "$nm" -gt "$m" ] && m=$nm
+      echo "$c: PANEL: $b blocker, $m major"
+    else echo "$c: PANEL: incomplete"; fi
+  done
+  echo "=== END PANEL ===" ;;
+esac
 ```
 
 2. **Record the verdict (Task-tool path).** The bash block above only runs on the

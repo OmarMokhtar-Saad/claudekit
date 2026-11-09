@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Fixed: /review panel.** The scripted path now runs both critics; a critic without a valid last-line `PANEL:` is `incomplete` and never blocks; counts cannot be lower than the tagged finding lines; a vacuous test assertion now runs.
 - **Added: `team` stages (Phase 4, opt-in `stages: true`).** `debug`, `review`, `start`,
   `verify`, `unblock` and `quick`; the edit gate allows a task's files only at `implementing`
   and `land` needs `verifying`. Off by default. See `.ai/CONCURRENCY.md`.

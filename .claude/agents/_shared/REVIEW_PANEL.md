@@ -20,6 +20,6 @@ PANEL: <n> blocker, <n> major (uncovered)
 === END PANEL ===
 ```
 
-A critic that returns `PANEL: incomplete` is reported as such, never retried in the same round.
+Read only each critic's last non-empty line. `PANEL: <n> blocker, <n> major` is valid; anything else (timeout, crash, missing plan, no or malformed line, the critic's own `PANEL: incomplete - <reason>`) is reported `PANEL: incomplete`, never retried in the same round, never blocks. A `PANEL:` line anywhere but last is ignored. If the reply has more `**Blocker**`/`**Major**` finding lines than that line counts, the larger number is the critic's total; the uncovered counts in the summary are drawn from that total (deduplication can only lower them).
 
 After the output, if the panel has any uncovered Blocker: fix it in the plan and re-run `/review` before `/implement`, whatever reviewer scored (advisory — the gate does not enforce it; say so).

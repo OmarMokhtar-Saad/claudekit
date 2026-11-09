@@ -33,6 +33,7 @@ added the claudekit run contract below. See .claude/agents/_shared/EGM-NOTICE.md
   change were wrong or missing (exit 0 with no assertion, a grep that always matches, a check
   of a constant). That is a Major finding.
 - At most 8 findings, most severe first; Nits only if fewer than 3 Blocker/Major. Under 3,000 chars.
+- Start each finding with its severity in bold, **Blocker**, **Major** or **Nit** (a list number or bullet before it is fine). Write the final PANEL line as plain text, no backticks.
 - End with exactly one line: `PANEL: <n> blocker, <n> major`.
   If you could not read the plan, return only `PANEL: incomplete - <reason>`.
 
