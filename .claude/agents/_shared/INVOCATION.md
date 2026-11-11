@@ -103,6 +103,8 @@ lands. It is not present today.
 |-----------------------|-----------------------------------------------------------------|------------------------------------------------------|
 | planner               | `Read,Grep,Glob,Write` | Explore; write `plan.md`. **No Bash since 2026-09-19** (token remediation). Spawned only by `/plan --deep` — the default `/plan` writes the file in the parent session. |
 | reviewer              | `Read,Grep,Glob`                                                | Read-only: analyze the plan, emit a verdict.|
+| plan-design-critic    | `Read,Grep`                                                     | Read-only, plan-scoped by `critic-read-scope.py`; prompt is only `Plan: <path>. Review it.` |
+| plan-readiness-critic | `Read,Grep`                                                     | Read-only, plan-scoped by `critic-read-scope.py`; prompt is only `Plan: <path>. Review it.` |
 | explore               | `Read,Grep,Glob`                                                | Read-only codebase search.                           |
 | debugger              | `Read,Grep,Glob,Bash(git log *),Bash(git diff *)`               | Read-only diagnosis; history inspection.             |
 | verifier              | `Read,Grep,Glob,Bash`                                           | Must execute build/test/lint to produce evidence.    |
@@ -196,6 +198,8 @@ the wide rows is owned by each agent's maintainer.
 |-----------------------|--------------------------------|
 | planner | `Read, Grep, Glob, Write` |
 | reviewer | `Read, Grep, Glob` |
+| plan-design-critic | `Read, Grep` |
+| plan-readiness-critic | `Read, Grep` |
 | explore | `Read, Grep, Glob, Bash` |
 | debugger | `Read, Grep, Glob, Bash` |
 | verifier | `Read, Bash, Grep, Glob` |

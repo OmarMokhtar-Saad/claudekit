@@ -5,13 +5,10 @@ model: opus
 
 # Reviewer Command
 
-Spawns the local `reviewer` agent on its **`balanced` capability tier** (`.claude/model-policy.json`;
-escalate to `most-capable` per the role's `escalate_when` — multi-phase, architecture, or security
-plans) — Task tool (`subagent_type: "reviewer"`) in
-interactive sessions (default; no cold boot); `claude -p --agent reviewer` for scripted/CI
-paths. Same `REVIEWER_MSG` and output contract either way.
-Verified mechanism: `--agent <name>` loads `.claude/agents/<name>.md` as system prompt.
-Canonical spawn contract: see `.claude/agents/_shared/INVOCATION.md` (single source of truth).
+Spawns `reviewer` on its **`balanced` tier** (`.claude/model-policy.json`; `most-capable` per
+`escalate_when`) — Task tool (`subagent_type: "reviewer"`) interactively (default; no cold boot),
+`claude -p --agent reviewer` for scripted/CI paths; same `REVIEWER_MSG` and output contract.
+Spawn contract: `.claude/agents/_shared/INVOCATION.md` (single source of truth).
 
 ## Task
 
@@ -20,23 +17,56 @@ If the plan touches hooks, tests or executable scripts, its verdict may NOT be t
 review before implementation; follow it with `/code-review` on the plan, where
 `code-reviewer` has Bash and runs the plan's own Validation commands against a scratch copy.
 Reviews are on request: Tier 3 plans need one, Tier 1/2 do not.
-PANEL: unless `--no-panel`, also run `plan-design-critic` and `plan-readiness-critic` as in `.claude/agents/_shared/REVIEW_PANEL.md` (advisory; only `reviewer`'s block is recorded).
+PANEL: unless `--no-panel` (or `CK_REVIEW_PANEL=off`), `plan-design-critic` and `plan-readiness-critic` run beside `reviewer` as in `.claude/agents/_shared/REVIEW_PANEL.md` (advisory; only `reviewer`'s block is recorded).
 
 ## Invocation
 
-1. Use the Bash tool to auto-detect the latest plan and run the reviewer:
+0. **Arguments.** Pass `$ARGUMENTS` verbatim to step 1 (`--no-panel`, optional plan path).
+1. **Resolve the plan and the panel.** Bash:
+   ```bash
+   python3 .claude/operations/scripts/review-panel.py prompts $ARGUMENTS
+   ```
+   It prints `PLAN: <path>`, `PANEL: on|off (<why>)` and `CRITIC_PROMPT: Plan: <path>. Review it.`
+   (`ERROR: no plan` → tell the user to run `/plan` first and stop.)
+2. **Spawn — In ONE message.** Task tool: `reviewer` with `REVIEWER_MSG` (in the scripted block
+   below; `$PLAN_FILE` = the `PLAN:` path) and, when `PANEL: on`, `plan-design-critic` and
+   `plan-readiness-critic`, each with the `CRITIC_PROMPT` line **verbatim and nothing else** — no
+   history, brief or word limit (`panel-guard.py` denies anything else). All three go in the same
+   message so they run in parallel. If any of these spawns is denied (context cap): stop here; the
+   handoff carries the whole panel.
+3. **Record the verdict (reviewer only)** — the scripted block records on its own. Via the Task
+   tool, record from the reviewer's transcript by its `agentId` (the script reads the last
+   `=== REVIEW ===` block and the harness-recorded role). Never copy, rewrite or summarise the
+   reply; no block records nothing (re-ask, never compose one):
+   ```bash
+   python3 .claude/operations/scripts/review-record.py plan-write "$PLAN_FILE" --from-task "<agentId>"
+   ```
+   Skipped → `plan-gate` and `/implement` STEP 0 refuse with exit 3 (fail closed). File-only
+   review: `--from-review "<file>" --reviewer-role reviewer`. **Record REJECTING rounds too**:
+   REVISE, REJECTED and CONDITIONAL record like APPROVED and authorise nothing (`plan-check`
+   still exits 4). A bare `--score/--decision` approval is owner-only (`--owner-approved`).
+4. **Merge the panel** (when `PANEL: on`). Bash, then print its output verbatim:
+   ```bash
+   python3 .claude/operations/scripts/review-panel.py merge "$PLAN_FILE" --reviewer "<reviewer agentId>" \
+     --critic plan-design-critic="<agentId>" --critic plan-readiness-critic="<agentId>"
+   ```
+
+5. Suggest (advisory; the gate is unchanged) from reviewer's DECISION **and** the panel's stop line:
+   - If APPROVED (score ≥ 90): ask the user to approve, then run `/implement` — from a compacted or fresh context whose only input is the plan path (run `/compact` first if `suggest-compact` has fired); do not continue implementing inside this review conversation
+   - If CONDITIONAL/REVISE: address issues, edit the plan and re-run `/review` (it scores the whole plan again)
+   - If REJECTED: restate the task more narrowly and re-run `/plan`
+   - Panel `CONTINUE` with an uncovered Blocker: fix it and re-run `/review` before `/implement`, whatever reviewer scored (advisory; say so). `STOP`: stop re-reviewing, carry Majors as follow-ups. `CAP`: list open findings, ask the owner
+
+## Scripted / CI path (`claude -p`)
+
+Same steps in one block: reviewer, record, both critics (saved per critic), then `merge`.
 
 ```bash
-# Find the most recently saved plan
-PLAN_FILE=$(ls -t .claude/plans/plan-*.md 2>/dev/null | head -1)
-
-if [ -z "$PLAN_FILE" ]; then
-  echo "ERROR: No plan files found in .claude/plans/. Run /plan first."
-  exit 1
-fi
-
-echo "Reviewing: $PLAN_FILE"
-
+PANEL_OUT=$(python3 .claude/operations/scripts/review-panel.py prompts $ARGUMENTS) || {
+  echo "ERROR: No plan files found in .claude/plans/. Run /plan first."; exit 1; }
+echo "$PANEL_OUT"
+PLAN_FILE=$(printf '%s\n' "$PANEL_OUT" | sed -n 's/^PLAN: //p')
+CRITIC_PROMPT=$(printf '%s\n' "$PANEL_OUT" | sed -n 's/^CRITIC_PROMPT: //p')
 REVIEWER_MSG="Review the implementation plan at $PLAN_FILE.
 Read it yourself with your Read tool — do not expect the contents pasted here.
 
@@ -72,33 +102,22 @@ fi
 
 echo "$review_output"
 
-# Bind this verdict to the exact plan bytes that were scored. Parsing happens inside the
-# script (strict anchored patterns), so an echoed format template cannot be mistaken
-# for a real verdict. A failed write is reported, never swallowed.
+# Bind the verdict to the scored plan bytes (strict parse in the script; failure reported).
 printf '%s' "$review_output" | \
   python3 .claude/operations/scripts/review-record.py plan-write "$PLAN_FILE" --from-review - --reviewer-role reviewer \
   || echo "WARNING: verdict NOT recorded — plan-gate will report NO RECORD until /review succeeds." >&2
+
+# Panel (advisory): both critics get CRITIC_PROMPT and nothing else; merge dedups and applies the stop rule.
+if printf '%s\n' "$PANEL_OUT" | grep -q '^PANEL: on'; then
+  SLUG=$(basename "$PLAN_FILE" .md)
+  printf '%s' "$review_output" > ".claude/plans/$SLUG.review.md"
+  MERGE_ARGS=""
+  for CRITIC in plan-design-critic plan-readiness-critic; do
+    OUT=".claude/plans/$SLUG.panel-$CRITIC.md"
+    echo "$CRITIC_PROMPT" | claude -p --agent "$CRITIC" --allowedTools "Read,Grep" > "$OUT" 2>&1
+    MERGE_ARGS="$MERGE_ARGS --critic $CRITIC=$OUT"
+  done
+  python3 .claude/operations/scripts/review-panel.py merge "$PLAN_FILE" \
+    --reviewer ".claude/plans/$SLUG.review.md" $MERGE_ARGS
+fi
 ```
-
-2. **Record the verdict (Task-tool path).** The bash block above only runs on the
-   scripted `claude -p` path. When the reviewer ran via the Task tool (the interactive
-   default), record from the reviewer's own transcript by the `agentId` the Task tool
-   returned (the script reads the last `=== REVIEW ===` block and the harness-recorded
-   role, and keeps the text beside the record). Never copy, rewrite or summarise the reply
-   by hand; no block records nothing (re-ask, never compose one):
-   ```bash
-   python3 .claude/operations/scripts/review-record.py plan-write "$PLAN_FILE" --from-task "<agentId>"
-   ```
-   Skipping this step means `plan-gate` and `/implement` STEP 0 refuse with exit 3 (no
-   record) — they fail closed, not silently. A review that exists only as a file:
-   `--from-review "<file>" --reviewer-role reviewer`.
-
-   **Record REJECTING rounds too — not optional.** The write call is unconditional on
-   purpose: REVISE, REJECTED and CONDITIONAL are recorded exactly like APPROVED, and
-   recording a non-approving verdict authorises nothing — `plan-check` still exits 4.
-   A bare `--score/--decision` approval is owner-only (`--owner-approved`); never mint one.
-
-3. After output, suggest:
-   - If APPROVED (score ≥ 90): ask the user to approve, then run `/implement` — from a compacted or fresh context whose only input is the plan path (run `/compact` first if `suggest-compact` has fired); do not continue implementing inside this review conversation
-   - If CONDITIONAL/REVISE: address issues, edit the plan and re-run `/review` (it scores the whole plan again)
-   - If REJECTED: restate the task more narrowly and re-run `/plan`

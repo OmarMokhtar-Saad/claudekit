@@ -27,6 +27,15 @@ Share-alike applies **to that file**: redistribute it, or a modified version of 
 CC BY-SA 4.0 and keep its attribution block intact. The rest of the skill's content predates
 the adaptation and the attribution block marks what is derivative.
 
+## Apache-2.0
+
+| File | Upstream | Terms |
+|---|---|---|
+| `.claude/agents/plan-design-critic.md`, `.claude/agents/plan-readiness-critic.md`, `.claude/agents/_shared/EGM-*` | [`google/elephant-goldfish-model`](https://github.com/google/elephant-goldfish-model) @0dfb5bf | [Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0) |
+
+Persona and Target Standard text adapted (REVIEW mode only); each file carries the attribution
+comment, and `EGM-LICENSE.txt` / `EGM-NOTICE.md` ship beside the agents.
+
 ## MIT
 
 | File | Upstream chain |

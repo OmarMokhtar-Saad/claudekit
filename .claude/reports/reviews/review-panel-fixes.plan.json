@@ -1,0 +1,57 @@
+{
+  "plan_path": ".claude/plans/plan-review-panel-fixes.md",
+  "plan_sha256": "fb51ae2619cb1bc07aa46fff1eaa16f6192c7230bd89e1392f69e2a4c588823b",
+  "files": [
+    ".claude/operations/scripts/review-panel.py",
+    ".claude/hooks/panel-guard.py",
+    ".claude/hooks/panel-format-check.py",
+    ".claude/hooks/critic-read-scope.py",
+    ".claude/hooks/dispatch-registry.json",
+    ".claude/commands/review.md",
+    ".claude/commands/blueprint.md",
+    ".claude/agents/_shared/REVIEW_PANEL.md",
+    ".claude/agents/_shared/INVOCATION.md",
+    ".claude/agents/plan-design-critic.md",
+    ".claude/agents/plan-readiness-critic.md",
+    ".claude/agents/coordinator.md",
+    ".claude/model-policy.json",
+    ".claude/hooks/context-budget-gate.py",
+    "src/claudekit/cli/flow.py",
+    "THIRD-PARTY-LICENSES.md",
+    "CHANGELOG.md",
+    "tests/test_review_panel.py",
+    "tests/test_review_panel_script.py",
+    "tests/test_panel_guard.py",
+    "tests/test_panel_format_check.py",
+    "tests/test_critic_read_scope.py",
+    "AGENTS.md",
+    "docs/AGENTS.md",
+    "docs/ARCHITECTURE.md",
+    ".claude/skills/skills-registry.json",
+    ".claude/hooks/README.md"
+  ],
+  "score": 94,
+  "decision": "APPROVED",
+  "reviewer_role": "reviewer",
+  "role_source": "transcript",
+  "verdict_origin": "rubric",
+  "findings": [
+    "[MINOR] The existence of the sehhaty hook copies and `tests/test_auto_handoff.py` is unverified, and the plan's V4 `cmp` check is the only guard. \u2014 Location: plan lines 87, 113, 143 \u2014 Fix: `ls` them before ed"
+  ],
+  "recorded_utc": "2026-11-11T09:04:06Z",
+  "rounds": [
+    {
+      "score": 91,
+      "decision": "APPROVED",
+      "findings": [
+        "[MINOR] Conditional Files: entry `tests/test_flow.py (only if ...)`. The file does not exist, and a grep for AGENTS/PHASE_ORDER in tests/*flow* found nothing. The entry is an orphan and a possible freeze-list",
+        "[MINOR] The reviewer branch of panel-guard prints its advisory note to stdout on exit 0. For PreToolUse, stdout on exit 0 normally does not reach the model, so the nudge may never be seen. The /review steps c",
+        "[MINOR] D3 relies on frontmatter `hooks:` firing for subagents. The plan already flags this under Risks and double-validates in `merge`, but V5 is manual only. Mutation proof V3 covers the tests, not the live",
+        "[MINOR] D6 edits agent-config, which is outside this repo and so outside plan-gate's frozen Files: list. The plan names the three files and a separate commit, which is adequate. I confirmed `on_agent_launch` "
+      ],
+      "recorded_utc": "2026-11-11T09:01:34Z",
+      "verdict_origin": "rubric"
+    }
+  ],
+  "round": 2
+}

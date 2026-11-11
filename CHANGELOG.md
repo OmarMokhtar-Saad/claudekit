@@ -12,6 +12,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Fixed: `/review` plan panel (EGM critics).** `review-panel.py prompts|merge` builds the
+  critic prompts from the plan's realpath, validates replies (PANEL line, 3,000-char cap, API
+  errors), dedups against the reviewer's ISSUES and applies the stop rules (2 clean rounds,
+  no new blocker, cap 5). `review.md` spawns reviewer + both critics in ONE message and records
+  only the reviewer via `plan-write`. New hooks: `panel-guard` (dispatch), and per-critic
+  frontmatter hooks `panel-format-check` (Stop) and `critic-read-scope` (Read/Grep/Glob).
+  Critics run at `effort: low`, `maxTurns: 8`, with a 1.5M context budget; `ck flow` runs the
+  panel after record (advisory). V5 live result: _pending_.
 - **Added: `team` stages (Phase 4, opt-in `stages: true`).** `debug`, `review`, `start`,
   `verify`, `unblock` and `quick`; the edit gate allows a task's files only at `implementing`
   and `land` needs `verifying`. Off by default. See `.ai/CONCURRENCY.md`.

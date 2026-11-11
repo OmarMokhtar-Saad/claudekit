@@ -71,9 +71,27 @@ def test_review_command_runs_panel_but_records_only_reviewer():
     assert "never paste critic text into that block" in panel
     assert "uncovered Blocker" in panel
     # the recording call still names reviewer, never a critic
-    for line in text.splitlines():
-        if "review-record.py write" in line:
-            assert not any(c in line for c in CRITICS), line
+    record_lines = [ln for ln in text.splitlines() if "review-record.py plan-write" in ln]
+    assert record_lines, "review.md no longer records via review-record.py plan-write"
+    for line in record_lines:
+        assert not any(c in line for c in CRITICS), line
+    # the panel is driven by the script, spawned in one message
+    assert "review-panel.py prompts" in text
+    assert "review-panel.py merge" in text
+    assert "In ONE message" in text
+
+
+@pytest.mark.parametrize("name", CRITICS)
+def test_critic_runs_cheap_and_hooked(name):
+    front, body = _split(name)
+    assert re.search(r"^effort:\s*low\s*$", front, re.M), name
+    assert re.search(r"^maxTurns:\s*8\s*$", front, re.M), name
+    assert re.search(r"^hooks:\s*$", front, re.M), name
+    assert "panel-format-check.py" in front
+    assert "critic-read-scope.py" in front
+    # stale wording from before the prompt became path-only
+    assert "line range specified by the caller" not in body
+    assert "provided by the orchestrator" not in body
 
 
 def test_reviewer_asks_whether_each_test_can_fail():
