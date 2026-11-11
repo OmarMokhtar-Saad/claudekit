@@ -3,6 +3,8 @@
 **Date**: 2026-11-11 | **Requested by**: Omar — "find bugs and gaps … do strong debug web search to find best solution the plan review implement to fix them all" (audit of the EGM panel shipped in c552012, session 9a2b13fa).
 **Tier**: 3 (new blocking PreToolUse hook, new subagent-scoped hooks, CLI change in `flow.py`).
 **Branch**: `feat/review-panel-fixes` off main 4164961.
+**Status**: D1-D9 IMPLEMENTED (kit 75c2c35 + 7609912, agent-config 067a57e); only V5 (live run) is open. The D sections describe what landed: re-verify, do not re-apply.
+**Order** (land together, or a critic launch is denied): kit scripts + hooks (D1, D3 hooks, D4) → agents + review.md (D2, D3, D5) → registry/docs (D8) → agent-config (D6, D9) → tests (D7).
 
 ## Evidence (audit of 335 critic runs, 3 accounts, 2026-11-05..11)
 
@@ -65,8 +67,8 @@
 - `effort: low` via `.claude/model-policy.json` role override `"effort": "low"` on both critic roles, projected by `scripts/gen-model-policy.py --write` (never hand-edited). Acceptance is measured (Validation V5); if median thinking stays > 3k tokens, STOP and report — no further lever exists per docs (no per-agent thinking key).
 - `maxTurns: 8` (was 15; median run used ≤ 5 tool calls).
 - `hooks:` in frontmatter:
-  - `Stop` → `python3 "$CLAUDE_PROJECT_DIR/.claude/hooks/panel-format-check.py"`: reads stdin JSON; if `stop_hook_active` is true → exit 0 (one retry max). Else if `last_assistant_message` is ≤ 3,000 chars and its last non-empty line matches the D1 PANEL regex → exit 0. Else print `{"decision":"block","reason":"Reformat: at most 8 findings, under 3,000 chars, last line exactly `PANEL: <n> blocker, <n> major` (or `PANEL: incomplete - <reason>`). Do not call tools."}`. Any parse error → exit 0 (fail-open: advisory panel).
-  - `PreToolUse` matcher `Read|Grep|Glob` → `python3 "$CLAUDE_PROJECT_DIR/.claude/hooks/critic-read-scope.py"`: target = `tool_input.file_path` or `tool_input.path` (Grep/Glob with no path = cwd = allowed). Deny (exit 2, stderr reason) when the resolved real path is outside `$CLAUDE_PROJECT_DIR`, or matches any of: `.claude/plans/*.review.md`, `.claude/plans/*.panel-*.md`, `.claude/hooks/.state/**`, `.claude/reports/**`, `**/brief*.md`, `**/session-context.md`, `**/handoffs/**`. Missing/odd input → exit 0.
+  - `Stop` → `f="$CLAUDE_PROJECT_DIR/.claude/hooks/panel-format-check.py"; [ -f "$f" ] || f="$HOME/.claude-kit/.claude/hooks/panel-format-check.py"; [ -f "$f" ] || exit 0; exec python3 "$f"` (project copy, then `~/.claude-kit`, else fail open: the critics are user-level, and a bare `python3 <missing>` exits 2 = block): reads stdin JSON; if `stop_hook_active` is true → exit 0 (one retry max). Else if `last_assistant_message` is ≤ 3,000 chars and its last non-empty line matches the D1 PANEL regex → exit 0. Else print `{"decision":"block","reason":"Reformat: at most 8 findings, under 3,000 chars, last line exactly `PANEL: <n> blocker, <n> major` (or `PANEL: incomplete - <reason>`). Do not call tools."}`. Any parse error → exit 0 (fail-open: advisory panel).
+  - `PreToolUse` matcher `Read|Grep|Glob` → `f="$CLAUDE_PROJECT_DIR/.claude/hooks/critic-read-scope.py"; [ -f "$f" ] || f="$HOME/.claude-kit/.claude/hooks/critic-read-scope.py"; [ -f "$f" ] || exit 0; exec python3 "$f"` (project copy, then `~/.claude-kit`, else fail open: the critics are user-level, and a bare `python3 <missing>` exits 2 = block): target = `tool_input.file_path` or `tool_input.path` (Grep/Glob with no path = cwd = allowed). Deny (exit 2, stderr reason) when the resolved real path is outside `$CLAUDE_PROJECT_DIR`, or matches any of: `.claude/plans/*.review.md`, `.claude/plans/*.panel-*.md`, `.claude/hooks/.state/**`, `.claude/reports/**`, `**/brief*.md`, `**/session-context.md`, `**/handoffs/**`. Missing/odd input → exit 0.
 - Body text fixes: "Audit the target document file and line range specified by the caller" → "Audit the plan file named in the caller's one-line prompt"; "standard provided by the orchestrator" → "the Target Standard inlined below". Run contract gains: "Zero Blocker/Major is a valid and expected result for a sound plan; report a Major only when you can name the concrete failure it causes."
 
 ### D4. Blocking guard `.claude/hooks/panel-guard.py` (PreToolUse `Agent|Task`, registry tier `blocking`)
@@ -86,7 +88,7 @@
 
 Edits: `~/IdeaProjects/agent-config/accounts/personal/hooks/auto-handoff.py` and `…/sehhaty/hooks/auto-handoff.py` (identical today; edit both identically).
 - `PANEL = {"reviewer", "plan-design-critic", "plan-readiness-critic"}`.
-- `on_agent_launch`: before denying a PANEL type past the cutoff, if the ledger (`track().rows(session)`) has a non-denied `launch` row of a PANEL type within the last 120 s, return (allow) — a panel whose first member got in finishes together. Never applies once `finished(rows)` (IDLE path unchanged) or when ctx ≥ `CK_CONTEXT_BLOCK`.
+- `on_agent_launch`: before denying a PANEL type past the cutoff, if the ledger (`rows_for(session)`) has a non-denied `launch` row of a PANEL type within the last 120 s, return (allow) — a panel whose first member got in finishes together. Never applies once `finished(rows)` (IDLE path unchanged) or when ctx ≥ `CK_CONTEXT_BLOCK`.
 - `append_denied`: if any denied item is a PANEL type, drop those items and write one item instead: `- Panel review (review)` with body `Run /review <plan path from the denied prompt, else "latest plan">: reviewer + plan-design-critic + plan-readiness-critic in one message (review-panel.py prompts/merge).`
 - Tests in `~/IdeaProjects/agent-config/tests/test_auto_handoff.py`: sibling allowed within 120 s; denied after 120 s; non-panel type unaffected; replay collapses to one panel item.
 
@@ -95,7 +97,8 @@ Edits: `~/IdeaProjects/agent-config/accounts/personal/hooks/auto-handoff.py` and
 - `tests/test_review_panel.py` rewritten:
   - recording-line check asserts **≥ 1** line contains `review-record.py plan-write` (fixes F6) and none names a critic;
   - review.md has numbered steps calling `review-panel.py prompts` and `review-panel.py merge`, and the step-2 text "In ONE message";
-  - critic frontmatter: `effort: low`, `maxTurns: 8`, `hooks:` with `panel-format-check.py` and `critic-read-scope.py`; old "line range specified by the caller" / "provided by the orchestrator" strings absent.
+  - critic frontmatter: `effort: low`, `maxTurns: 8`, `hooks:` with `panel-format-check.py` and `critic-read-scope.py`; old "line range specified by the caller" / "provided by the orchestrator" strings absent;
+  - `test_critic_hooks_fail_open_and_fall_back_to_kit`: each hook command run via `bash -c` exits 0 with no hook file, runs the `~/.claude-kit` copy when only that exists, and the project copy when present.
 - `tests/test_review_panel_script.py` (subprocess on a tmp repo): prompts on/off (flag and env) and the jsonl row; no plan → exit 1; merge: valid critic file, missing PANEL line → incomplete, `API Error` → incomplete, >3,000 chars → incomplete; dedup covered/uncovered by the rule; stop rule: same sha twice = one round, two clean rounds → STOP, round 2 same Blocker → STOP no-new-blocker, 5 rounds → CAP.
 - `tests/test_panel_guard.py`: exact critic prompt allowed; prompt with extra text / history / missing file → exit 2; reviewer → exit 0 + note; other types/garbage → exit 0.
 - `tests/test_panel_format_check.py` and `tests/test_critic_read_scope.py`: each branch above.
@@ -111,7 +114,7 @@ Edits: `~/IdeaProjects/agent-config/accounts/personal/hooks/auto-handoff.py` and
 ### D9. Brief guard exempts the exact critic prompt (outside this repo — agent-config, both account copies)
 
 Edits: `~/IdeaProjects/agent-config/accounts/personal/hooks/task-brief-guard.py` and `…/sehhaty/hooks/task-brief-guard.py` (identical today; edit both identically), `~/IdeaProjects/agent-config/tests/test_task_brief.py`.
-- Add `import re` to the imports (lines 17-20 have none; a NameError would fail the whole guard open via `main()`).
+- `import re` must be imported (it is, line 20; a NameError would fail the whole guard open via `main()`).
 - In `decide()`, after the `not isinstance(body, str)` check and before `tb.skip_used`: if `ti.get("subagent_type")` ∈ `{"plan-design-critic", "plan-readiness-critic"}` and `re.fullmatch(r"Plan: (/.+\.md)\. Review it\.", body.strip())` and `os.path.isfile(group 1)` → `tb.log(sd, HOOK, "panel-critic", sid, len(body))`; `return allow()`.
 - Anything else for those types (extra text, history, a brief file, missing or relative path) falls through to the normal 7-heading check and is denied, which also enforces F3 at user level. Other types unchanged. Kit `panel-guard.py` (D4) stays the repo-level check.
 - Why safe: critics have `Read, Grep` only, plan-scoped by `critic-read-scope.py` (D3); the prompt carries nothing but the path.
@@ -173,6 +176,7 @@ cd ~/IdeaProjects/agent-config && $PY -m pytest -q tests/test_auto_handoff.py te
 
 - Frontmatter `hooks:` need folder trust and may not fire under `claude -p --agent`: then D3 hooks are no-ops there and `merge` still marks bad output `incomplete` (format is validated twice). V5 checks the interactive path.
 - The critics are user-level (symlinked into `~/.claude/agents`), so `$CLAUDE_PROJECT_DIR/.claude/hooks/*.py` may not exist: python's exit 2 would block every critic Read. The hook commands fall back to `~/.claude-kit` and then exit 0 (fail open); `test_critic_hooks_fail_open_and_fall_back_to_kit` pins it.
+- Open (found in V5 attempt 1, 2026-11-11): the user-level `task-brief-guard` (D9) exempts only the critic prompt, so `/review` step 2's plain `REVIEWER_MSG` is denied for missing the 7 brief headings; the attempt wrapped it in the headings by hand. Agent definitions load at session start, so a frontmatter fix needs a new session before V5.
 - `panel-guard` is blocking: a false deny only blocks a critic (advisory); reviewer is never denied. Owner off-switch: `CK_REVIEW_PANEL=off`.
 - D6 lets ≤ 2 extra subagents past the cutoff within 120 s; bounded by `CK_CONTEXT_BLOCK`.
 - Rollback: `git revert` the kit commit; `git revert` the agent-config commit. No data migration; state files under `.claude/hooks/.state/` are disposable.

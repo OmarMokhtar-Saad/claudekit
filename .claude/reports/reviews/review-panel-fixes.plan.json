@@ -1,6 +1,6 @@
 {
   "plan_path": ".claude/plans/plan-review-panel-fixes.md",
-  "plan_sha256": "fb51ae2619cb1bc07aa46fff1eaa16f6192c7230bd89e1392f69e2a4c588823b",
+  "plan_sha256": "90b6bba1b15e023f3385d95b092f6d9099dfe56ed49f125444fc9d2f14ee04e3",
   "files": [
     ".claude/operations/scripts/review-panel.py",
     ".claude/hooks/panel-guard.py",
@@ -30,15 +30,21 @@
     ".claude/skills/skills-registry.json",
     ".claude/hooks/README.md"
   ],
-  "score": 94,
-  "decision": "APPROVED",
+  "score": 82,
+  "decision": "REVISE",
   "reviewer_role": "reviewer",
   "role_source": "transcript",
   "verdict_origin": "rubric",
   "findings": [
-    "[MINOR] The existence of the sehhaty hook copies and `tests/test_auto_handoff.py` is unverified, and the plan's V4 `cmp` check is the only guard. \u2014 Location: plan lines 87, 113, 143 \u2014 Fix: `ls` them before ed"
+    "[MAJOR] D3 and Risks contradict each other. D3 specifies the hook commands as bare `python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/panel-format-check.py\"` and `.../critic-read-scope.py`. Risks says the critics ar",
+    "[MAJOR] Several plan anchors are stale or wrong against the repo. (a) D6 says the ledger is read via `track().rows(session)`. auto-handoff.py has no such call; it uses `rows_for(session)` (line 191), `finishe",
+    "[MINOR] The plan has no Overview, Steps or Testing section. The content is spread over Evidence, Design D1-D9, Validation and Risks, and there is no implementation order. Order matters here: the D9 and D6 age",
+    "[MINOR] D4 and D9 allow any absolute `*.md` path that exists (`os.path.isfile`), not only a plan under `.claude/plans/`. D9 is a user-level exemption from the 7-heading brief guard. The critic is read-only an",
+    "[MINOR] The dedup rule needs at least one path-like token plus at least 3 content words of 5 or more letters. Findings without a path or section token are always \"uncovered\", so the uncovered-Blocker count ca",
+    "[MINOR] V3 gives a runnable command for only one mutant. Mutant 2 (break the PANEL regex) is a comment with no command. V3 also mixes `git archive HEAD` with the rsync alternative, and `sed -i ''` is BSD-only",
+    "[MINOR] Dropping the rest of the panel after one denied spawn relies on the `/review` prose and the D6 handoff. The D4 reviewer nudge is only advisory. This is acceptable for an advisory panel. \u2014 Location: pl"
   ],
-  "recorded_utc": "2026-11-11T09:04:06Z",
+  "recorded_utc": "2026-11-11T10:06:57Z",
   "rounds": [
     {
       "score": 91,
@@ -51,7 +57,16 @@
       ],
       "recorded_utc": "2026-11-11T09:01:34Z",
       "verdict_origin": "rubric"
+    },
+    {
+      "score": 94,
+      "decision": "APPROVED",
+      "findings": [
+        "[MINOR] The existence of the sehhaty hook copies and `tests/test_auto_handoff.py` is unverified, and the plan's V4 `cmp` check is the only guard. \u2014 Location: plan lines 87, 113, 143 \u2014 Fix: `ls` them before ed"
+      ],
+      "recorded_utc": "2026-11-11T09:04:06Z",
+      "verdict_origin": "rubric"
     }
   ],
-  "round": 2
+  "round": 3
 }
