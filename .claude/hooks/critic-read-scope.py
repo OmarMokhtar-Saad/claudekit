@@ -12,7 +12,8 @@ WHAT IT DOES
 ------------
 Target = tool_input.file_path or tool_input.path (Grep/Glob with no path = cwd = allowed).
 Exit 2 with a reason when the real path is outside $CLAUDE_PROJECT_DIR (except a
-.claude/plans/plan-*.md plan itself in another repo), or is a
+.claude/plans/plan-*.md plan itself in another repo, or behind a .claude/plans dir that
+is a symlink to a dir outside the project; a symlinked plan file is never excepted), or is a
 *.review.md / *.panel-*.md plan sibling, hook state, a report, a brief*.md, a
 session-context.md or anything under handoffs/. Missing or odd input -> allow. stdlib, py3.9.
 """
@@ -30,9 +31,28 @@ DENY_GLOBS = (
 DENY_NAMES = ("brief*.md", "session-context.md")
 
 
+def _plan_behind_symlinked_dir(target, root):
+    """True for a regular plan-*.md whose lexical parent is a .claude/plans dir that is a
+    symlink to a dir outside the project. The leaf itself may not be a symlink; an
+    in-project target falls through to the realpath deny checks below."""
+    lex = os.path.normpath(os.path.join(root, os.path.expanduser(target)))
+    name = os.path.basename(lex)
+    if not fnmatch.fnmatch(lex.replace(os.sep, "/"), "*/.claude/plans/plan-*.md") \
+            or os.path.basename(os.path.dirname(lex)) != "plans" \
+            or any(fnmatch.fnmatch(name, g) for g in ("*.review.md", "*.panel-*.md")) \
+            or os.path.islink(lex):
+        return False
+    real = os.path.realpath(lex)
+    if real == root or real.startswith(root + os.sep):
+        return False
+    return os.path.isfile(real) and not os.path.islink(real) and os.path.basename(real) == name
+
+
 def blocked(target, root):
     """Reason string when `target` is out of scope, else ''."""
     root = os.path.realpath(root)
+    if _plan_behind_symlinked_dir(target, root):
+        return ""
     path = os.path.realpath(os.path.join(root, os.path.expanduser(target)))
     if path != root and not path.startswith(root + os.sep):
         # /review may name a plan in another repo (the critics are user-level): that plan

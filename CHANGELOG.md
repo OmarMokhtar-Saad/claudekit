@@ -12,6 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Fixed: review-panel stop rule and critic read scope.** The stop rule counts covered critic
+  findings too (dedup is display-only) and the PANEL line shows `, <n> covered`; a covered
+  Blocker can no longer produce `STOP: 2 consecutive clean rounds`. `critic-read-scope`: a plan
+  behind a `.claude/plans` dir symlinked outside the project is readable; leaf symlinks, nested
+  paths and in-project targets keep the existing deny.
+
 - **Fixed: `/review` plan panel (EGM critics).** `review-panel.py prompts|merge` builds the
   critic prompts from the plan's realpath, validates replies (PANEL line, 3,000-char cap, API
   errors), dedups against the reviewer's ISSUES and applies the stop rules (2 clean rounds,
