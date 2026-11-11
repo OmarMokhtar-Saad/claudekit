@@ -18,10 +18,10 @@ current files. Approval is local: ask `review-record.py plan-check <plan>`.
 
 | State | Plans |
 |---|---:|
-| `open` | 150 |
+| `open` | 151 |
 | `executed` | 30 |
 | `legacy` | 5 |
-| **total** | **185** |
+| **total** | **186** |
 
 ## Plans
 
@@ -166,6 +166,7 @@ current files. Approval is local: ask `review-record.py plan-check <plan>`.
 | `.claude/plans/plan-review-loop-tripwire.md` | `open` |
 | `.claude/plans/plan-review-loop.md` | `open` |
 | `.claude/plans/plan-review-panel-fixes.md` | `open` |
+| `.claude/plans/plan-review-panel-followups.md` | `open` |
 | `.claude/plans/plan-review-record-ops-root.md` | `open` |
 | `.claude/plans/plan-review-round-2.md` | `executed` |
 | `.claude/plans/plan-review-round-history.md` | `open` |
