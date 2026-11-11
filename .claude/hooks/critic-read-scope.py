@@ -16,6 +16,9 @@ Exit 2 with a reason when the real path is outside $CLAUDE_PROJECT_DIR (except a
 is a symlink to a dir outside the project; a symlinked plan file is never excepted), or is a
 *.review.md / *.panel-*.md plan sibling, hook state, a report, a brief*.md, a
 session-context.md or anything under handoffs/. Missing or odd input -> allow. stdlib, py3.9.
+
+Security bound: a .claude/plans symlink makes every regular plan-*.md directly in its target
+dir readable (not subdirs, not siblings). This is intended, because the symlink is owner-made.
 """
 import fnmatch
 import json

@@ -230,7 +230,8 @@ def test_covered_blocker_is_not_a_clean_round(repo):
     p.write_text("# plan v2\n")
     out = merge(repo, p, COVERED)
     assert summary(out) == ("PANEL: 0 blocker, 0 major (uncovered), 1 covered; round 2; "
-                            "CONTINUE: fix uncovered Blockers, then re-run /review")
+                            "CONTINUE: only covered findings — fix the reviewer's ISSUES, "
+                            "then re-run /review")
 
 
 def test_merge_records_raw_counts(repo):

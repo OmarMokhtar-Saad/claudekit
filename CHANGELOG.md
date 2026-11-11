@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Changed: review-panel CONTINUE wording.** A round whose only findings repeat reviewer ISSUES
+  now says `CONTINUE: only covered findings — fix the reviewer's ISSUES, then re-run /review`.
+  `REVIEW_PANEL.md` documents that the no-new-Blocker STOP fires with a repeated Blocker still
+  open, and `critic-read-scope` documents the symlinked-plans-dir bound.
+
 - **Fixed: review-panel stop rule and critic read scope.** The stop rule counts covered critic
   findings too (dedup is display-only) and the PANEL line shows `, <n> covered`; a covered
   Blocker can no longer produce `STOP: 2 consecutive clean rounds`. `critic-read-scope`: a plan

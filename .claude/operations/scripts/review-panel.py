@@ -264,6 +264,9 @@ def stop_line(rounds):
                 "Majors as follow-ups" % k)
     if k >= CAP:
         return "CAP: round %d — list open findings and ask the owner" % k
+    if not clean(cur) and not cur.get("blockers") and not cur.get("majors"):
+        # Every finding repeats a reviewer ISSUE: nothing new to fix beyond those.
+        return "CONTINUE: only covered findings — fix the reviewer's ISSUES, then re-run /review"
     return "CONTINUE: fix uncovered Blockers, then re-run /review"
 
 
