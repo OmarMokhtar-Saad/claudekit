@@ -38,7 +38,7 @@ The panel is ADVISORY. Only `reviewer`'s `=== REVIEW ===` block is recorded (ste
 ```
 === PANEL ===
 <critic>-r<round>-<n> <critic>: [Blocker|Major] <finding>   (only findings reviewer's ISSUES do not cover)
-PANEL: <n> blocker, <n> major (uncovered); round <k>; <stop line>
+PANEL: <n> blocker, <n> major (uncovered)[, <n> covered]; round <k>; <stop line>
 === END PANEL ===
 ```
 
@@ -47,13 +47,14 @@ A critic finding is *covered* when one reviewer `ISSUES:` line shares at least o
 with it. A critic reply that is empty, an API error, over 3,000 chars or without a final
 `PANEL: <n> blocker, <n> major` line is printed as `<critic>: incomplete (<reason>)` and never
 retried in the same round (the Stop hook already re-asked once). `PANEL: incomplete` from the
-critic is reported as such.
+critic is reported as such. `, <n> covered` is added when n > 0 covered findings were hidden.
 
 ## Stop rule (EGM)
 
 Rounds are kept per plan in `.claude/hooks/.state/review-panel-rounds.json`; a round is added only
 when the plan bytes changed (re-running `merge` on the same plan updates that round). A clean round
-has 0 uncovered Blocker and 0 uncovered Major. The stop line is one of:
+has 0 Blocker and 0 Major from valid critics, covered or not: dedup only decides what is printed,
+never the stop line (a covered Blocker still blocks "clean" and counts for "no new Blocker"). The stop line is one of:
 
 - `STOP: 2 consecutive clean rounds`
 - `STOP: round <k> raised no new Blocker — stop re-reviewing; carry remaining Majors as follow-ups`

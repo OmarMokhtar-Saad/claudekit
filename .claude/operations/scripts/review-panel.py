@@ -21,7 +21,9 @@ This script owns the parts a model kept skipping:
       Validates each critic reply (last non-empty line is a PANEL line, <= 3,000 chars),
       drops findings the reviewer's ISSUES already cover (shared path-like token AND >= 3
       shared content words of >= 5 letters), numbers the rest <critic>-r<round>-<n>, and
-      applies the EGM stop rule (two consecutive clean rounds; no new Blocker; cap 5).
+      applies the EGM stop rule (two consecutive clean rounds; no new Blocker; cap 5) to
+      every valid critic finding, covered or not (dedup is display-only; the PANEL line
+      adds ", <n> covered" when n > 0).
       Rounds are kept per plan in .claude/hooks/.state/review-panel-rounds.json and only
       advance when the plan bytes change. Advisory: exit 0 always, 2 on usage errors.
 
@@ -214,7 +216,7 @@ def _norm(text):
 
 # ---------------------------------------------------------------- rounds + stop rule
 
-def record_round(plan, sha, blockers, majors):
+def record_round(plan, sha, blockers, majors, raw_blockers, raw_majors):
     """Round number k and the full round list for this plan (appends on new bytes)."""
     path = os.path.join(_state_dir(), "review-panel-rounds.json")
     try:
@@ -225,7 +227,8 @@ def record_round(plan, sha, blockers, majors):
     except (OSError, ValueError):
         data = {}
     rounds = data.setdefault(plan, [])
-    row = {"sha": sha, "blockers": sorted(set(blockers)), "majors": majors, "ts": _now()}
+    row = {"sha": sha, "blockers": sorted(set(blockers)), "majors": majors,
+           "raw_blockers": sorted(set(raw_blockers)), "raw_majors": raw_majors, "ts": _now()}
     if rounds and rounds[-1].get("sha") == sha:
         rounds[-1] = row
     else:
@@ -243,13 +246,20 @@ def record_round(plan, sha, blockers, majors):
 def stop_line(rounds):
     k = len(rounds)
 
+    # raw_* count covered findings too; rows written before they existed fall back.
+    def _rb(r):
+        return r.get("raw_blockers", r.get("blockers", []))
+
+    def _rm(r):
+        return r.get("raw_majors", r.get("majors", 0))
+
     def clean(r):
-        return not r.get("blockers") and not r.get("majors")
+        return not _rb(r) and not _rm(r)
 
     cur = rounds[-1]
     if k >= 2 and clean(cur) and clean(rounds[-2]):
         return "STOP: 2 consecutive clean rounds"
-    if k >= 2 and not clean(cur) and set(cur.get("blockers", [])) <= set(rounds[-2].get("blockers", [])):
+    if k >= 2 and not clean(cur) and set(_rb(cur)) <= set(_rb(rounds[-2])):
         return ("STOP: round %d raised no new Blocker — stop re-reviewing; carry remaining "
                 "Majors as follow-ups" % k)
     if k >= CAP:
@@ -270,7 +280,7 @@ def cmd_merge(args):
         critics.append(tuple(spec.split("=", 1)))
     issues = reviewer_issues(read_reply(args.reviewer, reviewer=True))
 
-    notes, uncovered = [], []
+    notes, uncovered, found = [], [], []
     for name, ref in critics:
         reply = read_reply(ref)
         status, reason = validate(reply)
@@ -278,12 +288,18 @@ def cmd_merge(args):
             notes.append("%s: incomplete (%s)" % (name, reason))
             continue
         for sev, text in findings(reply):
+            found.append((name, sev, text))
             if not covered(text, issues):
                 uncovered.append((name, sev, text))
 
     blockers = [_norm(t) for _, s, t in uncovered if s == "Blocker"]
     majors = sum(1 for _, s, _ in uncovered if s == "Major")
-    k, rounds = record_round(plan, _sha(plan), blockers, majors)
+    # The stop rule counts every valid critic finding: dedup only decides what is printed.
+    raw_blockers = [_norm(t) for _, s, t in found if s == "Blocker"]
+    raw_majors = sum(1 for _, s, _ in found if s == "Major")
+    k, rounds = record_round(plan, _sha(plan), blockers, majors, raw_blockers, raw_majors)
+    n_covered = len(found) - len(uncovered)
+    tally = "(uncovered), %d covered" % n_covered if n_covered else "(uncovered)"
 
     counters: dict = {}
     print("=== PANEL ===")
@@ -292,8 +308,8 @@ def cmd_merge(args):
     for name, sev, text in uncovered:
         counters[name] = counters.get(name, 0) + 1
         print("%s-r%d-%d %s: [%s] %s" % (name, k, counters[name], name, sev, text))
-    print("PANEL: %d blocker, %d major (uncovered); round %d; %s"
-          % (len(blockers), majors, k, stop_line(rounds)))
+    print("PANEL: %d blocker, %d major %s; round %d; %s"
+          % (len(blockers), majors, tally, k, stop_line(rounds)))
     print("=== END PANEL ===")
     return 0
 

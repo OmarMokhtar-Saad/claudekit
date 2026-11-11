@@ -216,3 +216,46 @@ def test_new_blocker_continues_then_caps_at_5(repo):
         if k < 5:
             assert "CONTINUE" in summary(out)
     assert "CAP: round 5" in summary(out)
+
+
+# ------------------------------------------------------------------ S1: stop rule counts covered findings
+
+COVERED = blocker("src/cache.py eviction handler swallows exceptions")
+ROUNDS = (".claude", "hooks", ".state", "review-panel-rounds.json")
+
+
+def test_covered_blocker_is_not_a_clean_round(repo):
+    p = plan(repo)
+    merge(repo, p, CLEAN)
+    p.write_text("# plan v2\n")
+    out = merge(repo, p, COVERED)
+    assert summary(out) == ("PANEL: 0 blocker, 0 major (uncovered), 1 covered; round 2; "
+                            "CONTINUE: fix uncovered Blockers, then re-run /review")
+
+
+def test_merge_records_raw_counts(repo):
+    p = plan(repo)
+    merge(repo, p, CLEAN)
+    p.write_text("# plan v2\n")
+    merge(repo, p, COVERED)
+    text = json.dumps(json.loads(repo.joinpath(*ROUNDS).read_text()))
+    assert '"raw_blockers": ["src cache py eviction handler swallows exceptions"]' in text
+    assert '"raw_majors": 0' in text
+
+
+def test_repeated_covered_blocker_stops(repo):
+    p = plan(repo)
+    merge(repo, p, COVERED)
+    p.write_text("# plan v2\n")
+    out = merge(repo, p, COVERED)
+    assert "; round 2; STOP: round 2 raised no new Blocker" in summary(out)
+
+
+def test_old_rounds_rows_fall_back(repo):
+    p = plan(repo)
+    path = repo.joinpath(*ROUNDS)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    old = {"sha": "0" * 64, "blockers": [], "majors": 0, "ts": "2026-11-10T00:00:00Z"}
+    path.write_text(json.dumps({os.path.realpath(str(p)): [old]}))
+    out = merge(repo, p, CLEAN)
+    assert "; round 2; STOP: 2 consecutive clean rounds" in summary(out)

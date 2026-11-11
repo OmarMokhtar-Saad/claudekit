@@ -97,3 +97,50 @@ def test_main_exit_codes(root):
     assert r.returncode == 2 and "out of scope" in r.stderr
     assert run(json.dumps({"tool_input": {"file_path": "src/a.py"}})).returncode == 0
     assert run("nope").returncode == 0
+
+
+# ---------------------------------------------------------------- S2: symlinked plans dir
+
+def test_plan_behind_symlinked_plans_dir_allowed(root, tmp_path_factory):
+    notes = tmp_path_factory.mktemp("store") / "notes"
+    notes.mkdir()
+    for n in ("plan-a.md", "plan-a.review.md", "plan-a.panel-plan-design-critic.md"):
+        (notes / n).write_text("x")
+    (root / ".claude").mkdir()
+    os.symlink(str(notes), str(root / ".claude" / "plans"))
+    assert cr.blocked(".claude/plans/plan-a.md", str(root)) == ""
+    # siblings stay denied (pre-existing behaviour; regression guard)
+    assert cr.blocked(".claude/plans/plan-a.review.md", str(root)) == "outside the project"
+    assert cr.blocked(".claude/plans/plan-a.panel-plan-design-critic.md",
+                      str(root)) == "outside the project"
+
+
+def test_leaf_plan_symlink_not_allowed(root, tmp_path_factory):
+    secret = tmp_path_factory.mktemp("outside") / "secret.txt"
+    secret.write_text("x")
+    plans = root / ".claude" / "plans"
+    plans.mkdir(parents=True)
+    state = root / ".claude" / "hooks" / ".state"
+    state.mkdir(parents=True)
+    (state / "x.jsonl").write_text("x")
+    os.symlink(str(secret), str(plans / "plan-evil.md"))
+    os.symlink(str(state / "x.jsonl"), str(plans / "plan-evil2.md"))
+    assert cr.blocked(".claude/plans/plan-evil.md", str(root)) == "outside the project"
+    assert ".state" in cr.blocked(".claude/plans/plan-evil2.md", str(root))
+
+
+def test_symlinked_plans_dir_into_denied_dir(root):
+    state = root / ".claude" / "hooks" / ".state"
+    state.mkdir(parents=True)
+    (state / "plan-x.md").write_text("x")
+    os.symlink(str(state), str(root / ".claude" / "plans"))
+    assert ".state" in cr.blocked(".claude/plans/plan-x.md", str(root))
+
+
+def test_nested_file_under_symlinked_plans_dir_denied(root, tmp_path_factory):
+    notes = tmp_path_factory.mktemp("store") / "notes"
+    (notes / "plan-x").mkdir(parents=True)
+    (notes / "plan-x" / "secret.md").write_text("x")
+    (root / ".claude").mkdir()
+    os.symlink(str(notes), str(root / ".claude" / "plans"))
+    assert cr.blocked(".claude/plans/plan-x/secret.md", str(root)) == "outside the project"
