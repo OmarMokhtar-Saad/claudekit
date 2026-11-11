@@ -21,7 +21,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Critics run at `effort: low`, `maxTurns: 8`, with a 1.5M context budget; `ck flow` runs the
   panel after record (advisory). The critic hook commands resolve the project copy, then
   `~/.claude-kit`, and fail open (exit 0) when neither exists, so user-level critics never
-  block Reads in projects without the kit hooks. V5 live result: _pending_.
+  block Reads in projects without the kit hooks. `critic-read-scope` also admits the named
+  `.claude/plans/plan-*.md` when it lives in another repo (never its `.review`/`.panel-`
+  siblings). V5 live result (2026-11-11, from ~/IdeaProjects on a kit plan): frontmatter
+  PreToolUse hook fired (it denied the out-of-project plan before the fix); both critics
+  ended with a PANEL line; thinking is redacted in transcripts, so output_tokens minus reply
+  gives ≈ 2.5k and ≈ 0.35k (median ≈ 1.4k ≤ 3k); `=== PANEL ===` printed, round 2 STOP.
+  Open: design-critic reply was 3,500 chars and the Stop hook did not trim it (merge marked
+  it incomplete): the reply leaves via SubagentHandback, which the Stop hook may not see.
+  The reviewer's plain REVIEWER_MSG is still denied by the user-level task-brief-guard.
 - **Added: `team` stages (Phase 4, opt-in `stages: true`).** `debug`, `review`, `start`,
   `verify`, `unblock` and `quick`; the edit gate allows a task's files only at `implementing`
   and `land` needs `verifying`. Off by default. See `.ai/CONCURRENCY.md`.

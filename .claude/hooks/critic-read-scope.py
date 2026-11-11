@@ -11,7 +11,8 @@ scope (docs: PreToolUse on tool_input.file_path / path).
 WHAT IT DOES
 ------------
 Target = tool_input.file_path or tool_input.path (Grep/Glob with no path = cwd = allowed).
-Exit 2 with a reason when the real path is outside $CLAUDE_PROJECT_DIR, or is a
+Exit 2 with a reason when the real path is outside $CLAUDE_PROJECT_DIR (except a
+.claude/plans/plan-*.md plan itself in another repo), or is a
 *.review.md / *.panel-*.md plan sibling, hook state, a report, a brief*.md, a
 session-context.md or anything under handoffs/. Missing or odd input -> allow. stdlib, py3.9.
 """
@@ -34,6 +35,12 @@ def blocked(target, root):
     root = os.path.realpath(root)
     path = os.path.realpath(os.path.join(root, os.path.expanduser(target)))
     if path != root and not path.startswith(root + os.sep):
+        # /review may name a plan in another repo (the critics are user-level): that plan
+        # file itself is in scope, never its siblings or anything else outside the project.
+        name = os.path.basename(path)
+        if fnmatch.fnmatch(path.replace(os.sep, "/"), "*/.claude/plans/plan-*.md") \
+                and not any(fnmatch.fnmatch(name, g) for g in ("*.review.md", "*.panel-*.md")):
+            return ""
         return "outside the project"
     rel = os.path.relpath(path, root).replace(os.sep, "/")
     for pattern in DENY_GLOBS:

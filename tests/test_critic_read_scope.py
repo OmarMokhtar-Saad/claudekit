@@ -50,6 +50,17 @@ def test_out_of_scope_blocked(root, target, reason):
     assert code == 2 and "critic-read-scope" in err
 
 
+def test_plan_in_another_repo_allowed_but_not_its_siblings(root, tmp_path_factory):
+    plans = tmp_path_factory.mktemp("kit") / ".claude" / "plans"
+    plans.mkdir(parents=True)
+    for n in ("plan-x.md", "plan-x.review.md", "plan-x.panel-plan-design-critic.md", "notes.md"):
+        (plans / n).write_text("x")
+    assert cr.blocked(str(plans / "plan-x.md"), str(root)) == ""
+    for n in ("plan-x.review.md", "plan-x.panel-plan-design-critic.md", "notes.md"):
+        assert cr.blocked(str(plans / n), str(root)) == "outside the project", n
+    assert cr.blocked(str(plans.parent / "hooks.md"), str(root)) == "outside the project"
+
+
 def test_symlink_escape_blocked(root, tmp_path_factory):
     outside = tmp_path_factory.mktemp("outside") / "secret.md"
     outside.write_text("x")
