@@ -59,7 +59,13 @@ never the stop line (a covered Blocker still blocks "clean" and counts for "no n
 - `STOP: 2 consecutive clean rounds`
 - `STOP: round <k> raised no new Blocker — stop re-reviewing; carry remaining Majors as follow-ups`
 - `CAP: round 5 — list open findings and ask the owner`
+- `CONTINUE: only covered findings — fix the reviewer's ISSUES, then re-run /review` (the round
+  is not clean but every finding repeats a reviewer ISSUE)
 - `CONTINUE: fix uncovered Blockers, then re-run /review`
+
+The no-new-Blocker STOP fires even when a repeated Blocker (covered or not) is still open. That is
+the EGM intent: another round will not converge it. List the open Blocker for the owner as a
+follow-up rather than re-reviewing.
 
 If the panel has any uncovered Blocker and the line says CONTINUE: fix it in the plan and re-run
 `/review` before `/implement`, whatever reviewer scored (advisory — the gate does not enforce it; say so).
