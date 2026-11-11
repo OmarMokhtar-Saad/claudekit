@@ -27,9 +27,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   PreToolUse hook fired (it denied the out-of-project plan before the fix); both critics
   ended with a PANEL line; thinking is redacted in transcripts, so output_tokens minus reply
   gives ≈ 2.5k and ≈ 0.35k (median ≈ 1.4k ≤ 3k); `=== PANEL ===` printed, round 2 STOP.
-  Open: design-critic reply was 3,500 chars and the Stop hook did not trim it (merge marked
-  it incomplete): the reply leaves via SubagentHandback, which the Stop hook may not see.
-  The reviewer's plain REVIEWER_MSG is still denied by the user-level task-brief-guard.
+  The design-critic reply was 3,500 chars and the Stop hook missed it (merge marked it
+  incomplete): critics end with a SubagentHandback call, so `last_assistant_message` is not
+  a str. Fixed: `panel-format-check` also runs as PreToolUse on `SubagentHandback`, checks
+  `tool_input.message` and denies once per agent (marker under `$TMPDIR`); takes effect in
+  a new session. V5 re-run (2026-11-11, new session): task-brief-guard logged `review-msg`
+  (plain REVIEWER_MSG allowed) and `panel-critic` x2; the design critic's first handback
+  (3,319 chars) was denied once by PreToolUse SubagentHandback and its second (2,269 chars)
+  was accepted; the readiness critic's single handback (2,989 chars) passed. Merge: both
+  critics valid, 0 blocker / 4 major uncovered, round 3 STOP. Thinking ≈ 2.0k and ≈ 0.8k
+  (median ≈ 1.4k ≤ 3k). Reviewer: CONDITIONAL 91, 0 critical/major.
+  The user-level task-brief-guard denied the reviewer's plain REVIEWER_MSG; agent-config
+  6b0e2e9 exempts exactly that message for `reviewer`.
 - **Added: `team` stages (Phase 4, opt-in `stages: true`).** `debug`, `review`, `start`,
   `verify`, `unblock` and `quick`; the edit gate allows a task's files only at `implementing`
   and `land` needs `verifying`. Off by default. See `.ai/CONCURRENCY.md`.

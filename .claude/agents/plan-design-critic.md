@@ -14,6 +14,10 @@ hooks:
         - type: command
           command: 'f="$CLAUDE_PROJECT_DIR/.claude/hooks/panel-format-check.py"; [ -f "$f" ] || f="$HOME/.claude-kit/.claude/hooks/panel-format-check.py"; [ -f "$f" ] || exit 0; exec python3 "$f"'
   PreToolUse:
+    - matcher: "SubagentHandback"
+      hooks:
+        - type: command
+          command: 'f="$CLAUDE_PROJECT_DIR/.claude/hooks/panel-format-check.py"; [ -f "$f" ] || f="$HOME/.claude-kit/.claude/hooks/panel-format-check.py"; [ -f "$f" ] || exit 0; exec python3 "$f"'
     - matcher: "Read|Grep|Glob"
       hooks:
         - type: command

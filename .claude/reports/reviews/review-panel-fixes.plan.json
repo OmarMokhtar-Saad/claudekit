@@ -1,6 +1,6 @@
 {
   "plan_path": ".claude/plans/plan-review-panel-fixes.md",
-  "plan_sha256": "90e70707a2a29a12ae0fdc9a7a38c601e70aa6a69af4596c5a8d9f29a5ef558e",
+  "plan_sha256": "e52c649bda2370fbe30f521bb133aaeac48456992a5c0ae005896f9e2bef98ae",
   "files": [
     ".claude/operations/scripts/review-panel.py",
     ".claude/hooks/panel-guard.py",
@@ -30,19 +30,17 @@
     ".claude/skills/skills-registry.json",
     ".claude/hooks/README.md"
   ],
-  "score": 84,
-  "decision": "REVISE",
+  "score": 91,
+  "decision": "CONDITIONAL",
   "reviewer_role": "reviewer",
   "role_source": "transcript",
   "verdict_origin": "rubric",
   "findings": [
-    "[MAJOR] An open defect with no fix step. Risks section line 179 says the user-level task-brief-guard (D9) exempts only the critic prompt, so /review step 2's plain REVIEWER_MSG is denied for missing the 7 hea",
-    "[MINOR] The Files: list ends with a conditional entry (\"generator outputs, only if --check fails\": AGENTS.md, docs/AGENTS.md, docs/ARCHITECTURE.md, skills-registry.json, hooks/README.md). It is not a firm set",
-    "[MINOR] The plan has no Overview or Steps heading. The content is spread over Evidence, Research and Design D1-D9, and \"Testing\" is the Validation commands section. Structure is workable but does not match th",
-    "[MINOR] V3 mutant 2 (break the PANEL regex in panel-format-check.py) is only a comment, not a runnable command. Only mutant 1 can be run as written. The V4 cmp checks and the whole agent-config half (D6, D9, ",
-    "[MINOR] The D1 dedup rule (one shared path token plus 3 shared 5-letter words) is a heuristic with no calibration data. It could mark real critic findings as covered or hide them. test_review_panel_script.py "
+    "[MINOR] The SubagentHandback fix is documented only in the Risks section, not in the design or tests. The D3 hooks bullet and the D7 test list still describe only the Stop-path check. The code does implement ",
+    "[MINOR] D9 does not describe the later agent-config 6b0e2e9 change. That change exempts the plain reviewer message (REVIEWER_RE) from task-brief-guard. It appears only as a Risks bullet, and D9's test list ha",
+    "[MINOR] The plan is in a half-done state: Status says D1-D9 are implemented and only V5 (the live run) is open, yet it is still written as a forward plan. V5 is manual, so nothing mechanical shows the 3,000-t"
   ],
-  "recorded_utc": "2026-11-11T10:10:24Z",
+  "recorded_utc": "2026-11-11T11:04:41Z",
   "rounds": [
     {
       "score": 91,
@@ -92,7 +90,20 @@
       ],
       "recorded_utc": "2026-11-11T10:10:23Z",
       "verdict_origin": "rubric"
+    },
+    {
+      "score": 84,
+      "decision": "REVISE",
+      "findings": [
+        "[MAJOR] An open defect with no fix step. Risks section line 179 says the user-level task-brief-guard (D9) exempts only the critic prompt, so /review step 2's plain REVIEWER_MSG is denied for missing the 7 hea",
+        "[MINOR] The Files: list ends with a conditional entry (\"generator outputs, only if --check fails\": AGENTS.md, docs/AGENTS.md, docs/ARCHITECTURE.md, skills-registry.json, hooks/README.md). It is not a firm set",
+        "[MINOR] The plan has no Overview or Steps heading. The content is spread over Evidence, Research and Design D1-D9, and \"Testing\" is the Validation commands section. Structure is workable but does not match th",
+        "[MINOR] V3 mutant 2 (break the PANEL regex in panel-format-check.py) is only a comment, not a runnable command. Only mutant 1 can be run as written. The V4 cmp checks and the whole agent-config half (D6, D9, ",
+        "[MINOR] The D1 dedup rule (one shared path token plus 3 shared 5-letter words) is a heuristic with no calibration data. It could mark real critic findings as covered or hide them. test_review_panel_script.py "
+      ],
+      "recorded_utc": "2026-11-11T10:10:24Z",
+      "verdict_origin": "rubric"
     }
   ],
-  "round": 5
+  "round": 6
 }

@@ -91,6 +91,8 @@ def test_critic_runs_cheap_and_hooked(name):
     assert re.search(r"^hooks:\s*$", front, re.M), name
     assert "panel-format-check.py" in front
     assert "critic-read-scope.py" in front
+    # V5: critics end with a SubagentHandback call, so Stop alone never sees the reply
+    assert re.search(r'^\s*- matcher: "SubagentHandback"\s*$', front, re.M), name
     # stale wording from before the prompt became path-only
     assert "line range specified by the caller" not in body
     assert "provided by the orchestrator" not in body
@@ -105,8 +107,9 @@ def test_reviewer_asks_whether_each_test_can_fail():
 def _hook_commands(name):
     front, _ = _split(name)
     cmds = re.findall(r"^\s*command:\s*'(.*)'\s*$", front, re.M)
-    assert len(cmds) == 2, (name, cmds)
-    return cmds
+    # Stop + PreToolUse(SubagentHandback) share one panel-format-check command
+    assert len(cmds) == 3 and len(set(cmds)) == 2, (name, cmds)
+    return list(dict.fromkeys(cmds))
 
 
 def _run(cmd, project, home):

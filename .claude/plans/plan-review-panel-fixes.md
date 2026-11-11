@@ -40,7 +40,7 @@
   ```
   `<path>` is always `os.path.realpath` of the plan (absolute, `/`-rooted), so it matches the D4 and D9 regex `^Plan: (/.+\.md)\. Review it\.$` (spaces allowed). `test_review_panel_script.py` asserts the CRITIC_PROMPT line matches that regex for a relative `PLAN` arg and for the newest-plan default.
   Exit 1 with `ERROR: no plan` when none is found.
-- `review-panel.py merge PLAN --reviewer REF [--critic NAME=REF]...` — `REF` is a Task agentId (transcript found with `review-record.py`'s `_task_transcript`, imported via `importlib` from the same directory) or a file path. For each critic: the reply is **valid** iff its last non-empty line matches `^PANEL: (\d+) blocker, (\d+) major\s*$` or `^PANEL: incomplete\b`, and it is ≤ 3,000 chars; an API-error reply (`API Error`/empty) or invalid format prints `<critic>: incomplete (<reason>)` — never retried here (SubagentStop already retried once, D3). Findings are parsed from lines starting with `[Blocker]`/`[Major]`/`**Blocker**`/`**Major**` (severity token + text). **Dedup rule (deterministic):** a critic finding is *covered* when any reviewer `ISSUES:` line shares ≥ 1 path-like token (`[\w./-]+\.(md|py|sh|json|ts|js|yml|yaml)` or `§\S+`) AND ≥ 3 lower-cased content words of ≥ 5 letters with it; otherwise *uncovered*. Ids `<critic>-r<round>-<n>`.
+- `review-panel.py merge PLAN --reviewer REF [--critic NAME=REF]...` — `REF` is a Task agentId (transcript found with `review-record.py`'s `_task_transcript`, imported via `importlib` from the same directory) or a file path. For each critic: the reply is **valid** iff its last non-empty line matches `^PANEL: (\d+) blocker, (\d+) major\s*$` or `^PANEL: incomplete\b`, and it is ≤ 3,000 chars; an API-error reply (`API Error`/empty) or invalid format prints `<critic>: incomplete (<reason>)` — never retried here (SubagentStop already retried once, D3). Findings are parsed from lines starting with `[Blocker]`/`[Major]`/`**Blocker**`/`**Major**` (severity token + text). **Dedup rule (deterministic):** a critic finding is *covered* when any reviewer `ISSUES:` line shares ≥ 1 path-like token (`[\w./-]+\.(md|py|sh|json|ts|js|yml|yaml)` or `§\S+`) AND ≥ 3 lower-cased content words of ≥ 5 letters with it; otherwise *uncovered*. Tokenizer: path tokens are matched on the raw text; content words are the set `re.findall(r"[a-z]{5,}", text.lower())` (no stemming, no stop list), compared by set intersection. The thresholds are not calibrated, so the covered/uncovered split is advisory: a mis-split only changes what merge prints, never the gate. Ids `<critic>-r<round>-<n>`.
   Prints:
   ```
   === PANEL ===
@@ -120,7 +120,15 @@ Edits: `~/IdeaProjects/agent-config/accounts/personal/hooks/task-brief-guard.py`
 - Why safe: critics have `Read, Grep` only, plan-scoped by `critic-read-scope.py` (D3); the prompt carries nothing but the path.
 - Tests in `tests/test_task_brief.py` (helper `e.agent(prompt, **ti)` already forwards `subagent_type=`): exact prompt + existing file (incl. a path with a space) → allow (no deny output, streak reset); same prompt with `subagent_type: reviewer` → deny headings; extra line / nonexistent path / relative path → deny headings.
 
-## Files:
+## Alternatives considered
+
+- **Format guidance in the critic prompt only:** the audit shows 62/335 replies still missed the PANEL line, so the format is checked by hooks (D3) and by merge.
+- **One combined critic inside the reviewer prompt:** cheaper, but the reviewer has the session's context, and the EGM value is a zero-context reader (F3).
+- **Model-judged dedup (an LLM call in merge):** not deterministic, costs tokens per round, and cannot be tested offline; the D1 token rule is deterministic and advisory.
+- **Gate `/implement` on the panel:** out of scope until the panel's false-positive rate is known; the panel stays advisory.
+
+## Files
+
 Files:
   `.claude/operations/scripts/review-panel.py` (new)
   `.claude/hooks/panel-guard.py` (new)
@@ -163,8 +171,15 @@ $PY scripts/gen-model-policy.py --check && $PY scripts/gen-docs.py --check && $P
 ruff check tests/ .claude/operations/scripts/review-panel.py .claude/hooks/panel-*.py .claude/hooks/critic-read-scope.py src/claudekit/cli/flow.py
 # V3 mutation: each mutant must make V1 fail (run on a scratch copy, never the tree)
 S=$(mktemp -d); git archive HEAD | tar -x -C "$S"   # after commit; before commit: rsync -a --exclude .git ./ "$S"/
-sed -i '' '/In ONE message/d' "$S/.claude/commands/review.md" && ! (cd "$S" && $PY -m pytest -q tests/test_review_panel.py) && echo MUTANT1-KILLED
-# (restore, then) break the PANEL regex in panel-format-check.py → test_panel_format_check.py must fail → MUTANT2-KILLED
+(cd "$S" && $PY -m pytest -q tests/test_review_panel.py tests/test_panel_format_check.py) || echo BASELINE-RED-STOP
+# pytest exit 1 = tests failed; any other non-zero (2 collection error, 4 usage) is not a kill
+cp .claude/commands/review.md "$S/.claude/commands/review.md"
+sed -i '' '/In ONE message/d' "$S/.claude/commands/review.md"
+(cd "$S" && $PY -m pytest -q tests/test_review_panel.py); [ $? -eq 1 ] && echo MUTANT1-KILLED
+cp .claude/commands/review.md "$S/.claude/commands/review.md"
+sed -i '' 's/blocker, (/BLOCKER, (/' "$S/.claude/hooks/panel-format-check.py"   # PANEL_RE only
+(cd "$S" && $PY -m pytest -q tests/test_panel_format_check.py); [ $? -eq 1 ] && echo MUTANT2-KILLED
+rm -rf "$S"
 # V4 agent-config
 cd ~/IdeaProjects/agent-config && $PY -m pytest -q tests/test_auto_handoff.py tests/test_task_brief.py && cmp accounts/personal/hooks/auto-handoff.py accounts/sehhaty/hooks/auto-handoff.py && cmp accounts/personal/hooks/task-brief-guard.py accounts/sehhaty/hooks/task-brief-guard.py
 # V5 live (manual, owner-visible): one real /review on this plan; read both critic transcripts:
@@ -176,7 +191,9 @@ cd ~/IdeaProjects/agent-config && $PY -m pytest -q tests/test_auto_handoff.py te
 
 - Frontmatter `hooks:` need folder trust and may not fire under `claude -p --agent`: then D3 hooks are no-ops there and `merge` still marks bad output `incomplete` (format is validated twice). V5 checks the interactive path.
 - The critics are user-level (symlinked into `~/.claude/agents`), so `$CLAUDE_PROJECT_DIR/.claude/hooks/*.py` may not exist: python's exit 2 would block every critic Read. The hook commands fall back to `~/.claude-kit` and then exit 0 (fail open); `test_critic_hooks_fail_open_and_fall_back_to_kit` pins it.
-- Open (found in V5 attempt 1, 2026-11-11): the user-level `task-brief-guard` (D9) exempts only the critic prompt, so `/review` step 2's plain `REVIEWER_MSG` is denied for missing the 7 brief headings; the attempt wrapped it in the headings by hand. Agent definitions load at session start, so a frontmatter fix needs a new session before V5.
+- Fixed in agent-config 6b0e2e9 (REVIEWER_RE exempt, reviewer only, ≤ 3,000 chars, plan must exist). Found in V5 attempt 1, 2026-11-11: the user-level `task-brief-guard` (D9) exempts only the critic prompt, so `/review` step 2's plain `REVIEWER_MSG` is denied for missing the 7 brief headings; the attempt wrapped it in the headings by hand. Agent definitions load at session start, so a frontmatter fix needs a new session before V5.
+- Found in V5 (2026-11-11): critics return their reply through a `SubagentHandback` tool call, so the D3 Stop hook sees no `last_assistant_message` str and never blocks (a 3,500-char reply got through). Fix: each critic also runs `panel-format-check.py` as PreToolUse matcher `SubagentHandback`; it validates `tool_input.message` with the same rule and denies once per (session_id, agent_id), using a marker under `$TMPDIR/panel-format-check/`; the second handback is allowed. The Stop path stays for runtimes that set the str.
+- V5 re-run (2026-11-11, new session) PASSED: `review-msg` row logged for the plain REVIEWER_MSG; the design critic's 3,319-char handback was denied once by PreToolUse `SubagentHandback` and its second (2,269 chars) accepted; the readiness critic's 2,989 chars passed first time; merge: both critics valid, 0 blocker / 4 major, round 3 STOP; critic thinking ≈ 2.0k / 0.8k (median ≈ 1.4k ≤ 3k); reviewer CONDITIONAL 91 (3 MINOR: fold the handback hook and REVIEWER_RE exemption into D3/D9/D7; record V5).
 - `panel-guard` is blocking: a false deny only blocks a critic (advisory); reviewer is never denied. Owner off-switch: `CK_REVIEW_PANEL=off`.
 - D6 lets ≤ 2 extra subagents past the cutoff within 120 s; bounded by `CK_CONTEXT_BLOCK`.
 - Rollback: `git revert` the kit commit; `git revert` the agent-config commit. No data migration; state files under `.claude/hooks/.state/` are disposable.
