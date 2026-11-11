@@ -12,12 +12,12 @@ hooks:
   Stop:
     - hooks:
         - type: command
-          command: python3 "$CLAUDE_PROJECT_DIR/.claude/hooks/panel-format-check.py"
+          command: 'f="$CLAUDE_PROJECT_DIR/.claude/hooks/panel-format-check.py"; [ -f "$f" ] || f="$HOME/.claude-kit/.claude/hooks/panel-format-check.py"; [ -f "$f" ] || exit 0; exec python3 "$f"'
   PreToolUse:
     - matcher: "Read|Grep|Glob"
       hooks:
         - type: command
-          command: python3 "$CLAUDE_PROJECT_DIR/.claude/hooks/critic-read-scope.py"
+          command: 'f="$CLAUDE_PROJECT_DIR/.claude/hooks/critic-read-scope.py"; [ -f "$f" ] || f="$HOME/.claude-kit/.claude/hooks/critic-read-scope.py"; [ -f "$f" ] || exit 0; exec python3 "$f"'
 ---
 
 <!--

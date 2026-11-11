@@ -172,6 +172,7 @@ cd ~/IdeaProjects/agent-config && $PY -m pytest -q tests/test_auto_handoff.py te
 ## Risks / rollback
 
 - Frontmatter `hooks:` need folder trust and may not fire under `claude -p --agent`: then D3 hooks are no-ops there and `merge` still marks bad output `incomplete` (format is validated twice). V5 checks the interactive path.
+- The critics are user-level (symlinked into `~/.claude/agents`), so `$CLAUDE_PROJECT_DIR/.claude/hooks/*.py` may not exist: python's exit 2 would block every critic Read. The hook commands fall back to `~/.claude-kit` and then exit 0 (fail open); `test_critic_hooks_fail_open_and_fall_back_to_kit` pins it.
 - `panel-guard` is blocking: a false deny only blocks a critic (advisory); reviewer is never denied. Owner off-switch: `CK_REVIEW_PANEL=off`.
 - D6 lets ≤ 2 extra subagents past the cutoff within 120 s; bounded by `CK_CONTEXT_BLOCK`.
 - Rollback: `git revert` the kit commit; `git revert` the agent-config commit. No data migration; state files under `.claude/hooks/.state/` are disposable.

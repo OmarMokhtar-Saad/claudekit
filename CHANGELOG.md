@@ -19,7 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   only the reviewer via `plan-write`. New hooks: `panel-guard` (dispatch), and per-critic
   frontmatter hooks `panel-format-check` (Stop) and `critic-read-scope` (Read/Grep/Glob).
   Critics run at `effort: low`, `maxTurns: 8`, with a 1.5M context budget; `ck flow` runs the
-  panel after record (advisory). V5 live result: _pending_.
+  panel after record (advisory). The critic hook commands resolve the project copy, then
+  `~/.claude-kit`, and fail open (exit 0) when neither exists, so user-level critics never
+  block Reads in projects without the kit hooks. V5 live result: _pending_.
 - **Added: `team` stages (Phase 4, opt-in `stages: true`).** `debug`, `review`, `start`,
   `verify`, `unblock` and `quick`; the edit gate allows a task's files only at `implementing`
   and `land` needs `verifying`. Off by default. See `.ai/CONCURRENCY.md`.
