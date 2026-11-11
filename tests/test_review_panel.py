@@ -5,7 +5,9 @@ properties that make it safe to run on every /review: no write tools, no CLAUDE.
 untrusted-content rule, a machine-readable summary line, and the Apache-2.0 notice.
 """
 
+import os
 import re
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -71,12 +73,66 @@ def test_review_command_runs_panel_but_records_only_reviewer():
     assert "never paste critic text into that block" in panel
     assert "uncovered Blocker" in panel
     # the recording call still names reviewer, never a critic
-    for line in text.splitlines():
-        if "review-record.py write" in line:
-            assert not any(c in line for c in CRITICS), line
+    record_lines = [ln for ln in text.splitlines() if "review-record.py plan-write" in ln]
+    assert record_lines, "review.md no longer records via review-record.py plan-write"
+    for line in record_lines:
+        assert not any(c in line for c in CRITICS), line
+    # the panel is driven by the script, spawned in one message
+    assert "review-panel.py prompts" in text
+    assert "review-panel.py merge" in text
+    assert "In ONE message" in text
+
+
+@pytest.mark.parametrize("name", CRITICS)
+def test_critic_runs_cheap_and_hooked(name):
+    front, body = _split(name)
+    assert re.search(r"^effort:\s*low\s*$", front, re.M), name
+    assert re.search(r"^maxTurns:\s*8\s*$", front, re.M), name
+    assert re.search(r"^hooks:\s*$", front, re.M), name
+    assert "panel-format-check.py" in front
+    assert "critic-read-scope.py" in front
+    # V5: critics end with a SubagentHandback call, so Stop alone never sees the reply
+    assert re.search(r'^\s*- matcher: "SubagentHandback"\s*$', front, re.M), name
+    # stale wording from before the prompt became path-only
+    assert "line range specified by the caller" not in body
+    assert "provided by the orchestrator" not in body
 
 
 def test_reviewer_asks_whether_each_test_can_fail():
     assert "**Can this test fail?**" in (AGENTS / "reviewer.md").read_text(encoding="utf-8")
     ref = (AGENTS / "_shared" / "reviewer-reference.md").read_text(encoding="utf-8")
     assert "**Can this test fail?**" in ref and "|| true" in ref
+
+
+def _hook_commands(name):
+    front, _ = _split(name)
+    cmds = re.findall(r"^\s*command:\s*'(.*)'\s*$", front, re.M)
+    # Stop + PreToolUse(SubagentHandback) share one panel-format-check command
+    assert len(cmds) == 3 and len(set(cmds)) == 2, (name, cmds)
+    return list(dict.fromkeys(cmds))
+
+
+def _run(cmd, project, home):
+    env = dict(os.environ, CLAUDE_PROJECT_DIR=str(project), HOME=str(home))
+    return subprocess.run(["bash", "-c", cmd], env=env, input="{}",
+                          capture_output=True, text=True, timeout=30).returncode
+
+
+@pytest.mark.parametrize("name", CRITICS)
+def test_critic_hooks_fail_open_and_fall_back_to_kit(name, tmp_path):
+    """The critics are user-level agents used in every project: a project
+    without the hook files must not block their Reads (exit 2)."""
+    project, home = tmp_path / "proj", tmp_path / "home"
+    project.mkdir()
+    home.mkdir()
+    for cmd in _hook_commands(name):
+        hook = re.search(r"\.claude/hooks/([A-Za-z0-9._-]+\.py)", cmd).group(1)
+        assert _run(cmd, project, home) == 0, (name, hook, "missing must fail open")
+        kit = home / ".claude-kit" / ".claude" / "hooks"
+        kit.mkdir(parents=True, exist_ok=True)
+        (kit / hook).write_text("import sys; sys.exit(5)\n")
+        assert _run(cmd, project, home) == 5, (name, hook, "kit fallback")
+        local = project / ".claude" / "hooks"
+        local.mkdir(parents=True, exist_ok=True)
+        (local / hook).write_text("import sys; sys.exit(7)\n")
+        assert _run(cmd, project, home) == 7, (name, hook, "project copy wins")

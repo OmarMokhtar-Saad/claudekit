@@ -83,6 +83,18 @@ class FlowTest(unittest.TestCase):
         self.assertIn("--agent reviewer --model sonnet --allowedTools Read,Grep,Glob "
                       "--output-format json", log)
         self.assertIn("--agent planner --model opus --allowedTools Read,Grep,Glob,Write", log)
+        # advisory critic panel: path-only prompt, merged, exit code unchanged
+        for critic in ("plan-design-critic", "plan-readiness-critic"):
+            self.assertIn(f"--agent {critic} --model sonnet --allowedTools Read,Grep ", log)
+            self.assertTrue((plans / f"plan-greet.panel-{critic}.md").exists(), out)
+        self.assertRegex(log, r"\nPlan: /\S+/plan-greet\.md\. Review it\.\n")
+        self.assertIn("=== PANEL ===", out)
+
+    def test_panel_off_runs_no_critic(self):
+        proc = self.run_flow(CK_REVIEW_PANEL="off")
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertNotIn("critic", self.log.read_text())
+        self.assertNotIn("=== PANEL ===", proc.stdout)
 
     def test_python_default_names_its_source(self):
         env = dict(os.environ, ECC_HOOK_PROFILE="minimal", FAKE_CLAUDE_LOG=str(self.log))

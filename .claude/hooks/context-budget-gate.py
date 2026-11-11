@@ -150,6 +150,8 @@ ROLE_BUDGETS = {
     "code-reviewer": 6000000,
     "reviewer": 3000000,
     "explore": 3000000,
+    "plan-design-critic": 1500000,
+    "plan-readiness-critic": 1500000,
 }
 
 # `--advise` starts the wind-down at this share of the line, or this many turns short of the

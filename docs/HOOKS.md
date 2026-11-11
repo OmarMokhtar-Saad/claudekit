@@ -1,8 +1,9 @@
 # Hooks
 
-ClaudeKit ships 44 hook scripts (plus `lib.sh`, a shared helper library).
-41 are reachable: wired into Claude Code through `.claude/settings.json`, or resolved
-by a gate wrapper. They enforce guardrails, capture telemetry, and automate housekeeping
+ClaudeKit ships 47 hook scripts (plus `lib.sh`, a shared helper library).
+44 are reachable: wired into Claude Code through `.claude/settings.json`, the dispatch
+registry, an agent's frontmatter `hooks:` block (`panel-format-check.py` and
+`critic-read-scope.py` on the /review critics), or resolved by a gate wrapper. They enforce guardrails, capture telemetry, and automate housekeeping
 around the agent workflow.
 
 **Three ship unwired**, and the count must not be read as saying otherwise:
