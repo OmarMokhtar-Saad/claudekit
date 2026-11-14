@@ -2360,6 +2360,18 @@ def cmd_decide(args):
             else:
                 for h in hits:
                     print(f"{h['id']}\t{h['title']}\t{dec._rule_line(h)}")
+        elif args.action == "backfill":
+            from claudekit import decisions_backfill as bf
+            if not args.scan:
+                err("decide backfill: only --scan exists (read-only); rules are added via /decide")
+                return 1
+            cands = bf.scan(args.logs, [store, gstore], args.min_score, args.limit)
+            if args.json:
+                print(json.dumps(cands, indent=2))
+            else:
+                for i, c in enumerate(cands, 1):
+                    print(f"{i}\t{c['score']}\t{c['scope_guess']}\t{c['source']}\t{c['quote']}")
+                ok(f"{len(cands)} candidate(s); none stored")
         elif args.action == "index":
             for st in (store, gstore):
                 if st.is_dir():
@@ -3106,7 +3118,7 @@ def main():
 
     p = sub.add_parser("decide", help="Decision ledger: owner-agreed rules (global + project)")
     p.add_argument("action", choices=["add", "supersede", "drop", "note", "list", "match",
-                                      "index", "check"])
+                                      "index", "check", "backfill"])
     p.add_argument("id", nargs="?", help="Rule id (supersede, drop, note)")
     p.add_argument("--store", help="Project store (default .ai/decisions)")
     p.add_argument("--global-store", dest="global_store", help="Global store dir")
@@ -3125,6 +3137,10 @@ def main():
     p.add_argument("--text", help="match: text to scan for keywords")
     p.add_argument("--max", type=int, default=5)
     p.add_argument("--json", action="store_true")
+    p.add_argument("--scan", action="store_true", help="backfill: read-only candidate scan")
+    p.add_argument("--logs", action="append", help="backfill: task-brief dir (repeatable)")
+    p.add_argument("--min-score", dest="min_score", type=int, default=3)
+    p.add_argument("--limit", type=int, default=10, help="backfill: candidates to show")
 
     argv, server_command = _split_server_command(sys.argv[1:])
     args = parser.parse_args(argv)
