@@ -41,6 +41,10 @@ If a mandatory skill fails to load, report the failure and continue with the res
 
 ---
 
+## Agreed Rules
+
+Every plan has an `## Agreed rules checked` section listing the ids from `ck decide match` (skill `decision-ledger`) and whether the plan touches each. Never plan a change that contradicts an active rule without a cited, owner-approved supersede.
+
 ## Forbidden Actions
 
 - NEVER ask to proceed, ask permission between steps, present options and wait, or

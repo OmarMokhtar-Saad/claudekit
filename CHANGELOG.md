@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Added: `ck decide backfill --scan` (Decision Ledger Phase 2).** Read-only: ranks rule-like sentences from owner messages in task-brief logs (deduped against existing rules, with a scope guess) for the owner to approve through `/decide`. Never writes rules.
 - **Changed: review-panel CONTINUE wording.** A round whose only findings repeat reviewer ISSUES
   now says `CONTINUE: only covered findings — fix the reviewer's ISSUES, then re-run /review`.
   `REVIEW_PANEL.md` documents that the no-new-Blocker STOP fires with a repeated Blocker still
@@ -50,6 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (median ≈ 1.4k ≤ 3k). Reviewer: CONDITIONAL 91, 0 critical/major.
   The user-level task-brief-guard denied the reviewer's plain REVIEWER_MSG; agent-config
   6b0e2e9 exempts exactly that message for `reviewer`.
+- **Added: Decision Ledger (Phase 1).** `ck decide {add,supersede,drop,note,list,match,index,check}` stores owner-agreed rules (`D-NNN` per project, `G-NNN` global) with a verbatim quote and path/keyword guards; `/decide` and the `decision-ledger` skill; plan, debug, review and web-research workflows now check matching rules first.
 - **Added: `team` stages (Phase 4, opt-in `stages: true`).** `debug`, `review`, `start`,
   `verify`, `unblock` and `quick`; the edit gate allows a task's files only at `implementing`
   and `land` needs `verifying`. Off by default. See `.ai/CONCURRENCY.md`.

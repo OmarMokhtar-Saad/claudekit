@@ -44,6 +44,8 @@ list, skip the inline steps and run the bash block under "Mechanism B" regardles
      block, a rollback plan, a risk assessment
 3. Report the path, the tier and the file count — never the plan body; you just wrote it.
 
+Every plan also has an `## Agreed rules checked` section: the rule ids returned by `ck decide match --path <file> --text "<task>"` and, for each, whether the plan touches it (skill `decision-ledger`). A plan that contradicts an active rule must cite an owner-approved supersede.
+
 Tier 1 needs no plan file at all (edit directly). Tier 2 stops here (no reviewer). Tier 3
 continues to `/review`, then user approval, then `/implement`.
 
