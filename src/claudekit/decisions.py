@@ -69,7 +69,7 @@ def parse_rule(text: str, path: Optional[Path] = None) -> Dict:
 
 def _rule_line(rule: Dict) -> str:
     body = rule.get("body", "")
-    m = re.search(r"## Rule\s*\n(.+?)(?:\n## |\Z)", body, re.S)
+    m = re.search(r"^## Rule[ \t]*\n(.*?)(?=^## |\Z)", body, re.S | re.M)
     return (m.group(1) if m else "").strip().splitlines()[0] if m and m.group(1).strip() else ""
 
 
