@@ -82,7 +82,7 @@ Spawn a reviewer subagent to check for:
 - Steps that assume context a fresh agent wouldn't have
 - Circular dependencies
 
-Fix all critical findings.
+Fix all critical findings, then run `/review <plan>` so the critic panel also sees it.
 
 ### Step 6: Register and Present
 

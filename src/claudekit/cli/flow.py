@@ -29,8 +29,12 @@ PLANS = Path(".claude") / "plans"
 AGENTS = {
     "planner": ("opus", "Read,Grep,Glob,Write"),
     "reviewer": ("sonnet", "Read,Grep,Glob"),
+    "plan-design-critic": ("sonnet", "Read,Grep"),
+    "plan-readiness-critic": ("sonnet", "Read,Grep"),
 }
-PHASE_ORDER = ("planner", "reviewer", "record")
+CRITICS = ("plan-design-critic", "plan-readiness-critic")
+PHASE_ORDER = ("planner", "reviewer", "record", "plan-design-critic", "plan-readiness-critic",
+               "panel")
 
 
 class Phase:
@@ -182,6 +186,15 @@ def reviewer_prompt(plan_md):
         "of APPROVED, CONDITIONAL, REVISE, REJECTED:\nSCORE: <n>\nDECISION: <d>\n")
 
 
+def critic_prompt(plan_md):
+    """The whole zero-context critic prompt (panel-guard.py's contract): nothing but the path."""
+    return f"Plan: {plan_md}. Review it."
+
+
+def panel_on():
+    return (os.environ.get("CK_REVIEW_PANEL") or "").strip().lower() not in {"0", "off", "false"}
+
+
 def run_flow(task, root, python, claude_bin, models, slug, out=sys.stdout):
     """Returns the process exit code: 0 plan approved and recorded, 1 a phase failed,
     2 the review did not approve the plan. Only the plan and review files are written."""
@@ -224,6 +237,19 @@ def run_flow(task, root, python, claude_bin, models, slug, out=sys.stdout):
         text += check
     phases.append(Phase("record", rc, text))
     print(text.rstrip(), file=out)
+
+    # 4. advisory critic panel (EGM): never changes the exit code
+    if panel_on():
+        merge_args = ["merge", plan_md, "--reviewer", review]
+        for critic in CRITICS:
+            cph = agent(critic, critic_prompt((root / plan_md).resolve()))
+            dest = PLANS / f"plan-{slug}.panel-{critic}.md"
+            save(root / dest, cph.text or f"PANEL: incomplete - {critic} exited {cph.rc}")
+            merge_args += ["--critic", f"{critic}={dest}"]
+        prc, ptext = run_script(python, "review-panel.py", merge_args, root)
+        phases.append(Phase("panel", prc, ptext))
+        print(ptext.rstrip(), file=out)
+
     if rc != 0:
         return finish(2, f"review did not approve the plan (review-record exit {rc}; "
                          f"see {review})")

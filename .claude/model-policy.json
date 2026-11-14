@@ -121,11 +121,13 @@
     },
     "plan-design-critic": {
       "accountable_for": "Zero-context design critique of a plan beside reviewer in /review (EGM design persona); advisory findings only.",
-      "tier": "balanced"
+      "tier": "balanced",
+      "effort": "low"
     },
     "plan-readiness-critic": {
       "accountable_for": "Zero-context implementation-readiness critique of a plan beside reviewer in /review (EGM readiness persona); advisory findings only.",
-      "tier": "balanced"
+      "tier": "balanced",
+      "effort": "low"
     },
     "planner": {
       "accountable_for": "Implementation plans (Tier and Files:) that the main session then implements.",

@@ -193,7 +193,7 @@ class TestAgentRegistration:
     # code.claude.com/docs/en/sub-agents (omitClaudeMd: no CLAUDE.md in a subagent's context;
     # ignored under `claude -p --agent`).
     KNOWN_KEYS = ("name", "description", "model", "effort", "color", "tools", "memory",
-                  "maxTurns", "omitClaudeMd")
+                  "maxTurns", "omitClaudeMd", "hooks")
 
     def _frontmatters(self):
         for fname in sorted(os.listdir(AGENTS)):

@@ -12,6 +12,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Changed: review-panel CONTINUE wording.** A round whose only findings repeat reviewer ISSUES
+  now says `CONTINUE: only covered findings — fix the reviewer's ISSUES, then re-run /review`.
+  `REVIEW_PANEL.md` documents that the no-new-Blocker STOP fires with a repeated Blocker still
+  open, and `critic-read-scope` documents the symlinked-plans-dir bound.
+
+- **Fixed: review-panel stop rule and critic read scope.** The stop rule counts covered critic
+  findings too (dedup is display-only) and the PANEL line shows `, <n> covered`; a covered
+  Blocker can no longer produce `STOP: 2 consecutive clean rounds`. `critic-read-scope`: a plan
+  behind a `.claude/plans` dir symlinked outside the project is readable; leaf symlinks, nested
+  paths and in-project targets keep the existing deny.
+
+- **Fixed: `/review` plan panel (EGM critics).** `review-panel.py prompts|merge` builds the
+  critic prompts from the plan's realpath, validates replies (PANEL line, 3,000-char cap, API
+  errors), dedups against the reviewer's ISSUES and applies the stop rules (2 clean rounds,
+  no new blocker, cap 5). `review.md` spawns reviewer + both critics in ONE message and records
+  only the reviewer via `plan-write`. New hooks: `panel-guard` (dispatch), and per-critic
+  frontmatter hooks `panel-format-check` (Stop) and `critic-read-scope` (Read/Grep/Glob).
+  Critics run at `effort: low`, `maxTurns: 8`, with a 1.5M context budget; `ck flow` runs the
+  panel after record (advisory). The critic hook commands resolve the project copy, then
+  `~/.claude-kit`, and fail open (exit 0) when neither exists, so user-level critics never
+  block Reads in projects without the kit hooks. `critic-read-scope` also admits the named
+  `.claude/plans/plan-*.md` when it lives in another repo (never its `.review`/`.panel-`
+  siblings). V5 live result (2026-11-11, from ~/IdeaProjects on a kit plan): frontmatter
+  PreToolUse hook fired (it denied the out-of-project plan before the fix); both critics
+  ended with a PANEL line; thinking is redacted in transcripts, so output_tokens minus reply
+  gives ≈ 2.5k and ≈ 0.35k (median ≈ 1.4k ≤ 3k); `=== PANEL ===` printed, round 2 STOP.
+  The design-critic reply was 3,500 chars and the Stop hook missed it (merge marked it
+  incomplete): critics end with a SubagentHandback call, so `last_assistant_message` is not
+  a str. Fixed: `panel-format-check` also runs as PreToolUse on `SubagentHandback`, checks
+  `tool_input.message` and denies once per agent (marker under `$TMPDIR`); takes effect in
+  a new session. V5 re-run (2026-11-11, new session): task-brief-guard logged `review-msg`
+  (plain REVIEWER_MSG allowed) and `panel-critic` x2; the design critic's first handback
+  (3,319 chars) was denied once by PreToolUse SubagentHandback and its second (2,269 chars)
+  was accepted; the readiness critic's single handback (2,989 chars) passed. Merge: both
+  critics valid, 0 blocker / 4 major uncovered, round 3 STOP. Thinking ≈ 2.0k and ≈ 0.8k
+  (median ≈ 1.4k ≤ 3k). Reviewer: CONDITIONAL 91, 0 critical/major.
+  The user-level task-brief-guard denied the reviewer's plain REVIEWER_MSG; agent-config
+  6b0e2e9 exempts exactly that message for `reviewer`.
 - **Added: Decision Ledger (Phase 1).** `ck decide {add,supersede,drop,note,list,match,index,check}` stores owner-agreed rules (`D-NNN` per project, `G-NNN` global) with a verbatim quote and path/keyword guards; `/decide` and the `decision-ledger` skill; plan, debug, review and web-research workflows now check matching rules first.
 - **Added: `team` stages (Phase 4, opt-in `stages: true`).** `debug`, `review`, `start`,
   `verify`, `unblock` and `quick`; the edit gate allows a task's files only at `implementing`
