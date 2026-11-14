@@ -56,8 +56,8 @@ __version__ = _resolve_version()
 # BEGIN GENERATED:counts - owned by scripts/gen-docs.py; never hand-edit.
 # Regenerate with: python3 scripts/gen-docs.py
 EXPECTED_AGENTS = 23
-EXPECTED_COMMANDS = 53
-EXPECTED_SKILLS = 76
+EXPECTED_COMMANDS = 54
+EXPECTED_SKILLS = 77
 # END GENERATED:counts
 
 # Colors
@@ -2315,6 +2315,73 @@ def cmd_flow(args):
     return flow.cmd_flow(args)
 
 
+def cmd_decide(args):
+    """Decision ledger: owner-agreed rules (global + per project)."""
+    from claudekit import decisions as dec
+
+    store = Path(args.store or ".ai/decisions")
+    gstore = Path(args.global_store or os.environ.get(
+        "CK_DECISIONS_GLOBAL", str(Path.home() / "IdeaProjects/agent-config/decisions")))
+
+    def csv(v):
+        return [x.strip() for x in (v or "").split(",") if x.strip()]
+
+    def base_for(rid):
+        return gstore if (rid or "").startswith("G-") else store
+
+    extra = dict(why=args.why or "", not_allowed=args.not_allowed or "",
+                 applies=csv(args.applies) or None, guard_paths=csv(args.paths),
+                 guard_keywords=csv(args.keywords))
+    try:
+        if args.action == "add":
+            base = gstore if args.scope == "global" else store
+            p = dec.add(base, args.scope or "", args.title or "", args.rule or "",
+                        args.quote or "", **extra)
+            ok(f"stored {p.name}")
+        elif args.action == "supersede":
+            p = dec.supersede(base_for(args.id), args.id or "", args.title or "",
+                              args.rule or "", args.quote or "", args.reason or "", **extra)
+            ok(f"superseded {args.id} -> {p.name}")
+        elif args.action == "drop":
+            dec.drop(base_for(args.id), args.id or "", args.reason or "")
+            ok(f"dropped {args.id}")
+        elif args.action == "note":
+            dec.note(base_for(args.id), args.id or "", args.reason or "")
+            ok(f"noted {args.id}")
+        elif args.action == "list":
+            for st in (store, gstore):
+                for r in dec.load_store(st):
+                    print(f"{r['id']}\t{r['status']}\t{r['title']}")
+        elif args.action == "match":
+            hits = dec.match(dec.load_store(store), dec.load_store(gstore),
+                             args.path or "", args.text or "", args.max)
+            if args.json:
+                print(json.dumps([{k: h[k] for k in ("id", "title", "scope")} for h in hits]))
+            else:
+                for h in hits:
+                    print(f"{h['id']}\t{h['title']}\t{dec._rule_line(h)}")
+        elif args.action == "index":
+            for st in (store, gstore):
+                if st.is_dir():
+                    ok(f"wrote {dec.write_index(st)}")
+        elif args.action == "check":
+            bad = 0
+            for st in (store, gstore):
+                res = dec.check(st)
+                for w in res["warnings"]:
+                    warn(w)
+                for e in res["errors"]:
+                    err(e)
+                bad += len(res["errors"])
+            if bad:
+                return 1
+            ok("decision ledger consistent")
+    except dec.DecisionError as exc:
+        err(f"decide: {exc}")
+        return 1
+    return 0
+
+
 def cmd_memory(args):
     """Project-local, schema-validated memory with evidence precedence enforced."""
     from claudekit import memory as mem
@@ -3037,6 +3104,28 @@ def main():
                         "Its sha256 is stamped now and re-derived by `check`")
     p.add_argument("--json", action="store_true", help="Machine-readable check output")
 
+    p = sub.add_parser("decide", help="Decision ledger: owner-agreed rules (global + project)")
+    p.add_argument("action", choices=["add", "supersede", "drop", "note", "list", "match",
+                                      "index", "check"])
+    p.add_argument("id", nargs="?", help="Rule id (supersede, drop, note)")
+    p.add_argument("--store", help="Project store (default .ai/decisions)")
+    p.add_argument("--global-store", dest="global_store", help="Global store dir")
+    p.add_argument("--scope", choices=["global", "project"],
+                   help="Asked from the owner; no default")
+    p.add_argument("--title")
+    p.add_argument("--rule", help="One-line rule")
+    p.add_argument("--quote", help="Owner's words, verbatim")
+    p.add_argument("--why")
+    p.add_argument("--not-allowed", dest="not_allowed")
+    p.add_argument("--reason", help="Reason (supersede, drop, note)")
+    p.add_argument("--applies", help="Comma list of plan,debug,websearch,edit")
+    p.add_argument("--paths", help="Comma list of guard globs")
+    p.add_argument("--keywords", help="Comma list of guard keywords")
+    p.add_argument("--path", help="match: repo-relative path")
+    p.add_argument("--text", help="match: text to scan for keywords")
+    p.add_argument("--max", type=int, default=5)
+    p.add_argument("--json", action="store_true")
+
     argv, server_command = _split_server_command(sys.argv[1:])
     args = parser.parse_args(argv)
     args.server_command = server_command
@@ -3065,6 +3154,7 @@ def main():
         "skill": cmd_skill,
         "mcp": cmd_mcp,
         "memory": cmd_memory,
+        "decide": cmd_decide,
     }
 
     return commands[args.command](args)

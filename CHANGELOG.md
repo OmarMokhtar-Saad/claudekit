@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Added: Decision Ledger (Phase 1).** `ck decide {add,supersede,drop,note,list,match,index,check}` stores owner-agreed rules (`D-NNN` per project, `G-NNN` global) with a verbatim quote and path/keyword guards; `/decide` and the `decision-ledger` skill; plan, debug, review and web-research workflows now check matching rules first.
 - **Added: `team` stages (Phase 4, opt-in `stages: true`).** `debug`, `review`, `start`,
   `verify`, `unblock` and `quick`; the edit gate allows a task's files only at `implementing`
   and `land` needs `verifying`. Off by default. See `.ai/CONCURRENCY.md`.

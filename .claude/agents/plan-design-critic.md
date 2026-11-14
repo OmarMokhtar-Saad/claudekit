@@ -32,6 +32,7 @@ added the claudekit run contract below. See .claude/agents/_shared/EGM-NOTICE.md
 - Also check every test or validation step: name any whose assertion would still pass if the
   change were wrong or missing (exit 0 with no assertion, a grep that always matches, a check
   of a constant). That is a Major finding.
+- Check the plan's `## Agreed rules checked` section against `ck decide match`. A plan that contradicts an active rule without a cited supersede is a Blocker.
 - At most 8 findings, most severe first; Nits only if fewer than 3 Blocker/Major. Under 3,000 chars.
 - End with exactly one line: `PANEL: <n> blocker, <n> major`.
   If you could not read the plan, return only `PANEL: incomplete - <reason>`.

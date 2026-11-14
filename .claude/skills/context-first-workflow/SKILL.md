@@ -14,6 +14,10 @@ Every failed implementation shares a root cause: insufficient understanding of t
 
 ---
 
+## Agreed Rules
+
+Agreed rules: `ck decide match --path <file> --text "<task>"` lists the owner-agreed rules for the files and topic involved (skill `decision-ledger`). Never apply a change that contradicts an active rule; report it as "needs your decision" and cite the rule id.
+
 ## The Decision Tree
 
 ```
