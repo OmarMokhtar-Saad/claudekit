@@ -427,7 +427,7 @@ If an agent fails unexpectedly:
 
 ### 2. Fan out read-only stages (PARALLEL)
 - Spawn planner agents for ALL sub-plans in a single message (parallel) — planning is read-only + report-writing, no conflict risk.
-- Spawn reviewer agents for all completed plans in parallel.
+- Run each completed plan's review per `/review` steps 1-4 (reviewer + both critics in one message, `review-panel.py` prompts/merge).
 - Reviewer runs on its default `balanced` tier. ESCALATE reviewer to the most-capable tier (model override on the Agent call) when the plan is multi-phase, architecture-touching, or security-relevant — the trigger is recorded as `escalate_when` on the role in `.claude/model-policy.json`.
 
 ### 3. Composition gate (BARRIER — before ANY execution)

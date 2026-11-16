@@ -13,6 +13,12 @@ compose plan.md.
 ```markdown
 # Implementation Plan: <Title>
 
+## Status / next step
+- **Status:** <in review | approved | step N done>
+- **Next step:** Step <N> — plan lines <a-b>
+- **Step map:** Step 1 -> lines <a-b>; Step 2 -> lines <c-d>; ...
+- **Open owner decisions:** <none | list>
+
 ## Overview
 <1-3 sentence summary of what will be done and why>
 
@@ -53,6 +59,12 @@ compose plan.md.
 - Limits: no new code exceeds ≤50-line functions, complexity ≤10, ≤5 params, nesting ≤4
 - Over-limit functions touched: <none | split step N | justification>
 ```
+
+**Status / next step block** (at most 40 lines) comes right after the title. Readers read this
+block first, then only the line range of the step they work on, never the whole plan per step.
+Tier 3: the block holds the step map and "progress lives in the handoff"; write it once when the
+plan goes to review and never edit it after APPROVED (the review hash covers it). Tier 1/2:
+update Status and Next step as steps finish.
 
 **Code Quality section is mandatory** in every plan that changes code. Rules, limits and
 severity: `.claude/agents/_shared/CODE_QUALITY_STANDARD.md` (new code only; pre-existing

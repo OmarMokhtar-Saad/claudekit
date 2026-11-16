@@ -170,6 +170,13 @@ def count_reachable_hooks() -> int:
         doc = json.loads(registry.read_text())
         wired += "\n".join(row.get("file", "") for rows in doc.get("events", {}).values()
                            for row in rows)
+    # Subagent frontmatter `hooks:` blocks wire a hook for that agent's lifetime.
+    for agent in sorted((ROOT / ".claude" / "agents").glob("*.md")):
+        text = agent.read_text(errors="replace")
+        if text.startswith("---\n") and "\n---" in text[4:]:
+            front = text[4:text.index("\n---", 4)]
+            if re.search(r"(?m)^hooks:\s*$", front):
+                wired += "\n" + front
     reach = {p for p in hooks if p.name in wired}
     while True:
         text = "\n".join(p.read_text(errors="replace") for p in reach)

@@ -70,6 +70,7 @@ GUARDED_HOOKS: Dict[str, str] = {
     "reflection-gate": "reflection-gate.py",
     "security-reminder": "security-reminder.sh",
     "skill-fit-refresh": "skill-fit-refresh.sh",
+    "team-edit-gate": "team-edit-gate.py",
 }
 
 #: Sections a profile document may declare, and the value domain of each.

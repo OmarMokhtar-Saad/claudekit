@@ -1,6 +1,15 @@
 # Session State
 
 > Update this file at the end of every significant AI working session. It is the resume point.
+**2026-11-07 -- team coordination phases 1-4 (branch `feat/team-phase1`, PR #68).**
+Plan `plan-team-coordination.md` rev 5 built: shared `.team/` state, `team` CLI, edit gate, events/handoff, stages.
+Live two-account test found no session identity (only PreToolUse goes through `dispatch.sh`): fixed with
+`heartbeat()` ignoring sid `unknown`, a heartbeat in the edit gate, and a PreToolUse `team-heartbeat` registry row.
+Team SessionStart/PostToolUse/Stop hooks wired in `settings.json` (`2f9af0cb`). Full suite on `d0d99a8a`:
+11544 passed, 74 skipped, 1 xfailed; `2f9af0cb` covered by 410 targeted tests only.
+**Open, owner:** merge PR #68; Step 0.1 spike (agent-teams task list across accounts) not run, record the
+result in `.ai/CONCURRENCY.md`; the plan has no Phase 5.
+
 **2026-11-06 -- `(delete)` marker + `impact --ops` removal (branch `feat/remove-ops`, unpushed).**
 Phase 2 slices A-C done; plan `plan-delete-marker-and-impact.md` implemented (rule 4 rewritten,
 Tier 3 deletions need `(delete)` in `Files:`, max 3/plan; `project-graph impact` removed).

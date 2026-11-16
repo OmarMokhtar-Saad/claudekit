@@ -18,10 +18,10 @@ current files. Approval is local: ask `review-record.py plan-check <plan>`.
 
 | State | Plans |
 |---|---:|
-| `open` | 149 |
+| `open` | 153 |
 | `executed` | 30 |
 | `legacy` | 5 |
-| **total** | **184** |
+| **total** | **188** |
 
 ## Plans
 
@@ -166,6 +166,9 @@ current files. Approval is local: ask `review-record.py plan-check <plan>`.
 | `.claude/plans/plan-review-loop-3.md` | `open` |
 | `.claude/plans/plan-review-loop-tripwire.md` | `open` |
 | `.claude/plans/plan-review-loop.md` | `open` |
+| `.claude/plans/plan-review-panel-covered-wording.md` | `open` |
+| `.claude/plans/plan-review-panel-fixes.md` | `open` |
+| `.claude/plans/plan-review-panel-followups.md` | `open` |
 | `.claude/plans/plan-review-record-ops-root.md` | `open` |
 | `.claude/plans/plan-review-round-2.md` | `executed` |
 | `.claude/plans/plan-review-round-history.md` | `open` |
@@ -187,6 +190,7 @@ current files. Approval is local: ask `review-record.py plan-check <plan>`.
 | `.claude/plans/plan-skill-slim-wave1.md` | `open` |
 | `.claude/plans/plan-subagent-spend-wind-down.md` | `open` |
 | `.claude/plans/plan-task-014-supply-chain-hardening.md` | `open` |
+| `.claude/plans/plan-team-coordination.md` | `open` |
 | `.claude/plans/plan-token-dash.md` | `executed` |
 | `.claude/plans/plan-token-efficiency.md` | `open` |
 | `.claude/plans/plan-token-remediation-ck.md` | `open` |

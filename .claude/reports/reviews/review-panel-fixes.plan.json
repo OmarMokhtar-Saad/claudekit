@@ -1,0 +1,109 @@
+{
+  "plan_path": ".claude/plans/plan-review-panel-fixes.md",
+  "plan_sha256": "e52c649bda2370fbe30f521bb133aaeac48456992a5c0ae005896f9e2bef98ae",
+  "files": [
+    ".claude/operations/scripts/review-panel.py",
+    ".claude/hooks/panel-guard.py",
+    ".claude/hooks/panel-format-check.py",
+    ".claude/hooks/critic-read-scope.py",
+    ".claude/hooks/dispatch-registry.json",
+    ".claude/commands/review.md",
+    ".claude/commands/blueprint.md",
+    ".claude/agents/_shared/REVIEW_PANEL.md",
+    ".claude/agents/_shared/INVOCATION.md",
+    ".claude/agents/plan-design-critic.md",
+    ".claude/agents/plan-readiness-critic.md",
+    ".claude/agents/coordinator.md",
+    ".claude/model-policy.json",
+    ".claude/hooks/context-budget-gate.py",
+    "src/claudekit/cli/flow.py",
+    "THIRD-PARTY-LICENSES.md",
+    "CHANGELOG.md",
+    "tests/test_review_panel.py",
+    "tests/test_review_panel_script.py",
+    "tests/test_panel_guard.py",
+    "tests/test_panel_format_check.py",
+    "tests/test_critic_read_scope.py",
+    "AGENTS.md",
+    "docs/AGENTS.md",
+    "docs/ARCHITECTURE.md",
+    ".claude/skills/skills-registry.json",
+    ".claude/hooks/README.md"
+  ],
+  "score": 91,
+  "decision": "CONDITIONAL",
+  "reviewer_role": "reviewer",
+  "role_source": "transcript",
+  "verdict_origin": "rubric",
+  "findings": [
+    "[MINOR] The SubagentHandback fix is documented only in the Risks section, not in the design or tests. The D3 hooks bullet and the D7 test list still describe only the Stop-path check. The code does implement ",
+    "[MINOR] D9 does not describe the later agent-config 6b0e2e9 change. That change exempts the plain reviewer message (REVIEWER_RE) from task-brief-guard. It appears only as a Risks bullet, and D9's test list ha",
+    "[MINOR] The plan is in a half-done state: Status says D1-D9 are implemented and only V5 (the live run) is open, yet it is still written as a forward plan. V5 is manual, so nothing mechanical shows the 3,000-t"
+  ],
+  "recorded_utc": "2026-11-11T11:04:41Z",
+  "rounds": [
+    {
+      "score": 91,
+      "decision": "APPROVED",
+      "findings": [
+        "[MINOR] Conditional Files: entry `tests/test_flow.py (only if ...)`. The file does not exist, and a grep for AGENTS/PHASE_ORDER in tests/*flow* found nothing. The entry is an orphan and a possible freeze-list",
+        "[MINOR] The reviewer branch of panel-guard prints its advisory note to stdout on exit 0. For PreToolUse, stdout on exit 0 normally does not reach the model, so the nudge may never be seen. The /review steps c",
+        "[MINOR] D3 relies on frontmatter `hooks:` firing for subagents. The plan already flags this under Risks and double-validates in `merge`, but V5 is manual only. Mutation proof V3 covers the tests, not the live",
+        "[MINOR] D6 edits agent-config, which is outside this repo and so outside plan-gate's frozen Files: list. The plan names the three files and a separate commit, which is adequate. I confirmed `on_agent_launch` "
+      ],
+      "recorded_utc": "2026-11-11T09:01:34Z",
+      "verdict_origin": "rubric"
+    },
+    {
+      "score": 94,
+      "decision": "APPROVED",
+      "findings": [
+        "[MINOR] The existence of the sehhaty hook copies and `tests/test_auto_handoff.py` is unverified, and the plan's V4 `cmp` check is the only guard. \u2014 Location: plan lines 87, 113, 143 \u2014 Fix: `ls` them before ed"
+      ],
+      "recorded_utc": "2026-11-11T09:04:06Z",
+      "verdict_origin": "rubric"
+    },
+    {
+      "score": 82,
+      "decision": "REVISE",
+      "findings": [
+        "[MAJOR] D3 and Risks contradict each other. D3 specifies the hook commands as bare `python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/panel-format-check.py\"` and `.../critic-read-scope.py`. Risks says the critics ar",
+        "[MAJOR] Several plan anchors are stale or wrong against the repo. (a) D6 says the ledger is read via `track().rows(session)`. auto-handoff.py has no such call; it uses `rows_for(session)` (line 191), `finishe",
+        "[MINOR] The plan has no Overview, Steps or Testing section. The content is spread over Evidence, Design D1-D9, Validation and Risks, and there is no implementation order. Order matters here: the D9 and D6 age",
+        "[MINOR] D4 and D9 allow any absolute `*.md` path that exists (`os.path.isfile`), not only a plan under `.claude/plans/`. D9 is a user-level exemption from the 7-heading brief guard. The critic is read-only an",
+        "[MINOR] The dedup rule needs at least one path-like token plus at least 3 content words of 5 or more letters. Findings without a path or section token are always \"uncovered\", so the uncovered-Blocker count ca",
+        "[MINOR] V3 gives a runnable command for only one mutant. Mutant 2 (break the PANEL regex) is a comment with no command. V3 also mixes `git archive HEAD` with the rsync alternative, and `sed -i ''` is BSD-only",
+        "[MINOR] Dropping the rest of the panel after one denied spawn relies on the `/review` prose and the D6 handoff. The D4 reviewer nudge is only advisory. This is acceptable for an advisory panel. \u2014 Location: pl"
+      ],
+      "recorded_utc": "2026-11-11T10:06:57Z",
+      "verdict_origin": "rubric"
+    },
+    {
+      "score": 84,
+      "decision": "REVISE",
+      "findings": [
+        "[MAJOR] The plan documents a defect it does not fix. Under Risks, the V5 attempt-1 note says the user-level task-brief-guard denies /review step 2's plain REVIEWER_MSG for missing the 7 brief headings, and th",
+        "[MAJOR] There is no Code Quality section for a code-changing plan. reviewer-reference.md Step 3 treats this as MAJOR. The new files are review-panel.py (prompts, merge, dedup, stop rule, round state), three h",
+        "[MINOR] Files: has an entry that the steps may not use. The last line lists AGENTS.md, docs/AGENTS.md, docs/ARCHITECTURE.md, skills-registry.json and hooks/README.md \"only if --check fails\". That makes the li",
+        "[MINOR] critic-read-scope.py checks only tool_input.file_path and tool_input.path. A Glob call's absolute `pattern`, or a Grep `glob` pointing outside the project, is not covered. The D3 description does not ",
+        "[MINOR] The effort lever (D3) and the maxTurns/hook behaviour under `claude -p --agent` are unproven until V5. The plan correctly says to STOP if the thinking median stays above 3k tokens. Until then the stat"
+      ],
+      "recorded_utc": "2026-11-11T10:10:23Z",
+      "verdict_origin": "rubric"
+    },
+    {
+      "score": 84,
+      "decision": "REVISE",
+      "findings": [
+        "[MAJOR] An open defect with no fix step. Risks section line 179 says the user-level task-brief-guard (D9) exempts only the critic prompt, so /review step 2's plain REVIEWER_MSG is denied for missing the 7 hea",
+        "[MINOR] The Files: list ends with a conditional entry (\"generator outputs, only if --check fails\": AGENTS.md, docs/AGENTS.md, docs/ARCHITECTURE.md, skills-registry.json, hooks/README.md). It is not a firm set",
+        "[MINOR] The plan has no Overview or Steps heading. The content is spread over Evidence, Research and Design D1-D9, and \"Testing\" is the Validation commands section. Structure is workable but does not match th",
+        "[MINOR] V3 mutant 2 (break the PANEL regex in panel-format-check.py) is only a comment, not a runnable command. Only mutant 1 can be run as written. The V4 cmp checks and the whole agent-config half (D6, D9, ",
+        "[MINOR] The D1 dedup rule (one shared path token plus 3 shared 5-letter words) is a heuristic with no calibration data. It could mark real critic findings as covered or hide them. test_review_panel_script.py "
+      ],
+      "recorded_utc": "2026-11-11T10:10:24Z",
+      "verdict_origin": "rubric"
+    }
+  ],
+  "round": 6
+}

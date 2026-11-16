@@ -48,6 +48,8 @@ list, skip the inline steps and run the bash block under "Mechanism B" regardles
    - a `Tier:` line (1, 2 or 3) and a `Files:` list naming **every path the change writes**
      (`plan-gate` enforces it for Tier 3);
      no bare globs such as `*` or `**`
+   - a `## Status / next step` block right after the title (<=40 lines: status, next step
+     with its plan line range, step -> line-range map, open owner decisions)
    - overview, implementation steps in execution order, a `## Validation commands` fenced
      block, a rollback plan, a risk assessment; a `Domain skills:` line when step 2 selected any
 4. Report the path, the tier and the file count — never the plan body; you just wrote it.

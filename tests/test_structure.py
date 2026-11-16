@@ -303,6 +303,20 @@ class TestHookWiringIsHonest:
                 for row in rows:
                     if isinstance(row, dict) and row.get("file"):
                         wired.add(row["file"])
+
+        # Subagent frontmatter `hooks:` blocks (Claude Code wires these for the agent's
+        # lifetime). Only the frontmatter is read, so a body mention is not wiring.
+        agents_dir = os.path.join(CLAUDE_DIR, "agents")
+        for fname in sorted(os.listdir(agents_dir)):
+            if not fname.endswith(".md"):
+                continue
+            with open(os.path.join(agents_dir, fname), encoding="utf-8") as fh:
+                text = fh.read()
+            if not text.startswith("---\n") or "\n---" not in text[4:]:
+                continue
+            front = text[4:text.index("\n---", 4)]
+            if re.search(r"(?m)^hooks:\s*$", front):
+                wired.update(re.findall(r"\.claude/hooks/([A-Za-z0-9._-]+)", front))
         return wired
 
     @classmethod

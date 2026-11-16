@@ -17,7 +17,8 @@
     "injection-scan-gate": "off",
     "reflection-gate": "advisory",
     "security-reminder": "off",
-    "skill-fit-refresh": "off"
+    "skill-fit-refresh": "off",
+    "team-edit-gate": "advisory"
   },
   "agents": {},
   "commands": {},

@@ -113,3 +113,6 @@ backups/
 .claude/hooks/hooks.log.*
 .claude/hooks/compaction-cadence.jsonl
 .claude/hooks/research/
+
+# Shared team state for concurrent sessions (team CLI) - never source
+.team/
