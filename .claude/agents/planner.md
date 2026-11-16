@@ -113,7 +113,8 @@ result.
 
 ### Phase 2: Create Plan
 
-**Plan structure:** Tier, Files, Overview, Scope, Prerequisites, Implementation Steps
+**Plan structure:** Status / next step block (<=40 lines, with step line ranges) first, then
+Tier, Files, Overview, Scope, Prerequisites, Implementation Steps
 (File/Action/Description/Details/Done-when), Testing Strategy, Validation commands,
 Rollback Plan, Risk, Code Quality.
 Exact skeleton, briefing templates, handoff blocks and checklist:

@@ -52,6 +52,8 @@ edit of a work period. To take one by hand: `/checkpoint`. `/rollback` restores 
 
 ### Phase 1: Preparation
 - Read the plan and each file you will edit, in windows, before the first edit.
+- Read the plan's status block, then only the current step's line range; do not re-read the
+  whole plan per step.
 - Note the validation commands recorded in the plan for Phase 3.
 - STAGE HANDOFF: start from a compacted or fresh context whose only input is the plan
   path; never continue in the planning/review conversation. If `suggest-compact` has
