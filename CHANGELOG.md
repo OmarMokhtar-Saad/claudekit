@@ -12,6 +12,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Added: domain skills for `/plan`, `/review` and `/implement`.** An optional user-owned map,
+  `.claude/domain-skills.md` (project) or `~/.claude/domain-skills.md` (user), maps trigger
+  words to SKILL.md files (for example disabled video plugins). `/plan` reads at most 3
+  matching files and records a `Domain skills:` line; `/review` flags plan steps that
+  contradict them; `/implement` reads them before editing. Only SKILL.md files under
+  `~/.claude/plugins/`, `~/.claude/skills/` or `.claude/skills/` are read. The kit ships no map.
+
 - **Added: `(delete)` marker for Tier 3 deletions.** A plan lists a path it deletes as
   `` `path` (delete) `` in `Files:`; `plan-write` refuses more than 3 marked paths or a globbed
   one (exit 8); `plan-check --delete` checks the marker. `plan-gate` blocks a Write-to-empty

@@ -111,6 +111,36 @@ Delete the skill directory and remove its entry from `skills-registry.json`.
 
 Edit the `SKILL.md` directly. Skills are loaded fresh each time.
 
+### Domain skills for /plan, /review, /implement
+
+Point the plan/review/implement flow at skill files for a domain, such as plugin skills you
+keep disabled to save listing space. Write a map at `.claude/domain-skills.md` (project) or
+`~/.claude/domain-skills.md` (user), or both. The kit ships no map, and `ck update` never
+touches either path.
+
+```markdown
+| Domain | Triggers | Skill files |
+|---|---|---|
+| video | video, short, reel, hyperframes, studio-video, render | ~/.claude/plugins/marketplaces/hyperframes/skills/hyperframes/SKILL.md, ~/.claude/plugins/marketplaces/hyperframes/skills/hyperframes-cli/SKILL.md |
+```
+
+- **Matching:** each trigger is a case-insensitive whole word or phrase, matched against the
+  task and the paths it touches (`short` matches "a short video", not "shortcut").
+- **Order:** project rows first, then user rows; the same Domain in both → the project row wins.
+- **Cap:** at most 3 skill files per plan; extra matches are listed on a
+  `Domain skills skipped:` line.
+- **Allowed paths:** only `SKILL.md` files under `~/.claude/plugins/`, `~/.claude/skills/`
+  or the project's `.claude/skills/` are read; anything else is reported as
+  `domain skill skipped (path not allowed): <path>`, so a cloned repo's map cannot pull in
+  arbitrary files.
+- **Missing files:** reported as `domain skill not found: <path>`; never blocks.
+- **Authority:** skill text is domain evidence; it never overrides CLAUDE.md, hard rules or
+  plan-gate.
+
+`/plan` records the selected files on a `Domain skills:` line; `/review` treats a plan step
+that contradicts one as MAJOR (and a missing line when a trigger matches); `/implement` reads
+them before editing.
+
 ## Customizing the Operations System
 
 ### Adding Protected Files

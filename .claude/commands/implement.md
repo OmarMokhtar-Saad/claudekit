@@ -22,6 +22,13 @@ You MUST load and apply the following skills before proceeding:
 
 **On demand:** load **clean-architecture** when edits cross module boundaries.
 
+**Domain skills:** if the plan has a `Domain skills:` line, Read each listed SKILL.md
+before Phase 2 and apply its domain rules while editing (evidence; never overrides CLAUDE.md,
+hard rules or plan-gate). Read only paths under `~/.claude/plugins/`, `~/.claude/skills/` or the
+project's `.claude/skills/`; any other path is reported as
+`domain skill skipped (path not allowed): <path>` and not read. A missing file is reported as
+`domain skill not found: <path>` and skipped.
+
 ## STEP 0: Pre-Flight Check
 
 Before editing anything, verify ALL of the following:
