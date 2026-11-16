@@ -12,6 +12,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Added: domain skills for `/plan`, `/review` and `/implement`.** An optional user-owned map,
+  `.claude/domain-skills.md` (project) or `~/.claude/domain-skills.md` (user), maps trigger
+  words to SKILL.md files (for example disabled video plugins). `/plan` reads at most 3
+  matching files and records a `Domain skills:` line; `/review` flags plan steps that
+  contradict them; `/implement` reads them before editing. Only SKILL.md files under
+  `~/.claude/plugins/`, `~/.claude/skills/` or `.claude/skills/` are read. The kit ships no map.
+
 - **Changed: review-panel CONTINUE wording.** A round whose only findings repeat reviewer ISSUES
   now says `CONTINUE: only covered findings — fix the reviewer's ISSUES, then re-run /review`.
   `REVIEW_PANEL.md` documents that the no-new-Blocker STOP fires with a repeated Blocker still
