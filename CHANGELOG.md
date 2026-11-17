@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Fixed: `/review` critics can read a plan in the account plans dir.** `critic-read-scope.py`
+  now allows a regular `*.md` file directly in `$CLAUDE_CONFIG_DIR/plans` (default
+  `~/.claude/plans`), where Claude Code's plan mode writes free-named plans. Before, such a plan
+  was "outside the project" and the panel ended incomplete. Review/panel siblings, `brief*.md`,
+  `session-context.md`, subdirs, symlinked leaves and the config dir's other files stay denied.
 - **Added: domain skills for `/plan`, `/review` and `/implement`.** An optional user-owned map,
   `.claude/domain-skills.md` (project) or `~/.claude/domain-skills.md` (user), maps trigger
   words to SKILL.md files (for example disabled video plugins). `/plan` reads at most 3
