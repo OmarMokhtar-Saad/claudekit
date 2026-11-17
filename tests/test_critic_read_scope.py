@@ -16,8 +16,12 @@ _spec.loader.exec_module(cr)
 
 
 @pytest.fixture
-def root(tmp_path, monkeypatch):
+def root(tmp_path, tmp_path_factory, monkeypatch):
     monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
+    monkeypatch.delenv("CLAUDE_CONFIG_DIR", raising=False)
+    home = tmp_path_factory.mktemp("home")
+    assert tmp_path not in home.parents and home != tmp_path
+    monkeypatch.setenv("HOME", str(home))
     return tmp_path
 
 
@@ -144,3 +148,68 @@ def test_nested_file_under_symlinked_plans_dir_denied(root, tmp_path_factory):
     (root / ".claude").mkdir()
     os.symlink(str(notes), str(root / ".claude" / "plans"))
     assert cr.blocked(".claude/plans/plan-x/secret.md", str(root)) == "outside the project"
+
+
+# Account plans dir ($CLAUDE_CONFIG_DIR/plans, default ~/.claude/plans): free-named plans.
+
+@pytest.fixture
+def acct(root, tmp_path_factory, monkeypatch):
+    base = tmp_path_factory.mktemp("acct")
+    assert "/.claude/" not in str(base)
+    (base / "plans").mkdir()
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(base))
+    return base
+
+
+def test_account_plan_any_name_allowed(root, acct):
+    plan = acct / "plans" / "hermes-learning-loop.md"
+    plan.write_text("x")
+    assert cr.blocked(str(plan), str(root)) == ""
+    assert cr.decide({"tool_input": {"file_path": str(plan)}}) == (0, "")
+
+
+@pytest.mark.parametrize("rel", [
+    "plans/x.review.md",
+    "plans/x.panel-design.md",
+    "plans/brief-x.md",
+    "plans/session-context.md",
+    "plans/notes.txt",
+    "plans/sub/plan-x.md",
+    "settings.json",
+])
+def test_account_plan_siblings_denied(root, acct, rel):
+    target = acct / rel
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("x")
+    assert cr.blocked(str(target), str(root)) == "outside the project"
+
+
+def test_account_plan_missing_denied(root, acct):
+    assert cr.blocked(str(acct / "plans" / "nope.md"), str(root)) == "outside the project"
+
+
+def test_account_plan_symlink_leaf_denied(root, acct):
+    real = acct / "plans" / "real.md"
+    real.write_text("x")
+    os.symlink("real.md", str(acct / "plans" / "p.md"))
+    assert cr.blocked(str(acct / "plans" / "p.md"), str(root)) == "outside the project"
+    assert cr.blocked(str(real), str(root)) == ""
+
+
+@pytest.mark.parametrize("config_dir", [None, "", "  "])
+def test_account_dir_default_home(root, monkeypatch, config_dir):
+    if config_dir is not None:
+        monkeypatch.setenv("CLAUDE_CONFIG_DIR", config_dir)
+    plans = Path(os.environ["HOME"]) / ".claude" / "plans"
+    plans.mkdir(parents=True)
+    (plans / "free-name.md").write_text("x")
+    assert cr.blocked(str(plans / "free-name.md"), str(root)) == ""
+
+
+def test_account_dir_symlinked(root, acct, tmp_path_factory, monkeypatch):
+    (acct / "plans" / "free.md").write_text("x")
+    link = tmp_path_factory.mktemp("links") / "acct_link"
+    os.symlink(str(acct), str(link))
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(link))
+    assert cr.blocked(str(link / "plans" / "free.md"), str(root)) == ""
+    assert cr.blocked(str(acct / "plans" / "free.md"), str(root)) == ""
