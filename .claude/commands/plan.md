@@ -46,12 +46,12 @@ list, skip the inline steps and run the bash block under "Mechanism B" regardles
    `Domain skills skipped:` line (matches past 3); omit both when nothing matched.
 3. Write `.claude/plans/plan-<slug>.md` with:
    - a `Tier:` line (1, 2 or 3) and a `Files:` list naming **every path the change writes**
-     (`plan-gate` enforces it for Tier 3);
-     no bare globs such as `*` or `**`
+     (`plan-gate` enforces it for Tier 3); no bare globs such as `*` or `**`
    - a `## Status / next step` block right after the title (<=40 lines: status, next step
      with its plan line range, step -> line-range map, open owner decisions)
    - overview, implementation steps in execution order, a `## Validation commands` fenced
      block, a rollback plan, a risk assessment; a `Domain skills:` line when step 2 selected any
+   - an `## Agreed rules checked` section: the rule ids from `ck decide match --path <file> --text "<task>"` and, for each, whether the plan touches it (skill `decision-ledger`); a plan that contradicts an active rule must cite an owner-approved supersede
 4. Report the path, the tier and the file count — never the plan body; you just wrote it.
 
 Tier 1 needs no plan file at all (edit directly). Tier 2 stops here (no reviewer). Tier 3

@@ -49,6 +49,7 @@ added the claudekit run contract below. See .claude/agents/_shared/EGM-NOTICE.md
 - Zero Blocker/Major is a valid and expected result for a sound plan; report a Major only
   when you can name the concrete failure it causes.
 - Start each finding line with its severity in brackets: `[Blocker]`, `[Major]` or `[Nit]`.
+- Check the plan's `## Agreed rules checked` section against `ck decide match`. A plan that contradicts an active rule without a cited supersede is a Blocker.
 - At most 8 findings, most severe first; Nits only if fewer than 3 Blocker/Major. Under 3,000 chars.
 - End with exactly one line: `PANEL: <n> blocker, <n> major`.
   If you could not read the plan, return only `PANEL: incomplete - <reason>`.
