@@ -36,13 +36,23 @@ list, skip the inline steps and run the bash block under "Mechanism B" regardles
 ## Default (no `--deep`) — you write the plan
 
 1. Name every file the change touches. If you cannot, stop and re-run with `--deep`.
-2. Write `.claude/plans/plan-<slug>.md` with:
+2. Domain skills: if `.claude/domain-skills.md` (project rows first; same Domain → project wins)
+   or `~/.claude/domain-skills.md` exists, match each Trigger as a case-insensitive whole word or
+   phrase (`short` ≠ "shortcut") against the task and the step-1 files. Read the matched Skill
+   files in row order, deduplicated, at most 3, and apply them as evidence (never over CLAUDE.md,
+   hard rules or plan-gate). Read only `SKILL.md` under `~/.claude/plugins/`, `~/.claude/skills/`
+   or `.claude/skills/`, else report `domain skill skipped (path not allowed): <path>`; a missing
+   one: `domain skill not found: <path>`, continue. Record a `Domain skills:` line (paths) and a
+   `Domain skills skipped:` line (matches past 3); omit both when nothing matched.
+3. Write `.claude/plans/plan-<slug>.md` with:
    - a `Tier:` line (1, 2 or 3) and a `Files:` list naming **every path the change writes**
      (`plan-gate` enforces it for Tier 3);
      no bare globs such as `*` or `**`
+   - a `## Status / next step` block right after the title (<=40 lines: status, next step
+     with its plan line range, step -> line-range map, open owner decisions)
    - overview, implementation steps in execution order, a `## Validation commands` fenced
-     block, a rollback plan, a risk assessment
-3. Report the path, the tier and the file count — never the plan body; you just wrote it.
+     block, a rollback plan, a risk assessment; a `Domain skills:` line when step 2 selected any
+4. Report the path, the tier and the file count — never the plan body; you just wrote it.
 
 Every plan also has an `## Agreed rules checked` section: the rule ids returned by `ck decide match --path <file> --text "<task>"` and, for each, whether the plan touches it (skill `decision-ledger`). A plan that contradicts an active rule must cite an owner-approved supersede.
 
@@ -82,7 +92,9 @@ Task: $ARGUMENTS
 Explore with BATCHED parallel Read/Grep/Glob calls — fire all independent searches in ONE
 message. Open the plan with a 3-line summary: goal, approach, riskiest step.
 
-The plan MUST carry a Tier: line and a Files: list naming every path the change writes."
+The plan MUST carry a Tier: line and a Files: list naming every path the change writes.
+Domain skills: if .claude/domain-skills.md or ~/.claude/domain-skills.md exists, follow step 2
+of the /plan default (whole-word match, cap 3, allowed paths) and add a Domain skills: line."
 
 plan_output=$(echo "$PLANNER_MSG" | claude -p --agent planner --model opus --allowedTools "Read,Grep,Glob,Write")
 EXIT_CODE=$?

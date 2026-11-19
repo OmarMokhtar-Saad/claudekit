@@ -13,12 +13,18 @@ WHAT IT DOES
 Target = tool_input.file_path or tool_input.path (Grep/Glob with no path = cwd = allowed).
 Exit 2 with a reason when the real path is outside $CLAUDE_PROJECT_DIR (except a
 .claude/plans/plan-*.md plan itself in another repo, or behind a .claude/plans dir that
-is a symlink to a dir outside the project; a symlinked plan file is never excepted), or is a
+is a symlink to a dir outside the project, or any-named *.md plan directly in the account
+plans dir $CLAUDE_CONFIG_DIR/plans (default ~/.claude/plans), where Claude Code's plan mode
+writes; a symlinked plan file is never excepted), or is a
 *.review.md / *.panel-*.md plan sibling, hook state, a report, a brief*.md, a
 session-context.md or anything under handoffs/. Missing or odd input -> allow. stdlib, py3.9.
 
 Security bound: a .claude/plans symlink makes every regular plan-*.md directly in its target
 dir readable (not subdirs, not siblings). This is intended, because the symlink is owner-made.
+The account plans dir makes every regular *.md directly in it readable, minus review/panel
+siblings and DENY_NAMES (not subdirs, not the config dir's other files). CLAUDE_CONFIG_DIR
+comes from the owner's session env, not tool input. The checks and the read are not atomic:
+a denylist speed bump, not a sandbox.
 """
 import fnmatch
 import json
@@ -51,6 +57,26 @@ def _plan_behind_symlinked_dir(target, root):
     return os.path.isfile(real) and not os.path.islink(real) and os.path.basename(real) == name
 
 
+def _account_plans_dir():
+    """Real path of the account plans dir: $CLAUDE_CONFIG_DIR/plans, else ~/.claude/plans."""
+    base = os.environ.get("CLAUDE_CONFIG_DIR", "").strip() or "~/.claude"
+    return os.path.join(os.path.realpath(os.path.expanduser(base)), "plans")
+
+
+def _account_plan(target, root):
+    """True for a regular *.md plan directly in the account plans dir (any name, as Claude
+    Code's plan mode writes them). Not review/panel siblings, DENY_NAMES, subdirs, a
+    missing file or a symlinked leaf."""
+    lex = os.path.normpath(os.path.join(root, os.path.expanduser(target)))
+    path = os.path.realpath(lex)
+    name = os.path.basename(path)
+    if os.path.dirname(path) != _account_plans_dir() or not name.endswith(".md"):
+        return False
+    if any(fnmatch.fnmatch(name, g) for g in ("*.review.md", "*.panel-*.md") + DENY_NAMES):
+        return False
+    return not os.path.islink(lex) and os.path.isfile(path)
+
+
 def blocked(target, root):
     """Reason string when `target` is out of scope, else ''."""
     root = os.path.realpath(root)
@@ -63,6 +89,8 @@ def blocked(target, root):
         name = os.path.basename(path)
         if fnmatch.fnmatch(path.replace(os.sep, "/"), "*/.claude/plans/plan-*.md") \
                 and not any(fnmatch.fnmatch(name, g) for g in ("*.review.md", "*.panel-*.md")):
+            return ""
+        if _account_plan(target, root):
             return ""
         return "outside the project"
     rel = os.path.relpath(path, root).replace(os.sep, "/")

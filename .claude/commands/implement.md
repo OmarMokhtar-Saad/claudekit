@@ -22,6 +22,13 @@ You MUST load and apply the following skills before proceeding:
 
 **On demand:** load **clean-architecture** when edits cross module boundaries.
 
+**Domain skills:** if the plan has a `Domain skills:` line, Read each listed SKILL.md
+before Phase 2 and apply its domain rules while editing (evidence; never overrides CLAUDE.md,
+hard rules or plan-gate). Read only paths under `~/.claude/plugins/`, `~/.claude/skills/` or the
+project's `.claude/skills/`; any other path is reported as
+`domain skill skipped (path not allowed): <path>` and not read. A missing file is reported as
+`domain skill not found: <path>` and skipped.
+
 ## STEP 0: Pre-Flight Check
 
 Before editing anything, verify ALL of the following:
@@ -52,6 +59,8 @@ edit of a work period. To take one by hand: `/checkpoint`. `/rollback` restores 
 
 ### Phase 1: Preparation
 - Read the plan and each file you will edit, in windows, before the first edit.
+- Read the plan's status block, then only the current step's line range; do not re-read the
+  whole plan per step.
 - Note the validation commands recorded in the plan for Phase 3.
 - STAGE HANDOFF: start from a compacted or fresh context whose only input is the plan
   path; never continue in the planning/review conversation. If `suggest-compact` has
