@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Security: `/review` arguments can no longer run shell commands.** `$ARGUMENTS` went straight
+  onto the `review-panel.py prompts` command line, so `$(…)`, backticks or `;` in the arguments
+  ran. Both the interactive and the scripted block now pass the raw text through a quoted
+  heredoc to the new `prompts --args-stdin`, which splits it with `shlex` and never evaluates
+  it; an unbalanced quote is a usage error (exit 2).
 - **Fixed: `/review` critics can read a plan in the account plans dir.** `critic-read-scope.py`
   now allows a regular `*.md` file directly in `$CLAUDE_CONFIG_DIR/plans` (default
   `~/.claude/plans`), where Claude Code's plan mode writes free-named plans. Before, such a plan
