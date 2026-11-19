@@ -788,6 +788,14 @@
       "mandatory": false,
       "usedBy": [],
       "description": "Use when a repo publishes versioned artifacts (a zip, wheel, image, or tag) — the four deterministic gates that keep a published release identical to the tree it claims to come from."
+    },
+    {
+      "id": "decision-ledger",
+      "name": "Decision Ledger",
+      "path": "skills/decision-ledger/SKILL.md",
+      "mandatory": false,
+      "usedBy": [],
+      "description": "Use when the owner states a rule or agreement, or before planning, debugging, web research or editing - records and checks agreed rules (global or per project) so work never undoes what was agreed"
     }
   ],
   "agentsWithoutSkills": [

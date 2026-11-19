@@ -205,7 +205,7 @@ Protected files stay protected; see `CLAUDE.md` for the deletion limit.
 
 ## Skills
 
-ClaudeKit includes 76 reusable skills that agents load on-demand:
+ClaudeKit includes 77 reusable skills that agents load on-demand:
 
 | Category | Skills |
 |----------|--------|
@@ -279,8 +279,8 @@ Each project gets a `CONSTITUTION.md` — a governance document that agents enfo
 | Component | Count |
 |-----------|------:|
 | Agents    | 23 |
-| Commands  | 53 |
-| Skills    | 76 |
+| Commands  | 54 |
+| Skills    | 77 |
 | Hooks     | 47 |
 <!-- END GENERATED:inventory -->
 
@@ -303,8 +303,8 @@ claudekit/
 │   │   ├── gitOps.md
 │   │   ├── explore.md
 │   │   └── _shared/                  # Templates and protocols
-│   ├── commands/                     # 53 slash commands
-│   ├── skills/                       # 76 domain skills + registry
+│   ├── commands/                     # 54 slash commands
+│   ├── skills/                       # 77 domain skills + registry
 │   ├── hooks/                        # 47 workflow hooks + lib.sh
 │   ├── operations/scripts/           # Validate, execute, restore
 │   └── local/                        # CLAUDE.md + CONSTITUTION.md templates

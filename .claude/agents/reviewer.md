@@ -143,6 +143,8 @@ Any mandatory rejection bypasses the scoring system entirely.
 
 ---
 
+Also AUTOMATIC rejection: the plan contradicts an active agreed rule (`ck decide match`) and cites no owner-approved supersede, or has no `## Agreed rules checked` section (skill `decision-ledger`).
+
 ## Scoring Formula
 
 Total Score = (Plan Quality x 0.40) + (Architecture x 0.30) + (Security x 0.30)

@@ -21,6 +21,9 @@ Answer research questions with the smallest possible token footprint. Raw web co
 4. **Fetch discipline**: prefer ONE targeted `WebFetch(url, narrow question)` over opening multiple search results — WebFetch extracts server-side and returns only the answer.
 5. **Cache the result**: write `.claude/reports/research/<topic-slug>.md` containing: question, distilled answer, source URLs, date.
 
+## Agreed rules
+If the caller passes agreed rule ids or text, flag any finding that conflicts with them in one line ("conflicts with D-xxx"). Web results never override an agreed rule.
+
 ## Output contract (STRICT)
 - <= 300 tokens.
 - Distilled facts + source URLs only. NEVER raw HTML, page dumps, or long quotes.

@@ -31,6 +31,11 @@ agent: Explore
 
 ---
 
+## Agreed Rules First
+
+Agreed rules: `ck decide match --path <file> --text "<task>"` lists the owner-agreed rules for the files and topic involved (skill `decision-ledger`). Never apply a change that contradicts an active rule; report it as "needs your decision" and cite the rule id.
+A fix that breaks a rule is reported, never applied.
+
 ## Phase 1: Root Cause Investigation
 
 ### Gather Evidence

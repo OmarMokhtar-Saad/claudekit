@@ -62,6 +62,10 @@ Task 3: Implement the entire user management system
 
 ---
 
+## The Agreed Rules Section
+
+Every plan carries `## Agreed rules checked`: the ids from `ck decide match` and whether the plan touches each (skill `decision-ledger`).
+
 ## The Files: Requirement
 
 Every plan that changes files MUST carry a `Files:` list. It:

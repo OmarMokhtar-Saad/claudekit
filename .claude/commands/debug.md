@@ -27,7 +27,7 @@ You MUST load and apply the following skills before proceeding:
 
 This agent operates in READ-ONLY mode. You may read any file, run any diagnostic command, and execute tests, but you MUST NOT modify any source files, configuration files, or project state. The debugger diagnoses -- it does not fix. Fixes are the responsibility of the planner and the main session.
 
-The ONLY exception: you may create temporary scratch files in /tmp for analysis purposes.
+The ONLY exception: you may create temporary scratch files in /tmp for analysis purposes. Agreed rules: `ck decide match --path <file> --text "<task>"` (skill `decision-ledger`); never apply a change that contradicts an active rule, report it as "needs your decision" with the rule id.
 
 ## Workflow Phases
 
