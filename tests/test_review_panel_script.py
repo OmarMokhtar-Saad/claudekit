@@ -106,6 +106,78 @@ def test_prompts_no_plan_exits_1(repo):
     assert r.stdout.strip() == "ERROR: no plan"
 
 
+# ------------------------------------------------- prompts --args-stdin (raw $ARGUMENTS)
+
+COMMAND = REPO / ".claude" / "commands" / "review.md"
+
+
+def run_stdin(repo, raw):
+    full = dict(os.environ, CLAUDE_PROJECT_DIR=str(repo))
+    full.pop("CK_REVIEW_PANEL", None)
+    return subprocess.run([sys.executable, str(SCRIPT), "prompts", "--args-stdin"],
+                          input=raw, cwd=str(repo), env=full,
+                          capture_output=True, text=True, timeout=30)
+
+
+def test_args_stdin_flag_and_path(repo):
+    plan(repo)
+    r = run_stdin(repo, "--no-panel .claude/plans/plan-a.md\n")
+    assert r.returncode == 0, r.stderr
+    assert lines(r.stdout)["PANEL"] == "off (--no-panel)"
+
+
+def test_args_stdin_empty_uses_newest_plan(repo):
+    p = plan(repo)
+    r = run_stdin(repo, "\n")
+    assert r.returncode == 0, r.stderr
+    assert lines(r.stdout)["PLAN"] == os.path.realpath(str(p))
+
+
+def test_args_stdin_quoted_path_with_space(repo):
+    p = plan(repo, "plan a.md")
+    r = run_stdin(repo, "'.claude/plans/plan a.md'")
+    assert r.returncode == 0, r.stderr
+    assert lines(r.stdout)["PLAN"] == os.path.realpath(str(p))
+
+
+def test_args_stdin_unbalanced_quote_is_a_usage_error_not_a_crash(repo):
+    plan(repo)
+    r = run_stdin(repo, "it's .claude/plans/plan-a.md")
+    assert r.returncode == 2
+    assert "Traceback" not in r.stderr
+
+
+def _command_blocks():
+    """Every shell snippet in review.md that hands $ARGUMENTS to the script."""
+    blocks = re.findall(r"```bash\n(.*?)```", COMMAND.read_text(encoding="utf-8"), re.S)
+    found = [b for b in blocks if "$ARGUMENTS" in b]
+    assert len(found) == 2, "expected the interactive and the scripted block"
+    return found
+
+
+def test_review_md_never_puts_arguments_on_a_command_line():
+    for block in _command_blocks():
+        for ln in block.splitlines():
+            if "$ARGUMENTS" in ln:
+                assert ln.strip() == "$ARGUMENTS", ln
+
+
+@pytest.mark.parametrize("hostile", [
+    "$(touch pwned1)", "`touch pwned2`", "x; touch pwned3", "a' \"$(touch pwned4)\"",
+])
+def test_review_md_blocks_keep_hostile_arguments_inert(repo, hostile):
+    plan(repo)
+    for block in _command_blocks():
+        script = block.split(") || {")[0] + ")" if "PANEL_OUT=" in block else block
+        script = script.replace("$ARGUMENTS", hostile)
+        script = script.replace(".claude/operations/scripts/review-panel.py", str(SCRIPT))
+        env = dict(os.environ, CLAUDE_PROJECT_DIR=str(repo))
+        r = subprocess.run(["bash", "-c", script], cwd=str(repo), env=env,
+                           capture_output=True, text=True, timeout=30)
+        assert "Traceback" not in r.stderr, r.stderr
+    assert not list(repo.glob("pwned*"))
+
+
 # ------------------------------------------------------------------ merge
 
 def write(repo, name, text):

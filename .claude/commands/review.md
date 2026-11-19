@@ -21,11 +21,13 @@ PANEL: unless `--no-panel` (or `CK_REVIEW_PANEL=off`), `plan-design-critic` and 
 
 ## Invocation
 
-0. **Arguments.** Pass `$ARGUMENTS` verbatim to step 1 (`--no-panel`, optional plan path).
-1. **Resolve the plan and the panel.** Bash:
-   ```bash
-   python3 .claude/operations/scripts/review-panel.py prompts $ARGUMENTS
-   ```
+1. **Resolve the plan and the panel.** Bash, exactly as below: `$ARGUMENTS` (`--no-panel`, optional
+   plan path) stays alone on its line inside the quoted heredoc, never on the command line:
+```bash
+python3 .claude/operations/scripts/review-panel.py prompts --args-stdin <<'CK_REVIEW_ARGS_EOF'
+$ARGUMENTS
+CK_REVIEW_ARGS_EOF
+```
    It prints `PLAN: <path>`, `PANEL: on|off (<why>)` and `CRITIC_PROMPT: Plan: <path>. Review it.`
    (`ERROR: no plan` → tell the user to run `/plan` first and stop.)
 2. **Spawn — In ONE message.** Task tool: `reviewer` with `REVIEWER_MSG` (in the scripted block
@@ -50,7 +52,6 @@ PANEL: unless `--no-panel` (or `CK_REVIEW_PANEL=off`), `plan-design-critic` and 
    python3 .claude/operations/scripts/review-panel.py merge "$PLAN_FILE" --reviewer "<reviewer agentId>" \
      --critic plan-design-critic="<agentId>" --critic plan-readiness-critic="<agentId>"
    ```
-
 5. Suggest (advisory; the gate is unchanged) from reviewer's DECISION **and** the panel's stop line:
    - If APPROVED (score ≥ 90): ask the user to approve, then run `/implement` — from a compacted or fresh context whose only input is the plan path (run `/compact` first if `suggest-compact` has fired); do not continue implementing inside this review conversation
    - If CONDITIONAL/REVISE: address issues, edit the plan and re-run `/review` (it scores the whole plan again)
@@ -62,8 +63,10 @@ PANEL: unless `--no-panel` (or `CK_REVIEW_PANEL=off`), `plan-design-critic` and 
 Same steps in one block: reviewer, record, both critics (saved per critic), then `merge`.
 
 ```bash
-PANEL_OUT=$(python3 .claude/operations/scripts/review-panel.py prompts $ARGUMENTS) || {
-  echo "ERROR: No plan files found in .claude/plans/. Run /plan first."; exit 1; }
+PANEL_OUT=$(python3 .claude/operations/scripts/review-panel.py prompts --args-stdin <<'CK_REVIEW_ARGS_EOF'
+$ARGUMENTS
+CK_REVIEW_ARGS_EOF
+) || { echo "ERROR: No plan files found in .claude/plans/. Run /plan first."; exit 1; }
 echo "$PANEL_OUT"
 PLAN_FILE=$(printf '%s\n' "$PANEL_OUT" | sed -n 's/^PLAN: //p')
 CRITIC_PROMPT=$(printf '%s\n' "$PANEL_OUT" | sed -n 's/^CRITIC_PROMPT: //p')
@@ -102,10 +105,7 @@ REJECTED = no Files: list, a Files: list that omits a path the steps write, dest
 review_output=$(echo "$REVIEWER_MSG" | claude -p --agent reviewer --model sonnet --allowedTools "Read,Grep,Glob")
 EXIT_CODE=$?
 
-if [ $EXIT_CODE -ne 0 ]; then
-  echo "ERROR: Reviewer agent failed (exit code $EXIT_CODE). Check that .claude/agents/reviewer.md exists."
-  exit 1
-fi
+[ $EXIT_CODE -eq 0 ] || { echo "ERROR: Reviewer agent failed (exit code $EXIT_CODE). Check that .claude/agents/reviewer.md exists."; exit 1; }
 
 echo "$review_output"
 

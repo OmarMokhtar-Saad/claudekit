@@ -37,6 +37,7 @@ import importlib.util
 import json
 import os
 import re
+import shlex
 import sys
 
 PANEL_RE = re.compile(r"^PANEL: (\d+) blocker, (\d+) major\s*$")
@@ -317,18 +318,31 @@ def cmd_merge(args):
     return 0
 
 
+def _raw_args(text):
+    """Split /review's raw argument text like a shell would, but never evaluate it."""
+    try:
+        return shlex.split(text)
+    except ValueError as exc:
+        print("ERROR: cannot parse /review arguments: %s" % exc, file=sys.stderr)
+        raise SystemExit(2) from exc
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="review-panel.py")
     sub = parser.add_subparsers(dest="cmd")
     p = sub.add_parser("prompts")
     p.add_argument("--no-panel", action="store_true")
     p.add_argument("plan", nargs="?")
+    p.add_argument("--args-stdin", action="store_true",
+                   help="read the raw /review $ARGUMENTS text from stdin (quoted heredoc)")
     m = sub.add_parser("merge")
     m.add_argument("plan")
     m.add_argument("--reviewer", required=True)
     m.add_argument("--critic", action="append")
     try:
         args = parser.parse_args(argv)
+        if args.cmd == "prompts" and args.args_stdin:
+            args = parser.parse_args(["prompts", *_raw_args(sys.stdin.read())])
     except SystemExit as exc:
         return 2 if exc.code else 0
     if args.cmd == "prompts":
