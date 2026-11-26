@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- `/implement` Phase 2c: the file-set check runs `git status --porcelain --ignored --untracked-files=all`, so a stray file inside a new directory is listed by path instead of hidden in one `?? dir/` entry.
+
 - **Changed: `/implement` delegates the edits** of a plan of >= 3 files or steps to the new
   `plan-implementer` agent in the plan's worktree (`--inline` keeps the old behaviour). The main
   session checks the file set, git state and diff and runs the targeted tests. **Added:**

@@ -198,7 +198,7 @@ def test_implement_command_documents_the_delegation():
     for heading in ('## Objective', '## Done when', '## Scope', '## Verify',
                     '## Stop and ask', '## Report', '## Original request'):
         assert re.search(r'^%s$' % re.escape(heading), ref, re.M), heading
-    for needle in ('plan-check', 'status --porcelain --ignored', 'rev-parse HEAD',
+    for needle in ('plan-check', 'status --porcelain --ignored --untracked-files=all', 'rev-parse HEAD',
                    'stash list', 'tag -l', 'rev-parse --show-toplevel'):
         assert needle in ref, needle
 
@@ -241,3 +241,19 @@ def test_git_forbidden_table(proj, command, blocked):
     for role in ('explore', None):
         other = _hook(proj, 'shell-write-gate.py', _bash(command, role))
         assert other.returncode == 0, (command, role, other.stderr)
+
+
+def test_phase2c_file_set_command_lists_files_inside_a_new_dir(tmp_path):
+    """2026-11-27 dry run: without -uall a new dir folds into one `?? dir/` entry and hides a stray."""
+    def git(*args):
+        return subprocess.run(['git', '-C', str(tmp_path)] + list(args), capture_output=True,
+                              text=True, check=True).stdout
+    git('init', '-q')
+    (tmp_path / 'toy').mkdir()
+    (tmp_path / 'toy' / 'a.txt').write_text('alpha\n')
+    (tmp_path / 'toy' / 'stray.txt').write_text('stray\n')
+    ref = open(REFERENCE, encoding='utf-8').read()
+    cmd = re.search(r'git -C <wt> (status --porcelain[^`]*)`', ref).group(1).split()
+    out = git(*cmd)
+    assert 'toy/stray.txt' in out and 'toy/a.txt' in out, out
+    assert 'toy/stray.txt' not in git('status', '--porcelain', '--ignored')
