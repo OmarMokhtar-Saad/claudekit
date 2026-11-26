@@ -1,6 +1,13 @@
 # Session State
 
 > Update this file at the end of every significant AI working session. It is the resume point.
+**2026-11-27 -- plan-implementer probe + `--delegate` dry run (main f022759, branch `fix/phase2c-uall`).**
+Step 4 live probe, fresh headless session on a clean clone: branch (a). `git status` from `plan-implementer`
+returned `BLOCKED shell-write-gate: plan-implementer must not run git`; the auto delegation default stands.
+Step 9 dry run (3-file toy plan, deliberate stray file + `find -exec git tag`): spawn OK; the tag never ran
+(command-guard blocks `find -exec` first, so the snapshot compare had nothing to catch); the stray file was
+caught only with `--untracked-files=all`, now in Phase 2c (plan `plan-phase2c-uall.md`).
+
 **2026-11-27 -- `/implement` hands the edits to `plan-implementer` (branch `feat/implement-subagent`, uncommitted).**
 Plan `plan-implement-subagent.md` (owner rule G-017) Steps 1-10 applied by a subagent; Step 11 (live install) is owner-run.
 Step 4 live probe: NOT RUN (a running session cannot spawn an agent file created mid-session: "Agent type

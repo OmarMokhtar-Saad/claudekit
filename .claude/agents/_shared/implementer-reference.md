@@ -58,7 +58,8 @@ At most 300 words: COMPLETE/PARTIAL/BLOCKED; per file one line of what changed; 
    `git -C <wt> symbolic-ref --short HEAD`, `git -C <wt> stash list`, `git -C <wt> tag -l`,
    `git -C <wt> for-each-ref`. Any difference = deviation -> `/rollback`.
 2. File set: the per-batch list = the `Files:` entries of the steps in this batch (not the whole
-   `Files:`). Run `git -C <wt> status --porcelain --ignored`; every reported path must be in the batch
+   `Files:`). Run `git -C <wt> status --porcelain --ignored --untracked-files=all` (without it a new
+   directory folds into one `?? dir/` entry and hides a stray file in it); every reported path must be in the batch
    list (or be the plan file, untouched). Tier 3: `python3 .claude/operations/scripts/review-record.py
    plan-check "$PLAN" --path "$p"` exit 0 per path. An extra path = deviation.
 3. `git -C <wt> diff --stat` and `git -C <wt> diff --check`.

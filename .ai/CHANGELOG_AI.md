@@ -1,6 +1,10 @@
 # AI Session Changelog
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
+## 2026-11-27 — plan-implementer probe, dry run, Phase 2c `-uall` fix (branch `fix/phase2c-uall`)
+Claude Opus 5.5. Probe = branch (a). Dry run found Phase 2c's file-set command hid files inside a new
+untracked dir; added `--untracked-files=all` and a behavioural test (mutation-checked: fails without it).
+
 ## 2026-11-27 — `/implement` delegates edits to `plan-implementer` (branch `feat/implement-subagent`)
 Claude Sonnet 5.5. Plan `plan-implement-subagent.md`, owner rule G-017. Added the scoped `plan-implementer` agent,
 its model-policy role and spend line, a role-keyed git/baseline refusal in `shell-write-gate.py`,
