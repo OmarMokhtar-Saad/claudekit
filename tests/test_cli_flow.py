@@ -72,7 +72,7 @@ class FlowTest(unittest.TestCase):
         self.assertTrue((plans / "plan-greet.md").exists(), out)
         self.assertIn("DECISION: APPROVED", (plans / "plan-greet.review.md").read_text())
         self.assertTrue(list((self.project / ".claude" / "reports" / "reviews").glob("*")), out)
-        # the flow never edits: the main session does that after approval
+        # the flow never edits: /implement does that after approval
         self.assertEqual((self.project / "src" / "hello.txt").read_text(), "hello\n")
         self.assertRegex(out, r"planner\s+3\s+\S+\s+61,300\s+\$0\.12")
         self.assertRegex(out, r"reviewer\s+2\s+")

@@ -96,14 +96,14 @@ If the classification is ambiguous, ask one clarifying question before proceedin
 
 ### Feature Pipeline (Full)
 ```
-[Coordinator] → [Planner] → [Reviewer] → [Main session edits] → [Verifier] → [GitOps]
+[Coordinator] → [Planner] → [Reviewer] → [Main session / plan-implementer edits] → [Verifier] → [GitOps]
                      ↑            |
                      └────────────┘  (revision loop, max 3)
 ```
 
 ### Bug Pipeline
 ```
-[Coordinator] → [Debugger] → [Planner] → [Reviewer] → [Main session edits] → [Verifier] → [GitOps]
+[Coordinator] → [Debugger] → [Planner] → [Reviewer] → [Main session / plan-implementer edits] → [Verifier] → [GitOps]
 ```
 
 ### Quality Pipeline
@@ -144,13 +144,13 @@ If the classification is ambiguous, ask one clarifying question before proceedin
 
 ### Security Audit Pipeline
 ```
-[Coordinator] → [Silent Failure Hunter + Security Scanner] → [Planner] → [Main session edits] → [Verifier]
+[Coordinator] → [Silent Failure Hunter + Security Scanner] → [Planner] → [Main session / plan-implementer edits] → [Verifier]
                     (parallel)
 ```
 
 ### Code Quality Audit Pipeline (TypeScript or Python)
 ```
-[Coordinator] → [TypeScript Reviewer | Python Reviewer] → [Main session edits (if fixes needed)] → [Verifier]
+[Coordinator] → [TypeScript Reviewer | Python Reviewer] → [Main session / plan-implementer edits (if fixes needed)] → [Verifier]
 ```
 
 ### EPIC / Blueprint Pipeline
@@ -350,7 +350,7 @@ Revisions: <count> / 3
 Summary:
   - Step 1 (Planner): Complete - plan.md created
   - Step 2 (Reviewer): In Progress - scoring...
-  - Step 3 (Main session edits): Pending
+  - Step 3 (Main session / plan-implementer edits): Pending
   - Step 4 (Verifier): Pending
   - Step 5 (GitOps): Pending
 ```
@@ -405,7 +405,7 @@ If an agent fails unexpectedly:
 ## Anti-Patterns (NEVER DO THESE)
 
 - NEVER skip the Reviewer in a Feature or Refactor pipeline
-- NEVER let the main session edit a Tier 2/3 task without a plan (Tier 3: and a recorded approval)
+- NEVER let the main session or an implementer subagent edit a Tier 2/3 task without a plan (Tier 3: and a recorded approval)
 - NEVER exceed 3 revision cycles without escalating
 - NEVER run destructive Git operations without user confirmation
 - NEVER classify a task and immediately start implementing without planning
@@ -417,7 +417,7 @@ If an agent fails unexpectedly:
 | Class | Route |
 |---|---|
 | TRIVIAL: <=2 lines OR purely cosmetic (color/size/spacing/label/log-level), single file, no API/architecture/security impact | FAST-PATH (Tier 1): the main session edits directly -> compile-verify. NO planner, NO reviewer. If criteria unmet or execution fails -> full pipeline. |
-| Single non-trivial task | Standard pipeline: Planner -> Reviewer -> user approval -> main session edits |
+| Single non-trivial task | Standard pipeline: Planner -> Reviewer -> user approval -> main session or plan-implementer edits |
 | Multiple independent tasks OR plan >15 files OR >2 phases | DECOMPOSE (Section 1) |
 | Needs external/current info | Delegate to `web-researcher` agent. NEVER call WebSearch/WebFetch from coordinator/planner/main context. |
 

@@ -56,7 +56,7 @@ route by mode — the one `docs` agent, `mode: create` for new documentation and
 Read-only agents with independent inputs (explore, debugger, security-scanner,
 code-reviewer, verifier-as-reader) MUST be spawned together in ONE message — never
 one per turn. Two independent read-only tasks already justify a parallel group. Only
-gitOps is a writing agent; code edits stay in the main session. Spawn mechanism per routing
+gitOps is a writing agent; code edits stay in the main session or plan-implementer. Spawn mechanism per routing
 row: slash commands where one exists (e.g. `/plan`, `/debug`), otherwise
 `claude -p --agent <name>` with the scoped tool row from
 `.claude/agents/_shared/INVOCATION.md`.

@@ -77,7 +77,7 @@ flowchart TD
     U[User request] --> C[coordinator<br/>classify + route]
     C --> P[planner<br/>plan.md]
     P -->|handoff: plan| R[reviewer<br/>threshold 90/100]
-    R -->|score >= 90: APPROVED| I[main session<br/>edits directly after plan-gate]
+    R -->|score >= 90: APPROVED| I[main session or plan-implementer<br/>edits after plan-gate]
     R -->|score < 90: REVISION REQUIRED<br/>revision loop, max 3| P
     R -->|revision 3/3 still failing| ESC[Escalate to human<br/>via coordinator]
     I -->|edits done| V[verifier<br/>threshold 80/100]

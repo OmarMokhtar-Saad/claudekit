@@ -12,6 +12,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Changed: `/implement` delegates the edits** of a plan of >= 3 files or steps to the new
+  `plan-implementer` agent in the plan's worktree (`--inline` keeps the old behaviour). The main
+  session checks the file set, git state and diff and runs the targeted tests. **Added:**
+  `plan-implementer` agent (no `memory:`, no git); `shell-write-gate` refuses git and baseline
+  flags for that role (tokenised check, speed bump). Owner rule G-017. Until the live role-signal
+  probe is recorded as branch (a), auto delegation is treated as inline and `--delegate` is opt-in.
+
 - **Security: `/review` arguments can no longer run shell commands.** `$ARGUMENTS` went straight
   onto the `review-panel.py prompts` command line, so `$(…)`, backticks or `;` in the arguments
   ran. Both the interactive and the scripted block now pass the raw text through a quoted

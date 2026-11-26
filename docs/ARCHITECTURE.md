@@ -30,7 +30,7 @@ ClaudeKit is a multi-agent orchestration framework for Claude Code. It provides 
 ```
 claudekit/
 ├── .claude/
-│   ├── agents/           # 23 specialized agent definitions
+│   ├── agents/           # 24 specialized agent definitions
 │   │   ├── _shared/      # Shared agent configuration
 │   │   ├── coordinator.md
 │   │   ├── planner.md
@@ -304,7 +304,7 @@ Hook scripts read project-specific commands (build, test, lint, coverage) from `
 
 ## Plan Gate Pipeline
 
-Code changes follow an approved plan; the main session edits directly and subagents only explore, review, test and verify.
+Code changes follow an approved plan; the main session (inline) or `plan-implementer` (delegated, `/implement` default for >= 3 files or steps) edits and other subagents only explore, review, test and verify.
 
 ### Pipeline Flow
 
@@ -321,7 +321,7 @@ Code changes follow an approved plan; the main session edits directly and subage
   plan-gate allows edits to the listed files; checkpoint-gate needs a ck-checkpoint tag
         |
         v
-  Main session edits
+  Main session / plan-implementer edits
 ```
 
 ---
@@ -410,7 +410,7 @@ Skills are markdown documents with YAML frontmatter, organized as self-contained
 The `skills-registry.json` contains:
 
 - **skills array**: Every skill with id, name, path, mandatory flag, usedBy agents, description
-- **agentMapping**: Maps each of the 23 agents to its ordered list of skill IDs
+- **agentMapping**: Maps each of the 24 agents to its ordered list of skill IDs
 - **version**: Registry format version for compatibility checks
 
 ### Skill Loading Protocol

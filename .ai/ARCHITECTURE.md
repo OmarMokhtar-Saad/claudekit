@@ -7,7 +7,7 @@ Reverse-engineered from the tree on 2026-07-08 (v2.1.0). Companion user-facing d
 - **Enforcement over exhortation.** Rules live in hooks (exit 2 = block) and validators, not just prompt text.
 - **Plan/execute separation.** Planner and Reviewer produce and score an approved `plan.md` (Tier + `Files:` list); `plan-gate` lets the main session edit only the files that plan names. Subagents explore, review, test and verify; they do not apply changes.
 - **File-based handoffs.** Agents communicate through artifacts (`plan.md`, review reports), not shared context. Fresh subagents avoid anchoring and cut tokens (~85% claimed; benchmark pending, task 010).
-- **Single responsibility per agent.** Planner plans, Reviewer reviews, the main session edits. No overlap.
+- **Single responsibility per agent.** Planner plans, Reviewer reviews, the main session or plan-implementer edits. No overlap.
 - **Config-driven.** Build/test/lint commands come from `.claude/hooks/config.json` (`project` section); nothing hardcoded per language.
 - **Copy, not link.** Installed projects are self-contained; zero runtime dependencies.
 - **Honest safety framing.** The security layer is a "denylist speed bump, not a sandbox" (SECURITY.md). Never oversell it.
@@ -59,7 +59,7 @@ sequenceDiagram
     else score ≥ 90
         R-->>C: APPROVED (review-record.py plan-write)
         C->>I: implement
-        I->>I: plan-gate allows edits to Files:<br/>main session edits directly
+        I->>I: plan-gate allows edits to Files:<br/>main session or plan-implementer edits
         I-->>C: edits done
         C->>V: verify
         V->>V: score: static 30% + tests 40% + coverage 30%

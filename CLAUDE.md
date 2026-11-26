@@ -41,7 +41,7 @@ ck doctor --strict # installed-tree health
 
 ## Hard rules (never violate — reasoning in .ai/KNOWLEDGE_BASE.md)
 
-1. Iron Law: Tier 3 source is edited only after a reviewed, recorded plan.md names the file in its `Files:` list (plan-gate); the main session edits directly, subagents only explore, review, test and verify.
+1. Iron Law: Tier 3 source is edited only after a reviewed, recorded plan.md names the file in its `Files:` list (plan-gate); the main session or `plan-implementer` edits; other subagents never edit.
 2. Blocking hooks: `exit 2` + stderr + fail closed. Never exit 1/stdout for a block.
 3. No `--dangerously-skip-permissions` anywhere (CI-gated); agent spawning per `.claude/agents/_shared/INVOCATION.md` with scoped `--allowedTools`.
 4. Protected files stay protected (hooks); deleting a Tier 3 file needs `(delete)` on its path in the plan's `Files:` (plan-gate), max 3 per plan.

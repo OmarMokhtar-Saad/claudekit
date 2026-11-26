@@ -14,7 +14,7 @@ Users install it into their own project (`pip install claudekit-agents && ck ini
 2. **Command layer** (`.claude/commands/`, 42 slash commands) — user entry points that dispatch agents and workflows (`/plan`, `/review`, `/implement`, `/santa`, `/gan-build`, `/prp-*`, …). See [COMMANDS.md](COMMANDS.md).
 3. **Skill library** (`.claude/skills/`, 75 skills + `skills-registry.json`) — reusable procedure modules agents load on demand; the registry maps skills to agents, with `using-superpowers` and `golden-rule` mandatory for all. See [SKILLS.md](SKILLS.md).
 4. **Enforcement layer** (`.claude/hooks/`, 19 shell hooks wired in `.claude/settings.json`; `src/claudekit/security/` Python validator) — blocks unsafe edits, bad commits, dangerous commands; profiles via `ECC_HOOK_PROFILE`. See [HOOKS.md](HOOKS.md) and [SECURITY_GUIDE.md](SECURITY_GUIDE.md).
-5. **Plan gate** (`.claude/hooks/plan-gate.sh`) — blocks Tier 3 source edits unless an approved, unchanged `plan.md` names the file in `Files:`; the main session edits directly. See [DOMAIN.md](DOMAIN.md).
+5. **Plan gate** (`.claude/hooks/plan-gate.sh`) — blocks Tier 3 source edits unless an approved, unchanged `plan.md` names the file in `Files:`; the main session or `plan-implementer` edits. See [DOMAIN.md](DOMAIN.md).
 
 Delivery shell around them: the Python CLI (`src/claudekit/cli/main.py` — init/doctor/diff/update/uninstall/validate/execute/rollback/agents/config/check-command/check-path), `install.sh` (staging + backup + atomic swap), and CI (11 GitHub Actions jobs).
 

@@ -33,7 +33,7 @@ The concepts ClaudeKit is *about*, independent of implementation. Terms: [GLOSSA
 
 ## Lifecycle of a change (canonical story)
 
-User asks → coordinator classifies → planner explores and emits plan.md → reviewer scores (reject → refine loop) → `review-record.py plan-write` records approval → main session edits directly → verifier scores → gitOps commits/PRs → hooks observed everything and telemetry landed in logs.
+User asks → coordinator classifies → planner explores and emits plan.md → reviewer scores (reject → refine loop) → `review-record.py plan-write` records approval → main session or plan-implementer edits → verifier scores → gitOps commits/PRs → hooks observed everything and telemetry landed in logs.
 
 ## Actors
 

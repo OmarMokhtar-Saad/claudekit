@@ -1,6 +1,6 @@
 # Agents
 
-ClaudeKit ships 23 specialized agents, each with a single responsibility. The
+ClaudeKit ships 24 specialized agents, each with a single responsibility. The
 core orchestration agents are documented in detail below; run `ck agents` (or
 `claudekit agents`) to list every installed agent, including the extended suite.
 
@@ -17,6 +17,7 @@ core orchestration agents are documented in detail below; run `ck agents` (or
 | GitOps | `gitOps.md` | Orange | Haiku | READ, WRITE, EXECUTE (git) |
 | Explore | `explore.md` | Yellow | Sonnet | READ |
 | Tester | `tester.md` | Lime | Sonnet | READ, WRITE, EXECUTE |
+| Plan Implementer | `plan-implementer.md` | Green | Sonnet | READ, WRITE, EXECUTE (no git) |
 | Security Scanner | `security-scanner.md` | Crimson | Opus | READ, EXECUTE |
 | DevOps | `devops.md` | Bronze | Sonnet | READ, WRITE, EXECUTE |
 | Database Architect | `database-architect.md` | Indigo | Sonnet | READ, WRITE |
@@ -48,7 +49,7 @@ core orchestration agents are documented in detail below; run `ck agents` (or
 
 **Output**: `plan.md`
 
-**Key rule**: Tier 3 plans MUST include a `Files:` list. The main session edits only those files after approval.
+**Key rule**: Tier 3 plans MUST include a `Files:` list. The main session or plan-implementer edits only those files after approval.
 
 ## Reviewer
 

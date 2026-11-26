@@ -92,7 +92,7 @@ surfaced by review-by-reading.
 
 ## Things future models must NEVER change
 
-1. The plan gate (Tier 3 source is edited only after a reviewed, recorded plan.md names the file in `Files:`; subagents never edit).
+1. The plan gate (Tier 3 source is edited only after a reviewed, recorded plan.md names the file in `Files:`; the main session or `plan-implementer` edits; other subagents never edit).
 2. Fail-closed blocking hooks (exit 2 + stderr).
 3. Permission gating (no `--dangerously-skip-permissions`, scoped tools).
 4. Protected-file guards and the `(delete)` marker (max 3 deletions per plan, plan-gate).

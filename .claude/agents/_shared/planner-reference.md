@@ -75,7 +75,7 @@ split step or a written justification.
 
 ## Plan Metadata Hard Rules
 
-The main session edits directly after approval; the plan is the only artifact. `plan-gate`
+The main session or the `plan-implementer` subagent edits after approval (`/implement` decides); the plan is the only artifact. `plan-gate`
 reads these fields, so they are not optional:
 - A `Tier:` line near the top: `Tier: 1`, `Tier: 2` or `Tier: 3` (blast radius, see CLAUDE.md).
 - A `Files:` list of every path the plan will touch, one backticked repo-relative path per

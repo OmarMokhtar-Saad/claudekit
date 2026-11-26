@@ -1,17 +1,15 @@
 ---
-description: "Execute an approved plan in the main session (direct edits)"
+description: "Execute an approved plan: delegate the edits to plan-implementer or edit inline"
 model: sonnet
 ---
 
 # Implement Command
 
-Execute an approved `plan.md` **in the main session** with Edit/Write. No ops.json, no
-executor script, no implementer agent. Subagents explore, review, test and verify; they
-never edit.
-
-## Task
-
-Implement the approved plan.
+Execute an approved `plan.md`. Edits are made by the `plan-implementer` subagent in the plan's
+worktree (default for plans of >= 3 files or >= 3 steps, see the reference) or inline by the main
+session (`--inline`; `--delegate` forces the subagent). No ops.json, no executor script. Other subagents explore, review, test and
+verify; they never edit. A subagent never runs git.
+Read `.claude/agents/_shared/implementer-reference.md` once before Phase 2a.
 
 ## Mandatory Skills
 
@@ -47,6 +45,8 @@ Before editing anything, verify ALL of the following:
    rather than working around the block.
 3. No conflicting uncommitted changes in the working tree.
 4. All dependencies the plan references are available.
+5. Delegation only: `[ "$(git rev-parse --show-toplevel)" = "<plan worktree>" ]` and
+   `git -C <wt> status --porcelain` is empty or lists only the plan file; else STOP.
 
 If ANY check fails, STOP and report it.
 
@@ -66,15 +66,23 @@ edit of a work period. To take one by hand: `/checkpoint`. `/rollback` restores 
   path; never continue in the planning/review conversation. If `suggest-compact` has
   fired, run `/compact` (or tell the user to) before Phase 2.
 
-### Phase 2: Execution
+### Phase 2a: Delegated
+Spawn `Agent(subagent_type="plan-implementer", model per policy)` with the brief from the
+reference, one batch at a time (edits never run in parallel). The agent runs no git.
+
+### Phase 2b: Inline
 1. Edit directly with Edit/Write, one plan step at a time, in the plan's order. Create
    files before referencing them.
 2. Keep the diff to what the plan says. Anything outside the plan is a plan change, not
    a quiet extra edit.
-3. Do not delegate edits to a subagent. Delegate searches and test runs only.
+3. Delegate searches and test runs in 2b; edits only to `plan-implementer` in 2a.
+
+### Phase 2c: Check the delegated diff
+Main session, small outputs only: run the check list in the reference after every batch.
 
 ### Phase 3: Verification
-- Run all verification steps defined in the plan.
+- Run all verification steps defined in the plan: targeted tests only, quiet (`-q`, output
+  tailed to 20 lines); the full suite is the owner's rule: one run on the Pro.
 - Build, tests and lint are independent: launch them in ONE batched message.
 - Every PASS/FAIL you report must quote the executed command's actual output (exit code,
   counts). Never estimate, and never report before the command has exited: a still-running
@@ -92,6 +100,7 @@ edit of a work period. To take one by hand: `/checkpoint`. `/rollback` restores 
 - NEVER delete files the plan does not name
 - NEVER modify files outside the project directory
 - NEVER skip verification steps
+- NEVER let a subagent commit, push, or run git
 - NEVER commit without running at least basic validation
 - If a step modifies more than 5 files, pause and confirm with the user
 - If a step would delete more than 3 files, pause and confirm with the user
@@ -117,6 +126,9 @@ edit of a work period. To take one by hand: `/checkpoint`. `/rollback` restores 
 - Files created: [list]
 - Files modified: [list]
 - Files deleted: [list]
+
+### Mode: inline | delegated (batches N)
+### Subagent report: COMPLETE / PARTIAL / BLOCKED
 
 ### Deviations from the plan
 - [none, or list]

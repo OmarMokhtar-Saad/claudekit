@@ -74,7 +74,7 @@ The loop halts immediately if:
 ## Integration
 
 - Uses **planner** agent for Phase 2
-- Phase 3 edits run in the main session
+- Phase 3 edits run in the main session or plan-implementer
 - Uses **tester** agent for Phase 4
 - Uses **reviewer** scoring logic for Phase 5
 - Respects all **operations system** safety guards

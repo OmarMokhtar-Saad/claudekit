@@ -49,13 +49,13 @@ Fast reference for using the multi-agent workflow system.
 
 ### "Build a feature"
 ```
-You → Coordinator → Planner → Reviewer → Main session edits → Verifier → GitOps
+You → Coordinator → Planner → Reviewer → Main session / plan-implementer edits → Verifier → GitOps
 ```
 Triggers: "add", "create", "implement", "build", "new"
 
 ### "Fix a bug"
 ```
-You → Coordinator → Debugger → Planner → Reviewer → Main session edits → Verifier → GitOps
+You → Coordinator → Debugger → Planner → Reviewer → Main session / plan-implementer edits → Verifier → GitOps
 ```
 Triggers: "fix", "broken", "error", "crash"
 

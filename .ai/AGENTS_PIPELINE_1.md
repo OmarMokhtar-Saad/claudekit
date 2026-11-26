@@ -53,7 +53,7 @@ TaskCreate:
 
 ## planner
 
-**Purpose.** Produces implementation plans: a human-readable `plan.md` (with a `Tier:` line and a `Files:` list) for every task. It writes only this one artifact; the main session implements the approved plan directly.
+**Purpose.** Produces implementation plans: a human-readable `plan.md` (with a `Tier:` line and a `Files:` list) for every task. It writes only this one artifact; `/implement` executes the approved plan (inline or via plan-implementer).
 
 **Responsibilities.** Codebase discovery, plan authoring, Tier and `Files:` list declaration, self-validation, revision handling from Reviewer feedback.
 
@@ -61,7 +61,7 @@ TaskCreate:
 
 **Frontmatter (verbatim).**
 - `name: planner`
-- `description: Creates implementation plans (plan.md with Tier and Files:). Explores codebase, writes the plan the main session then implements. Use when a task needs an implementation plan before coding begins.`
+- `description: Creates implementation plans (plan.md with Tier and Files:). Explores codebase, writes the plan that `/implement` then executes. Use when a task needs an implementation plan before coding begins.`
 - `model: opus` | `color: cyan`
 - `tools: ["Read", "Grep", "Glob", "Write"]`
 
@@ -102,7 +102,7 @@ echo "Create a plan for adding a caching layer. Write plan.md to .claude/plans/"
 
 **Dual Review Mode.** With `--dual` (for security-sensitive plans, DB migrations, public API or auth changes) it loads the `santa-method` skill and spawns two independent sub-reviewers — Reviewer A (Skeptic/Opus, threshold 95) and Reviewer B (Pragmatist/Sonnet, threshold 90) — with anti-anchoring isolation; approval requires both.
 
-**Dependencies.** Skills: `using-superpowers`, `golden-rule`, `clean-architecture`, `security-checklist`, plus `santa-method` in dual mode. Upstream: planner. Downstream: `review-record.py plan-write` then main-session edits, or planner (revision) or coordinator (escalation).
+**Dependencies.** Skills: `using-superpowers`, `golden-rule`, `clean-architecture`, `security-checklist`, plus `santa-method` in dual mode. Upstream: planner. Downstream: `review-record.py plan-write` then main-session or plan-implementer edits, or planner (revision) or coordinator (escalation).
 
 **Memory/context.** Reads `.claude/plans/`. Read-only (no Write/Edit/Bash in tools). Tracks revision number in its handoffs (`Revision Number: <N> of 3`).
 

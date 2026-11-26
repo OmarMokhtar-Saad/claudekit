@@ -55,7 +55,7 @@ allow rules were ALL tested and none bypass it. Consequence: headless agents del
 `.claude/`-destined artifacts via **stdout**, and the invoking command saves them
 (`tee`/`printf` into the plan file). Measured the same day: plan ($0.68/opus) → review
 ($0.18/opus, refutation ran) → verify ($0.64/sonnet, scores matched ground truth); the
-main session now edits directly, so there is no implement phase to bill.
+main session or a `plan-implementer` subagent now makes the edits; a delegated run bills one `plan-implementer` spawn, an inline run no implement phase.
 
 ---
 
@@ -186,7 +186,7 @@ subagent.
 - **On the interactive path any subagent granted `Bash` holds it UNSCOPED**, so the
   frontmatter grant enforces nothing. Scope Bash by keeping the grant to roles that need
   evidence (verifier, explorers) and by `--allowedTools` on headless spawns. The main
-  session edits directly after an approved plan; `plan-gate` binds Tier 3 edits to the
+  session or `plan-implementer` edits after an approved plan; `plan-gate` binds Tier 3 edits to the
   plan's `Files:` list.
 
 ### Actual frontmatter grants (bare names — the interactive Task path)

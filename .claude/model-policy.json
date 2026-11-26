@@ -105,6 +105,11 @@
       "accountable_for": "Supervising autonomous loops; pause on stagnation or error spirals.",
       "tier": "balanced"
     },
+    "plan-implementer": {
+      "accountable_for": "Applies the edits of an approved plan inside the plan's worktree; never runs git.",
+      "tier": "balanced",
+      "effort": "medium"
+    },
     "opensource-packager": {
       "accountable_for": "Generating open-source packaging for an already-sanitized repo.",
       "tier": "fast"
@@ -130,7 +135,7 @@
       "effort": "low"
     },
     "planner": {
-      "accountable_for": "Implementation plans (Tier and Files:) that the main session then implements.",
+      "accountable_for": "Implementation plans (Tier and Files:) that `/implement` then executes.",
       "tier": "most-capable",
       "effort": "high"
     },

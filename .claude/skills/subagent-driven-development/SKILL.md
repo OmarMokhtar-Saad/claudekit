@@ -1,16 +1,16 @@
 ---
 name: subagent-driven-development
-description: "Use when executing a plan task by task — the main session edits, fresh review-only subagents check each task"
+description: "Use when executing a plan task by task — the main session or plan-implementer edits, fresh review-only subagents check each task"
 ---
 
 # Subagent-Driven Development
 
 ## Core Principle
 
-**The main session writes the code; fresh subagents only look at it.** Each finished task is
+**The main session (or the scoped `plan-implementer`) writes the code; fresh review subagents only look at it.** Each finished task is
 checked by a read-only subagent with a focused context (specification review, then code
-quality review if the user asked). Subagents never get Edit/Write on source: edits stay in the
-main session, where `plan-gate` and `checkpoint-gate` apply.
+quality review if the user asked). Review subagents never get Edit/Write on source: edits stay in the
+main session or `plan-implementer`, where `plan-gate` and `checkpoint-gate` apply.
 
 ---
 
@@ -39,7 +39,7 @@ main session, where `plan-gate` and `checkpoint-gate` apply.
 For each task in the plan:
 
 ```
-[IMPLEMENT] Main session edits the files the task names (plan Files: list)
+[IMPLEMENT] Main session or plan-implementer edits the files the task names (plan Files: list)
     |
     v
 [SPEC REVIEW] Fresh read-only subagent: does the diff match the specification?
@@ -48,7 +48,7 @@ For each task in the plan:
 [CODE QUALITY REVIEW] Only if the user asked: is the code clean, tested, secure?
     |
     v
-[ACCEPT or REWORK] Main session fixes findings, or accepts the task
+[ACCEPT or REWORK] Main session or implementer fixes findings, or accepts the task
     |
     v
 [NEXT TASK]
@@ -58,7 +58,7 @@ Independent read-only checks (spec review, tests, security scan) run in ONE batc
 
 ---
 
-## Stage 1: Implement (main session)
+## Stage 1: Implement (main session inline OR plan-implementer subagent; see /implement Mode)
 
 Edit directly, one task at a time, in the plan's order. Stay inside the plan's `Files:` list;
 a path outside it is a plan change, not a quiet extra. Read each file before editing it.
@@ -96,7 +96,7 @@ At most 300 words: PASS / MINOR ISSUES / REWORK NEEDED, then findings as
 
 - **PASS**: Matches the specification. Proceed to code review if the user asked; else accept.
 - **MINOR ISSUES**: Small deviations that can be noted and accepted. Proceed.
-- **REWORK NEEDED**: Significant deviation. The main session fixes it and re-requests review.
+- **REWORK NEEDED**: Significant deviation. The main session or the implementer fixes it and re-requests review.
 
 ---
 
@@ -116,13 +116,13 @@ Runs only when the user asked for code review — never on its own. After spec r
 | **Duplication** | No copy-paste code that should be abstracted? |
 
 Outcomes: **PASS** (task complete), **MINOR ISSUES** (fix and accept), **REWORK NEEDED**
-(main session fixes with the specific feedback, then re-review).
+(main session or the implementer, re-briefed with the specific feedback, then re-review).
 
 ---
 
 ## Rework Protocol
 
-1. Apply the reviewer's specific findings yourself ("change X to Y because Z").
+1. Apply the reviewer's specific findings (main session or the implementer, re-briefed with them): "change X to Y because Z".
 2. Re-run the checks that failed; request a fresh review of the new diff.
 
 ### Maximum Rework Cycles
