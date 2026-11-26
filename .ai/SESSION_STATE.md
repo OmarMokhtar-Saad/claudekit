@@ -1,6 +1,11 @@
 # Session State
 
 > Update this file at the end of every significant AI working session. It is the resume point.
+**2026-11-27 -- full suite + on-demand trigger fix (main f022759, branch `fix/plan-implementer-trigger`).**
+Full suite on `f022759`: 1 failed, 11721 passed, 78 skipped, 1 xfailed. The one failure was
+`TestContextBudget::test_on_demand_entries_declare_triggers` (`plan-implementer.md` golden-rule line from #78);
+fixed, targeted run 120 passed, floor/docs/registry checks OK. No second full suite (only that line changed).
+
 **2026-11-27 -- plan-implementer probe + `--delegate` dry run (main f022759, branch `fix/phase2c-uall`).**
 Step 4 live probe, fresh headless session on a clean clone: branch (a). `git status` from `plan-implementer`
 returned `BLOCKED shell-write-gate: plan-implementer must not run git`; the auto delegation default stands.

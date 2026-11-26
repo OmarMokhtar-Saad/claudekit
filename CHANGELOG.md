@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- `plan-implementer` agent: the on-demand `golden-rule` entry now states its trigger as `— load only if ...`, so `test_on_demand_entries_declare_triggers` passes again (regression from #78, found by the full suite on `f022759`).
 - `/implement` Phase 2c: the file-set check runs `git status --porcelain --ignored --untracked-files=all`, so a stray file inside a new directory is listed by path instead of hidden in one `?? dir/` entry.
 
 - **Changed: `/implement` delegates the edits** of a plan of >= 3 files or steps to the new

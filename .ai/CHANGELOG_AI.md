@@ -1,6 +1,10 @@
 # AI Session Changelog
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
+## 2026-11-27 — plan-implementer on-demand trigger fix (branch `fix/plan-implementer-trigger`)
+Claude Opus 5.5. Full suite on main `f022759`: 1 failed, 11721 passed, 78 skipped, 1 xfailed (25:37). The failure,
+`test_on_demand_entries_declare_triggers`, came from #78's `golden-rule` line; reworded it (mutation-checked).
+
 ## 2026-11-27 — plan-implementer probe, dry run, Phase 2c `-uall` fix (branch `fix/phase2c-uall`)
 Claude Opus 5.5. Probe = branch (a). Dry run found Phase 2c's file-set command hid files inside a new
 untracked dir; added `--untracked-files=all` and a behavioural test (mutation-checked: fails without it).
