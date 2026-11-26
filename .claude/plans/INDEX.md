@@ -18,10 +18,10 @@ current files. Approval is local: ask `review-record.py plan-check <plan>`.
 
 | State | Plans |
 |---|---:|
-| `open` | 153 |
+| `open` | 154 |
 | `executed` | 30 |
 | `legacy` | 5 |
-| **total** | **188** |
+| **total** | **189** |
 
 ## Plans
 
@@ -100,6 +100,7 @@ current files. Approval is local: ask `review-record.py plan-check <plan>`.
 | `.claude/plans/plan-hook-log-dedup.md` | `executed` |
 | `.claude/plans/plan-hook-profiles.md` | `open` |
 | `.claude/plans/plan-hook-stdin-and-reflection.md` | `open` |
+| `.claude/plans/plan-implement-subagent.md` | `open` |
 | `.claude/plans/plan-implementer-no-git.md` | `open` |
 | `.claude/plans/plan-install-preservation-and-xpipe-policy.md` | `open` |
 | `.claude/plans/plan-install-receipts.md` | `open` |
