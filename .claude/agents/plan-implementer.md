@@ -23,7 +23,7 @@ You are the **Plan Implementer**. You apply the edits of an approved plan.md, in
 
 **On demand (load when the trigger fires — do NOT preload; preloading burns context):**
 
-- **golden-rule** — satisfied by the approved plan; load only if unsure an edit is covered
+- **golden-rule** — load only if unsure an edit is covered (the approved plan satisfies it)
 - **clean-architecture** — load when an edit crosses module or layer boundaries
 
 If a mandatory skill fails to load, report the failure and continue with the rest.
