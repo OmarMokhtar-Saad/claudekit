@@ -144,10 +144,13 @@ DEFAULT_AGENT_BUDGET = 15000000
 # Per-role lines, measured 2026-09-24 over 1391 subagent runs: near the p90 of runs that
 # finished (planner p50 5.9M, code-reviewer p90 7.5M, reviewer p90 3.1M, explore p90 3.8M), so
 # an ordinary run never meets its line while the runaway tail does - runs over 8M held 58% of
-# all subagent tokens. A role missing here gets DEFAULT_AGENT_BUDGET.
+# all subagent tokens. A role missing here gets DEFAULT_AGENT_BUDGET. plan-implementer:
+# no measured p90 yet; set at the code-reviewer line (6M); the old implementer ran 1.4M for 44
+# turns (plan-ck-implement.md:8). Recalibrate after 10 runs.
 ROLE_BUDGETS = {
     "planner": 8000000,
     "code-reviewer": 6000000,
+    "plan-implementer": 6000000,
     "reviewer": 3000000,
     "explore": 3000000,
     "plan-design-critic": 1500000,
@@ -623,7 +626,7 @@ def _subagent_verdict(tool_name, tool_input, payload, transcript_path, size, mes
                     ".claude/agent-memory/%s/." % agent_type if contract.get("memory") else "")
                 return (2,
                         "BLOCKED context-budget-gate: `%s` is not in %s's contract (tools: %s).%s "
-                        "Changes are made by the main session after an approved plan, never as this "
+                        "Changes are made by the main session or the plan-implementer subagent after an approved plan, never as this "
                         "agent's edits. Override for one process tree with CK_RAW_CONTEXT=1.\n"
                         % (tool_name, agent_type, ", ".join(sorted(allowed)), memory_note))
 

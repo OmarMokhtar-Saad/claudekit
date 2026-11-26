@@ -1,6 +1,13 @@
 # AI Session Changelog
 
 Reverse-chronological log of AI working sessions on this repository. Append an entry per significant session: date, model, scope, changes, follow-ups. (Product changes go in `CHANGELOG.md` — this file tracks the *work sessions* themselves.)
+## 2026-11-27 — `/implement` delegates edits to `plan-implementer` (branch `feat/implement-subagent`)
+Claude Sonnet 5.5. Plan `plan-implement-subagent.md`, owner rule G-017. Added the scoped `plan-implementer` agent,
+its model-policy role and spend line, a role-keyed git/baseline refusal in `shell-write-gate.py`,
+`_shared/implementer-reference.md`, `tests/test_implement_subagent.py`, and updated the prose that stated the old
+rule. Live role-signal probe not run from a subagent: branch (b) default (inline, `--delegate` opt-in).
+Follow-up: owner-run probe + `--delegate` dry run; Step 11 live install.
+
 ## 2026-11-07 — team coordination phases 1-4 (branch `feat/team-phase1`, PR #68)
 Claude Sonnet 5.5. Plan `plan-team-coordination.md` rev 5. Added `.team/` state, `team` CLI, edit gate,
 event log, handoff and stages, with tests. Live test with two real accounts exposed that no hook gave the

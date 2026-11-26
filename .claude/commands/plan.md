@@ -16,7 +16,7 @@ mostly re-reading files the parent had already read.
 | default | you write the plan inline | you can name the files the change touches (Tier 1/2) |
 | `--deep` | spawns the `planner` agent | the change spans unfamiliar subsystems, or you cannot name those files |
 
-After approval the **main session implements the plan directly** (`/implement`). There is
+After approval `/implement` implements the plan (inline, or via the `plan-implementer` subagent). There is
 no ops.json: the plan is the contract, and `plan-gate` binds Tier 3 edits to its `Files:`.
 
 ## Task

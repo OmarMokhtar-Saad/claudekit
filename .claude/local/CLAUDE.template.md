@@ -59,7 +59,7 @@ When making ANY code change, follow the plan flow:
 |---------|---------|
 | `/plan <task>` | Create implementation plan |
 | `/review` | Validate plan (90% threshold) |
-| `/implement` | Execute approved plan (main session edits) |
+| `/implement` | Execute approved plan (inline or plan-implementer) |
 | `/verify` | Run quality checks |
 | `/debug <issue>` | Diagnose bugs (read-only) |
 | `/docs <target>` | Generate documentation |

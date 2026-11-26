@@ -209,8 +209,8 @@ claudekit check-path /etc/passwd         # exit 2
 The plan -> review -> record chain, headless, in one command: `claude -p --agent planner` writes the
 plan (saved under `.claude/plans/` from the agent's stdout, since headless agents
 cannot write there), `--agent reviewer` scores it, and `review-record.py plan-write`
-records the verdict. The chain stops once the plan is approved; the main session then
-edits directly. Every agent runs with its
+records the verdict. The chain stops once the plan is approved; `/implement` then makes the
+edits (inline or via `plan-implementer`). Every agent runs with its
 scoped `--allowedTools` and `--output-format json`; the usage block of each run is the
 table printed at the end (turns, average context per turn, rebilled input tokens,
 cost). A review that does not approve the plan stops the chain with exit 2 and no

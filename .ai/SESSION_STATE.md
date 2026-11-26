@@ -1,6 +1,12 @@
 # Session State
 
 > Update this file at the end of every significant AI working session. It is the resume point.
+**2026-11-27 -- `/implement` hands the edits to `plan-implementer` (branch `feat/implement-subagent`, uncommitted).**
+Plan `plan-implement-subagent.md` (owner rule G-017) Steps 1-10 applied by a subagent; Step 11 (live install) is owner-run.
+Step 4 live probe: NOT RUN (a running session cannot spawn an agent file created mid-session: "Agent type
+'plan-implementer' not found"). Branch (b) fallback taken: default delegation is inline, `--delegate` is opt-in,
+until an owner-run probe in a fresh session records branch (a). Step 9 `--delegate` dry run also pending that session.
+
 **2026-11-07 -- team coordination phases 1-4 (branch `feat/team-phase1`, PR #68).**
 Plan `plan-team-coordination.md` rev 5 built: shared `.team/` state, `team` CLI, edit gate, events/handoff, stages.
 Live two-account test found no session identity (only PreToolUse goes through `dispatch.sh`): fixed with

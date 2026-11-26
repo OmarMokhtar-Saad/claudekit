@@ -23,7 +23,7 @@ Every item below is observed directly in the files read; none are speculative.
 
 8. **Phantom Stage 2 agent: opensource-forker.** Both `opensource-sanitizer.md` ("Stage 2 (forker) only runs if this PASSES") and `opensource-packager.md` ("Only runs after ... opensource-forker completes") reference a forker agent that has no file in `.claude/agents/`. Coordinator's Open Source routing lists only "Sanitizer → Packager".
 
-9. **WORKFLOW_FILE_TEMPLATES.md shipped a legacy plan-config schema.** **RESOLVED** — the JSON-operations pipeline has since been removed entirely; plans are now `plan.md` with a Tier and a `Files:` list, and the main session edits directly. The template no longer carries a JSON schema.
+9. **WORKFLOW_FILE_TEMPLATES.md shipped a legacy plan-config schema.** **RESOLVED** — the JSON-operations pipeline has since been removed entirely; plans are now `plan.md` with a Tier and a `Files:` list, and the main session edits directly (or via plan-implementer). The template no longer carries a JSON schema.
 
 10. **Pipeline shape conflicts between coordinator.md and HANDOFF_PROTOCOL.md.** Performance: coordinator has Explore → PerformanceOptimizer → Verifier → GitOps; HANDOFF_PROTOCOL has [Explore + PerformanceOptimizer] parallel → Planner → Implementer → Verifier (no GitOps). Docs: coordinator routes everything to DocUpdater; HANDOFF_PROTOCOL splits Documenter/DocUpdater. TDD: see issue 3. QUICK_START's Security Audit workflow ends at "→ report" while coordinator's continues → Planner → Implementer → Verifier.
 

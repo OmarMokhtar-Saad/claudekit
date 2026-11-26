@@ -106,7 +106,7 @@ ClaudeKit takes over — the Planner explores your codebase, writes an approved 
               └────────────┬────────────┘
                            │ ✓ Approved
               ┌────────────▼────────────┐
-              │  Main session edits     │  Only files listed in plan.md Files:
+              │  Main session / plan-implementer edits     │  Only files listed in plan.md Files:
               └────────────┬────────────┘
                            │
               ┌────────────▼────────────┐
@@ -190,14 +190,14 @@ The plan gate is the safety layer between "plan" and "code change." Tier 3 sourc
 ### Flow
 
 ```
-plan.md (Tier + Files:)  →  Reviewer score  →  review-record.py plan-write  →  plan-gate allows edits  →  main session edits
+plan.md (Tier + Files:)  →  Reviewer score  →  review-record.py plan-write  →  plan-gate allows edits  →  main session or plan-implementer edits
 ```
 
 - The Planner (or the main session) writes `plan.md` with a Tier and a `Files:` list.
 - The Reviewer scores it; a Tier 3 plan without a `Files:` list is auto-rejected.
 - `review-record.py plan-write` records the verdict (rejections return a brief).
 - `plan-gate` then allows edits to the listed files, and `checkpoint-gate` requires a git checkpoint first.
-- The main session edits directly; subagents only explore, review, test and verify.
+- The main session (inline) or `plan-implementer` (delegated, `/implement` default for >= 3 files or steps) edits; other subagents never edit.
 
 Protected files stay protected; see `CLAUDE.md` for the deletion limit.
 
@@ -278,7 +278,7 @@ Each project gets a `CONSTITUTION.md` — a governance document that agents enfo
 <!-- BEGIN GENERATED:inventory -->
 | Component | Count |
 |-----------|------:|
-| Agents    | 23 |
+| Agents    | 24 |
 | Commands  | 54 |
 | Skills    | 77 |
 | Hooks     | 47 |
@@ -293,7 +293,7 @@ Each project gets a `CONSTITUTION.md` — a governance document that agents enfo
 ```
 claudekit/
 ├── .claude/                          # Core system (copied to your project)
-│   ├── agents/                       # 23 specialized agents
+│   ├── agents/                       # 24 specialized agents
 │   │   ├── coordinator.md
 │   │   ├── planner.md
 │   │   ├── reviewer.md
@@ -406,7 +406,7 @@ Yes. Use `--minimal` to install only agents, commands, and operations scripts (n
 <details>
 <summary><strong>What if an edit goes wrong?</strong></summary>
 
-A git checkpoint is taken before the main session edits. Run `/rollback` to restore the working tree to it.
+A git checkpoint is taken before the main session or plan-implementer edits. Run `/rollback` to restore the working tree to it.
 </details>
 
 <details>

@@ -193,7 +193,7 @@ Result: SUCCESS -- all acceptance criteria met
 ## Integration
 
 - Uses **planner** agent for Phase 2
-- Phase 3: the main session edits directly per the approved plan
+- Phase 3: the main session or plan-implementer edits per the approved plan
 - Uses **tester** agent for Phase 4
 - Uses **reviewer** scoring logic for Phase 5
 - Respects all **operations system** safety guards

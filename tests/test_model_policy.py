@@ -127,6 +127,8 @@ class ModelPolicyIsTheSourceOfTruth(unittest.TestCase):
         "reviewer": "sonnet",
         # plan critics (2026-11-05): same tier as reviewer, which they run beside in /review.
         "plan-design-critic": "sonnet", "plan-readiness-critic": "sonnet",
+        # plan-implementer: scoped /implement delegate (plan-implement-subagent).
+        "plan-implementer": "sonnet",
         "tester": "sonnet",
         "verifier": "sonnet",
         "docs": "haiku", "explore": "haiku",

@@ -21,7 +21,7 @@ full plus the evidence. Maintainers only.
    -> the parent edits it directly; no planner, no reviewer. Tier 2: several files, no security or
    schema surface -> the parent writes plan.md itself and then edits; spawn the planner only above 5
    files. Tier 3: security-relevant, DB migrations, >15 ops or >2 phases -> planner -> reviewer ->
-   plan recorded -> the main session edits (plan-gate binds Tier 3 source edits).
+   plan recorded -> the main session or plan-implementer edits (plan-gate binds Tier 3 source edits).
 2. **Review and verification are on request.** No agent, command, skill or phase runs reviewer,
    code-reviewer or verifier on its own. When asked: fresh instance, never the author, told to refute;
    stop at the first round with zero blocking findings; 3 rounds is a hook-enforced ceiling.
@@ -50,7 +50,7 @@ full plus the evidence. Maintainers only.
 - **Blast-radius tiering** (route by risk surface, not line count):
   - **Tier 1** — single file, no public API/security/schema/architecture surface (any size: docs, tests, prompts, cosmetic, internal logic) -> edit directly -> compile-verify. SKIP planner/reviewer. Verification fails -> escalate to Tier 2.
   - **Tier 2** — multi-file, no security/schema surface -> plan.md (planner above 5 files); reviewer ONLY if architecture is touched (new module boundaries, public API, cross-layer changes).
-  - **Tier 3** — security-relevant, DB migrations, >15 ops, or >2 phases -> full pipeline (planner -> reviewer -> main-session edits), unchanged.
+  - **Tier 3** — security-relevant, DB migrations, >15 ops, or >2 phases -> full pipeline (planner -> reviewer -> main-session or plan-implementer edits), unchanged.
   - **Review floor (all tiers)**: every PR gets >=1 adversarial diff review before it merges — fresh `code-reviewer` instance, never the author, prompted to REFUTE not approve. Stop at the first round with zero blocking findings; ceiling 3 rounds; rounds 2+ read only the diff since the last verdict.
   - **Review routing**: plans -> `reviewer`; code + mutation proofs -> `code-reviewer`. See .ai/REVIEW_GUIDE.md
 - **Verifier gate**: the verifier agent NEVER auto-runs after implementation. Stop, ask the user, run only on explicit approval.

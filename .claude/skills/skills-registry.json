@@ -89,6 +89,7 @@
         "loop-operator",
         "opensource-packager",
         "opensource-sanitizer",
+        "plan-implementer",
         "planner",
         "reviewer",
         "security-scanner",
@@ -112,6 +113,7 @@
         "documenter",
         "explore",
         "gitOps",
+        "plan-implementer",
         "planner",
         "reviewer",
         "security-scanner",
@@ -168,6 +170,7 @@
       "mandatory": false,
       "usedBy": [
         "coordinator",
+        "plan-implementer",
         "tester",
         "verifier"
       ],
@@ -192,6 +195,7 @@
       "mandatory": false,
       "usedBy": [
         "database-architect",
+        "plan-implementer",
         "reviewer"
       ],
       "description": "Layer boundaries and dependency rules"
@@ -897,6 +901,12 @@
       "security-checklist",
       "supply-chain-audit",
       "using-superpowers"
+    ],
+    "plan-implementer": [
+      "clean-architecture",
+      "golden-rule",
+      "using-superpowers",
+      "verification-before-completion"
     ],
     "planner": [
       "brainstorming",

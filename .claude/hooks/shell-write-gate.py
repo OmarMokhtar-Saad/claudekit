@@ -19,6 +19,13 @@ Also: `rm`, `git rm` and `unlink` of a git-tracked Tier-3 file (plan-lib.sh `pg_
 denied unless the approved plan marks the path `(delete)` in `Files:`. Untracked files
 (`rm -rf build`, `.pyc`) are never blocked. Not detected: `find -delete`, `git clean`, `mv`,
 scripted `os.remove`, a delete inside `$(...)` (speed bump, not a sandbox).
+
+Role-keyed: when the caller is the `plan-implementer` subagent (payload `agent_type`, else the
+`agentType` of its `agent-<id>.meta.json`), any git command and the `--update-baseline` /
+`--no-verify` flags are refused (`_git_forbidden`); the main session owns git. Honest limits
+(speed bump, not a sandbox): `python -c`, scripts, `os.system` / `subprocess`, `find -exec git`,
+a renamed or copied git binary and `eval` of built strings are NOT caught. Compensating
+control: the /implement Phase 2c git-state snapshot compare.
 """
 import glob
 import json
@@ -275,6 +282,63 @@ def _tier3_delete_violation(command: str, cwd: str):
         return None
 
 
+_IMPLEMENTER = "plan-implementer"
+_WRAPPERS = {"env", "command", "sudo", "nohup", "time", "exec", "xargs", "nice", "builtin"}
+
+
+def _agent_role(payload) -> str:
+    """The caller's agent type: payload `agent_type`, else the meta file beside the agent's own
+    transcript (copied from context-budget-gate.py; hooks are standalone). "" when unknown."""
+    try:
+        value = payload.get("agent_type")
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+        agent_id = payload.get("agent_id")
+        path = payload.get("transcript_path")
+        if not (isinstance(agent_id, str) and agent_id.isalnum() and isinstance(path, str)):
+            return ""
+        stem = os.path.join(os.path.splitext(path)[0], "subagents", "agent-%s" % agent_id)
+        with open(stem + ".meta.json", "r", encoding="utf-8") as handle:
+            meta = json.load(handle)
+        value = meta.get("agentType") if isinstance(meta, dict) else None
+        return value.strip() if isinstance(value, str) and value.strip() else ""
+    except Exception:
+        return ""
+
+
+def _git_forbidden(command: str) -> str:
+    """Reason a command is off limits for plan-implementer (git or baseline flags), else ""."""
+    if re.search(r"--update-baseline|--no-verify", command):
+        return "baseline/no-verify flag"
+    norm = re.sub(r"\$\(|[`(){}]", ";", command)
+    for seg in re.split(r"[;&|\n]+", norm):
+        try:
+            tokens = shlex.split(seg)
+        except ValueError:
+            tokens = seg.split()
+        while tokens:
+            tok = tokens[0]
+            if re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", tok):
+                tokens.pop(0)
+            elif tok in _WRAPPERS:
+                tokens.pop(0)
+                while tokens and tokens[0].startswith("-"):
+                    tokens.pop(0)
+            else:
+                break
+        if not tokens:
+            continue
+        if os.path.basename(tokens[0]) == "git":
+            return "git"
+        if tokens[0] in ("sh", "bash", "zsh") and "-c" in tokens:
+            idx = tokens.index("-c")
+            if idx + 1 < len(tokens):
+                inner = _git_forbidden(tokens[idx + 1])
+                if inner:
+                    return inner
+    return ""
+
+
 def main() -> int:
     try:
         payload = json.load(sys.stdin)
@@ -286,6 +350,16 @@ def main() -> int:
         sys.stderr.write("BLOCKED shell-write-gate: could not parse the Bash payload (%s); "
                          "refusing an unverified command.\n" % exc)
         return 2
+    if _agent_role(payload) == _IMPLEMENTER:
+        try:
+            reason = _git_forbidden(command)
+        except Exception:
+            reason = "unverifiable command"
+        if reason:
+            sys.stderr.write(
+                "BLOCKED shell-write-gate: plan-implementer must not run git or mutate baselines "
+                "(%s); the main session owns git. Report what you need and stop.\n" % reason)
+            return 2
     form = _violates(command)
     if not form:
         cwd = payload.get("cwd") if isinstance(payload.get("cwd"), str) else os.getcwd()

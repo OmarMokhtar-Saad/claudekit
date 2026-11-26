@@ -73,7 +73,7 @@ Every plan that changes files MUST carry a `Files:` list. It:
 - Is what `plan-gate` enforces for Tier 3: an edit to a path not listed is blocked
 - Is frozen once the plan is approved (editing it invalidates the approval)
 
-The main session then implements the approved plan directly; there is no ops.json.
+`/implement` then executes the approved plan (inline or via `plan-implementer`); there is no ops.json.
 If the plan is exploratory or purely conceptual, note "No Files: needed - exploration only."
 
 ---

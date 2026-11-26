@@ -10,7 +10,7 @@ The record phase runs ``review-record.py plan-write`` with ``--python``; that de
 the main checkout's ``.venv`` interpreter (the first entry of ``git worktree list``),
 because worktrees do not carry a venv of their own. ``ck flow`` prints which one.
 
-The chain stops once the plan is approved: the main session then edits directly.
+The chain stops once the plan is approved: the chain ends; run `/implement` next.
 """
 
 import json
@@ -253,7 +253,7 @@ def run_flow(task, root, python, claude_bin, models, slug, out=sys.stdout):
     if rc != 0:
         return finish(2, f"review did not approve the plan (review-record exit {rc}; "
                          f"see {review})")
-    return finish(0, f"approved: {plan_md} ({review}); the main session implements it")
+    return finish(0, f"approved: {plan_md} ({review}); run /implement on it")
 
 
 def parse_models(items):

@@ -4,7 +4,7 @@ You are working **on** ClaudeKit (the multi-agent orchestration kit for Codex), 
 
 ## What this repo is
 
-Prompt corpus (23 agents · 54 commands · 77 skills in `.claude/`) + enforcement layer (47 hooks, `src/claudekit/security/`) + operations engine (`.claude/operations/scripts/`) + delivery shell (`src/claudekit/cli/`, `install.sh`, CI). Version 2.1.0 (unreleased tag); PyPI distribution `claudekit-agents`; CLI `claudekit`/`ck`; import package `claudekit`; zero runtime dependencies.
+Prompt corpus (24 agents · 54 commands · 77 skills in `.claude/`) + enforcement layer (47 hooks, `src/claudekit/security/`) + operations engine (`.claude/operations/scripts/`) + delivery shell (`src/claudekit/cli/`, `install.sh`, CI). Version 2.1.0 (unreleased tag); PyPI distribution `claudekit-agents`; CLI `claudekit`/`ck`; import package `claudekit`; zero runtime dependencies.
 
 ## Session setup gotcha (read first)
 
@@ -37,7 +37,7 @@ ck doctor --strict                        # installed-tree health
 
 ## Hard rules (never violate — reasoning in .ai/KNOWLEDGE_BASE.md)
 
-1. Iron Law: Tier 3 source is edited only after a reviewed, recorded plan.md names the file in its `Files:` list (plan-gate); the main session edits directly, subagents only explore, review, test and verify.
+1. Iron Law: Tier 3 source is edited only after a reviewed, recorded plan.md names the file in its `Files:` list (plan-gate); the main session or `plan-implementer` edits; other subagents never edit.
 2. Blocking hooks: `exit 2` + stderr + fail closed. Never exit 1/stdout for a block.
 3. No `--dangerously-skip-permissions` anywhere (CI-gated); agent spawning per `.claude/agents/_shared/INVOCATION.md` with scoped `--allowedTools`.
 4. Protected files stay protected (hooks); deleting a Tier 3 file needs `(delete)` on its path in the plan's `Files:` (plan-gate), max 3 per plan.
