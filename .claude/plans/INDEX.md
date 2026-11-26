@@ -18,10 +18,10 @@ current files. Approval is local: ask `review-record.py plan-check <plan>`.
 
 | State | Plans |
 |---|---:|
-| `open` | 154 |
+| `open` | 155 |
 | `executed` | 30 |
 | `legacy` | 5 |
-| **total** | **189** |
+| **total** | **190** |
 
 ## Plans
 
@@ -128,6 +128,7 @@ current files. Approval is local: ask `review-record.py plan-check <plan>`.
 | `.claude/plans/plan-parse-gate-fold-invariance.md` | `open` |
 | `.claude/plans/plan-parse-gate-ordering.md` | `open` |
 | `.claude/plans/plan-parse-gate-unresolved-paths.md` | `open` |
+| `.claude/plans/plan-phase2c-uall.md` | `open` |
 | `.claude/plans/plan-pipeline-session-hygiene.md` | `open` |
 | `.claude/plans/plan-plan-inline.md` | `open` |
 | `.claude/plans/plan-planner-read-and-turn-cap.md` | `open` |
